@@ -1,7 +1,7 @@
 _*
 dist
 
-AppleScriptServer.dSYM
+src/AppleScriptServer/Release
 
 .DS_Store
 node_modules
