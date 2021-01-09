@@ -1,0 +1,64 @@
+.imessage-auth {
+  position: relative;
+  max-width: 600px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-self: center;
+  ol { padding-left: 1.5em }
+  .perm { display: flex; align-items: center; margin: 4px 0 }
+  .perm button { padding: 6px 10px }
+  .name { width: 80px }
+  .status { margin-right: 1em }
+  .page-dots {
+    margin: .5rem 0;
+    text-align: center;
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin: 4px;
+      border-radius: 50%;
+      background: rgba(lightgray, .8);
+      &.selected { background: rgba(gray, .5) }
+    }
+  }
+  .page:not(.add-page) {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+    max-height: 800px;
+    justify-content: space-between;
+    img { display: block; margin: auto; max-width: 100%; }
+  }
+  .add-page .buttons {
+    margin: 2em 0;
+  }
+  .known-issues {
+    ol {margin: 0 1em}
+    li { margin: 1em 0;}
+  }
+  h3, .buttons, .show-more-info { text-align: center }
+  .show-more-info { margin: 1rem; cursor: default; }
+  .grayed { opacity: .7 }
+  .img-transition {
+    position: relative; margin: auto;
+    img { position: absolute }
+    .animating-img { animation: 1s img-transition infinite ease-in-out alternate; opacity: 0 }
+    // .animating-other-img { animation: 1s img-other-transition infinite ease-in-out alternate; opacity: 1 }
+  }
+  .grayscale {
+    filter: grayscale(1)
+  }
+}
+@keyframes img-transition {
+  0% { opacity: 0 }
+  75% { opacity: 1 }
+  100% { opacity: 1 }
+}
+
+@keyframes img-other-transition {
+  0% { opacity: 1 }
+  100% { opacity: 0 }
+}

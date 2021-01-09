@@ -1,0 +1,41 @@
+{
+  "name": "@textshq/platform-imessage",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "postinstall": "yarn build || true",
+    "build": "node-sass --output-style compressed src/auth.scss binaries/imessage-auth.css; yarn tsc",
+    "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
+    "build-asserver": "cd src/AppleScriptServer && xcodebuild -scheme AppleScriptServer -configuration Release SYMROOT='./' build"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn lint --fix || true"
+    }
+  },
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "clsx": "^1.1.1",
+    "conf": "^8.0.0",
+    "lodash": "^4.17.20",
+    "node-mac-permissions": "^2.2.0",
+    "p-retry": "^4.2.0",
+    "react": "https://github.com/TextsHQ/react-global-shim",
+    "react-helmet": "^6.1.0",
+    "use-force-update": "^1.0.7",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config",
+    "@textshq/platform-sdk": "link:../platform-sdk",
+    "@types/bluebird": "^3.5.33",
+    "@types/eslint": "^7.2.6",
+    "@types/lodash": "^4.14.167",
+    "@types/react": "^17.0.0",
+    "@types/uuid": "^8.3.0",
+    "eslint": "^7.14.0",
+    "husky": "^4.3.0",
+    "node-sass": "^5.0.0",
+    "typescript": "^4.1.2"
+  }
+}

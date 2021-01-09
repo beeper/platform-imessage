@@ -1,0 +1,107 @@
+import pRetry from 'p-retry'
+
+import { IS_BIG_SUR_OR_UP } from './constants'
+import spawnASServer from './as-server'
+import IS_DEV_ENVIRON from './is-dev-environ'
+
+enum ScriptName {
+  IS_MESSAGES_VISIBLE = 'messages-visible',
+  HIDE_MESSAGES = 'hide-messages',
+  HIDE_MESSAGES_BEHIND_TEXTS = 'hide-messages-behind-texts',
+  ENSURE_RUNNING = 'ensure-running',
+  SEND_TEXT = 'send-text',
+  SEND_FILE = 'send-file',
+  ASK_FOR_AUTOMATION = 'ask-for-automation',
+  CREATE_THREAD = 'create-thread',
+}
+
+const RETRY_OPTIONS: pRetry.Options = {
+  retries: 1,
+  minTimeout: 10,
+  onFailedAttempt: error => console.error(error),
+}
+
+function createAPIServer() {
+  const { run, exit } = spawnASServer()
+
+  const isMessagesVisible = () =>
+    run(ScriptName.IS_MESSAGES_VISIBLE)
+      .then(() => true)
+      .catch(() => false)
+
+  const hideMessages = () =>
+    run(ScriptName.HIDE_MESSAGES)
+
+  const sendText = (...args: any[]) =>
+    run(ScriptName.SEND_TEXT, [JSON.stringify(args)])
+
+  const sendFile = (...args: any[]) =>
+    run(ScriptName.SEND_FILE, [JSON.stringify(args)])
+
+  const ensureMessagesAppRunning = () =>
+    run(ScriptName.ENSURE_RUNNING)
+
+  const hideMessagesBehindTexts = () =>
+    run(ScriptName.HIDE_MESSAGES_BEHIND_TEXTS, [IS_DEV_ENVIRON ? 'Electron' : 'Texts'])
+
+  const newThread = (participants: string[]) =>
+    run(ScriptName.CREATE_THREAD, [
+      participants.map(x => `participant "${x}"`).join(','),
+      participants.map(x => `buddy "${x}" of imsgService`).join(','),
+    ])
+
+  const hideMessagesAppTimeout: NodeJS.Timeout = null
+  function hideMessagesAppAfterDelay() {
+    if (hideMessagesAppTimeout) clearTimeout(hideMessagesAppTimeout)
+    setTimeout(() => hideMessages(), 400)
+    setTimeout(() => hideMessages(), 800)
+  }
+
+  async function wrapHideIfNotVisible(cb: Function) {
+    if (IS_BIG_SUR_OR_UP) return cb()
+    const isVisible = await isMessagesVisible()
+    const result = await cb()
+    if (isVisible === false) hideMessagesAppAfterDelay()
+    return result
+  }
+
+  return {
+    async askForAutomationAccess() {
+      try {
+        await run(ScriptName.ASK_FOR_AUTOMATION)
+        await run(ScriptName.IS_MESSAGES_VISIBLE)
+        return true
+      } catch {
+        return false
+      }
+    },
+    async sendTextMessage(threadID: string, text: string) {
+      await ensureMessagesAppRunning()
+      await pRetry(
+        () => sendText(threadID, text, threadID.split(';').pop()),
+        RETRY_OPTIONS,
+      )
+    },
+    async sendFile(threadID: string, filePath: string) {
+      await ensureMessagesAppRunning()
+      await wrapHideIfNotVisible(() => {
+        hideMessagesBehindTexts()
+        return pRetry(
+          () => sendFile(threadID, filePath, threadID.split(';').pop()),
+          RETRY_OPTIONS,
+        )
+      })
+    },
+    async createThread(participants: string[]) {
+      await ensureMessagesAppRunning()
+      return wrapHideIfNotVisible(async () => {
+        hideMessagesBehindTexts()
+        const threadID = await newThread(participants) // text chat id iMessage;-;XYZ
+        return threadID
+      })
+    },
+    exit,
+  }
+}
+
+export default createAPIServer

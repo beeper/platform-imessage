@@ -1,0 +1,11 @@
+_*
+dist
+
+AppleScriptServer.dSYM
+
+.DS_Store
+node_modules
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
