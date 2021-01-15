@@ -1,4 +1,5 @@
 import os from 'os'
+import path from 'path'
 import type { SupportedReaction } from '@textshq/platform-sdk'
 
 export const supportedReactions: Record<string, SupportedReaction> = {
@@ -65,3 +66,5 @@ export const MSG_EXTENSION_PREFIX = 'com.apple.messages.MSMessageExtensionBalloo
 const MACOS_MAJOR_VERSION = +os.release().split('.')[0]
 export const IS_MOJAVE_OR_UP = MACOS_MAJOR_VERSION >= 18
 export const IS_BIG_SUR_OR_UP = MACOS_MAJOR_VERSION >= 20
+
+export const CHAT_DB_PATH = path.join(os.homedir(), 'Library/Messages/chat.db')

@@ -1,6 +1,6 @@
 _*
 dist
-
+src/RustServer/target
 src/AppleScriptServer/Release
 
 .DS_Store

@@ -1,11 +1,10 @@
-import os from 'os'
-import path from 'path'
 import bluebird from 'bluebird'
 import { maxBy } from 'lodash'
-import { parentPort } from 'worker_threads'
+// import { parentPort } from 'worker_threads'
 import { OnServerEventCallback, ServerEvent, ServerEventType, texts } from '@textshq/platform-sdk'
 
-const { IS_DEV } = texts
+import { CHAT_DB_PATH } from './constants'
+import spawnRustServer from './rust-server'
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -15,29 +14,13 @@ const MAP_DIRECTION_TO_SQL_OP = {
 export const THREADS_LIMIT = 50
 export const MESSAGES_LIMIT = 20
 
-const POLL_INTERVAL_MS = 1_000
-
 const COMMON_JOINS = `LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID`
 
 const MAP_MESSAGES_COLS = 'm.ROWID AS msgRowID, m.guid AS msgID, m.*, t.guid AS threadID, t.room_name, h.id AS participantID, oh.id AS otherID'
 
-const POLL_MSG_ROWID_COL_INDEX = 0
-const POLL_DATE_READ_COL_INDEX = 1
-const POLL_THREAD_ID_COL_INDEX = 2
-
-const CHAT_DB_PATH = path.join(os.homedir(), 'Library/Messages/chat.db')
-
 const SQLS = {
-  pollMessageCreateUpdate: `SELECT m.ROWID, m.date_read, t.guid, MAX(m.date)
-FROM message AS m
-LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-WHERE m.ROWID > ?
-OR m.date_read > ?
-GROUP BY t.guid
-ORDER BY date DESC`,
   getThreads: (cursorDirection: string) => `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
 FROM chat
 ${cursorDirection ? `WHERE msgDate ${cursorDirection} ?` : ''}
@@ -119,9 +102,16 @@ export default class DatabaseAPI {
 
   private lastDateRead = 0
 
-  private disposing = false
+  private onEvent: OnServerEventCallback
 
-  private pollTimeout: NodeJS.Timeout
+  private rustServer: ReturnType<typeof spawnRustServer>
+
+  private readonly onRustServerMessage = (data: any) => {
+    if (!data?.threads) return console.error('unknown message from rust_server')
+    const threadIDs = data.threads as string[]
+    const events = threadIDs.map<ServerEvent>(threadID => ({ type: ServerEventType.THREAD_MESSAGES_REFRESH, threadID }))
+    if (events.length > 0) this.onEvent(events)
+  }
 
   async init() {
     this.db = await getDB()
@@ -133,8 +123,7 @@ export default class DatabaseAPI {
   }
 
   dispose() {
-    clearTimeout(this.pollTimeout)
-    this.disposing = true
+    this.rustServer?.exit()
     return this.db.dispose()
   }
 
@@ -142,16 +131,15 @@ export default class DatabaseAPI {
     return this.db!.pluck_all(SQLS.getAccountLogins)
   }
 
-  private setLastCursorFromRawRows(rows: any[]) {
-    if (!rows.length) return
-    const maxDateRead = maxBy(rows, POLL_DATE_READ_COL_INDEX)?.[POLL_DATE_READ_COL_INDEX]
-    const maxRowID = maxBy(rows, POLL_MSG_ROWID_COL_INDEX)?.[POLL_MSG_ROWID_COL_INDEX]
-    if (maxRowID > this.lastRowID) {
-      this.lastRowID = maxRowID
+  private calledRustServerSetOnce = false
+
+  async updateRustServer(args: number[]) {
+    if (this.calledRustServerSetOnce) return
+    this.calledRustServerSetOnce = true
+    while (!this.rustServer) {
+      await bluebird.delay(10)
     }
-    if (maxDateRead > this.lastDateRead) {
-      this.lastDateRead = maxDateRead
-    }
+    this.rustServer!.send({ method: 'set', args })
   }
 
   setLastCursor(rows: any[]) {
@@ -164,34 +152,18 @@ export default class DatabaseAPI {
     if (maxDateRead > this.lastDateRead) {
       this.lastDateRead = maxDateRead
     }
+    this.updateRustServer([maxRowID, maxDateRead])
   }
 
   startPolling(onEvent: OnServerEventCallback) {
-    this.disposing = false
-    let wokeFromSleep = false
-    parentPort!.on('message', value => {
-      if (typeof value === 'string' && value === 'powermonitor-on-resume') {
-        wokeFromSleep = true
-      }
-    })
-    // const debouncedOnEvent = debounce(onEvent, 10_000)
-    const pollMessageCreateUpdate = async () => {
-      if (this.disposing) return
-      if (this.lastRowID && this.lastDateRead) {
-        if (wokeFromSleep) {
-          console.log('imsg woke from sleep, waiting 10s')
-          await bluebird.delay(10_000)
-        }
-        const rows: any[] = await this.db.raw_all(SQLS.pollMessageCreateUpdate, [this.lastRowID, this.lastDateRead])
-        if (IS_DEV) console.log(new Date(), this.lastRowID, this.lastDateRead, 'polling', rows.length)
-        const events = rows.map<ServerEvent>(arr => ({ type: ServerEventType.THREAD_MESSAGES_REFRESH, threadID: arr[POLL_THREAD_ID_COL_INDEX] }))
-        if (events.length > 0) onEvent(events)
-        this.setLastCursorFromRawRows(rows)
-        wokeFromSleep = false
-      }
-      this.pollTimeout = setTimeout(pollMessageCreateUpdate, POLL_INTERVAL_MS)
-    }
-    pollMessageCreateUpdate()
+    this.onEvent = onEvent
+    if (this.db) this.rustServer = spawnRustServer(this.onRustServerMessage)
+    // let wokeFromSleep = false
+    // parentPort!.on('message', value => {
+    //   if (typeof value === 'string' && value === 'powermonitor-on-resume') {
+    //     wokeFromSleep = true
+    //   }
+    // })
   }
 
   getThread(threadID: string): Promise<any[]> {

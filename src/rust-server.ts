@@ -1,0 +1,37 @@
+import { spawn } from 'child_process'
+import { texts } from '@textshq/platform-sdk'
+
+// const serverPath = path.join(texts.constants.BUILD_DIR_PATH + '/../../packages/platform-imessage/src/RustServer/target/Release/rust_server')
+const serverPath = texts.constants.BUILD_DIR_PATH + '/rust_server'
+
+function spawnRustServer(onMessage: (data: any) => void) {
+  const cp = spawn(serverPath)
+  const onStdOutData = (data: Buffer) => {
+    const str = data.toString()
+    if (texts.IS_DEV) console.log('RustServer:', str)
+    if (str[0] === '{') {
+      const json = JSON.parse(str)
+      onMessage(json)
+    }
+  }
+  const onError = (err: Error) => {
+    console.error('RustServer -> stream error', err)
+  }
+  cp.stdout.on('data', onStdOutData)
+  cp.stdout.on('error', onError)
+  cp.stderr.on('error', onError)
+  cp.on('error', error => {
+    texts.Sentry.captureException(error)
+    console.error('RustServer -> error', error)
+  })
+  const send = (input: any) => {
+    cp.stdin.write(JSON.stringify(input) + '\n')
+  }
+  const exit = () => cp.kill()
+  return {
+    send,
+    exit,
+  }
+}
+
+export default spawnRustServer

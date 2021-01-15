@@ -5,8 +5,9 @@
   "scripts": {
     "postinstall": "yarn build || true",
     "build": "node-sass --output-style compressed src/auth.scss binaries/imessage-auth.css; yarn tsc",
+    "build-as-server": "cd src/AppleScriptServer && xcodebuild -scheme AppleScriptServer -configuration Release SYMROOT='./' build && cp Release/AppleScriptServer ../../binaries/",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
-    "build-asserver": "cd src/AppleScriptServer && xcodebuild -scheme AppleScriptServer -configuration Release SYMROOT='./' build && cp Release/AppleScriptServer ../../binaries/"
+    "build-rust-server": "./build-rust-server.sh"
   },
   "husky": {
     "hooks": {
