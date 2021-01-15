@@ -124,7 +124,7 @@ export default class DatabaseAPI {
 
   dispose() {
     this.rustServer?.exit()
-    return this.db.dispose()
+    return this.db?.dispose()
   }
 
   getAccountLogins(): Promise<any[]> {

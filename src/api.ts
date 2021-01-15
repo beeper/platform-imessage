@@ -49,7 +49,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   dispose = () => {
     this.api.exit()
-    return this.dbAPI?.dispose()
+    return this.dbAPI.dispose()
   }
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
