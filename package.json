@@ -7,7 +7,8 @@
     "build": "node-sass --output-style compressed src/auth.scss binaries/imessage-auth.css; yarn tsc",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
     "build-as-server": "src/AppleScriptServer/build-as-server.sh",
-    "build-rust-server": "src/RustServer/build-rust-server.sh"
+    "build-rust-server": "src/RustServer/build-rust-server.sh",
+    "build-binaries": "yarn build-as-server; yarn build-rust-server"
   },
   "husky": {
     "hooks": {
