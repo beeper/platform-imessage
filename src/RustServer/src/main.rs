@@ -74,14 +74,8 @@ fn start_polling(
   args: &Vec<Value>,
   rx: &Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
 ) {
-  last_row_id.store(
-    args[0].as_i64().unwrap(),
-    Ordering::Release,
-  );
-  last_date_read.store(
-    args[1].as_i64().unwrap(),
-    Ordering::Release,
-  );
+  last_row_id.store(args[0].as_i64().unwrap(), Ordering::Release);
+  last_date_read.store(args[1].as_i64().unwrap(), Ordering::Release);
   let chat_db_path =
     dirs::home_dir().unwrap().as_path().display().to_string() + "/Library/Messages/chat.db";
   let thread_rx = Arc::clone(rx);
