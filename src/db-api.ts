@@ -139,7 +139,7 @@ export default class DatabaseAPI {
     while (!this.rustServer) {
       await bluebird.delay(10)
     }
-    this.rustServer!.send({ method: 'set', args })
+    this.rustServer!.send({ method: 'start_polling', args })
   }
 
   setLastCursor(rows: any[]) {

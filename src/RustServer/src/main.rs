@@ -71,15 +71,15 @@ fn set_last_cursor_from_rows(
 fn start_polling(
   last_row_id: &Arc<AtomicI64>,
   last_date_read: &Arc<AtomicI64>,
-  val: &Value,
+  args: &Vec<Value>,
   rx: &Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
 ) {
   last_row_id.store(
-    val["args"].as_array().unwrap()[0].as_i64().unwrap(),
+    args[0].as_i64().unwrap(),
     Ordering::Release,
   );
   last_date_read.store(
-    val["args"].as_array().unwrap()[1].as_i64().unwrap(),
+    args[1].as_i64().unwrap(),
     Ordering::Release,
   );
   let chat_db_path =
@@ -136,15 +136,16 @@ fn main() -> Result<()> {
     let json = line.unwrap();
     let val: Value = serde_json::from_str(&json).expect("Error converting JSON");
     match val["method"].as_str().expect("Malformed JSON: `method`") {
-      "set" => {
+      "start_polling" => {
         // { method: 'set', args: [ last_row_id, last_date_read ] }
         if is_running {
           continue;
         }
         is_running = true;
-        start_polling(&last_row_id, &last_date_read, &val, &rx);
+        let args = val["args"].as_array().unwrap();
+        start_polling(&last_row_id, &last_date_read, &args, &rx);
       }
-      "stop" => {
+      "stop_polling" => {
         let _ = tx.send(());
         is_running = false;
       }
