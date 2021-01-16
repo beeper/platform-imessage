@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result, Statement};
+use rusqlite::{Connection, OpenFlags, Result, Statement};
 use serde_json::{json, Value};
 use std::io;
 use std::io::prelude::*;
@@ -74,7 +74,8 @@ fn get_chat_db_path() -> String {
 
 fn get_db_conn() -> Connection {
   let chat_db_path = get_chat_db_path();
-  Connection::open(&chat_db_path).expect("Unable to open db")
+  Connection::open_with_flags(&chat_db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+    .expect("Unable to open db")
 }
 
 fn start_polling(
