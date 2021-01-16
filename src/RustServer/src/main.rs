@@ -68,6 +68,15 @@ fn set_last_cursor_from_rows(
   }
 }
 
+fn get_chat_db_path() -> String {
+  dirs::home_dir().unwrap().as_path().display().to_string() + "/Library/Messages/chat.db"
+}
+
+fn get_db_conn() -> Connection {
+  let chat_db_path = get_chat_db_path();
+  Connection::open(&chat_db_path).expect("Unable to open db")
+}
+
 fn start_polling(
   last_row_id: &Arc<AtomicI64>,
   last_date_read: &Arc<AtomicI64>,
@@ -76,16 +85,12 @@ fn start_polling(
 ) {
   last_row_id.store(args[0].as_i64().unwrap(), Ordering::Release);
   last_date_read.store(args[1].as_i64().unwrap(), Ordering::Release);
-  let chat_db_path =
-    dirs::home_dir().unwrap().as_path().display().to_string() + "/Library/Messages/chat.db";
   let thread_rx = Arc::clone(rx);
   let thread_last_row_id = last_row_id.clone();
   let thread_last_date_read = last_date_read.clone();
   thread::spawn(move || {
-    let db = Connection::open(&chat_db_path).expect("Unable to open db");
-    let mut poll_stmt = db
-      .prepare(POLL_MESSAGE_CREATE_UPDATE_QUERY)
-      .expect("Unable to prepare `POLL_MESSAGE_CREATE_UPDATE_QUERY`");
+    let db = get_db_conn();
+    let mut poll_stmt = db.prepare(POLL_MESSAGE_CREATE_UPDATE_QUERY).unwrap();
     let poll_duration = Duration::from_secs(1);
     loop {
       match thread_rx.lock().unwrap().try_recv() {
