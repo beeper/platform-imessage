@@ -1,8 +1,8 @@
 import { spawn } from 'child_process'
 import { texts } from '@textshq/platform-sdk'
 
-// const serverPath = path.join(texts.constants.BUILD_DIR_PATH + '/../../packages/platform-imessage/src/RustServer/target/Release/rust_server')
-const serverPath = texts.constants.BUILD_DIR_PATH + '/rust_server'
+// const serverPath = path.join(texts.constants.BUILD_DIR_PATH + `/../../packages/platform-imessage/src/RustServer/target/Release/rust_server_${process.arch}_macos`)
+const serverPath = texts.constants.BUILD_DIR_PATH + `/rust_server_${process.arch}_macos`
 
 function spawnRustServer(onMessage: (data: any) => void) {
   const cp = spawn(serverPath)
