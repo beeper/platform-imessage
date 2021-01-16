@@ -1,1 +1,4 @@
 * text=auto eol=lf
+binaries/rust_server_arm64_macos filter=lfs diff=lfs merge=lfs -text
+binaries/rust_server_x64_macos filter=lfs diff=lfs merge=lfs -text
+binaries/AppleScriptServer filter=lfs diff=lfs merge=lfs -text
