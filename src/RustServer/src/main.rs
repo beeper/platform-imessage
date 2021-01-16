@@ -25,6 +25,10 @@ OR m.date_read > ?
 GROUP BY t.guid
 ORDER BY date DESC";
 
+fn flush_stdout() {
+  io::stdout().flush().ok();
+}
+
 fn poll_message_create_update(
   stmt: &mut Statement,
   bindings: &[&String; 2],
@@ -114,6 +118,7 @@ fn start_polling(
           updated_thread_ids.push(row.thread_guid.as_ref());
         }
         println!("{}", json!({ "threads": updated_thread_ids }));
+        flush_stdout();
       }
       // dbg!(
       //   thread_last_row_id.load(Ordering::Acquire).to_string(),
