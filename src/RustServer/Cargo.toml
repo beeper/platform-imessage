@@ -7,6 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rusqlite = { version = "0.24.2", features = ["serde_json"] }
+rusqlite = { version = "0.24.2", features = ["serde_json", "bundled"] }
 dirs = "3.0.1"
 serde_json = "1.0"
