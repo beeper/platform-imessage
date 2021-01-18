@@ -3,7 +3,7 @@ import { groupBy, omit, truncate } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, Size } from '@textshq/platform-sdk'
 
 import IS_DEV_ENVIRON from './is-dev-environ'
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, AttachmentTransferState, BalloonBundleID, MSG_EXTENSION_PREFIX, supportedReactions } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
 import { fromAppleTime, replaceTilde, enhancedStringify, unpackTime } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplitParse from './safe-bplist-parse'
@@ -12,11 +12,8 @@ import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import type ThreadReadStore from './thread-read-store'
 
-const OBJ_REPLACEMENT_CHAR = '\uFFFC'
-const OBJ_REPLACEMENT_CHAR_REGEX = new RegExp(OBJ_REPLACEMENT_CHAR, 'g')
-
-const IMSG_EXTENSION_CHAR = '�'
-const IMSG_EXTENSION_CHAR_REGEX = new RegExp(IMSG_EXTENSION_CHAR, 'g')
+const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
+const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
 const whitespaceRegexGlobal = /\s+/g
 
@@ -54,8 +51,9 @@ function serializeMessageRow(row: any) {
 }
 
 const removeObjReplacementChar = (text: string) => {
-  if (!text || !OBJ_REPLACEMENT_CHAR_REGEX.test(text)) return text
-  return text.replace(OBJ_REPLACEMENT_CHAR_REGEX, ' ')
+  if (!text?.includes(OBJ_REPLACEMENT_CHAR)) return text
+  // @ts-expect-error fix after changing es target
+  return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ')
 }
 
 export function mapMessage(row: any, attachmentRows = [], currentUserID: string): Message {
@@ -111,7 +109,8 @@ export function mapMessage(row: any, attachmentRows = [], currentUserID: string)
     m.textHeading = 'Business Chat Extension'
     if (m.attachments[0]) m.attachments[0].size = { height: 80, width: 80 }
   }
-  if (row.balloon_bundle_id?.startsWith(MSG_EXTENSION_PREFIX)) m.text = m.text.replace(IMSG_EXTENSION_CHAR_REGEX, '')
+  // @ts-expect-error fix after changing es target
+  m.text = m.text.replaceAll(IMSG_EXTENSION_CHAR, '')
   if (row.associated_message_guid) {
     m.linkedMessageID = row.associated_message_guid.replace(/^(p:\d\/|bp:)/, '')
     const amt = row.associated_message_type
