@@ -116,6 +116,7 @@ export default class DatabaseAPI {
   async init() {
     this.db = await getDB()
     await this.db?.run(SQLS.createIndexes)
+    this.rustServer = spawnRustServer(this.onRustServerMessage)
   }
 
   get connected() {
@@ -157,7 +158,6 @@ export default class DatabaseAPI {
 
   startPolling(onEvent: OnServerEventCallback) {
     this.onEvent = onEvent
-    if (this.db) this.rustServer = spawnRustServer(this.onRustServerMessage)
     // let wokeFromSleep = false
     // parentPort!.on('message', value => {
     //   if (typeof value === 'string' && value === 'powermonitor-on-resume') {
