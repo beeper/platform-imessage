@@ -12,21 +12,23 @@ export const supportedReactions: Record<string, SupportedReaction> = {
 }
 
 export const ASSOC_MSG_TYPE = {
+  3: 'heading', // only seen used with apple watch replies like "completed a workout" or "closed all three Activity rings"
+
   1000: 'sticker',
 
-  2000: 'heart',
-  2001: 'like',
-  2002: 'dislike',
-  2003: 'laugh',
-  2004: 'emphasize',
-  2005: 'question',
+  2000: 'reacted_heart',
+  2001: 'reacted_like',
+  2002: 'reacted_dislike',
+  2003: 'reacted_laugh',
+  2004: 'reacted_emphasize',
+  2005: 'reacted_question',
 
-  3000: 'heart',
-  3001: 'like',
-  3002: 'dislike',
-  3003: 'laugh',
-  3004: 'emphasize',
-  3005: 'question',
+  3000: 'unreacted_heart',
+  3001: 'unreacted_like',
+  3002: 'unreacted_dislike',
+  3003: 'unreacted_laugh',
+  3004: 'unreacted_emphasize',
+  3005: 'unreacted_question',
 }
 
 export const EXPRESSIVE_MSGS = {
@@ -62,6 +64,8 @@ export enum BalloonBundleID {
 }
 
 export const MSG_EXTENSION_PREFIX = 'com.apple.messages.MSMessageExtensionBalloonPlugin'
+
+export const HEADING_SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)'
 
 const MACOS_MAJOR_VERSION = +os.release().split('.')[0]
 export const IS_MOJAVE_OR_UP = MACOS_MAJOR_VERSION >= 18

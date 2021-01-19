@@ -3,7 +3,7 @@ import { groupBy, omit, truncate } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, Size } from '@textshq/platform-sdk'
 
 import IS_DEV_ENVIRON from './is-dev-environ'
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
 import { fromAppleTime, replaceTilde, enhancedStringify, unpackTime } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplitParse from './safe-bplist-parse'
@@ -113,20 +113,29 @@ export function mapMessage(row: any, attachmentRows = [], currentUserID: string)
   m.text = m.text.replaceAll(IMSG_EXTENSION_CHAR, '')
   if (row.associated_message_guid) {
     m.linkedMessageID = row.associated_message_guid.replace(/^(p:\d\/|bp:)/, '')
-    const amt = row.associated_message_type
-    const assocMsgType = ASSOC_MSG_TYPE[amt]
+    const assocMsgType = ASSOC_MSG_TYPE[row.associated_message_type]
     if (assocMsgType !== 'sticker') {
-      const emoji = supportedReactions[assocMsgType]?.render
       m.isAction = !isSMS // apple imessage has a bug where sms can be reacted to
-      m.action = {
-        type: String(amt)[0] === '2' ? MessageActionType.MESSAGE_REACTION_CREATED : MessageActionType.MESSAGE_REACTION_DELETED,
-        messageID: m.linkedMessageID,
-        participantID: m.senderID,
-        reactionKey: assocMsgType,
-      }
-      if (emoji) {
+      const [actionType, actionKey] = assocMsgType.split('_') || []
+      const reactionType = {
+        reacted: MessageActionType.MESSAGE_REACTION_CREATED,
+        unreacted: MessageActionType.MESSAGE_REACTION_DELETED,
+      }[actionType]
+      if (reactionType) {
+        const emoji = supportedReactions[actionKey]?.render
+        m.action = {
+          type: reactionType,
+          messageID: m.linkedMessageID,
+          participantID: m.senderID,
+          reactionKey: actionKey,
+        }
+        if (emoji) {
+          m.parseTemplate = true
+          m.text = `{{sender}}: ${emoji} ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
+        }
+      } else if (assocMsgType === 'heading') {
+        m.text = m.text.replace(HEADING_SENDER_NAME_CONSTANT, m.isSender ? `{{${row.participantID}}}` : `{{${currentUserID}}}`)
         m.parseTemplate = true
-        m.text = `{{sender}}: ${emoji} ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
       }
     }
   }
