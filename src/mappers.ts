@@ -114,7 +114,7 @@ export function mapMessage(row: any, attachmentRows = [], currentUserID: string)
   if (row.associated_message_guid) {
     m.linkedMessageID = row.associated_message_guid.replace(/^(p:\d\/|bp:)/, '')
     const assocMsgType = ASSOC_MSG_TYPE[row.associated_message_type]
-    if (assocMsgType !== 'sticker') {
+    if (assocMsgType !== 'sticker' && assocMsgType) {
       m.isAction = !isSMS // apple imessage has a bug where sms can be reacted to
       const [actionType, actionKey] = assocMsgType.split('_') || []
       const reactionType = {
