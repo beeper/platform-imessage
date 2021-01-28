@@ -32,6 +32,9 @@ function mapAttachment(a: any): MessageAttachment {
   if (IS_DEV_ENVIRON && filePath) common.srcURL = 'file://' + filePath
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
     const size: Size = undefined // a.is_sticker ? { height: 80, width: 80 } :
+    if (ext === 'png') {
+      common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
+    }
     return { ...common, type: MessageAttachmentType.IMG, size }
   }
   if (VIDEO_EXTS.includes(ext)) {

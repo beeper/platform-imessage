@@ -5,6 +5,7 @@ import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
 import { PlatformAPI, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo } from '@textshq/platform-sdk'
 
+import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import iMessageAPI from './as2'
 import ThreadReadStore from './thread-read-store'
@@ -206,4 +207,10 @@ export default class AppleiMessage implements PlatformAPI {
   // ORDER BY date DESC`, [threadID, afterCursor])
   //     return x.c
   //   }
+
+  getAsset = async (pathHex: string) => {
+    const filePath = Buffer.from(pathHex, 'hex').toString()
+    const buffer = await fs.readFile(filePath)
+    return convertCGBI(buffer)
+  }
 }

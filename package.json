@@ -19,25 +19,27 @@
     "bluebird": "^3.7.2",
     "clsx": "^1.1.1",
     "conf": "^8.0.0",
+    "crc": "^3.8.0",
     "lodash": "^4.17.20",
     "node-mac-permissions": "^2.2.0",
-    "p-retry": "^4.2.0",
+    "p-retry": "^4.3.0",
     "react": "https://github.com/TextsHQ/react-global-shim",
     "react-helmet": "^6.1.0",
     "use-force-update": "^1.0.7",
-    "uuid": "^8.3.2"
+    "uuid": "^8.3.2",
+    "zlib": "^1.0.5"
   },
   "devDependencies": {
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config",
     "@textshq/platform-sdk": "link:../platform-sdk",
     "@types/bluebird": "^3.5.33",
     "@types/eslint": "^7.2.6",
-    "@types/lodash": "^4.14.167",
+    "@types/lodash": "^4.14.168",
     "@types/react": "^17.0.0",
     "@types/uuid": "^8.3.0",
-    "eslint": "^7.14.0",
-    "husky": "^4.3.0",
+    "eslint": "^7.18.0",
+    "husky": "^4.3.8",
     "node-sass": "^5.0.0",
-    "typescript": "^4.1.2"
+    "typescript": "^4.1.3"
   }
 }
