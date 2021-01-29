@@ -211,6 +211,10 @@ export default class AppleiMessage implements PlatformAPI {
   getAsset = async (pathHex: string) => {
     const filePath = Buffer.from(pathHex, 'hex').toString()
     const buffer = await fs.readFile(filePath)
-    return convertCGBI(buffer)
+    try {
+      return await convertCGBI(buffer)
+    } catch (err) {
+      return filePath
+    }
   }
 }
