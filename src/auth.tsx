@@ -7,11 +7,11 @@ import useForceUpdate from 'use-force-update'
 import { texts } from '@textshq/platform-sdk'
 
 import iMessageAPI from './as2'
-import { IS_MOJAVE_OR_UP } from './constants'
+import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP } from './constants'
 
 const staticPrefix = 'file://' + texts.constants.BUILD_DIR_PATH
-const contactsImg = path.join(staticPrefix, 'contacts-allow.png')
-const contactsHighlightedImg = path.join(staticPrefix, 'contacts-allow-highlighted.png')
+const contactsImg = '/catalina-contacts-allow.png'
+const contactsHighlightedImg = '/catalina-contacts-allow-highlighted.png'
 const fdaImg = path.join(staticPrefix, 'fda.png')
 const automationAccessHighlightedImg = path.join(staticPrefix, 'automation-messages-highlighted.png')
 const automationAccessImg = path.join(staticPrefix, 'automation-messages.png')
@@ -53,7 +53,7 @@ const ContactsAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
     <div className="page contacts">
       <h3>Contacts</h3>
       {!authorized && (
-        <div className={cn('img-transition', { grayscale })} style={{ width: 516, height: 292 }} onClick={imgClick}>
+        <div className={cn('img-transition', { grayscale })} style={{ width: 516, height: 258 }} onClick={imgClick}>
           <img className="animating-other-img" src={contactsImg} alt="Contacts Popup" />
           {!grayscale && <img className="animating-img" src={contactsHighlightedImg} alt="Contacts Popup" />}
         </div>
@@ -85,7 +85,7 @@ const FDAAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
       {!authorized && (
         <>
           <img className={cn({ grayscale })} src={fdaImg} alt="System Preferences – Full Disk Access" width={521} onClick={imgClick} />
-          <p>Texts needs full disk access to access the iMessage database</p>
+          <p>Texts needs full disk access to access the local iMessage database. Your data never touches our servers.</p>
           <ol>
             <li>Click the 🔒 icon in the bottom-left corner</li>
             <li>Check <strong>Texts.app</strong></li>
@@ -203,9 +203,11 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
     <h3>Known Issues</h3>
     <ol>
       <li>Typing indicator, sending reactions and sending read receipts aren't supported</li>
-      <li>Threads won't be marked as read on Messages.app — the blue unread icons will show up on your iPhone</li>
+      {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to isn't supported.</li>}
+      <li>Chats won't be marked as read on Messages.app — the blue unread icons will show up on your iPhone</li>
       <li>Messages.app needs to be open in the background to send messages but you can hide/minimize it</li>
     </ol>
+    <p style={{ textAlign: 'center' }}>We recommend using Texts with other platforms first if you rely on these to work perfectly.</p>
     <div className="buttons">
       <button type="button" onClick={selectNextPage}>Next &rarr;</button>
     </div>
@@ -213,11 +215,11 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
 )
 
 const pages = [
+  KnownIssuesPage,
   ContactsAuthPage,
   IS_MOJAVE_OR_UP && FDAAuthPage,
   IS_MOJAVE_OR_UP && AutomationAuthPage,
   NotificationsPromptPage,
-  KnownIssuesPage,
   AddAccountPage,
 ].filter(Boolean)
 

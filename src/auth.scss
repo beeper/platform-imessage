@@ -42,23 +42,4 @@
   h3, .buttons, .show-more-info { text-align: center }
   .show-more-info { margin: 1rem; cursor: default; }
   .grayed { opacity: .7 }
-  .img-transition {
-    position: relative; margin: auto;
-    img { position: absolute }
-    .animating-img { animation: 1s img-transition infinite ease-in-out alternate; opacity: 0 }
-    // .animating-other-img { animation: 1s img-other-transition infinite ease-in-out alternate; opacity: 1 }
-  }
-  .grayscale {
-    filter: grayscale(1)
-  }
-}
-@keyframes img-transition {
-  0% { opacity: 0 }
-  75% { opacity: 1 }
-  100% { opacity: 1 }
-}
-
-@keyframes img-other-transition {
-  0% { opacity: 1 }
-  100% { opacity: 0 }
 }
