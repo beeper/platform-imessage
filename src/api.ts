@@ -214,7 +214,7 @@ export default class AppleiMessage implements PlatformAPI {
     try {
       return await convertCGBI(buffer)
     } catch (err) {
-      return 'file://' + filePath
+      return 'file://' + encodeURI(filePath)
     }
   }
 }

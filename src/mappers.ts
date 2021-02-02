@@ -2,7 +2,6 @@ import path from 'path'
 import { groupBy, omit, truncate } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, Size } from '@textshq/platform-sdk'
 
-import IS_DEV_ENVIRON from './is-dev-environ'
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
 import { fromAppleTime, replaceTilde, enhancedStringify, unpackTime } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
@@ -29,7 +28,7 @@ function mapAttachment(a: any): MessageAttachment {
     srcURL: filePath,
     loading: a.transfer_state !== AttachmentTransferState.DOWNLOADED,
   }
-  if (IS_DEV_ENVIRON && filePath) common.srcURL = 'file://' + filePath
+  if (filePath) common.srcURL = 'file://' + encodeURI(filePath)
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
     const size: Size = undefined // a.is_sticker ? { height: 80, width: 80 } :
     if (ext === 'png') {
@@ -276,9 +275,7 @@ export function mapThread(
     },
     timestamp: fromAppleTime(chat.msgDate) || new Date(),
   }
-  if (IS_DEV_ENVIRON) {
-    if (thread.imgURL) thread.imgURL = 'file://' + thread.imgURL
-  }
+  if (thread.imgURL) thread.imgURL = 'file://' + encodeURI(thread.imgURL)
   return thread
 }
 
