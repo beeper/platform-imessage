@@ -8,12 +8,13 @@ function spawnASServer() {
   const cp = spawn(serverPath, ['embedded-json'])
   const ev = new EventEmitter()
   const onData = (data: Buffer) => {
-    const str = data.toString()
-    if (texts.IS_DEV) console.log('AppleScriptServer:', str)
-    if (str[0] === '{') {
-      const json = JSON.parse(str)
+    const items = data.toString().split('\n')
+    if (texts.IS_DEV) console.log('AppleScriptServer:', items)
+    items.forEach(item => {
+      if (item[0] !== '{') return console.error('AppleScriptServer: unknown', item)
+      const json = JSON.parse(item)
       ev.emit(json.tag, json)
-    }
+    })
   }
   const onError = (err: Error) => {
     console.error('AppleScriptServer -> stream error', err)
