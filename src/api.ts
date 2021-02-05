@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
-import { PlatformAPI, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo } from '@textshq/platform-sdk'
+import { PlatformAPI, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts } from '@textshq/platform-sdk'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
@@ -12,6 +12,7 @@ import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
+import { csrStatus } from './csr'
 
 export default class AppleiMessage implements PlatformAPI {
   private currentUserID: string
@@ -46,6 +47,12 @@ export default class AppleiMessage implements PlatformAPI {
   init = async (_: any, { dataDirPath }: AccountInfo) => {
     await this.dbAPI.init()
     this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
+    csrStatus().then(status => {
+      texts.trackPlatformEvent({
+        csrutilStatus: status,
+        enabled: status.includes('enabled.'),
+      })
+    }).catch(console.error)
   }
 
   dispose = () => {
