@@ -10,8 +10,8 @@ import iMessageAPI from './as2'
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP } from './constants'
 
 const staticPrefix = 'file://' + texts.constants.BUILD_DIR_PATH
-const contactsImg = '/catalina-contacts-allow.png'
-const contactsHighlightedImg = '/catalina-contacts-allow-highlighted.png'
+const contactsImg = 'catalina-contacts-allow.png'
+const contactsHighlightedImg = 'catalina-contacts-allow-highlighted.png'
 const fdaImg = path.join(staticPrefix, 'fda.png')
 const automationAccessHighlightedImg = path.join(staticPrefix, 'automation-messages-highlighted.png')
 const automationAccessImg = path.join(staticPrefix, 'automation-messages.png')
