@@ -4,18 +4,18 @@ import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import { getAuthStatus, askForContactsAccess, askForFullDiskAccess } from 'node-mac-permissions'
 import useForceUpdate from 'use-force-update'
-import { texts } from '@textshq/platform-sdk'
 
 import iMessageAPI from './as2'
-import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP } from './constants'
+import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH } from './constants'
 
-const staticPrefix = 'file://' + texts.constants.BUILD_DIR_PATH
+const staticPrefix = 'file://' + BINARIES_DIR_PATH
 const contactsImg = 'catalina-contacts-allow.png'
 const contactsHighlightedImg = 'catalina-contacts-allow-highlighted.png'
 const fdaImg = path.join(staticPrefix, 'fda.png')
 const automationAccessHighlightedImg = path.join(staticPrefix, 'automation-messages-highlighted.png')
 const automationAccessImg = path.join(staticPrefix, 'automation-messages.png')
 const notificationsMessagesImg = path.join(staticPrefix, 'notifications-messages.png')
+const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
 const openSecuritySystemPrefs = (prefPath: string) =>
   window.open('x-apple.systempreferences:com.apple.preference.security?' + prefPath)
@@ -247,7 +247,7 @@ const AppleiMessageAuth: React.FC<{ login: Function, isReauthing: boolean }> = (
   return (
     <div className="auth imessage-auth">
       <Helmet>
-        <link rel="stylesheet" href={path.join(staticPrefix, 'imessage-auth.css')} />
+        <link rel="stylesheet" href={cssPath} />
       </Helmet>
       {createElement(pages[pageIndex], { selectPrevPage, selectNextPage, selectFDAPage, login, isReauthing })}
       <div className="page-dots">
