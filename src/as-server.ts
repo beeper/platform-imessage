@@ -12,6 +12,7 @@ function spawnASServer() {
     const items = data.toString().split('\n')
     if (texts.IS_DEV) console.log('AppleScriptServer:', items)
     items.forEach(item => {
+      if (!item) return
       if (item[0] !== '{') return console.error('AppleScriptServer: unknown', item)
       const json = JSON.parse(item)
       ev.emit(json.tag, json)
