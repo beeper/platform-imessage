@@ -60,6 +60,7 @@ function createAPIServer() {
   async function wrapHideIfNotVisible(cb: Function) {
     if (IS_BIG_SUR_OR_UP) return cb()
     const isVisible = await isMessagesVisible()
+    hideMessagesBehindTexts()
     const result = await cb()
     if (isVisible === false) hideMessagesAppAfterDelay()
     return result
@@ -85,7 +86,6 @@ function createAPIServer() {
     async sendFile(threadID: string, filePath: string) {
       await ensureMessagesAppRunning()
       await wrapHideIfNotVisible(() => {
-        hideMessagesBehindTexts()
         return pRetry(
           () => sendFile(threadID, filePath, threadID.split(';').pop()),
           RETRY_OPTIONS,
@@ -95,7 +95,6 @@ function createAPIServer() {
     async createThread(participants: string[]) {
       await ensureMessagesAppRunning()
       return wrapHideIfNotVisible(async () => {
-        hideMessagesBehindTexts()
         const threadID = await newThread(participants) // text chat id iMessage;-;XYZ
         return threadID
       })
