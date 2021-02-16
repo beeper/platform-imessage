@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import childProcess from 'child_process'
 import { EventEmitter } from 'events'
 import { texts } from '@textshq/platform-sdk'
 import { BINARIES_DIR_PATH } from './constants'
@@ -6,7 +6,8 @@ import { BINARIES_DIR_PATH } from './constants'
 const serverPath = BINARIES_DIR_PATH + '/AppleScriptServer'
 
 function spawnASServer() {
-  const cp = spawn(serverPath, ['embedded-json'])
+  const spawn = () => childProcess.spawn(serverPath, ['embedded-json'])
+  let cp = spawn()
   const ev = new EventEmitter()
   const onData = (data: Buffer) => {
     const items = data.toString().split('\n')
@@ -29,6 +30,9 @@ function spawnASServer() {
     texts.Sentry.captureException(error)
     console.error('AppleScriptServer -> error', error)
   })
+  cp.on('exit', (code) => {
+    console.error('AppleScriptServer -> exit', { code })
+  })
   const run = <T>(scriptName: string, args: string[] = []) => (
     new Promise<T>((resolve, reject) => {
       const tag = Date.now().toString(36) + Math.random().toString(36)
@@ -37,6 +41,7 @@ function spawnASServer() {
         if (json.error) reject(new Error(json.error))
         else resolve(json.output)
       })
+      if (cp.stdin.destroyed) cp = spawn()
       cp.stdin.write(JSON.stringify(input) + '\n')
     })
   )

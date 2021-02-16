@@ -1,5 +1,5 @@
 import path from 'path'
-import { spawn } from 'child_process'
+import childProcess from 'child_process'
 import { texts } from '@textshq/platform-sdk'
 
 import { BINARIES_DIR_PATH } from './constants'
@@ -8,7 +8,8 @@ import { BINARIES_DIR_PATH } from './constants'
 const serverPath = path.join(BINARIES_DIR_PATH, `rust_server_${process.arch}_macos`)
 
 function spawnRustServer(onMessage: (data: any) => void) {
-  const cp = spawn(serverPath)
+  const spawn = () => childProcess.spawn(serverPath)
+  let cp = spawn()
   const onStdOutData = (data: Buffer) => {
     const str = data.toString()
     if (texts.IS_DEV) console.log('RustServer:', str)
@@ -27,7 +28,11 @@ function spawnRustServer(onMessage: (data: any) => void) {
     texts.Sentry.captureException(error)
     console.error('RustServer -> error', error)
   })
+  cp.on('exit', (code) => {
+    console.error('RustServer -> exit', { code })
+  })
   const send = (input: any) => {
+    if (cp.stdin.destroyed) cp = spawn()
     cp.stdin.write(JSON.stringify(input) + '\n')
   }
   const exit = () => cp.kill()
