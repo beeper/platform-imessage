@@ -1,6 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
 
-import { mapMessage } from './mappers'
 import { IS_BIG_SUR_OR_UP } from './constants'
 
 const info: PlatformInfo = {
@@ -32,7 +31,6 @@ const info: PlatformInfo = {
   attachments: {
     gifMimeType: 'image/gif',
   },
-  mapMessage,
   auth: texts.React?.lazy(() => import('./auth')),
   getUserProfileLink: ({ email, phoneNumber }) =>
     `imessage://${email || phoneNumber}`,
