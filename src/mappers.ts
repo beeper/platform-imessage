@@ -30,7 +30,7 @@ function mapAttachment(a: any): MessageAttachment {
   }
   if (filePath) common.srcURL = 'file://' + encodeURI(filePath)
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    const size: Size = undefined // a.is_sticker ? { height: 80, width: 80 } :
+    const size: Size = a.is_sticker ? { height: 80, width: undefined } : undefined
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
@@ -55,7 +55,7 @@ function serializeMessageRow(row: any) {
 const removeObjReplacementChar = (text: string) => {
   if (!text?.includes(OBJ_REPLACEMENT_CHAR)) return text
   // @ts-expect-error fix after changing es target
-  return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ')
+  return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
 export function mapMessage(row: any, attachmentRows = [], currentUserID: string): Message {
