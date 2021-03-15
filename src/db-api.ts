@@ -1,7 +1,7 @@
 import bluebird from 'bluebird'
 import { maxBy } from 'lodash'
 // import { parentPort } from 'worker_threads'
-import { OnServerEventCallback, ServerEvent, ServerEventType, texts } from '@textshq/platform-sdk'
+import { OnServerEventCallback, ServerEvent, ServerEventType } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
 import spawnRustServer from './rust-server'
@@ -210,7 +210,7 @@ export default class DatabaseAPI {
   }
 
   async searchMessages(typed: string, threadID: string, cursor: string, direction: string) {
-    // @ts-expect-error FIXME esnext / webpack / ts-loader issue
+    // @ts-expect-error replaceAll
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]
