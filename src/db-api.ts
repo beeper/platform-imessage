@@ -102,7 +102,11 @@ export default class DatabaseAPI {
 
   private lastDateRead = 0
 
-  private onEvent: OnServerEventCallback
+  private eventQueue: ServerEvent[] = []
+
+  private onEvent: OnServerEventCallback = events => {
+    this.eventQueue.push(...events)
+  }
 
   private rustServer: ReturnType<typeof spawnRustServer>
 
@@ -157,6 +161,7 @@ export default class DatabaseAPI {
   }
 
   startPolling(onEvent: OnServerEventCallback) {
+    this.onEvent(this.eventQueue)
     this.onEvent = onEvent
     // let wokeFromSleep = false
     // parentPort!.on('message', value => {
