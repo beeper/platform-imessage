@@ -1,8 +1,8 @@
 import Conf from 'conf'
 
-const dotRegex = /\./g
 export const normalizeThreadID = (t: string) =>
-  t.replace(dotRegex, '|')
+  // @ts-expect-error replaceAll
+  t.replaceAll('.', '|')
 
 export default class ThreadReadStore {
   constructor(private readonly userDataDirPath: string) {}
