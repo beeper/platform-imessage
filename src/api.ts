@@ -86,7 +86,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getThreads = async (inboxName: InboxName, { cursor, direction }: PaginationArg = { cursor: null, direction: null }): Promise<Paginated<Thread>> => {
+  getThreads = async (inboxName: InboxName, pagination: PaginationArg): Promise<Paginated<Thread>> => {
     if (inboxName !== InboxName.NORMAL) {
       return {
         items: [],
@@ -94,6 +94,7 @@ export default class AppleiMessage implements PlatformAPI {
         oldestCursor: null,
       }
     }
+    const { cursor, direction } = pagination || { cursor: null, direction: null }
     this.ensureDB()
     const chatRows = await this.dbAPI.getThreads(cursor, direction)
     const mapMessageArgsMap: { [threadID: string]: [any[], any[]] } = {}
@@ -123,8 +124,9 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getMessages = async (threadID: string, { cursor, direction }: PaginationArg = { cursor: null, direction: null }): Promise<Paginated<Message>> => {
+  getMessages = async (threadID: string, pagination: PaginationArg): Promise<Paginated<Message>> => {
     this.ensureDB()
+    const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
     msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
@@ -136,8 +138,9 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  searchMessages = async (typed: string, { cursor, direction }: PaginationArg = { cursor: null, direction: null }, threadID?: string): Promise<Paginated<Message>> => {
+  searchMessages = async (typed: string, pagination: PaginationArg, threadID?: string): Promise<Paginated<Message>> => {
     this.ensureDB()
+    const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.searchMessages(typed, threadID, cursor, direction)
     const msgRowIDs = msgRows.map(m => m.msgRowID)
     const attachmentRows = msgRows.length ? await this.dbAPI.getAttachments(msgRowIDs) : []
