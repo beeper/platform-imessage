@@ -74,7 +74,6 @@ export function mapMessage(row: any, attachmentRows = [], currentUserID: string)
     isErrored: row.error !== 0,
     isDelivered: true, // row.is_delivered === 1,
     seen: isGroup ? undefined : fromAppleTime(row.date_read),
-    reactions: [],
     attachments,
     textFooter: row.expressive_send_style_id
       ? `(Sent with ${(EXPRESSIVE_MSGS[row.expressive_send_style_id] || row.expressive_send_style_id)} effect)`

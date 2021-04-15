@@ -57,7 +57,7 @@ function getURLBalloonProps(payloadData: any, message: Message): Partial<Message
     const { tweetID, username } = parseTweetURL(url) || {}
     if (username) {
       return {
-        attachments: [],
+        attachments: undefined,
         tweet: {
           id: tweetID,
           user: {
