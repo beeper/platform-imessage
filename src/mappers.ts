@@ -171,7 +171,7 @@ export function mapMessage(row: any, attachmentRows = [], currentUserID: string)
       }
     } else if (row.item_type === 3) {
       const firstAttachmentRow = attachmentRows[0]
-      if (firstAttachmentRow) {
+      if (firstAttachmentRow?.attachmentID) {
         m.text = '{{sender}} changed the group photo'
         m.attachments = []
         m.action = {
