@@ -38,7 +38,7 @@ ${COMMON_JOINS}
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 WHERE t.guid = ?
 ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
-ORDER BY date DESC
+ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
   getMessagesWithChatRowID: (cursorDirection: string, limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}

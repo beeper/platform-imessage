@@ -128,7 +128,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.ensureDB()
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
-    msgRows.reverse()
+    if (direction !== 'after') msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
     const attachmentRows = msgRows.length ? await this.dbAPI.getAttachments(msgRowIDs) : []
     const items = mapMessages(msgRows, attachmentRows, this.currentUserID)
