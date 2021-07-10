@@ -59,7 +59,7 @@ const removeObjReplacementChar = (text: string) => {
 }
 
 export function mapMessage(row: any, attachmentRows = [], currentUserID: string): Message {
-  if (row.is_data_detected === 0) return
+  if (row.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = row.service === 'SMS'
   const isGroup = !!row.room_name
