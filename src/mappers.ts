@@ -10,13 +10,14 @@ import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import type ThreadReadStore from './thread-read-store'
+import type { MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
 const whitespaceRegexGlobal = /\s+/g
 
-function mapAttachment(a: any): MessageAttachment {
+function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   if (a.transfer_state == null) return
   const filePath = replaceTilde(a.filename)
   const { base, ext: _ext } = filePath ? path.parse(filePath) : { base: a.transfer_name, ext: '' }
@@ -45,7 +46,7 @@ function mapAttachment(a: any): MessageAttachment {
   return { ...common, type: MessageAttachmentType.UNKNOWN }
 }
 
-function serializeMessageRow(row: any) {
+function serializeMessageRow(row: MappedMessageRow) {
   return {
     ...omit(row, ['attributedBody', 'message_summary_info']),
     payload_data: row.payload_data && Buffer.from(row.payload_data as Uint8Array),
@@ -58,7 +59,7 @@ const removeObjReplacementChar = (text: string) => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-export function mapMessage(row: any, attachmentRows = [], currentUserID: string): Message {
+export function mapMessage(row: MappedMessageRow, attachmentRows = [], currentUserID: string): Message {
   if (row.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = row.service === 'SMS'
@@ -220,13 +221,13 @@ export const mapAccountLogin = (al: string) => al?.replace(/^E:/, '')
 type Context = {
   currentUserID: string
   handleRowsMap: { [threadID: string]: any[] }
-  mapMessageArgsMap?: { [threadID: string]: [any[], any[]] }
+  mapMessageArgsMap?: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[]] }
   groupImagesMap?: { [attachmentID: string]: string }
   threadReadStore: ThreadReadStore
 }
 
 export function mapThread(
-  chat: any,
+  chat: MappedChatRow,
   context: Context,
 ): Thread {
   const { currentUserID, threadReadStore } = context
@@ -265,7 +266,7 @@ export function mapThread(
     type: isGroup ? 'group' : 'single',
     messages: {
       hasMore: true,
-      oldestCursor: chat.msgDate,
+      oldestCursor: String(chat.msgDate),
       items: messages,
     },
     participants: {
@@ -278,10 +279,10 @@ export function mapThread(
   return thread
 }
 
-export const mapThreads = (chatRows: any[], context: Context) =>
+export const mapThreads = (chatRows: MappedChatRow[], context: Context) =>
   chatRows.map(chat => mapThread(chat, context))
 
-export function mapMessages(rows: any[], attachmentRows: any[], currentUserID: string, addThreadIDs = false): Message[] {
+export function mapMessages(rows: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], currentUserID: string, addThreadIDs = false): Message[] {
   const grouped = groupBy(attachmentRows, 'msgRowID')
   return rows.map(r => {
     const m = mapMessage(r, grouped[r.msgRowID], currentUserID)

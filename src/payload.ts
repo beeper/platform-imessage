@@ -94,7 +94,7 @@ function getApplePayProps(payloadData: any) {
   }
 }
 
-export function getPayloadProps(payloadData: any, message: Message, { balloon_bundle_id }: { balloon_bundle_id: BalloonBundleID }): Partial<Message> {
+export function getPayloadProps(payloadData: any, message: Message, { balloon_bundle_id }: { balloon_bundle_id: string }): Partial<Message> {
   if (!payloadData) return {}
   if (balloon_bundle_id === BalloonBundleID.URL) return getURLBalloonProps(payloadData, message)
   if (balloon_bundle_id === BalloonBundleID.APPLE_PAY) return getApplePayProps(payloadData)

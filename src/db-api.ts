@@ -5,6 +5,7 @@ import { OnServerEventCallback, ServerEvent, ServerEventType } from '@textshq/pl
 
 import { CHAT_DB_PATH } from './constants'
 import spawnRustServer from './rust-server'
+import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -85,7 +86,7 @@ async function getDB() {
   } catch (err) { console.error(err) }
 }
 
-async function waitForRows(queryFn: () => Promise<any[]>, minRowCount = 1, maxAttempt = 3) {
+async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxAttempt = 3) {
   let attempt = 0
   let rows = []
   while (attempt++ < maxAttempt && rows.length < minRowCount) {
@@ -132,7 +133,7 @@ export default class DatabaseAPI {
     return this.db?.dispose()
   }
 
-  getAccountLogins(): Promise<any[]> {
+  getAccountLogins(): Promise<string[]> {
     return this.db!.pluck_all(SQLS.getAccountLogins)
   }
 
@@ -171,7 +172,7 @@ export default class DatabaseAPI {
     // })
   }
 
-  getThread(threadID: string): Promise<any[]> {
+  getThread(threadID: string): Promise<ChatRow[]> {
     return this.db.all(SQLS.getThread, [threadID])
   }
 
@@ -183,18 +184,18 @@ export default class DatabaseAPI {
     return this.db.all(SQLS.getThreadParticipants, [chatRowID])
   }
 
-  getThreadParticipantsWithWait(chatRow: any, userIDs: string[]) {
+  getThreadParticipantsWithWait(chatRow: ChatRow, userIDs: string[]) {
     return waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
   }
 
-  async fetchLastMessageRow(threadRowID: string) {
-    const msgRows: any[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 1), [threadRowID])
+  async fetchLastMessageRow(threadRowID: number) {
+    const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 1), [threadRowID])
     const msgRowIDs = msgRows.map(m => m.msgRowID)
     const attachmentRows = msgRows.length ? await this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs) : []
     return [msgRows, attachmentRows]
   }
 
-  getThreads(cursor: string, direction: 'after' | 'before'): Promise<any[]> {
+  getThreads(cursor: string, direction: 'after' | 'before'): Promise<MappedChatRow[]> {
     return this.db.all(SQLS.getThreads(MAP_DIRECTION_TO_SQL_OP[direction]), cursor ? [+cursor] : [])
   }
 
@@ -202,7 +203,7 @@ export default class DatabaseAPI {
     return this.db.raw_all(SQLS.getGroupImages)
   }
 
-  getMessages(threadID: string, cursor: string, direction: 'after' | 'before'): Promise<any[]> {
+  getMessages(threadID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     return this.db.all(
       SQLS.getMessages(cursorDirection),
@@ -210,7 +211,7 @@ export default class DatabaseAPI {
     )
   }
 
-  getAttachments(msgRowIDs: number[]): Promise<any[]> {
+  getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
     return this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs)
   }
 
@@ -220,7 +221,7 @@ export default class DatabaseAPI {
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]
     if (threadID) bindings.push(threadID)
-    const msgRows: any[] = await this.db.all(
+    const msgRows: MappedMessageRow[] = await this.db.all(
       SQLS.searchMessages(cursorDirection, threadID),
       bindings,
     )

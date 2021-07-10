@@ -13,6 +13,7 @@ import ThreadReadStore from './thread-read-store'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
+import type { MappedMessageRow } from './types'
 
 export default class AppleiMessage implements PlatformAPI {
   private currentUserID: string
@@ -97,7 +98,7 @@ export default class AppleiMessage implements PlatformAPI {
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     this.ensureDB()
     const chatRows = await this.dbAPI.getThreads(cursor, direction)
-    const mapMessageArgsMap: { [threadID: string]: [any[], any[]] } = {}
+    const mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], any[]] } = {}
     const handleRowsMap: { [threadID: string]: any[] } = {}
     const allMsgRows = []
     const [,, groupImagesRows] = await Promise.all([
