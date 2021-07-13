@@ -10,7 +10,7 @@ export default class ThreadReadStore {
   private store = new Conf({ cwd: this.userDataDirPath, configName: 'imessage' })
 
   markThreadRead(threadID: string, messageID: string) {
-    this.store.set('lastRead.' + normalizeThreadID(threadID), messageID)
+    this.store.set('lastRead.' + normalizeThreadID(threadID), messageID || '')
   }
 
   isThreadUnread(threadID: string, lastMessageID: string) {
