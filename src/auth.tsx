@@ -117,7 +117,7 @@ const AutomationAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
     setLoading(true)
     const api = iMessageAPI()
     automationAuthorized = await api.askForAutomationAccess()
-    api.exit()
+    api.dispose()
     setCalledOnce(true)
     setLoading(false)
   }

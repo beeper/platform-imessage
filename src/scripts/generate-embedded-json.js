@@ -30,8 +30,7 @@ async function main() {
       ext === '.js' ? `ObjC.import('stdlib')
 var fn = (${source})
 var args = \${0}
-var out  = fn.apply(null, args)
-JSON.stringify(out)` : source,
+var out  = fn.apply(null, args)` : source,
     ]
   }))
   const json = JSON.stringify(out)

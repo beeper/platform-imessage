@@ -1,4 +1,6 @@
+import childProcess from 'child_process'
 import pRetry from 'p-retry'
+import { parentPort } from 'worker_threads'
 
 import { IS_BIG_SUR_OR_UP } from './constants'
 import spawnASServer from './as-server'
@@ -8,7 +10,7 @@ enum ScriptName {
   IS_MESSAGES_VISIBLE = 'messages-visible',
   HIDE_MESSAGES = 'hide-messages',
   HIDE_MESSAGES_BEHIND_TEXTS = 'hide-messages-behind-texts',
-  ENSURE_RUNNING = 'ensure-running',
+  MESSAGES_RUNNING = 'messages-running',
   SEND_TEXT = 'send-text',
   SEND_FILE = 'send-file',
   ASK_FOR_AUTOMATION = 'ask-for-automation',
@@ -20,6 +22,8 @@ const RETRY_OPTIONS: pRetry.Options = {
   minTimeout: 10,
   onFailedAttempt: error => console.error(error),
 }
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 function createAPIServer() {
   const { run, exit } = spawnASServer()
@@ -38,8 +42,21 @@ function createAPIServer() {
   const sendFile = (...args: any[]) =>
     run(ScriptName.SEND_FILE, [JSON.stringify(args)])
 
-  const ensureMessagesAppRunning = () =>
-    run(ScriptName.ENSURE_RUNNING)
+  let spawnedMessagesApp = false
+  const ensureMessagesAppRunning = async () => {
+    const running = await run(ScriptName.MESSAGES_RUNNING)
+    if (running) return
+    spawnedMessagesApp = true
+    childProcess.spawn('/usr/bin/open', ['-gjb', 'com.apple.MobileSMS'])
+    await sleep(200)
+  }
+
+  const dispose = () => {
+    exit()
+    if (spawnedMessagesApp) {
+      childProcess.spawn('/usr/bin/killall', ['Messages'])
+    }
+  }
 
   const hideMessagesBehindTexts = () =>
     run(ScriptName.HIDE_MESSAGES_BEHIND_TEXTS, [IS_DEV_ENVIRON ? 'Electron' : 'Texts'])
@@ -99,7 +116,7 @@ function createAPIServer() {
         return threadID
       })
     },
-    exit,
+    dispose,
   }
 }
 

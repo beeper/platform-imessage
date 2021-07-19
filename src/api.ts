@@ -57,7 +57,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = () => {
-    this.api.exit()
+    this.api.dispose()
     return this.dbAPI.dispose()
   }
 
