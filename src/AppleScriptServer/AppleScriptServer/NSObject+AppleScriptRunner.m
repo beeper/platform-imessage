@@ -14,7 +14,7 @@ NSString *embeddedBase64JSONBigSur = @"eyJhc2stZm9yLWF1dG9tYXRpb24iOlsiQXBwbGVTY
 
 - (void) loadFromEmbeddedJSON {
     bool isBigSur = [self isBigSur];
-    if (isBigSur) NSLog(@"loading bigsur embedded JSON");
+    // if (isBigSur) NSLog(@"loading bigsur embedded JSON");
 
     NSData *embeddedData = [[NSData alloc] initWithBase64EncodedString:(isBigSur ? embeddedBase64JSONBigSur : embeddedBase64JSON) options:0];
     NSDictionary *data = [NSJSONSerialization JSONObjectWithData:embeddedData options:NSUTF8StringEncoding error:nil];
@@ -23,45 +23,45 @@ NSString *embeddedBase64JSONBigSur = @"eyJhc2stZm9yLWF1dG9tYXRpb24iOlsiQXBwbGVTY
 
     [self setScripts:data];
 }
-- (void) generateJSON {
-    NSData *data = [NSJSONSerialization dataWithJSONObject:[self scripts] options:NSJSONWritingSortedKeys error:nil];
-    NSString *str = [data base64EncodedStringWithOptions:0];
-    NSLog(@"Embedded: %@", str);
-}
-- (void) loadScripts: (NSURL *)directory {
-    bool isBigSur = [self isBigSur];
+// - (void) generateJSON {
+//     NSData *data = [NSJSONSerialization dataWithJSONObject:[self scripts] options:NSJSONWritingSortedKeys error:nil];
+//     NSString *str = [data base64EncodedStringWithOptions:0];
+//     NSLog(@"Embedded: %@", str);
+// }
+// - (void) loadScripts: (NSURL *)directory {
+//     bool isBigSur = [self isBigSur];
 
-    NSString *jstemplate = @"ObjC.import('stdlib')\nvar fn = (%@)\nvar args = ${0}\nvar out  = fn.apply(null, args)\nJSON.stringify(out)";
+//     NSString *jstemplate = @"ObjC.import('stdlib')\nvar fn = (%@)\nvar args = ${0}\nvar out  = fn.apply(null, args)\nJSON.stringify(out)";
 
-    NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:[directory path] error:NULL];
-    NSMutableDictionary *data = [[NSMutableDictionary alloc] init];
-    for (int count = 0; count < (int)[files count]; count++)
-    {
-        NSArray *arr = [files[count] componentsSeparatedByString:@"."];
-        NSString *lang = [arr[1]  isEqual: @"applescript"] ? @"AppleScript" : @"JavaScript";
+//     NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:[directory path] error:NULL];
+//     NSMutableDictionary *data = [[NSMutableDictionary alloc] init];
+//     for (int count = 0; count < (int)[files count]; count++)
+//     {
+//         NSArray *arr = [files[count] componentsSeparatedByString:@"."];
+//         NSString *lang = [arr[1]  isEqual: @"applescript"] ? @"AppleScript" : @"JavaScript";
 
-        NSString *str = [[NSString alloc] initWithContentsOfURL:[directory URLByAppendingPathComponent:files[count]] encoding:NSUTF8StringEncoding error:nil];
-        NSString *final = [lang  isEqual: @"JavaScript"] ? [NSString stringWithFormat:jstemplate, str] : str;
+//         NSString *str = [[NSString alloc] initWithContentsOfURL:[directory URLByAppendingPathComponent:files[count]] encoding:NSUTF8StringEncoding error:nil];
+//         NSString *final = [lang  isEqual: @"JavaScript"] ? [NSString stringWithFormat:jstemplate, str] : str;
 
-        data[ arr[0] ] = [[NSArray alloc] initWithObjects:lang, final, nil];
-    }
-    for (NSString *key in [data allKeys]) {
-        NSString *bigsurOverride = [NSString stringWithFormat:@"%@-bigsur", key];
-        NSArray *value = [data objectForKey:bigsurOverride];
-        if (value != nil) {
-            if (isBigSur) {
-                NSLog(@"Overriding for BigSur: %@", key);
-                data[key] = value;
-            } else NSLog(@"Discarding BigSur: %@", bigsurOverride);
+//         data[ arr[0] ] = [[NSArray alloc] initWithObjects:lang, final, nil];
+//     }
+//     for (NSString *key in [data allKeys]) {
+//         NSString *bigsurOverride = [NSString stringWithFormat:@"%@-bigsur", key];
+//         NSArray *value = [data objectForKey:bigsurOverride];
+//         if (value != nil) {
+//             if (isBigSur) {
+//                 NSLog(@"Overriding for BigSur: %@", key);
+//                 data[key] = value;
+//             } else NSLog(@"Discarding BigSur: %@", bigsurOverride);
 
-            [data removeObjectForKey:bigsurOverride];
-        }
-    }
+//             [data removeObjectForKey:bigsurOverride];
+//         }
+//     }
 
-    NSLog(@"Loaded %lu scripts", (unsigned long)[data count]);
+//     NSLog(@"Loaded %lu scripts", (unsigned long)[data count]);
 
-    [self setScripts:data];
-}
+//     [self setScripts:data];
+// }
 - (NSData *) executeScript: (NSString *)name :(NSString *)tag :(NSArray *)args {
     NSMutableDictionary *output = [[NSMutableDictionary alloc] init];
     output[@"tag"] = tag;

@@ -12,11 +12,11 @@ int main(int argc, const char * argv[]) {
         if ([arg isEqual:@"embedded-json"]) {
             [runner loadFromEmbeddedJSON];
         } else {
-            NSURL *scriptsDirectory = [[NSURL alloc] initFileURLWithPath:arg isDirectory:YES];
-            NSLog(@"Loading from scripts at: %@", [scriptsDirectory path]);
+            // NSURL *scriptsDirectory = [[NSURL alloc] initFileURLWithPath:arg isDirectory:YES];
+            // NSLog(@"Loading from scripts at: %@", [scriptsDirectory path]);
 
-            [runner loadScripts:scriptsDirectory];
-            [runner generateJSON];
+            // [runner loadScripts:scriptsDirectory];
+            // [runner generateJSON];
         }
 
         NSFileHandle *handle = [NSFileHandle fileHandleWithStandardOutput];

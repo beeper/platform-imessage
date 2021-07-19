@@ -6,9 +6,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property NSDictionary *scripts;
 
-- (void) generateJSON;
+// - (void) generateJSON;
 - (void) loadFromEmbeddedJSON;
-- (void) loadScripts: (NSURL *)directory;
+// - (void) loadScripts: (NSURL *)directory;
 - (NSData *) executeScript: (NSString *)name :(NSString *)tag :(NSArray *)args;
 
 @end
