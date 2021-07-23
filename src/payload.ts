@@ -72,7 +72,7 @@ function getURLBalloonProps(payloadData: any, message: Message): Partial<Message
       }
     }
   }
-  const iframeURL = video?.youTubeURL?.['NS.relative']
+  const iframeURL = video?.youTubeURL?.['NS.relative']?.replace('autoplay=1', '')
   return {
     attachments: iframeURL ? [] : attachments,
     links: [{
