@@ -2,14 +2,13 @@ const fs = require('fs').promises
 const path = require('path')
 
 const dirPath = process.argv[2]
-const echoBigSur = process.argv[3]
 
 const pathExists = fp =>
   fs.access(fp)
     .then(() => true)
     .catch(() => false)
 
-async function main() {
+async function echo(bigSur = false) {
   const files = await fs.readdir(dirPath)
   const out = {}
   // to keep order intact
@@ -24,7 +23,7 @@ async function main() {
     const filePath = path.join(dirPath, fileName)
     const bigSurOverridePath = path.join(dirPath, 'bigsur', base)
     const hasBigSurOverride = await pathExists(bigSurOverridePath)
-    const source = await fs.readFile(hasBigSurOverride && echoBigSur ? bigSurOverridePath : filePath, 'utf-8')
+    const source = await fs.readFile(hasBigSurOverride && bigSur ? bigSurOverridePath : filePath, 'utf-8')
     out[name] = [
       ext === '.js' ? 'JavaScript' : 'AppleScript',
       ext === '.js' ? `ObjC.import('stdlib')
@@ -34,6 +33,8 @@ var out  = fn.apply(null, args)` : source,
     ]
   }))
   const json = JSON.stringify(out)
-  console.log(Buffer.from(json).toString('base64'))
+  const b64 = Buffer.from(json).toString('base64')
+  console.log(`NSString *embeddedBase64JSON${bigSur ? 'BigSur' : ''} = @"${b64}";`)
 }
-main()
+echo(false)
+echo(true)

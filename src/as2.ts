@@ -1,16 +1,15 @@
 import childProcess from 'child_process'
 import pRetry from 'p-retry'
-import { parentPort } from 'worker_threads'
 
 import { IS_BIG_SUR_OR_UP } from './constants'
 import spawnASServer from './as-server'
 import IS_DEV_ENVIRON from './is-dev-environ'
 
 enum ScriptName {
-  IS_MESSAGES_VISIBLE = 'messages-visible',
+  IS_MESSAGES_VISIBLE = 'is-messages-visible',
+  IS_MESSAGES_RUNNING = 'is-messages-running',
   HIDE_MESSAGES = 'hide-messages',
   HIDE_MESSAGES_BEHIND_TEXTS = 'hide-messages-behind-texts',
-  MESSAGES_RUNNING = 'messages-running',
   SEND_TEXT = 'send-text',
   SEND_FILE = 'send-file',
   ASK_FOR_AUTOMATION = 'ask-for-automation',
@@ -28,6 +27,10 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 function createAPIServer() {
   const { run, exit } = spawnASServer()
 
+  const isMessagesRunning = () =>
+    run(ScriptName.IS_MESSAGES_RUNNING)
+      .then(str => str === 'true')
+
   const isMessagesVisible = () =>
     run(ScriptName.IS_MESSAGES_VISIBLE)
       .then(() => true)
@@ -44,9 +47,10 @@ function createAPIServer() {
 
   let spawnedMessagesApp = false
   const ensureMessagesAppRunning = async () => {
-    const running = await run(ScriptName.MESSAGES_RUNNING)
+    const running = await isMessagesRunning()
     if (running) return
     spawnedMessagesApp = true
+    console.log('opening Messages.app')
     childProcess.spawn('/usr/bin/open', ['-gjb', 'com.apple.MobileSMS'])
     await sleep(200)
   }

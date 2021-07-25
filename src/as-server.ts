@@ -2,6 +2,7 @@ import childProcess from 'child_process'
 import { EventEmitter } from 'events'
 import { texts } from '@textshq/platform-sdk'
 import { BINARIES_DIR_PATH } from './constants'
+import IS_DEV_ENVIRON from './is-dev-environ'
 
 const serverPath = BINARIES_DIR_PATH + '/AppleScriptServer'
 
@@ -35,9 +36,11 @@ function spawnASServer() {
   })
   const run = <T>(scriptName: string, args: string[] = []) => (
     new Promise<T>((resolve, reject) => {
+      if (IS_DEV_ENVIRON) console.log('[imsg] running', scriptName, args)
       const tag = Date.now().toString(36) + Math.random().toString(36)
       const input = { tag, scriptName, args }
       ev.once(tag, json => {
+        if (IS_DEV_ENVIRON) console.log('[imsg] response', scriptName, json)
         if (json.error) reject(new Error(json.error))
         else resolve(json.output)
       })
