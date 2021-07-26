@@ -1,7 +1,5 @@
 #!/usr/bin/env sh
 
-SDKROOT=$(xcrun -sdk macosx11.0 --show-sdk-path) \
-MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx11.0 --show-sdk-platform-version) \
 cargo build --manifest-path src/RustServer/Cargo.toml --release --target=aarch64-apple-darwin
 
 cargo build --manifest-path src/RustServer/Cargo.toml --release
