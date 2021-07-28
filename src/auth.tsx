@@ -13,7 +13,7 @@ const contactsImg = `${contactsImgPrefix}-contacts-allow.png`
 const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.png`
 
 const staticPrefix = `file://${BINARIES_DIR_PATH}`
-const staticImgPrefix = `${staticPrefix}/catalina`
+const staticImgPrefix = `${staticPrefix}/${IS_BIG_SUR_OR_UP ? 'bigsur' : 'catalina'}`
 const fdaImg = path.join(staticImgPrefix, 'fda.png')
 const automationAccessHighlightedImg = path.join(staticImgPrefix, 'automation-messages-highlighted.png')
 const automationAccessImg = path.join(staticImgPrefix, 'automation-messages.png')
@@ -135,7 +135,7 @@ const AutomationAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
     <div className="page automation">
       <h3>Automation</h3>
       {!automationAuthorized && (
-        <div className={cn('img-transition', { grayscale })} style={{ width: 516, height: 292 }} onClick={imgClick}>
+        <div className={cn('img-transition', { grayscale })} style={IS_BIG_SUR_OR_UP ? { width: 356, height: 412 } : { width: 516, height: 292 }} onClick={imgClick}>
           <img className="animating-other-img" src={automationAccessImg} alt="System Preferences – Automation" />
           {!grayscale && <img className="animating-img" src={automationAccessHighlightedImg} alt="System Preferences – Automation" />}
         </div>
