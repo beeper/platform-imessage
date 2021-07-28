@@ -8,13 +8,16 @@ import useForceUpdate from 'use-force-update'
 import iMessageAPI from './as2'
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH } from './constants'
 
-const staticPrefix = 'file://' + BINARIES_DIR_PATH
-const contactsImg = 'catalina-contacts-allow.png'
-const contactsHighlightedImg = 'catalina-contacts-allow-highlighted.png'
-const fdaImg = path.join(staticPrefix, 'fda.png')
-const automationAccessHighlightedImg = path.join(staticPrefix, 'automation-messages-highlighted.png')
-const automationAccessImg = path.join(staticPrefix, 'automation-messages.png')
-const notificationsMessagesImg = path.join(staticPrefix, 'notifications-messages.png')
+const contactsImgPrefix = IS_BIG_SUR_OR_UP ? 'img/bigsur' : 'img/catalina'
+const contactsImg = `${contactsImgPrefix}-contacts-allow.png`
+const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.png`
+
+const staticPrefix = `file://${BINARIES_DIR_PATH}`
+const staticImgPrefix = `${staticPrefix}/catalina`
+const fdaImg = path.join(staticImgPrefix, 'fda.png')
+const automationAccessHighlightedImg = path.join(staticImgPrefix, 'automation-messages-highlighted.png')
+const automationAccessImg = path.join(staticImgPrefix, 'automation-messages.png')
+const notificationsMessagesImg = path.join(staticImgPrefix, 'notifications-messages.png')
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
 const openSecuritySystemPrefs = (prefPath: string) =>
@@ -53,7 +56,7 @@ const ContactsAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
     <div className="page contacts">
       <h3>Contacts</h3>
       {!authorized && (
-        <div className={cn('img-transition', { grayscale })} style={{ width: 516, height: 258 }} onClick={imgClick}>
+        <div className={cn('img-transition', { grayscale })} style={IS_BIG_SUR_OR_UP ? { width: 356, height: 362 } : { width: 516, height: 258 }} onClick={imgClick}>
           <img className="animating-other-img" src={contactsImg} alt="Contacts Popup" />
           {!grayscale && <img className="animating-img" src={contactsHighlightedImg} alt="Contacts Popup" />}
         </div>
