@@ -87,7 +87,7 @@ const FDAAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
       <h3>Full Disk Access</h3>
       {!authorized && (
         <>
-          <img className={cn({ grayscale })} src={fdaImg} alt="System Preferences – Full Disk Access" width={521} onClick={imgClick} />
+          <img className={cn({ grayscale })} src={fdaImg} alt="System Preferences – Full Disk Access" width={IS_BIG_SUR_OR_UP ? 764 : 521} onClick={imgClick} />
           <p>Texts needs full disk access to access the local iMessage database. Your data never touches our servers.</p>
           <ol>
             <li>Click the 🔒 icon in the bottom-left corner</li>
