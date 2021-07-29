@@ -153,6 +153,7 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
     m.isAction = true
     m.parseTemplate = true
     if (row.item_type === 1) {
+      m.silent = true
       m.text = row.group_action_type === 1
         ? `{{sender}} removed {{${row.otherID}}} from the conversation`
         : `{{sender}} added {{${row.otherID}}} to the conversation`
@@ -162,6 +163,7 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
         actorParticipantID: m.senderID,
       }
     } else if (row.item_type === 2) {
+      m.silent = true
       m.text = row.group_title == null
         ? '{{sender}} removed the name from the conversation'
         : `{{sender}} named the conversation "${row.group_title}"`
@@ -171,6 +173,7 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
         actorParticipantID: m.senderID,
       }
     } else if (row.item_type === 3) {
+      m.silent = true
       const firstAttachmentRow = attachmentRows[0]
       if (firstAttachmentRow?.attachmentID) {
         m.text = '{{sender}} changed the group photo'
@@ -188,10 +191,12 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
         }
       }
     } else if (row.item_type === 4) {
+      m.silent = true
       m.text = row.share_status === 1
         ? '{{sender}} stopped sharing location'
         : '{{sender}} started sharing location'
     } else if (row.item_type === 5) {
+      m.silent = true
       m.text = '{{sender}} kept an audio message from you.'
     } else if (row.item_type === 6) {
       m.text = 'FaceTime Call'
