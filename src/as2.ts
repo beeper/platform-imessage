@@ -14,6 +14,7 @@ enum ScriptName {
   SEND_FILE = 'send-file',
   ASK_FOR_AUTOMATION = 'ask-for-automation',
   CREATE_THREAD = 'create-thread',
+  SELECT_FIRST_N_THREADS = 'select-first-n-threads',
 }
 
 const RETRY_OPTIONS: pRetry.Options = {
@@ -44,6 +45,9 @@ function createAPIServer() {
 
   const sendFile = (...args: any[]) =>
     run(ScriptName.SEND_FILE, [JSON.stringify(args)])
+
+  const selectFirstNThreads = (count: number) =>
+    run(ScriptName.SELECT_FIRST_N_THREADS, [String(count)])
 
   let spawnedMessagesApp = false
   const ensureMessagesAppRunning = async () => {
@@ -88,6 +92,7 @@ function createAPIServer() {
   }
 
   return {
+    selectFirstNThreads,
     async askForAutomationAccess() {
       try {
         await run(ScriptName.ASK_FOR_AUTOMATION)

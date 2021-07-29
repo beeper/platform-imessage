@@ -228,4 +228,10 @@ export default class AppleiMessage implements PlatformAPI {
       return 'file://' + encodeURI(filePath)
     }
   }
+
+  handleDeepLink = (link: string) => {
+    // texts://platform-callback/{accountID}/callback/{count}
+    const [, , , , count] = link.split('/')
+    this.api.selectFirstNThreads(+count)
+  }
 }
