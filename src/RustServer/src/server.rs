@@ -18,7 +18,7 @@ pub struct Server {
     database_paths: [(PathBuf, SystemTime); 2],
 }
 
-struct PollResultRow {
+struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
     thread_guid: Option<String>,
@@ -73,36 +73,42 @@ impl Server {
             }
 
             if is_modified {
-                self.poll_updates();
+                self.poll_message_updates();
             }
 
             std::thread::sleep(Duration::from_millis(1000));
         }
     }
 
-    fn poll_updates(&mut self) {
-        // eprintln!("Polling for updates");
-
+    fn poll_message_updates(&mut self) {
         // Scoped block drops immutable borrow of conn.
-        let rows: Vec<PollResultRow> = {
+        let rows: Vec<PollMessageResultRow> = {
             let mut stmt = self
                 .conn
                 .prepare_cached(
                     r#"
-                    SELECT m.ROWID, m.date_read, t.guid, MAX(m.date)
-                    FROM message AS m
-                    LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-                    LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-                    WHERE m.ROWID > ?
-                    OR m.date_read > ?
-                    GROUP BY t.guid
-                    ORDER BY date DESC
+SELECT
+	m.ROWID,
+	m.date_read,
+	t.guid,
+	MAX(m.date)
+FROM
+	message AS m
+	LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+	LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+WHERE
+	m.ROWID > ?
+	OR m.date_read > ?
+GROUP BY
+	t.guid
+ORDER BY
+	date DESC
                 "#,
                 )
                 .expect("Unable to prepare poll query");
 
             stmt.query_map([self.last_row_id, self.last_date_read], |row| {
-                Ok(PollResultRow {
+                Ok(PollMessageResultRow {
                     msg_row_id: row.get(0)?,
                     date_read: row.get(1)?,
                     thread_guid: row.get(2)?,
@@ -126,7 +132,7 @@ impl Server {
         self.update_cursors(rows);
     }
 
-    fn update_cursors(&mut self, rows: Vec<PollResultRow>) {
+    fn update_cursors(&mut self, rows: Vec<PollMessageResultRow>) {
         for r in rows {
             self.last_row_id = std::cmp::max(self.last_row_id, r.msg_row_id);
             self.last_date_read = std::cmp::max(self.last_date_read, r.date_read);
