@@ -12,7 +12,7 @@ const MAP_DIRECTION_TO_SQL_OP = {
   before: '<',
 }
 
-export const THREADS_LIMIT = 50
+export const THREADS_LIMIT = 30
 export const MESSAGES_LIMIT = 20
 
 const COMMON_JOINS = `LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -188,8 +188,9 @@ export default class DatabaseAPI {
     return waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
   }
 
-  async fetchLastMessageRow(threadRowID: number) {
-    const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 1), [threadRowID])
+  async fetchLastMessageRows(threadRowID: number) {
+    const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 5), [threadRowID])
+    msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
     const attachmentRows = msgRows.length ? await this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs) : []
     return [msgRows, attachmentRows]

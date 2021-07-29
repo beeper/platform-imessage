@@ -103,7 +103,7 @@ export default class AppleiMessage implements PlatformAPI {
     const allMsgRows = []
     const [,, groupImagesRows] = await Promise.all([
       bluebird.map(chatRows, async chatRow => {
-        const [msgRows, attachmentRows] = await this.dbAPI.fetchLastMessageRow(chatRow.ROWID)
+        const [msgRows, attachmentRows] = await this.dbAPI.fetchLastMessageRows(chatRow.ROWID)
         allMsgRows.push(...msgRows)
         mapMessageArgsMap[chatRow.guid] = [msgRows, attachmentRows]
       }),

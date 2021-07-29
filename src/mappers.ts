@@ -1,5 +1,5 @@
 import path from 'path'
-import { groupBy, omit, truncate } from 'lodash'
+import { groupBy, omit, truncate, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, Size } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
@@ -256,8 +256,9 @@ export function mapThread(
     }
   */
   const props = chat.properties ? safeBplitParse(Buffer.from(chat.properties)) : null
-  const lm = mapMessageArgs?.[0]?.[0]
-  const isUnreadInSqlite = lm?.is_read === 0 && lm?.is_from_me === 0
+  const messageRows = mapMessageArgs?.[0]
+  const lastNonActionMessage = messageRows ? findLast(messageRows, r => r.item_type === 0) : undefined
+  const isUnreadInSqlite = lastNonActionMessage?.is_read === 0 && lastNonActionMessage?.is_from_me === 0
   const thread: Thread = {
     _original: enhancedStringify([chat, handleRows]),
     id: chat.guid,
