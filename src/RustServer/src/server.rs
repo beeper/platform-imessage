@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -16,14 +17,59 @@ pub struct Server {
     conn: Connection,
 
     database_paths: [(PathBuf, SystemTime); 2],
+
+    chat_read_map: HashMap<String, bool>,
 }
 
 struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
-    thread_guid: Option<String>,
+    thread_guid: String,
     // max_msg_date: u64,
 }
+struct PollThreadResultRow {
+    thread_guid: String,
+    is_read: bool,
+    // max_msg_date: u64,
+}
+
+static POLL_MESSAGE_CREATE_UPDATE_QUERY: &str = r#"
+SELECT
+	m.ROWID,
+	m.date_read,
+	t.guid,
+	MAX(m.date)
+FROM
+	message AS m
+	LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+	LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+WHERE
+	m.ROWID > ?
+	OR m.date_read > ?
+GROUP BY
+	t.guid
+ORDER BY
+	date DESC
+"#;
+
+// limit of 400 is arbitrary, if the user scrolls down 400 chats and reads something, it'll be ignored
+static POLL_THREAD_READ_QUERY: &str = r#"
+SELECT
+	chat.guid,
+	(m.is_from_me = 1 OR m.is_read = 1) AS isRead,
+	max(m.date) AS msgDate
+FROM
+	chat
+	LEFT JOIN chat_message_join AS cmj ON cmj.chat_id = chat.ROWID
+	LEFT JOIN message AS m ON cmj.message_id = m.ROWID
+WHERE
+	m.item_type = 0
+GROUP BY
+	chat.guid
+ORDER BY
+	msgDate desc
+LIMIT 400
+"#;
 
 impl Server {
     pub fn new() -> Self {
@@ -39,12 +85,14 @@ impl Server {
                 (Self::format_path(&"chat.db"), SystemTime::now()),
                 (Self::format_path(&"chat.db-wal"), SystemTime::now()),
             ],
+            chat_read_map: HashMap::new(),
         }
     }
 
     pub fn start(&mut self, last_row_id: u64, last_date_read: u64) {
         self.last_row_id = last_row_id;
         self.last_date_read = last_date_read;
+        self.init_chat_read_map();
 
         loop {
             let mut is_modified = false;
@@ -74,6 +122,7 @@ impl Server {
 
             if is_modified {
                 self.poll_message_updates();
+                self.poll_thread_updates();
             }
 
             std::thread::sleep(Duration::from_millis(1000));
@@ -85,26 +134,7 @@ impl Server {
         let rows: Vec<PollMessageResultRow> = {
             let mut stmt = self
                 .conn
-                .prepare_cached(
-                    r#"
-SELECT
-	m.ROWID,
-	m.date_read,
-	t.guid,
-	MAX(m.date)
-FROM
-	message AS m
-	LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-	LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-WHERE
-	m.ROWID > ?
-	OR m.date_read > ?
-GROUP BY
-	t.guid
-ORDER BY
-	date DESC
-                "#,
-                )
+                .prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)
                 .expect("Unable to prepare poll query");
 
             stmt.query_map([self.last_row_id, self.last_date_read], |row| {
@@ -121,15 +151,66 @@ ORDER BY
         };
 
         if !rows.is_empty() {
-            let thread_ids: Vec<Option<&String>> =
-                rows.iter().map(|r| r.thread_guid.as_ref()).collect();
+            let thread_ids: Vec<&String> = rows.iter().map(|r| &r.thread_guid).collect();
 
-            println!("{}", json!({ "threads": thread_ids }));
-
-            std::io::stdout().flush().ok();
+            if !thread_ids.is_empty() {
+                println!("{}", json!({ "thread_messages_refresh": thread_ids }));
+                std::io::stdout().flush().ok();
+            }
         }
 
         self.update_cursors(rows);
+    }
+
+    fn query_thread_reads(&mut self) -> Vec<PollThreadResultRow> {
+        let rows: Vec<PollThreadResultRow> = {
+            // kb: todo optimize
+            // this sql query takes ~150ms for me with 1,033 chat rows and 190,179 message rows
+            let mut stmt = self
+                .conn
+                .prepare_cached(POLL_THREAD_READ_QUERY)
+                .expect("Unable to prepare poll query");
+
+            stmt.query_map([], |row| {
+                Ok(PollThreadResultRow {
+                    thread_guid: row.get(0)?,
+                    is_read: row.get(1)?,
+                    // max_msg_date: row.get(2)?,
+                })
+            })
+            .expect("Unable to poll database")
+            .map(|r| r.unwrap())
+            .collect()
+        };
+
+        rows
+    }
+
+    fn init_chat_read_map(&mut self) {
+        let rows = self.query_thread_reads();
+        for row in rows {
+            self.chat_read_map.insert(row.thread_guid, row.is_read);
+        }
+    }
+
+    fn poll_thread_updates(&mut self) {
+        let rows = self.query_thread_reads();
+        let mut thread_ids: Vec<&str> = Vec::new();
+        for row in &rows {
+            let was_read = self
+                .chat_read_map
+                .insert(row.thread_guid.clone(), row.is_read)
+                .unwrap_or(true);
+
+            if !was_read && row.is_read {
+                thread_ids.push(&row.thread_guid);
+            }
+        }
+
+        if !thread_ids.is_empty() {
+            println!("{}", json!({ "threads_read": thread_ids }));
+            std::io::stdout().flush().ok();
+        }
     }
 
     fn update_cursors(&mut self, rows: Vec<PollMessageResultRow>) {

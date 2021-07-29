@@ -112,10 +112,23 @@ export default class DatabaseAPI {
   private rustServer: ReturnType<typeof spawnRustServer>
 
   private readonly onRustServerMessage = (data: any) => {
-    if (!data?.threads) return console.error('unknown message from rust_server')
-    const threadIDs = data.threads as string[]
-    const events = threadIDs.map<ServerEvent>(threadID => ({ type: ServerEventType.THREAD_MESSAGES_REFRESH, threadID }))
-    if (events.length > 0) this.onEvent(events)
+    if (data?.thread_messages_refresh) {
+      const threadIDs = data.thread_messages_refresh as string[]
+      const events = threadIDs.map<ServerEvent>(threadID => ({ type: ServerEventType.THREAD_MESSAGES_REFRESH, threadID }))
+      if (events.length > 0) this.onEvent(events)
+    } else if (data?.threads_read) {
+      const threadIDs = data.threads_read as string[]
+      const events = threadIDs.map<ServerEvent>(threadID => ({
+        type: ServerEventType.STATE_SYNC,
+        mutationType: 'update',
+        objectName: 'thread',
+        objectIDs: { threadID },
+        entries: [{ id: threadID, isUnread: false }],
+      }))
+      if (events.length > 0) this.onEvent(events)
+    } else {
+      console.error('unknown message from rust_server', { data })
+    }
   }
 
   async init() {

@@ -13,9 +13,9 @@ struct Command<'c> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for line in std::io::stdin().lock().lines() {
-        let mut line = line?;
+        let line = line?;
 
-        let command: Command<'_> = serde_json::from_str(&mut line)?;
+        let command: Command<'_> = serde_json::from_str(&line)?;
 
         match command.method {
             // args: [ last_row_id, last_date_read ]
