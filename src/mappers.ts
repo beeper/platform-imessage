@@ -256,11 +256,8 @@ export function mapThread(
     }
   */
   const props = chat.properties ? safeBplitParse(Buffer.from(chat.properties)) : null
-  // isUnreadInSqlite is not 100% correct
-  const isUnreadInSqlite = !isReadOnly
-    && !messages[0]?.isSender
-    // chat.msgDate is the latest message's date
-    && (chat.last_read_message_timestamp === 0 || unpackTime(chat.last_read_message_timestamp) < unpackTime(chat.msgDate))
+  const lm = mapMessageArgs?.[0]?.[0]
+  const isUnreadInSqlite = lm?.is_read === 0 && lm?.is_from_me === 0
   const thread: Thread = {
     _original: enhancedStringify([chat, handleRows]),
     id: chat.guid,
