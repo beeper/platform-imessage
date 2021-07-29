@@ -59,7 +59,7 @@ const removeObjReplacementChar = (text: string) => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-export function mapMessage(row: MappedMessageRow, attachmentRows = [], currentUserID: string): Message {
+export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], currentUserID: string): Message {
   if (row.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = row.service === 'SMS'
