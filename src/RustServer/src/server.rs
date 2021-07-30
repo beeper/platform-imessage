@@ -150,15 +150,15 @@ impl Server {
             .collect()
         };
 
-        if !rows.is_empty() {
-            let thread_ids: Vec<&Option<String>> = rows.iter().map(|r| &r.thread_guid).collect();
-            // or
-            // let thread_ids: Vec<String> = rows.iter().filter_map(|r| r.thread_guid.clone()).collect();
+        let thread_ids: Vec<&String> = rows
+            .iter()
+            .filter(|r| r.thread_guid.is_some())
+            .map(|r| r.thread_guid.as_ref().unwrap())
+            .collect();
 
-            if !thread_ids.is_empty() {
-                println!("{}", json!({ "thread_messages_refresh": thread_ids }));
-                std::io::stdout().flush().ok();
-            }
+        if !thread_ids.is_empty() {
+            println!("{}", json!({ "thread_messages_refresh": thread_ids }));
+            std::io::stdout().flush().ok();
         }
 
         self.update_cursors(rows);
