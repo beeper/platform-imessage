@@ -1,9 +1,9 @@
 import path from 'path'
 import childProcess from 'child_process'
+import { debounce } from 'lodash'
 import { texts } from '@textshq/platform-sdk'
 
 import { BINARIES_DIR_PATH } from './constants'
-import IS_DEV_ENVIRON from './is-dev-environ'
 
 // const serverPath = path.join(texts.constants.BUILD_DIR_PATH + `/../../packages/platform-imessage/src/RustServer/target/Release/rust_server_${process.arch}_macos`)
 const serverPath = path.join(BINARIES_DIR_PATH, `rust_server_${process.arch}_macos`)
@@ -28,10 +28,16 @@ function spawnRustServer(onMessage: (data: any) => void) {
     console.error('RustServer -> stream error', err)
   }
   cp.stdout.on('data', onStdOutData)
-  if (IS_DEV_ENVIRON) {
-    // cp.stderr.on('data', (data: Buffer) =>
-    //   process.stdout.write(data))
-  }
+  let errBuffers: Buffer[] = []
+  const report = debounce(() => {
+    texts.Sentry.captureException('RustServer.stderr: ' + errBuffers.concat().toString())
+    errBuffers = []
+  }, 5_000)
+  cp.stderr.on('data', (data: Buffer) => {
+    errBuffers.push(data)
+    process.stdout.write(data)
+    report()
+  })
   cp.stdout.on('error', onError)
   cp.stderr.on('error', onError)
   cp.on('error', error => {

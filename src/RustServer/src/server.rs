@@ -24,11 +24,11 @@ pub struct Server {
 struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
-    thread_guid: String,
+    thread_guid: Option<String>,
     // max_msg_date: u64,
 }
 struct PollThreadResultRow {
-    thread_guid: String,
+    thread_guid: Option<String>,
     is_read: bool,
     // max_msg_date: u64,
 }
@@ -151,7 +151,9 @@ impl Server {
         };
 
         if !rows.is_empty() {
-            let thread_ids: Vec<&String> = rows.iter().map(|r| &r.thread_guid).collect();
+            let thread_ids: Vec<&Option<String>> = rows.iter().map(|r| &r.thread_guid).collect();
+            // or
+            // let thread_ids: Vec<String> = rows.iter().filter_map(|r| r.thread_guid.clone()).collect();
 
             if !thread_ids.is_empty() {
                 println!("{}", json!({ "thread_messages_refresh": thread_ids }));
@@ -189,7 +191,9 @@ impl Server {
     fn init_chat_read_map(&mut self) {
         let rows = self.query_thread_reads();
         for row in rows {
-            self.chat_read_map.insert(row.thread_guid, row.is_read);
+            if let Some(guid) = row.thread_guid {
+                self.chat_read_map.insert(guid, row.is_read);
+            }
         }
     }
 
@@ -197,13 +201,15 @@ impl Server {
         let rows = self.query_thread_reads();
         let mut thread_ids: Vec<&str> = Vec::new();
         for row in &rows {
-            let was_read = self
-                .chat_read_map
-                .insert(row.thread_guid.clone(), row.is_read)
-                .unwrap_or(true);
+            if let Some(guid) = &row.thread_guid {
+                let was_read = self
+                    .chat_read_map
+                    .insert(guid.clone(), row.is_read)
+                    .unwrap_or(true);
 
-            if !was_read && row.is_read {
-                thread_ids.push(&row.thread_guid);
+                if !was_read && row.is_read {
+                    thread_ids.push(&guid);
+                }
             }
         }
 
