@@ -132,13 +132,13 @@ export default class DatabaseAPI {
 
   private calledRustServerSetOnce = false
 
-  async updateRustServer(args: number[]) {
+  async updateRustServer(maxRowID: number, maxDateRead: number) {
     if (this.calledRustServerSetOnce) return
     this.calledRustServerSetOnce = true
     while (!this.rustServer) {
       await bluebird.delay(10)
     }
-    this.rustServer.startPoller(args[0], args[1]);
+    this.rustServer.startPoller(maxRowID, maxDateRead)
   }
 
   setLastCursor(rows: any[]) {
@@ -151,7 +151,7 @@ export default class DatabaseAPI {
     if (maxDateRead > this.lastDateRead) {
       this.lastDateRead = maxDateRead
     }
-    this.updateRustServer([maxRowID, maxDateRead])
+    this.updateRustServer(maxRowID, maxDateRead)
   }
 
   startPolling(onEvent: OnServerEventCallback) {
