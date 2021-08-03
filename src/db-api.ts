@@ -1,10 +1,10 @@
 import bluebird from 'bluebird'
 import { maxBy } from 'lodash'
 // import { parentPort } from 'worker_threads'
-import { OnServerEventCallback, ServerEvent, ServerEventType } from '@textshq/platform-sdk'
+import type { OnServerEventCallback, ServerEvent } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
-import spawnRustServer from './rust-server'
+import { Server as RustServer } from './RustServer/lib'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
 
 const MAP_DIRECTION_TO_SQL_OP = {
@@ -109,32 +109,11 @@ export default class DatabaseAPI {
     this.eventQueue.push(...events)
   }
 
-  private rustServer: ReturnType<typeof spawnRustServer>
-
-  private readonly onRustServerMessage = (data: any) => {
-    if (data?.thread_messages_refresh) {
-      const threadIDs = data.thread_messages_refresh as string[]
-      const events = threadIDs.map<ServerEvent>(threadID => ({ type: ServerEventType.THREAD_MESSAGES_REFRESH, threadID }))
-      if (events.length > 0) this.onEvent(events)
-    } else if (data?.threads_read) {
-      const threadIDs = data.threads_read as string[]
-      const events = threadIDs.map<ServerEvent>(threadID => ({
-        type: ServerEventType.STATE_SYNC,
-        mutationType: 'update',
-        objectName: 'thread',
-        objectIDs: { threadID },
-        entries: [{ id: threadID, isUnread: false }],
-      }))
-      if (events.length > 0) this.onEvent(events)
-    } else {
-      console.error('unknown message from rust_server', { data })
-    }
-  }
+  private rustServer: RustServer
 
   async init() {
     this.db = await getDB()
     await this.db?.run(SQLS.createIndexes)
-    this.rustServer = spawnRustServer(this.onRustServerMessage)
   }
 
   get connected() {
@@ -142,7 +121,8 @@ export default class DatabaseAPI {
   }
 
   dispose() {
-    this.rustServer?.exit()
+    this.rustServer?.stopPoller()
+    this.rustServer?.destroy()
     return this.db?.dispose()
   }
 
@@ -158,7 +138,7 @@ export default class DatabaseAPI {
     while (!this.rustServer) {
       await bluebird.delay(10)
     }
-    this.rustServer!.send({ method: 'start_polling', args })
+    this.rustServer.startPoller(args[0], args[1]);
   }
 
   setLastCursor(rows: any[]) {
@@ -175,6 +155,7 @@ export default class DatabaseAPI {
   }
 
   startPolling(onEvent: OnServerEventCallback) {
+    this.rustServer = new RustServer(onEvent)
     this.onEvent(this.eventQueue)
     this.onEvent = onEvent
     // let wokeFromSleep = false

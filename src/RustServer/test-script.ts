@@ -1,30 +1,11 @@
-const childProcess = require('child_process')
-const cp = childProcess.spawn('./target/release/rust_server')
+import { Server as RustServer } from './lib/index'
 
-cp.stdout.on('data', (chunk: Buffer) => {
-  const data = chunk.toString()
-  console.log(data)
-})
-cp.stdin.on('error', (err) => {
-	console.log(`cp.stdin.error: ${err}`)
-})
-cp.on('error', (error) => {
-  console.log(`cp.error: ${error}`)
-})
+function test() {
+  const server = new RustServer(t => {
+    console.log(t)
+  })
 
-setTimeout(() => {
-  const json = {
-    method: 'set',
-    args: [6643, 624394928941777024]
-  }
-  console.log('Writing', { json })
-  cp.stdin.write(JSON.stringify(json) + "\n")
-}, 1000)
+  server.startPoller(0, 577933761537943424)
+}
 
-setTimeout(() => {
-  const json = {
-    method: 'stop',
-  }
-  console.log('Writing', { json })
-  cp.stdin.write(JSON.stringify(json) + "\n")
-}, 4500)
+test()

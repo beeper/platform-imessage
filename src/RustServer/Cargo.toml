@@ -1,18 +1,23 @@
 [package]
 name = "rust_server"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 dirs = "3"
-serde_json = "1"
-
-[dependencies.serde]
-version = "1"
-features = ["derive"]
 
 [dependencies.rusqlite]
 version = "0.25"
-features = ["serde_json", "bundled"]
+features = ["bundled"]
+
+[dependencies.neon]
+version = "0.9"
+default-features = false
+features = ["napi-6", "event-queue-api", "try-catch-api"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
