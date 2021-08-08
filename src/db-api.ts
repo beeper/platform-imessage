@@ -88,7 +88,7 @@ async function getDB() {
 
 async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxAttempt = 3) {
   let attempt = 0
-  let rows = []
+  let rows: T[] = []
   while (attempt++ < maxAttempt && rows.length < minRowCount) {
     rows = await queryFn()
     await bluebird.delay(50)
@@ -141,10 +141,10 @@ export default class DatabaseAPI {
     this.rustServer.startPoller(maxRowID, maxDateRead)
   }
 
-  setLastCursor(rows: any[]) {
-    if (!rows.length) return
-    const maxDateRead = maxBy(rows, 'date_read')?.date_read
-    const maxRowID = maxBy(rows, 'msgRowID')?.msgRowID
+  setLastCursor(allMsgRows: MappedMessageRow[]) {
+    if (!allMsgRows.length) return
+    const maxDateRead = maxBy(allMsgRows, 'date_read')?.date_read
+    const maxRowID = maxBy(allMsgRows, 'msgRowID')?.msgRowID
     if (maxRowID > this.lastRowID) {
       this.lastRowID = maxRowID
     }
@@ -174,7 +174,7 @@ export default class DatabaseAPI {
     return waitForRows(() => this.getThread(threadID), 1)
   }
 
-  getThreadParticipants(chatRowID: number): Promise<any[]> {
+  getThreadParticipants(chatRowID: number): Promise<{ uncanonicalized_id: string, participantID: string }[]> {
     return this.db.all(SQLS.getThreadParticipants, [chatRowID])
   }
 
@@ -182,7 +182,7 @@ export default class DatabaseAPI {
     return waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
   }
 
-  async fetchLastMessageRows(threadRowID: number) {
+  async fetchLastMessageRows(threadRowID: number): Promise<[MappedMessageRow[], any[]]> {
     const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 5), [threadRowID])
     msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
@@ -194,7 +194,7 @@ export default class DatabaseAPI {
     return this.db.all(SQLS.getThreads(MAP_DIRECTION_TO_SQL_OP[direction]), cursor ? [+cursor] : [])
   }
 
-  getGroupImages(): Promise<any[]> {
+  getGroupImages(): Promise<[string, string][]> {
     return this.db.raw_all(SQLS.getGroupImages)
   }
 

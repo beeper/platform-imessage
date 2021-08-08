@@ -10,7 +10,7 @@ import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
+import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -232,7 +232,7 @@ type Context = {
 }
 
 export function mapThread(
-  chat: MappedChatRow,
+  chat: MappedChatRow | ChatRow,
   context: Context,
 ): Thread {
   const { currentUserID, threadReadStore } = context
@@ -269,14 +269,13 @@ export function mapThread(
     type: isGroup ? 'group' : 'single',
     messages: {
       hasMore: true,
-      oldestCursor: String(chat.msgDate),
       items: messages,
     },
     participants: {
       hasMore: false,
       items: participants,
     },
-    timestamp: fromAppleTime(chat.msgDate) || new Date(),
+    timestamp: 'msgDate' in chat ? fromAppleTime(chat.msgDate) : new Date(),
   }
   if (thread.imgURL) thread.imgURL = 'file://' + encodeURI(thread.imgURL)
   return thread

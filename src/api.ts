@@ -100,11 +100,11 @@ export default class AppleiMessage implements PlatformAPI {
     const chatRows = await this.dbAPI.getThreads(cursor, direction)
     const mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[]] } = {}
     const handleRowsMap: { [threadID: string]: any[] } = {}
-    const allMsgRows = []
+    const allMsgRows: MappedMessageRow[] = []
     const [,, groupImagesRows] = await Promise.all([
       bluebird.map(chatRows, async chatRow => {
         const [msgRows, attachmentRows] = await this.dbAPI.fetchLastMessageRows(chatRow.ROWID)
-        allMsgRows.push(...msgRows)
+        if (!cursor) allMsgRows.push(...msgRows)
         mapMessageArgsMap[chatRow.guid] = [msgRows, attachmentRows]
       }),
       bluebird.map(chatRows, async chatRow => {
@@ -113,7 +113,7 @@ export default class AppleiMessage implements PlatformAPI {
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
     ])
     const groupImagesMap: { [attachmentID: string]: string } = {};
-    (groupImagesRows as [string, string][])?.forEach(([attachmentID, fileName]) => {
+    groupImagesRows?.forEach(([attachmentID, fileName]) => {
       groupImagesMap[attachmentID] = fileName
     })
     const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
