@@ -232,7 +232,7 @@ type Context = {
 }
 
 export function mapThread(
-  chat: MappedChatRow | ChatRow,
+  chat: MappedChatRow,
   context: Context,
 ): Thread {
   const { currentUserID, threadReadStore } = context
@@ -275,7 +275,7 @@ export function mapThread(
       hasMore: false,
       items: participants,
     },
-    timestamp: 'msgDate' in chat ? fromAppleTime(chat.msgDate) : new Date(),
+    timestamp: fromAppleTime(chat.msgDate) || new Date(),
   }
   if (thread.imgURL) thread.imgURL = 'file://' + encodeURI(thread.imgURL)
   return thread

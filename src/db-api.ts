@@ -30,7 +30,9 @@ LIMIT ${THREADS_LIMIT}`,
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
 LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
 WHERE chat_id = ?`,
-  getThread: 'SELECT * FROM chat WHERE chat.guid = ?',
+  getThread: `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
+FROM chat
+WHERE chat.guid = ?`,
   getGroupImages: "SELECT guid,filename FROM attachment WHERE transfer_name = 'GroupPhotoImage'",
   getMessages: (cursorDirection: string, limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
@@ -166,7 +168,7 @@ export default class DatabaseAPI {
     // })
   }
 
-  getThread(threadID: string): Promise<ChatRow[]> {
+  getThread(threadID: string): Promise<MappedChatRow[]> {
     return this.db.all(SQLS.getThread, [threadID])
   }
 

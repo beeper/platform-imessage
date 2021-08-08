@@ -67,6 +67,20 @@ export default class AppleiMessage implements PlatformAPI {
 
   searchUsers = (typed: string): User[] => []
 
+  getThread = async (threadID: string) => {
+    const [chatRow] = await this.dbAPI.getThread(threadID)
+    if (!chatRow) return
+    const handleRows = await this.dbAPI.getThreadParticipants(chatRow.ROWID)
+    return mapThread(
+      chatRow,
+      {
+        handleRowsMap: { [chatRow.guid]: handleRows },
+        currentUserID: this.currentUserID,
+        threadReadStore: this.threadReadStore,
+      },
+    )
+  }
+
   createThread = async (userIDs: string[]) => {
     if (userIDs.length === 0) return null
     this.ensureDB()
