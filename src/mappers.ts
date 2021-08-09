@@ -246,13 +246,16 @@ export function mapThread(
   const isReadOnly = chat.state === 0 && chat.properties != null
   const messages = mapMessageArgs ? mapMessages(mapMessageArgs[0], mapMessageArgs[1], currentUserID) : []
   /*
-    {
-      "groupPhotoGuid" => "at_0_B97968BB-52C9-4898-88D2-6AA60E7B99D5"
-      "LSMD" => 2020-11-15 20:18:56 +0000
-      "messageHandshakeState" => 1
-      "numberOfTimesRespondedtoThread" => 1
-      "pv" => 2
-      "shouldForceToSMS" => 0
+    props = {
+      "com.apple.iChat.LastArchivedMessageID": [ 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', 101010 ],
+      "groupPhotoGuid": "at_0_B97968BB-52C9-4898-88D2-6AA60E7B99D5"
+      "LSMD": 2021-07-18T20:19:33.038Z
+      "messageHandshakeState": 1
+      "numberOfTimesRespondedtoThread": 1
+      "pv": 2
+      "shouldForceToSMS": false
+      "ignoreAlertsFlag": false
+      "hasResponded": true
     }
   */
   const props = chat.properties ? safeBplitParse(Buffer.from(chat.properties)) : null
@@ -265,6 +268,8 @@ export function mapThread(
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
     isUnread: isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[0]?.id),
+    // this is not working, mute state doesn't seem to get persisted to chat.db
+    // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
     messages: {
