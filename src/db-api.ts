@@ -184,7 +184,7 @@ export default class DatabaseAPI {
     return waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
   }
 
-  async fetchLastMessageRows(threadRowID: number): Promise<[MappedMessageRow[], any[]]> {
+  async fetchLastMessageRows(threadRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[]]> {
     const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 5), [threadRowID])
     msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
