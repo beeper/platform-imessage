@@ -1,5 +1,7 @@
 use neon::prelude::*;
 
+mod callback;
+mod error;
 mod poller;
 mod server;
 

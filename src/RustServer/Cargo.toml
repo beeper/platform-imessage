@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 dirs = "3"
+thiserror = "1"
 
 [dependencies.rusqlite]
 version = "0.25"

@@ -10,6 +10,7 @@ use neon::prelude::*;
 
 use rusqlite::{Connection, OpenFlags};
 
+use crate::error::{ServerError, ServerResult};
 use crate::server::Shared;
 
 pub struct Poller {
@@ -83,11 +84,11 @@ LIMIT 400
 "#;
 
 impl Poller {
-    pub fn new(shared: Arc<Shared>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(PollerInner::new(shared))),
+    pub fn new(shared: Arc<Shared>) -> ServerResult<Self> {
+        Ok(Self {
+            inner: Arc::new(Mutex::new(PollerInner::new(shared)?)),
             should_stop: Arc::new(AtomicBool::new(false)),
-        }
+        })
     }
 
     pub fn start(&self, last_row_id: u64, last_date_read: u64) {
@@ -97,10 +98,14 @@ impl Poller {
         std::thread::spawn(move || {
             let mut lock = inner.lock().unwrap();
 
-            lock.init(last_row_id, last_date_read);
+            if let Err(e) = lock.init(last_row_id, last_date_read) {
+                lock.shared.emit_error(e.to_string());
+            }
 
             loop {
-                lock.run();
+                if let Err(e) = lock.run() {
+                    lock.shared.emit_error(e.to_string());
+                }
 
                 if should_stop.load(Ordering::Relaxed) {
                     break;
@@ -119,42 +124,41 @@ impl Poller {
 }
 
 impl PollerInner {
-    pub fn new(shared: Arc<Shared>) -> Self {
-        Self {
+    pub fn new(shared: Arc<Shared>) -> ServerResult<Self> {
+        Ok(Self {
             last_row_id: 0,
             last_date_read: 0,
             conn: Connection::open_with_flags(
-                Self::format_path(&"chat.db"),
+                Self::format_path(&"chat.db")?,
                 OpenFlags::SQLITE_OPEN_READ_ONLY,
-            )
-            .expect("Unable to open database connection"),
+            )?,
             database_paths: [
-                (Self::format_path(&"chat.db"), SystemTime::now()),
-                (Self::format_path(&"chat.db-wal"), SystemTime::now()),
+                (Self::format_path(&"chat.db")?, SystemTime::now()),
+                (Self::format_path(&"chat.db-wal")?, SystemTime::now()),
             ],
             chat_read_map: HashMap::new(),
             shared,
-        }
+        })
     }
 
-    pub fn init(&mut self, last_row_id: u64, last_date_read: u64) {
+    pub fn init(&mut self, last_row_id: u64, last_date_read: u64) -> ServerResult<()> {
         self.last_row_id = last_row_id;
         self.last_date_read = last_date_read;
 
-        self.init_chat_read_map();
+        self.init_chat_read_map()?;
+
+        Ok(())
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> ServerResult<()> {
         let mut is_modified = false;
 
         'inner: for (path, last_modified) in &mut self.database_paths {
             // eprintln!("Checking {:?} for modified", &path);
 
-            let metadata = std::fs::metadata(&path).expect("Unable to pull file metadata");
+            let metadata = std::fs::metadata(&path).map_err(ServerError::IoError)?;
 
-            let modified = metadata
-                .modified()
-                .expect("Date modified not supported on this platform");
+            let modified = metadata.modified().map_err(ServerError::IoError)?;
 
             // eprintln!(
             //     "{:?} modified on {:?} (last modified: {:?})",
@@ -171,30 +175,28 @@ impl PollerInner {
         }
 
         if is_modified {
-            self.poll_message_updates();
-            self.poll_thread_updates();
+            self.poll_message_updates()?;
+            self.poll_thread_updates()?;
         }
+
+        Ok(())
     }
 
-    fn poll_message_updates(&mut self) {
+    fn poll_message_updates(&mut self) -> ServerResult<()> {
         // Scoped block drops immutable borrow of conn.
         let rows: Vec<PollMessageResultRow> = {
-            let mut stmt = self
-                .conn
-                .prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)
-                .expect("Unable to prepare poll query");
+            let mut stmt = self.conn.prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)?;
 
-            stmt.query_map([self.last_row_id, self.last_date_read], |row| {
+            let stmt = stmt.query_map([self.last_row_id, self.last_date_read], |row| {
                 Ok(PollMessageResultRow {
                     msg_row_id: row.get(0)?,
                     date_read: row.get(1)?,
                     thread_guid: row.get(2)?,
                     // max_msg_date: row.get(3)?,
                 })
-            })
-            .expect("Unable to poll database")
-            .map(|r| r.unwrap())
-            .collect()
+            })?;
+
+            stmt.map(|r| r.unwrap()).collect()
         };
 
         let thread_ids: Vec<String> = rows
@@ -207,7 +209,7 @@ impl PollerInner {
             let shared = self.shared.clone();
 
             self.shared.channel.send(move |mut cx| {
-                let cb = shared.callback.to_inner(&mut cx);
+                let cb = shared.callback.0.to_inner(&mut cx);
                 let this = cx.undefined();
 
                 let events = cx.empty_array();
@@ -232,44 +234,46 @@ impl PollerInner {
         }
 
         self.update_cursors(rows);
+
+        Ok(())
     }
 
-    fn query_thread_reads(&mut self) -> Vec<PollThreadResultRow> {
+    fn query_thread_reads(&mut self) -> ServerResult<Vec<PollThreadResultRow>> {
         let rows: Vec<PollThreadResultRow> = {
             // kb: todo optimize
             // this sql query takes ~150ms for me with 1,033 chat rows and 190,179 message rows
-            let mut stmt = self
-                .conn
-                .prepare_cached(POLL_THREAD_READ_QUERY)
-                .expect("Unable to prepare poll query");
+            let mut stmt = self.conn.prepare_cached(POLL_THREAD_READ_QUERY)?;
 
-            stmt.query_map([], |row| {
+            let stmt = stmt.query_map([], |row| {
                 Ok(PollThreadResultRow {
                     thread_guid: row.get(0)?,
                     is_read: row.get(1)?,
                     // max_msg_date: row.get(2)?,
                 })
-            })
-            .expect("Unable to poll database")
-            .map(|r| r.unwrap())
-            .collect()
+            })?;
+
+            stmt.map(|r| r.unwrap()).collect()
         };
 
-        rows
+        Ok(rows)
     }
 
-    fn init_chat_read_map(&mut self) {
-        let rows = self.query_thread_reads();
+    fn init_chat_read_map(&mut self) -> ServerResult<()> {
+        let rows = self.query_thread_reads()?;
+
         for row in rows {
             if let Some(guid) = row.thread_guid {
                 self.chat_read_map.insert(guid, row.is_read);
             }
         }
+
+        Ok(())
     }
 
-    fn poll_thread_updates(&mut self) {
-        let rows = self.query_thread_reads();
+    fn poll_thread_updates(&mut self) -> ServerResult<()> {
+        let rows = self.query_thread_reads()?;
         let mut thread_ids: Vec<String> = Vec::new();
+
         for row in rows {
             if let Some(guid) = row.thread_guid {
                 let was_read = self
@@ -287,7 +291,7 @@ impl PollerInner {
             let shared = self.shared.clone();
 
             self.shared.channel.send(move |mut cx| {
-                let cb = shared.callback.to_inner(&mut cx);
+                let cb = shared.callback.0.to_inner(&mut cx);
                 let this = cx.undefined();
 
                 let events = cx.empty_array();
@@ -326,6 +330,8 @@ impl PollerInner {
                 Ok(())
             });
         }
+
+        Ok(())
     }
 
     fn update_cursors(&mut self, rows: Vec<PollMessageResultRow>) {
@@ -335,13 +341,13 @@ impl PollerInner {
         }
     }
 
-    fn format_path<P: AsRef<Path>>(sub: &P) -> PathBuf {
+    fn format_path<P: AsRef<Path>>(sub: &P) -> ServerResult<PathBuf> {
         let mut p = home_dir()
-            .expect("Cannot find home directory")
+            .ok_or(ServerError::CannotFindHomeDirectory)?
             .join(["Library", "Messages"].iter().collect::<PathBuf>());
 
         p.push(sub);
 
-        p
+        Ok(p)
     }
 }
