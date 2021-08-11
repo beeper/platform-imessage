@@ -267,7 +267,7 @@ export function mapThread(
     id: chat.guid,
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
-    isUnread: isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[0]?.id),
+    isUnread: isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
     // this is not working, mute state doesn't seem to get persisted to chat.db
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     isReadOnly,
