@@ -245,7 +245,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   handleDeepLink = (link: string) => {
     // texts://platform-callback/{accountID}/callback/{count}
-    const [, , , , count] = link.split('/')
+    const [, , , , , count] = link.split('/')
     this.api.selectFirstNThreads(+count)
   }
 }
