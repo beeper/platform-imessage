@@ -10,5 +10,8 @@ FILE_PATH_ARM64=src/RustServer/target/aarch64-apple-darwin/release/librust_serve
 ls -lah $FILE_PATH_X64
 ls -lah $FILE_PATH_ARM64
 
+strip -ru $FILE_PATH_X64
+strip -ru $FILE_PATH_ARM64
+
 cp $FILE_PATH_X64 binaries/x64.node
 cp $FILE_PATH_ARM64 binaries/arm64.node

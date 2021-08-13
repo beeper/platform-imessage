@@ -99,12 +99,12 @@ impl Poller {
             let mut lock = inner.lock().unwrap();
 
             if let Err(e) = lock.init(last_row_id, last_date_read) {
-                lock.shared.emit_error(e.to_string());
+                lock.shared.emit_error(&e);
             }
 
             loop {
                 if let Err(e) = lock.run() {
-                    lock.shared.emit_error(e.to_string());
+                    lock.shared.emit_error(&e);
                 }
 
                 if should_stop.load(Ordering::Relaxed) {
@@ -196,7 +196,15 @@ impl PollerInner {
                 })
             })?;
 
-            stmt.map(|r| r.unwrap()).collect()
+            let mut res = Vec::new();
+
+            for row in stmt {
+                let row = row?;
+
+                res.push(row);
+            }
+
+            res
         };
 
         let thread_ids: Vec<String> = rows
@@ -252,7 +260,16 @@ impl PollerInner {
                 })
             })?;
 
-            stmt.map(|r| r.unwrap()).collect()
+            let mut res = Vec::new();
+
+            // (522) SQLITE_IOERR_SHORT_READ may occur here, propagate back.
+            for row in stmt {
+                let row = row?;
+
+                res.push(row);
+            }
+
+            res
         };
 
         Ok(rows)

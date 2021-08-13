@@ -124,7 +124,12 @@ impl Shared {
         }
     }
 
-    pub fn emit_error(&self, error: String) {
+    pub fn emit_error<E>(&self, error: &E)
+    where
+        E: std::error::Error + ?Sized,
+    {
+        let error_str = error.to_string();
+
         let cb = self.callback.clone();
 
         self.channel.send(move |mut cx| {
@@ -139,7 +144,7 @@ impl Shared {
             err_obj.set(&mut cx, "type", event_type)?;
 
             let toast_obj = cx.empty_object();
-            let toast_text = cx.string(error);
+            let toast_text = cx.string(error_str);
             toast_obj.set(&mut cx, "text", toast_text)?;
 
             err_obj.set(&mut cx, "toast", toast_obj)?;
