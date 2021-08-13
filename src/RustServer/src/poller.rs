@@ -105,6 +105,9 @@ impl Poller {
             loop {
                 if let Err(e) = lock.run() {
                     lock.shared.emit_error(&e);
+
+                    // Run has failed, reset timestamp so it can pick it up next time.
+                    lock.reset_timestamp();
                 }
 
                 if should_stop.load(Ordering::Relaxed) {
@@ -175,11 +178,23 @@ impl PollerInner {
         }
 
         if is_modified {
-            self.poll_message_updates()?;
-            self.poll_thread_updates()?;
+            self.run_subtasks()?;
         }
 
         Ok(())
+    }
+
+    fn run_subtasks(&mut self) -> ServerResult<()> {
+        self.poll_message_updates()?;
+        self.poll_thread_updates()?;
+
+        Ok(())
+    }
+
+    fn reset_timestamp(&mut self) {
+        for (_, last_modified) in &mut self.database_paths {
+            *last_modified = SystemTime::now();
+        }
     }
 
     fn poll_message_updates(&mut self) -> ServerResult<()> {
