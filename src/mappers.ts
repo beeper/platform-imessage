@@ -10,7 +10,7 @@ import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -208,14 +208,14 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   return m
 }
 
-function mapParticipant({ participantID, uncanonicalized_id, display_name }: any) {
+function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, displayName: string = undefined) {
   if (!participantID) return
   const id = participantID
   const participant: Participant = { id }
   const isEmail = id.includes('@')
   const isBusiness = id.startsWith('urn:')
   const isPhone = !isBusiness && !isEmail && /\d/.test(id)
-  if (isBusiness) participant.fullName = display_name
+  if (isBusiness) participant.fullName = displayName
   else if (isEmail) participant.email = id
   else if (isPhone) participant.phoneNumber = id
   if (!isPhone && uncanonicalized_id) {
@@ -228,7 +228,7 @@ export const mapAccountLogin = (al: string) => al?.replace(/^E:/, '')
 
 type Context = {
   currentUserID: string
-  handleRowsMap: { [threadID: string]: any[] }
+  handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap?: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[]] }
   groupImagesMap?: { [attachmentID: string]: string }
   threadReadStore: ThreadReadStore
@@ -243,8 +243,7 @@ export function mapThread(
   const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]
   const selfID = chat.last_addressed_handle || mapAccountLogin(chat.account_login) || currentUserID
   const selfParticipant: Participant = { ...mapParticipant({ participantID: selfID }), id: currentUserID, isSelf: true }
-  const { display_name } = chat
-  const participants = [...handleRows.map(h => mapParticipant({ ...h, display_name })), selfParticipant].filter(Boolean)
+  const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(Boolean)
   const isGroup = !!chat.room_name
   const isReadOnly = chat.state === 0 && chat.properties != null
   const messages = mapMessageArgs ? mapMessages(mapMessageArgs[0], mapMessageArgs[1], currentUserID) : []

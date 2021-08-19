@@ -5,7 +5,7 @@ import type { OnServerEventCallback, ServerEvent } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
 import { Server as RustServer } from './RustServer/lib'
-import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
+import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow } from './types'
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -176,7 +176,7 @@ export default class DatabaseAPI {
     return waitForRows(() => this.getThread(threadID), 1)
   }
 
-  getThreadParticipants(chatRowID: number): Promise<{ uncanonicalized_id: string, participantID: string }[]> {
+  getThreadParticipants(chatRowID: number): Promise<MappedHandleRow[]> {
     return this.db.all(SQLS.getThreadParticipants, [chatRowID])
   }
 

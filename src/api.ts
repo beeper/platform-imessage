@@ -13,7 +13,7 @@ import ThreadReadStore from './thread-read-store'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import type { MappedAttachmentRow, MappedMessageRow } from './types'
+import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow } from './types'
 
 export default class AppleiMessage implements PlatformAPI {
   private currentUserID: string
@@ -45,7 +45,7 @@ export default class AppleiMessage implements PlatformAPI {
     return { type: 'error', errorMessage: 'Please grant full disk access and try again.' }
   }
 
-  init = async (_: any, { dataDirPath }: AccountInfo) => {
+  init = async (_: undefined, { dataDirPath }: AccountInfo) => {
     await this.dbAPI.init()
     this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
     csrStatus().then(status => {
@@ -113,7 +113,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.ensureDB()
     const chatRows = await this.dbAPI.getThreads(cursor, direction)
     const mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[]] } = {}
-    const handleRowsMap: { [threadID: string]: any[] } = {}
+    const handleRowsMap: { [threadID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     const [,, groupImagesRows] = await Promise.all([
       bluebird.map(chatRows, async chatRow => {

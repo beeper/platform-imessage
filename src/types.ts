@@ -131,3 +131,9 @@ export type MappedAttachmentRow = {
   attachmentID: string
   transfer_state: number
 }
+
+// db-api.ts -> SQLS
+export type MappedHandleRow = {
+  participantID: string
+  uncanonicalized_id?: string
+}
