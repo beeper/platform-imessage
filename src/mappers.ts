@@ -1,16 +1,16 @@
 import path from 'path'
 import { groupBy, omit, truncate, findLast } from 'lodash'
-import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, Size } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
-import { fromAppleTime, replaceTilde, enhancedStringify, unpackTime } from './util'
+import { fromAppleTime, replaceTilde, enhancedStringify } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplitParse from './safe-bplist-parse'
 import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import type ThreadReadStore from './thread-read-store'
-import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedMessageRow } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -46,10 +46,10 @@ function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   return { ...common, type: MessageAttachmentType.UNKNOWN }
 }
 
-function serializeMessageRow(row: MappedMessageRow) {
+function serializeMessageRow(msgRow: MappedMessageRow) {
   return {
-    ...omit(row, ['attributedBody', 'message_summary_info']),
-    payload_data: row.payload_data && Buffer.from(row.payload_data as Uint8Array),
+    ...omit(msgRow, ['attributedBody', 'message_summary_info']),
+    payload_data: msgRow.payload_data && Buffer.from(msgRow.payload_data as Uint8Array),
   }
 }
 
@@ -59,33 +59,36 @@ const removeObjReplacementChar = (text: string) => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], currentUserID: string): Message {
-  if (row.was_data_detected === 0) return
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], currentUserID: string): Message {
+  if (msgRow.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
-  const isSMS = row.service === 'SMS'
-  const isGroup = !!row.room_name
+  const isSMS = msgRow.service === 'SMS'
+  const isGroup = !!msgRow.room_name
   const m: Message = {
-    _original: enhancedStringify([serializeMessageRow(row), attachmentRows, currentUserID]),
-    id: row.msgID,
-    cursor: row.date.toString(),
-    timestamp: fromAppleTime(row.date),
-    senderID: (row.is_from_me || (!row.participantID && row.handle_id === 0)) ? currentUserID : row.participantID,
-    text: (row.subject ? `${row.subject}\n` : '') + (removeObjReplacementChar(row.text) || ''),
-    isSender: row.is_from_me === 1,
-    isErrored: row.error !== 0,
-    isDelivered: true, // row.is_delivered === 1,
-    seen: isGroup ? undefined : fromAppleTime(row.date_read),
+    _original: enhancedStringify([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
+    id: msgRow.msgID,
+    cursor: msgRow.date.toString(),
+    timestamp: fromAppleTime(msgRow.date),
+    senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
+    text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
+    isSender: msgRow.is_from_me === 1,
+    isErrored: msgRow.error !== 0,
+    isDelivered: true, // msgRow.is_delivered === 1,
+    seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
     attachments,
-    textFooter: row.expressive_send_style_id
-      ? `(Sent with ${(EXPRESSIVE_MSGS[row.expressive_send_style_id] || row.expressive_send_style_id)} effect)`
+    textFooter: msgRow.expressive_send_style_id
+      ? `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)`
       : undefined,
     extra: { isSMS },
   }
-  if (row.subject) {
+  if (msgRow.is_read) {
+    m.behavior = MessageBehavior.KEEP_READ
+  }
+  if (msgRow.subject) {
     m.textAttributes = {
       entities: [{
         from: 0,
-        to: row.subject.length,
+        to: msgRow.subject.length,
         bold: true,
       }],
     }
@@ -95,27 +98,27 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
   //   "amsa" => "com.apple.siri"
   //   "ust" => 1
   // }
-  if (row.message_summary_info) {
-    const msi = safeBplitParse(Buffer.from(row.message_summary_info))
+  if (msgRow.message_summary_info) {
+    const msi = safeBplitParse(Buffer.from(msgRow.message_summary_info))
     if (msi?.amsa === 'com.apple.siri') {
       m.textFooter = 'Sent with Siri'
     }
   }
-  const payloadData = getPayloadData(row)
-  Object.assign(m, getPayloadProps(payloadData, m, row))
-  if (row.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH) {
+  const payloadData = getPayloadData(msgRow)
+  Object.assign(m, getPayloadProps(payloadData, m, msgRow))
+  if (msgRow.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH) {
     m.textHeading = 'Digital Touch Message'
-  } else if (row.balloon_bundle_id === BalloonBundleID.HANDWRITING) {
+  } else if (msgRow.balloon_bundle_id === BalloonBundleID.HANDWRITING) {
     m.textHeading = 'Handwritten Message'
-  } else if (row.balloon_bundle_id === BalloonBundleID.BIZ_EXTENSION) {
+  } else if (msgRow.balloon_bundle_id === BalloonBundleID.BIZ_EXTENSION) {
     m.textHeading = 'Business Chat Extension'
     if (m.attachments[0]) m.attachments[0].size = { height: 80, width: 80 }
   }
   // @ts-expect-error fix after changing es target
   m.text = m.text.replaceAll(IMSG_EXTENSION_CHAR, '')
-  if (row.associated_message_guid) {
-    m.linkedMessageID = row.associated_message_guid.replace(/^(p:\d\/|bp:)/, '')
-    const assocMsgType = ASSOC_MSG_TYPE[row.associated_message_type]
+  if (msgRow.associated_message_guid) {
+    m.linkedMessageID = msgRow.associated_message_guid.replace(/^(p:\d\/|bp:)/, '')
+    const assocMsgType = ASSOC_MSG_TYPE[msgRow.associated_message_type]
     if (assocMsgType !== 'sticker' && assocMsgType) {
       m.isAction = !isSMS // apple imessage has a bug where sms can be reacted to
       const [actionType, actionKey] = assocMsgType.split('_') || []
@@ -136,44 +139,44 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
           m.text = `{{sender}}: ${emoji} ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
         }
       } else if (assocMsgType === 'heading') {
-        m.text = m.text.replace(HEADING_SENDER_NAME_CONSTANT, m.isSender ? `{{${row.participantID}}}` : `{{${currentUserID}}}`)
+        m.text = m.text.replace(HEADING_SENDER_NAME_CONSTANT, m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`)
         m.parseTemplate = true
       }
     }
   }
-  if (row.thread_originator_guid) {
-    m.linkedMessageID = row.thread_originator_guid
+  if (msgRow.thread_originator_guid) {
+    m.linkedMessageID = msgRow.thread_originator_guid
   }
   if (m.text.startsWith('/me ')) {
     m.text = m.text.replace('/me ', '{{sender}} ')
     m.isAction = true
     m.parseTemplate = true
   }
-  if (row.item_type !== 0) {
+  if (msgRow.item_type !== 0) {
     m.isAction = true
     m.parseTemplate = true
-    if (row.item_type === 1) {
-      m.silent = true
-      m.text = row.group_action_type === 1
-        ? `{{sender}} removed {{${row.otherID}}} from the conversation`
-        : `{{sender}} added {{${row.otherID}}} to the conversation`
+    if (msgRow.item_type === 1) {
+      m.behavior = MessageBehavior.SILENT
+      m.text = msgRow.group_action_type === 1
+        ? `{{sender}} removed {{${msgRow.otherID}}} from the conversation`
+        : `{{sender}} added {{${msgRow.otherID}}} to the conversation`
       m.action = {
-        type: row.group_action_type === 1 ? MessageActionType.THREAD_PARTICIPANTS_ADDED : MessageActionType.THREAD_PARTICIPANTS_REMOVED,
-        participantIDs: [row.otherID],
+        type: msgRow.group_action_type === 1 ? MessageActionType.THREAD_PARTICIPANTS_ADDED : MessageActionType.THREAD_PARTICIPANTS_REMOVED,
+        participantIDs: [msgRow.otherID],
         actorParticipantID: m.senderID,
       }
-    } else if (row.item_type === 2) {
-      m.silent = true
-      m.text = row.group_title == null
+    } else if (msgRow.item_type === 2) {
+      m.behavior = MessageBehavior.SILENT
+      m.text = msgRow.group_title == null
         ? '{{sender}} removed the name from the conversation'
-        : `{{sender}} named the conversation "${row.group_title}"`
+        : `{{sender}} named the conversation "${msgRow.group_title}"`
       m.action = {
         type: MessageActionType.THREAD_TITLE_UPDATED,
-        title: row.group_title,
+        title: msgRow.group_title,
         actorParticipantID: m.senderID,
       }
-    } else if (row.item_type === 3) {
-      m.silent = true
+    } else if (msgRow.item_type === 3) {
+      m.behavior = MessageBehavior.SILENT
       const firstAttachmentRow = attachmentRows[0]
       if (firstAttachmentRow?.attachmentID) {
         m.text = '{{sender}} changed the group photo'
@@ -190,15 +193,15 @@ export function mapMessage(row: MappedMessageRow, attachmentRows: MappedAttachme
           participantIDs: [m.senderID],
         }
       }
-    } else if (row.item_type === 4) {
-      m.silent = true
-      m.text = row.share_status === 1
+    } else if (msgRow.item_type === 4) {
+      m.behavior = MessageBehavior.SILENT
+      m.text = msgRow.share_status === 1
         ? '{{sender}} stopped sharing location'
         : '{{sender}} started sharing location'
-    } else if (row.item_type === 5) {
-      m.silent = true
+    } else if (msgRow.item_type === 5) {
+      m.behavior = MessageBehavior.SILENT
       m.text = '{{sender}} kept an audio message from you.'
-    } else if (row.item_type === 6) {
+    } else if (msgRow.item_type === 6) {
       m.text = 'FaceTime Call'
     }
   }
