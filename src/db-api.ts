@@ -74,7 +74,7 @@ LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 WHERE t.guid = ?`,
   createIndexes: 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
-  // updateReadTimestamp: 'update chat set last_read_message_timestamp = ? where guid = ?',
+  // updateReadTimestamp: 'UPDATE message SET is_read = TRUE WHERE guid = ?',
 }
 
 // @ts-expect-error FIXME
@@ -229,4 +229,8 @@ export default class DatabaseAPI {
   getThreadMessagesCount(threadID: string): Promise<number> {
     return this.db.pluck_get(SQLS.getMsgCount, threadID)
   }
+
+  // async markMessageRead(messageID: string) {
+  //   await this.db.run(SQLS.updateReadTimestamp, [messageID])
+  // }
 }

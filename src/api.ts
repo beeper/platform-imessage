@@ -220,7 +220,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
     this.threadReadStore.markThreadRead(threadID, messageID)
-    // await this.dbAPI.db.run(SQLS.updateReadTimestamp, [messageCursor, threadID])
+    // await this.dbAPI.markMessageRead(messageID)
   }
 
   //   private getThreadMessagesChecksum = async (threadID: string, afterCursor: string) => {
