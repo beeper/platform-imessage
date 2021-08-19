@@ -242,7 +242,9 @@ export function mapThread(
   const handleRows = context.handleRowsMap[chat.guid]
   const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]
   const selfID = chat.last_addressed_handle || mapAccountLogin(chat.account_login) || currentUserID
-  const selfParticipant: Participant = { ...mapParticipant({ participantID: selfID }), id: currentUserID, isSelf: true }
+  const selfParticipant: Participant = currentUserID === handleRows[0]?.participantID
+    ? undefined
+    : { ...mapParticipant({ participantID: selfID }), id: currentUserID, isSelf: true }
   const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(Boolean)
   const isGroup = !!chat.room_name
   const isReadOnly = chat.state === 0 && chat.properties != null
