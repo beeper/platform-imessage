@@ -13,7 +13,7 @@ import ThreadReadStore from './thread-read-store'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow } from './types'
+import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 export default class AppleiMessage implements PlatformAPI {
   private currentUserID: string
@@ -68,7 +68,7 @@ export default class AppleiMessage implements PlatformAPI {
   searchUsers = (typed: string): User[] => []
 
   getThread = async (threadID: string) => {
-    const [chatRow] = await this.dbAPI.getThread(threadID)
+    const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
     const handleRows = await this.dbAPI.getThreadParticipants(chatRow.ROWID)
     return mapThread(
@@ -112,17 +112,17 @@ export default class AppleiMessage implements PlatformAPI {
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     this.ensureDB()
     const chatRows = await this.dbAPI.getThreads(cursor, direction)
-    const mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[]] } = {}
-    const handleRowsMap: { [threadID: string]: MappedHandleRow[] } = {}
+    const mapMessageArgsMap: { [chatGUID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] } = {}
+    const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     const [,, groupImagesRows] = await Promise.all([
-      bluebird.map(chatRows, async chatRow => {
-        const [msgRows, attachmentRows] = await this.dbAPI.fetchLastMessageRows(chatRow.ROWID)
+      bluebird.map(chatRows, async chat => {
+        const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
-        mapMessageArgsMap[chatRow.guid] = [msgRows, attachmentRows]
+        mapMessageArgsMap[chat.guid] = [msgRows, attachmentRows, reactionRows]
       }),
-      bluebird.map(chatRows, async chatRow => {
-        handleRowsMap[chatRow.guid] = await this.dbAPI.getThreadParticipants(chatRow.ROWID)
+      bluebird.map(chatRows, async chat => {
+        handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
       }),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
     ])
@@ -145,8 +145,12 @@ export default class AppleiMessage implements PlatformAPI {
     const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
     if (direction !== 'after') msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
-    const attachmentRows = msgRows.length ? await this.dbAPI.getAttachments(msgRowIDs) : []
-    const items = mapMessages(msgRows, attachmentRows, this.currentUserID)
+    const msgGUIDs = msgRows.map(m => m.guid)
+    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
+      this.dbAPI.getAttachments(msgRowIDs),
+      this.dbAPI.getMessageReactions(msgGUIDs, threadID),
+    ])
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUserID)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,
@@ -158,8 +162,12 @@ export default class AppleiMessage implements PlatformAPI {
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.searchMessages(typed, threadID, cursor, direction)
     const msgRowIDs = msgRows.map(m => m.msgRowID)
-    const attachmentRows = msgRows.length ? await this.dbAPI.getAttachments(msgRowIDs) : []
-    const items = mapMessages(msgRows, attachmentRows, this.currentUserID, true)
+    const msgGUIDs = msgRows.map(m => m.guid)
+    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
+      this.dbAPI.getAttachments(msgRowIDs),
+      this.dbAPI.getMessageReactions(msgGUIDs, threadID),
+    ])
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUserID, true)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,

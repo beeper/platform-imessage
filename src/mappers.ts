@@ -10,11 +10,12 @@ import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
+const assocMsgGuidPrefix = /^(p:\d\/|bp:)/
 const whitespaceRegexGlobal = /\s+/g
 
 function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
@@ -59,7 +60,7 @@ const removeObjReplacementChar = (text: string) => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], currentUserID: string): Message {
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string): Message {
   if (msgRow.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = msgRow.service === 'SMS'
@@ -83,6 +84,23 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
   if (msgRow.is_read) {
     m.behavior = MessageBehavior.KEEP_READ
+  }
+  if (reactionRows?.length > 0) {
+    reactionRows.forEach(reaction => {
+      const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
+      if (assocMsgType !== 'sticker' && assocMsgType) {
+        const [actionType, actionKey] = assocMsgType.split('_') || []
+        if (actionType === 'reacted') {
+          const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
+          if (!m.reactions) m.reactions = []
+          m.reactions.push({
+            id: participantID,
+            reactionKey: supportedReactions[actionKey]?.render,
+            participantID,
+          })
+        }
+      }
+    })
   }
   if (msgRow.subject) {
     m.textAttributes = {
@@ -117,7 +135,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // @ts-expect-error fix after changing es target
   m.text = m.text.replaceAll(IMSG_EXTENSION_CHAR, '')
   if (msgRow.associated_message_guid) {
-    m.linkedMessageID = msgRow.associated_message_guid.replace(/^(p:\d\/|bp:)/, '')
+    m.linkedMessageID = msgRow.associated_message_guid.replace(assocMsgGuidPrefix, '')
     const assocMsgType = ASSOC_MSG_TYPE[msgRow.associated_message_type]
     if (assocMsgType !== 'sticker' && assocMsgType) {
       m.isAction = !isSMS // apple imessage has a bug where sms can be reacted to
@@ -136,7 +154,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         }
         if (emoji) {
           m.parseTemplate = true
+          // todo fix for localized reaction messages
           m.text = `{{sender}}: ${emoji} ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
+          m.isHidden = true
         }
       } else if (assocMsgType === 'heading') {
         m.text = m.text.replace(HEADING_SENDER_NAME_CONSTANT, m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`)
@@ -229,7 +249,7 @@ export const mapAccountLogin = (al: string) => al?.replace(/^E:/, '')
 type Context = {
   currentUserID: string
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
-  mapMessageArgsMap?: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[]] }
+  mapMessageArgsMap?: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   groupImagesMap?: { [attachmentID: string]: string }
   threadReadStore: ThreadReadStore
 }
@@ -248,7 +268,7 @@ export function mapThread(
   const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(Boolean)
   const isGroup = !!chat.room_name
   const isReadOnly = chat.state === 0 && chat.properties != null
-  const messages = mapMessageArgs ? mapMessages(mapMessageArgs[0], mapMessageArgs[1], currentUserID) : []
+  const messages = mapMessageArgs ? mapMessages(...mapMessageArgs, currentUserID) : []
   /*
     props = {
       "com.apple.iChat.LastArchivedMessageID": [ 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', 101010 ],
@@ -293,11 +313,12 @@ export function mapThread(
 export const mapThreads = (chatRows: MappedChatRow[], context: Context) =>
   chatRows.map(chat => mapThread(chat, context))
 
-export function mapMessages(rows: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], currentUserID: string, addThreadIDs = false): Message[] {
-  const grouped = groupBy(attachmentRows, 'msgRowID')
-  return rows.map(r => {
-    const m = mapMessage(r, grouped[r.msgRowID], currentUserID)
-    if (addThreadIDs) m.threadID = r.threadID
+export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
+  const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
+  const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
+  return messages.map(message => {
+    const m = mapMessage(message, groupedAttachmentRows[message.msgRowID], groupedReactionRows[message.guid], currentUserID)
+    if (addThreadIDs) m.threadID = message.threadID
     return m
   }).filter(Boolean)
 }

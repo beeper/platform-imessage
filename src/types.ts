@@ -1,5 +1,5 @@
 // taken from chat.db on big sur
-export type MessageRow = {
+type MessageRow = {
   ROWID: number
   guid: string
   text: string
@@ -115,6 +115,11 @@ export type MappedMessageRow = MessageRow & {
   room_name: string
   participantID: string
   otherID: string
+}
+
+// db-api.ts -> SQLS
+export type MappedReactionMessageRow = MessageRow & {
+  participantID: string
 }
 
 // db-api.ts -> SQLS

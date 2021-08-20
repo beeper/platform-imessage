@@ -98,7 +98,7 @@ export function getPayloadProps(payloadData: any, message: Message, { balloon_bu
   if (!payloadData) return {}
   if (balloon_bundle_id === BalloonBundleID.URL) return getURLBalloonProps(payloadData, message)
   if (balloon_bundle_id === BalloonBundleID.APPLE_PAY) return getApplePayProps(payloadData)
-  console.log('unknown balloon_bundle_id', balloon_bundle_id)
+  console.log('[imessage] unknown balloon_bundle_id', balloon_bundle_id)
   try {
     if (balloon_bundle_id === null) return getURLBalloonProps(payloadData, message)
   } catch (err) {
