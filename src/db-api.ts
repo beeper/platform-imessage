@@ -52,14 +52,14 @@ WHERE cmj.chat_id = ?
 ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
 ORDER BY date DESC
 LIMIT ${limit}`,
-  searchMessages: (cursorDirection: string, threadID?: string) => `SELECT
+  searchMessages: (cursorDirection: string, chatGUID?: string) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${COMMON_JOINS}
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
 ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
-${threadID ? 'AND t.guid = ?' : ''}
+${chatGUID ? 'AND t.guid = ?' : ''}
 ORDER BY date DESC
 LIMIT ${MESSAGES_LIMIT}`,
   getAttachments: (msgIDs: number[]) => `SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.is_sticker, a.guid AS attachmentID, a.transfer_state
@@ -168,12 +168,12 @@ export default class DatabaseAPI {
     // })
   }
 
-  getThread(threadID: string): Promise<MappedChatRow[]> {
-    return this.db.all(SQLS.getThread, [threadID])
+  getThread(chatGUID: string): Promise<MappedChatRow[]> {
+    return this.db.all(SQLS.getThread, [chatGUID])
   }
 
-  getThreadWithWait(threadID: string) {
-    return waitForRows(() => this.getThread(threadID), 1)
+  getThreadWithWait(chatGUID: string) {
+    return waitForRows(() => this.getThread(chatGUID), 1)
   }
 
   getThreadParticipants(chatRowID: number): Promise<MappedHandleRow[]> {
@@ -184,8 +184,8 @@ export default class DatabaseAPI {
     return waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
   }
 
-  async fetchLastMessageRows(threadRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[]]> {
-    const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 5), [threadRowID])
+  async fetchLastMessageRows(chatRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[]]> {
+    const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 5), [chatRowID])
     msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
     const attachmentRows = msgRows.length ? await this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs) : []
@@ -200,11 +200,11 @@ export default class DatabaseAPI {
     return this.db.raw_all(SQLS.getGroupImages)
   }
 
-  getMessages(threadID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
+  getMessages(chatGUID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     return this.db.all(
       SQLS.getMessages(cursorDirection),
-      cursor ? [threadID, +cursor] : [threadID],
+      cursor ? [chatGUID, +cursor] : [chatGUID],
     )
   }
 
@@ -212,22 +212,22 @@ export default class DatabaseAPI {
     return this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs)
   }
 
-  async searchMessages(typed: string, threadID: string, cursor: string, direction: string) {
+  async searchMessages(typed: string, chatGUID: string, cursor: string, direction: string) {
     // @ts-expect-error replaceAll
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]
-    if (threadID) bindings.push(threadID)
+    if (chatGUID) bindings.push(chatGUID)
     const msgRows: MappedMessageRow[] = await this.db.all(
-      SQLS.searchMessages(cursorDirection, threadID),
+      SQLS.searchMessages(cursorDirection, chatGUID),
       bindings,
     )
     msgRows.reverse()
     return msgRows
   }
 
-  getThreadMessagesCount(threadID: string): Promise<number> {
-    return this.db.pluck_get(SQLS.getMsgCount, threadID)
+  getThreadMessagesCount(chatGUID: string): Promise<number> {
+    return this.db.pluck_get(SQLS.getMsgCount, chatGUID)
   }
 
   // async markMessageRead(messageID: string) {
