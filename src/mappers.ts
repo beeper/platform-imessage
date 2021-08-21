@@ -90,14 +90,17 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
       if (assocMsgType !== 'sticker' && assocMsgType) {
         const [actionType, actionKey] = assocMsgType.split('_') || []
+        const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
         if (actionType === 'reacted') {
-          const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
           if (!m.reactions) m.reactions = []
           m.reactions.push({
             id: participantID,
             reactionKey: supportedReactions[actionKey]?.render,
             participantID,
           })
+        } else if (actionType === 'unreacted') {
+          const index = m.reactions?.findIndex(r => r.id === participantID)
+          if (index > -1) m.reactions.splice(index, 1)
         }
       }
     })

@@ -50,7 +50,7 @@ FROM message AS m
 LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
 LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
 WHERE m.ROWID IN (${msgIDs.map(_ => '?').join(', ')})`,
-  getMessageReactions: (msgGUIDs: string[]) => `SELECT *, h.id AS participantID
+  getMessageReactions: (msgGUIDs: string[]) => `SELECT is_from_me, handle_id, associated_message_type, associated_message_guid, h.id AS participantID
 FROM message AS m
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
