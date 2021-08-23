@@ -92,7 +92,7 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
   const isGroup = !!msgRow.room_name
   const m: Message = {
     _original: enhancedStringify([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
-    id: `${msgRow.msgID}_${attachments.length}`,
+    id: attachments.length === 0 ? msgRow.msgID : `${msgRow.msgID}_${attachments.length}`,
     cursor: msgRow.date.toString(),
     timestamp: fromAppleTime(msgRow.date),
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
@@ -180,7 +180,7 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
      * Y = original quoted message length
      */
     const firstPart = msgRow.thread_originator_part?.split(':')?.[0]
-    m.linkedMessageID = msgRow.thread_originator_guid + `_${firstPart}`
+    m.linkedMessageID = msgRow.thread_originator_guid + (firstPart === '0' ? '' : `_${firstPart}`)
   }
   if (m.text.startsWith('/me ')) {
     m.text = m.text.replace('/me ', '{{sender}} ')
@@ -248,7 +248,7 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
     mapped.unshift(...attachments.map<Message>((att, attIndex) => {
       const am: Message = {
         ...m,
-        id: `${msgRow.msgID}_${attIndex}`,
+        id: attIndex === 0 ? msgRow.msgID : `${msgRow.msgID}_${attIndex}`,
         text: null,
         attachments: [att],
       }
