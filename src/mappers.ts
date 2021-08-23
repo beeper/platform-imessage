@@ -1,6 +1,6 @@
 import path from 'path'
 import { groupBy, omit, truncate, findLast } from 'lodash'
-import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
 import { fromAppleTime, replaceTilde, enhancedStringify } from './util'
@@ -60,7 +60,32 @@ const removeObjReplacementChar = (text: string) => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string): Message {
+function assignReactions(message: Message, _reactionRows: MappedReactionMessageRow[] = [], filterIndex: number, currentUserID: string) {
+  const reactions: MessageReaction[] = []
+  const reactionRows = filterIndex != null
+    ? _reactionRows.filter(r => r.associated_message_guid.startsWith(`p:${filterIndex}/`))
+    : _reactionRows
+  reactionRows.forEach(reaction => {
+    const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
+    if (assocMsgType !== 'sticker' && assocMsgType) {
+      const [actionType, actionKey] = assocMsgType.split('_') || []
+      const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
+      if (actionType === 'reacted') {
+        reactions.push({
+          id: participantID,
+          reactionKey: supportedReactions[actionKey]?.render,
+          participantID,
+        })
+      } else if (actionType === 'unreacted') {
+        const index = reactions.findIndex(r => r.id === participantID)
+        if (index > -1) reactions.splice(index, 1)
+      }
+    }
+  })
+  if (reactions.length > 0) message.reactions = reactions
+}
+
+function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
   if (msgRow.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = msgRow.service === 'SMS'
@@ -82,28 +107,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       : undefined,
     extra: { isSMS },
   }
+  if (addThreadIDs) m.threadID = msgRow.threadID
   if (msgRow.is_read) {
     m.behavior = MessageBehavior.KEEP_READ
-  }
-  if (reactionRows?.length > 0) {
-    reactionRows.forEach(reaction => {
-      const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
-      if (assocMsgType !== 'sticker' && assocMsgType) {
-        const [actionType, actionKey] = assocMsgType.split('_') || []
-        const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
-        if (actionType === 'reacted') {
-          if (!m.reactions) m.reactions = []
-          m.reactions.push({
-            id: participantID,
-            reactionKey: supportedReactions[actionKey]?.render,
-            participantID,
-          })
-        } else if (actionType === 'unreacted') {
-          const index = m.reactions?.findIndex(r => r.id === participantID)
-          if (index > -1) m.reactions.splice(index, 1)
-        }
-      }
-    })
   }
   if (msgRow.subject) {
     m.textAttributes = {
@@ -126,7 +132,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     }
   }
   const payloadData = getPayloadData(msgRow)
-  Object.assign(m, getPayloadProps(payloadData, m, msgRow))
+  Object.assign(m, getPayloadProps(payloadData, attachments, msgRow.balloon_bundle_id))
   if (msgRow.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH) {
     m.textHeading = 'Digital Touch Message'
   } else if (msgRow.balloon_bundle_id === BalloonBundleID.HANDWRITING) {
@@ -228,7 +234,25 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       m.text = 'FaceTime Call'
     }
   }
-  return m
+  const mapped: Message[] = [m]
+  if (attachments.length > 0 && !m.links?.length) { // should split
+    if (!m.text) mapped.length = 0 // remove existing message if no text
+    m.attachments = undefined
+    assignReactions(m, reactionRows, attachments.length, currentUserID)
+    mapped.unshift(...attachments.map<Message>((att, attIndex) => {
+      const am: Message = {
+        ...m,
+        id: m.id + '_att' + attIndex,
+        text: null,
+        attachments: [att],
+      }
+      assignReactions(am, reactionRows, attIndex, currentUserID)
+      return am
+    }))
+  } else {
+    assignReactions(m, reactionRows, undefined, currentUserID)
+  }
+  return mapped
 }
 
 function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, displayName: string = undefined) {
@@ -319,9 +343,7 @@ export const mapThreads = (chatRows: MappedChatRow[], context: Context) =>
 export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
-  return messages.map(message => {
-    const m = mapMessage(message, groupedAttachmentRows[message.msgRowID], groupedReactionRows[message.guid], currentUserID)
-    if (addThreadIDs) m.threadID = message.threadID
-    return m
-  }).filter(Boolean)
+  return messages
+    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.msgRowID], groupedReactionRows[message.guid], currentUserID, addThreadIDs))
+    .filter(Boolean)
 }

@@ -41,12 +41,12 @@ function getExternalVideos(videos: any): MessageAttachment[] {
   }).filter(Boolean)
 }
 
-function getURLBalloonProps(payloadData: any, message: Message): Partial<Message> {
+function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[]): Partial<Message> {
   const { richLinkMetadata } = payloadData
   if (!richLinkMetadata) return {}
   const { summary, title, image, icon, alternateImages, video, videos } = richLinkMetadata
   if (!title && !summary) return {}
-  const ppa = message.attachments.filter(a => a.srcURL && a.fileName.toLowerCase().endsWith('.pluginpayloadattachment'))
+  const ppa = msgAttachments?.filter(a => a.srcURL && a.fileName.toLowerCase().endsWith('.pluginpayloadattachment')) || []
   const alternates = (alternateImages?.['NS.objects'] as any[])?.map(o => ppa[o.richLinkImageAttachmentSubstituteIndex]) || []
   const attachments = videos ? [
     ...getExternalVideos(videos),
@@ -94,13 +94,13 @@ function getApplePayProps(payloadData: any) {
   }
 }
 
-export function getPayloadProps(payloadData: any, message: Message, { balloon_bundle_id }: { balloon_bundle_id: string }): Partial<Message> {
+export function getPayloadProps(payloadData: any, msgAttachments: MessageAttachment[], balloon_bundle_id: string): Partial<Message> {
   if (!payloadData) return {}
-  if (balloon_bundle_id === BalloonBundleID.URL) return getURLBalloonProps(payloadData, message)
+  if (balloon_bundle_id === BalloonBundleID.URL) return getURLBalloonProps(payloadData, msgAttachments)
   if (balloon_bundle_id === BalloonBundleID.APPLE_PAY) return getApplePayProps(payloadData)
   console.log('[imessage] unknown balloon_bundle_id', balloon_bundle_id)
   try {
-    if (balloon_bundle_id === null) return getURLBalloonProps(payloadData, message)
+    if (balloon_bundle_id === null) return getURLBalloonProps(payloadData, msgAttachments)
   } catch (err) {
     // swallow
   }
