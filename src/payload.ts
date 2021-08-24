@@ -58,7 +58,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
     if (username) {
       return {
         attachments: undefined,
-        tweet: {
+        tweets: [{
           id: tweetID,
           user: {
             username,
@@ -68,7 +68,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
           url,
           text: trimStart(trimEnd(summary, '”'), '“'),
           attachments: [ppa[image?.richLinkImageAttachmentSubstituteIndex], ...attachments].filter(Boolean),
-        },
+        }],
       }
     }
   }

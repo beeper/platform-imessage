@@ -92,7 +92,7 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
   const isGroup = !!msgRow.room_name
   const m: Message = {
     _original: enhancedStringify([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
-    id: attachments.length === 0 ? msgRow.msgID : `${msgRow.msgID}_${attachments.length}`,
+    id: msgRow.msgID,
     cursor: msgRow.date.toString(),
     timestamp: fromAppleTime(msgRow.date),
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
@@ -241,9 +241,13 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
     }
   }
   const mapped: Message[] = [m]
-  if (attachments.length > 0 && !m.links?.length) { // should split
-    if (!m.text) mapped.length = 0 // remove existing message if no text
-    m.attachments = undefined
+  if (attachments.length > 0 && !m.links?.length && !m.tweets?.length) { // should split
+    if (!m.text) {
+      mapped.length = 0 // remove existing message if no text
+    } else {
+      m.id = `${msgRow.msgID}_${attachments.length}`
+      m.attachments = undefined
+    }
     assignReactions(m, reactionRows, attachments.length, currentUserID)
     mapped.unshift(...attachments.map<Message>((att, attIndex) => {
       const am: Message = {
