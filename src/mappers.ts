@@ -154,17 +154,16 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
         unreacted: MessageActionType.MESSAGE_REACTION_DELETED,
       }[actionType]
       if (reactionType) {
-        const emoji = supportedReactions[actionKey]?.render
         m.action = {
           type: reactionType,
           messageID: m.linkedMessageID,
           participantID: m.senderID,
           reactionKey: actionKey,
         }
-        if (emoji) {
+        if (supportedReactions[actionKey]) {
           m.parseTemplate = true
           // todo fix for localized reaction messages
-          m.text = `{{sender}}: ${emoji} ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
+          m.text = `{{sender}}: ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
           m.isHidden = true
         }
       } else if (assocMsgType === 'heading') {
