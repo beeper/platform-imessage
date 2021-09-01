@@ -1,6 +1,6 @@
 // import os from 'os'
 import { trimStart, trimEnd } from 'lodash'
-import { Message, MessageAttachment, Size, MessageAttachmentType } from '@textshq/platform-sdk'
+import { Message, MessageAttachment, Size, MessageAttachmentType, MessageLink } from '@textshq/platform-sdk'
 
 import { parseTweetURL } from './util'
 import safeBplistParse from './safe-bplist-parse'
@@ -45,7 +45,6 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
   const { richLinkMetadata } = payloadData
   if (!richLinkMetadata) return {}
   const { summary, title, image, icon, alternateImages, video, videos } = richLinkMetadata
-  if (!title && !summary) return {}
   const ppa = msgAttachments?.filter(a => a.srcURL && a.fileName.toLowerCase().endsWith('.pluginpayloadattachment')) || []
   const alternates = (alternateImages?.['NS.objects'] as any[])?.map(o => ppa[o.richLinkImageAttachmentSubstituteIndex]) || []
   const attachments = videos ? [
@@ -73,15 +72,17 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
     }
   }
   const iframeURL = video?.youTubeURL?.['NS.relative']?.replace('autoplay=1', '')
+  const link: MessageLink = {
+    img: iframeURL ? undefined : ppa[image?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
+    url,
+    title,
+    summary,
+  }
+  if (!link.img) link.favicon = ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL
+  if (!link.title && !link.summary && !link.favicon && !link.img) return {}
   return {
     attachments: iframeURL ? [] : attachments,
-    links: [{
-      // favicon: ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
-      img: iframeURL ? undefined : ppa[image?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
-      url,
-      title,
-      summary,
-    }],
+    links: [link],
     iframeURL,
   }
 }
