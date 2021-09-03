@@ -62,7 +62,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
           user: {
             username,
             imgURL: ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
-            name: title.split(' on ').shift(),
+            name: title?.split(' on ')?.shift(),
           },
           url,
           text: trimStart(trimEnd(summary, '”'), '“'),
