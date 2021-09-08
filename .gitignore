@@ -2,6 +2,7 @@ _*
 dist
 src/RustServer/target
 src/AppleScriptServer/Release
+build
 
 .DS_Store
 node_modules
@@ -9,3 +10,7 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+xcuserdata/
+DerivedData/
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata

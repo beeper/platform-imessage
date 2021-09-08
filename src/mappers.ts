@@ -9,6 +9,7 @@ import safeBplitParse from './safe-bplist-parse'
 import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
+import { decodeAttributedString } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
@@ -118,6 +119,19 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
         to: msgRow.subject.length,
         bold: true,
       }],
+    }
+  }
+  if (msgRow.attributedBody) {
+    const attributes = decodeAttributedString(msgRow.attributedBody)
+    if (attributes) {
+      const entities = attributes
+        .filter(att => att.key === '__kIMMentionConfirmedMention')
+        .map(att => ({
+          from: att.from,
+          to: att.to,
+          mentionedUser: { id: att.value },
+        }))
+      if (entities.length) m.textAttributes = { entities }
     }
   }
   // {
