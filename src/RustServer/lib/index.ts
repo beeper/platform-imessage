@@ -12,7 +12,7 @@ const {
 
   startPoller,
   stopPoller,
-} = actualRequire(path.join(BINARIES_DIR_PATH, `${process.arch}.node`))
+} = actualRequire(path.join(BINARIES_DIR_PATH, `rs_${process.arch}.node`))
 
 export class Server {
   #client: object
