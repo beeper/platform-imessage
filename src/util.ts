@@ -25,7 +25,7 @@ export function replaceTilde(str: string) {
   return str
 }
 
-export const getDataURI = (buffer: Buffer, mimeType: string = '') =>
+export const getDataURI = (buffer: Buffer, mimeType = '') =>
   `data:${mimeType};base64,${buffer.toString('base64')}`
 
 const isArray = (x: any) => Array.isArray(x)

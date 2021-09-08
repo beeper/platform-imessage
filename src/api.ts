@@ -126,7 +126,7 @@ export default class AppleiMessage implements PlatformAPI {
       }),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
     ])
-    const groupImagesMap: { [attachmentID: string]: string } = {};
+    const groupImagesMap: { [attachmentID: string]: string } = {}
     groupImagesRows?.forEach(([attachmentID, fileName]) => {
       groupImagesMap[attachmentID] = fileName
     })
@@ -188,7 +188,7 @@ export default class AppleiMessage implements PlatformAPI {
   private sendTextMessage = async (threadID: string, text: string) => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)
     await this.api.sendTextMessage(threadID, text)
-    let newCount: number = 0
+    let newCount = 0
     while (newCount === 0) {
       await bluebird.delay(25)
       newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
@@ -199,7 +199,7 @@ export default class AppleiMessage implements PlatformAPI {
   private sendFileFromFilePath = async (threadID: string, filePath: string) => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)
     await this.api.sendFile(threadID, filePath)
-    let newCount: number = 0
+    let newCount = 0
     while (newCount === 0) {
       await bluebird.delay(25)
       newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count

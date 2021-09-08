@@ -279,9 +279,9 @@ const AppleiMessageAuth: React.FC<{ login: Function, isReauthing: boolean, callN
   }, [])
   const nmp = useMemo(() => new Proxy({}, {
     get: (target, key) =>
-      typeof key === 'string'
+      (typeof key === 'string'
         ? (...args: any[]) => callNMP(key, args)
-        : target[key],
+        : target[key]),
   }) as NMP, [])
   return (
     <div className="auth imessage-auth">

@@ -15,8 +15,10 @@ function createUInt32BE(value: number) {
 }
 
 class Reader {
-  offset: number = 0
+  offset = 0
+
   constructor(readonly buf: Buffer) {}
+
   read(bytes: number): Buffer {
     this.offset += bytes
     return this.buf.slice(this.offset - bytes, this.offset)
@@ -41,7 +43,8 @@ export const convertCGBI = (cgbi: Buffer) => {
     const reader = new Reader(cgbi)
     reader.offset = 8
     const result = [PNG_HEADER]
-    let iscgbi, header: PngHeaderData | undefined
+    let iscgbi: boolean
+    let header: PngHeaderData | undefined
     const idat = [] as Buffer[]
 
     while (reader.offset < cgbi.length) {
@@ -79,7 +82,7 @@ export const convertCGBI = (cgbi: Buffer) => {
               createUInt32BE(idatCRC),
               Buffer.alloc(4),
               Buffer.from('IEND'),
-              chsum
+              chsum,
             )
 
             return resolve(Buffer.concat(result))
@@ -96,7 +99,7 @@ export const convertCGBI = (cgbi: Buffer) => {
             colorType: data.readUInt8(9),
             comressMethod: data.readUInt8(10),
             filterMethod: data.readUInt8(11),
-            interlaceMethod: data.readUInt8(12)
+            interlaceMethod: data.readUInt8(12),
           }
 
         default:
@@ -112,10 +115,10 @@ export const convertCGBI = (cgbi: Buffer) => {
 async function defaultTransform(
   image: Buffer,
   width: number,
-  height: number
+  height: number,
 ): Promise<Buffer> {
   const uncompressed = await asyncInflateRaw(image)
-  let newData = Buffer.alloc(uncompressed.length)
+  const newData = Buffer.alloc(uncompressed.length)
   let i = 0
   for (let j = 0; j < height; ++j) {
     newData[i] = uncompressed[i]

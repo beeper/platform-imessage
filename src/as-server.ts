@@ -31,7 +31,7 @@ function spawnASServer() {
     texts.Sentry.captureException(error)
     console.error('AppleScriptServer -> error', error)
   })
-  cp.on('exit', (code) => {
+  cp.on('exit', code => {
     console.error('AppleScriptServer -> exit', { code })
   })
   const run = <T>(scriptName: string, args: string[] = []) => (

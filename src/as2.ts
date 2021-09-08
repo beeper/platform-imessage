@@ -111,12 +111,10 @@ function createAPIServer() {
     },
     async sendFile(threadID: string, filePath: string) {
       await ensureMessagesAppRunning()
-      await wrapHideIfNotVisible(() => {
-        return pRetry(
-          () => sendFile(threadID, filePath, threadID.split(';').pop()),
-          RETRY_OPTIONS,
-        )
-      })
+      await wrapHideIfNotVisible(() => pRetry(
+        () => sendFile(threadID, filePath, threadID.split(';').pop()),
+        RETRY_OPTIONS,
+      ))
     },
     async createThread(participants: string[]) {
       await ensureMessagesAppRunning()
