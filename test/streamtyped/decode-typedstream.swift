@@ -1,38 +1,45 @@
 import Foundation
 
-func decodeStreamTyped(_ filePath: URL) {
-  let data = try! Data(contentsOf: filePath)
+func streamTypedNSAttributedStringToJSON(_ data: Data) -> String {
   let nsu = NSUnarchiver(forReadingWith: data)
   let decoded = nsu?.decodeObject()
   guard let str = decoded as? NSAttributedString else {
-    return print("decoded object type unknown")
+    return "undefined" // "decoded object type unknown"
   }
-  // print("🛑 ", type(of: decoded!), filePath, decoded!)
-  var result: [String: [String: Any]] = [:]
+  var result: [[String: Any]] = []
   str.enumerateAttributes(
     in: NSRange(location: 0, length: str.length),
     options: .longestEffectiveRangeNotRequired
   ) { dict, range, _ in
-    for (key, value) in dict {
-      result[key.rawValue] = [
-        "value": value,
+    for (key, val) in dict {
+      let type = type(of: val)
+      let stringType = "\(type)"
+      let value: String? = String(describing: val)
+      result.append([
+        "key": key.rawValue,
+        "type": stringType,
+        "value": value as Any,
         "from": range.lowerBound,
         "to": range.upperBound,
-      ]
+      ])
     }
   }
   let json = try! JSONSerialization.data(withJSONObject: result)
-  print(String(data: json, encoding: .utf8)!)
-  print()
+  return String(data: json, encoding: .utf8)!
 }
 
-for i in [
+
+for filePath in [
   "closed-rings-1.bin", // NSConcreteAttributedString
   "closed-rings-2.bin", // NSConcreteAttributedString
   "completed-workout-1.bin", // NSConcreteAttributedString
   "completed-workout-2.bin", // NSConcreteAttributedString
   "regular-text.bin", // NSConcreteAttributedString
   "user-mention.bin", // NSConcreteMutableAttributedString
+  "tweet.bin",
 ] {
-  decodeStreamTyped(URL(fileURLWithPath: i))
+  let data = try! Data(contentsOf: URL(fileURLWithPath: filePath))
+  let jsonString = streamTypedNSAttributedStringToJSON(data)
+  print(jsonString)
+  print()
 }
