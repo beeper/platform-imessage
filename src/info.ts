@@ -1,7 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
 
-import { IS_BIG_SUR_OR_UP } from './constants'
-
 const info: PlatformInfo = {
   name: 'imessage',
   version: '1.0.0',
@@ -20,7 +18,6 @@ const info: PlatformInfo = {
     Attribute.CAN_MESSAGE_PHONE_NUMBER,
     Attribute.CAN_MESSAGE_EMAIL,
     Attribute.SUPPORTS_SEARCH,
-    ...(IS_BIG_SUR_OR_UP ? [Attribute.NO_SUPPORT_SINGLE_THREAD_CREATION, Attribute.NO_SUPPORT_GROUP_THREAD_CREATION] : []),
     Attribute.NO_SUPPORT_GROUP_TITLE_CHANGE,
     Attribute.NO_SUPPORT_TYPING_INDICATOR,
     Attribute.NO_SUPPORT_GROUP_ADD_PARTICIPANT,

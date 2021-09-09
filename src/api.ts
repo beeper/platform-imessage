@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
+import childProcess from 'child_process'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
 import { PlatformAPI, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts } from '@textshq/platform-sdk'
@@ -81,9 +82,7 @@ export default class AppleiMessage implements PlatformAPI {
     )
   }
 
-  createThread = async (userIDs: string[]) => {
-    if (userIDs.length === 0) return null
-    this.ensureDB()
+  private catalinaCreateThread = async (userIDs: string[]) => {
     const threadID = await this.api.createThread(userIDs)
     await bluebird.delay(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
@@ -98,6 +97,21 @@ export default class AppleiMessage implements PlatformAPI {
           threadReadStore: this.threadReadStore,
         },
       )
+    }
+  }
+
+  createThread = async (userIDs: string[]) => {
+    if (userIDs.length === 0) return null
+    this.ensureDB()
+    if (!IS_BIG_SUR_OR_UP) return this.catalinaCreateThread(userIDs)
+    if (userIDs.length === 1) {
+      const address = userIDs[0]
+      const existingThread = await this.getThread(`iMessage;-;${address}`)
+      if (existingThread) return existingThread
+      childProcess.spawn('/usr/bin/open', ['-b', 'com.apple.MobileSMS', `imessage://open?address=${address}`])
+    } else {
+      // potential todo: we can search for an existing thread with the specified userIDs here
+      childProcess.spawn('/usr/bin/open', ['-b', 'com.apple.MobileSMS', `imessage://open?addresses=${userIDs.join(',')}`])
     }
   }
 

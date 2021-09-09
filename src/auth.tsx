@@ -240,7 +240,7 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
     <h3>Known Issues</h3>
     <ol>
       <li>Typing indicator, sending reactions and sending read receipts aren't supported</li>
-      {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to isn't supported.</li>}
+      {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to will open Messages.app.</li>}
       <li>Chats won't be marked as read on Messages.app — the blue unread icons will show up on your iPhone</li>
       <li>Messages.app needs to be open in the background to send messages but you can hide/minimize it</li>
     </ol>
