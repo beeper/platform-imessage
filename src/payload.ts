@@ -72,8 +72,10 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
     }
   }
   const iframeURL = video?.youTubeURL?.['NS.relative']?.replace('autoplay=1', '')
+  const imgAtt = iframeURL ? undefined : ppa[image?.richLinkImageAttachmentSubstituteIndex]
   const link: MessageLink = {
-    img: iframeURL ? undefined : ppa[image?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
+    img: imgAtt?.srcURL,
+    imgSize: imgAtt?.size,
     url,
     title,
     summary,
