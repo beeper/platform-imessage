@@ -13,7 +13,6 @@
   },
   "husky": {
     "hooks": {
-      "pre-commit": "yarn lint --fix || true"
     }
   },
   "dependencies": {
