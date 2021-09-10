@@ -17,7 +17,7 @@ import { csrStatus } from './csr'
 import _swiftServer from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
-let swiftServer: typeof _swiftServer = _swiftServer
+let swiftServer: typeof _swiftServer = IS_BIG_SUR_OR_UP ? _swiftServer : null
 
 export default class AppleiMessage implements PlatformAPI {
   private currentUserID: string
