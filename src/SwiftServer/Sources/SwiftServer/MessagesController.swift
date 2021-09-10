@@ -1,0 +1,285 @@
+import Foundation
+import AppKit
+import AccessibilityControl
+
+struct ErrorMessage: Error, CustomStringConvertible {
+    let message: String
+    init(_ message: String) {
+        self.message = message
+    }
+    var description: String { message }
+}
+
+extension Accessibility.Attribute.Name {
+    static let children = Accessibility.Attribute.Name(kAXChildrenAttribute)
+    static let localizedDescription = Accessibility.Attribute.Name(kAXDescriptionAttribute)
+}
+
+extension Accessibility.Action.Name {
+    static let press = Accessibility.Action.Name(kAXPressAction)
+}
+
+extension Accessibility.Element {
+    func appMainWindow() throws -> Accessibility.Element? {
+        let mainWindowRaw = try attribute(.init(kAXMainWindowAttribute))
+        return Accessibility.Element(erased: mainWindowRaw)
+    }
+
+    func children() -> [Accessibility.Element] {
+        let rawChildren = try? attribute(.children) as? [AXUIElement]
+        return rawChildren?.map(Accessibility.Element.init(raw:)) ?? []
+    }
+
+    // breadth-first, seems faster than dfs
+    func recursiveChildren() -> AnySequence<Accessibility.Element> {
+        AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
+            guard !queue.isEmpty else { return nil }
+            let elt = queue.removeFirst()
+            queue.append(contentsOf: elt.children())
+            return elt
+        })
+    }
+
+    func child(withID id: String) throws -> Accessibility.Element? {
+        recursiveChildren().lazy.first {
+            (try? $0.attribute("AXIdentifier") as? String) == id
+        }
+    }
+
+    func printAttributes() {
+        for act in (try? supportedActions()) ?? [] {
+            print("[action] \(act.name): \(act.description)")
+        }
+        for att in (try? supportedAttributes()) ?? [] {
+            print("[regular] \(att.name): \((try? att.get()) as Any)")
+        }
+        for att in (try? supportedParameterizedAttributes()) ?? [] {
+            print("[parameterized] \(att)")
+        }
+    }
+
+    func setWindowPosition(_ pos: CGPoint) throws {
+        try setAttribute("AXPosition", to: Accessibility.Struct.point(pos).raw()!)
+    }
+
+    func setWindowSize(_ size: CGSize) throws {
+        try setAttribute("AXSize", to: Accessibility.Struct.size(size).raw()!)
+    }
+
+    func setWindowFrame(_ frame: CGRect) throws {
+        DispatchQueue.concurrentPerform(iterations: 2) { i in
+            switch i {
+            case 0:
+                try? setWindowPosition(frame.origin)
+            case 1:
+                try? setWindowSize(frame.size)
+            default:
+                break
+            }
+        }
+    }
+
+    func windowFrame() throws -> CGRect {
+        guard let val = try Accessibility.Struct(erased: attribute("AXFrame")) else {
+            throw ErrorMessage("Could not get frame for window \(self)")
+        }
+        guard case let .rect(rect) = val else {
+            throw ErrorMessage("Window frame for \(self) isn't a CGRect?")
+        }
+        return rect
+    }
+}
+
+// not thread safe
+class MessagesController {
+    private static let textsBundleID = "com.kishanbagaria.jack"
+    private static let messagesBundleID = "com.apple.MobileSMS"
+    private static let messagesBundle = NSWorkspace.shared.urlForApplication(
+        withBundleIdentifier: messagesBundleID
+    )!
+
+    private static let shadowMargin: CGFloat = 32
+    // iMessage doesn't go smaller than this
+    private static let minSize = CGSize(width: 660, height: 320)
+    // the Texts sidebar (usually) takes up at most this proportion
+    // of the window's width
+    private static let sidebarWidthFactor: CGFloat = 0.5
+
+    private let textsWindow: Accessibility.Element
+    private let app: NSRunningApplication
+    private let appElement: Accessibility.Element
+    private let mainWindow: Accessibility.Element
+    private let toolbar: Accessibility.Element
+    private let conversations: Accessibility.Element
+
+    private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
+        let targetWidth = max(Self.minSize.width, textsFrame.width * Self.sidebarWidthFactor - Self.shadowMargin)
+        let targetHeight = max(Self.minSize.height, textsFrame.height - Self.shadowMargin)
+        return CGRect(
+            x: textsFrame.maxX - targetWidth,
+            y: textsFrame.maxY - targetHeight,
+            width: targetWidth,
+            height: targetHeight
+        )
+    }
+
+    init() throws {
+        guard let textsApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.textsBundleID).first else {
+            throw ErrorMessage("Could not find running Texts instance")
+        }
+        let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
+        guard let textsWindow = try textsAppElement.appMainWindow() else {
+            throw ErrorMessage("Could not find Texts main window")
+        }
+        self.textsWindow = textsWindow
+
+        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
+            app = running
+        } else {
+            print("Launching Messages...")
+            app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: .andHide, configuration: [:])
+        }
+        appElement = Accessibility.Element(pid: app.processIdentifier)
+
+        let start = Date()
+
+        // spin for the next five seconds until we see the main window
+        var mainWindow: Accessibility.Element?
+        while -start.timeIntervalSinceNow < 5 {
+            if let win = appElement.children().first(
+                where: { (try? $0.attribute("AXIdentifier") as? String) == "SceneWindow" }
+            ) {
+                mainWindow = win
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+
+        guard let mainWindow = mainWindow else {
+            throw ErrorMessage("Could not get main Messages window")
+        }
+
+        self.mainWindow = mainWindow
+
+        guard let toolbar = mainWindow.children().first(where: {
+            (try? $0.attribute("AXRole") as? String) == "AXToolbar"
+        }) else { throw ErrorMessage("Could not get main toolbar") }
+        self.toolbar = toolbar
+
+        conversations = try mainWindow.child(withID: "ConversationList")!
+
+        #if false
+        // FIXME: don't move if already visible
+        try setWindowFrame(CGRect(x: 500, y: 25, width: 700, height: 300))
+        #endif
+    }
+
+    var isValid: Bool {
+        !app.isTerminated
+    }
+
+    // the button seems to get invalidated every so often
+    // so we can't cache it
+    private func findComposeButton() throws -> Accessibility.Element? {
+        // TODO: is it first in RTL envs?
+        toolbar.children().first
+    }
+
+    private func selectedCell() -> Accessibility.Element? {
+        conversations.children().first {
+            (try? $0.attribute(.init(kAXSelectedAttribute)) as? Bool) == true
+        }
+    }
+
+    func markAsRead(guid: String) throws {
+        guard let guidParsed = UUID(uuidString: guid), // extra validation ahead of time
+              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
+            throw ErrorMessage("Invalid iMessage guid")
+        }
+
+        if (try? mainWindow.attribute("AXMinimized") as? Bool) == true {
+            try mainWindow.setAttribute("AXMinimized", to: false as AnyObject)
+            app.hide()
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+
+        let changeVisibility = app.isHidden
+        if changeVisibility {
+            app.unhide()
+        }
+        // TODO: use KVO?
+        while app.isHidden {
+            // spin
+        }
+
+        let textsFrame = try textsWindow.windowFrame()
+        let targetFrame = Self.messagesFrame(for: textsFrame)
+        let oldFrame = try mainWindow.windowFrame()
+        // iff oldFrame is contained inside textsFrame
+        let changeFrame = changeVisibility || oldFrame.intersection(textsFrame) == oldFrame
+        if changeFrame {
+            try mainWindow.setWindowFrame(targetFrame)
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+
+        defer {
+            if changeVisibility {
+                app.hide()
+            }
+            if changeFrame {
+                try? mainWindow.setWindowFrame(oldFrame)
+            }
+        }
+
+        // a cell to go "back" to temporarily
+        let prevCandidate: Accessibility.Element
+        #if false
+        if let selected = selectedCell(),
+           // TODO: Check for localized variants and then maybe use this
+           let desc = try? selected.attribute(.localizedDescription) as? String, desc.contains(", Unread") {
+            prevCandidate = selected
+        } else {
+            // let's create a new cell
+        }
+        #endif
+
+        guard let composeButton = try? findComposeButton() else {
+            print("warning: Could not find compose button")
+            return
+        }
+        print("Pressing compose")
+        try composeButton.perform(action: .press)
+        Thread.sleep(forTimeInterval: 0.1)
+        guard let newCell = selectedCell() else {
+            print("warning: New message cell could not be found")
+            return
+        }
+        prevCandidate = newCell
+
+        print("Compose pressed. Opening URL")
+
+        try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+
+        // TODO: Spin on newCell[AXSelected]?
+        Thread.sleep(forTimeInterval: 0.1)
+
+        guard let targetCell = selectedCell() else {
+            print("warning: Cell for message \(guid) could not be found.")
+            return
+        }
+
+        // we now click another cell and then come back
+
+        print("Pressing new cell")
+
+        try prevCandidate.perform(action: .press)
+
+        Thread.sleep(forTimeInterval: 0.1)
+
+        print("Pressing target cell")
+
+        try targetCell.perform(action: .press)
+
+        print("Done!")
+    }
+}

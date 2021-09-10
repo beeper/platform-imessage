@@ -2,7 +2,6 @@ import path from 'path'
 import { createElement, useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
-import useForceUpdate from 'use-force-update'
 import type { AuthType } from 'node-mac-permissions'
 
 import iMessageAPI from './as2'
@@ -16,6 +15,8 @@ const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.
 const staticPrefix = `file://${BINARIES_DIR_PATH}`
 const staticImgPrefix = `${staticPrefix}/${IS_BIG_SUR_OR_UP ? 'bigsur' : 'catalina'}`
 const fdaImg = path.join(staticImgPrefix, 'fda.png')
+const axImg = path.join(staticImgPrefix, 'ax.png')
+const axHighlightedImg = path.join(staticImgPrefix, 'ax-highlighted.png')
 const automationAccessHighlightedImg = path.join(staticImgPrefix, 'automation-messages-highlighted.png')
 const automationAccessImg = path.join(staticImgPrefix, 'automation-messages.png')
 const notificationsMessagesImg = path.join(staticImgPrefix, 'notifications-messages.png')
@@ -28,6 +29,8 @@ const openNotificationsSystemPrefs = () =>
   window.open('x-apple.systempreferences:com.apple.preference.notifications')
 
 const openContactsPrefs = () => openSecuritySystemPrefs('Privacy_Contacts')
+
+const openAXPrefs = () => openSecuritySystemPrefs('Privacy_Accessibility')
 
 const openAutomationPrefs = () => openSecuritySystemPrefs('Privacy_Automation')
 
@@ -61,6 +64,8 @@ const useNMP = (nmp: NMP, authType: AuthType) => {
   return { refreshAuthorization, authorized, pending }
 }
 
+const renderWhyNeeded = (text: string) => <p className="grayed" style={{ textAlign: 'center' }}>{text}</p>
+
 const ContactsAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
   const [showMore, setShowMore] = useState(false)
   const [grayscale, setGrayscale] = useState(false)
@@ -92,11 +97,51 @@ const ContactsAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
           Open System Preferences and manually check <strong>Texts</strong> in the list &rarr;
         </div>
       ) : <div className="show-more-info grayed" onClick={() => setShowMore(true)}>Having trouble?</div>}
+      {renderWhyNeeded('Contacts access allows Texts to show names instead of phone numbers.')}
     </>
   )
   return (
     <div className="page contacts">
       <h3>Contacts</h3>
+      {!pending && inner}
+    </div>
+  )
+}
+
+const AXAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
+  const [showMore, setShowMore] = useState(false)
+  const [grayscale, setGrayscale] = useState(false)
+  const { authorized, pending } = useNMP(nmp, 'accessibility')
+  const authorizeClick = () => {
+    nmp.askForAccessibilityAccess()
+  }
+  const imgClick = () => {
+    setGrayscale(true)
+    authorizeClick()
+  }
+  const inner = (
+    <>
+      {!authorized && (
+        <div className={cn('img-transition', { grayscale })} style={{ width: 764, height: 685, maxWidth: '100%' }} onClick={imgClick}>
+          <img className="animating-other-img" src={axImg} alt="System Preferences – Accessibility" width={764} />
+          {!grayscale && <img className="animating-img" src={axHighlightedImg} alt="System Preferences – Accessibility" width={764} />}
+        </div>
+      )}
+      <div className="buttons">
+        <button type="button" onClick={authorizeClick} disabled={authorized}>{authorized ? 'Authorized' : 'Authorize'}</button>
+        {authorized && <button type="button" onClick={selectNextPage}>Next &rarr;</button>}
+      </div>
+      {showMore ? (
+        <div className="show-more-info" onClick={openAXPrefs}>
+          If Texts doesn&apos;t show up in the list, try adding it manually by clicking the + button and selecting Texts.app from your Applications folder
+        </div>
+      ) : <div className="show-more-info grayed" onClick={() => setShowMore(true)}>Having trouble?</div>}
+      {renderWhyNeeded('Accessibility access allows Texts to power mark as read and other functionality.')}
+    </>
+  )
+  return (
+    <div className="page contacts">
+      <h3>Accessibility</h3>
       {!pending && inner}
     </div>
   )
@@ -132,6 +177,7 @@ const FDAAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
           If Texts doesn&apos;t show up in the list, try adding it manually by clicking the + button and selecting Texts.app from your Applications folder
         </div>
       ) : <div className="show-more-info grayed" onClick={() => setShowMore(true)}>Having trouble?</div>}
+      {renderWhyNeeded('Full disk access allows Texts to read data from the local iMessage database.')}
     </>
   )
   return (
@@ -185,6 +231,7 @@ const AutomationAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
           <div className="show-more-info" onClick={selectNextPage}>Skip &rarr;</div>
         </div>
       ) : <div className="show-more-info grayed" onClick={() => setShowMore(true)}>Having trouble?</div>}
+      {renderWhyNeeded('Automation access allows Texts to send iMessages.')}
     </div>
   )
 }
@@ -198,7 +245,7 @@ const NotificationsPromptPage: React.FC<PageProps> = ({ selectNextPage }) => {
   return (
     <div className="page notifications">
       <h3>Notifications</h3>
-      <img className={cn({ grayscale })} src={notificationsMessagesImg} alt="System Preferences – Preferences" width={521} onClick={imgClick} />
+      <img className={cn({ grayscale })} src={notificationsMessagesImg} alt="System Preferences – Notifications" width={521} onClick={imgClick} />
       <p>
         Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get double notifications.
       </p>
@@ -239,9 +286,8 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
   <div className="page known-issues">
     <h3>Known Issues</h3>
     <ol>
-      <li>Typing indicator, sending reactions and sending read receipts aren't supported</li>
+      <li>Typing indicator and sending reactions aren't supported</li>
       {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to will open Messages.app.</li>}
-      <li>Chats won't be marked as read on Messages.app — the blue unread icons will show up on your iPhone</li>
       <li>Messages.app needs to be open in the background to send messages but you can hide/minimize it</li>
     </ol>
     <p style={{ textAlign: 'center' }}>We recommend using Texts with other platforms first if you rely on these to work perfectly.</p>
@@ -256,12 +302,12 @@ const pages = [
   ContactsAuthPage,
   IS_MOJAVE_OR_UP && FDAAuthPage,
   IS_MOJAVE_OR_UP && AutomationAuthPage,
+  IS_MOJAVE_OR_UP && AXAuthPage,
   NotificationsPromptPage,
   AddAccountPage,
 ].filter(Boolean)
 
 const AppleiMessageAuth: React.FC<{ login: Function, isReauthing: boolean, callNMP: (methodName: string, args: any[]) => Promise<any> }> = ({ login, isReauthing, callNMP }) => {
-  const forceUpdate = useForceUpdate()
   const [pageIndex, setPageIndex] = useState(0)
   const selectPrevPage = () => setPageIndex(pi => Math.max(0, pi - 1))
   const selectNextPage = () => setPageIndex(pi => Math.min(pages.length - 1, pi + 1))

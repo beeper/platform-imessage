@@ -1,17 +1,37 @@
 import path from 'path'
+import os from 'os'
 
 import { BINARIES_DIR_PATH } from '../../constants'
 
 declare const __non_webpack_require__: NodeRequire
 const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require : __non_webpack_require__
 
-const { decodeAttributedString: _decodeAttributedString } = actualRequire(path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`))
-
-interface Attribute {
-  'key': string
-  'value': string
-  'from': number
-  'to': number
+export interface Attribute {
+  key: string
+  value: string
+  from: number
+  to: number
 }
 
-export const decodeAttributedString: ((data: Buffer) => (Attribute[] | undefined)) = _decodeAttributedString
+export type SwiftServer = {
+  decodeAttributedString: (data: Buffer) => (Attribute[] | undefined)
+  markRead: (guid: string) => void
+  dispose: () => void
+  init: () => Promise<void>
+}
+
+const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`)
+
+let _swiftServer: SwiftServer | undefined
+// darwin >= 18.5.0 (macOS 10.14.4)
+if (os.platform() === 'darwin') {
+  const release = os.release().split('.')
+  const major = +release[0]
+  const minor = +release[1]
+  if (major > 18 || (major === 18 && minor >= 5)) {
+    _swiftServer = actualRequire(swiftServerPath)
+  }
+}
+
+const swiftServer = _swiftServer
+export default swiftServer

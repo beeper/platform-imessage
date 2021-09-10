@@ -1,9 +1,12 @@
+// linter doesn't know that this file is compile-time-only
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build } from 'node-swift'
 import { promises as fsPromises } from 'fs';
 
 (async () => {
   const buildOptions = {
     packagePath: 'src/SwiftServer',
+    macVersion: '10.11',
   }
 
   const config = 'release'

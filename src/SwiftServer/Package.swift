@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SwiftServer",
+    platforms: [.macOS(.v10_11)],
     products: [
         .library(
             name: "SwiftServer",
@@ -15,8 +16,12 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "AccessibilityControl"
+        ),
+        .target(
             name: "SwiftServer",
             dependencies: [
+                "AccessibilityControl",
                 .product(name: "NodeAPI", package: "node-swift")
             ]
         ),

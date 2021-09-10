@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import childProcess from 'child_process'
@@ -14,7 +14,10 @@ import ThreadReadStore from './thread-read-store'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
+import _swiftServer from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+
+let swiftServer: typeof _swiftServer = _swiftServer
 
 export default class AppleiMessage implements PlatformAPI {
   private currentUserID: string
@@ -46,8 +49,18 @@ export default class AppleiMessage implements PlatformAPI {
     return { type: 'error', errorMessage: 'Please grant full disk access and try again.' }
   }
 
+  private enableMarkAsRead: boolean
+
   init = async (_: undefined, { dataDirPath }: AccountInfo) => {
+    this.enableMarkAsRead = !existsSync(path.join(dataDirPath, 'disable-imessage-mark-as-read')) && IS_BIG_SUR_OR_UP
     await this.dbAPI.init()
+    try {
+      await swiftServer?.init()
+    } catch (err) {
+      texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
+      texts.error('[imessage] SwiftServer error', err)
+      swiftServer = null
+    }
     this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
     csrStatus().then(status => {
       texts.trackPlatformEvent({
@@ -58,6 +71,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = () => {
+    swiftServer?.dispose()
     this.api.dispose()
     return this.dbAPI.dispose()
   }
@@ -242,7 +256,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
     this.threadReadStore.markThreadRead(threadID, messageID)
-    // await this.dbAPI.markMessageRead(messageID)
+    texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
+    if (this.enableMarkAsRead) swiftServer?.markRead(messageID)
   }
 
   //   private getThreadMessagesChecksum = async (threadID: string, afterCursor: string) => {
