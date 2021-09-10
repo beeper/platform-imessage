@@ -3,7 +3,7 @@ import { groupBy, omit, truncate, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
-import { fromAppleTime, replaceTilde, enhancedStringify } from './util'
+import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplitParse from './safe-bplist-parse'
 import IMAGE_EXTS from './image-exts.json'
@@ -48,12 +48,8 @@ function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   return { ...common, type: MessageAttachmentType.UNKNOWN }
 }
 
-function serializeMessageRow(msgRow: MappedMessageRow) {
-  return {
-    ...omit(msgRow, ['attributedBody', 'message_summary_info']),
-    payload_data: msgRow.payload_data && Buffer.from(msgRow.payload_data as Uint8Array),
-  }
-}
+const serializeMessageRow = (msgRow: MappedMessageRow) =>
+  omit(msgRow, ['attributedBody', 'message_summary_info'])
 
 const removeObjReplacementChar = (text: string) => {
   if (!text?.includes(OBJ_REPLACEMENT_CHAR)) return text
@@ -92,7 +88,7 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
   const isSMS = msgRow.service === 'SMS'
   const isGroup = !!msgRow.room_name
   const m: Message = {
-    _original: enhancedStringify([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
+    _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.msgID,
     cursor: msgRow.date.toString(),
     timestamp: fromAppleTime(msgRow.date),
@@ -337,7 +333,7 @@ export function mapThread(
   const lastNonActionMessage = messageRows ? findLast(messageRows, r => r.item_type === 0) : undefined
   const isUnreadInSqlite = lastNonActionMessage?.is_read === 0 && lastNonActionMessage?.is_from_me === 0
   const thread: Thread = {
-    _original: enhancedStringify([chat, handleRows]),
+    _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,

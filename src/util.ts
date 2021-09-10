@@ -28,19 +28,13 @@ export function replaceTilde(str: string) {
 export const getDataURI = (buffer: Buffer, mimeType = '') =>
   `data:${mimeType};base64,${buffer.toString('base64')}`
 
-const isArray = (x: any) => Array.isArray(x)
-
-const isString = (x: any) => typeof x === 'string'
-
-const isObject = (x: any) => typeof x === 'object' && x !== null
-
-const isBufferLike = (x: any) => isObject(x) && x.type === 'Buffer' && (isArray(x.data) || isString(x.data))
-
-export const enhancedStringify = (obj: any, space?: string | number) =>
-  JSON.stringify(obj, (key: string, value: any) => {
-    if (isBufferLike(value)) return getDataURI(Buffer.from(value.data))
-    return value
-  }, space)
+export const stringifyWithArrayBuffers = <T>(obj: T, space?: string | number) =>
+  JSON.stringify(
+    obj,
+    (key: string, value: any) =>
+      (value?.buffer instanceof ArrayBuffer ? getDataURI(Buffer.from(value)) : value),
+    space,
+  )
 
 export function parseTweetURL(url: string) {
   const [, username, tweetID] = /https:\/\/twitter\.com\/(.+?)\/status\/(\d+)/.exec(url) || []
