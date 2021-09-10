@@ -12,14 +12,15 @@
     "build-binaries": "yarn build-as-server; yarn build-rust-server; yarn build-swift-server"
   },
   "husky": {
-    "hooks": {
-    }
+    "hooks": {}
   },
   "dependencies": {
+    "@textshq/platform-sdk": "link:../platform-sdk",
     "bluebird": "^3.7.2",
     "clsx": "^1.1.1",
     "conf": "^8.0.0",
     "crc": "^3.8.0",
+    "image-size": "^1.0.0",
     "lodash": "^4.17.21",
     "node-mac-permissions": "^2.2.0",
     "p-retry": "^4.4.0",
@@ -31,7 +32,6 @@
   },
   "devDependencies": {
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#040cbc5cc54c554dc181d330ac575dd7391d6f12",
-    "@textshq/platform-sdk": "link:../platform-sdk",
     "@types/bluebird": "^3.5.33",
     "@types/eslint": "^7.2.7",
     "@types/lodash": "^4.14.168",

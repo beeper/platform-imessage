@@ -1,11 +1,17 @@
-import bluebird from 'bluebird'
-import { maxBy } from 'lodash'
+import path from 'path'
+import bluebird, { promisify } from 'bluebird'
+import { maxBy, memoize } from 'lodash'
 // import { parentPort } from 'worker_threads'
-import type { OnServerEventCallback, ServerEvent } from '@textshq/platform-sdk'
+import imageSizeSync from 'image-size'
+import { OnServerEventCallback, ServerEvent, texts } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
 import { Server as RustServer } from './RustServer/lib'
+import { replaceTilde } from './util'
+import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
+
+const imageSizeAsync = promisify(imageSizeSync)
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -235,8 +241,24 @@ export default class DatabaseAPI {
     )
   }
 
+  private imageSizeMemoized = memoize(imageSizeAsync)
+
   getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
-    return this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs)
+    const attachments: Promise<MappedAttachmentRow[]> = this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs)
+    return bluebird.map(attachments, async a => {
+      const filePath = replaceTilde(a.filename)
+      const { base, ext: _ext } = filePath ? path.parse(filePath) : { base: a.transfer_name, ext: '' }
+      const ext = _ext.slice(1).toLowerCase()
+      const fileName = a.transfer_name || base
+      Object.assign(a, { ext, fileName, filePath })
+      if ((IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') && ext !== 'heic') { // heic isn't supported yet
+        try {
+          const { width, height } = await this.imageSizeMemoized(filePath)
+          a.size = { width, height }
+        } catch (err) { texts.error(err) }
+      }
+      return a
+    })
   }
 
   getMessageReactions(msgGUIDs: string[], chatGUID: string, chatRowID: number = this.chatGUIDRowIDMap.get(chatGUID)): Promise<MappedReactionMessageRow[]> {

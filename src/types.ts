@@ -140,6 +140,11 @@ export type MappedAttachmentRow = {
   is_sticker: number
   attachmentID: string
   transfer_state: number
+
+  size?: { width: number, height: number }
+  ext: string
+  fileName: string
+  filePath: string
 }
 
 // db-api.ts -> SQLS

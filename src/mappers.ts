@@ -1,4 +1,3 @@
-import path from 'path'
 import { groupBy, omit, truncate, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction } from '@textshq/platform-sdk'
 
@@ -21,10 +20,7 @@ const whitespaceRegexGlobal = /\s+/g
 
 function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   if (a.transfer_state == null) return
-  const filePath = replaceTilde(a.filename)
-  const { base, ext: _ext } = filePath ? path.parse(filePath) : { base: a.transfer_name, ext: '' }
-  const fileName = a.transfer_name || base
-  const ext = _ext.slice(1).toLowerCase()
+  const { ext, fileName, filePath } = a
   const common = {
     id: a.attachmentID,
     fileName,
@@ -33,7 +29,7 @@ function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   }
   if (filePath) common.srcURL = 'file://' + encodeURI(filePath)
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    const size: Size = a.is_sticker ? { height: 80, width: undefined } : undefined
+    const size: Size = a.is_sticker ? { height: 80, width: undefined } : a.size
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
