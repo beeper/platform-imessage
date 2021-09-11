@@ -25,6 +25,8 @@ const RETRY_OPTIONS: pRetry.Options = {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+const MESSAGES_APP_BUNDLE_ID = IS_BIG_SUR_OR_UP ? 'com.apple.MobileSMS' : 'com.apple.iChat'
+
 function createAPIServer() {
   const { run, exit } = spawnASServer()
 
@@ -55,7 +57,7 @@ function createAPIServer() {
     if (running) return
     spawnedMessagesApp = true
     console.log('opening Messages.app')
-    childProcess.spawn('/usr/bin/open', ['-gjb', 'com.apple.MobileSMS'])
+    childProcess.spawn('/usr/bin/open', ['-gjb', MESSAGES_APP_BUNDLE_ID])
     await sleep(200)
   }
 
