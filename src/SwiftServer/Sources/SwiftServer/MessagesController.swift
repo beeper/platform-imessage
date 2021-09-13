@@ -128,7 +128,7 @@ class MessagesController {
             throw ErrorMessage("Could not find running Texts instance")
         }
         let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
-        guard let textsWindow = try textsAppElement.appMainWindow() else {
+        guard let textsWindow = try? textsAppElement.appMainWindow() else {
             throw ErrorMessage("Could not find Texts main window")
         }
         self.textsWindow = textsWindow
@@ -166,7 +166,10 @@ class MessagesController {
         }) else { throw ErrorMessage("Could not get main toolbar") }
         self.toolbar = toolbar
 
-        conversations = try mainWindow.child(withID: "ConversationList")!
+        guard let conversations = try? mainWindow.child(withID: "ConversationList") else {
+            throw ErrorMessage("Could not get Messages conversation list")
+        }
+        self.conversations = conversations
 
         #if false
         // FIXME: don't move if already visible
