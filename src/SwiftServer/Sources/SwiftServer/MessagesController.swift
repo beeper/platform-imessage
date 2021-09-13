@@ -18,13 +18,15 @@ private func debugLog(_ message: @autoclosure () -> String) {
     #endif
 }
 
-extension Accessibility.Attribute.Name {
-    static let children = Accessibility.Attribute.Name(kAXChildrenAttribute)
-    static let localizedDescription = Accessibility.Attribute.Name(kAXDescriptionAttribute)
+extension Accessibility.Notification {
+    static let layoutChanged = Self(kAXLayoutChangedNotification)
 }
-
+extension Accessibility.Attribute.Name {
+    static let children = Self(kAXChildrenAttribute)
+    static let localizedDescription = Self(kAXDescriptionAttribute)
+}
 extension Accessibility.Action.Name {
-    static let press = Accessibility.Action.Name(kAXPressAction)
+    static let press = Self(kAXPressAction)
 }
 
 extension Accessibility.Element {
@@ -102,8 +104,29 @@ extension Accessibility.Element {
     }
 }
 
+private final class RunLoopThread: Thread {
+    private var initialize: (() -> Void)?
+    // safe to retain self inside initialize because it's nil'd out
+    // once main() is called
+    init(initialize: @escaping () -> Void) {
+        self.initialize = initialize
+    }
+    override func main() {
+        initialize?()
+        initialize = nil
+        while !isCancelled {
+            // we need to set a finite deadline, otherwise once the source
+            // is removed we'll be stuck here and never get to the next
+            // isCancelled check
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 1))
+        }
+    }
+}
+
 // not thread safe
 class MessagesController {
+    static let queue = DispatchQueue(label: "swift-server-queue")
+
     private static let textsBundleID = "com.kishanbagaria.jack"
     private static let messagesBundleID = "com.apple.MobileSMS"
     private static let messagesBundle = NSWorkspace.shared.urlForApplication(
@@ -123,6 +146,9 @@ class MessagesController {
     private let mainWindow: Accessibility.Element
     private let toolbar: Accessibility.Element
     private let conversations: Accessibility.Element
+
+    private var loopThread: RunLoopThread?
+    private var token: Accessibility.Observer.Token?
 
     private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
         let targetWidth = max(Self.minSize.width, textsFrame.width * Self.sidebarWidthFactor - Self.shadowMargin)
@@ -212,6 +238,29 @@ class MessagesController {
             throw ErrorMessage("Could not get Messages conversation list")
         }
         self.conversations = conversations
+
+        // we need a run loop to observe AX notifications on, but Node doesn't offer us
+        // one (since it uses its own uv loop which is incompatible with NS/CFRunLoop).
+        // Therefore we create a background thread with a run loop. Note that doing so
+        // on a dispatch queue would be very inefficient and so we create our own thread
+        // for it; see https://stackoverflow.com/a/38001438/3769927 and
+        // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
+        let thread = RunLoopThread {
+            do {
+                self.token = try self.appElement.observe(.layoutChanged) { [weak self] info in
+                    guard let self = self else { return }
+                    Self.queue.async {
+                        self.layoutChanged()
+                    }
+                }
+            } catch {
+                print("warning: Messages observation failed: \(error)")
+                return
+            }
+        }
+        thread.qualityOfService = .utility
+        thread.start()
+        self.loopThread = thread
 
         #if false
         // FIXME: don't move if already visible
@@ -321,7 +370,7 @@ class MessagesController {
         try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
 
         guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-            debugLog("warning: Cell for message \(guid) could not be found.")
+            print("warning: Cell for message \(guid) could not be found.")
             return
         }
 
@@ -338,5 +387,15 @@ class MessagesController {
         try targetCell.perform(action: .press)
 
         debugLog("Done!")
+    }
+
+    // TODO: debounce/coalesce?
+    private func layoutChanged() {
+        // TODO: Determine whether the typing indicator is present
+        debugLog("Layout changed!")
+    }
+
+    deinit {
+        loopThread?.cancel()
     }
 }

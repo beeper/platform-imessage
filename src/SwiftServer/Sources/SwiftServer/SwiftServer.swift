@@ -3,13 +3,11 @@ import Foundation
 
 @main struct SwiftServer: NodeModule {
     let exports: NodeValueConvertible
-    static let queue = DispatchQueue(label: "swift-server-queue")
 
     static func decodeAttributedString(from data: Data) throws -> [NodeObject]? {
         // TODO: Make async, return promise
-        guard let decoded = try queue.sync(
-                execute: { try AttributedStringDecoder.decodeAttributedString(from: data) }
-        ) else { return nil }
+        guard let decoded = try AttributedStringDecoder.decodeAttributedString(from: data)
+            else { return nil }
         return try decoded.map { frag in
             let obj = try NodeObject(in: .current)
             try obj.define(properties: [
@@ -68,7 +66,7 @@ import Foundation
                         try deferred.resolve(with: NodeUndefined(in: ctx), in: ctx)
                     }
                 }
-                Self.queue.async {
+                MessagesController.queue.async {
                     do {
                         _controller = try .init()
                     } catch {
@@ -92,12 +90,12 @@ import Foundation
                 }
                 let guidString = try guid.string()
                 // TODO: make async, return a promise
-                try Self.queue.sync { try controller().markAsRead(guid: guidString) }
+                try MessagesController.queue.sync { try controller().markAsRead(guid: guidString) }
                 return try NodeUndefined(in: ctx)
             },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 print("disposing SwiftServer...")
-                Self.queue.sync { _controller = nil }
+                MessagesController.queue.sync { _controller = nil }
                 return try NodeUndefined(in: ctx)
             }
         ]
