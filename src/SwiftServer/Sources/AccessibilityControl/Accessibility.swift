@@ -37,12 +37,39 @@ extension AccessibilityPhantomName {
 
 public struct AccessibilityError: Error, CustomStringConvertible {
     public let code: AXError
-    public init(_ code: AXError) {
+    public let file: StaticString
+    public let line: UInt
+
+    public init(_ code: AXError, file: StaticString = #fileID, line: UInt = #line) {
         self.code = code
+        self.file = file
+        self.line = line
+    }
+
+    private var codeName: String {
+        switch code {
+        case .success: return "success"
+        case .failure: return "failure"
+        case .illegalArgument: return "illegalArgument"
+        case .invalidUIElement: return "invalidUIElement"
+        case .invalidUIElementObserver: return "invalidUIElementObserver"
+        case .cannotComplete: return "cannotComplete"
+        case .attributeUnsupported: return "attributeUnsupported"
+        case .actionUnsupported: return "actionUnsupported"
+        case .notificationUnsupported: return "notificationUnsupported"
+        case .notImplemented: return "notImplemented"
+        case .notificationAlreadyRegistered: return "notificationAlreadyRegistered"
+        case .notificationNotRegistered: return "notificationNotRegistered"
+        case .apiDisabled: return "apiDisabled"
+        case .noValue: return "noValue"
+        case .parameterizedAttributeUnsupported: return "parameterizedAttributeUnsupported"
+        case .notEnoughPrecision: return "notEnoughPrecision"
+        @unknown default: return "unknown"
+        }
     }
 
     public var description: String {
-        "AXError: \(code.rawValue)"
+        "AXError: \(codeName) (\(code.rawValue)) at \(file):\(line)"
     }
 }
 
@@ -53,8 +80,8 @@ public enum Accessibility {
         ] as CFDictionary)
     }
 
-    static func check(_ code: AXError) throws {
+    static func check(_ code: AXError, file: StaticString = #fileID, line: UInt = #line) throws {
         guard code != .success else { return }
-        throw AccessibilityError(code)
+        throw AccessibilityError(code, file: file, line: line)
     }
 }
