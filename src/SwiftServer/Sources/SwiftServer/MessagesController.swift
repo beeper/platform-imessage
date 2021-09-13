@@ -191,6 +191,8 @@ class MessagesController {
 
     var isValid: Bool {
         !app.isTerminated
+            && (try? toolbar.pid()) != nil
+            && (try? conversations.pid()) != nil
     }
 
     // the button seems to get invalidated every so often
