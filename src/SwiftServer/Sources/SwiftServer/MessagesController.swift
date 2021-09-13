@@ -20,6 +20,10 @@ extension Accessibility.Action.Name {
 }
 
 extension Accessibility.Element {
+    var isValid: Bool {
+        (try? pid()) != nil
+    }
+
     func appMainWindow() throws -> Accessibility.Element? {
         let mainWindowRaw = try attribute(.init(kAXMainWindowAttribute))
         return Accessibility.Element(erased: mainWindowRaw)
@@ -190,9 +194,8 @@ class MessagesController {
     }
 
     var isValid: Bool {
-        !app.isTerminated
-            && (try? toolbar.pid()) != nil
-            && (try? conversations.pid()) != nil
+        !app.isTerminated &&
+            [toolbar, conversations, textsWindow].allSatisfy(\.isValid)
     }
 
     // the button seems to get invalidated every so often
@@ -208,6 +211,20 @@ class MessagesController {
         }
     }
 
+    @discardableResult
+    private func waitUntilSelected(isCompose: Bool, timeout: TimeInterval) -> Accessibility.Element? {
+        let start = Date()
+        while -start.timeIntervalSinceNow < timeout {
+            guard let selected = selectedCell() else { continue }
+            let desc = try? selected.attribute(.localizedDescription)
+            let isActuallyCompose = desc == nil
+            if isCompose == isActuallyCompose {
+                return selected
+            }
+        }
+        return nil
+    }
+
     func markAsRead(guid: String) throws {
         guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
               let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
@@ -218,13 +235,12 @@ class MessagesController {
         if (try? mainWindow.attribute("AXMinimized") as? Bool) == true {
             try mainWindow.setAttribute("AXMinimized", to: false as AnyObject)
             app.hide()
-            Thread.sleep(forTimeInterval: 0.1)
+            while (try? mainWindow.attribute("AXMinimized") as? Bool) == true {}
         }
 
         let changeVisibility = true // app.isHidden
         if app.isHidden {
             app.unhide()
-            // TODO: use KVO?
             while app.isHidden {
                 // spin
             }
@@ -238,7 +254,7 @@ class MessagesController {
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
             try mainWindow.setWindowFrame(targetFrame)
-            Thread.sleep(forTimeInterval: 0.1)
+            while (try? mainWindow.windowFrame()) == oldFrame {}
         }
 
         defer {
@@ -250,39 +266,22 @@ class MessagesController {
 //            }
         }
 
-        // a cell to go "back" to temporarily
-        let prevCandidate: Accessibility.Element
-        #if false
-        if let selected = selectedCell(),
-           // TODO: Check for localized variants and then maybe use this
-           let desc = try? selected.attribute(.localizedDescription) as? String, desc.contains(", Unread") {
-            prevCandidate = selected
-        } else {
-            // let's create a new cell
-        }
-        #endif
-
         guard let composeButton = try? findComposeButton() else {
             print("warning: Could not find compose button")
             return
         }
         print("Pressing compose")
         try composeButton.perform(action: .press)
-        Thread.sleep(forTimeInterval: 0.1)
-        guard let newCell = selectedCell() else {
+        guard let newCell = waitUntilSelected(isCompose: true, timeout: 1) else {
             print("warning: New message cell could not be found")
             return
         }
-        prevCandidate = newCell
 
         print("Compose pressed. Opening URL")
 
         try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
 
-        // TODO: Spin on newCell[AXSelected]?
-        Thread.sleep(forTimeInterval: 0.1)
-
-        guard let targetCell = selectedCell() else {
+        guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
             print("warning: Cell for message \(guid) could not be found.")
             return
         }
@@ -291,9 +290,9 @@ class MessagesController {
 
         print("Pressing new cell")
 
-        try prevCandidate.perform(action: .press)
+        try newCell.perform(action: .press)
 
-        Thread.sleep(forTimeInterval: 0.1)
+        waitUntilSelected(isCompose: true, timeout: 0.5)
 
         print("Pressing target cell")
 
