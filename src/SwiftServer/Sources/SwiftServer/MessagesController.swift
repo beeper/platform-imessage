@@ -207,7 +207,7 @@ class MessagesController {
     }
 
     func markAsRead(guid: String) throws {
-        guard let firstPart = guid.split(separator: "_").first,
+        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
               let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
               let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
             throw ErrorMessage("Invalid iMessage guid \(guid)")
@@ -231,8 +231,9 @@ class MessagesController {
         let textsFrame = try textsWindow.windowFrame()
         let targetFrame = Self.messagesFrame(for: textsFrame)
         let oldFrame = try mainWindow.windowFrame()
-        // iff oldFrame is contained inside textsFrame
-        let changeFrame = changeVisibility || oldFrame.intersection(textsFrame) == oldFrame
+        let changeFrame = oldFrame != targetFrame &&
+            // iff oldFrame is contained inside textsFrame
+            (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
             try mainWindow.setWindowFrame(targetFrame)
             Thread.sleep(forTimeInterval: 0.1)
@@ -242,9 +243,9 @@ class MessagesController {
             if changeVisibility {
                 app.hide()
             }
-            if changeFrame {
-                try? mainWindow.setWindowFrame(oldFrame)
-            }
+//            if changeFrame {
+//                try? mainWindow.setWindowFrame(oldFrame)
+//            }
         }
 
         // a cell to go "back" to temporarily
