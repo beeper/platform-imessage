@@ -219,21 +219,21 @@ class MessagesController {
             Thread.sleep(forTimeInterval: 0.1)
         }
 
-        let changeVisibility = app.isHidden
-        if changeVisibility {
+        let changeVisibility = true // app.isHidden
+        if app.isHidden {
             app.unhide()
-        }
-        // TODO: use KVO?
-        while app.isHidden {
-            // spin
+            // TODO: use KVO?
+            while app.isHidden {
+                // spin
+            }
         }
 
         let textsFrame = try textsWindow.windowFrame()
         let targetFrame = Self.messagesFrame(for: textsFrame)
         let oldFrame = try mainWindow.windowFrame()
-        let changeFrame = oldFrame != targetFrame &&
-            // iff oldFrame is contained inside textsFrame
-            (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
+        let changeFrame = oldFrame != targetFrame
+//            // iff oldFrame is contained inside textsFrame
+//            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
             try mainWindow.setWindowFrame(targetFrame)
             Thread.sleep(forTimeInterval: 0.1)
