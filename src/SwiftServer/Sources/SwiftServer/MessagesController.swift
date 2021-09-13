@@ -207,9 +207,10 @@ class MessagesController {
     }
 
     func markAsRead(guid: String) throws {
-        guard let guidParsed = UUID(uuidString: guid), // extra validation ahead of time
+        guard let firstPart = guid.split(separator: "_").first,
+              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
               let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
-            throw ErrorMessage("Invalid iMessage guid")
+            throw ErrorMessage("Invalid iMessage guid \(guid)")
         }
 
         if (try? mainWindow.attribute("AXMinimized") as? Bool) == true {
