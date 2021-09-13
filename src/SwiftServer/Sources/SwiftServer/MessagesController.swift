@@ -84,7 +84,7 @@ extension Accessibility.Element {
     }
 
     func windowFrame() throws -> CGRect {
-        guard let val = try Accessibility.Struct(erased: attribute("AXFrame")) else {
+        guard let val = try? Accessibility.Struct(erased: attribute("AXFrame")) else {
             throw ErrorMessage("Could not get frame for window \(self)")
         }
         guard case let .rect(rect) = val else {
@@ -149,6 +149,8 @@ class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
+        // TODO: Can we parallelize fetching the Texts and Messages windows?
+
         guard let textsApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.textsBundleID).first else {
             throw ErrorMessage("Could not find running Texts instance")
         }
@@ -160,21 +162,37 @@ class MessagesController {
             return textsWindow
         }
 
+        let alreadyRunning: Bool
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
             app = running
+            alreadyRunning = true
         } else {
             print("Launching Messages...")
             app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: .andHide, configuration: [:])
+            alreadyRunning = false
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
-        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1) { [appElement] () throws -> Accessibility.Element in
+        let getMainWindow = { [appElement] () throws -> Accessibility.Element in
             guard let child = appElement.children().first(
                 where: { (try? $0.attribute("AXIdentifier") as? String) == "SceneWindow" }
             ) else {
                 throw ErrorMessage("Could not get main Messages window")
             }
             return child
+        }
+
+        if alreadyRunning {
+            // the main Messages window might be closed. Let's open it
+            let url = URL(string: "imessage://")!
+            try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+        }
+
+        self.mainWindow = try Self.retry(withTimeout: alreadyRunning ? 2 : 10, interval: 0.1, getMainWindow)
+
+        if alreadyRunning {
+            // we can hide Messages
+            app.hide()
         }
 
         guard let toolbar = mainWindow.children().first(where: {
@@ -194,8 +212,11 @@ class MessagesController {
     }
 
     var isValid: Bool {
-        !app.isTerminated &&
-            [toolbar, conversations, textsWindow].allSatisfy(\.isValid)
+        !app.isTerminated
+            && (try? mainWindow.windowFrame()) != nil
+            && (try? textsWindow.windowFrame()) != nil
+            && toolbar.isValid
+            && conversations.isValid
     }
 
     // the button seems to get invalidated every so often
@@ -223,6 +244,25 @@ class MessagesController {
             }
         }
         return nil
+    }
+
+    private func compose(attempt: Int = 0) throws -> Accessibility.Element {
+        guard let composeButton = try? findComposeButton() else {
+            if attempt < 5 {
+                return try compose(attempt: attempt + 1)
+            } else {
+                throw ErrorMessage("Could not find compose button")
+            }
+        }
+        try composeButton.perform(action: .press)
+        guard let newCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
+            if attempt < 5 {
+                return try compose(attempt: attempt + 1)
+            } else {
+                throw ErrorMessage("Could not find selected new message cell")
+            }
+        }
+        return newCell
     }
 
     func markAsRead(guid: String) throws {
@@ -266,16 +306,8 @@ class MessagesController {
 //            }
         }
 
-        guard let composeButton = try? findComposeButton() else {
-            print("warning: Could not find compose button")
-            return
-        }
         print("Pressing compose")
-        try composeButton.perform(action: .press)
-        guard let newCell = waitUntilSelected(isCompose: true, timeout: 1) else {
-            print("warning: New message cell could not be found")
-            return
-        }
+        let newCell = try compose()
 
         print("Compose pressed. Opening URL")
 
