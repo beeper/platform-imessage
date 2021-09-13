@@ -123,6 +123,23 @@ class MessagesController {
         )
     }
 
+    private static func retry<T>(
+        withTimeout timeout: TimeInterval,
+        interval: TimeInterval,
+        _ perform: () throws -> T
+    ) throws -> T {
+        let start = Date()
+        var res: Result<T, Error>
+        repeat {
+            res = Result(catching: perform)
+            if case let .success(val) = res {
+                return val
+            }
+            Thread.sleep(forTimeInterval: interval)
+        } while -start.timeIntervalSinceNow < timeout
+        return try res.get()
+    }
+
     init() throws {
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Texts does not have Accessibility permissions")
@@ -132,10 +149,12 @@ class MessagesController {
             throw ErrorMessage("Could not find running Texts instance")
         }
         let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
-        guard let textsWindow = try? textsAppElement.appMainWindow() else {
-            throw ErrorMessage("Could not find Texts main window")
+        self.textsWindow = try Self.retry(withTimeout: 10, interval: 0.1) { () throws -> Accessibility.Element in
+            guard let textsWindow = try textsAppElement.appMainWindow() else {
+                throw ErrorMessage("Could not find Texts main window")
+            }
+            return textsWindow
         }
-        self.textsWindow = textsWindow
 
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
             app = running
@@ -145,25 +164,14 @@ class MessagesController {
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
-        let start = Date()
-
-        // spin for the next five seconds until we see the main window
-        var mainWindow: Accessibility.Element?
-        while -start.timeIntervalSinceNow < 5 {
-            if let win = appElement.children().first(
+        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1) { [appElement] () throws -> Accessibility.Element in
+            guard let child = appElement.children().first(
                 where: { (try? $0.attribute("AXIdentifier") as? String) == "SceneWindow" }
-            ) {
-                mainWindow = win
-                break
+            ) else {
+                throw ErrorMessage("Could not get main Messages window")
             }
-            Thread.sleep(forTimeInterval: 0.1)
+            return child
         }
-
-        guard let mainWindow = mainWindow else {
-            throw ErrorMessage("Could not get main Messages window")
-        }
-
-        self.mainWindow = mainWindow
 
         guard let toolbar = mainWindow.children().first(where: {
             (try? $0.attribute("AXRole") as? String) == "AXToolbar"
