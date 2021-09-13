@@ -48,9 +48,6 @@ function createAPIServer() {
   const sendFile = (...args: any[]) =>
     run(ScriptName.SEND_FILE, [JSON.stringify(args)])
 
-  const selectFirstNThreads = (count: number) =>
-    run(ScriptName.SELECT_FIRST_N_THREADS, [String(count)])
-
   let spawnedMessagesApp = false
   const ensureMessagesAppRunning = async () => {
     const running = await isMessagesRunning()
@@ -94,7 +91,6 @@ function createAPIServer() {
   }
 
   return {
-    selectFirstNThreads,
     async askForAutomationAccess() {
       try {
         await run(ScriptName.ASK_FOR_AUTOMATION)
