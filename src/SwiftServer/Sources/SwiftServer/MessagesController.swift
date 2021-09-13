@@ -124,6 +124,10 @@ class MessagesController {
     }
 
     init() throws {
+        guard Accessibility.isTrusted() else {
+            throw ErrorMessage("Texts does not have Accessibility permissions")
+        }
+
         guard let textsApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.textsBundleID).first else {
             throw ErrorMessage("Could not find running Texts instance")
         }
