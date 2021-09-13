@@ -10,6 +10,14 @@ struct ErrorMessage: Error, CustomStringConvertible {
     var description: String { message }
 }
 
+// will be optimized out in release mode
+@_transparent
+private func debugLog(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    print(message())
+    #endif
+}
+
 extension Accessibility.Attribute.Name {
     static let children = Accessibility.Attribute.Name(kAXChildrenAttribute)
     static let localizedDescription = Accessibility.Attribute.Name(kAXDescriptionAttribute)
@@ -167,7 +175,7 @@ class MessagesController {
             app = running
             alreadyRunning = true
         } else {
-            print("Launching Messages...")
+            debugLog("Launching Messages...")
             app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: .andHide, configuration: [:])
             alreadyRunning = false
         }
@@ -306,30 +314,29 @@ class MessagesController {
 //            }
         }
 
-        print("Pressing compose")
+        debugLog("Pressing compose")
         let newCell = try compose()
 
-        print("Compose pressed. Opening URL")
-
+        debugLog("Compose pressed. Opening URL")
         try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
 
         guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-            print("warning: Cell for message \(guid) could not be found.")
+            debugLog("warning: Cell for message \(guid) could not be found.")
             return
         }
 
         // we now click another cell and then come back
 
-        print("Pressing new cell")
+        debugLog("Pressing new cell")
 
         try newCell.perform(action: .press)
 
         waitUntilSelected(isCompose: true, timeout: 0.5)
 
-        print("Pressing target cell")
+        debugLog("Pressing target cell")
 
         try targetCell.perform(action: .press)
 
-        print("Done!")
+        debugLog("Done!")
     }
 }
