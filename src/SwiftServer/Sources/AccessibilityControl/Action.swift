@@ -52,8 +52,15 @@ extension Accessibility {
             return cachedDescription ?? "\(element.raw): \(name.value)"
         }
 
-        public func callAsFunction() throws {
-            try check(AXUIElementPerformAction(element.raw, name.value as CFString))
+        public func callAsFunction(
+            file: StaticString = #fileID,
+            line: UInt = #line
+        ) throws {
+            try check(
+                AXUIElementPerformAction(element.raw, name.value as CFString),
+                file: file,
+                line: line
+            )
         }
     }
 }

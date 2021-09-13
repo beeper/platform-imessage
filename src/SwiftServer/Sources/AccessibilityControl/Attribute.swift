@@ -50,9 +50,12 @@ extension Accessibility {
             return ret
         }
 
-        public func get() throws -> AnyObject {
+        public func get(file: StaticString = #fileID, line: UInt = #line) throws -> AnyObject {
             var val: AnyObject?
-            try check(AXUIElementCopyAttributeValue(element.raw, name.value as CFString, &val))
+            try check(
+                AXUIElementCopyAttributeValue(element.raw, name.value as CFString, &val),
+                file: file, line: line
+            )
             if let val = val {
                 return val
             } else {
@@ -60,8 +63,11 @@ extension Accessibility {
             }
         }
 
-        public func set(_ value: AnyObject) throws {
-            try check(AXUIElementSetAttributeValue(element.raw, name.value as CFString, value))
+        public func set(_ value: AnyObject, file: StaticString = #fileID, line: UInt = #line) throws {
+            try check(
+                AXUIElementSetAttributeValue(element.raw, name.value as CFString, value),
+                file: file, line: line
+            )
         }
 
         public func arrayCount() throws -> Int {

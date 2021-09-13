@@ -58,8 +58,12 @@ extension Accessibility {
             }
         }
 
-        public func perform(action name: Action.Name) throws {
-            try Action.create(element: self, name: name)()
+        public func perform(
+            action name: Action.Name,
+            file: StaticString = #fileID,
+            line: UInt = #line
+        ) throws {
+            try Action.create(element: self, name: name)(file: file, line: line)
         }
 
         public func supportedAttributes() throws -> [Attribute] {
@@ -77,12 +81,21 @@ extension Accessibility {
             }
         }
 
-        public func attribute(_ name: Attribute.Name) throws -> AnyObject {
-            try Attribute.create(element: self, name: name).get()
+        public func attribute(
+            _ name: Attribute.Name,
+            file: StaticString = #fileID,
+            line: UInt = #line
+        ) throws -> AnyObject {
+            try Attribute.create(element: self, name: name).get(file: file, line: line)
         }
 
-        public func setAttribute(_ name: Attribute.Name, to value: AnyObject) throws {
-            try Attribute.create(element: self, name: name).set(value)
+        public func setAttribute(
+            _ name: Attribute.Name,
+            to value: AnyObject,
+            file: StaticString = #fileID,
+            line: UInt = #line
+        ) throws {
+            try Attribute.create(element: self, name: name).set(value, file: file, line: line)
         }
 
         public func supportedParameterizedAttributes() throws -> [ParameterizedAttributeName] {
