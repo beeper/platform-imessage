@@ -46,7 +46,7 @@ import Foundation
             if controller.isValid {
                 return controller
             } else {
-                print("MessagesController has been invalidated. Recreating...")
+                debugLog("MessagesController has been invalidated. Recreating...")
                 let controller = try MessagesController()
                 _controller = controller
                 return controller
@@ -54,7 +54,7 @@ import Foundation
         }
         exports = [
             "init": try NodeFunction(in: context) { ctx, info in
-                print("initializing SwiftServer...")
+                debugLog("initializing SwiftServer...")
                 let deferred = try NodePromise.Deferred(in: ctx)
                 let tsfn = try NodeThreadsafeFunction<Error?>(
                     asyncResourceName: "swift_server_init", in: ctx
@@ -94,28 +94,35 @@ import Foundation
                 return try NodeUndefined(in: ctx)
             },
             "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
-                let observer: MessagesController.ActivityObserver?
+                let args: (String, (String) -> Void)?
                 if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {
-                    observer = nil
+                    args = nil
                 } else if info.arguments.count == 2,
                           let address = try info.arguments[0].as(NodeString.self),
                           let fn = try info.arguments[1].as(NodeFunction.self) {
                     let addressName = try address.string()
-                    let tsfn = try NodeThreadsafeFunction<String>(asyncResourceName: "watch-imessage-callback", in: ctx) { ctx, addr in
+                    let tsfn = try NodeThreadsafeFunction<String>(
+                        asyncResourceName: "watch_imessage_callback", in: ctx
+                    ) { ctx, addr in
                         try fn(in: ctx, addr)
                     }
-                    observer = try .init(address: addressName) { try? tsfn($0) }
+                    args = (addressName, { try? tsfn($0) })
                 } else {
                     print("warning: Invalid args to watchThreadActivity")
-                    observer = nil
+                    args = nil
                 }
                 try MessagesController.queue.sync {
-                    try controller().setObserver(observer)
+                    let controller = try controller()
+                    if let args = args {
+                        try controller.observe(address: args.0, callback: args.1)
+                    } else {
+                        try controller.removeObserver()
+                    }
                 }
                 return try NodeUndefined(in: ctx)
             },
             "dispose": try NodeFunction(in: context) { ctx, info in
-                print("disposing SwiftServer...")
+                debugLog("disposing SwiftServer...")
                 MessagesController.queue.sync { _controller = nil }
                 return try NodeUndefined(in: ctx)
             }

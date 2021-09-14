@@ -12,7 +12,7 @@ struct ErrorMessage: Error, CustomStringConvertible {
 
 // will be optimized out in release mode
 @_transparent
-private func debugLog(_ message: @autoclosure () -> String) {
+func debugLog(_ message: @autoclosure () -> String) {
     #if DEBUG
     print(message())
     #endif
@@ -29,6 +29,7 @@ extension Accessibility.Names {
     var windowPosition: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
     var windowSize: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
     var windowFrame: AttributeName<CGRect> { "AXFrame" }
+    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
 
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
@@ -120,20 +121,12 @@ private final class RunLoopThread: Thread {
 
 // external API is not thread safe
 final class MessagesController {
-    struct ActivityObserver {
+    private struct ActivityObserver {
         let address: String
+        let url: URL
+        let windowTitle: String
         // may be called on a bg thread
         let callback: (String) -> Void
-        let url: URL
-
-        init(address: String, callback: @escaping (String) -> Void) throws {
-            guard let url = URL(string: "imessage://open?address=\(address)") else {
-                throw ErrorMessage("Invalid iMessage address: \(address)")
-            }
-            self.address = address
-            self.callback = callback
-            self.url = url
-        }
     }
 
     static let queue = DispatchQueue(label: "swift-server-queue")
@@ -143,6 +136,8 @@ final class MessagesController {
     private static let messagesBundle = NSWorkspace.shared.urlForApplication(
         withBundleIdentifier: messagesBundleID
     )!
+
+    private static let pollingInterval: TimeInterval = 1
 
     private static let shadowMargin: CGFloat = 32
     // iMessage doesn't go smaller than this
@@ -264,7 +259,7 @@ final class MessagesController {
                 self?.pollActivityStatus()
             }
             self.timer = Timer.scheduledTimer(
-                timeInterval: 0.5,
+                timeInterval: Self.pollingInterval,
                 target: watcher,
                 selector: #selector(TimerBlockWatcher.timerFired),
                 userInfo: nil,
@@ -407,7 +402,7 @@ final class MessagesController {
 
             debugLog("Returning to observer")
 
-            try openObserverThread(observer)
+            try openObserverThread(url: observer.url)
         }
 
         debugLog("Done!")
@@ -435,19 +430,55 @@ final class MessagesController {
 
         guard let observer = activityObserver else { return }
 
+        guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
+            print("warning: Title changed. Not polling activity status.")
+            return
+        }
+
         if self.isTyping() {
             observer.callback(observer.address)
         }
     }
 
     // must be called with the observer lock held
-    private func openObserverThread(_ observer: ActivityObserver) throws {
-        try NSWorkspace.shared.open(observer.url, options: [.andHide, .withoutActivation], configuration: [:])
-        Thread.sleep(forTimeInterval: 0.2)
+    @discardableResult
+    private func openObserverThread(url: URL) throws -> String {
+        if !app.isHidden {
+            app.hide()
+            try Self.retry(withTimeout: 1, interval: 0.1) {
+                guard app.isHidden else {
+                    throw ErrorMessage("Could not hide Messages window")
+                }
+            }
+        }
+        let oldTitle = try mainWindow.windowTitle()
+        try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+        try Self.retry(withTimeout: 1, interval: 0.1) {
+            guard !app.isHidden else {
+                throw ErrorMessage("Could not show Messages window")
+            }
+        }
         app.hide()
+        let changedTitle: String? = try? Self.retry(withTimeout: 1, interval: 0.1) {
+            let newTitle = try mainWindow.windowTitle()
+            // the message doesn't matter since we're try?-ing
+            guard newTitle != oldTitle else { throw ErrorMessage("") }
+            return newTitle
+        }
+        return try changedTitle ?? mainWindow.windowTitle()
     }
 
-    func setObserver(_ observer: ActivityObserver?) throws {
+    func removeObserver() throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+        activityObserver = nil
+    }
+
+    func observe(address: String, callback: @escaping (String) -> Void) throws {
+        guard let url = URL(string: "imessage://open?address=\(address)") else {
+            throw ErrorMessage("Invalid iMessage address: \(address)")
+        }
+
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -456,9 +487,11 @@ final class MessagesController {
         // observer. We only update to the new observer once we've
         // successfully switched chats.
         activityObserver = nil
-        guard let observer = observer else { return }
 
-        try openObserverThread(observer)
+        let title = try openObserverThread(url: url)
+        debugLog("Observing with title \(title)")
+
+        let observer = ActivityObserver(address: address, url: url, windowTitle: title, callback: callback)
 
         activityObserver = observer
     }
