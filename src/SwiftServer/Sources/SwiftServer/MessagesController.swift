@@ -57,7 +57,7 @@ extension Accessibility.Element {
         })
     }
 
-    func child(withID id: String) throws -> Accessibility.Element? {
+    func child(withID id: String) -> Accessibility.Element? {
         recursiveChildren().lazy.first {
             (try? $0.identifier()) == id
         }
@@ -89,6 +89,16 @@ extension Accessibility.Element {
     }
 }
 
+private final class TimerBlockWatcher {
+    let block: () -> Void
+    init(_ block: @escaping () -> Void) {
+        self.block = block
+    }
+    @objc func timerFired() {
+        block()
+    }
+}
+
 private final class RunLoopThread: Thread {
     private var initialize: (() -> Void)?
     // safe to retain self inside initialize because it's nil'd out
@@ -108,8 +118,24 @@ private final class RunLoopThread: Thread {
     }
 }
 
-// not thread safe
-class MessagesController {
+// external API is not thread safe
+final class MessagesController {
+    struct ActivityObserver {
+        let address: String
+        // may be called on a bg thread
+        let callback: (String) -> Void
+        let url: URL
+
+        init(address: String, callback: @escaping (String) -> Void) throws {
+            guard let url = URL(string: "imessage://open?address=\(address)") else {
+                throw ErrorMessage("Invalid iMessage address: \(address)")
+            }
+            self.address = address
+            self.callback = callback
+            self.url = url
+        }
+    }
+
     static let queue = DispatchQueue(label: "swift-server-queue")
 
     private static let textsBundleID = "com.kishanbagaria.jack"
@@ -132,8 +158,11 @@ class MessagesController {
     private let toolbar: Accessibility.Element
     private let conversations: Accessibility.Element
 
+    private var timer: Timer?
     private var loopThread: RunLoopThread?
     private var token: Accessibility.Observer.Token?
+
+    private var activityObserver: ActivityObserver?
 
     private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
         let targetWidth = max(Self.minSize.width, textsFrame.width * Self.sidebarWidthFactor - Self.shadowMargin)
@@ -174,14 +203,12 @@ class MessagesController {
             throw ErrorMessage("Could not find running Texts instance")
         }
         let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
-        print("getting window")
         self.textsWindow = try Self.retry(withTimeout: 10, interval: 0.1) { () throws -> Accessibility.Element in
             guard let textsWindow = try? textsAppElement.appMainWindow() else {
                 throw ErrorMessage("Could not find Texts main window")
             }
             return textsWindow
         }
-        print("got window: \(self.textsWindow)")
 
         let alreadyRunning: Bool
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
@@ -221,29 +248,28 @@ class MessagesController {
         }) else { throw ErrorMessage("Could not get main toolbar") }
         self.toolbar = toolbar
 
-        guard let conversations = try? mainWindow.child(withID: "ConversationList") else {
+        guard let conversations = mainWindow.child(withID: "ConversationList") else {
             throw ErrorMessage("Could not get Messages conversation list")
         }
         self.conversations = conversations
 
-        // we need a run loop to observe AX notifications on, but Node doesn't offer us
-        // one (since it uses its own uv loop which is incompatible with NS/CFRunLoop).
-        // Therefore we create a background thread with a run loop. Note that doing so
-        // on a dispatch queue would be very inefficient and so we create our own thread
-        // for it; see https://stackoverflow.com/a/38001438/3769927 and
+        // we need a run loop for polling (and for any future AX observers), but Node
+        // doesn't offer us one (since it uses its own uv loop which is incompatible
+        // with NS/CFRunLoop). Therefore we create a background thread with a run loop.
+        // Note that doing so on a dispatch queue would be very inefficient and so we
+        // create our own thread for it; see https://stackoverflow.com/a/38001438/3769927 and
         // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
         let thread = RunLoopThread {
-            do {
-                self.token = try self.appElement.observe(.layoutChanged) { [weak self] info in
-                    guard let self = self else { return }
-                    Self.queue.async {
-                        self.layoutChanged()
-                    }
-                }
-            } catch {
-                print("warning: Messages observation failed: \(error)")
-                return
+            let watcher = TimerBlockWatcher { [weak self] in
+                self?.pollActivityStatus()
             }
+            self.timer = Timer.scheduledTimer(
+                timeInterval: 0.5,
+                target: watcher,
+                selector: #selector(TimerBlockWatcher.timerFired),
+                userInfo: nil,
+                repeats: true
+            )
         }
         thread.qualityOfService = .utility
         thread.start()
@@ -310,6 +336,9 @@ class MessagesController {
     }
 
     func markAsRead(guid: String) throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
         guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
               let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
               let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
@@ -373,16 +402,69 @@ class MessagesController {
 
         try targetCell.press()
 
+        if let observer = activityObserver {
+            waitUntilSelected(isCompose: false, timeout: 0.5)
+
+            debugLog("Returning to observer")
+
+            try openObserverThread(observer)
+        }
+
         debugLog("Done!")
     }
 
-    // TODO: debounce/coalesce?
-    private func layoutChanged() {
-        // TODO: Determine whether the typing indicator is present
-        debugLog("Layout changed!")
+    private func isTyping() -> Bool {
+        guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView"),
+              let count = try? transcripts.children.count(),
+              count > 0,
+              let elt = try? transcripts.children(range: (count - 1)..<count).first else {
+            return false
+        }
+        return (try? elt.children.count()) == 0
+    }
+
+    // TODO: Switch to os_unfair_lock if we drop old OSes
+    private let activityLock = NSLock()
+
+    // called on run loop thread, not main node thread
+    private func pollActivityStatus() {
+        // if someone else (setObserver) holds the lock,
+        // silently skip this polling attempt
+        guard activityLock.try() else { return }
+        defer { activityLock.unlock() }
+
+        guard let observer = activityObserver else { return }
+
+        if self.isTyping() {
+            observer.callback(observer.address)
+        }
+    }
+
+    // must be called with the observer lock held
+    private func openObserverThread(_ observer: ActivityObserver) throws {
+        try NSWorkspace.shared.open(observer.url, options: [.andHide, .withoutActivation], configuration: [:])
+        Thread.sleep(forTimeInterval: 0.2)
+        app.hide()
+    }
+
+    func setObserver(_ observer: ActivityObserver?) throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        // we unconditionally nil out the observer first, so that if
+        // this method fails we don't keep sending notifs to the old
+        // observer. We only update to the new observer once we've
+        // successfully switched chats.
+        activityObserver = nil
+        guard let observer = observer else { return }
+
+        try openObserverThread(observer)
+
+        activityObserver = observer
     }
 
     deinit {
+        timer?.invalidate()
         loopThread?.cancel()
     }
 }

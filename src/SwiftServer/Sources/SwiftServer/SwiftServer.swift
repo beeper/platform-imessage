@@ -93,6 +93,27 @@ import Foundation
                 try MessagesController.queue.sync { try controller().markAsRead(guid: guidString) }
                 return try NodeUndefined(in: ctx)
             },
+            "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
+                let observer: MessagesController.ActivityObserver?
+                if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {
+                    observer = nil
+                } else if info.arguments.count == 2,
+                          let address = try info.arguments[0].as(NodeString.self),
+                          let fn = try info.arguments[1].as(NodeFunction.self) {
+                    let addressName = try address.string()
+                    let tsfn = try NodeThreadsafeFunction<String>(asyncResourceName: "watch-imessage-callback", in: ctx) { ctx, addr in
+                        try fn(in: ctx, addr)
+                    }
+                    observer = try .init(address: addressName) { try? tsfn($0) }
+                } else {
+                    print("warning: Invalid args to watchThreadActivity")
+                    observer = nil
+                }
+                try MessagesController.queue.sync {
+                    try controller().setObserver(observer)
+                }
+                return try NodeUndefined(in: ctx)
+            },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 print("disposing SwiftServer...")
                 MessagesController.queue.sync { _controller = nil }

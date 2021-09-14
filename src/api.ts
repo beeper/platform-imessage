@@ -4,7 +4,7 @@ import path from 'path'
 import childProcess from 'child_process'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
-import { PlatformAPI, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts } from '@textshq/platform-sdk'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
@@ -31,6 +31,8 @@ export default class AppleiMessage implements PlatformAPI {
   private api = iMessageAPI()
 
   private swiftServer: typeof _swiftServer
+
+  private onEvent: OnServerEventCallback
 
   getCurrentUser = async (): Promise<CurrentUser> => {
     this.ensureDB()
@@ -85,6 +87,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
     this.dbAPI.startPolling(onEvent)
+    this.onEvent = onEvent
   }
 
   searchUsers = (typed: string): User[] => []
@@ -265,6 +268,29 @@ export default class AppleiMessage implements PlatformAPI {
     this.threadReadStore.markThreadRead(threadID, messageID)
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
     if (this.enableMarkAsRead) this.swiftServer?.markRead(messageID)
+  }
+
+  onThreadSelected = async (threadID: string) => {
+    const thread = await this.getThread(threadID)
+    if (thread?.type !== 'single') {
+      this.swiftServer?.watchThreadActivity(null)
+      return
+    }
+
+    const address = thread.participants.items.find(p => !p.isSelf).id
+
+    this.swiftServer?.watchThreadActivity(address, cbAddress => {
+      if (cbAddress !== address) return
+      this.onEvent([
+        {
+          type: ServerEventType.USER_ACTIVITY,
+          activityType: ActivityType.TYPING,
+          threadID,
+          participantID: address,
+          durationMs: 2_000,
+        },
+      ])
+    })
   }
 
   //   private getThreadMessagesChecksum = async (threadID: string, afterCursor: string) => {

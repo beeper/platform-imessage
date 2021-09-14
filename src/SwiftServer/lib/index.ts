@@ -16,6 +16,7 @@ export interface Attribute {
 export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Attribute[] | undefined)
   markRead: (guid: string) => void
+  watchThreadActivity: (address: string | null, onTyping?: (string) => void) => void
   dispose: () => void
   init: () => Promise<void>
 }

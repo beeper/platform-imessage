@@ -121,13 +121,13 @@ extension Accessibility {
 
 // just `Collection` would make this applicable to dictionaries as well
 extension AttributeProtocol where Value: RandomAccessCollection {
-    func arrayCount() throws -> Int {
+    public func count() throws -> Int {
         var count: CFIndex = 0
         try Accessibility.check(AXUIElementGetAttributeValueCount(element.raw, name.value as CFString, &count))
         return count
     }
 
-    func arrayGet(range: Range<Int>, file: StaticString = #fileID, line: UInt = #line) throws -> [Value.Element] {
+    public func callAsFunction(range: Range<Int>, file: StaticString = #fileID, line: UInt = #line) throws -> [Value.Element] {
         var values: CFArray?
         try Accessibility.check(
             AXUIElementCopyAttributeValues(element.raw, name.value as CFString, range.startIndex, range.count, &values)
