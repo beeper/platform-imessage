@@ -21,12 +21,23 @@ private func debugLog(_ message: @autoclosure () -> String) {
 extension Accessibility.Notification {
     static let layoutChanged = Self(kAXLayoutChangedNotification)
 }
-extension Accessibility.Attribute.Name {
-    static let children = Self(kAXChildrenAttribute)
-    static let localizedDescription = Self(kAXDescriptionAttribute)
-}
-extension Accessibility.Action.Name {
-    static let press = Self(kAXPressAction)
+
+extension Accessibility.Names {
+    var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
+    var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
+
+    var windowPosition: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
+    var windowSize: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
+    var windowFrame: AttributeName<CGRect> { "AXFrame" }
+
+    var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
+    var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
+    var role: AttributeName<String> { .init(kAXRoleAttribute) }
+
+    var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
+    var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
+
+    var press: ActionName { .init(kAXPressAction) }
 }
 
 extension Accessibility.Element {
@@ -34,29 +45,21 @@ extension Accessibility.Element {
         (try? pid()) != nil
     }
 
-    func appMainWindow() throws -> Accessibility.Element? {
-        let mainWindowRaw = try attribute(.init(kAXMainWindowAttribute))
-        return Accessibility.Element(erased: mainWindowRaw)
-    }
-
-    func children() -> [Accessibility.Element] {
-        let rawChildren = try? attribute(.children) as? [AXUIElement]
-        return rawChildren?.map(Accessibility.Element.init(raw:)) ?? []
-    }
-
     // breadth-first, seems faster than dfs
     func recursiveChildren() -> AnySequence<Accessibility.Element> {
         AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
             guard !queue.isEmpty else { return nil }
             let elt = queue.removeFirst()
-            queue.append(contentsOf: elt.children())
+            if let children = try? elt.children() {
+                queue.append(contentsOf: children)
+            }
             return elt
         })
     }
 
     func child(withID id: String) throws -> Accessibility.Element? {
         recursiveChildren().lazy.first {
-            (try? $0.attribute("AXIdentifier") as? String) == id
+            (try? $0.identifier()) == id
         }
     }
 
@@ -65,42 +68,24 @@ extension Accessibility.Element {
             print("[action] \(act.name): \(act.description)")
         }
         for att in (try? supportedAttributes()) ?? [] {
-            print("[regular] \(att.name): \((try? att.get()) as Any)")
+            print("[regular] \(att.name): \((try? att()) as Any)")
         }
         for att in (try? supportedParameterizedAttributes()) ?? [] {
             print("[parameterized] \(att)")
         }
     }
 
-    func setWindowPosition(_ pos: CGPoint) throws {
-        try setAttribute("AXPosition", to: Accessibility.Struct.point(pos).raw()!)
-    }
-
-    func setWindowSize(_ size: CGSize) throws {
-        try setAttribute("AXSize", to: Accessibility.Struct.size(size).raw()!)
-    }
-
     func setWindowFrame(_ frame: CGRect) throws {
         DispatchQueue.concurrentPerform(iterations: 2) { i in
             switch i {
             case 0:
-                try? setWindowPosition(frame.origin)
+                try? self.windowPosition(assign: frame.origin)
             case 1:
-                try? setWindowSize(frame.size)
+                try? self.windowSize(assign: frame.size)
             default:
                 break
             }
         }
-    }
-
-    func windowFrame() throws -> CGRect {
-        guard let val = try? Accessibility.Struct(erased: attribute("AXFrame")) else {
-            throw ErrorMessage("Could not get frame for window \(self)")
-        }
-        guard case let .rect(rect) = val else {
-            throw ErrorMessage("Window frame for \(self) isn't a CGRect?")
-        }
-        return rect
     }
 }
 
@@ -189,12 +174,14 @@ class MessagesController {
             throw ErrorMessage("Could not find running Texts instance")
         }
         let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
+        print("getting window")
         self.textsWindow = try Self.retry(withTimeout: 10, interval: 0.1) { () throws -> Accessibility.Element in
-            guard let textsWindow = try textsAppElement.appMainWindow() else {
+            guard let textsWindow = try? textsAppElement.appMainWindow() else {
                 throw ErrorMessage("Could not find Texts main window")
             }
             return textsWindow
         }
+        print("got window: \(self.textsWindow)")
 
         let alreadyRunning: Bool
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
@@ -208,8 +195,8 @@ class MessagesController {
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
-            guard let child = appElement.children().first(
-                where: { (try? $0.attribute("AXIdentifier") as? String) == "SceneWindow" }
+            guard let child = try? appElement.children().first(
+                where: { (try? $0.identifier()) == "SceneWindow" }
             ) else {
                 throw ErrorMessage("Could not get main Messages window")
             }
@@ -229,8 +216,8 @@ class MessagesController {
             app.hide()
         }
 
-        guard let toolbar = mainWindow.children().first(where: {
-            (try? $0.attribute("AXRole") as? String) == "AXToolbar"
+        guard let toolbar = try? mainWindow.children().first(where: {
+            (try? $0.role()) == "AXToolbar"
         }) else { throw ErrorMessage("Could not get main toolbar") }
         self.toolbar = toolbar
 
@@ -280,12 +267,12 @@ class MessagesController {
     // so we can't cache it
     private func findComposeButton() throws -> Accessibility.Element? {
         // TODO: is it first in RTL envs?
-        toolbar.children().first
+        try? toolbar.children().first
     }
 
     private func selectedCell() -> Accessibility.Element? {
-        conversations.children().first {
-            (try? $0.attribute(.init(kAXSelectedAttribute)) as? Bool) == true
+        try? conversations.children().first {
+            (try? $0.isSelected()) == true
         }
     }
 
@@ -294,7 +281,7 @@ class MessagesController {
         let start = Date()
         while -start.timeIntervalSinceNow < timeout {
             guard let selected = selectedCell() else { continue }
-            let desc = try? selected.attribute(.localizedDescription)
+            let desc = try? selected.localizedDescription()
             let isActuallyCompose = desc == nil
             if isCompose == isActuallyCompose {
                 return selected
@@ -311,7 +298,7 @@ class MessagesController {
                 throw ErrorMessage("Could not find compose button")
             }
         }
-        try composeButton.perform(action: .press)
+        try composeButton.press()
         guard let newCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
             if attempt < 5 {
                 return try compose(attempt: attempt + 1)
@@ -329,10 +316,10 @@ class MessagesController {
             throw ErrorMessage("Invalid iMessage guid \(guid)")
         }
 
-        if (try? mainWindow.attribute("AXMinimized") as? Bool) == true {
-            try mainWindow.setAttribute("AXMinimized", to: false as AnyObject)
+        if (try? mainWindow.isMinimized()) == true {
+            try mainWindow.isMinimized(assign: false)
             app.hide()
-            while (try? mainWindow.attribute("AXMinimized") as? Bool) == true {}
+            while (try? mainWindow.isMinimized()) == true {}
         }
 
         let changeVisibility = true // app.isHidden
@@ -378,13 +365,13 @@ class MessagesController {
 
         debugLog("Pressing new cell")
 
-        try newCell.perform(action: .press)
+        try newCell.press()
 
         waitUntilSelected(isCompose: true, timeout: 0.5)
 
         debugLog("Pressing target cell")
 
-        try targetCell.perform(action: .press)
+        try targetCell.press()
 
         debugLog("Done!")
     }

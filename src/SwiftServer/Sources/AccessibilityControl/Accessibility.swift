@@ -1,9 +1,34 @@
 import Foundation
 import ApplicationServices
 
-public protocol AccessibilityStructConvertible {
-    var accessibilityStruct: Accessibility.Struct { get }
+public protocol AccessibilityConvertible {
+    init?(axRaw: AnyObject)
+    func axRaw() -> AnyObject?
 }
+
+extension Array: AccessibilityConvertible where Element: AccessibilityConvertible {
+    public init?(axRaw: AnyObject) {
+        guard let elements = axRaw as? [AnyObject] else { return nil }
+        self = elements.compactMap { Element(axRaw: $0) }
+    }
+    public func axRaw() -> AnyObject? {
+        compactMap { $0.axRaw() } as AnyObject
+    }
+}
+
+extension Dictionary: AccessibilityConvertible where Key == String, Value: AccessibilityConvertible {
+    public init?(axRaw: AnyObject) {
+        guard let elements = axRaw as? [String: AnyObject] else { return nil }
+        self = elements.compactMapValues { Value(axRaw: $0) }
+    }
+    public func axRaw() -> AnyObject? {
+        compactMapValues { $0.axRaw() } as AnyObject
+    }
+}
+
+//public protocol AccessibilityStructConvertible {
+//    var accessibilityStruct: Accessibility.Struct { get }
+//}
 //extension CGPoint: AccessibilityStructConvertible {
 //    public var accessibilityStruct: Accessibility.Struct { .point(self) }
 //}
@@ -74,6 +99,15 @@ public struct AccessibilityError: Error, CustomStringConvertible {
 }
 
 public enum Accessibility {
+    public struct Names {
+        public typealias ActionName = Action.Name
+        public typealias AttributeName<T> = Attribute<T>.Name
+        public typealias MutableAttributeName<T> = MutableAttribute<T>.Name
+        public typealias ParameterizedAttributeName<Parameter, Return> = ParameterizedAttribute<Parameter, Return>.Name
+
+        init() {}
+    }
+
     public static func isTrusted(shouldPrompt: Bool = false) -> Bool {
         AXIsProcessTrustedWithOptions([
             kAXTrustedCheckOptionPrompt.takeUnretainedValue(): shouldPrompt
@@ -83,5 +117,21 @@ public enum Accessibility {
     static func check(_ code: AXError, file: StaticString = #fileID, line: UInt = #line) throws {
         guard code != .success else { return }
         throw AccessibilityError(code, file: file, line: line)
+    }
+
+    static func convertToAX<T>(_ value: T) -> AnyObject? {
+        if let convertible = value as? AccessibilityConvertible {
+            return convertible.axRaw()
+        } else {
+            return value as AnyObject
+        }
+    }
+
+    static func convertFromAX<T>(_ value: AnyObject) -> T? {
+        if let convertibleType = T.self as? AccessibilityConvertible.Type {
+            return convertibleType.init(axRaw: value) as? T
+        } else {
+            return value as? T
+        }
     }
 }

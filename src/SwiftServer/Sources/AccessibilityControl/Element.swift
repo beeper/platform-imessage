@@ -2,6 +2,7 @@ import Foundation
 import ApplicationServices
 
 extension Accessibility {
+    @dynamicMemberLookup
     public final class Element: CustomStringConvertible {
         public let raw: AXUIElement
 
@@ -45,79 +46,77 @@ extension Accessibility {
             var actions: CFArray?
             try check(AXUIElementCopyActionNames(raw, &actions))
             guard let names = actions as? [String] else { return [] }
-            return names.map(Action.Name.init).map {
-                Action.unsafeCreate(element: self, name: $0)
-            }
+            return names
+                .map(Action.Name.init)
+                .map { Action(element: self, name: $0) }
         }
 
-        public func actionDescriptor(_ name: Action.Name) throws -> Action? {
-            do {
-                return try Action.create(element: self, name: name)
-            } catch let error as AccessibilityError where error.code == .actionUnsupported {
-                return nil
-            }
+        public func action(_ name: Action.Name) -> Action {
+            Action(element: self, name: name)
         }
 
-        public func perform(
-            action name: Action.Name,
-            file: StaticString = #fileID,
-            line: UInt = #line
-        ) throws {
-            try Action.create(element: self, name: name)(file: file, line: line)
+        public subscript(dynamicMember actionName: KeyPath<Names, Action.Name>) -> Action {
+            self.action(Names()[keyPath: actionName])
         }
 
-        public func supportedAttributes() throws -> [Attribute] {
+        public func supportedAttributes() throws -> [Attribute<Any>] {
             var rawNames: CFArray?
             try check(AXUIElementCopyAttributeNames(raw, &rawNames))
             guard let names = rawNames as? [String] else { return [] }
-            return names.map { Attribute.unsafeCreate(element: self, name: .init($0)) }
+            return names
+                .map(Attribute<Any>.Name.init(_:))
+                .map { Attribute(element: self, name: $0) }
         }
 
-        public func attributeDescriptor(_ name: Attribute.Name) throws -> Attribute? {
-            do {
-                return try Attribute.create(element: self, name: name)
-            } catch let error as AccessibilityError where error.code == .attributeUnsupported {
-                return nil
-            }
+        public func attribute<T>(_ name: Attribute<T>.Name) -> Attribute<T> {
+            Attribute(element: self, name: name)
         }
 
-        public func attribute(
-            _ name: Attribute.Name,
-            file: StaticString = #fileID,
-            line: UInt = #line
-        ) throws -> AnyObject {
-            try Attribute.create(element: self, name: name).get(file: file, line: line)
+        public subscript<T>(dynamicMember attributeName: KeyPath<Names, Attribute<T>.Name>) -> Attribute<T> {
+            attribute(Names()[keyPath: attributeName])
         }
 
-        public func setAttribute(
-            _ name: Attribute.Name,
-            to value: AnyObject,
-            file: StaticString = #fileID,
-            line: UInt = #line
-        ) throws {
-            try Attribute.create(element: self, name: name).set(value, file: file, line: line)
+        public func mutableAttribute<T>(_ name: MutableAttribute<T>.Name) -> MutableAttribute<T> {
+            MutableAttribute(element: self, name: name)
         }
 
-        public func supportedParameterizedAttributes() throws -> [ParameterizedAttributeName] {
+        public subscript<T>(dynamicMember attributeName: KeyPath<Names, MutableAttribute<T>.Name>) -> MutableAttribute<T> {
+            mutableAttribute(Names()[keyPath: attributeName])
+        }
+
+        public func supportedParameterizedAttributes() throws -> [ParameterizedAttribute<Any, Any>] {
             var rawNames: CFArray?
             try check(AXUIElementCopyParameterizedAttributeNames(raw, &rawNames))
             guard let names = rawNames as? [String] else { return [] }
-            return names.map(ParameterizedAttributeName.init)
+            return names
+                .map(ParameterizedAttribute<Any, Any>.Name.init)
+                .map { .init(element: self, name: $0) }
         }
 
-        public func parameterizedAttribute(_ name: ParameterizedAttributeName, with parameter: AnyObject) throws -> AnyObject {
-            var result: AnyObject?
-            try check(AXUIElementCopyParameterizedAttributeValue(raw, name.value as CFString, parameter, &result))
-            if let result = result {
-                return result
-            } else {
-                throw AccessibilityError(.failure)
-            }
+        public func parameterizedAttribute<Parameter, Return>(
+            _ name: ParameterizedAttribute<Parameter, Return>.Name
+        ) -> ParameterizedAttribute<Parameter, Return> {
+            .init(element: self, name: name)
+        }
+
+        public subscript<Parameter, Return>(
+            dynamicMember attributeName: KeyPath<Names, ParameterizedAttribute<Parameter, Return>.Name>
+        ) -> ParameterizedAttribute<Parameter, Return> {
+            parameterizedAttribute(Names()[keyPath: attributeName])
         }
 
         // nil: reset
         public func setMessagingTimeout(_ timeout: Float?) throws {
             try check(AXUIElementSetMessagingTimeout(raw, timeout ?? 0))
         }
+    }
+}
+
+extension Accessibility.Element: AccessibilityConvertible {
+    public func axRaw() -> AnyObject? {
+        raw
+    }
+    public convenience init?(axRaw: AnyObject) {
+        self.init(erased: axRaw)
     }
 }

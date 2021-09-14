@@ -2,15 +2,13 @@ import Foundation
 import ApplicationServices
 
 extension Accessibility {
-    public enum Struct: AccessibilityStructConvertible {
+    public enum Struct: AccessibilityConvertible {
         case point(CGPoint)
         case size(CGSize)
         case rect(CGRect)
         case range(Range<Int>)
         case error(AccessibilityError)
         // case illegal -- represented by nil
-
-        public var accessibilityStruct: Struct { self }
 
         public var kind: AXValueType {
             switch self {
@@ -38,6 +36,8 @@ extension Accessibility {
                 return AXValueCreate(kind, &code)
             }
         }
+
+        public func axRaw() -> AnyObject? { raw() }
 
         init?(_ value: AXValue) {
             let kind = AXValueGetType(value)
@@ -75,5 +75,69 @@ extension Accessibility {
             }
             self.init(object as! AXValue)
         }
+
+        public init?(axRaw: AnyObject) {
+            self.init(erased: axRaw)
+        }
+    }
+}
+
+extension CGPoint: AccessibilityConvertible {
+    public func axRaw() -> AnyObject? {
+        Accessibility.Struct.point(self).axRaw()
+    }
+    public init?(axRaw: AnyObject) {
+        guard case let .point(value) = Accessibility.Struct(axRaw: axRaw) else {
+            return nil
+        }
+        self = value
+    }
+}
+
+extension CGSize: AccessibilityConvertible {
+    public func axRaw() -> AnyObject? {
+        Accessibility.Struct.size(self).axRaw()
+    }
+    public init?(axRaw: AnyObject) {
+        guard case let .size(value) = Accessibility.Struct(axRaw: axRaw) else {
+            return nil
+        }
+        self = value
+    }
+}
+
+extension CGRect: AccessibilityConvertible {
+    public func axRaw() -> AnyObject? {
+        Accessibility.Struct.rect(self).axRaw()
+    }
+    public init?(axRaw: AnyObject) {
+        guard case let .rect(value) = Accessibility.Struct(axRaw: axRaw) else {
+            return nil
+        }
+        self = value
+    }
+}
+
+extension Range: AccessibilityConvertible where Bound == Int {
+    public func axRaw() -> AnyObject? {
+        Accessibility.Struct.range(self).axRaw()
+    }
+    public init?(axRaw: AnyObject) {
+        guard case let .range(value) = Accessibility.Struct(axRaw: axRaw) else {
+            return nil
+        }
+        self = value
+    }
+}
+
+extension AccessibilityError: AccessibilityConvertible {
+    public func axRaw() -> AnyObject? {
+        Accessibility.Struct.error(self).axRaw()
+    }
+    public init?(axRaw: AnyObject) {
+        guard case let .error(value) = Accessibility.Struct(axRaw: axRaw) else {
+            return nil
+        }
+        self = value
     }
 }
