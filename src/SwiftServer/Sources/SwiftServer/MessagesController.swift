@@ -431,7 +431,7 @@ final class MessagesController {
         guard let observer = activityObserver else { return }
 
         guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
-            print("warning: Title changed. Not polling activity status.")
+//            debugLog("warning: Title changed. Not polling activity status.")
             return
         }
 
