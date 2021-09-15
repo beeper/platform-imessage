@@ -325,24 +325,12 @@ final class MessagesController {
 
     static let composeURL = URL(string: "imessage://open?address=")!
 
-    private func compose(attempt: Int = 0) throws -> Accessibility.Element {
-        try NSWorkspace.shared.open(Self.composeURL, options: [.andHide, .withoutActivation], configuration: [:])
-        guard let newCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
-            throw ErrorMessage("Could not find selected new message cell")
-        }
-        return newCell
-    }
-
-    func markAsRead(guid: String) throws {
-        activityLock.lock()
-        defer { activityLock.unlock() }
-
-        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
-              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
-              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
-            throw ErrorMessage("Invalid iMessage guid \(guid)")
-        }
-
+    // performs `perform` while the Messages window is unhidden. Returns the new window title
+    @discardableResult
+    private func withActivation(
+        openBefore: URL?, openAfter: URL?,
+        perform: () throws -> Void
+    ) throws -> String? {
         if (try? mainWindow.isMinimized()) == true {
             try mainWindow.isMinimized(assign: false)
             app.hide()
@@ -377,38 +365,69 @@ final class MessagesController {
 //            }
         }
 
-        debugLog("Pressing compose")
-        let newCell = try compose()
-
-        debugLog("Compose pressed. Opening URL")
-        try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
-
-        guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-            print("warning: Cell for message \(guid) could not be found.")
-            return
+        if let openBefore = openBefore {
+            try NSWorkspace.shared.open(openBefore, options: [.andHide, .withoutActivation], configuration: [:])
         }
 
-        // we now click another cell and then come back
+        try perform()
 
-        debugLog("Pressing new cell")
+        let newTitle: String?
+        if let openAfter = openAfter {
+            debugLog("Returning to observed thread")
+            let oldTitle = try mainWindow.windowTitle()
+            try NSWorkspace.shared.open(openAfter, options: [.andHide, .withoutActivation], configuration: [:])
+            newTitle = try? Self.retry(withTimeout: 1, interval: 0.1) {
+                let newTitle = try mainWindow.windowTitle()
+                // the message doesn't matter since we're try?-ing
+                guard newTitle != oldTitle else { throw ErrorMessage("") }
+                return newTitle
+            }
+        } else {
+            newTitle = nil
+        }
 
-        try newCell.press()
+        return newTitle
+    }
 
-        waitUntilSelected(isCompose: true, timeout: 0.5)
+    func markAsRead(guid: String) throws {
+        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
+              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
+              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
+            throw ErrorMessage("Invalid iMessage guid \(guid)")
+        }
 
-        debugLog("Pressing target cell")
+        activityLock.lock()
+        defer { activityLock.unlock() }
 
-        try targetCell.press()
+        try withActivation(openBefore: Self.composeURL, openAfter: activityObserver?.url) {
+            guard let composeCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
+                throw ErrorMessage("Could not find selected new message cell")
+            }
 
-        if let observer = activityObserver {
+            debugLog("Opened compose. Opening target URL")
+            try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+
+            guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
+                print("warning: Cell for message \(guid) could not be found.")
+                return
+            }
+
+            // we now click another cell and then come back
+
+            debugLog("Pressing compose cell")
+
+            try composeCell.press()
+
+            waitUntilSelected(isCompose: true, timeout: 0.5)
+
+            debugLog("Pressing target cell")
+
+            try targetCell.press()
+
             waitUntilSelected(isCompose: false, timeout: 0.5)
 
-            debugLog("Returning to observer")
-
-            try openObserverThread(url: observer.url)
+            debugLog("Done!")
         }
-
-        debugLog("Done!")
     }
 
     private func activityStatus() -> ActivityStatus {
@@ -443,29 +462,6 @@ final class MessagesController {
         observer.send(activityStatus())
     }
 
-    // must be called with the observer lock held
-    @discardableResult
-    private func openObserverThread(url: URL) throws -> String {
-        if !app.isHidden {
-            app.hide()
-            try Self.retry(withTimeout: 1, interval: 0.1) {
-                guard app.isHidden else {
-                    throw ErrorMessage("Could not hide Messages window")
-                }
-            }
-        }
-        let oldTitle = try mainWindow.windowTitle()
-        try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
-        let changedTitle: String? = try? Self.retry(withTimeout: 1, interval: 0.1) {
-            let newTitle = try mainWindow.windowTitle()
-            // the message doesn't matter since we're try?-ing
-            guard newTitle != oldTitle else { throw ErrorMessage("") }
-            return newTitle
-        }
-        defer { app.hide() }
-        return try changedTitle ?? mainWindow.windowTitle()
-    }
-
     // must call with lock held
     private func _removeObserver() throws {
         if let old = activityObserver {
@@ -494,7 +490,7 @@ final class MessagesController {
         // successfully switched chats.
         try _removeObserver()
 
-        let title = try openObserverThread(url: url)
+        let title = try withActivation(openBefore: nil, openAfter: url) {} ?? mainWindow.windowTitle()
         debugLog("Observing with title \(title)")
 
         activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
