@@ -8,13 +8,11 @@ private func observerCallback(
     info: CFDictionary,
     context: UnsafeMutableRawPointer?
 ) {
-    guard let context = context,
-          let info = info as? [AnyHashable: Any]
-    else { return }
+    guard let context = context else { return }
     Unmanaged<Box<Accessibility.Observer.Callback>>
         .fromOpaque(context)
         .takeUnretainedValue()
-        .value(info)
+        .value(info as? [AnyHashable: Any] ?? [:])
 }
 
 extension Accessibility {

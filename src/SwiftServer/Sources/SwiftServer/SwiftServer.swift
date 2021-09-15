@@ -94,17 +94,17 @@ import Foundation
                 return try NodeUndefined(in: ctx)
             },
             "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
-                let args: (String, (String) -> Void)?
+                let args: (String, (MessagesController.ActivityStatus) -> Void)?
                 if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {
                     args = nil
                 } else if info.arguments.count == 2,
                           let address = try info.arguments[0].as(NodeString.self),
                           let fn = try info.arguments[1].as(NodeFunction.self) {
                     let addressName = try address.string()
-                    let tsfn = try NodeThreadsafeFunction<String>(
+                    let tsfn = try NodeThreadsafeFunction<MessagesController.ActivityStatus>(
                         asyncResourceName: "watch_imessage_callback", in: ctx
-                    ) { ctx, addr in
-                        try fn(in: ctx, addr)
+                    ) { ctx, param in
+                        try fn(in: ctx, param.rawValue)
                     }
                     args = (addressName, { try? tsfn($0) })
                 } else {

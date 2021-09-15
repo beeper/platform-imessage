@@ -13,10 +13,19 @@ export interface Attribute {
   to: number
 }
 
+export enum ActivityStatus {
+  Typing = 'TYPING',
+  NotTyping = 'NOT_TYPING',
+  Unknown = 'UNKNOWN',
+}
+
 export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Attribute[] | undefined)
   markRead: (guid: string) => void
-  watchThreadActivity: (address: string | null, onTyping?: (string) => void) => void
+  watchThreadActivity: (
+    address: string | null,
+    onTyping?: (status: ActivityStatus) => void
+  ) => void
   dispose: () => void
   init: () => Promise<void>
 }

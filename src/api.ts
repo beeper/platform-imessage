@@ -14,7 +14,7 @@ import ThreadReadStore from './thread-read-store'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import _swiftServer from './SwiftServer/lib'
+import _swiftServer, { ActivityStatus } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 export default class AppleiMessage implements PlatformAPI {
@@ -30,7 +30,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private api = iMessageAPI()
 
-  private swiftServer: typeof _swiftServer
+  private swiftServer: Promise<typeof _swiftServer>
 
   private onEvent: OnServerEventCallback
 
@@ -54,13 +54,14 @@ export default class AppleiMessage implements PlatformAPI {
   private enableMarkAsRead: boolean
 
   private initSwiftServer = async () => {
-    if (!IS_BIG_SUR_OR_UP) return
+    if (!IS_BIG_SUR_OR_UP) return null
     try {
       await _swiftServer.init()
-      this.swiftServer = _swiftServer
+      return _swiftServer
     } catch (err) {
       texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
       texts.error('[imessage] SwiftServer error', err)
+      return null
     }
   }
 
@@ -68,7 +69,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.enableMarkAsRead = !existsSync(path.join(dataDirPath, 'disable-imessage-mark-as-read')) && IS_BIG_SUR_OR_UP
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we have FDA which means user went through auth flow
-      this.initSwiftServer()
+      this.swiftServer = this.initSwiftServer()
     }
     this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
     csrStatus().then(status => {
@@ -80,7 +81,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = () => {
-    this.swiftServer?.dispose()
+    this.swiftServer.then(s => s?.dispose())
     this.api.dispose()
     return this.dbAPI.dispose()
   }
@@ -267,27 +268,33 @@ export default class AppleiMessage implements PlatformAPI {
   sendReadReceipt = async (threadID: string, messageID: string) => {
     this.threadReadStore.markThreadRead(threadID, messageID)
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
-    if (this.enableMarkAsRead) this.swiftServer?.markRead(messageID)
+    if (this.enableMarkAsRead) (await this.swiftServer)?.markRead(messageID)
   }
 
   onThreadSelected = async (threadID: string) => {
     const thread = await this.getThread(threadID)
+
+    // we don't need to Promise.all because the Promise has already been
+    // fired for swiftServer
+    const swiftServer = await this.swiftServer
+    if (!swiftServer) return
+
     if (thread?.type !== 'single') {
-      this.swiftServer?.watchThreadActivity(null)
+      swiftServer.watchThreadActivity(null)
       return
     }
 
-    const address = thread.participants.items.find(p => !p.isSelf).id
+    const address = thread.participants.items.find(p => !p.isSelf).id;
 
-    this.swiftServer?.watchThreadActivity(address, cbAddress => {
-      if (cbAddress !== address) return
+    swiftServer.watchThreadActivity(address, status => {
+      console.log('sending status', status)
       this.onEvent([
         {
           type: ServerEventType.USER_ACTIVITY,
-          activityType: ActivityType.TYPING,
+          activityType: status === ActivityStatus.Typing ? ActivityType.TYPING : ActivityType.NONE,
           threadID,
           participantID: address,
-          durationMs: 2_000,
+          durationMs: 120_000,
         },
       ])
     })

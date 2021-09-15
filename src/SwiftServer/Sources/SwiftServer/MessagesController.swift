@@ -119,14 +119,43 @@ private final class RunLoopThread: Thread {
     }
 }
 
-// external API is not thread safe
+// external API is thread safe
 final class MessagesController {
-    private struct ActivityObserver {
+    enum ActivityStatus: String {
+        case typing = "TYPING"
+        case notTyping = "NOT_TYPING"
+        case unknown = "UNKNOWN"
+    }
+
+    private class ActivityObserver {
         let address: String
         let url: URL
         let windowTitle: String
+
         // may be called on a bg thread
-        let callback: (String) -> Void
+        private let callback: (ActivityStatus) -> Void
+
+        private var lastSentTyping = false
+        private var lastSentTime = Date()
+
+        init(address: String, url: URL, windowTitle: String, callback: @escaping (ActivityStatus) -> Void) {
+            self.address = address
+            self.url = url
+            self.windowTitle = windowTitle
+            self.callback = callback
+        }
+
+        func send(_ status: ActivityStatus) {
+            let sendTyping = status == .typing
+            // send if the status is different OR if we're sending typing events and it's
+            // been a long time since the last one
+            guard lastSentTyping != sendTyping || (sendTyping && lastSentTime.timeIntervalSinceNow > 30) else {
+                return
+            }
+            lastSentTyping = sendTyping
+            lastSentTime = Date()
+            callback(status)
+        }
     }
 
     static let queue = DispatchQueue(label: "swift-server-queue")
@@ -150,7 +179,6 @@ final class MessagesController {
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
     private let mainWindow: Accessibility.Element
-    private let toolbar: Accessibility.Element
     private let conversations: Accessibility.Element
 
     private var timer: Timer?
@@ -225,11 +253,8 @@ final class MessagesController {
             return child
         }
 
-        if alreadyRunning {
-            // the main Messages window might be closed. Let's open it
-            let url = URL(string: "imessage://")!
-            try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
-        }
+        // the main Messages window might be closed. Let's open it
+        try NSWorkspace.shared.open(Self.composeURL, options: [.andHide, .withoutActivation], configuration: [:])
 
         self.mainWindow = try Self.retry(withTimeout: alreadyRunning ? 2 : 10, interval: 0.1, getMainWindow)
 
@@ -237,11 +262,6 @@ final class MessagesController {
             // we can hide Messages
             app.hide()
         }
-
-        guard let toolbar = try? mainWindow.children().first(where: {
-            (try? $0.role()) == "AXToolbar"
-        }) else { throw ErrorMessage("Could not get main toolbar") }
-        self.toolbar = toolbar
 
         guard let conversations = mainWindow.child(withID: "ConversationList") else {
             throw ErrorMessage("Could not get Messages conversation list")
@@ -280,15 +300,7 @@ final class MessagesController {
         !app.isTerminated
             && (try? mainWindow.windowFrame()) != nil
             && (try? textsWindow.windowFrame()) != nil
-            && toolbar.isValid
             && conversations.isValid
-    }
-
-    // the button seems to get invalidated every so often
-    // so we can't cache it
-    private func findComposeButton() throws -> Accessibility.Element? {
-        // TODO: is it first in RTL envs?
-        try? toolbar.children().first
     }
 
     private func selectedCell() -> Accessibility.Element? {
@@ -311,21 +323,12 @@ final class MessagesController {
         return nil
     }
 
+    static let composeURL = URL(string: "imessage://open?address=")!
+
     private func compose(attempt: Int = 0) throws -> Accessibility.Element {
-        guard let composeButton = try? findComposeButton() else {
-            if attempt < 5 {
-                return try compose(attempt: attempt + 1)
-            } else {
-                throw ErrorMessage("Could not find compose button")
-            }
-        }
-        try composeButton.press()
+        try NSWorkspace.shared.open(Self.composeURL, options: [.andHide, .withoutActivation], configuration: [:])
         guard let newCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
-            if attempt < 5 {
-                return try compose(attempt: attempt + 1)
-            } else {
-                throw ErrorMessage("Could not find selected new message cell")
-            }
+            throw ErrorMessage("Could not find selected new message cell")
         }
         return newCell
     }
@@ -408,22 +411,23 @@ final class MessagesController {
         debugLog("Done!")
     }
 
-    private func isTyping() -> Bool {
+    private func activityStatus() -> ActivityStatus {
         guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView"),
               let count = try? transcripts.children.count(),
               count > 0,
               let elt = try? transcripts.children(range: (count - 1)..<count).first else {
-            return false
+            return .unknown
         }
-        return (try? elt.children.count()) == 0
+        return (try? elt.children.count()) == 0 ? .typing : .notTyping
     }
 
-    // TODO: Switch to os_unfair_lock if we drop old OSes
+    // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe
+    // determine the lock we use dynamically
     private let activityLock = NSLock()
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
-        // if someone else (setObserver) holds the lock,
+        // if someone else (observe/removeObserver) holds the lock,
         // silently skip this polling attempt
         guard activityLock.try() else { return }
         defer { activityLock.unlock() }
@@ -432,12 +436,11 @@ final class MessagesController {
 
         guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
 //            debugLog("warning: Title changed. Not polling activity status.")
+            observer.send(.unknown)
             return
         }
 
-        if self.isTyping() {
-            observer.callback(observer.address)
-        }
+        observer.send(activityStatus())
     }
 
     // must be called with the observer lock held
@@ -453,28 +456,31 @@ final class MessagesController {
         }
         let oldTitle = try mainWindow.windowTitle()
         try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
-        try Self.retry(withTimeout: 1, interval: 0.1) {
-            guard !app.isHidden else {
-                throw ErrorMessage("Could not show Messages window")
-            }
-        }
-        app.hide()
         let changedTitle: String? = try? Self.retry(withTimeout: 1, interval: 0.1) {
             let newTitle = try mainWindow.windowTitle()
             // the message doesn't matter since we're try?-ing
             guard newTitle != oldTitle else { throw ErrorMessage("") }
             return newTitle
         }
+        defer { app.hide() }
         return try changedTitle ?? mainWindow.windowTitle()
+    }
+
+    // must call with lock held
+    private func _removeObserver() throws {
+        if let old = activityObserver {
+            old.send(.notTyping)
+            activityObserver = nil
+        }
     }
 
     func removeObserver() throws {
         activityLock.lock()
         defer { activityLock.unlock() }
-        activityObserver = nil
+        try _removeObserver()
     }
 
-    func observe(address: String, callback: @escaping (String) -> Void) throws {
+    func observe(address: String, callback: @escaping (ActivityStatus) -> Void) throws {
         guard let url = URL(string: "imessage://open?address=\(address)") else {
             throw ErrorMessage("Invalid iMessage address: \(address)")
         }
@@ -482,18 +488,16 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        // we unconditionally nil out the observer first, so that if
+        // we remove the previous observer first, so that if
         // this method fails we don't keep sending notifs to the old
         // observer. We only update to the new observer once we've
         // successfully switched chats.
-        activityObserver = nil
+        try _removeObserver()
 
         let title = try openObserverThread(url: url)
         debugLog("Observing with title \(title)")
 
-        let observer = ActivityObserver(address: address, url: url, windowTitle: title, callback: callback)
-
-        activityObserver = observer
+        activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
     }
 
     deinit {
