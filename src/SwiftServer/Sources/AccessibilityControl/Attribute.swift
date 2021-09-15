@@ -1,8 +1,90 @@
 import Foundation
 import ApplicationServices
 
+public protocol AttributeProtocol: CustomStringConvertible {
+    associatedtype Name: AccessibilityPhantomName
+    associatedtype Value
+
+    var element: Accessibility.Element { get }
+    var name: Name { get }
+}
+
+extension AttributeProtocol {
+    public var description: String {
+        "\(element): \(name)"
+    }
+
+    public func isSettable(file: StaticString = #fileID, line: UInt = #line) throws -> Bool {
+        var isSettable: DarwinBoolean = false
+        try Accessibility.check(
+            AXUIElementIsAttributeSettable(element.raw, name.value as CFString, &isSettable),
+            file: file, line: line
+        )
+        return isSettable.boolValue
+    }
+
+    public func callAsFunction(file: StaticString = #fileID, line: UInt = #line) throws -> Value {
+        var val: AnyObject?
+        try Accessibility.check(
+            AXUIElementCopyAttributeValue(element.raw, name.value as CFString, &val),
+            file: file, line: line
+        )
+        if let val = val.flatMap(Accessibility.convertFromAX) as Value? {
+            return val
+        } else {
+            throw AccessibilityError(.failure, file: file, line: line)
+        }
+    }
+}
+
 extension Accessibility {
-    public final class Attribute: CustomStringConvertible {
+    public typealias AnyAttribute = Attribute<Any>
+
+    public final class Attribute<Value>: AttributeProtocol {
+        public struct Name: AccessibilityPhantomName {
+            public let value: String
+            public init(_ value: String) {
+                self.value = value
+            }
+        }
+
+        public let element: Element
+        public let name: Name
+
+        init(element: Element, name: Name) {
+            self.element = element
+            self.name = name
+        }
+    }
+
+    public final class MutableAttribute<Value>: AttributeProtocol {
+        public struct Name: AccessibilityPhantomName {
+            public let value: String
+            public init(_ value: String) {
+                self.value = value
+            }
+        }
+
+        public let element: Element
+        public let name: Name
+
+        init(element: Element, name: Name) {
+            self.element = element
+            self.name = name
+        }
+
+        public func callAsFunction(assign value: Value, file: StaticString = #fileID, line: UInt = #line) throws {
+            guard let raw = convertToAX(value) else {
+                throw AccessibilityError(.failure, file: file, line: line)
+            }
+            try check(
+                AXUIElementSetAttributeValue(element.raw, name.value as CFString, raw),
+                file: file, line: line
+            )
+        }
+    }
+
+    public final class ParameterizedAttribute<Parameter, Return>: CustomStringConvertible {
         public struct Name: AccessibilityPhantomName {
             public let value: String
             public init(_ value: String) {
@@ -17,76 +99,42 @@ extension Accessibility {
             "\(element): \(name)"
         }
 
-        private var cachedIsSettable: Bool?
-        public var isSettable: Bool {
-            if let cached = cachedIsSettable {
-                return cached
-            }
-            try? cacheIsSettable()
-            return cachedIsSettable ?? false
-        }
-
-        private init(element: Element, name: Name) {
+        init(element: Element, name: Name) {
             self.element = element
             self.name = name
         }
 
-        private func cacheIsSettable() throws {
-            cachedIsSettable = false
-            // FIXME: this sometimes returns .failure, wat
-//            var isSettable: DarwinBoolean = false
-//            // conveniently, throws if the attribute doesn't exist
-//            try check(AXUIElementIsAttributeSettable(element.raw, name.value as CFString, &isSettable))
-//            cachedIsSettable = isSettable.boolValue
-        }
-
-        static func unsafeCreate(element: Element, name: Name) -> Attribute {
-            Attribute(element: element, name: name)
-        }
-
-        static func create(element: Element, name: Name) throws -> Attribute {
-            let ret = Attribute(element: element, name: name)
-            try ret.cacheIsSettable()
-            return ret
-        }
-
-        public func get(file: StaticString = #fileID, line: UInt = #line) throws -> AnyObject {
-            var val: AnyObject?
-            try check(
-                AXUIElementCopyAttributeValue(element.raw, name.value as CFString, &val),
-                file: file, line: line
-            )
-            if let val = val {
-                return val
+        public func callAsFunction(_ value: Parameter, file: StaticString = #fileID, line: UInt = #line) throws -> Return {
+            guard let rawValue = convertToAX(value) else {
+                throw AccessibilityError(.failure, file: file, line: line)
+            }
+            var result: AnyObject?
+            try check(AXUIElementCopyParameterizedAttributeValue(element.raw, name.value as CFString, rawValue, &result))
+            if let result = result.flatMap(convertFromAX) as Return? {
+                return result
             } else {
-                throw AccessibilityError(.attributeUnsupported)
+                throw AccessibilityError(.failure, file: file, line: line)
             }
         }
+    }
+}
 
-        public func set(_ value: AnyObject, file: StaticString = #fileID, line: UInt = #line) throws {
-            try check(
-                AXUIElementSetAttributeValue(element.raw, name.value as CFString, value),
-                file: file, line: line
-            )
-        }
-
-        public func arrayCount() throws -> Int {
-            var count: CFIndex = 0
-            try check(AXUIElementGetAttributeValueCount(element.raw, name.value as CFString, &count))
-            return count
-        }
-
-        public func getArray(range: Range<Int>) throws -> [AnyObject] {
-            var values: CFArray?
-            try check(AXUIElementCopyAttributeValues(element.raw, name.value as CFString, range.startIndex, range.count, &values))
-            return (values as [AnyObject]?) ?? []
-        }
+// just `Collection` would make this applicable to dictionaries as well
+extension AttributeProtocol where Value: RandomAccessCollection {
+    public func count() throws -> Int {
+        var count: CFIndex = 0
+        try Accessibility.check(AXUIElementGetAttributeValueCount(element.raw, name.value as CFString, &count))
+        return count
     }
 
-    public struct ParameterizedAttributeName: AccessibilityPhantomName {
-        public let value: String
-        public init(_ value: String) {
-            self.value = value
+    public func callAsFunction(range: Range<Int>, file: StaticString = #fileID, line: UInt = #line) throws -> [Value.Element] {
+        var values: CFArray?
+        try Accessibility.check(
+            AXUIElementCopyAttributeValues(element.raw, name.value as CFString, range.startIndex, range.count, &values)
+        )
+        guard let values = values.flatMap(Accessibility.convertFromAX) as [Value.Element]? else {
+            throw AccessibilityError(.failure, file: file, line: line)
         }
+        return values
     }
 }

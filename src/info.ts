@@ -24,6 +24,7 @@ const info: PlatformInfo = {
     Attribute.NO_SUPPORT_GROUP_REMOVE_PARTICIPANT,
     Attribute.NO_SUPPORT_DUPLICATE_GROUP_CREATION,
     Attribute.SORT_MESSAGES_ON_PUSH,
+    Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
   ]),
   attachments: {
     gifMimeType: 'image/gif',

@@ -12,19 +12,33 @@ struct ErrorMessage: Error, CustomStringConvertible {
 
 // will be optimized out in release mode
 @_transparent
-private func debugLog(_ message: @autoclosure () -> String) {
+func debugLog(_ message: @autoclosure () -> String) {
     #if DEBUG
     print(message())
     #endif
 }
 
-extension Accessibility.Attribute.Name {
-    static let children = Accessibility.Attribute.Name(kAXChildrenAttribute)
-    static let localizedDescription = Accessibility.Attribute.Name(kAXDescriptionAttribute)
+extension Accessibility.Notification {
+    static let layoutChanged = Self(kAXLayoutChangedNotification)
 }
 
-extension Accessibility.Action.Name {
-    static let press = Accessibility.Action.Name(kAXPressAction)
+extension Accessibility.Names {
+    var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
+    var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
+
+    var windowPosition: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
+    var windowSize: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
+    var windowFrame: AttributeName<CGRect> { "AXFrame" }
+    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
+
+    var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
+    var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
+    var role: AttributeName<String> { .init(kAXRoleAttribute) }
+
+    var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
+    var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
+
+    var press: ActionName { .init(kAXPressAction) }
 }
 
 extension Accessibility.Element {
@@ -32,29 +46,21 @@ extension Accessibility.Element {
         (try? pid()) != nil
     }
 
-    func appMainWindow() throws -> Accessibility.Element? {
-        let mainWindowRaw = try attribute(.init(kAXMainWindowAttribute))
-        return Accessibility.Element(erased: mainWindowRaw)
-    }
-
-    func children() -> [Accessibility.Element] {
-        let rawChildren = try? attribute(.children) as? [AXUIElement]
-        return rawChildren?.map(Accessibility.Element.init(raw:)) ?? []
-    }
-
     // breadth-first, seems faster than dfs
     func recursiveChildren() -> AnySequence<Accessibility.Element> {
         AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
             guard !queue.isEmpty else { return nil }
             let elt = queue.removeFirst()
-            queue.append(contentsOf: elt.children())
+            if let children = try? elt.children() {
+                queue.append(contentsOf: children)
+            }
             return elt
         })
     }
 
-    func child(withID id: String) throws -> Accessibility.Element? {
+    func child(withID id: String) -> Accessibility.Element? {
         recursiveChildren().lazy.first {
-            (try? $0.attribute("AXIdentifier") as? String) == id
+            (try? $0.identifier()) == id
         }
     }
 
@@ -63,52 +69,104 @@ extension Accessibility.Element {
             print("[action] \(act.name): \(act.description)")
         }
         for att in (try? supportedAttributes()) ?? [] {
-            print("[regular] \(att.name): \((try? att.get()) as Any)")
+            print("[regular] \(att.name): \((try? att()) as Any)")
         }
         for att in (try? supportedParameterizedAttributes()) ?? [] {
             print("[parameterized] \(att)")
         }
     }
 
-    func setWindowPosition(_ pos: CGPoint) throws {
-        try setAttribute("AXPosition", to: Accessibility.Struct.point(pos).raw()!)
-    }
-
-    func setWindowSize(_ size: CGSize) throws {
-        try setAttribute("AXSize", to: Accessibility.Struct.size(size).raw()!)
-    }
-
     func setWindowFrame(_ frame: CGRect) throws {
         DispatchQueue.concurrentPerform(iterations: 2) { i in
             switch i {
             case 0:
-                try? setWindowPosition(frame.origin)
+                try? self.windowPosition(assign: frame.origin)
             case 1:
-                try? setWindowSize(frame.size)
+                try? self.windowSize(assign: frame.size)
             default:
                 break
             }
         }
     }
+}
 
-    func windowFrame() throws -> CGRect {
-        guard let val = try? Accessibility.Struct(erased: attribute("AXFrame")) else {
-            throw ErrorMessage("Could not get frame for window \(self)")
-        }
-        guard case let .rect(rect) = val else {
-            throw ErrorMessage("Window frame for \(self) isn't a CGRect?")
-        }
-        return rect
+private final class TimerBlockWatcher {
+    let block: () -> Void
+    init(_ block: @escaping () -> Void) {
+        self.block = block
+    }
+    @objc func timerFired() {
+        block()
     }
 }
 
-// not thread safe
-class MessagesController {
+private final class RunLoopThread: Thread {
+    private var initialize: (() -> Void)?
+    // safe to retain self inside initialize because it's nil'd out
+    // once main() is called
+    init(initialize: @escaping () -> Void) {
+        self.initialize = initialize
+    }
+    override func main() {
+        initialize?()
+        initialize = nil
+        while !isCancelled {
+            // we need to set a finite deadline, otherwise once the source
+            // is removed we'll be stuck here and never get to the next
+            // isCancelled check
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 1))
+        }
+    }
+}
+
+// external API is thread safe
+final class MessagesController {
+    enum ActivityStatus: String {
+        case typing = "TYPING"
+        case notTyping = "NOT_TYPING"
+        case unknown = "UNKNOWN"
+    }
+
+    private class ActivityObserver {
+        let address: String
+        let url: URL
+        let windowTitle: String
+
+        // may be called on a bg thread
+        private let callback: (ActivityStatus) -> Void
+
+        private var lastSentTyping = false
+        private var lastSentTime = Date()
+
+        init(address: String, url: URL, windowTitle: String, callback: @escaping (ActivityStatus) -> Void) {
+            self.address = address
+            self.url = url
+            self.windowTitle = windowTitle
+            self.callback = callback
+        }
+
+        func send(_ status: ActivityStatus) {
+            let sendTyping = status == .typing
+            // send if the status is different OR if we're sending typing events and it's
+            // been a long time since the last one
+            guard lastSentTyping != sendTyping || (sendTyping && lastSentTime.timeIntervalSinceNow > 30) else {
+                return
+            }
+            lastSentTyping = sendTyping
+            lastSentTime = Date()
+            callback(status)
+        }
+    }
+
+    static let queue = DispatchQueue(label: "swift-server-queue")
+
     private static let textsBundleID = "com.kishanbagaria.jack"
     private static let messagesBundleID = "com.apple.MobileSMS"
     private static let messagesBundle = NSWorkspace.shared.urlForApplication(
         withBundleIdentifier: messagesBundleID
     )!
+
+    private static let pollingInterval: TimeInterval = 1
 
     private static let shadowMargin: CGFloat = 32
     // iMessage doesn't go smaller than this
@@ -121,8 +179,13 @@ class MessagesController {
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
     private let mainWindow: Accessibility.Element
-    private let toolbar: Accessibility.Element
     private let conversations: Accessibility.Element
+
+    private var timer: Timer?
+    private var loopThread: RunLoopThread?
+    private var token: Accessibility.Observer.Token?
+
+    private var activityObserver: ActivityObserver?
 
     private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
         let targetWidth = max(Self.minSize.width, textsFrame.width * Self.sidebarWidthFactor - Self.shadowMargin)
@@ -164,7 +227,7 @@ class MessagesController {
         }
         let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
         self.textsWindow = try Self.retry(withTimeout: 10, interval: 0.1) { () throws -> Accessibility.Element in
-            guard let textsWindow = try textsAppElement.appMainWindow() else {
+            guard let textsWindow = try? textsAppElement.appMainWindow() else {
                 throw ErrorMessage("Could not find Texts main window")
             }
             return textsWindow
@@ -182,19 +245,16 @@ class MessagesController {
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
-            guard let child = appElement.children().first(
-                where: { (try? $0.attribute("AXIdentifier") as? String) == "SceneWindow" }
+            guard let child = try? appElement.children().first(
+                where: { (try? $0.identifier()) == "SceneWindow" }
             ) else {
                 throw ErrorMessage("Could not get main Messages window")
             }
             return child
         }
 
-        if alreadyRunning {
-            // the main Messages window might be closed. Let's open it
-            let url = URL(string: "imessage://")!
-            try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
-        }
+        // the main Messages window might be closed. Let's open it
+        try NSWorkspace.shared.open(Self.composeURL, options: [.andHide, .withoutActivation], configuration: [:])
 
         self.mainWindow = try Self.retry(withTimeout: alreadyRunning ? 2 : 10, interval: 0.1, getMainWindow)
 
@@ -203,15 +263,32 @@ class MessagesController {
             app.hide()
         }
 
-        guard let toolbar = mainWindow.children().first(where: {
-            (try? $0.attribute("AXRole") as? String) == "AXToolbar"
-        }) else { throw ErrorMessage("Could not get main toolbar") }
-        self.toolbar = toolbar
-
-        guard let conversations = try? mainWindow.child(withID: "ConversationList") else {
+        guard let conversations = mainWindow.child(withID: "ConversationList") else {
             throw ErrorMessage("Could not get Messages conversation list")
         }
         self.conversations = conversations
+
+        // we need a run loop for polling (and for any future AX observers), but Node
+        // doesn't offer us one (since it uses its own uv loop which is incompatible
+        // with NS/CFRunLoop). Therefore we create a background thread with a run loop.
+        // Note that doing so on a dispatch queue would be very inefficient and so we
+        // create our own thread for it; see https://stackoverflow.com/a/38001438/3769927 and
+        // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
+        let thread = RunLoopThread {
+            let watcher = TimerBlockWatcher { [weak self] in
+                self?.pollActivityStatus()
+            }
+            self.timer = Timer.scheduledTimer(
+                timeInterval: Self.pollingInterval,
+                target: watcher,
+                selector: #selector(TimerBlockWatcher.timerFired),
+                userInfo: nil,
+                repeats: true
+            )
+        }
+        thread.qualityOfService = .utility
+        thread.start()
+        self.loopThread = thread
 
         #if false
         // FIXME: don't move if already visible
@@ -223,20 +300,12 @@ class MessagesController {
         !app.isTerminated
             && (try? mainWindow.windowFrame()) != nil
             && (try? textsWindow.windowFrame()) != nil
-            && toolbar.isValid
             && conversations.isValid
     }
 
-    // the button seems to get invalidated every so often
-    // so we can't cache it
-    private func findComposeButton() throws -> Accessibility.Element? {
-        // TODO: is it first in RTL envs?
-        toolbar.children().first
-    }
-
     private func selectedCell() -> Accessibility.Element? {
-        conversations.children().first {
-            (try? $0.attribute(.init(kAXSelectedAttribute)) as? Bool) == true
+        try? conversations.children().first {
+            (try? $0.isSelected()) == true
         }
     }
 
@@ -245,7 +314,7 @@ class MessagesController {
         let start = Date()
         while -start.timeIntervalSinceNow < timeout {
             guard let selected = selectedCell() else { continue }
-            let desc = try? selected.attribute(.localizedDescription)
+            let desc = try? selected.localizedDescription()
             let isActuallyCompose = desc == nil
             if isCompose == isActuallyCompose {
                 return selected
@@ -254,36 +323,18 @@ class MessagesController {
         return nil
     }
 
-    private func compose(attempt: Int = 0) throws -> Accessibility.Element {
-        guard let composeButton = try? findComposeButton() else {
-            if attempt < 5 {
-                return try compose(attempt: attempt + 1)
-            } else {
-                throw ErrorMessage("Could not find compose button")
-            }
-        }
-        try composeButton.perform(action: .press)
-        guard let newCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
-            if attempt < 5 {
-                return try compose(attempt: attempt + 1)
-            } else {
-                throw ErrorMessage("Could not find selected new message cell")
-            }
-        }
-        return newCell
-    }
+    static let composeURL = URL(string: "imessage://open?address=")!
 
-    func markAsRead(guid: String) throws {
-        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
-              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
-              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
-            throw ErrorMessage("Invalid iMessage guid \(guid)")
-        }
-
-        if (try? mainWindow.attribute("AXMinimized") as? Bool) == true {
-            try mainWindow.setAttribute("AXMinimized", to: false as AnyObject)
+    // performs `perform` while the Messages window is unhidden. Returns the new window title
+    @discardableResult
+    private func withActivation(
+        openBefore: URL?, openAfter: URL?,
+        perform: () throws -> Void
+    ) throws -> String? {
+        if (try? mainWindow.isMinimized()) == true {
+            try mainWindow.isMinimized(assign: false)
             app.hide()
-            while (try? mainWindow.attribute("AXMinimized") as? Bool) == true {}
+            while (try? mainWindow.isMinimized()) == true {}
         }
 
         let changeVisibility = true // app.isHidden
@@ -314,29 +365,139 @@ class MessagesController {
 //            }
         }
 
-        debugLog("Pressing compose")
-        let newCell = try compose()
+        if let openBefore = openBefore {
+            try NSWorkspace.shared.open(openBefore, options: [.andHide, .withoutActivation], configuration: [:])
+        }
 
-        debugLog("Compose pressed. Opening URL")
-        try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+        try perform()
 
-        guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-            debugLog("warning: Cell for message \(guid) could not be found.")
+        let newTitle: String?
+        if let openAfter = openAfter {
+            debugLog("Returning to observed thread")
+            let oldTitle = try mainWindow.windowTitle()
+            try NSWorkspace.shared.open(openAfter, options: [.andHide, .withoutActivation], configuration: [:])
+            newTitle = try? Self.retry(withTimeout: 1, interval: 0.1) {
+                let newTitle = try mainWindow.windowTitle()
+                // the message doesn't matter since we're try?-ing
+                guard newTitle != oldTitle else { throw ErrorMessage("") }
+                return newTitle
+            }
+        } else {
+            newTitle = nil
+        }
+
+        return newTitle
+    }
+
+    func markAsRead(guid: String) throws {
+        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
+              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
+              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
+            throw ErrorMessage("Invalid iMessage guid \(guid)")
+        }
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: Self.composeURL, openAfter: activityObserver?.url) {
+            guard let composeCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
+                throw ErrorMessage("Could not find selected new message cell")
+            }
+
+            debugLog("Opened compose. Opening target URL")
+            try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+
+            guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
+                print("warning: Cell for message \(guid) could not be found.")
+                return
+            }
+
+            // we now click another cell and then come back
+
+            debugLog("Pressing compose cell")
+
+            try composeCell.press()
+
+            waitUntilSelected(isCompose: true, timeout: 0.5)
+
+            debugLog("Pressing target cell")
+
+            try targetCell.press()
+
+            waitUntilSelected(isCompose: false, timeout: 0.5)
+
+            debugLog("Done!")
+        }
+    }
+
+    private func activityStatus() -> ActivityStatus {
+        guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView"),
+              let count = try? transcripts.children.count(),
+              count > 0,
+              let elt = try? transcripts.children(range: (count - 1)..<count).first else {
+            return .unknown
+        }
+        return (try? elt.children.count()) == 0 ? .typing : .notTyping
+    }
+
+    // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe
+    // determine the lock we use dynamically
+    private let activityLock = NSLock()
+
+    // called on run loop thread, not main node thread
+    private func pollActivityStatus() {
+        // if someone else (observe/removeObserver) holds the lock,
+        // silently skip this polling attempt
+        guard activityLock.try() else { return }
+        defer { activityLock.unlock() }
+
+        guard let observer = activityObserver else { return }
+
+        guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
+//            debugLog("warning: Title changed. Not polling activity status.")
+            observer.send(.unknown)
             return
         }
 
-        // we now click another cell and then come back
+        observer.send(activityStatus())
+    }
 
-        debugLog("Pressing new cell")
+    // must call with lock held
+    private func _removeObserver() throws {
+        if let old = activityObserver {
+            old.send(.notTyping)
+            activityObserver = nil
+        }
+    }
 
-        try newCell.perform(action: .press)
+    func removeObserver() throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+        try _removeObserver()
+    }
 
-        waitUntilSelected(isCompose: true, timeout: 0.5)
+    func observe(address: String, callback: @escaping (ActivityStatus) -> Void) throws {
+        guard let url = URL(string: "imessage://open?address=\(address)") else {
+            throw ErrorMessage("Invalid iMessage address: \(address)")
+        }
 
-        debugLog("Pressing target cell")
+        activityLock.lock()
+        defer { activityLock.unlock() }
 
-        try targetCell.perform(action: .press)
+        // we remove the previous observer first, so that if
+        // this method fails we don't keep sending notifs to the old
+        // observer. We only update to the new observer once we've
+        // successfully switched chats.
+        try _removeObserver()
 
-        debugLog("Done!")
+        let title = try withActivation(openBefore: nil, openAfter: url) {} ?? mainWindow.windowTitle()
+        debugLog("Observing with title \(title)")
+
+        activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
+    }
+
+    deinit {
+        timer?.invalidate()
+        loopThread?.cancel()
     }
 }

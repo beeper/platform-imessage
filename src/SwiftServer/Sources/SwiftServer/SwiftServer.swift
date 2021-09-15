@@ -3,13 +3,11 @@ import Foundation
 
 @main struct SwiftServer: NodeModule {
     let exports: NodeValueConvertible
-    static let queue = DispatchQueue(label: "swift-server-queue")
 
     static func decodeAttributedString(from data: Data) throws -> [NodeObject]? {
         // TODO: Make async, return promise
-        guard let decoded = try queue.sync(
-                execute: { try AttributedStringDecoder.decodeAttributedString(from: data) }
-        ) else { return nil }
+        guard let decoded = try AttributedStringDecoder.decodeAttributedString(from: data)
+            else { return nil }
         return try decoded.map { frag in
             let obj = try NodeObject(in: .current)
             try obj.define(properties: [
@@ -48,7 +46,7 @@ import Foundation
             if controller.isValid {
                 return controller
             } else {
-                print("MessagesController has been invalidated. Recreating...")
+                debugLog("MessagesController has been invalidated. Recreating...")
                 let controller = try MessagesController()
                 _controller = controller
                 return controller
@@ -56,7 +54,7 @@ import Foundation
         }
         exports = [
             "init": try NodeFunction(in: context) { ctx, info in
-                print("initializing SwiftServer...")
+                debugLog("initializing SwiftServer...")
                 let deferred = try NodePromise.Deferred(in: ctx)
                 let tsfn = try NodeThreadsafeFunction<Error?>(
                     asyncResourceName: "swift_server_init", in: ctx
@@ -68,7 +66,7 @@ import Foundation
                         try deferred.resolve(with: NodeUndefined(in: ctx), in: ctx)
                     }
                 }
-                Self.queue.async {
+                MessagesController.queue.async {
                     do {
                         _controller = try .init()
                     } catch {
@@ -92,12 +90,40 @@ import Foundation
                 }
                 let guidString = try guid.string()
                 // TODO: make async, return a promise
-                try Self.queue.sync { try controller().markAsRead(guid: guidString) }
+                try MessagesController.queue.sync { try controller().markAsRead(guid: guidString) }
+                return try NodeUndefined(in: ctx)
+            },
+            "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
+                let args: (String, (MessagesController.ActivityStatus) -> Void)?
+                if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {
+                    args = nil
+                } else if info.arguments.count == 2,
+                          let address = try info.arguments[0].as(NodeString.self),
+                          let fn = try info.arguments[1].as(NodeFunction.self) {
+                    let addressName = try address.string()
+                    let tsfn = try NodeThreadsafeFunction<MessagesController.ActivityStatus>(
+                        asyncResourceName: "watch_imessage_callback", in: ctx
+                    ) { ctx, param in
+                        try fn(in: ctx, param.rawValue)
+                    }
+                    args = (addressName, { try? tsfn($0) })
+                } else {
+                    print("warning: Invalid args to watchThreadActivity")
+                    args = nil
+                }
+                try MessagesController.queue.sync {
+                    let controller = try controller()
+                    if let args = args {
+                        try controller.observe(address: args.0, callback: args.1)
+                    } else {
+                        try controller.removeObserver()
+                    }
+                }
                 return try NodeUndefined(in: ctx)
             },
             "dispose": try NodeFunction(in: context) { ctx, info in
-                print("disposing SwiftServer...")
-                Self.queue.sync { _controller = nil }
+                debugLog("disposing SwiftServer...")
+                MessagesController.queue.sync { _controller = nil }
                 return try NodeUndefined(in: ctx)
             }
         ]
