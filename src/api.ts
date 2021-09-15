@@ -259,9 +259,13 @@ export default class AppleiMessage implements PlatformAPI {
     // console.log(userID)
   }
 
-  addReaction = async (threadID: string, messageID: string, reactionKey: string) => { }
+  addReaction = async (threadID: string, messageID: string, reactionKey: string) => {
+    (await this.swiftServer)?.setReaction(messageID, reactionKey, true)
+  }
 
-  removeReaction = async (threadID: string, messageID: string, reactionKey: string) => { }
+  removeReaction = async (threadID: string, messageID: string, reactionKey: string) => {
+    (await this.swiftServer)?.setReaction(messageID, reactionKey, false)
+  }
 
   deleteMessage = async (threadID: string, messageID: string) => true
 

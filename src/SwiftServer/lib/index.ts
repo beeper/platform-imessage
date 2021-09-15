@@ -26,6 +26,7 @@ export type SwiftServer = {
     address: string | null,
     onTyping?: (status: ActivityStatus) => void
   ) => void
+  setReaction: (guid: string, reaction: string, on: boolean) => void
   dispose: () => void
   init: () => Promise<void>
 }

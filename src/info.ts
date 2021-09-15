@@ -1,4 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
+import { supportedReactions } from './constants'
 
 const info: PlatformInfo = {
   name: 'imessage',
@@ -26,6 +27,9 @@ const info: PlatformInfo = {
     Attribute.SORT_MESSAGES_ON_PUSH,
     Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
   ]),
+  reactions: {
+    supported: supportedReactions,
+  },
   attachments: {
     gifMimeType: 'image/gif',
   },

@@ -31,14 +31,10 @@ extension Accessibility {
 
         // point in screen coordinates
         // element must represent an app or .systemWide
-        public func hitTest(x: Float, y: Float) throws -> Element? {
+        public func hitTest(x: Float, y: Float) throws -> Element {
             var optRes: AXUIElement?
-            do {
-                try check(AXUIElementCopyElementAtPosition(raw, x, y, &optRes))
-            } catch let error as AccessibilityError where error.code == .noValue {
-                return nil
-            }
-            guard let res = optRes else { return nil }
+            try check(AXUIElementCopyElementAtPosition(raw, x, y, &optRes))
+            guard let res = optRes else { throw AccessibilityError(.noValue) }
             return Element(raw: res)
         }
 

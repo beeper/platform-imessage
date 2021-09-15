@@ -25,10 +25,11 @@ extension Accessibility.Notification {
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
+    var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
-    var windowPosition: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
-    var windowSize: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
-    var windowFrame: AttributeName<CGRect> { "AXFrame" }
+    var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
+    var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
+    var frame: AttributeName<CGRect> { "AXFrame" }
     var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
 
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
@@ -76,13 +77,13 @@ extension Accessibility.Element {
         }
     }
 
-    func setWindowFrame(_ frame: CGRect) throws {
+    func setFrame(_ frame: CGRect) throws {
         DispatchQueue.concurrentPerform(iterations: 2) { i in
             switch i {
             case 0:
-                try? self.windowPosition(assign: frame.origin)
+                try? self.position(assign: frame.origin)
             case 1:
-                try? self.windowSize(assign: frame.size)
+                try? self.size(assign: frame.size)
             default:
                 break
             }
@@ -121,6 +122,26 @@ private final class RunLoopThread: Thread {
 
 // external API is thread safe
 final class MessagesController {
+    enum Reaction: String {
+        case heart
+        case like
+        case dislike
+        case laugh
+        case emphasize
+        case question
+
+        var index: Int {
+            switch self {
+            case .heart: return 0
+            case .like: return 1
+            case .dislike: return 2
+            case .laugh: return 3
+            case .emphasize: return 4
+            case .question: return 5
+            }
+        }
+    }
+
     enum ActivityStatus: String {
         case typing = "TYPING"
         case notTyping = "NOT_TYPING"
@@ -298,8 +319,8 @@ final class MessagesController {
 
     var isValid: Bool {
         !app.isTerminated
-            && (try? mainWindow.windowFrame()) != nil
-            && (try? textsWindow.windowFrame()) != nil
+            && (try? mainWindow.frame()) != nil
+            && (try? textsWindow.frame()) != nil
             && conversations.isValid
     }
 
@@ -345,15 +366,15 @@ final class MessagesController {
             }
         }
 
-        let textsFrame = try textsWindow.windowFrame()
+        let textsFrame = try textsWindow.frame()
         let targetFrame = Self.messagesFrame(for: textsFrame)
-        let oldFrame = try mainWindow.windowFrame()
+        let oldFrame = try mainWindow.frame()
         let changeFrame = oldFrame != targetFrame
 //            // iff oldFrame is contained inside textsFrame
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
-            try mainWindow.setWindowFrame(targetFrame)
-            while (try? mainWindow.windowFrame()) == oldFrame {}
+            try mainWindow.setFrame(targetFrame)
+            while (try? mainWindow.frame()) == oldFrame {}
         }
 
         defer {
@@ -389,12 +410,51 @@ final class MessagesController {
         return newTitle
     }
 
-    func markAsRead(guid: String) throws {
+    private func url(forMessage guid: String) throws -> URL {
         guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
               let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
               let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
             throw ErrorMessage("Invalid iMessage guid \(guid)")
         }
+        return url
+    }
+
+    func setReaction(guid: String, reaction: Reaction, on: Bool) throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        let url = try self.url(forMessage: guid)
+        let idx = reaction.index
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView") else {
+                throw ErrorMessage("Could not find TranscriptCollectionView")
+            }
+            guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
+                throw ErrorMessage("Could not find selected child")
+            }
+            let pos = try selected.position()
+            let allActions = try selected.supportedActions()
+            guard let reactAction = allActions.first(where: { $0.name.value.contains("Name:React") }) else {
+                throw ErrorMessage("Could not find react action")
+            }
+            try reactAction()
+            // FIXME: We should have a better way to wait, and also use a better method to
+            // locate the button than hitTest
+            Thread.sleep(forTimeInterval: 1)
+            let elt = try appElement.hitTest(x: Float(pos.x + 10), y: Float(pos.y - 10))
+            let parent = try elt.parent()
+            guard let btn = try parent.children(range: idx..<(idx + 1)).first else {
+                throw ErrorMessage("Could not find react action \(reaction)")
+            }
+            let isSelected = try btn.isSelected()
+            if isSelected != on {
+                try btn.press()
+            }
+        }
+    }
+
+    func markAsRead(guid: String) throws {
+        let url = try self.url(forMessage: guid)
 
         activityLock.lock()
         defer { activityLock.unlock() }

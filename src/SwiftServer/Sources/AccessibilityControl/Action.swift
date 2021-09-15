@@ -22,7 +22,7 @@ extension Accessibility {
             var description: CFString?
             guard (try? check(AXUIElementCopyActionDescription(element.raw, name.value as CFString, &description))) != nil,
                   let ret = description as String?
-            else { return "\(element.raw): \(name.value)" }
+            else { return "[invalid action] \(element.raw): \(name.value)" }
             return ret
         }
 
