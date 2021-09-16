@@ -188,7 +188,7 @@ final class MessagesController {
         withBundleIdentifier: messagesBundleID
     )!
 
-    private static let pollingInterval: TimeInterval = 1
+    private static let pollingInterval: TimeInterval = 3
 
     private static let shadowMargin: CGFloat = 32
     // iMessage doesn't go smaller than this
