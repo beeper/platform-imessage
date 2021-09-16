@@ -271,7 +271,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID); // todo optimize by calling only if needed
-    (await this.swiftServer)?.setReaction(messageID, reactionKey, on)
+    (await this.swiftServer)?.setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
   }
 
   addReaction = (threadID: string, messageID: string, reactionKey: string) =>

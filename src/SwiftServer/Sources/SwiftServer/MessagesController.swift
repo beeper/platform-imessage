@@ -442,7 +442,9 @@ final class MessagesController {
         return presView
     }
 
-    func setReaction(guid: String, reaction: Reaction, on: Bool) throws {
+    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
+        debugLog("Finding cell at offset \(offset) from \(guid)")
+
         let url = try self.url(forMessage: guid)
 
         activityLock.lock()
@@ -456,7 +458,29 @@ final class MessagesController {
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
                 throw ErrorMessage("Could not find selected child")
             }
-            let allActions = try selected.supportedActions()
+//            selected.printAttributes()
+            let targetCell: Accessibility.Element
+            if offset == 0 {
+                targetCell = selected
+            } else {
+                let containerCell = try selected.parent()
+                let containerFrame = try containerCell.frame()
+                let siblings = try containerCell.parent().children().filter {
+                    (try? $0.localizedDescription())?.isEmpty == false
+                }
+                guard let idx = siblings.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
+                    throw ErrorMessage("Could not find target cell")
+                }
+                let target = idx - offset
+                debugLog("Index: \(idx) - \(offset) = \(target)")
+                guard siblings.indices.contains(target) else {
+                    throw ErrorMessage("Desired index out of bounds")
+                }
+                targetCell = try siblings[target].children.value(at: 0)
+            }
+//            targetCell.printAttributes()
+            let allActions = try targetCell.supportedActions()
+            // TODO: Does "React" need to be localized here?
             guard let reactAction = allActions.first(where: { $0.name.value.contains("Name:React") }) else {
                 throw ErrorMessage("Could not find react action")
             }
