@@ -298,7 +298,7 @@ export default class DatabaseAPI {
   }
 
   findClosestTextMessage = async (threadID: string, messageGUID: string): Promise<{ offset: number, guid: string }> => {
-    const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message WHERE guid = ?', [messageGUID])
+    const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', [messageGUID])
     if (!message) throw Error('message not found')
     const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
     const canReact = (m: Message) => m.text && !m.links?.length && !m.tweets?.length // todo handle emoji only messages
