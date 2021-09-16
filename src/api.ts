@@ -142,11 +142,11 @@ export default class AppleiMessage implements PlatformAPI {
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
-      if (existingThread) return existingThread
-      childProcess.spawn('/usr/bin/open', ['-b', 'com.apple.MobileSMS', `imessage://open?address=${address}`])
+      if (existingThread) return existingThread;
+      (await this.swiftServer).createThread([address])
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
-      childProcess.spawn('/usr/bin/open', ['-b', 'com.apple.MobileSMS', `imessage://open?addresses=${userIDs.join(',')}`])
+      (await this.swiftServer).createThread(userIDs)
     }
   }
 

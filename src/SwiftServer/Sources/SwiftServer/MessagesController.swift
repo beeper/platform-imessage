@@ -389,6 +389,18 @@ final class MessagesController {
         return newTitle
     }
 
+    func createThread(addresses: [String]) throws {
+        var components = URLComponents()
+        components.scheme = "imessage"
+        components.path = "open"
+        components.queryItems = [URLQueryItem(
+            name: addresses.count == 1 ? "address" : "addresses",
+            value: addresses.joined(separator: ",")
+        )]
+        guard let url = components.url else { throw ErrorMessage("Invalid iMessage addresses") }
+        NSWorkspace.shared.open(url)
+    }
+
     func markAsRead(guid: String) throws {
         guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
               let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time

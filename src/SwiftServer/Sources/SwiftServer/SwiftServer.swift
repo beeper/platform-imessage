@@ -84,6 +84,18 @@ import Foundation
                 }
                 return decoded
             },
+            "createThread": try NodeFunction(in: context) { ctx, info in
+                guard let arr = try info.arguments.first?.as(NodeArray.self) else {
+                    return try NodeUndefined(in: ctx)
+                }
+                let addresses = try (0..<arr.count()).compactMap {
+                    try arr[Double($0)].get(in: ctx).as(NodeString.self)?.string()
+                }
+                try MessagesController.queue.sync {
+                    try controller().createThread(addresses: addresses)
+                }
+                return try NodeUndefined(in: ctx)
+            },
             "markRead": try NodeFunction(in: context) { ctx, info in
                 guard let guid = try info.arguments.first?.as(NodeString.self) else {
                     return try NodeUndefined(in: ctx)
