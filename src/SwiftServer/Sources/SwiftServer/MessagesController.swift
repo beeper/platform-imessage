@@ -419,6 +419,16 @@ final class MessagesController {
         return url
     }
 
+    private func reactionsView() throws -> Accessibility.Element {
+        guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
+              (try? mainView.children.count()) ?? 0 >= 2,
+              let presView = try? mainView.children(range: 0..<1).first,
+              (try? presView.children.count()) ?? 0 > 0 else {
+            throw ErrorMessage("Could not find reactions view")
+        }
+        return presView
+    }
+
     func setReaction(guid: String, reaction: Reaction, on: Bool) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -432,20 +442,14 @@ final class MessagesController {
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
                 throw ErrorMessage("Could not find selected child")
             }
-            let pos = try selected.position()
             let allActions = try selected.supportedActions()
             guard let reactAction = allActions.first(where: { $0.name.value.contains("Name:React") }) else {
                 throw ErrorMessage("Could not find react action")
             }
             try reactAction()
-            // FIXME: We should have a better way to wait, and also use a better method to
-            // locate the button than hitTest
-            Thread.sleep(forTimeInterval: 1)
-            let elt = try appElement.hitTest(x: Float(pos.x + 10), y: Float(pos.y - 10))
-            let parent = try elt.parent()
-            guard let btn = try parent.children(range: idx..<(idx + 1)).first else {
-                throw ErrorMessage("Could not find react action \(reaction)")
-            }
+            let reactionsView = try Self.retry(withTimeout: 2, interval: 0.1) { try self.reactionsView() }
+            let btn = try reactionsView.children(range: idx..<(idx + 1)).first
+                .orThrow(ErrorMessage("Could not find react action \(reaction)"))
             let isSelected = try btn.isSelected()
             if isSelected != on {
                 try btn.press()
