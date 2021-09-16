@@ -1,5 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
-import { supportedReactions } from './constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP } from './constants'
 
 const info: PlatformInfo = {
   name: 'imessage',
@@ -27,9 +27,9 @@ const info: PlatformInfo = {
     Attribute.SORT_MESSAGES_ON_PUSH,
     Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
   ]),
-  reactions: {
+  reactions: IS_BIG_SUR_OR_UP ? {
     supported: supportedReactions,
-  },
+  } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
   },
