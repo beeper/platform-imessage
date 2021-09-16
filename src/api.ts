@@ -22,7 +22,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private threadReadStore: ThreadReadStore
 
-  private dbAPI = new DatabaseAPI()
+  private dbAPI = new DatabaseAPI(this)
 
   private ensureDB = () => {
     if (!this.dbAPI.connected) throw new ReAuthError('Unable to connect to iMessage database')
@@ -269,13 +269,16 @@ export default class AppleiMessage implements PlatformAPI {
     // console.log(userID)
   }
 
-  addReaction = async (threadID: string, messageID: string, reactionKey: string) => {
-    (await this.swiftServer)?.setReaction(messageID, reactionKey, true)
+  setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
+    const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID); // todo optimize by calling only if needed
+    (await this.swiftServer)?.setReaction(messageID, reactionKey, on)
   }
 
-  removeReaction = async (threadID: string, messageID: string, reactionKey: string) => {
-    (await this.swiftServer)?.setReaction(messageID, reactionKey, false)
-  }
+  addReaction = (threadID: string, messageID: string, reactionKey: string) =>
+    this.setReaction(threadID, messageID, reactionKey, true)
+
+  removeReaction = (threadID: string, messageID: string, reactionKey: string) =>
+    this.setReaction(threadID, messageID, reactionKey, false)
 
   deleteMessage = async (threadID: string, messageID: string) => true
 

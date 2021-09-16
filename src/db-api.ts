@@ -1,6 +1,6 @@
 import path from 'path'
 import bluebird, { promisify } from 'bluebird'
-import { maxBy, memoize } from 'lodash'
+import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
 // import { parentPort } from 'worker_threads'
 import imageSizeSync from 'image-size'
 import { OnServerEventCallback, ServerEvent, texts } from '@textshq/platform-sdk'
@@ -10,6 +10,7 @@ import { Server as RustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
+import type PAPI from './api'
 
 const imageSizeAsync = promisify(imageSizeSync)
 
@@ -126,6 +127,8 @@ export default class DatabaseAPI {
   }
 
   private rustServer: RustServer
+
+  constructor(private readonly papi: InstanceType<typeof PAPI>) {}
 
   async init() {
     this.db = await getDB()
@@ -281,6 +284,24 @@ export default class DatabaseAPI {
 
   getThreadMessagesCount(chatGUID: string): Promise<number> {
     return this.db.pluck_get(SQLS.getMsgCount, chatGUID)
+  }
+
+  findClosestTextMessage = async (threadID: string, messageGUID: string): Promise<{ offset: number, guid: string }> => {
+    const cursor = await this.db.pluck_get('SELECT date FROM message WHERE guid = ?', [messageGUID])
+    // todo this lint rule shouldn't be triggering here
+    // eslint-disable-next-line no-restricted-syntax
+    for (const direction of ['before', 'after']) {
+      texts.log('searching', direction, threadID, messageGUID, cursor)
+      const messages = await this.papi.getMessages(threadID, { cursor, direction: direction as 'before' | 'after' }) // todo handle message splitting
+      // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
+      const find = direction === 'before' ? findLastIndex : findIndex
+      const mIndex = find(messages.items, m => m.text && !m.links?.length && !m.tweets?.length) // todo handle emoji only messages
+      if (mIndex > -1) {
+        const m = messages.items[mIndex]
+        return { guid: m.id, offset: direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1 }
+      }
+    }
+    // todo loop over more pages if not found
   }
 
   // async markMessageRead(messageID: string) {
