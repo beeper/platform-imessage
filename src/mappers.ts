@@ -98,8 +98,8 @@ function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRo
     textFooter: msgRow.expressive_send_style_id
       ? `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)`
       : undefined,
-    extra: { isSMS },
   }
+  if (isSMS) m.extra = { isSMS }
   if (addThreadIDs) m.threadID = msgRow.threadID
   if (msgRow.is_read) {
     m.behavior = MessageBehavior.KEEP_READ
