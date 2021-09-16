@@ -18,7 +18,7 @@ import _swiftServer, { ActivityStatus } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 export default class AppleiMessage implements PlatformAPI {
-  private currentUserID: string
+  currentUserID: string
 
   private threadReadStore: ThreadReadStore
 
