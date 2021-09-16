@@ -4,7 +4,7 @@ import path from 'path'
 import childProcess from 'child_process'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent } from '@textshq/platform-sdk'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
@@ -88,7 +88,17 @@ export default class AppleiMessage implements PlatformAPI {
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
     this.dbAPI.startPolling(onEvent)
-    this.onEvent = onEvent
+    this.onEvent = (events: ServerEvent[]) => {
+      const evs: ServerEvent[] = []
+      events.forEach(ev => {
+        if (ev.type === ServerEventType.TOAST) {
+          texts.Sentry.captureMessage(`iMessage RustServer: ${ev.toast.text}`)
+        } else {
+          evs.push(ev)
+        }
+      })
+      onEvent(evs)
+    }
   }
 
   searchUsers = (typed: string): User[] => []
@@ -276,28 +286,24 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   onThreadSelected = async (threadID: string) => {
-    const thread = await this.getThread(threadID)
-
     // we don't need to Promise.all because the Promise has already been
     // fired for swiftServer
     const swiftServer = await this.swiftServer
     if (!swiftServer) return
 
-    if (thread?.type !== 'single') {
+    if (!threadID?.startsWith('iMessage;-;')) { // ignore groups and sms threads
       swiftServer.watchThreadActivity(null)
       return
     }
 
-    const address = thread.participants.items.find(p => !p.isSelf).id;
-
-    swiftServer.watchThreadActivity(address, status => {
-      console.log('sending status', status)
+    const participantID = threadID.split(';').pop()
+    swiftServer.watchThreadActivity(participantID, status => {
       this.onEvent([
         {
           type: ServerEventType.USER_ACTIVITY,
           activityType: status === ActivityStatus.Typing ? ActivityType.TYPING : ActivityType.NONE,
           threadID,
-          participantID: address,
+          participantID,
           durationMs: 120_000,
         },
       ])
