@@ -35,6 +35,7 @@ extension Accessibility.Names {
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
+    var roleDescription: AttributeName<String> { .init(kAXRoleDescriptionAttribute) }
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
@@ -422,7 +423,7 @@ final class MessagesController {
     private func reactionsView() throws -> Accessibility.Element {
         guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
               (try? mainView.children.count()) ?? 0 >= 2,
-              let presView = try? mainView.children(range: 0..<1).first,
+              let presView = try? mainView.children.value(at: 0),
               (try? presView.children.count()) ?? 0 > 0 else {
             throw ErrorMessage("Could not find reactions view")
         }
@@ -430,10 +431,11 @@ final class MessagesController {
     }
 
     func setReaction(guid: String, reaction: Reaction, on: Bool) throws {
+        let url = try self.url(forMessage: guid)
+
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let url = try self.url(forMessage: guid)
         let idx = reaction.index
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView") else {
@@ -448,7 +450,7 @@ final class MessagesController {
             }
             try reactAction()
             let reactionsView = try Self.retry(withTimeout: 2, interval: 0.1) { try self.reactionsView() }
-            let btn = try reactionsView.children(range: idx..<(idx + 1)).first
+            let btn = try (try? reactionsView.children.value(at: idx))
                 .orThrow(ErrorMessage("Could not find react action \(reaction)"))
             let isSelected = try btn.isSelected()
             if isSelected != on {
@@ -498,10 +500,13 @@ final class MessagesController {
         guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView"),
               let count = try? transcripts.children.count(),
               count > 0,
-              let elt = try? transcripts.children(range: (count - 1)..<count).first else {
+              let elt = try? transcripts.children.value(at: count - 1) else {
             return .unknown
         }
-        return (try? elt.children.count()) == 0 ? .typing : .notTyping
+        // children can briefly be 0 for newly sent messages as well, so
+        // that by itself isn't a good enough heuristic
+        let isTyping = (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
+        return isTyping ? .typing : .notTyping
     }
 
     // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe
