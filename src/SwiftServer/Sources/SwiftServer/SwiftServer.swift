@@ -133,6 +133,20 @@ import Foundation
                 }
                 return try NodeUndefined(in: ctx)
             },
+            "setReaction": try NodeFunction(in: context) { ctx, info in
+                guard info.arguments.count == 4,
+                      let guid = try? info.arguments[0].as(NodeString.self)?.string(),
+                      let offset = try? info.arguments[1].as(NodeNumber.self)?.double(),
+                      let reactionName = try? info.arguments[2].as(NodeString.self)?.string(),
+                      let reaction = MessagesController.Reaction(rawValue: reactionName),
+                      let on = try? info.arguments[3].as(NodeBool.self)?.bool() else {
+                    return try NodeUndefined(in: ctx)
+                }
+                try MessagesController.queue.sync {
+                    try controller().setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on)
+                }
+                return try NodeUndefined(in: ctx)
+            },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 debugLog("disposing SwiftServer...")
                 MessagesController.queue.sync { _controller = nil }

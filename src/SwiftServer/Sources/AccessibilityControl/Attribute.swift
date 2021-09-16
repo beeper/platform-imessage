@@ -29,11 +29,8 @@ extension AttributeProtocol {
             AXUIElementCopyAttributeValue(element.raw, name.value as CFString, &val),
             file: file, line: line
         )
-        if let val = val.flatMap(Accessibility.convertFromAX) as Value? {
-            return val
-        } else {
-            throw AccessibilityError(.failure, file: file, line: line)
-        }
+        return try val.flatMap(Accessibility.convertFromAX)
+            .orThrow(AccessibilityError(.failure, file: file, line: line))
     }
 }
 
@@ -74,9 +71,8 @@ extension Accessibility {
         }
 
         public func callAsFunction(assign value: Value, file: StaticString = #fileID, line: UInt = #line) throws {
-            guard let raw = convertToAX(value) else {
-                throw AccessibilityError(.failure, file: file, line: line)
-            }
+            let raw = try convertToAX(value)
+                .orThrow(AccessibilityError(.failure, file: file, line: line))
             try check(
                 AXUIElementSetAttributeValue(element.raw, name.value as CFString, raw),
                 file: file, line: line
@@ -105,36 +101,41 @@ extension Accessibility {
         }
 
         public func callAsFunction(_ value: Parameter, file: StaticString = #fileID, line: UInt = #line) throws -> Return {
-            guard let rawValue = convertToAX(value) else {
-                throw AccessibilityError(.failure, file: file, line: line)
-            }
+            let rawValue = try convertToAX(value)
+                .orThrow(AccessibilityError(.failure, file: file, line: line))
             var result: AnyObject?
             try check(AXUIElementCopyParameterizedAttributeValue(element.raw, name.value as CFString, rawValue, &result))
-            if let result = result.flatMap(convertFromAX) as Return? {
-                return result
-            } else {
-                throw AccessibilityError(.failure, file: file, line: line)
-            }
+            return try result.flatMap(convertFromAX)
+                .orThrow(AccessibilityError(.failure, file: file, line: line))
         }
     }
 }
 
 // just `Collection` would make this applicable to dictionaries as well
 extension AttributeProtocol where Value: RandomAccessCollection {
-    public func count() throws -> Int {
+    public func count(file: StaticString = #fileID, line: UInt = #line) throws -> Int {
         var count: CFIndex = 0
-        try Accessibility.check(AXUIElementGetAttributeValueCount(element.raw, name.value as CFString, &count))
+        try Accessibility.check(
+            AXUIElementGetAttributeValueCount(element.raw, name.value as CFString, &count),
+            file: file, line: line
+        )
         return count
     }
+
+    // TODO: Add throwing subscript variants with Swift 5.5+
 
     public func callAsFunction(range: Range<Int>, file: StaticString = #fileID, line: UInt = #line) throws -> [Value.Element] {
         var values: CFArray?
         try Accessibility.check(
-            AXUIElementCopyAttributeValues(element.raw, name.value as CFString, range.startIndex, range.count, &values)
+            AXUIElementCopyAttributeValues(element.raw, name.value as CFString, range.startIndex, range.count, &values),
+            file: file, line: line
         )
-        guard let values = values.flatMap(Accessibility.convertFromAX) as [Value.Element]? else {
-            throw AccessibilityError(.failure, file: file, line: line)
-        }
-        return values
+        return try values.flatMap(Accessibility.convertFromAX)
+            .orThrow(AccessibilityError(.failure, file: file, line: line))
+    }
+
+    public func value(at index: Int, file: StaticString = #fileID, line: UInt = #line) throws -> Value.Element {
+        try self(range: index..<(index + 1)).first
+            .orThrow(AccessibilityError(.noValue, file: file, line: line))
     }
 }

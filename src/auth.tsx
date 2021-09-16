@@ -286,8 +286,9 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
   <div className="page known-issues">
     <h3>Known Issues</h3>
     <ol>
-      {!IS_BIG_SUR_OR_UP && <li>On macOS Catalina and lower, mark as read and showing typing indicator isn't supported.</li>}
-      <li>Sending typing indicator and reactions to the recipient aren't supported.</li>
+      {!IS_BIG_SUR_OR_UP && <li>On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported.</li>}
+      <li>Reacting to non-text messages isn't supported.</li>
+      <li>Sending typing indicator to the recipient isn't supported.</li>
       {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to will open Messages.app.</li>}
       <li>Messages.app needs to be open in the background for certain functionality but you can hide/minimize it.</li>
     </ol>

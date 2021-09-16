@@ -25,15 +25,17 @@ extension Accessibility.Notification {
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
+    var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
-    var windowPosition: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
-    var windowSize: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
-    var windowFrame: AttributeName<CGRect> { "AXFrame" }
+    var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
+    var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
+    var frame: AttributeName<CGRect> { "AXFrame" }
     var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
 
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
+    var roleDescription: AttributeName<String> { .init(kAXRoleDescriptionAttribute) }
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
@@ -76,13 +78,13 @@ extension Accessibility.Element {
         }
     }
 
-    func setWindowFrame(_ frame: CGRect) throws {
+    func setFrame(_ frame: CGRect) throws {
         DispatchQueue.concurrentPerform(iterations: 2) { i in
             switch i {
             case 0:
-                try? self.windowPosition(assign: frame.origin)
+                try? self.position(assign: frame.origin)
             case 1:
-                try? self.windowSize(assign: frame.size)
+                try? self.size(assign: frame.size)
             default:
                 break
             }
@@ -121,6 +123,26 @@ private final class RunLoopThread: Thread {
 
 // external API is thread safe
 final class MessagesController {
+    enum Reaction: String {
+        case heart
+        case like
+        case dislike
+        case laugh
+        case emphasize
+        case question
+
+        var index: Int {
+            switch self {
+            case .heart: return 0
+            case .like: return 1
+            case .dislike: return 2
+            case .laugh: return 3
+            case .emphasize: return 4
+            case .question: return 5
+            }
+        }
+    }
+
     enum ActivityStatus: String {
         case typing = "TYPING"
         case notTyping = "NOT_TYPING"
@@ -298,8 +320,8 @@ final class MessagesController {
 
     var isValid: Bool {
         !app.isTerminated
-            && (try? mainWindow.windowFrame()) != nil
-            && (try? textsWindow.windowFrame()) != nil
+            && (try? mainWindow.frame()) != nil
+            && (try? textsWindow.frame()) != nil
             && conversations.isValid
     }
 
@@ -345,15 +367,15 @@ final class MessagesController {
             }
         }
 
-        let textsFrame = try textsWindow.windowFrame()
+        let textsFrame = try textsWindow.frame()
         let targetFrame = Self.messagesFrame(for: textsFrame)
-        let oldFrame = try mainWindow.windowFrame()
+        let oldFrame = try mainWindow.frame()
         let changeFrame = oldFrame != targetFrame
 //            // iff oldFrame is contained inside textsFrame
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
-            try mainWindow.setWindowFrame(targetFrame)
-            while (try? mainWindow.windowFrame()) == oldFrame {}
+            try mainWindow.setFrame(targetFrame)
+            while (try? mainWindow.frame()) == oldFrame {}
         }
 
         defer {
@@ -401,12 +423,80 @@ final class MessagesController {
         NSWorkspace.shared.open(url)
     }
 
-    func markAsRead(guid: String) throws {
+    private func url(forMessage guid: String) throws -> URL {
         guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
               let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
               let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
             throw ErrorMessage("Invalid iMessage guid \(guid)")
         }
+        return url
+    }
+
+    private func reactionsView() throws -> Accessibility.Element {
+        guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
+              (try? mainView.children.count()) ?? 0 >= 2,
+              let presView = try? mainView.children.value(at: 0),
+              (try? presView.children.count()) ?? 0 > 0 else {
+            throw ErrorMessage("Could not find reactions view")
+        }
+        return presView
+    }
+
+    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
+        debugLog("Finding cell at offset \(offset) from \(guid)")
+
+        let url = try self.url(forMessage: guid)
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        let idx = reaction.index
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView") else {
+                throw ErrorMessage("Could not find TranscriptCollectionView")
+            }
+            guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
+                throw ErrorMessage("Could not find selected child")
+            }
+//            selected.printAttributes()
+            let targetCell: Accessibility.Element
+            if offset == 0 {
+                targetCell = selected
+            } else {
+                let containerCell = try selected.parent()
+                let containerFrame = try containerCell.frame()
+                let siblings = try containerCell.parent().children().filter {
+                    (try? $0.localizedDescription())?.isEmpty == false
+                }
+                guard let idx = siblings.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
+                    throw ErrorMessage("Could not find target cell")
+                }
+                let target = idx - offset
+                debugLog("Index: \(idx) - \(offset) = \(target)")
+                guard siblings.indices.contains(target) else {
+                    throw ErrorMessage("Desired index out of bounds")
+                }
+                targetCell = try siblings[target].children.value(at: 0)
+            }
+//            targetCell.printAttributes()
+            let allActions = try targetCell.supportedActions()
+            // TODO: Does "React" need to be localized here?
+            guard let reactAction = allActions.first(where: { $0.name.value.contains("Name:React") }) else {
+                throw ErrorMessage("Could not find react action")
+            }
+            try reactAction()
+            let reactionsView = try Self.retry(withTimeout: 2, interval: 0.1) { try self.reactionsView() }
+            let btn = try (try? reactionsView.children.value(at: idx))
+                .orThrow(ErrorMessage("Could not find react action \(reaction)"))
+            let isSelected = try btn.isSelected()
+            if isSelected != on {
+                try btn.press()
+            }
+        }
+    }
+
+    func markAsRead(guid: String) throws {
+        let url = try self.url(forMessage: guid)
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -446,10 +536,13 @@ final class MessagesController {
         guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView"),
               let count = try? transcripts.children.count(),
               count > 0,
-              let elt = try? transcripts.children(range: (count - 1)..<count).first else {
+              let elt = try? transcripts.children.value(at: count - 1) else {
             return .unknown
         }
-        return (try? elt.children.count()) == 0 ? .typing : .notTyping
+        // children can briefly be 0 for newly sent messages as well, so
+        // that by itself isn't a good enough heuristic
+        let isTyping = (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
+        return isTyping ? .typing : .notTyping
     }
 
     // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe

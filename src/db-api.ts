@@ -1,15 +1,17 @@
 import path from 'path'
 import bluebird, { promisify } from 'bluebird'
-import { maxBy, memoize } from 'lodash'
+import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
 // import { parentPort } from 'worker_threads'
 import imageSizeSync from 'image-size'
-import { OnServerEventCallback, ServerEvent, texts } from '@textshq/platform-sdk'
+import { Message, OnServerEventCallback, ServerEvent, texts } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
 import { Server as RustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
+import { mapMessage, mapMessages } from './mappers'
 import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
+import type PAPI from './api'
 
 const imageSizeAsync = promisify(imageSizeSync)
 
@@ -126,6 +128,8 @@ export default class DatabaseAPI {
   }
 
   private rustServer: RustServer
+
+  constructor(private readonly papi: InstanceType<typeof PAPI>) {}
 
   async init() {
     this.db = await getDB()
@@ -281,6 +285,38 @@ export default class DatabaseAPI {
 
   getThreadMessagesCount(chatGUID: string): Promise<number> {
     return this.db.pluck_get(SQLS.getMsgCount, chatGUID)
+  }
+
+  private getMappedMessagesWithoutExtraRows = async (chatGUID: string, cursor: string, direction: 'before' | 'after') => {
+    const msgRows = await this.getMessages(chatGUID, cursor, direction)
+    if (direction !== 'after') msgRows.reverse()
+    const items = mapMessages(msgRows, [], [], this.papi.currentUserID)
+    return {
+      items,
+      hasMore: msgRows.length === MESSAGES_LIMIT,
+    }
+  }
+
+  findClosestTextMessage = async (threadID: string, messageGUID: string): Promise<{ offset: number, guid: string }> => {
+    const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', [messageGUID])
+    if (!message) throw Error('message not found')
+    const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
+    const canReact = (m: Message) => m.text && !m.links?.length && !m.tweets?.length // todo handle emoji only messages
+    if (canReact(mapped)) return { guid: mapped.id, offset: 0 }
+    // todo this lint rule shouldn't be triggering here
+    // eslint-disable-next-line no-restricted-syntax
+    for (const direction of ['before', 'after']) {
+      texts.log('searching for neighboring message', direction, threadID, messageGUID, mapped.cursor)
+      const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction as 'before' | 'after') // todo handle message splitting, optimize
+      // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
+      const find = direction === 'before' ? findLastIndex : findIndex
+      const mIndex = find(messages.items, canReact)
+      if (mIndex > -1) {
+        const m = messages.items[mIndex]
+        return { guid: m.id, offset: direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1 }
+      }
+    }
+    // todo loop over more pages if not found
   }
 
   // async markMessageRead(messageID: string) {

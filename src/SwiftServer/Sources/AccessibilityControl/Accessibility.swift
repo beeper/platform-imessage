@@ -6,44 +6,44 @@ public protocol AccessibilityConvertible {
     func axRaw() -> AnyObject?
 }
 
+private struct ConversionError: Error {}
+
 extension Array: AccessibilityConvertible where Element: AccessibilityConvertible {
     public init?(axRaw: AnyObject) {
         guard let elements = axRaw as? [AnyObject] else { return nil }
-        self = elements.compactMap { Element(axRaw: $0) }
+        do {
+            // fail if even one element initializer fails
+            self = try elements.map {
+                try Element(axRaw: $0).orThrow(ConversionError())
+            }
+        } catch { // ConversionError
+            return nil
+        }
     }
     public func axRaw() -> AnyObject? {
-        compactMap { $0.axRaw() } as AnyObject
+        try? map {
+            try $0.axRaw().orThrow(ConversionError())
+        } as AnyObject
     }
 }
 
 extension Dictionary: AccessibilityConvertible where Key == String, Value: AccessibilityConvertible {
     public init?(axRaw: AnyObject) {
         guard let elements = axRaw as? [String: AnyObject] else { return nil }
-        self = elements.compactMapValues { Value(axRaw: $0) }
+        do {
+            self = try elements.mapValues {
+                try Value(axRaw: $0).orThrow(ConversionError())
+            }
+        } catch {
+            return nil
+        }
     }
     public func axRaw() -> AnyObject? {
-        compactMapValues { $0.axRaw() } as AnyObject
+        try? mapValues {
+            try $0.axRaw().orThrow(ConversionError())
+        } as AnyObject
     }
 }
-
-//public protocol AccessibilityStructConvertible {
-//    var accessibilityStruct: Accessibility.Struct { get }
-//}
-//extension CGPoint: AccessibilityStructConvertible {
-//    public var accessibilityStruct: Accessibility.Struct { .point(self) }
-//}
-//extension CGSize: AccessibilityStructConvertible {
-//    public var accessibilityStruct: Accessibility.Struct { .size(self) }
-//}
-//extension CGRect: AccessibilityStructConvertible {
-//    public var accessibilityStruct: Accessibility.Struct { .rect(self) }
-//}
-//extension Range: AccessibilityStructConvertible where Bound == Int {
-//    public var accessibilityStruct: Accessibility.Struct { .range(self) }
-//}
-//extension AccessibilityError: AccessibilityStructConvertible {
-//    public var accessibilityStruct: Accessibility.Struct { .error(self) }
-//}
 
 public protocol AccessibilityPhantomName: LosslessStringConvertible, ExpressibleByStringLiteral {
     var value: String { get }
