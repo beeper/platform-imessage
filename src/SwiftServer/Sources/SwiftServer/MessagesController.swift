@@ -197,6 +197,7 @@ final class MessagesController {
     // of the window's width
     private static let sidebarWidthFactor: CGFloat = 0.5
 
+    private let textsApp: NSRunningApplication
     private let textsWindow: Accessibility.Element
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
@@ -247,6 +248,7 @@ final class MessagesController {
         guard let textsApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.textsBundleID).first else {
             throw ErrorMessage("Could not find running Texts instance")
         }
+        self.textsApp = textsApp
         let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
         self.textsWindow = try Self.retry(withTimeout: 10, interval: 0.1) { () throws -> Accessibility.Element in
             guard let textsWindow = try? textsAppElement.appMainWindow() else {
@@ -316,12 +318,17 @@ final class MessagesController {
         // FIXME: don't move if already visible
         try setWindowFrame(CGRect(x: 500, y: 25, width: 700, height: 300))
         #endif
+
+        guard self.isValid else {
+            throw ErrorMessage("Initialized MessagesController in an invalid state")
+        }
     }
 
     var isValid: Bool {
         !app.isTerminated
             && (try? mainWindow.frame()) != nil
-            && (try? textsWindow.frame()) != nil
+            && (try? textsWindow.frame()) ?? .zero != .zero
+            && !textsApp.isHidden
             && conversations.isValid
     }
 
