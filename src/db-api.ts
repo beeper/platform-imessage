@@ -119,13 +119,7 @@ export default class DatabaseAPI {
 
   private lastDateRead = 0
 
-  private eventQueue: ServerEvent[] = []
-
   private chatGUIDRowIDMap = new Map<string, number>()
-
-  private onEvent: OnServerEventCallback = events => {
-    this.eventQueue.push(...events)
-  }
 
   private rustServer: RustServer
 
@@ -176,8 +170,6 @@ export default class DatabaseAPI {
 
   startPolling(onEvent: OnServerEventCallback) {
     this.rustServer = new RustServer(onEvent)
-    this.onEvent(this.eventQueue)
-    this.onEvent = onEvent
     // let wokeFromSleep = false
     // parentPort!.on('message', value => {
     //   if (typeof value === 'string' && value === 'powermonitor-on-resume') {

@@ -87,8 +87,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
-    this.dbAPI.startPolling(onEvent)
-    this.onEvent = (events: ServerEvent[]) => {
+    this.dbAPI.startPolling((events: ServerEvent[]) => {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
@@ -98,7 +97,8 @@ export default class AppleiMessage implements PlatformAPI {
         }
       })
       onEvent(evs)
-    }
+    })
+    this.onEvent = onEvent
   }
 
   searchUsers = (typed: string): User[] => []
