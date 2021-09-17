@@ -68,7 +68,9 @@ import Foundation
                 }
                 MessagesController.queue.async {
                     do {
-                        _controller = try .init()
+                        if _controller == nil {
+                            _controller = try .init()
+                        }
                     } catch {
                         try? tsfn(error)
                         return

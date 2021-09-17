@@ -411,7 +411,16 @@ final class MessagesController {
         return newTitle
     }
 
-    func createThread(addresses: [String]) throws {
+    private func deepLink(forMessage guid: String) throws -> URL {
+        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
+              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
+              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
+            throw ErrorMessage("Invalid iMessage guid \(guid)")
+        }
+        return url
+    }
+
+    private func deepLink(forAddresses addresses: [String]) throws -> URL {
         var components = URLComponents()
         components.scheme = "imessage"
         components.path = "open"
@@ -419,17 +428,12 @@ final class MessagesController {
             name: addresses.count == 1 ? "address" : "addresses",
             value: addresses.joined(separator: ",")
         )]
-        guard let url = components.url else { throw ErrorMessage("Invalid iMessage addresses") }
-        NSWorkspace.shared.open(url)
+        return try components.url
+            .orThrow(ErrorMessage("Invalid iMessage addresses: \(addresses)"))
     }
 
-    private func url(forMessage guid: String) throws -> URL {
-        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
-              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
-              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
-            throw ErrorMessage("Invalid iMessage guid \(guid)")
-        }
-        return url
+    func createThread(addresses: [String]) throws {
+        try NSWorkspace.shared.open(deepLink(forAddresses: addresses))
     }
 
     private func reactionsView() throws -> Accessibility.Element {
@@ -445,7 +449,7 @@ final class MessagesController {
     func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
         debugLog("Finding cell at offset \(offset) from \(guid)")
 
-        let url = try self.url(forMessage: guid)
+        let url = try self.deepLink(forMessage: guid)
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -496,7 +500,7 @@ final class MessagesController {
     }
 
     func markAsRead(guid: String) throws {
-        let url = try self.url(forMessage: guid)
+        let url = try self.deepLink(forMessage: guid)
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -582,9 +586,7 @@ final class MessagesController {
     }
 
     func observe(address: String, callback: @escaping (ActivityStatus) -> Void) throws {
-        guard let url = URL(string: "imessage://open?address=\(address)") else {
-            throw ErrorMessage("Invalid iMessage address: \(address)")
-        }
+        let url = try deepLink(forAddresses: [address])
 
         activityLock.lock()
         defer { activityLock.unlock() }
