@@ -289,26 +289,41 @@ export default class DatabaseAPI {
     }
   }
 
+  // todo handle emoji only messages
+  private canReactToMessage = (m: Message): boolean => m.text && !m.links?.length && !m.tweets?.length
+
+  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, messageGUID: string, mapped: Message): Promise<{ offset: number, guid: string }> => {
+    texts.log('searching for neighboring message', direction, threadID, messageGUID, mapped.cursor)
+    const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction as 'before' | 'after') // todo handle message splitting, optimize
+    // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
+    const find = direction === 'before' ? findLastIndex : findIndex
+    const mIndex = find(messages.items.filter(m => !m.isHidden), this.canReactToMessage)
+    if (mIndex > -1) {
+      const m = messages.items[mIndex]
+      return { guid: m.id, offset: direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1 }
+    }
+  }
+
   findClosestTextMessage = async (threadID: string, messageGUID: string): Promise<{ offset: number, guid: string }> => {
     const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', [messageGUID])
     if (!message) throw Error('message not found')
     const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
-    const canReact = (m: Message) => m.text && !m.links?.length && !m.tweets?.length // todo handle emoji only messages
-    if (canReact(mapped)) return { guid: mapped.id, offset: 0 }
-    // todo this lint rule shouldn't be triggering here
-    // eslint-disable-next-line no-restricted-syntax
-    for (const direction of ['before', 'after']) {
-      texts.log('searching for neighboring message', direction, threadID, messageGUID, mapped.cursor)
-      const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction as 'before' | 'after') // todo handle message splitting, optimize
-      // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
-      const find = direction === 'before' ? findLastIndex : findIndex
-      const mIndex = find(messages.items, canReact)
-      if (mIndex > -1) {
-        const m = messages.items[mIndex]
-        return { guid: m.id, offset: direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1 }
-      }
-    }
+    if (this.canReactToMessage(mapped)) return { guid: mapped.id, offset: 0 }
     // todo loop over more pages if not found
+    const [before, after] = await Promise.all([
+      this.findClosestTextInDirection('before', threadID, messageGUID, mapped),
+      this.findClosestTextInDirection('after', threadID, messageGUID, mapped),
+    ])
+    if (before && after) {
+      return after.offset < -before.offset ? after : before
+    } // else
+    if (before) {
+      return before
+    } // else
+    if (after) {
+      return after
+    } // else
+    throw new Error('closest text message not found')
   }
 
   // async markMessageRead(messageID: string) {
