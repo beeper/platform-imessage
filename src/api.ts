@@ -54,7 +54,7 @@ export default class AppleiMessage implements PlatformAPI {
   private enableMarkAsRead: boolean
 
   private initSwiftServer = async () => {
-    if (!IS_BIG_SUR_OR_UP) throw new Error('Swift additions currently require macOS Big Sur or higher.')
+    if (!IS_BIG_SUR_OR_UP) return
     try {
       await __swiftServer.init()
       return __swiftServer
