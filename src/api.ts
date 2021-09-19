@@ -1,7 +1,6 @@
-import { existsSync, promises as fs } from 'fs'
+import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
-import childProcess from 'child_process'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent } from '@textshq/platform-sdk'
@@ -51,8 +50,6 @@ export default class AppleiMessage implements PlatformAPI {
     return { type: 'error', errorMessage: 'Please grant full disk access and try again.' }
   }
 
-  private enableMarkAsRead: boolean
-
   private initSwiftServer = async () => {
     if (!IS_BIG_SUR_OR_UP) return
     try {
@@ -60,7 +57,7 @@ export default class AppleiMessage implements PlatformAPI {
       return __swiftServer
     } catch (err) {
       texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-      texts.error('[imessage] SwiftServer error', err)
+      texts.error('[imessage] initSwiftServer', err)
       throw err
     }
   }
@@ -69,7 +66,8 @@ export default class AppleiMessage implements PlatformAPI {
     if (this._swiftServer) {
       try {
         return await this._swiftServer
-      } catch {
+      } catch (err) {
+        texts.error('[imessage] getSwiftServer', err)
         // fallthrough
       }
     }
@@ -82,7 +80,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   init = async (_: undefined, { dataDirPath }: AccountInfo) => {
-    this.enableMarkAsRead = !existsSync(path.join(dataDirPath, 'disable-imessage-mark-as-read')) && IS_BIG_SUR_OR_UP
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we have FDA which means user went through auth flow
       this.getSwiftServer()
@@ -97,9 +94,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = () => {
-    if (this._swiftServer) {
-      this._swiftServer.then(s => s.dispose())
-    }
+    this._swiftServer?.then(s => s.dispose())
     this.api.dispose()
     return this.dbAPI.dispose()
   }
@@ -288,6 +283,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
+    if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
     const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID) // todo optimize by calling only if needed
     await (await this.getSwiftServer()).setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
   }
@@ -303,13 +299,14 @@ export default class AppleiMessage implements PlatformAPI {
   sendReadReceipt = async (threadID: string, messageID: string) => {
     this.threadReadStore.markThreadRead(threadID, messageID)
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
-    if (this.enableMarkAsRead) (await this.getSwiftServer()).markRead(messageID)
+    if (IS_BIG_SUR_OR_UP) (await this.getSwiftServer()).markRead(messageID)
   }
 
   onThreadSelected = async (threadID: string) => {
     // we don't need to Promise.all because the Promise has already been
     // fired for swiftServer
     const swiftServer = await this.getSwiftServer()
+    if (!swiftServer) return
 
     if (!threadID?.startsWith('iMessage;-;')) { // ignore groups and sms threads
       swiftServer.watchThreadActivity(null)
