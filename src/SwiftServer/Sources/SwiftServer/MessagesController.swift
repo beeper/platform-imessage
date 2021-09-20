@@ -27,6 +27,8 @@ extension Accessibility.Names {
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
+    var value: MutableAttributeName<String> { .init(kAXValueAttribute) }
+
     var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
     var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
     var frame: AttributeName<CGRect> { "AXFrame" }
@@ -192,10 +194,12 @@ final class MessagesController {
 
     private static let shadowMargin: CGFloat = 32
     // iMessage doesn't go smaller than this
-    private static let minSize = CGSize(width: 660, height: 320)
+    private static let minSize = CGSize(width: 434, height: 320)
+    // Anything smaller than this width requires a collapsed sidebar
+    private static let sidebarThreshold: CGFloat = 660
     // the Texts sidebar (usually) takes up at most this proportion
     // of the window's width
-    private static let sidebarWidthFactor: CGFloat = 0.5
+    private static let textsSidebarWidthFactor: CGFloat = 0.5
 
     private let textsApp: NSRunningApplication
     private let textsWindow: Accessibility.Element
@@ -203,6 +207,7 @@ final class MessagesController {
     private let appElement: Accessibility.Element
     private let mainWindow: Accessibility.Element
     private let conversations: Accessibility.Element
+    private let splitter: Accessibility.Element
 
     private var timer: Timer?
     private var loopThread: RunLoopThread?
@@ -211,7 +216,7 @@ final class MessagesController {
     private var activityObserver: ActivityObserver?
 
     private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
-        let targetWidth = max(Self.minSize.width, textsFrame.width * Self.sidebarWidthFactor - Self.shadowMargin)
+        let targetWidth = max(Self.minSize.width, textsFrame.width * Self.textsSidebarWidthFactor - Self.shadowMargin)
         let targetHeight = max(Self.minSize.height, textsFrame.height - Self.shadowMargin)
         return CGRect(
             x: textsFrame.maxX - targetWidth,
@@ -291,6 +296,11 @@ final class MessagesController {
             throw ErrorMessage("Could not get Messages conversation list")
         }
         self.conversations = conversations
+
+        guard let splitter = mainWindow.recursiveChildren().first(where: { (try? $0.role()) == "AXSplitter" }) else {
+            throw ErrorMessage("Could not get Messages splitter")
+        }
+        self.splitter = splitter
 
         // we need a run loop for polling (and for any future AX observers), but Node
         // doesn't offer us one (since it uses its own uv loop which is incompatible
@@ -381,6 +391,13 @@ final class MessagesController {
 //            // iff oldFrame is contained inside textsFrame
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
+            let needsCollapsedSidebar = targetFrame.width < Self.sidebarThreshold
+            let hasCollapsedSidebar = (try? splitter.value()).flatMap(Double.init).map { $0 < 15 }
+            if needsCollapsedSidebar != hasCollapsedSidebar {
+                debugLog("Changing sidebar state from \(hasCollapsedSidebar as Any) to \(needsCollapsedSidebar)")
+                try splitter.value(assign: "\(needsCollapsedSidebar ? 10 : 30)")
+            }
+
             debugLog("Resizing messages to \(targetFrame)")
             try mainWindow.setFrame(targetFrame)
             while (try? mainWindow.frame()) == oldFrame {}
