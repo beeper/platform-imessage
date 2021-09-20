@@ -41,6 +41,7 @@ extension Accessibility.Names {
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
+    var isFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
 
     var press: ActionName { .init(kAXPressAction) }
 }
@@ -380,13 +381,19 @@ final class MessagesController {
         openBefore: URL?, openAfter: URL?,
         perform: () throws -> Void
     ) throws -> String? {
+        let changeVisibility: Bool
         if (try? mainWindow.isMinimized()) == true {
             try mainWindow.isMinimized(assign: false)
-            app.hide()
             while (try? mainWindow.isMinimized()) == true {}
+            changeVisibility = true
+        } else if (try? mainWindow.isFullScreen()) == true {
+            try mainWindow.isFullScreen(assign: false)
+            while (try? mainWindow.isFullScreen()) == true {}
+            changeVisibility = true
+        } else {
+            changeVisibility = true // app.isHidden
         }
 
-        let changeVisibility = true // app.isHidden
         if app.isHidden {
             app.unhide()
             while app.isHidden {
