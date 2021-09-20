@@ -215,7 +215,7 @@ final class MessagesController {
         let targetHeight = max(Self.minSize.height, textsFrame.height - Self.shadowMargin)
         return CGRect(
             x: textsFrame.maxX - targetWidth,
-            y: textsFrame.maxY - targetHeight,
+            y: textsFrame.minY,
             width: targetWidth,
             height: targetHeight
         )
@@ -381,6 +381,7 @@ final class MessagesController {
 //            // iff oldFrame is contained inside textsFrame
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
+            debugLog("Resizing messages to \(targetFrame)")
             try mainWindow.setFrame(targetFrame)
             while (try? mainWindow.frame()) == oldFrame {}
         }

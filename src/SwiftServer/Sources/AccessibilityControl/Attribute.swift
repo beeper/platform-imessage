@@ -35,8 +35,6 @@ extension AttributeProtocol {
 }
 
 extension Accessibility {
-    public typealias AnyAttribute = Attribute<Any>
-
     public final class Attribute<Value>: AttributeProtocol {
         public struct Name: AccessibilityPhantomName {
             public let value: String
