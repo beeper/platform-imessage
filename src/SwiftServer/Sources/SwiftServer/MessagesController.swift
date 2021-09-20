@@ -27,7 +27,7 @@ extension Accessibility.Names {
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
-    var value: MutableAttributeName<String> { .init(kAXValueAttribute) }
+    var value: MutableAttributeName<Any> { .init(kAXValueAttribute) }
 
     var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
     var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
@@ -197,6 +197,9 @@ final class MessagesController {
     private static let minSize = CGSize(width: 434, height: 320)
     // Anything smaller than this width requires a collapsed sidebar
     private static let sidebarThreshold: CGFloat = 660
+    private static let sidebarCollapsed: CGFloat = 94
+    private static let sidebarMiddle: CGFloat = 200
+    private static let sidebarExpanded: CGFloat = 320
     // the Texts sidebar (usually) takes up at most this proportion
     // of the window's width
     private static let textsSidebarWidthFactor: CGFloat = 0.5
@@ -216,10 +219,17 @@ final class MessagesController {
     private var activityObserver: ActivityObserver?
 
     private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
+        let rightAlignedPos: CGFloat?
+        if let screenWidth = NSApp.mainWindow?.screen?.frame.width, textsFrame.maxX >= screenWidth - .ulpOfOne {
+            rightAlignedPos = screenWidth - 20
+        } else {
+            rightAlignedPos = nil
+        }
+
         let targetWidth = max(Self.minSize.width, textsFrame.width * Self.textsSidebarWidthFactor - Self.shadowMargin)
         let targetHeight = max(Self.minSize.height, textsFrame.height - Self.shadowMargin)
         return CGRect(
-            x: textsFrame.maxX - targetWidth,
+            x: rightAlignedPos ?? (textsFrame.maxX - targetWidth),
             y: textsFrame.minY,
             width: targetWidth,
             height: targetHeight
@@ -392,10 +402,13 @@ final class MessagesController {
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
             let needsCollapsedSidebar = targetFrame.width < Self.sidebarThreshold
-            let hasCollapsedSidebar = (try? splitter.value()).flatMap(Double.init).map { $0 < 15 }
+            // Note: splitter.value() is a percentage whereas the thresholds are point widths
+            let hasCollapsedSidebar = (try? splitter.value() as? CGFloat).map { $0 * oldFrame.width / 100 < Self.sidebarMiddle }
             if needsCollapsedSidebar != hasCollapsedSidebar {
                 debugLog("Changing sidebar state from \(hasCollapsedSidebar as Any) to \(needsCollapsedSidebar)")
-                try splitter.value(assign: "\(needsCollapsedSidebar ? 10 : 30)")
+                try splitter.value(
+                    assign: 100 * (needsCollapsedSidebar ? Self.sidebarCollapsed : Self.sidebarExpanded) / oldFrame.width
+                )
             }
 
             debugLog("Resizing messages to \(targetFrame)")
