@@ -2298,9 +2298,9 @@ node-sass@^6.0.0:
     stdout-stream "^1.4.0"
     "true-case-path" "^1.0.2"
 
-"node-swift@https://github.com/kabiroberai/node-swift#113c43a02cf1cdcf1fdb4e2bf782cdd36220b618":
+"node-swift@https://github.com/kabiroberai/node-swift#0e0450b85b79f923e86ad66214313f6e1d7fb697":
   version "1.0.0"
-  resolved "https://github.com/kabiroberai/node-swift#113c43a02cf1cdcf1fdb4e2bf782cdd36220b618"
+  resolved "https://github.com/kabiroberai/node-swift#0e0450b85b79f923e86ad66214313f6e1d7fb697"
   dependencies:
     import-cwd "^3.0.0"
 

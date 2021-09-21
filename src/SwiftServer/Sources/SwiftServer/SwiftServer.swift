@@ -60,8 +60,7 @@ import Foundation
                     asyncResourceName: "swift_server_init", in: ctx
                 ) { ctx, err in
                     if let err = err {
-                        // TODO: Use an actual NodeError
-                        try deferred.reject(with: "\(err)", in: ctx)
+                        try deferred.reject(with: NodeError(code: "\(type(of: err))", message: "\(err)", in: ctx), in: ctx)
                     } else {
                         try deferred.resolve(with: NodeUndefined(in: ctx), in: ctx)
                     }
