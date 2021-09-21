@@ -27,6 +27,8 @@ extension Accessibility.Names {
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
+    var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
+    var maxValue: AttributeName<Any> { .init(kAXMaxValueAttribute) }
     var value: MutableAttributeName<Any> { .init(kAXValueAttribute) }
 
     var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
@@ -198,9 +200,6 @@ final class MessagesController {
     private static let minSize = CGSize(width: 434, height: 320)
     // Anything smaller than this width requires a collapsed sidebar
     private static let sidebarThreshold: CGFloat = 660
-    private static let sidebarCollapsed: CGFloat = 94
-    private static let sidebarMiddle: CGFloat = 200
-    private static let sidebarExpanded: CGFloat = 320
     // the Texts sidebar (usually) takes up at most this proportion
     // of the window's width
     private static let textsSidebarWidthFactor: CGFloat = 0.5
@@ -416,13 +415,15 @@ final class MessagesController {
 //            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
         if changeFrame {
             let needsCollapsedSidebar = targetFrame.width < Self.sidebarThreshold
-            // Note: splitter.value() is a percentage whereas the thresholds are point widths
-            let hasCollapsedSidebar = (try? splitter.value() as? CGFloat).map { $0 * oldFrame.width / 100 < Self.sidebarMiddle }
-            if needsCollapsedSidebar != hasCollapsedSidebar {
-                debugLog("Changing sidebar state from \(hasCollapsedSidebar as Any) to \(needsCollapsedSidebar)")
-                try splitter.value(
-                    assign: 100 * (needsCollapsedSidebar ? Self.sidebarCollapsed : Self.sidebarExpanded) / oldFrame.width
-                )
+            do {
+                let min = try splitter.minValue()
+                let hasCollapsedSidebar = try (splitter.value() as? CGFloat) == (min as? CGFloat)
+                if needsCollapsedSidebar != hasCollapsedSidebar {
+                    debugLog("Changing sidebar collapsed state from \(hasCollapsedSidebar as Any) to \(needsCollapsedSidebar)")
+                    try splitter.value(assign: needsCollapsedSidebar ? min : splitter.maxValue())
+                }
+            } catch {
+                debugLog("warning: Could not update Messages splitter")
             }
 
             debugLog("Moving messages to \(targetFrame)")
