@@ -21,14 +21,14 @@ export enum ActivityStatus {
 
 export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Attribute[] | undefined)
-  createThread: (addresses: string[]) => void
+  createThread: (addresses: string[]) => Promise<void>
   markRead: (guid: string) => Promise<void>
   sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
   watchThreadActivity: (
     address: string | null,
     onTyping?: (status: ActivityStatus) => void
-  ) => void
-  setReaction: (guid: string, offset: number, reaction: string, on: boolean) => void
+  ) => Promise<void>
+  setReaction: (guid: string, offset: number, reaction: string, on: boolean) => Promise<void>
   dispose: () => void
   init: (isLoggingEnabled?: boolean) => Promise<void>
 }

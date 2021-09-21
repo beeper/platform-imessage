@@ -101,10 +101,9 @@ import Foundation
                 let addresses = try (0..<arr.count()).compactMap {
                     try arr[Double($0)].get(in: ctx).as(NodeString.self)?.string()
                 }
-                try MessagesController.queue.sync {
+                return try performAsync(with: ctx) {
                     try controller().createThread(addresses: addresses)
                 }
-                return try NodeUndefined(in: ctx)
             },
             "markRead": try NodeFunction(in: context) { ctx, info in
                 guard let guid = try info.arguments.first?.as(NodeString.self) else {
@@ -120,10 +119,9 @@ import Foundation
                       let isTyping = try? info.arguments[0].as(NodeBool.self)?.bool(),
                       let address = try? info.arguments[1].as(NodeString.self)?.string()
                 else { return try NodeUndefined(in: ctx) }
-                try MessagesController.queue.sync {
+                return try performAsync(with: ctx) {
                     try controller().sendTypingStatus(isTyping, address: address)
                 }
-                return try NodeUndefined(in: ctx)
             },
             "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
                 let args: (String, (MessagesController.ActivityStatus) -> Void)?
@@ -143,7 +141,7 @@ import Foundation
                     print("warning: Invalid args to watchThreadActivity")
                     args = nil
                 }
-                try MessagesController.queue.sync {
+                return try performAsync(with: ctx) {
                     let controller = try controller()
                     if let args = args {
                         try controller.observe(address: args.0, callback: args.1)
@@ -151,7 +149,6 @@ import Foundation
                         try controller.removeObserver()
                     }
                 }
-                return try NodeUndefined(in: ctx)
             },
             "setReaction": try NodeFunction(in: context) { ctx, info in
                 guard info.arguments.count == 4,
@@ -162,10 +159,9 @@ import Foundation
                       let on = try? info.arguments[3].as(NodeBool.self)?.bool() else {
                     return try NodeUndefined(in: ctx)
                 }
-                try MessagesController.queue.sync {
+                return try performAsync(with: ctx) {
                     try controller().setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on)
                 }
-                return try NodeUndefined(in: ctx)
             },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 debugLog("disposing SwiftServer...")

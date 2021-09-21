@@ -162,11 +162,11 @@ export default class AppleiMessage implements PlatformAPI {
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
-      if (existingThread) return existingThread;
-      (await this.getSwiftServer()).createThread([address])
+      if (existingThread) return existingThread
+      await (await this.getSwiftServer()).createThread([address])
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
-      (await this.getSwiftServer()).createThread(userIDs)
+      await (await this.getSwiftServer()).createThread(userIDs)
     }
   }
 
@@ -289,7 +289,7 @@ export default class AppleiMessage implements PlatformAPI {
     const participantID = AppleiMessage.singleParticipantForThread(threadID)
     // only 1-to-1 conversations are supported
     if (!participantID) return
-    (await this.getSwiftServer()).sendTypingStatus(type === ActivityType.TYPING, participantID)
+    return (await this.getSwiftServer()).sendTypingStatus(type === ActivityType.TYPING, participantID)
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
@@ -321,11 +321,10 @@ export default class AppleiMessage implements PlatformAPI {
     // ignore groups and sms threads
     const participantID = AppleiMessage.singleParticipantForThread(threadID)
     if (!participantID) {
-      swiftServer.watchThreadActivity(null)
-      return
+      return swiftServer.watchThreadActivity(null)
     }
 
-    swiftServer.watchThreadActivity(participantID, status => {
+    return swiftServer.watchThreadActivity(participantID, status => {
       this.onEvent([
         {
           type: ServerEventType.USER_ACTIVITY,
