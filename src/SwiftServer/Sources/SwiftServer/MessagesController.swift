@@ -239,7 +239,7 @@ final class MessagesController {
 
     private static func retry<T>(
         withTimeout timeout: TimeInterval,
-        interval: TimeInterval,
+        interval: TimeInterval? = nil,
         _ perform: () throws -> T
     ) throws -> T {
         let start = Date()
@@ -249,7 +249,7 @@ final class MessagesController {
             if case let .success(val) = res {
                 return val
             }
-            Thread.sleep(forTimeInterval: interval)
+            interval.map(Thread.sleep(forTimeInterval:))
         } while -start.timeIntervalSinceNow < timeout
         return try res.get()
     }
@@ -361,16 +361,13 @@ final class MessagesController {
 
     @discardableResult
     private func waitUntilSelected(isCompose: Bool, timeout: TimeInterval) -> Accessibility.Element? {
-        let start = Date()
-        while -start.timeIntervalSinceNow < timeout {
-            guard let selected = selectedCell() else { continue }
+        try? Self.retry(withTimeout: timeout) { () throws -> Accessibility.Element in
+            guard let selected = selectedCell() else { throw ErrorMessage("") }
             let desc = try? selected.localizedDescription()
             let isActuallyCompose = desc == nil
-            if isCompose == isActuallyCompose {
-                return selected
-            }
+            guard isCompose == isActuallyCompose else { throw ErrorMessage("") }
+            return selected
         }
-        return nil
     }
 
     static let composeURL = URL(string: "imessage://open?address=")!
@@ -384,11 +381,19 @@ final class MessagesController {
         let changeVisibility: Bool
         if (try? mainWindow.isMinimized()) == true {
             try mainWindow.isMinimized(assign: false)
-            while (try? mainWindow.isMinimized()) == true {}
+            try Self.retry(withTimeout: 1) {
+                guard (try? mainWindow.isMinimized()) == false else {
+                    throw ErrorMessage("Could not un-minimize main window")
+                }
+            }
             changeVisibility = true
         } else if (try? mainWindow.isFullScreen()) == true {
             try mainWindow.isFullScreen(assign: false)
-            while (try? mainWindow.isFullScreen()) == true {}
+            try Self.retry(withTimeout: 1) {
+                guard (try? mainWindow.isFullScreen()) == false else {
+                    throw ErrorMessage("Could not un-fullscreen main window")
+                }
+            }
             changeVisibility = true
         } else {
             changeVisibility = true // app.isHidden
@@ -396,8 +401,10 @@ final class MessagesController {
 
         if app.isHidden {
             app.unhide()
-            while app.isHidden {
-                // spin
+            try Self.retry(withTimeout: 1) {
+                guard !app.isHidden else {
+                    throw ErrorMessage("Could not un-hide Messages")
+                }
             }
         }
 
@@ -418,9 +425,18 @@ final class MessagesController {
                 )
             }
 
-            debugLog("Resizing messages to \(targetFrame)")
+            debugLog("Moving messages to \(targetFrame)")
             try mainWindow.setFrame(targetFrame)
-            while (try? mainWindow.frame()) == oldFrame {}
+
+            do {
+                try Self.retry(withTimeout: 0.5) {
+                    guard (try? mainWindow.frame()) != oldFrame else {
+                        throw ErrorMessage("Could not change Messages frame")
+                    }
+                }
+            } catch {
+                debugLog("warning: \(error)")
+            }
         }
 
         defer {
