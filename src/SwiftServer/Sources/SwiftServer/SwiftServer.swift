@@ -52,36 +52,40 @@ import Foundation
                 return controller
             }
         }
+        func performAsync(with ctx: NodeContext, action: @escaping () throws -> Void) throws -> NodePromise {
+            let deferred = try NodePromise.Deferred(in: ctx)
+            let tsfn = try NodeThreadsafeFunction<Error?>(
+                asyncResourceName: "swift_server_perform", in: ctx
+            ) { ctx, err in
+                if let err = err {
+                    try deferred.reject(with: NodeError(code: "\(type(of: err))", message: "\(err)", in: ctx), in: ctx)
+                } else {
+                    try deferred.resolve(with: NodeUndefined(in: ctx), in: ctx)
+                }
+            }
+            MessagesController.queue.async {
+                do {
+                    try action()
+                } catch {
+                    try? tsfn(error)
+                    return
+                }
+                try? tsfn(nil)
+            }
+            return deferred.promise
+        }
         exports = [
             "init": try NodeFunction(in: context) { ctx, info in
                 if info.arguments.count == 1,
                    let isLoggingEnabled = try? info.arguments[0].as(NodeBool.self)?.bool() {
                     gIsLoggingEnabled = isLoggingEnabled
                 }
-
                 debugLog("initializing SwiftServer...")
-                let deferred = try NodePromise.Deferred(in: ctx)
-                let tsfn = try NodeThreadsafeFunction<Error?>(
-                    asyncResourceName: "swift_server_init", in: ctx
-                ) { ctx, err in
-                    if let err = err {
-                        try deferred.reject(with: NodeError(code: "\(type(of: err))", message: "\(err)", in: ctx), in: ctx)
-                    } else {
-                        try deferred.resolve(with: NodeUndefined(in: ctx), in: ctx)
+                return try performAsync(with: ctx) {
+                    if _controller == nil {
+                        _controller = try .init()
                     }
                 }
-                MessagesController.queue.async {
-                    do {
-                        if _controller == nil {
-                            _controller = try .init()
-                        }
-                    } catch {
-                        try? tsfn(error)
-                        return
-                    }
-                    try? tsfn(nil)
-                }
-                return deferred.promise
             },
             "decodeAttributedString": try NodeFunction(in: context) { ctx, info in
                 guard let buffer = try info.arguments.first?.as(NodeBuffer.self),
@@ -107,9 +111,9 @@ import Foundation
                     return try NodeUndefined(in: ctx)
                 }
                 let guidString = try guid.string()
-                // TODO: make async, return a promise
-                try MessagesController.queue.sync { try controller().markAsRead(guid: guidString) }
-                return try NodeUndefined(in: ctx)
+                return try performAsync(with: ctx) {
+                    try controller().markAsRead(guid: guidString)
+                }
             },
             "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
                 let args: (String, (MessagesController.ActivityStatus) -> Void)?
