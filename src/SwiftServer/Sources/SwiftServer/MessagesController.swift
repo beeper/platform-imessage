@@ -552,8 +552,10 @@ final class MessagesController {
             }
             try reactAction()
             let reactionsView = try Self.retry(withTimeout: 2, interval: 0.1) { try self.reactionsView() }
-            let btn = try (try? reactionsView.children.value(at: idx))
-                .orThrow(ErrorMessage("Could not find react action \(reaction)"))
+            guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == "AXButton" }),
+                  buttons.count == 7 // last button is Reply
+            else { throw ErrorMessage("Could not find reaction buttons") }
+            let btn = buttons[idx]
             let isSelected = try btn.isSelected()
             if isSelected != on {
                 try btn.press()
