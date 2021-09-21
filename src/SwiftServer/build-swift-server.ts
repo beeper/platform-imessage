@@ -9,7 +9,7 @@ import { promises as fsPromises } from 'fs';
     macVersion: '10.11',
   }
 
-  const config = 'release'
+  const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
 
   // await clean();
 
