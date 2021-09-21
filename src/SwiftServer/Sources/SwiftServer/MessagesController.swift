@@ -10,10 +10,14 @@ struct ErrorMessage: Error, CustomStringConvertible {
     var description: String { message }
 }
 
+// don't do globals, kids
+var gIsLoggingEnabled = false
+
 // will be optimized out in release mode
 @_transparent
 func debugLog(_ message: @autoclosure () -> String) {
     #if DEBUG
+    guard gIsLoggingEnabled else { return }
     print(message())
     #endif
 }

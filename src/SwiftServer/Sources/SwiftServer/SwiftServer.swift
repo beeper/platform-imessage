@@ -54,6 +54,11 @@ import Foundation
         }
         exports = [
             "init": try NodeFunction(in: context) { ctx, info in
+                if info.arguments.count == 1,
+                   let isLoggingEnabled = try? info.arguments[0].as(NodeBool.self)?.bool() {
+                    gIsLoggingEnabled = isLoggingEnabled
+                }
+
                 debugLog("initializing SwiftServer...")
                 let deferred = try NodePromise.Deferred(in: ctx)
                 let tsfn = try NodeThreadsafeFunction<Error?>(

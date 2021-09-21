@@ -29,7 +29,7 @@ export type SwiftServer = {
   ) => void
   setReaction: (guid: string, offset: number, reaction: string, on: boolean) => void
   dispose: () => void
-  init: () => Promise<void>
+  init: (isLoggingEnabled?: boolean) => Promise<void>
 }
 
 const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`)

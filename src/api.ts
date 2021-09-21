@@ -53,7 +53,7 @@ export default class AppleiMessage implements PlatformAPI {
   private initSwiftServer = async () => {
     if (!IS_BIG_SUR_OR_UP) return
     try {
-      await __swiftServer.init()
+      await __swiftServer.init(texts.isLoggingEnabled || texts.IS_DEV)
       return __swiftServer
     } catch (err) {
       texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
