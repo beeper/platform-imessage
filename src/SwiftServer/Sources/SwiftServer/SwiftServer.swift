@@ -115,6 +115,16 @@ import Foundation
                     try controller().markAsRead(guid: guidString)
                 }
             },
+            "sendTypingStatus": try NodeFunction(in: context) { ctx, info in
+                guard info.arguments.count == 2,
+                      let isTyping = try? info.arguments[0].as(NodeBool.self)?.bool(),
+                      let address = try? info.arguments[1].as(NodeString.self)?.string()
+                else { return try NodeUndefined(in: ctx) }
+                try MessagesController.queue.sync {
+                    try controller().sendTypingStatus(isTyping, address: address)
+                }
+                return try NodeUndefined(in: ctx)
+            },
             "watchThreadActivity": try NodeFunction(in: context) { ctx, info in
                 let args: (String, (MessagesController.ActivityStatus) -> Void)?
                 if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {

@@ -404,7 +404,7 @@ final class MessagesController {
 
         if app.isHidden {
             app.unhide()
-            try Self.retry(withTimeout: 1) {
+            try Self.retry(withTimeout: 2) {
                 guard !app.isHidden else {
                     throw ErrorMessage("Could not un-hide Messages")
                 }
@@ -494,14 +494,17 @@ final class MessagesController {
         return url
     }
 
-    private func deepLink(forAddresses addresses: [String]) throws -> URL {
+    private func deepLink(forAddresses addresses: [String], body: String? = nil) throws -> URL {
         var components = URLComponents()
         components.scheme = "imessage"
         components.path = "open"
-        components.queryItems = [URLQueryItem(
-            name: addresses.count == 1 ? "address" : "addresses",
-            value: addresses.joined(separator: ",")
-        )]
+        components.queryItems = [
+            URLQueryItem(
+                name: addresses.count == 1 ? "address" : "addresses",
+                value: addresses.joined(separator: ",")
+            ),
+            URLQueryItem(name: "body", value: body)
+        ]
         return try components.url
             .orThrow(ErrorMessage("Invalid iMessage addresses: \(addresses)"))
     }
@@ -609,6 +612,22 @@ final class MessagesController {
             waitUntilSelected(isCompose: false, timeout: 0.5)
 
             debugLog("Done!")
+        }
+    }
+
+    func sendTypingStatus(_ isTyping: Bool, address: String) throws {
+        debugLog("Sending typing status \(isTyping) for address \(address)")
+
+        let url = try self.deepLink(forAddresses: [address], body: isTyping ? "\0" : nil)
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            if isTyping { return } // no further action required
+            let messageField = try mainWindow.child(withID: "messageBodyField")
+                .orThrow(ErrorMessage("Could not find message body field"))
+            try messageField.value(assign: "")
         }
     }
 

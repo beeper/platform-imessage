@@ -23,6 +23,7 @@ export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Attribute[] | undefined)
   createThread: (addresses: string[]) => void
   markRead: (guid: string) => Promise<void>
+  sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
   watchThreadActivity: (
     address: string | null,
     onTyping?: (status: ActivityStatus) => void

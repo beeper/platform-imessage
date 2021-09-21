@@ -20,12 +20,18 @@ const info: PlatformInfo = {
     Attribute.CAN_MESSAGE_EMAIL,
     Attribute.SUPPORTS_SEARCH,
     Attribute.NO_SUPPORT_GROUP_TITLE_CHANGE,
-    Attribute.NO_SUPPORT_TYPING_INDICATOR,
     Attribute.NO_SUPPORT_GROUP_ADD_PARTICIPANT,
     Attribute.NO_SUPPORT_GROUP_REMOVE_PARTICIPANT,
     Attribute.NO_SUPPORT_DUPLICATE_GROUP_CREATION,
     Attribute.SORT_MESSAGES_ON_PUSH,
-    ...(IS_BIG_SUR_OR_UP ? [Attribute.SUBSCRIBE_TO_THREAD_SELECTION] : []),
+    ...(IS_BIG_SUR_OR_UP
+      ? [
+        Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
+        Attribute.SUPPORTS_STOP_TYPING_INDICATOR,
+      ]
+      : [
+        Attribute.NO_SUPPORT_TYPING_INDICATOR,
+      ]),
   ]),
   reactions: IS_BIG_SUR_OR_UP ? {
     supported: supportedReactions,

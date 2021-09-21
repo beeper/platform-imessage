@@ -79,6 +79,13 @@ export default class AppleiMessage implements PlatformAPI {
     return this._swiftServer
   }
 
+  private static singleParticipantForThread(threadID: string | null): string | null {
+    if (!threadID?.startsWith('iMessage;-;')) {
+      return null
+    }
+    return threadID.split(';', 3).pop()
+  }
+
   init = async (_: undefined, { dataDirPath }: AccountInfo) => {
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we have FDA which means user went through auth flow
@@ -277,9 +284,13 @@ export default class AppleiMessage implements PlatformAPI {
     return result
   }
 
-  sendActivityIndicator = (type: ActivityType, threadID: string) => {
-    // const userID = threadID.split(';').pop()
-    // console.log(userID)
+  sendActivityIndicator = async (type: ActivityType, threadID: string) => {
+    console.log('send activity', type, threadID)
+    if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
+    const participantID = AppleiMessage.singleParticipantForThread(threadID)
+    // only 1-to-1 conversations are supported
+    if (!participantID) return
+    (await this.getSwiftServer()).sendTypingStatus(type === ActivityType.TYPING, participantID)
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
@@ -308,12 +319,13 @@ export default class AppleiMessage implements PlatformAPI {
     const swiftServer = await this.getSwiftServer()
     if (!swiftServer) return
 
-    if (!threadID?.startsWith('iMessage;-;')) { // ignore groups and sms threads
+    // ignore groups and sms threads
+    const participantID = AppleiMessage.singleParticipantForThread(threadID)
+    if (!participantID) {
       swiftServer.watchThreadActivity(null)
       return
     }
 
-    const participantID = threadID.split(';').pop()
     swiftServer.watchThreadActivity(participantID, status => {
       this.onEvent([
         {
