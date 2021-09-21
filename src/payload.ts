@@ -55,19 +55,22 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
   if (url && url.startsWith('https://twitter.com')) {
     const { tweetID, username } = parseTweetURL(url) || {}
     if (username) {
-      return {
-        attachments: undefined,
-        tweets: [{
-          id: tweetID,
-          user: {
-            username,
-            imgURL: ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
-            name: title?.split(' on ')?.shift(),
-          },
-          url,
-          text: trimStart(trimEnd(summary, '”'), '“'),
-          attachments: [ppa[image?.richLinkImageAttachmentSubstituteIndex], ...attachments].filter(Boolean),
-        }],
+      const tweet = {
+        id: tweetID,
+        user: {
+          username,
+          imgURL: ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
+          name: title?.split(' on ')?.shift(),
+        },
+        url,
+        text: trimStart(trimEnd(summary, '”'), '“'),
+        attachments: [ppa[image?.richLinkImageAttachmentSubstituteIndex], ...attachments].filter(Boolean),
+      }
+      if (tweet.attachments.length > 0 || tweet.text) {
+        return {
+          attachments: undefined,
+          tweets: [tweet],
+        }
       }
     }
   }
