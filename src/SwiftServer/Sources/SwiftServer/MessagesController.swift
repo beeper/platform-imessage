@@ -618,7 +618,12 @@ final class MessagesController {
     func sendTypingStatus(_ isTyping: Bool, address: String) throws {
         debugLog("Sending typing status \(isTyping) for address \(address)")
 
-        let url = try self.deepLink(forAddresses: [address], body: isTyping ? "\0" : nil)
+        // a space is enough to send a typing indicator, while ensuring that
+        // users can't accidentally hit return to send a single-char message
+        // (since Messages special-cases space-only messages). The NUL byte
+        // is another option that doesn't get sent to the server, but it
+        // shows up client-side as a ghost message.
+        let url = try self.deepLink(forAddresses: [address], body: isTyping ? " " : nil)
 
         activityLock.lock()
         defer { activityLock.unlock() }
