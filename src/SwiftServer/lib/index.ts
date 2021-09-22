@@ -32,7 +32,10 @@ export type SwiftServer = {
   init: (isLoggingEnabled?: boolean) => Promise<void>
 }
 
-const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`)
+const computedBinariesPath = __dirname.includes('.app/')
+  ? BINARIES_DIR_PATH
+  : '../../../binaries'
+const swiftServerPath = path.join(computedBinariesPath, `swift_${process.arch}.node`)
 
 let _swiftServer: SwiftServer | undefined
 // darwin >= 18.5.0 (macOS 10.14.4)
