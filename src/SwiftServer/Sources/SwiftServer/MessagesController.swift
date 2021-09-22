@@ -428,7 +428,11 @@ final class MessagesController {
                     let max = try (splitter.maxValue() as? CGFloat)
                         .orThrow(ErrorMessage("Could not interact with splitter"))
                     // -1 gives the value some wiggle room; using exactly `min` doesn't always work
-                    try splitter.value(assign: (needsCollapsedSidebar ? min : max) - 1)
+                    // also, we need to increment before we can decrement, for some reason
+                    try splitter.value(assign: max - 1)
+                    if needsCollapsedSidebar {
+                        try splitter.value(assign: min - 1)
+                    }
                 }
             } catch {
                 debugLog("warning: Could not update Messages splitter")
