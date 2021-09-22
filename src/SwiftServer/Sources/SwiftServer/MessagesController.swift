@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import AccessibilityControl
+import WindowControl
 
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
@@ -297,14 +298,13 @@ final class MessagesController {
         }
 
         // the main Messages window might be closed. Let's open it
-        try NSWorkspace.shared.open(Self.composeURL, options: [.andHide, .withoutActivation], configuration: [:])
+        try NSWorkspace.shared.open(Self.composeURL, options: [], configuration: [:])
 
         self.mainWindow = try Self.retry(withTimeout: alreadyRunning ? 2 : 10, interval: 0.1, getMainWindow)
 
-        if alreadyRunning {
-            // we can hide Messages
-            app.hide()
-        }
+        let space = try Space(newSpaceOfKind: .user)
+        let mwin = try Window(id: mainWindow.windowID())
+        try mwin.moveToSpace(space)
 
         guard let conversations = mainWindow.child(withID: "ConversationList") else {
             throw ErrorMessage("Could not get Messages conversation list")

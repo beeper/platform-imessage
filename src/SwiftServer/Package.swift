@@ -16,12 +16,24 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "AccessibilityControl"
+            name: "CWindowControl"
+        ),
+        .target(
+            name: "WindowControl",
+            dependencies: ["CWindowControl"]
+        ),
+        .target(
+            name: "CAccessibilityControl"
+        ),
+        .target(
+            name: "AccessibilityControl",
+            dependencies: ["CAccessibilityControl", "WindowControl"]
         ),
         .target(
             name: "SwiftServer",
             dependencies: [
                 "AccessibilityControl",
+                "WindowControl",
                 .product(name: "NodeAPI", package: "node-swift")
             ]
         ),

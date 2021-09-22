@@ -1,5 +1,7 @@
 import Foundation
 import ApplicationServices
+import CAccessibilityControl
+import WindowControl
 
 extension Accessibility {
     @dynamicMemberLookup
@@ -113,5 +115,13 @@ extension Accessibility.Element: AccessibilityConvertible {
     }
     public convenience init?(axRaw: AnyObject) {
         self.init(erased: axRaw)
+    }
+}
+
+extension Accessibility.Element {
+    public func windowID() throws -> Window.ID {
+        var id: CGWindowID = 0
+        try Accessibility.check(_AXUIElementGetWindow(raw, &id))
+        return .init(id)
     }
 }

@@ -1,0 +1,4 @@
+module CWindowControl {
+    umbrella header "WindowControl.h"
+    link "CoreGraphics"
+}
