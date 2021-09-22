@@ -420,11 +420,15 @@ final class MessagesController {
         if changeFrame {
             let needsCollapsedSidebar = targetFrame.width < Self.sidebarThreshold
             do {
-                let min = try splitter.minValue()
-                let hasCollapsedSidebar = try (splitter.value() as? CGFloat) == (min as? CGFloat)
+                let min = try (splitter.minValue() as? CGFloat)
+                    .orThrow(ErrorMessage("Could not interact with splitter"))
+                let hasCollapsedSidebar = try (splitter.value() as? CGFloat) == min
                 if needsCollapsedSidebar != hasCollapsedSidebar {
                     debugLog("Changing sidebar collapsed state from \(hasCollapsedSidebar as Any) to \(needsCollapsedSidebar)")
-                    try splitter.value(assign: needsCollapsedSidebar ? min : splitter.maxValue())
+                    let max = try (splitter.maxValue() as? CGFloat)
+                        .orThrow(ErrorMessage("Could not interact with splitter"))
+                    // -1 gives the value some wiggle room; using exactly `min` doesn't always work
+                    try splitter.value(assign: (needsCollapsedSidebar ? min : max) - 1)
                 }
             } catch {
                 debugLog("warning: Could not update Messages splitter")
