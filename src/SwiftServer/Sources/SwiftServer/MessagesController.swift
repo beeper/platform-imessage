@@ -192,7 +192,6 @@ final class MessagesController {
 
     static let queue = DispatchQueue(label: "swift-server-queue")
 
-    private static let textsBundleID = "com.kishanbagaria.jack"
     private static let messagesBundleID = "com.apple.MobileSMS"
     private static let messagesBundle = NSWorkspace.shared.urlForApplication(
         withBundleIdentifier: messagesBundleID
@@ -200,46 +199,17 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 3
 
-    private static let shadowMargin: CGFloat = 32
-    // iMessage doesn't go smaller than this
-    private static let minSize = CGSize(width: 434, height: 320)
-    // Anything smaller than this width requires a collapsed sidebar
-    private static let sidebarThreshold: CGFloat = 660
-    // the Texts sidebar (usually) takes up at most this proportion
-    // of the window's width
-    private static let textsSidebarWidthFactor: CGFloat = 0.5
-
-    private let textsApp: NSRunningApplication
-    private let textsWindow: Accessibility.Element
+    private let space: Space
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
     private let mainWindow: Accessibility.Element
     private let conversations: Accessibility.Element
-    private let splitter: Accessibility.Element
 
     private var timer: Timer?
     private var loopThread: RunLoopThread?
     private var token: Accessibility.Observer.Token?
 
     private var activityObserver: ActivityObserver?
-
-    private static func messagesFrame(for textsFrame: CGRect) -> CGRect {
-        let rightAlignedPos: CGFloat?
-        if let screenWidth = NSApp.mainWindow?.screen?.frame.width, textsFrame.maxX >= screenWidth - .ulpOfOne {
-            rightAlignedPos = screenWidth - 20
-        } else {
-            rightAlignedPos = nil
-        }
-
-        let targetWidth = max(Self.minSize.width, textsFrame.width * Self.textsSidebarWidthFactor - Self.shadowMargin)
-        let targetHeight = max(Self.minSize.height, textsFrame.height - Self.shadowMargin)
-        return CGRect(
-            x: rightAlignedPos ?? (textsFrame.maxX - targetWidth),
-            y: textsFrame.minY,
-            width: targetWidth,
-            height: targetHeight
-        )
-    }
 
     private static func retry<T>(
         withTimeout timeout: TimeInterval,
@@ -263,29 +233,18 @@ final class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
-        // TODO: Can we parallelize fetching the Texts and Messages windows?
-
-        guard let textsApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.textsBundleID).first else {
-            throw ErrorMessage("Could not find running Texts instance")
-        }
-        self.textsApp = textsApp
-        let textsAppElement = Accessibility.Element(pid: textsApp.processIdentifier)
-        self.textsWindow = try Self.retry(withTimeout: 10, interval: 0.1) { () throws -> Accessibility.Element in
-            guard let textsWindow = try? textsAppElement.appMainWindow() else {
-                throw ErrorMessage("Could not find Texts main window")
-            }
-            return textsWindow
-        }
-
-        let alreadyRunning: Bool
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
-            app = running
-            alreadyRunning = true
-        } else {
-            debugLog("Launching Messages...")
-            app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: .andHide, configuration: [:])
-            alreadyRunning = false
+            debugLog("Terminating existing Messages...")
+            running.terminate()
+            try Self.retry(withTimeout: 1, interval: 0.1) {
+                guard running.isTerminated else {
+                    throw ErrorMessage("Could not restart Messages")
+                }
+            }
         }
+
+        debugLog("Launching Messages...")
+        app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: [], configuration: [:])
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
@@ -297,24 +256,26 @@ final class MessagesController {
             return child
         }
 
-        // the main Messages window might be closed. Let's open it
-        try NSWorkspace.shared.open(Self.composeURL, options: [], configuration: [:])
+        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow)
 
-        self.mainWindow = try Self.retry(withTimeout: alreadyRunning ? 2 : 10, interval: 0.1, getMainWindow)
+        space = try Space(newSpaceOfKind: .fullscreen)
+        try mainWindow.window().moveToSpace(space)
 
-        let space = try Space(newSpaceOfKind: .user)
-        let mwin = try Window(id: mainWindow.windowID())
-        try mwin.moveToSpace(space)
+        let existing = try Space.list(.allSpaces)
+        print("NUMBER OF SPACES: \(existing.count)")
+        existing.forEach {
+            print("Name: \((try? $0.name()) as Any)")
+            print("Kind: \((try? $0.kind()) as Any)")
+            print("Owners: \((try? $0.owners()) ?? [])")
+        }
+//        existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
+//            $0.destroy()
+//        }
 
         guard let conversations = mainWindow.child(withID: "ConversationList") else {
             throw ErrorMessage("Could not get Messages conversation list")
         }
         self.conversations = conversations
-
-        guard let splitter = mainWindow.recursiveChildren().first(where: { (try? $0.role()) == "AXSplitter" }) else {
-            throw ErrorMessage("Could not get Messages splitter")
-        }
-        self.splitter = splitter
 
         // we need a run loop for polling (and for any future AX observers), but Node
         // doesn't offer us one (since it uses its own uv loop which is incompatible
@@ -351,8 +312,6 @@ final class MessagesController {
     var isValid: Bool {
         !app.isTerminated
             && (try? mainWindow.frame()) != nil
-            && (try? textsWindow.frame()) ?? .zero != .zero
-            && !textsApp.isHidden
             && conversations.isValid
     }
 
@@ -381,86 +340,6 @@ final class MessagesController {
         openBefore: URL?, openAfter: URL?,
         perform: () throws -> Void
     ) throws -> String? {
-        let changeVisibility: Bool
-        if (try? mainWindow.isMinimized()) == true {
-            try mainWindow.isMinimized(assign: false)
-            try Self.retry(withTimeout: 1) {
-                guard (try? mainWindow.isMinimized()) == false else {
-                    throw ErrorMessage("Could not un-minimize main window")
-                }
-            }
-            changeVisibility = true
-        } else if (try? mainWindow.isFullScreen()) == true {
-            try mainWindow.isFullScreen(assign: false)
-            try Self.retry(withTimeout: 1) {
-                guard (try? mainWindow.isFullScreen()) == false else {
-                    throw ErrorMessage("Could not un-fullscreen main window")
-                }
-            }
-            changeVisibility = true
-        } else {
-            changeVisibility = true // app.isHidden
-        }
-
-        if app.isHidden {
-            app.unhide()
-            try Self.retry(withTimeout: 2) {
-                guard !app.isHidden else {
-                    throw ErrorMessage("Could not un-hide Messages")
-                }
-            }
-        }
-
-        let textsFrame = try textsWindow.frame()
-        let targetFrame = Self.messagesFrame(for: textsFrame)
-        let oldFrame = try mainWindow.frame()
-        let changeFrame = oldFrame != targetFrame
-//            // iff oldFrame is contained inside textsFrame
-//            && (changeVisibility || oldFrame.intersection(textsFrame) == oldFrame)
-        if changeFrame {
-            let needsCollapsedSidebar = targetFrame.width < Self.sidebarThreshold
-            do {
-                let min = try (splitter.minValue() as? CGFloat)
-                    .orThrow(ErrorMessage("Could not interact with splitter"))
-                let hasCollapsedSidebar = try (splitter.value() as? CGFloat) == min
-                if needsCollapsedSidebar != hasCollapsedSidebar {
-                    debugLog("Changing sidebar collapsed state from \(hasCollapsedSidebar as Any) to \(needsCollapsedSidebar)")
-                    let max = try (splitter.maxValue() as? CGFloat)
-                        .orThrow(ErrorMessage("Could not interact with splitter"))
-                    // -1 gives the value some wiggle room; using exactly `min` doesn't always work
-                    // also, we need to increment before we can decrement, for some reason
-                    try splitter.value(assign: max - 1)
-                    if needsCollapsedSidebar {
-                        try splitter.value(assign: min - 1)
-                    }
-                }
-            } catch {
-                debugLog("warning: Could not update Messages splitter")
-            }
-
-            debugLog("Moving messages to \(targetFrame)")
-            try mainWindow.setFrame(targetFrame)
-
-            do {
-                try Self.retry(withTimeout: 0.5) {
-                    guard (try? mainWindow.frame()) != oldFrame else {
-                        throw ErrorMessage("Could not change Messages frame")
-                    }
-                }
-            } catch {
-                debugLog("warning: \(error)")
-            }
-        }
-
-        defer {
-            if changeVisibility {
-                app.hide()
-            }
-//            if changeFrame {
-//                try? mainWindow.setWindowFrame(oldFrame)
-//            }
-        }
-
         if let openBefore = openBefore {
             try NSWorkspace.shared.open(openBefore, options: [.andHide, .withoutActivation], configuration: [:])
         }
@@ -706,5 +585,6 @@ final class MessagesController {
     deinit {
         timer?.invalidate()
         loopThread?.cancel()
+        app.terminate()
     }
 }

@@ -55,7 +55,7 @@ typedef enum {
 ///
 ///     "type": CFNumberRef
 ///     "uuid": CFStringRef
-CG_EXTERN CGSSpaceID CGSSpaceCreate(CGSConnectionID cid, void *null, CFDictionaryRef options);
+CG_EXTERN CGSSpaceID CGSSpaceCreate(CGSConnectionID cid, void *unknown, CFDictionaryRef options);
 
 /// Removes and destroys the space corresponding to the given space ID.
 CG_EXTERN void CGSSpaceDestroy(CGSConnectionID cid, CGSSpaceID sid);
