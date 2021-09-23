@@ -25,6 +25,8 @@ func debugLog(_ message: @autoclosure () -> String) {
 
 extension Accessibility.Notification {
     static let layoutChanged = Self(kAXLayoutChangedNotification)
+    static let applicationActivated = Self(kAXApplicationActivatedNotification)
+    static let applicationDeactivated = Self(kAXApplicationDeactivatedNotification)
 }
 
 extension Accessibility.Names {
@@ -207,7 +209,9 @@ final class MessagesController {
 
     private var timer: Timer?
     private var loopThread: RunLoopThread?
-    private var token: Accessibility.Observer.Token?
+
+    private var activateToken: Accessibility.Observer.Token?
+    private var deactivateToken: Accessibility.Observer.Token?
 
     private var activityObserver: ActivityObserver?
 
@@ -244,7 +248,7 @@ final class MessagesController {
         }
 
         debugLog("Launching Messages...")
-        app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: [], configuration: [:])
+        app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: [.andHide], configuration: [:])
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
@@ -294,6 +298,12 @@ final class MessagesController {
                 userInfo: nil,
                 repeats: true
             )
+            self.activateToken = try? self.appElement.observe(.applicationActivated) { [weak self] _ in
+                self?.activateMessages()
+            }
+            self.deactivateToken = try? self.appElement.observe(.applicationDeactivated) { [weak self] _ in
+                self?.deactivateMessages()
+            }
         }
         thread.qualityOfService = .utility
         thread.start()
@@ -512,6 +522,24 @@ final class MessagesController {
             let messageField = try mainWindow.child(withID: "messageBodyField")
                 .orThrow(ErrorMessage("Could not find message body field"))
             try messageField.value(assign: "")
+        }
+    }
+
+    // when the user manually cmd+tab's or clicks the Messages dock icon,
+    // we want to actually show the app
+    private func activateMessages() {
+        do {
+            try mainWindow.window().moveToSpace(.active())
+        } catch {
+            print("warning: Could not show Messages window: \(error)")
+        }
+    }
+
+    private func deactivateMessages() {
+        do {
+            try mainWindow.window().moveToSpace(space)
+        } catch {
+            print("warning: Could not hide Messages window: \(error)")
         }
     }
 

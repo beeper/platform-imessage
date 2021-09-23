@@ -156,21 +156,18 @@ public struct Window: Hashable {
         return rawSpaces.map { Space(raw: $0) }
     }
 
+    public func move(from first: Space?, to second: Space, for connection: GraphicsConnection = .main) throws {
+        guard first != second else { return } // no-op
+        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
+        first.map { CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, [$0.raw] as CFArray) }
+    }
+
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
         let curr = try currentSpaces(.allSpaces, for: connection)
-        switch curr.count {
-        case 0:
-            throw Error.windowNotFound
-        case 2...:
+        if curr.count > 1 {
             throw Error.windowOnMultipleSpaces
-        default:
-            break
         }
-        let curSpace = curr[0]
-        // no-op
-        guard space != curSpace else { return }
-        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [space.raw] as CFArray)
-        CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, [curSpace.raw] as CFArray)
+        try move(from: curr.first, to: space, for: connection)
     }
 
     public func describe() throws -> Description {
