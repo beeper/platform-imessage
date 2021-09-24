@@ -80,13 +80,13 @@ extension Accessibility.Element {
 
     func printAttributes() {
         for act in (try? supportedActions()) ?? [] {
-            print("[action] \(act.name): \(act.description)")
+            debugLog("[action] \(act.name): \(act.description)")
         }
         for att in (try? supportedAttributes()) ?? [] {
-            print("[regular] \(att.name): \((try? att()) as Any)")
+            debugLog("[regular] \(att.name): \((try? att()) as Any)")
         }
         for att in (try? supportedParameterizedAttributes()) ?? [] {
-            print("[parameterized] \(att)")
+            debugLog("[parameterized] \(att)")
         }
     }
 
@@ -276,11 +276,11 @@ final class MessagesController {
         lastActiveSpace = try Self.moveWindow(mainWindow, to: space)
 
         let existing = try Space.list(.allSpaces)
-        print("NUMBER OF SPACES: \(existing.count)")
+        debugLog("Number of spaces: \(existing.count)")
         existing.forEach {
-            print("Name: \((try? $0.name()) as Any)")
-            print("Kind: \((try? $0.kind()) as Any)")
-            print("Owners: \((try? $0.owners()) ?? [])")
+            debugLog("Name: \((try? $0.name()) as Any)")
+            debugLog("Kind: \((try? $0.kind()) as Any)")
+            debugLog("Owners: \((try? $0.owners()) ?? [])")
         }
 //        existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
 //            $0.destroy()
@@ -492,7 +492,7 @@ final class MessagesController {
             try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
 
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-                print("warning: Cell for message \(guid) could not be found.")
+                debugLog("warning: Cell for message \(guid) could not be found.")
                 return
             }
 
@@ -541,7 +541,7 @@ final class MessagesController {
         do {
             try mainWindow.window().moveToSpace(lastActiveSpace)
         } catch {
-            print("warning: Could not show Messages window: \(error)")
+            debugLog("warning: Could not show Messages window: \(error)")
         }
     }
 
@@ -549,7 +549,7 @@ final class MessagesController {
         do {
             lastActiveSpace = try Self.moveWindow(mainWindow, to: space)
         } catch {
-            print("warning: Could not hide Messages window: \(error)")
+            debugLog("warning: Could not hide Messages window: \(error)")
         }
     }
 
