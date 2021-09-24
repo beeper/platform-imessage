@@ -239,10 +239,11 @@ final class MessagesController {
 
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
             debugLog("Terminating existing Messages...")
-            running.terminate()
-            try Self.retry(withTimeout: 1, interval: 0.1) {
-                guard running.isTerminated else {
-                    throw ErrorMessage("Could not restart Messages")
+            if running.terminate() {
+                try? Self.retry(withTimeout: 1, interval: 0.1) {
+                    guard running.isTerminated else {
+                        throw ErrorMessage("Could not restart Messages")
+                    }
                 }
             }
         }
