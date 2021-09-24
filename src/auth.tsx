@@ -136,7 +136,7 @@ const AXAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
           If Texts doesn&apos;t show up in the list, try adding it manually by clicking the + button and selecting Texts.app from your Applications folder
         </div>
       ) : <div className="show-more-info grayed" onClick={() => setShowMore(true)}>Having trouble?</div>}
-      {renderWhyNeeded('Accessibility access allows Texts to power mark as read and other functionality.')}
+      {renderWhyNeeded('Accessibility access allows Texts to power many iMessage features.')}
     </>
   )
   return (
@@ -288,7 +288,6 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
     <ol>
       {!IS_BIG_SUR_OR_UP && <li>On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported.</li>}
       <li>Reacting to non-text messages isn't supported.</li>
-      <li>Sending typing indicator to the recipient isn't supported.</li>
       {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to will open Messages.app.</li>}
       <li>Messages.app needs to be open in the background for certain functionality but you can hide/minimize it.</li>
     </ol>
