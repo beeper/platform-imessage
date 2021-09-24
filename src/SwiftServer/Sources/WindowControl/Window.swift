@@ -157,7 +157,7 @@ public struct Window: Hashable {
     }
 
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {
-        print("Move from \(spaces.map(\.raw)) to \(second.raw)")
+//        print("Move from \(spaces.map(\.raw)) to \(second.raw)")
         guard spaces.count != 1 || spaces[0] != second else { return } // no-op
         CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
         CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
