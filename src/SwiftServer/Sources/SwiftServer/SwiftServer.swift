@@ -165,7 +165,10 @@ import Foundation
             },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 debugLog("disposing SwiftServer...")
-                MessagesController.queue.sync { _controller = nil }
+                MessagesController.queue.sync {
+                    _controller?.dispose()
+                    _controller = nil
+                }
                 return try NodeUndefined(in: ctx)
             }
         ]

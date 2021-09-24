@@ -201,6 +201,7 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 3
 
+    private var lastActiveSpace: Space
     private let space: Space
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
@@ -214,6 +215,14 @@ final class MessagesController {
     private var deactivateToken: Accessibility.Observer.Token?
 
     private var activityObserver: ActivityObserver?
+
+    // returns last active space
+    private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Space {
+        let windowCG = try window.window()
+        let lastActiveSpace = try windowCG.currentSpaces(.allVisibleSpaces).first ?? .active()
+        try windowCG.moveToSpace(space)
+        return lastActiveSpace
+    }
 
     private static func retry<T>(
         withTimeout timeout: TimeInterval,
@@ -264,7 +273,7 @@ final class MessagesController {
         self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow)
 
         space = try Space(newSpaceOfKind: .fullscreen)
-        try mainWindow.window().moveToSpace(space)
+        lastActiveSpace = try Self.moveWindow(mainWindow, to: space)
 
         let existing = try Space.list(.allSpaces)
         print("NUMBER OF SPACES: \(existing.count)")
@@ -530,7 +539,7 @@ final class MessagesController {
     // we want to actually show the app
     private func activateMessages() {
         do {
-            try mainWindow.window().moveToSpace(.active())
+            try mainWindow.window().moveToSpace(lastActiveSpace)
         } catch {
             print("warning: Could not show Messages window: \(error)")
         }
@@ -538,7 +547,7 @@ final class MessagesController {
 
     private func deactivateMessages() {
         do {
-            try mainWindow.window().moveToSpace(space)
+            lastActiveSpace = try Self.moveWindow(mainWindow, to: space)
         } catch {
             print("warning: Could not hide Messages window: \(error)")
         }
@@ -611,9 +620,13 @@ final class MessagesController {
         activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
     }
 
+    // this is called before the final deinit
+    func dispose() {
+        app.terminate()
+    }
+
     deinit {
         timer?.invalidate()
         loopThread?.cancel()
-        app.terminate()
     }
 }
