@@ -285,6 +285,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   sendActivityIndicator = async (type: ActivityType, threadID: string) => {
+    if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
     const participantID = AppleiMessage.singleParticipantForThread(threadID)
     // only 1-to-1 conversations are supported
