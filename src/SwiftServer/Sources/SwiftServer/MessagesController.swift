@@ -535,8 +535,17 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
+        let initialTitle = try? mainWindow.windowTitle()
+
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
+
+            try? Self.retry(withTimeout: 0.5, interval: 0.1) {
+                guard try mainWindow.windowTitle() != initialTitle else {
+                    throw ErrorMessage("")
+                }
+            }
+
             let messageField = try Self.retry(withTimeout: 1, interval: 0.1) {
                 try mainWindow.child(withID: "messageBodyField")
                     .orThrow(ErrorMessage("Could not find message body field"))
