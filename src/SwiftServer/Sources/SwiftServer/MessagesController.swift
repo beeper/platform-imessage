@@ -529,8 +529,10 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
-            let messageField = try mainWindow.child(withID: "messageBodyField")
-                .orThrow(ErrorMessage("Could not find message body field"))
+            let messageField = try Self.retry(withTimeout: 1, interval: 0.1) {
+                try mainWindow.child(withID: "messageBodyField")
+                    .orThrow(ErrorMessage("Could not find message body field"))
+            }
             try messageField.value(assign: "")
         }
     }
