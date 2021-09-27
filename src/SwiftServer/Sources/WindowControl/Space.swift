@@ -53,13 +53,14 @@ public class Space: Hashable {
     }
 
     public static func active(for connection: GraphicsConnection = .main) throws -> Space {
-        Space(raw: CGSGetActiveSpace(connection.raw))
+        try Space(raw: CGSGetActiveSpace(connection.raw)).orThrow(Error.invalid)
     }
 
     public let raw: CGSSpaceID
     private let destroyWhenDone: Bool
 
-    public init(raw: CGSSpaceID) {
+    public init?(raw: CGSSpaceID) {
+        guard raw != 0 else { return nil }
         self.raw = raw
         self.destroyWhenDone = false
     }
@@ -114,7 +115,7 @@ public class Space: Hashable {
     ) throws -> [Space] {
         guard let ids = CGSCopySpaces(connection.raw, options.raw)?.takeRetainedValue() as? [CGSSpaceID]
             else { throw Error.listFailed }
-        return ids.map(Space.init(raw:))
+        return try ids.map { try Space(raw: $0).orThrow(Error.listFailed) }
     }
 
     deinit {

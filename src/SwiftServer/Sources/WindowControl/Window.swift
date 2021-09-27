@@ -153,7 +153,7 @@ public struct Window: Hashable {
         guard let rawSpaces = CGSCopySpacesForWindows(connection.raw, options.raw, [raw] as CFArray)?
                 .takeRetainedValue() as? [CGSSpaceID]
         else { throw Error.windowNotFound }
-        return rawSpaces.map { Space(raw: $0) }
+        return try rawSpaces.map { try Space(raw: $0).orThrow(Space.Error.invalid) }
     }
 
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {

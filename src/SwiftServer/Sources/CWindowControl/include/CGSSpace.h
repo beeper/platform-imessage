@@ -141,6 +141,9 @@ CG_EXTERN void CGSRemoveWindowsFromSpaces(CGSConnectionID cid, CFArrayRef window
 
 CG_EXTERN CFStringRef kCGSPackagesMainDisplayIdentifier;
 
+/// Returns the active space for a given display
+CG_EXTERN CGSSpaceID CGSManagedDisplayGetCurrentSpace(CGSConnectionID cid, CFStringRef display);
+
 /// Changes the active space for a given display.
 CG_EXTERN void CGSManagedDisplaySetCurrentSpace(CGSConnectionID cid, CFStringRef display, CGSSpaceID space);
 

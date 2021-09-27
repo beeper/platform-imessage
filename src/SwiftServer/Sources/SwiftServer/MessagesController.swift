@@ -199,9 +199,9 @@ final class MessagesController {
         withBundleIdentifier: messagesBundleID
     )!
 
-    private static let pollingInterval: TimeInterval = 3
+    private static let pollingInterval: TimeInterval = 1
 
-    private var lastActiveSpace: Space
+    private var lastActiveDisplay: Display
     private let space: Space
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
@@ -216,12 +216,20 @@ final class MessagesController {
 
     private var activityObserver: ActivityObserver?
 
-    // returns last active space
-    private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Space {
+    // returns last active display
+    private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Display {
         let windowCG = try window.window()
-        let lastActiveSpace = try windowCG.currentSpaces(.allVisibleSpaces).first ?? .active()
+
+        // FIXME: this doesn't seem to work consistently
+        let lastActiveDisplay: Display
+        if let lastActiveSpace = try? windowCG.currentSpaces(.allVisibleSpaces).first,
+           let activeDisplay = try? Display.allOnline().first(where: { try $0.currentSpace() == lastActiveSpace }) {
+            lastActiveDisplay = activeDisplay
+        } else {
+            lastActiveDisplay = .main
+        }
         try windowCG.moveToSpace(space)
-        return lastActiveSpace
+        return lastActiveDisplay
     }
 
     private static func retry<T>(
@@ -273,7 +281,7 @@ final class MessagesController {
         self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow)
 
         space = try Space(newSpaceOfKind: .fullscreen)
-        lastActiveSpace = try Self.moveWindow(mainWindow, to: space)
+        lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
 
         let existing = try Space.list(.allSpaces)
         debugLog("Number of spaces: \(existing.count)")
@@ -541,7 +549,7 @@ final class MessagesController {
     // we want to actually show the app
     private func activateMessages() {
         do {
-            try mainWindow.window().moveToSpace(lastActiveSpace)
+            try mainWindow.window().moveToSpace(lastActiveDisplay.currentSpace())
         } catch {
             debugLog("warning: Could not show Messages window: \(error)")
         }
@@ -549,7 +557,7 @@ final class MessagesController {
 
     private func deactivateMessages() {
         do {
-            lastActiveSpace = try Self.moveWindow(mainWindow, to: space)
+            lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")
         }
