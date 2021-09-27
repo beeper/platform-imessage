@@ -119,9 +119,9 @@ extension Accessibility.Element: AccessibilityConvertible {
 }
 
 extension Accessibility.Element {
-    public func window() throws -> Window {
+    public func window(file: StaticString = #file, line: UInt = #line) throws -> Window {
         var id: CGWindowID = 0
-        try Accessibility.check(_AXUIElementGetWindow(raw, &id))
+        try Accessibility.check(_AXUIElementGetWindow(raw, &id), file: file, line: line)
         return .init(raw: id)
     }
 }
