@@ -278,13 +278,17 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // reply
   if (msgRow.thread_originator_guid) {
     /**
-      * looks like X:Y:Z (0:0:1, 2:2:1, 2:2:18, 2:109:158)
+      * looks like X:Y:Z (0:0:1, 2:2:1, 2:2:18, 2:109:158, 18446744073709551615:0:5)
       * X = message part index
       * Y = original quoted message text start
       * Z = length after Y
+      *
+      * 18446744073709551615 is -1 (https://stackoverflow.com/questions/40608111/why-is-18446744073709551615-1-true)
      */
-    const firstPart = msgRow.thread_originator_part?.split(':')?.[0]
-    partialHeader.linkedMessageID = msgRow.thread_originator_guid + (firstPart === '0' ? '' : `_${firstPart}`)
+    let partIndex = msgRow.thread_originator_part?.split(':')?.[0]
+    if (partIndex === '0') partIndex = ''
+    if (partIndex === '18446744073709551615') partIndex = '-1'
+    partialHeader.linkedMessageID = msgRow.thread_originator_guid + (partIndex ? `_${partIndex}` : '')
   }
 
   let messageParts: MessagePart[] = []
