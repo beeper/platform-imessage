@@ -15,7 +15,7 @@ import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessage
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
-const assocMsgGuidPrefix = /^p:(\d+)\/|bp:/
+const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 const whitespaceRegexGlobal = /\s+/g
 
 function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
