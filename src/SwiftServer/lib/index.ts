@@ -1,16 +1,15 @@
 import path from 'path'
-import os from 'os'
 
-import { BINARIES_DIR_PATH } from '../../constants'
+import { BINARIES_DIR_PATH, IS_SWIFT_STABLE } from '../../constants'
 
 declare const __non_webpack_require__: NodeRequire
 const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require : __non_webpack_require__
 
-export interface Attribute {
-  key: string
-  value: string
+export interface Fragment {
   from: number
   to: number
+  text: string
+  attributes: { [key: string]: string }
 }
 
 export enum ActivityStatus {
@@ -20,7 +19,7 @@ export enum ActivityStatus {
 }
 
 export type SwiftServer = {
-  decodeAttributedString: (data: Buffer) => (Attribute[] | undefined)
+  decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   createThread: (addresses: string[]) => Promise<void>
   markRead: (guid: string) => Promise<void>
   sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
@@ -36,14 +35,8 @@ export type SwiftServer = {
 const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`)
 
 let _swiftServer: SwiftServer | undefined
-// darwin >= 18.5.0 (macOS 10.14.4)
-if (os.platform() === 'darwin') {
-  const release = os.release().split('.')
-  const major = +release[0]
-  const minor = +release[1]
-  if (major > 18 || (major === 18 && minor >= 5)) {
-    _swiftServer = actualRequire(swiftServerPath)
-  }
+if (IS_SWIFT_STABLE) {
+  _swiftServer = actualRequire(swiftServerPath)
 }
 
 const swiftServer = _swiftServer

@@ -12,16 +12,6 @@ import Foundation
             let obj = try NodeObject(in: .current)
             try obj.define(properties: [
                 NodePropertyDescriptor(
-                    name: "key",
-                    attributes: .enumerable,
-                    value: .data(frag.key)
-                ),
-                NodePropertyDescriptor(
-                    name: "value",
-                    attributes: .enumerable,
-                    value: .data("\(frag.value)")
-                ),
-                NodePropertyDescriptor(
                     name: "from",
                     attributes: .enumerable,
                     value: .data(Double(frag.scalarRange.lowerBound))
@@ -30,6 +20,16 @@ import Foundation
                     name: "to",
                     attributes: .enumerable,
                     value: .data(Double(frag.scalarRange.upperBound))
+                ),
+                NodePropertyDescriptor(
+                    name: "text",
+                    attributes: .enumerable,
+                    value: .data(String(frag.text))
+                ),
+                NodePropertyDescriptor(
+                    name: "attributes",
+                    attributes: .enumerable,
+                    value: .data(frag.attributes.mapValues { "\($0)" })
                 ),
             ])
             return obj

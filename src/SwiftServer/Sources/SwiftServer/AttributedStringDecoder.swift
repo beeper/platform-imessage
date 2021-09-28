@@ -2,9 +2,9 @@ import Foundation
 
 enum AttributedStringDecoder {
     struct Fragment {
-        let key: String
-        let value: Any
+        let text: Substring
         let scalarRange: Range<Int>
+        let attributes: [String: Any]
     }
 
     static func decodeAttributedString(from data: Data) throws -> [Fragment]? {
@@ -15,7 +15,7 @@ enum AttributedStringDecoder {
         }
         let string = nsStr.string
 
-        var attributes: [Fragment] = []
+        var fragments: [Fragment] = []
 
         // https://github.com/apple/swift-corelibs-foundation/blob/b3b87b6328325b639032bdc92e384f33f0beef0e/Sources/Foundation/AttributedString/Conversion.swift#L222-L251
         var cursor = string.startIndex
@@ -26,19 +26,19 @@ enum AttributedStringDecoder {
         ) { dict, range, _ in
             let nextCursor = string.utf16.index(cursor, offsetBy: range.length)
             let scalarLen = string.unicodeScalars.distance(from: cursor, to: nextCursor)
+            var attributes: [String: Any] = [:]
             for (key, value) in dict {
-                attributes.append(
-                    Fragment(
-                        key: key.rawValue,
-                        value: value,
-                        scalarRange: curScalar..<(curScalar + scalarLen)
-                    )
-                )
+                attributes[key.rawValue] = value
             }
+            fragments.append(Fragment(
+                text: string[cursor..<nextCursor],
+                scalarRange: curScalar..<(curScalar + scalarLen),
+                attributes: attributes
+            ))
             cursor = nextCursor
             curScalar += scalarLen
         }
 
-        return attributes
+        return fragments
     }
 }
