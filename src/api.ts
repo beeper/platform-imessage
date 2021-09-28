@@ -33,6 +33,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private onEvent: OnServerEventCallback
 
+  private filesToDelete = new Set<string>()
+
   getCurrentUser = async (): Promise<CurrentUser> => {
     this.ensureDB()
     const logins = await this.dbAPI.getAccountLogins()
@@ -103,6 +105,9 @@ export default class AppleiMessage implements PlatformAPI {
   dispose = () => {
     this._swiftServer?.then(s => s.dispose())
     this.api.dispose()
+    this.filesToDelete.forEach(filePath => {
+      fs.unlink(filePath).catch(() => {})
+    })
     return this.dbAPI.dispose()
   }
 
@@ -280,7 +285,7 @@ export default class AppleiMessage implements PlatformAPI {
     const tmpFilePath = path.join(os.tmpdir(), fileName || uuid())
     await fs.writeFile(tmpFilePath, fileBuffer)
     const result = await this.sendFileFromFilePath(threadID, tmpFilePath)
-    fs.unlink(tmpFilePath).catch(() => {})
+    this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
     return result
   }
 
