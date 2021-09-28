@@ -1,4 +1,4 @@
-import { groupBy, omit, truncate, findLast, partial } from 'lodash'
+import { groupBy, omit, truncate, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, texts } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
@@ -278,9 +278,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // reply
   if (msgRow.thread_originator_guid) {
     /**
-     * looks like X:X:Y (0:0:1, 2:2:1, 2:2:18)
-     * X = message part index
-     * Y = original quoted message length
+      * looks like X:Y:Z (0:0:1, 2:2:1, 2:2:18, 2:109:158)
+      * X = message part index
+      * Y = original quoted message text start
+      * Z = length after Y
      */
     const firstPart = msgRow.thread_originator_part?.split(':')?.[0]
     partialHeader.linkedMessageID = msgRow.thread_originator_guid + (firstPart === '0' ? '' : `_${firstPart}`)
@@ -369,7 +370,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       ...firstTextPart,
       linkedMessageID: msgRow.associated_message_guid.replace(assocMsgGuidPrefix, ''),
     }
-    texts.log('found associated message. first text:', firstTextPart, ' - linked message - ', m.linkedMessageID)
+    // texts.log('found associated message. first text:', firstTextPart, ' - linked message - ', m.linkedMessageID)
     const assocMsgType = ASSOC_MSG_TYPE[msgRow.associated_message_type]
     let didFail = false
     switch (assocMsgType) {
@@ -410,12 +411,12 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           m.isHidden = true
         }
     }
-    texts.log('didFail:', didFail)
+    // texts.log('didFail:', didFail)
     if (!didFail) return [m]
   }
 
   messages.forEach(msg => {
-    texts.log('assigning reactions', msg.id, msg.index, reactionRows)
+    // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
     assignReactions(msg, reactionRows, messages.length === 1 ? null : msg.index, currentUserID)
   })
 
