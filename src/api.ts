@@ -313,9 +313,16 @@ export default class AppleiMessage implements PlatformAPI {
   deleteMessage = async (threadID: string, messageID: string) => true
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
-    this.threadReadStore.markThreadRead(threadID, messageID)
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
-    if (IS_BIG_SUR_OR_UP) await (await this.getSwiftServer()).markRead(messageID)
+    this.threadReadStore.markThreadRead(threadID, messageID)
+    if (IS_BIG_SUR_OR_UP) {
+      await (await this.getSwiftServer()).markRead(messageID)
+      if (texts.IS_DEV) {
+        if ((await this.dbAPI.isMessageRead(messageID)) !== 1) {
+          throw Error("didn't mark as read")
+        }
+      }
+    }
   }
 
   onThreadSelected = async (threadID: string) => {

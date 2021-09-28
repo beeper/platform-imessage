@@ -89,6 +89,7 @@ ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
 ${chatGUID ? 'AND t.guid = ?' : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
+  isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
 }
 
 // @ts-expect-error FIXME
@@ -324,6 +325,10 @@ export default class DatabaseAPI {
       return after
     } // else
     throw new Error('closest text message not found')
+  }
+
+  isMessageRead(messageGUID: string): Promise<number> {
+    return this.db.pluck_get(SQLS.isMessageRead, [messageGUID])
   }
 
   // async markMessageRead(messageID: string) {
