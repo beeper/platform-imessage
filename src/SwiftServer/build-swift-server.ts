@@ -1,15 +1,20 @@
 // linter doesn't know that this file is compile-time-only
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { clean, build } from 'node-swift'
+import { clean, build, Config } from 'node-swift'
 import { promises as fsPromises } from 'fs';
 
 (async () => {
-  const buildOptions = {
+  const buildOptions: Config = {
     packagePath: 'src/SwiftServer',
     macVersion: '10.11',
+    swiftFlags: '',
   }
 
   const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
+
+  if (process.argv.includes('--no-spaces')) {
+    buildOptions.swiftFlags += '-DNO_SPACES'
+  }
 
   // await clean();
 

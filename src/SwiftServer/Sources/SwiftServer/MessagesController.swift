@@ -78,18 +78,6 @@ extension Accessibility.Element {
         }
     }
 
-    func printAttributes() {
-        for act in (try? supportedActions()) ?? [] {
-            debugLog("[action] \(act.name): \(act.description)")
-        }
-        for att in (try? supportedAttributes()) ?? [] {
-            debugLog("[regular] \(att.name): \((try? att()) as Any)")
-        }
-        for att in (try? supportedParameterizedAttributes()) ?? [] {
-            debugLog("[parameterized] \(att)")
-        }
-    }
-
     func setFrame(_ frame: CGRect) throws {
         DispatchQueue.concurrentPerform(iterations: 2) { i in
             switch i {
@@ -218,9 +206,12 @@ final class MessagesController {
 
     // returns last active display
     private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Display {
+        #if NO_SPACES
+        return .main
+        #else
         let windowCG = try window.window()
 
-        // FIXME: this doesn't seem to work consistently
+        // FIXME: this doesn't seem to work consistently with multiple displays
         let lastActiveDisplay: Display
         if let lastActiveSpace = try? windowCG.currentSpaces(.allVisibleSpaces).first,
            let activeDisplay = try? Display.allOnline().first(where: { try $0.currentSpace() == lastActiveSpace }) {
@@ -230,6 +221,7 @@ final class MessagesController {
         }
         try windowCG.moveToSpace(space)
         return lastActiveDisplay
+        #endif
     }
 
     private static func retry<T>(
