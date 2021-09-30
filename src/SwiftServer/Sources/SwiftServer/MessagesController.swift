@@ -592,7 +592,7 @@ final class MessagesController {
         }
     }
 
-    func sendRichMessage(_ text: String, threadID: String) throws {
+    func sendTextMessage(_ text: String, threadID: String) throws {
         let url = try self.deepLink(forThreadID: threadID, body: text)
 
         activityLock.lock()

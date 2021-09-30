@@ -268,7 +268,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
       try {
         const server = await this.getSwiftServer()
-        await server.sendRichMessage(content.text, threadID)
+        await server.sendTextMessage(content.text, threadID)
         return true
       } catch {
         // fall back to sendTextMessage
