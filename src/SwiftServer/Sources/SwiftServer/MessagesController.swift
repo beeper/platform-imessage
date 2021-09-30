@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import AccessibilityControl
 import WindowControl
+import Carbon.HIToolbox.Events
 
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
@@ -41,7 +42,6 @@ extension Accessibility.Names {
     var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
     var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
     var frame: AttributeName<CGRect> { "AXFrame" }
-    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
 
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
@@ -49,6 +49,9 @@ extension Accessibility.Names {
     var roleDescription: AttributeName<String> { .init(kAXRoleDescriptionAttribute) }
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
+    var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }
+
+    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
     var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
     var isFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
 
@@ -408,6 +411,49 @@ final class MessagesController {
             .orThrow(ErrorMessage("Invalid iMessage addresses: \(addresses)"))
     }
 
+    private enum MessageThread {
+        private static let groupPrefix = "iMessage;+;"
+        private static let singlePrefix = "iMessage;-;"
+
+        case single(String)
+        case group(String)
+
+        init?(threadID: String) {
+            if threadID.hasPrefix(Self.singlePrefix) {
+                self = .single(String(threadID.dropFirst(Self.singlePrefix.count)))
+            } else if threadID.hasPrefix(Self.groupPrefix) {
+                self = .group(String(threadID.dropFirst(Self.groupPrefix.count)))
+            } else {
+                return nil
+            }
+        }
+
+        var queryItem: URLQueryItem {
+            switch self {
+            case .single(let address):
+                return URLQueryItem(name: "address", value: address)
+            case .group(let chat):
+                return URLQueryItem(name: "groupid", value: chat)
+            }
+        }
+    }
+
+    private func deepLink(forThreadID threadID: String, body: String? = nil) throws -> URL {
+        let thread = try MessageThread(threadID: threadID)
+            .orThrow(ErrorMessage("Invalid thread ID: \(threadID)"))
+
+        var components = URLComponents()
+        components.scheme = "imessage"
+        components.path = "open"
+        components.queryItems = [
+            thread.queryItem,
+            URLQueryItem(name: "body", value: body)
+        ]
+
+        return try components.url
+            .orThrow(ErrorMessage("Invalid thread ID: \(threadID)"))
+    }
+
     func createThread(addresses: [String]) throws {
         try NSWorkspace.shared.open(deepLink(forAddresses: addresses))
     }
@@ -543,6 +589,33 @@ final class MessagesController {
                     .orThrow(ErrorMessage("Could not find message body field"))
             }
             try messageField.value(assign: "")
+        }
+    }
+
+    func sendRichMessage(_ text: String, threadID: String) throws {
+        let url = try self.deepLink(forThreadID: threadID, body: text)
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        let initialTitle = try? mainWindow.windowTitle()
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            try? Self.retry(withTimeout: 0.5, interval: 0.1) {
+                guard try mainWindow.windowTitle() != initialTitle else {
+                    throw ErrorMessage("")
+                }
+            }
+
+            let messageField = try Self.retry(withTimeout: 1, interval: 0.1) {
+                try mainWindow.child(withID: "messageBodyField")
+                    .orThrow(ErrorMessage("Could not find message body field"))
+            }
+            try messageField.isFocused(assign: true)
+
+            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: true)!.postToPid(app.processIdentifier)
+            Thread.sleep(forTimeInterval: 0.1)
+            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: false)!.postToPid(app.processIdentifier)
         }
     }
 

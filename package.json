@@ -26,6 +26,7 @@
     "p-retry": "^4.4.0",
     "react": "https://github.com/TextsHQ/react-global-shim",
     "react-helmet": "^6.1.0",
+    "url-regex": "^5.0.0",
     "use-force-update": "^1.0.7",
     "uuid": "^8.3.2",
     "zlib": "^1.0.5"

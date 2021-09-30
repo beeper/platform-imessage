@@ -4,6 +4,7 @@ import path from 'path'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent } from '@textshq/platform-sdk'
+import urlRegex from 'url-regex'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
@@ -263,6 +264,15 @@ export default class AppleiMessage implements PlatformAPI {
     }
     if (content.filePath) {
       return this.sendFileFromFilePath(threadID, content.filePath)
+    }
+    if (content.text?.indexOf('@') !== -1 || content.text?.match(urlRegex({ strict: false }))) {
+      try {
+        const server = await this.getSwiftServer()
+        await server.sendRichMessage(content.text, threadID)
+        return true
+      } catch {
+        // fall back to sendTextMessage
+      }
     }
     return this.sendTextMessage(threadID, content.text)
   }

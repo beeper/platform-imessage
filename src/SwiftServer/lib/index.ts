@@ -28,6 +28,7 @@ export type SwiftServer = {
     onTyping?: (status: ActivityStatus) => void
   ) => Promise<void>
   setReaction: (guid: string, offset: number, reaction: string, on: boolean) => Promise<void>
+  sendRichMessage: (message: string, threadID: string) => Promise<void>
   dispose: () => void
   init: (isLoggingEnabled?: boolean) => Promise<void>
 }

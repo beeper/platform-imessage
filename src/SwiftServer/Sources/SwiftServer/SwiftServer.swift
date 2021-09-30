@@ -163,6 +163,15 @@ import Foundation
                     try controller().setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on)
                 }
             },
+            "sendRichMessage": try NodeFunction(in: context) { ctx, info in
+                guard info.arguments.count == 2,
+                      let message = try? info.arguments[0].as(NodeString.self)?.string(),
+                      let threadID = try? info.arguments[1].as(NodeString.self)?.string()
+                else { return try NodeUndefined(in: ctx) }
+                return try performAsync(with: ctx) {
+                    try controller().sendRichMessage(message, threadID: threadID)
+                }
+            },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 debugLog("disposing SwiftServer...")
                 MessagesController.queue.sync {
