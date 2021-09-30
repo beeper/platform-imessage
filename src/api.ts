@@ -265,13 +265,15 @@ export default class AppleiMessage implements PlatformAPI {
     if (content.filePath) {
       return this.sendFileFromFilePath(threadID, content.filePath)
     }
-    if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
-      try {
-        const server = await this.getSwiftServer()
-        await server.sendTextMessage(content.text, threadID)
-        return true
-      } catch {
-        // fall back to sendTextMessage
+    if (IS_BIG_SUR_OR_UP) {
+      if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
+        try {
+          const server = await this.getSwiftServer()
+          await server.sendTextMessage(content.text, threadID)
+          return true
+        } catch {
+          // fall back to sendTextMessage
+        }
       }
     }
     return this.sendTextMessage(threadID, content.text)
