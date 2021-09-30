@@ -329,14 +329,12 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   // messageParts will always be non-empty
-  const messages: (Message & { index: number })[] = messageParts.map((part, idx) => {
-    const message = {
-      ...partialMessage,
-      index: part.index,
-    }
+  const messages = messageParts.map<[Message, number]>((part, partIdx) => {
+    const message = { ...partialMessage }
+    if (!message.extra) message.extra = {}
     // we mean idx, not part number
-    if (idx === 0) Object.assign(message, partialHeader)
-    if (idx === messageParts.length - 1) Object.assign(message, partialFooter)
+    if (partIdx === 0) Object.assign(message, partialHeader)
+    if (partIdx === messageParts.length - 1) Object.assign(message, partialFooter)
     if (part.index !== 0) message.id = `${message.id}_${part.index}`
     if (part.kind === 'TEXT') {
       message.text = part.text
@@ -345,11 +343,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       // TODO: make this faster if necessary
       message.attachments = [attachments.find(a => a.id === part.attachmentID)]
     }
-    return message
-  }).filter(m => m.attachments?.length || m.text?.length)
+    return [message, partIdx]
+  }).filter(m => m[0].attachments?.length || m[0].text?.length)
 
   if (addSubjectInline) {
-    const firstTextPart = messages[0]
+    const firstTextPart = messages[0][0]
     firstTextPart.text = `${msgRow.subject}\n${firstTextPart.text}`
     const subjectLength = [...msgRow.subject].length
     firstTextPart.textAttributes = {
@@ -368,7 +366,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     }
   }
 
-  const firstTextPart = messages.find(msg => typeof msg.text === 'string')
+  const firstTextPart = messages.find(msg => typeof msg[0].text === 'string')?.[0]
   if (msgRow.associated_message_guid) {
     const m: Message = {
       ...firstTextPart,
@@ -379,8 +377,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     let didFail = false
     switch (assocMsgType) {
       case 'sticker':
+        messages[0][0].linkedMessageID = m.linkedMessageID
+        didFail = true
         break
-      case 'header':
+      case 'heading':
         m.text = m.text.replace(
           HEADING_SENDER_NAME_CONSTANT,
           m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`,
@@ -419,12 +419,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (!didFail) return [m]
   }
 
-  messages.forEach(msg => {
+  return messages.map(([msg, partIdx]) => {
     // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
-    assignReactions(msg, reactionRows, messages.length === 1 ? null : msg.index, currentUserID)
+    assignReactions(msg, reactionRows, messages.length === 1 ? null : partIdx, currentUserID)
+    return msg
   })
-
-  return messages
 }
 
 function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, displayName: string = undefined) {
@@ -451,6 +450,14 @@ type Context = {
   mapMessageArgsMap?: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   groupImagesMap?: { [attachmentID: string]: string }
   threadReadStore: ThreadReadStore
+}
+
+export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
+  const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
+  const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
+  return messages
+    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.msgRowID], groupedReactionRows[message.guid], currentUserID, addThreadIDs))
+    .filter(Boolean)
 }
 
 export function mapThread(
@@ -511,11 +518,3 @@ export function mapThread(
 
 export const mapThreads = (chatRows: MappedChatRow[], context: Context) =>
   chatRows.map(chat => mapThread(chat, context))
-
-export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
-  const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
-  const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
-  return messages
-    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.msgRowID], groupedReactionRows[message.guid], currentUserID, addThreadIDs))
-    .filter(Boolean)
-}
