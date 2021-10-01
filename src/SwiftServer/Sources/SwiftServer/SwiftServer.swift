@@ -95,14 +95,16 @@ import Foundation
                 return decoded
             },
             "createThread": try NodeFunction(in: context) { ctx, info in
-                guard let arr = try info.arguments.first?.as(NodeArray.self) else {
+                guard info.arguments.count == 2,
+                      let arr = try info.arguments[0].as(NodeArray.self),
+                      let message = try info.arguments[1].as(NodeString.self)?.string() else {
                     return try NodeUndefined(in: ctx)
                 }
                 let addresses = try (0..<arr.count()).compactMap {
                     try arr[Double($0)].get(in: ctx).as(NodeString.self)?.string()
                 }
                 return try performAsync(with: ctx) {
-                    try controller().createThread(addresses: addresses)
+                    try controller().createThread(addresses: addresses, message: message)
                 }
             },
             "markRead": try NodeFunction(in: context) { ctx, info in

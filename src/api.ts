@@ -161,7 +161,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  createThread = async (userIDs: string[]) => {
+  createThread = async (userIDs: string[], title?: string, message?: string) => {
     if (userIDs.length === 0) return null
     this.ensureDB()
     if (!IS_BIG_SUR_OR_UP) return this.catalinaCreateThread(userIDs)
@@ -169,10 +169,10 @@ export default class AppleiMessage implements PlatformAPI {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
       if (existingThread) return existingThread
-      await (await this.getSwiftServer()).createThread([address])
+      await (await this.getSwiftServer()).createThread([address], message)
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
-      await (await this.getSwiftServer()).createThread(userIDs)
+      await (await this.getSwiftServer()).createThread(userIDs, message)
     }
   }
 

@@ -454,10 +454,6 @@ final class MessagesController {
             .orThrow(ErrorMessage("Invalid thread ID: \(threadID)"))
     }
 
-    func createThread(addresses: [String]) throws {
-        try NSWorkspace.shared.open(deepLink(forAddresses: addresses))
-    }
-
     private func reactionsView() throws -> Accessibility.Element {
         guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
               (try? mainView.children.count()) ?? 0 >= 2,
@@ -592,9 +588,7 @@ final class MessagesController {
         }
     }
 
-    func sendTextMessage(_ text: String, threadID: String) throws {
-        let url = try self.deepLink(forThreadID: threadID, body: text)
-
+    func sendTextMessage(_ text: String, url: URL) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -614,9 +608,18 @@ final class MessagesController {
             try messageField.isFocused(assign: true)
 
             CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: true)!.postToPid(app.processIdentifier)
-            Thread.sleep(forTimeInterval: 0.1)
             CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: false)!.postToPid(app.processIdentifier)
         }
+    }
+
+    func sendTextMessage(_ text: String, threadID: String) throws {
+        let url = try deepLink(forThreadID: threadID, body: text)
+        try sendTextMessage(text, url: url)
+    }
+
+    func createThread(addresses: [String], message: String) throws {
+        let url = try deepLink(forAddresses: addresses, body: message)
+        try sendTextMessage(message, url: url)
     }
 
     // when the user manually cmd+tab's or clicks the Messages dock icon,

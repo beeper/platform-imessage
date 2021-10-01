@@ -20,7 +20,7 @@ export enum ActivityStatus {
 
 export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
-  createThread: (addresses: string[]) => Promise<void>
+  createThread: (addresses: string[], message: string) => Promise<void>
   markRead: (guid: string) => Promise<void>
   sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
   watchThreadActivity: (
