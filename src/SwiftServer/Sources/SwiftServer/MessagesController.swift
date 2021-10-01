@@ -344,6 +344,16 @@ final class MessagesController {
         }
     }
 
+    private func transcriptsView() throws -> Accessibility.Element {
+        try mainWindow.child(withID: "TranscriptCollectionView")
+            .orThrow(ErrorMessage("Could not find TranscriptCollectionView"))
+    }
+
+    private func messagesField() throws -> Accessibility.Element {
+        try mainWindow.child(withID: "messageBodyField")
+            .orThrow(ErrorMessage("Could not find message body field"))
+    }
+
     @discardableResult
     private func waitUntilSelected(isCompose: Bool, timeout: TimeInterval) -> Accessibility.Element? {
         try? Self.retry(withTimeout: timeout) { () throws -> Accessibility.Element in
@@ -354,8 +364,6 @@ final class MessagesController {
             return selected
         }
     }
-
-    static let composeURL = URL(string: "imessage://open?address=")!
 
     // performs `perform` while the Messages window is unhidden. Returns the new window title
     @discardableResult
@@ -387,73 +395,6 @@ final class MessagesController {
         return newTitle
     }
 
-    private func deepLink(forMessage guid: String) throws -> URL {
-        guard let firstPart = guid.split(separator: "_", maxSplits: 1).first,
-              let guidParsed = UUID(uuidString: String(firstPart)), // extra validation ahead of time
-              let url = URL(string: "imessage://open?message-guid=\(guidParsed)") else {
-            throw ErrorMessage("Invalid iMessage guid \(guid)")
-        }
-        return url
-    }
-
-    private func deepLink(forAddresses addresses: [String], body: String? = nil) throws -> URL {
-        var components = URLComponents()
-        components.scheme = "imessage"
-        components.path = "open"
-        components.queryItems = [
-            URLQueryItem(
-                name: addresses.count == 1 ? "address" : "addresses",
-                value: addresses.joined(separator: ",")
-            ),
-            URLQueryItem(name: "body", value: body)
-        ]
-        return try components.url
-            .orThrow(ErrorMessage("Invalid iMessage addresses: \(addresses)"))
-    }
-
-    private enum MessageThread {
-        private static let groupPrefix = "iMessage;+;"
-        private static let singlePrefix = "iMessage;-;"
-
-        case single(String)
-        case group(String)
-
-        init?(threadID: String) {
-            if threadID.hasPrefix(Self.singlePrefix) {
-                self = .single(String(threadID.dropFirst(Self.singlePrefix.count)))
-            } else if threadID.hasPrefix(Self.groupPrefix) {
-                self = .group(String(threadID.dropFirst(Self.groupPrefix.count)))
-            } else {
-                return nil
-            }
-        }
-
-        var queryItem: URLQueryItem {
-            switch self {
-            case .single(let address):
-                return URLQueryItem(name: "address", value: address)
-            case .group(let chat):
-                return URLQueryItem(name: "groupid", value: chat)
-            }
-        }
-    }
-
-    private func deepLink(forThreadID threadID: String, body: String? = nil) throws -> URL {
-        let thread = try MessageThread(threadID: threadID)
-            .orThrow(ErrorMessage("Invalid thread ID: \(threadID)"))
-
-        var components = URLComponents()
-        components.scheme = "imessage"
-        components.path = "open"
-        components.queryItems = [
-            thread.queryItem,
-            URLQueryItem(name: "body", value: body)
-        ]
-
-        return try components.url
-            .orThrow(ErrorMessage("Invalid thread ID: \(threadID)"))
-    }
-
     private func reactionsView() throws -> Accessibility.Element {
         guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
               (try? mainView.children.count()) ?? 0 >= 2,
@@ -467,16 +408,14 @@ final class MessagesController {
     func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
         debugLog("Finding cell at offset \(offset) from \(guid)")
 
-        let url = try self.deepLink(forMessage: guid)
+        let url = try MessagesDeepLink.message(guid: guid).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
 
         let idx = reaction.index
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView") else {
-                throw ErrorMessage("Could not find TranscriptCollectionView")
-            }
+            let transcripts = try transcriptsView()
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
                 throw ErrorMessage("Could not find selected child")
             }
@@ -520,12 +459,13 @@ final class MessagesController {
     }
 
     func markAsRead(guid: String) throws {
-        let url = try self.deepLink(forMessage: guid)
+        let url = try MessagesDeepLink.message(guid: guid).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        try withActivation(openBefore: Self.composeURL, openAfter: activityObserver?.url) {
+        let compose = try MessagesDeepLink.compose.url()
+        try withActivation(openBefore: compose, openAfter: activityObserver?.url) {
             guard let composeCell = waitUntilSelected(isCompose: true, timeout: 0.5) else {
                 throw ErrorMessage("Could not find selected new message cell")
             }
@@ -564,7 +504,7 @@ final class MessagesController {
         // (since Messages special-cases space-only messages). The NUL byte
         // is another option that doesn't get sent to the server, but it
         // shows up client-side as a ghost message.
-        let url = try self.deepLink(forAddresses: [address], body: isTyping ? " " : nil)
+        let url = try MessagesDeepLink.addresses([address], body: isTyping ? " " : nil).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -580,10 +520,7 @@ final class MessagesController {
                 }
             }
 
-            let messageField = try Self.retry(withTimeout: 1, interval: 0.1) {
-                try mainWindow.child(withID: "messageBodyField")
-                    .orThrow(ErrorMessage("Could not find message body field"))
-            }
+            let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
             try messageField.value(assign: "")
         }
     }
@@ -601,10 +538,7 @@ final class MessagesController {
                 }
             }
 
-            let messageField = try Self.retry(withTimeout: 1, interval: 0.1) {
-                try mainWindow.child(withID: "messageBodyField")
-                    .orThrow(ErrorMessage("Could not find message body field"))
-            }
+            let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
             try messageField.isFocused(assign: true)
 
             CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: true)!.postToPid(app.processIdentifier)
@@ -613,12 +547,12 @@ final class MessagesController {
     }
 
     func sendTextMessage(_ text: String, threadID: String) throws {
-        let url = try deepLink(forThreadID: threadID, body: text)
+        let url = try MessagesDeepLink(threadID: threadID, body: text).url()
         try sendTextMessage(text, url: url)
     }
 
     func createThread(addresses: [String], message: String) throws {
-        let url = try deepLink(forAddresses: addresses, body: message)
+        let url = try MessagesDeepLink.addresses(addresses, body: message).url()
         try sendTextMessage(message, url: url)
     }
 
@@ -641,7 +575,7 @@ final class MessagesController {
     }
 
     private func activityStatus() -> ActivityStatus {
-        guard let transcripts = mainWindow.child(withID: "TranscriptCollectionView"),
+        guard let transcripts = try? transcriptsView(),
               let count = try? transcripts.children.count(),
               count > 0,
               let elt = try? transcripts.children.value(at: count - 1) else {
@@ -690,7 +624,7 @@ final class MessagesController {
     }
 
     func observe(address: String, callback: @escaping (ActivityStatus) -> Void) throws {
-        let url = try deepLink(forAddresses: [address])
+        let url = try MessagesDeepLink.addresses([address], body: nil).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
