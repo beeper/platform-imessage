@@ -174,6 +174,15 @@ import Foundation
                     try controller().sendTextMessage(text, threadID: threadID)
                 }
             },
+            "sendReply": try NodeFunction(in: context) { ctx, info in
+                guard info.arguments.count == 2,
+                      let guid = try? info.arguments[0].as(NodeString.self)?.string(),
+                      let text = try? info.arguments[1].as(NodeString.self)?.string()
+                else { return try NodeUndefined(in: ctx) }
+                return try performAsync(with: ctx) {
+                    try controller().sendReply(guid: guid, text: text)
+                }
+            },
             "dispose": try NodeFunction(in: context) { ctx, info in
                 debugLog("disposing SwiftServer...")
                 MessagesController.queue.sync {

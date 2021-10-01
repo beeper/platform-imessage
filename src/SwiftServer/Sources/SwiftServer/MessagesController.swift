@@ -56,6 +56,7 @@ extension Accessibility.Names {
     var isFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
 
     var press: ActionName { .init(kAXPressAction) }
+    var cancel: ActionName { .init(kAXCancelAction) }
 }
 
 extension Accessibility.Element {
@@ -405,15 +406,11 @@ final class MessagesController {
         return presView
     }
 
-    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
+    private func withMessageCell(guid: String, offset: Int, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         debugLog("Finding cell at offset \(offset) from \(guid)")
 
         let url = try MessagesDeepLink.message(guid: guid).url()
 
-        activityLock.lock()
-        defer { activityLock.unlock() }
-
-        let idx = reaction.index
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             let transcripts = try transcriptsView()
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
@@ -439,6 +436,16 @@ final class MessagesController {
                 }
                 targetCell = try siblings[target].children.value(at: 0)
             }
+            try action(targetCell)
+        }
+    }
+
+    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        let idx = reaction.index
+        try withMessageCell(guid: guid, offset: offset) { targetCell in
 //            targetCell.printAttributes()
             let allActions = try targetCell.supportedActions()
             // TODO: Does "React" need to be localized here?
@@ -525,7 +532,7 @@ final class MessagesController {
         }
     }
 
-    func sendTextMessage(_ text: String, url: URL) throws {
+    private func sendTextMessage(_ text: String, url: URL) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -554,6 +561,32 @@ final class MessagesController {
     func createThread(addresses: [String], message: String) throws {
         let url = try MessagesDeepLink.addresses(addresses, body: message).url()
         try sendTextMessage(message, url: url)
+    }
+
+    func sendReply(guid: String, text: String) throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withMessageCell(guid: guid, offset: 0) { targetCell in
+            let allActions = try targetCell.supportedActions()
+
+            // TODO: Does "Reply" need to be localized here?
+            guard let replyAction = allActions.first(where: { $0.name.value.contains("Name:Reply") }) else {
+                throw ErrorMessage("Could not find react action")
+            }
+            try replyAction()
+
+            let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
+            try messageField.value(assign: text)
+            try messageField.isFocused(assign: true)
+
+            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: true)!.postToPid(app.processIdentifier)
+            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: false)!.postToPid(app.processIdentifier)
+
+            // escape
+            Thread.sleep(forTimeInterval: 0.1)
+            try transcriptsView().cancel()
+        }
     }
 
     // when the user manually cmd+tab's or clicks the Messages dock icon,

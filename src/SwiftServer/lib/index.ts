@@ -29,6 +29,7 @@ export type SwiftServer = {
   ) => Promise<void>
   setReaction: (guid: string, offset: number, reaction: string, on: boolean) => Promise<void>
   sendTextMessage: (text: string, threadID: string) => Promise<void>
+  sendReply: (guid: string, text: string) => Promise<void>
   dispose: () => void
   init: (isLoggingEnabled?: boolean) => Promise<void>
 }

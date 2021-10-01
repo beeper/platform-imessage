@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 
 import { convertCGBI } from './async-cgbi-to-png'
@@ -258,7 +258,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  sendMessage = async (threadID: string, content: MessageContent) => {
+  sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName)
     }
@@ -266,6 +266,17 @@ export default class AppleiMessage implements PlatformAPI {
       return this.sendFileFromFilePath(threadID, content.filePath)
     }
     if (IS_BIG_SUR_OR_UP) {
+      if (options?.quotedMessageID) {
+        try {
+          const server = await this.getSwiftServer()
+          await server.sendReply(options.quotedMessageID, content.text)
+          return true
+        } catch {
+          // fall back to regular message
+          // TODO: Maybe prepend quote text here?
+        }
+      }
+
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
           const server = await this.getSwiftServer()
