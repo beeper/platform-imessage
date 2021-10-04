@@ -5,7 +5,7 @@ import type { MessageWithExtra } from './mappers'
 const isSelectable = (message: MessageWithExtra) =>
   !message.attachments?.length
   && !message.links?.length
-  && typeof message.extra.part === 'undefined'
+  && typeof message.extra?.part === 'undefined'
 
 const info: PlatformInfo = {
   name: 'imessage',
