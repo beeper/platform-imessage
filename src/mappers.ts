@@ -351,7 +351,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       message.textAttributes = part.attributes
     } else if (part.kind === 'ATTACHMENT') {
       // TODO: make this faster if necessary
-      message.attachments = [attachments.find(a => a.id === part.attachmentID)]
+      const att = attachments.find(a => a.id === part.attachmentID)
+      if (att) message.attachments = [att]
     }
     return message
   }).filter(m => m.attachments?.length || m.text?.length)
