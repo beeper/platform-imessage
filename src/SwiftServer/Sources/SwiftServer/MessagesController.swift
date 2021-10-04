@@ -712,11 +712,12 @@ final class MessagesController {
 
     // this is called before the final deinit
     func dispose() {
-        app.terminate()
+        // no-op for now
     }
 
     deinit {
         timer?.invalidate()
         loopThread?.cancel()
+        app.terminate()
     }
 }
