@@ -16,6 +16,7 @@ import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import __swiftServer, { ActivityStatus } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import pRetry from 'p-retry'
 
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
@@ -348,13 +349,19 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
     this.threadReadStore.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
-      await (await this.getSwiftServer()).markRead(messageID)
-      if (texts.IS_DEV) {
+      const server = await this.getSwiftServer()
+      await pRetry(async () => {
+        await server.markRead(messageID)
         await bluebird.delay(100)
         if ((await this.dbAPI.isMessageRead(messageID)) !== 1) {
-          throw Error("didn't mark as read")
+          throw new Error('sendReadReceipt failed (cause unknown)')
         }
-      }
+      }, {
+        onFailedAttempt: error => {
+          texts.log(`sendReadReceipt failed. Retries left: ${error.retriesLeft}`)
+        },
+        retries: 1,
+      })
     }
   }
 
