@@ -195,8 +195,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           : `{{sender}} added {{${msgRow.otherID}}} to the conversation`
         m.action = {
           type: msgRow.group_action_type === 1
-            ? MessageActionType.THREAD_PARTICIPANTS_ADDED
-            : MessageActionType.THREAD_PARTICIPANTS_REMOVED,
+            ? MessageActionType.THREAD_PARTICIPANTS_REMOVED
+            : MessageActionType.THREAD_PARTICIPANTS_ADDED,
           participantIDs: [msgRow.otherID],
           actorParticipantID: m.senderID,
         }
@@ -212,10 +212,13 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           actorParticipantID: m.senderID,
         }
         break
-      case 3:
+      case 3: {
         m.behavior = MessageBehavior.SILENT
-        if (attachmentRows[0]?.attachmentID) {
-          m.text = '{{sender}} changed the group photo'
+        const changedGroupImg = msgRow.group_action_type === 1
+        if (changedGroupImg || msgRow.group_action_type === 2) {
+          m.text = changedGroupImg
+            ? '{{sender}} changed the group photo'
+            : '{{sender}} removed the group photo'
           m.attachments = []
           m.action = {
             type: MessageActionType.THREAD_IMG_CHANGED,
@@ -230,6 +233,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           }
         }
         break
+      }
       case 4:
         m.behavior = MessageBehavior.SILENT
         m.text = msgRow.share_status === 1
