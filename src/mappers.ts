@@ -339,7 +339,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // messageParts will always be non-empty
   const messages = messageParts.map<MessageWithExtra>((part, partIdx) => {
     const message = { ...partialMessage }
-    if (messageParts.length) {
+    if (messageParts.length > 1) {
       message.extra.part = part.index
     }
     // we mean idx, not part number
