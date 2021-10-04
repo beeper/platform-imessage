@@ -2,7 +2,7 @@ import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/pl
 import { supportedReactions, IS_BIG_SUR_OR_UP } from './constants'
 import type { MessageWithExtra } from './mappers'
 
-const isSelectable = async (message: MessageWithExtra) =>
+const isSelectable = (message: MessageWithExtra) =>
   !message.attachments?.length
   && !message.links?.length
   && typeof message.extra.part === 'undefined'
