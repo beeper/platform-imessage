@@ -271,7 +271,8 @@ export default class AppleiMessage implements PlatformAPI {
           const server = await this.getSwiftServer()
           await server.sendTextMessage(content.text, threadID)
           return true
-        } catch {
+        } catch (err) {
+          texts.error('could not send message with swift server', err)
           // fall back to sendTextMessage
         }
       }
@@ -338,6 +339,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (IS_BIG_SUR_OR_UP) {
       await (await this.getSwiftServer()).markRead(messageID)
       if (texts.IS_DEV) {
+        await bluebird.delay(100)
         if ((await this.dbAPI.isMessageRead(messageID)) !== 1) {
           throw Error("didn't mark as read")
         }
