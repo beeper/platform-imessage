@@ -1,5 +1,6 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
 import { supportedReactions, IS_BIG_SUR_OR_UP } from './constants'
+import API from './api'
 
 const info: PlatformInfo = {
   name: 'imessage',
@@ -40,6 +41,10 @@ const info: PlatformInfo = {
   } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
+  },
+  extra: {
+    canQuote: API.canQuote,
+    canReact: API.canReact,
   },
   auth: texts.React?.lazy(() => import('./auth')),
   getUserProfileLink: ({ email, phoneNumber }) =>

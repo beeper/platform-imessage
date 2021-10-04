@@ -147,13 +147,20 @@ function decodeMessageParts(fragments: Fragment[]): MessagePart[] {
   return parts
 }
 
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
+export type iMessage = Omit<Message, 'extra'> & {
+  extra: {
+    isSMS?: boolean
+    part?: number
+  }
+}
+
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): iMessage[] {
   if (msgRow.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = msgRow.service === 'SMS'
   const isGroup = !!msgRow.room_name
 
-  const partialMessage: Message = {
+  const partialMessage: iMessage = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.msgID,
     cursor: msgRow.date.toString(),
@@ -164,16 +171,17 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     isErrored: msgRow.error !== 0,
     isDelivered: true, // msgRow.is_delivered === 1,
     seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
+    extra: {},
   }
 
-  if (isSMS) partialMessage.extra = { isSMS }
+  if (isSMS) partialMessage.extra.isSMS = true
   if (addThreadIDs) partialMessage.threadID = msgRow.threadID
   if (msgRow.is_read) {
     partialMessage.behavior = MessageBehavior.KEEP_READ
   }
 
   if (msgRow.item_type !== 0) {
-    const m: Message = {
+    const m: iMessage = {
       ...partialMessage,
       isAction: true,
       parseTemplate: true,
@@ -242,9 +250,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (!didFail) return [m]
   }
 
-  const partialHeader: Partial<Message> = {}
+  const partialHeader: Partial<iMessage> = {}
 
-  const partialFooter: Partial<Message> = {
+  const partialFooter: Partial<iMessage> = {
     textFooter: msgRow.expressive_send_style_id
       ? `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)`
       : undefined,
@@ -329,9 +337,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   // messageParts will always be non-empty
-  const messages = messageParts.map<[Message, number]>((part, partIdx) => {
+  const messages = messageParts.map<iMessage>((part, partIdx) => {
     const message = { ...partialMessage }
-    if (!message.extra) message.extra = {}
+    if (messageParts.length) {
+      message.extra.part = part.index
+    }
     // we mean idx, not part number
     if (partIdx === 0) Object.assign(message, partialHeader)
     if (partIdx === messageParts.length - 1) Object.assign(message, partialFooter)
@@ -343,11 +353,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       // TODO: make this faster if necessary
       message.attachments = [attachments.find(a => a.id === part.attachmentID)]
     }
-    return [message, partIdx]
-  }).filter(m => m[0].attachments?.length || m[0].text?.length)
+    return message
+  }).filter(m => m.attachments?.length || m.text?.length)
 
   if (addSubjectInline) {
-    const firstTextPart = messages[0][0]
+    const firstTextPart = messages[0]
     firstTextPart.text = `${msgRow.subject}\n${firstTextPart.text}`
     const subjectLength = [...msgRow.subject].length
     firstTextPart.textAttributes = {
@@ -366,9 +376,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     }
   }
 
-  const firstTextPart = messages.find(msg => typeof msg[0].text === 'string')?.[0]
+  const firstTextPart = messages.find(msg => typeof msg.text === 'string')
   if (msgRow.associated_message_guid) {
-    const m: Message = {
+    const m: iMessage = {
       ...firstTextPart,
       linkedMessageID: msgRow.associated_message_guid.replace(assocMsgGuidPrefix, ''),
     }
@@ -377,7 +387,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     let didFail = false
     switch (assocMsgType) {
       case 'sticker':
-        messages[0][0].linkedMessageID = m.linkedMessageID
+        messages[0].linkedMessageID = m.linkedMessageID
         didFail = true
         break
       case 'heading':
@@ -419,9 +429,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (!didFail) return [m]
   }
 
-  return messages.map(([msg, partIdx]) => {
+  return messages.map(msg => {
     // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
-    assignReactions(msg, reactionRows, messages.length === 1 ? null : partIdx, currentUserID)
+    assignReactions(msg, reactionRows, messages.length === 1 ? null : msg.extra.part, currentUserID)
     return msg
   })
 }

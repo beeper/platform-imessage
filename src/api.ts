@@ -5,9 +5,10 @@ import bluebird from 'bluebird'
 import { v4 as uuid } from 'uuid'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
+import pRetry from 'p-retry'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin, iMessage } from './mappers'
 import iMessageAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
@@ -16,7 +17,6 @@ import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import __swiftServer, { ActivityStatus } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
-import pRetry from 'p-retry'
 
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
@@ -259,6 +259,13 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  static isSelectable = async (message: iMessage) =>
+    !message.attachments?.length
+    && !message.links?.length
+    && typeof message.extra.part === 'undefined'
+
+  static canQuote = AppleiMessage.isSelectable
+
   sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName)
@@ -268,14 +275,9 @@ export default class AppleiMessage implements PlatformAPI {
     }
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
-        try {
-          const server = await this.getSwiftServer()
-          await server.sendReply(options.quotedMessageID, content.text)
-          return true
-        } catch {
-          // fall back to regular message
-          // TODO: Maybe prepend quote text here?
-        }
+        const server = await this.getSwiftServer()
+        await server.sendReply(options.quotedMessageID, content.text)
+        return true
       }
 
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
@@ -330,6 +332,8 @@ export default class AppleiMessage implements PlatformAPI {
     if (!participantID) return
     return (await this.getSwiftServer()).sendTypingStatus(type === ActivityType.TYPING, participantID)
   }
+
+  static canReact = AppleiMessage.isSelectable
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
