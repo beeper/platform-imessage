@@ -1,6 +1,11 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
 import { supportedReactions, IS_BIG_SUR_OR_UP } from './constants'
-import API from './api'
+import type { MessageWithExtra } from './mappers'
+
+const isSelectable = async (message: MessageWithExtra) =>
+  !message.attachments?.length
+  && !message.links?.length
+  && typeof message.extra.part === 'undefined'
 
 const info: PlatformInfo = {
   name: 'imessage',
@@ -43,8 +48,8 @@ const info: PlatformInfo = {
     gifMimeType: 'image/gif',
   },
   extra: {
-    canQuote: API.canQuote,
-    canReact: API.canReact,
+    canQuote: isSelectable,
+    canReact: isSelectable,
   },
   auth: texts.React?.lazy(() => import('./auth')),
   getUserProfileLink: ({ email, phoneNumber }) =>

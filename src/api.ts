@@ -259,13 +259,6 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  static isSelectable = async (message: MessageWithExtra) =>
-    !message.attachments?.length
-    && !message.links?.length
-    && typeof message.extra.part === 'undefined'
-
-  static canQuote = AppleiMessage.isSelectable
-
   sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName)
@@ -332,8 +325,6 @@ export default class AppleiMessage implements PlatformAPI {
     if (!participantID) return
     return (await this.getSwiftServer()).sendTypingStatus(type === ActivityType.TYPING, participantID)
   }
-
-  static canReact = AppleiMessage.isSelectable
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
