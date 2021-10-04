@@ -149,7 +149,7 @@ public struct Window: Hashable {
         try GraphicsConnection.check(CGSSetWindowAlpha(connection.raw, raw, alpha))
     }
 
-    public func currentSpaces(_ options: Space.ListOptions, for connection: GraphicsConnection = .main) throws -> [Space] {
+    public func currentSpaces(_ options: Space.ListOptions = .allSpaces, for connection: GraphicsConnection = .main) throws -> [Space] {
         guard let rawSpaces = CGSCopySpacesForWindows(connection.raw, options.raw, [raw] as CFArray)?
                 .takeRetainedValue() as? [CGSSpaceID]
         else { throw Error.windowNotFound }

@@ -32,7 +32,6 @@ extension Accessibility.Notification {
 
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
-    var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
     var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
@@ -51,12 +50,17 @@ extension Accessibility.Names {
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }
 
-    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
-    var isMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
-    var isFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
-
     var press: ActionName { .init(kAXPressAction) }
     var cancel: ActionName { .init(kAXCancelAction) }
+
+    // App-specific
+    var appWindows: AttributeName<[Accessibility.Element]> { .init(kAXWindowsAttribute) }
+    var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
+
+    // Window-specific
+    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
+    var windowIsMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
+    var windowIsFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
 }
 
 extension Accessibility.Element {
@@ -250,19 +254,35 @@ final class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
+        var reusableApp: NSRunningApplication?
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
-            debugLog("Terminating existing Messages...")
-            if running.terminate() {
-                try? Self.retry(withTimeout: 1, interval: 0.1) {
-                    guard running.isTerminated else {
-                        throw ErrorMessage("Could not restart Messages")
+            let element = Accessibility.Element(pid: running.processIdentifier)
+            let knownSpaces = Set((try? Space.list()) ?? [])
+            if !knownSpaces.isEmpty,
+               // iff each Messages window exists in visible spaces and
+               // visible spaces only
+               let spaces = try? element.appWindows().map({ try $0.window().currentSpaces() }),
+               spaces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(knownSpaces.contains) }) {
+                debugLog("Reusing existing Messages...")
+                reusableApp = running
+            } else {
+                debugLog("Terminating existing Messages...")
+                if running.terminate() {
+                    try? Self.retry(withTimeout: 1, interval: 0.1) {
+                        guard running.isTerminated else {
+                            throw ErrorMessage("Could not restart Messages")
+                        }
                     }
                 }
             }
         }
 
-        debugLog("Launching Messages...")
-        app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: [.andHide], configuration: [:])
+        if let reusableApp = reusableApp {
+            app = reusableApp
+        } else {
+            debugLog("Launching Messages...")
+            app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: [.andHide], configuration: [:])
+        }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
@@ -279,7 +299,8 @@ final class MessagesController {
         space = try Space(newSpaceOfKind: .fullscreen)
         lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
 
-        let existing = try Space.list(.allSpaces)
+        #if DEBUG
+        let existing = try Space.list()
         debugLog("Number of spaces: \(existing.count)")
         existing.forEach {
             debugLog("Name: \((try? $0.name()) as Any)")
@@ -289,6 +310,7 @@ final class MessagesController {
 //        existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
 //            $0.destroy()
 //        }
+        #endif
 
         guard let conversations = mainWindow.child(withID: "ConversationList") else {
             throw ErrorMessage("Could not get Messages conversation list")
