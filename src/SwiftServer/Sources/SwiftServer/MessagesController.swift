@@ -261,7 +261,9 @@ final class MessagesController {
             if !knownSpaces.isEmpty,
                // iff each Messages window exists in visible spaces and
                // visible spaces only
-               let spaces = try? element.appWindows().map({ try $0.window().currentSpaces() }),
+               let windows = try? element.appWindows(),
+               !windows.isEmpty,
+               let spaces = try? windows.map({ try $0.window().currentSpaces() }),
                spaces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(knownSpaces.contains) }) {
                 debugLog("Reusing existing Messages...")
                 reusableApp = running
@@ -579,7 +581,7 @@ final class MessagesController {
 
             let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
             try messageField.isFocused(assign: true)
-            try? Self.retry(withTimeout: 0.5, interval: 0.1) {
+            try Self.retry(withTimeout: 0.5, interval: 0.1) {
                 guard try messageField.isFocused() else { throw ErrorMessage("") }
             }
             try self.sendReturnPress()
@@ -612,7 +614,7 @@ final class MessagesController {
             let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
             try messageField.value(assign: text)
             try messageField.isFocused(assign: true)
-            try? Self.retry(withTimeout: 0.5, interval: 0.1) {
+            try Self.retry(withTimeout: 0.5, interval: 0.1) {
                 guard try messageField.isFocused() else { throw ErrorMessage("") }
             }
             try self.sendReturnPress()
