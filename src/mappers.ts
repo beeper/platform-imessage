@@ -147,20 +147,20 @@ function decodeMessageParts(fragments: Fragment[]): MessagePart[] {
   return parts
 }
 
-export type iMessage = Omit<Message, 'extra'> & {
+export type MessageWithExtra = Omit<Message, 'extra'> & {
   extra: {
     isSMS?: boolean
     part?: number
   }
 }
 
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): iMessage[] {
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): MessageWithExtra[] {
   if (msgRow.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
   const isSMS = msgRow.service === 'SMS'
   const isGroup = !!msgRow.room_name
 
-  const partialMessage: iMessage = {
+  const partialMessage: MessageWithExtra = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.msgID,
     cursor: msgRow.date.toString(),
@@ -181,7 +181,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   if (msgRow.item_type !== 0) {
-    const m: iMessage = {
+    const m: MessageWithExtra = {
       ...partialMessage,
       isAction: true,
       parseTemplate: true,
@@ -250,9 +250,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (!didFail) return [m]
   }
 
-  const partialHeader: Partial<iMessage> = {}
+  const partialHeader: Partial<MessageWithExtra> = {}
 
-  const partialFooter: Partial<iMessage> = {
+  const partialFooter: Partial<MessageWithExtra> = {
     textFooter: msgRow.expressive_send_style_id
       ? `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)`
       : undefined,
@@ -337,7 +337,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   // messageParts will always be non-empty
-  const messages = messageParts.map<iMessage>((part, partIdx) => {
+  const messages = messageParts.map<MessageWithExtra>((part, partIdx) => {
     const message = { ...partialMessage }
     if (messageParts.length) {
       message.extra.part = part.index
@@ -378,7 +378,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   const firstTextPart = messages.find(msg => typeof msg.text === 'string')
   if (msgRow.associated_message_guid) {
-    const m: iMessage = {
+    const m: MessageWithExtra = {
       ...firstTextPart,
       linkedMessageID: msgRow.associated_message_guid.replace(assocMsgGuidPrefix, ''),
     }

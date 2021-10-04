@@ -8,7 +8,7 @@ import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin, iMessage } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin, MessageWithExtra } from './mappers'
 import iMessageAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
@@ -259,7 +259,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  static isSelectable = async (message: iMessage) =>
+  static isSelectable = async (message: MessageWithExtra) =>
     !message.attachments?.length
     && !message.links?.length
     && typeof message.extra.part === 'undefined'
