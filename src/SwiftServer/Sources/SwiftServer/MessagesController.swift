@@ -532,6 +532,16 @@ final class MessagesController {
         }
     }
 
+    private func sendReturnPress() throws {
+        func sendReturnKey(down: Bool) throws {
+            try CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: down)
+                .orThrow(ErrorMessage("Could not send return press"))
+                .postToPid(app.processIdentifier)
+        }
+        try sendReturnKey(down: true)
+        try sendReturnKey(down: false)
+    }
+
     private func sendTextMessage(_ text: String, url: URL) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -548,8 +558,7 @@ final class MessagesController {
             let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
             try messageField.isFocused(assign: true)
 
-            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: true)!.postToPid(app.processIdentifier)
-            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: false)!.postToPid(app.processIdentifier)
+            try self.sendReturnPress()
         }
     }
 
@@ -580,8 +589,7 @@ final class MessagesController {
             try messageField.value(assign: text)
             try messageField.isFocused(assign: true)
 
-            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: true)!.postToPid(app.processIdentifier)
-            CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: false)!.postToPid(app.processIdentifier)
+            try self.sendReturnPress()
 
             // escape
             Thread.sleep(forTimeInterval: 0.1)
