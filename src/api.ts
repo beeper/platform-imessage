@@ -268,6 +268,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
+        this.elideStopTyping = true
         const server = await this.getSwiftServer()
         await server.sendReply(options.quotedMessageID, content.text)
         return true
@@ -275,6 +276,7 @@ export default class AppleiMessage implements PlatformAPI {
 
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
+          this.elideStopTyping = true
           const server = await this.getSwiftServer()
           await server.sendTextMessage(content.text, threadID)
           return true
@@ -317,13 +319,25 @@ export default class AppleiMessage implements PlatformAPI {
     return result
   }
 
+  private elideStopTyping = false
+
   sendActivityIndicator = async (type: ActivityType, threadID: string) => {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
     const participantID = AppleiMessage.singleParticipantForThread(threadID)
     // only 1-to-1 conversations are supported
     if (!participantID) return
-    return (await this.getSwiftServer()).sendTypingStatus(type === ActivityType.TYPING, participantID)
+    const isTyping = type === ActivityType.TYPING
+    if (!isTyping) {
+      this.elideStopTyping = false
+      await bluebird.delay(100)
+      if (this.elideStopTyping) {
+        texts.log('Stop typing elided')
+        this.elideStopTyping = false
+        return
+      }
+    }
+    return (await this.getSwiftServer()).sendTypingStatus(isTyping, participantID)
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
