@@ -37,6 +37,8 @@ import Foundation
     }
 
     init() throws {
+        var threadObserveRequestToken: UUID?
+        let threadObserveRequestTokenLock = NSLock()
         var _controller: MessagesController?
         func controller() throws -> MessagesController {
             guard let controller = _controller else {
@@ -143,7 +145,22 @@ import Foundation
                     print("warning: Invalid args to watchThreadActivity")
                     args = nil
                 }
+                let req = UUID()
+                do {
+                    threadObserveRequestTokenLock.lock()
+                    defer { threadObserveRequestTokenLock.unlock() }
+                    threadObserveRequestToken = req
+                }
                 return try performAsync {
+                    do {
+                        threadObserveRequestTokenLock.lock()
+                        defer { threadObserveRequestTokenLock.unlock() }
+                        // if another watchThreadActivity request has been enqueued
+                        // after our current one (but before this performAsync block
+                        // began executing), then this check will fail and therefore
+                        // prevent the current block from unnecessarily running
+                        guard threadObserveRequestToken == req else { return }
+                    }
                     let controller = try controller()
                     if let args = args {
                         try controller.observe(address: args.0, callback: args.1)
