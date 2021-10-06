@@ -1,4 +1,5 @@
 import os from 'os'
+import childProcess from 'child_process'
 
 const DATE_OFFSET = 978307200000
 
@@ -39,4 +40,17 @@ export const stringifyWithArrayBuffers = <T>(obj: T, space?: string | number) =>
 export function parseTweetURL(url: string) {
   const [, username, tweetID] = /https:\/\/twitter\.com\/(.+?)\/status\/(\d+)/.exec(url) || []
   if (tweetID) return { username, tweetID }
+}
+
+export async function shellExec(command: string, ...args: readonly string[]): Promise<string> {
+  const cp = childProcess.spawn(command, args)
+  const chunks = []
+  cp.stdout.on('data', chunk => {
+    chunks.push(chunk)
+  })
+  return new Promise<string>(resolve => {
+    cp.stdout.on('end', () => {
+      resolve(Buffer.concat(chunks).toString())
+    })
+  })
 }

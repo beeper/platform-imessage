@@ -1,7 +1,12 @@
 // linter doesn't know that this file is compile-time-only
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build, Config } from 'node-swift'
-import { promises as fsPromises } from 'fs';
+import { promises as fsPromises } from 'fs'
+import { shellExec } from '../util'
+
+async function isRosetta(): Promise<boolean> {
+  return (await shellExec('sysctl', '-in', 'sysctl.proc_translated')) === '1\n'
+}
 
 (async () => {
   const buildOptions: Config = {
@@ -33,5 +38,7 @@ import { promises as fsPromises } from 'fs';
   }
 
   await buildTriple('x86_64-apple-macosx', 'x64')
-  await buildTriple('arm64-apple-macosx', 'arm64')
+  if (config === 'release' || process.arch === 'arm64' || await isRosetta()) {
+    await buildTriple('arm64-apple-macosx', 'arm64')
+  }
 })()
