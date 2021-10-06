@@ -283,7 +283,7 @@ final class MessagesController {
             app = reusableApp
         } else {
             debugLog("Launching Messages...")
-            app = try NSWorkspace.shared.launchApplication(at: Self.messagesBundle, options: [.andHide], configuration: [:])
+            app = try NSWorkspace.shared.open(MessagesDeepLink.compose.url(), options: [.andHide], configuration: [:])
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
@@ -346,11 +346,6 @@ final class MessagesController {
         thread.qualityOfService = .utility
         thread.start()
         self.loopThread = thread
-
-        #if false
-        // FIXME: don't move if already visible
-        try setWindowFrame(CGRect(x: 500, y: 25, width: 700, height: 300))
-        #endif
 
         guard self.isValid else {
             throw ErrorMessage("Initialized MessagesController in an invalid state")
