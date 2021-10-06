@@ -1,5 +1,5 @@
 import { shellExec } from './util'
 
-export async function csrStatus() {
+export function csrStatus() {
   return shellExec('csrutil', 'status')
 }
