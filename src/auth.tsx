@@ -288,10 +288,9 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
     <ol>
       {!IS_BIG_SUR_OR_UP && <li>On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported.</li>}
       <li>Reacting to non-text messages isn't supported.</li>
-      {IS_BIG_SUR_OR_UP && <li>Creating groups or messaging people you haven't talked to will open Messages.app.</li>}
+      {IS_BIG_SUR_OR_UP && <li>Messaging people you haven't talked to will open Messages.app.</li>}
       <li>Messages.app needs to be open in the background for certain functionality but you can hide/minimize it.</li>
     </ol>
-    <p style={{ textAlign: 'center' }}>We recommend using Texts with other platforms first if you rely on these to work perfectly.</p>
     <div className="buttons">
       <button type="button" onClick={selectNextPage}>Next &rarr;</button>
     </div>
