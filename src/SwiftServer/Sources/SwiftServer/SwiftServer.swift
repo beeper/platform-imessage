@@ -54,27 +54,17 @@ import Foundation
                 return controller
             }
         }
+        let swiftJSQueue = try NodeAsyncQueue(label: "swift_server_perform")
+        let watchCBQueue = try NodeAsyncQueue(label: "watch_imessage_callback")
         func performAsync(_ action: @escaping () throws -> Void) throws -> NodePromise {
-            let deferred = try NodePromise.Deferred()
-            let tsfn = try NodeThreadsafeFunction<Error?>(
-                asyncResourceName: "swift_server_perform"
-            ) { err in
-                if let err = err {
-                    try deferred.reject(with: NodeError(code: "\(type(of: err))", message: "\(err)"))
-                } else {
-                    try deferred.resolve(with: NodeUndefined())
+            try NodePromise { deferred in
+                MessagesController.queue.async {
+                    let result = Result { try action() }
+                    try? swiftJSQueue.async {
+                        try deferred(result)
+                    }
                 }
             }
-            MessagesController.queue.async {
-                do {
-                    try action()
-                } catch {
-                    try? tsfn(error)
-                    return
-                }
-                try? tsfn(nil)
-            }
-            return deferred.promise
         }
         exports = [
             "init": try NodeFunction { info in
@@ -135,12 +125,9 @@ import Foundation
                           let address = try info.arguments[0].as(NodeString.self),
                           let fn = try info.arguments[1].as(NodeFunction.self) {
                     let addressName = try address.string()
-                    let tsfn = try NodeThreadsafeFunction<MessagesController.ActivityStatus>(
-                        asyncResourceName: "watch_imessage_callback"
-                    ) { param in
-                        try fn(param.rawValue)
-                    }
-                    args = (addressName, { try? tsfn($0) })
+                    args = (addressName, { status in
+                        try? watchCBQueue.async { try fn(status.rawValue) }
+                    })
                 } else {
                     print("warning: Invalid args to watchThreadActivity")
                     args = nil
