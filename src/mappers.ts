@@ -462,9 +462,10 @@ export const mapAccountLogin = (al: string) => al?.replace(/^E:/, '')
 type Context = {
   currentUserID: string
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
-  mapMessageArgsMap?: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
-  groupImagesMap?: { [attachmentID: string]: string }
+  mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore
+  // todo this shouldnt be optional
+  groupImagesMap?: { [attachmentID: string]: string }
 }
 
 export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
