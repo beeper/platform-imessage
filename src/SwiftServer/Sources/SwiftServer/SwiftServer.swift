@@ -35,9 +35,9 @@ import Foundation
             }
         }
         exports = try NodeObject([
-            "init": NodeFunction { info in
-                if info.arguments.count == 1,
-                   let isLoggingEnabled = try? info.arguments[0].as(NodeBool.self)?.bool() {
+            "init": NodeFunction { args in
+                if args.count == 1,
+                   let isLoggingEnabled = try? args[0].as(Bool.self) {
                     gIsLoggingEnabled = isLoggingEnabled
                 }
                 debugLog("initializing SwiftServer...")
@@ -48,9 +48,9 @@ import Foundation
                 }
             },
 
-            "decodeAttributedString": NodeFunction { info in
-                guard let buffer = try info.arguments.first?.as(NodeBuffer.self),
-                      let decoded = try? AttributedStringDecoder.decodeAttributedString(from: buffer.data()) else {
+            "decodeAttributedString": NodeFunction { args in
+                guard let data = try args.first?.as(Data.self),
+                      let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
                     return try NodeUndefined()
                 }
                 return try decoded.map { frag -> NodeObject in
@@ -64,54 +64,49 @@ import Foundation
                 }
             },
 
-            "createThread": NodeFunction { info in
-                guard info.arguments.count == 2,
-                      let arr = try info.arguments[0].as(NodeArray.self),
-                      let message = try info.arguments[1].as(NodeString.self)?.string() else {
+            "createThread": NodeFunction { args in
+                guard args.count == 2,
+                      let addresses = try args[0].as([String].self),
+                      let message = try args[1].as(String.self) else {
                     return try NodeUndefined()
-                }
-                let addresses = try (0..<arr.count()).compactMap {
-                    try arr[Double($0)].get().as(NodeString.self)?.string()
                 }
                 return try performAsync() {
                     try controller().createThread(addresses: addresses, message: message)
                 }
             },
 
-            "markRead": NodeFunction { info in
-                guard let guid = try info.arguments.first?.as(NodeString.self) else {
+            "markRead": NodeFunction { args in
+                guard let guid = try args.first?.as(String.self) else {
                     return try NodeUndefined()
                 }
-                let guidString = try guid.string()
                 return try performAsync {
-                    try controller().markAsRead(guid: guidString)
+                    try controller().markAsRead(guid: guid)
                 }
             },
 
-            "sendTypingStatus": NodeFunction { info in
-                guard info.arguments.count == 2,
-                      let isTyping = try? info.arguments[0].as(NodeBool.self)?.bool(),
-                      let address = try? info.arguments[1].as(NodeString.self)?.string()
+            "sendTypingStatus": NodeFunction { args in
+                guard args.count == 2,
+                      let isTyping = try? args[0].as(Bool.self),
+                      let address = try? args[1].as(String.self)
                 else { return try NodeUndefined() }
                 return try performAsync {
                     try controller().sendTypingStatus(isTyping, address: address)
                 }
             },
 
-            "watchThreadActivity": NodeFunction { info in
-                let args: (String, (MessagesController.ActivityStatus) -> Void)?
-                if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {
-                    args = nil
-                } else if info.arguments.count == 2,
-                          let address = try info.arguments[0].as(NodeString.self),
-                          let fn = try info.arguments[1].as(NodeFunction.self) {
-                    let addressName = try address.string()
-                    args = (addressName, { status in
+            "watchThreadActivity": NodeFunction { args in
+                let controllerArgs: (String, (MessagesController.ActivityStatus) -> Void)?
+                if try args.count == 1 && args[0].as(NodeNull.self) != nil {
+                    controllerArgs = nil
+                } else if args.count == 2,
+                          let address = try args[0].as(String.self),
+                          let fn = try args[1].as(NodeFunction.self) {
+                    controllerArgs = (address, { status in
                         try? watchCBQueue.async { try fn(status.rawValue) }
                     })
                 } else {
                     print("warning: Invalid args to watchThreadActivity")
-                    args = nil
+                    controllerArgs = nil
                 }
                 let req = UUID()
                 do {
@@ -130,21 +125,21 @@ import Foundation
                         guard threadObserveRequestToken == req else { return }
                     }
                     let controller = try controller()
-                    if let args = args {
-                        try controller.observe(address: args.0, callback: args.1)
+                    if let (address, callback) = controllerArgs {
+                        try controller.observe(address: address, callback: callback)
                     } else {
                         try controller.removeObserver()
                     }
                 }
             },
 
-            "setReaction": NodeFunction { info in
-                guard info.arguments.count == 4,
-                      let guid = try? info.arguments[0].as(NodeString.self)?.string(),
-                      let offset = try? info.arguments[1].as(NodeNumber.self)?.double(),
-                      let reactionName = try? info.arguments[2].as(NodeString.self)?.string(),
+            "setReaction": NodeFunction { args in
+                guard args.count == 4,
+                      let guid = try? args[0].as(String.self),
+                      let offset = try? args[1].as(Double.self),
+                      let reactionName = try? args[2].as(String.self),
                       let reaction = MessagesController.Reaction(rawValue: reactionName),
-                      let on = try? info.arguments[3].as(NodeBool.self)?.bool() else {
+                      let on = try? args[3].as(Bool.self) else {
                     return try NodeUndefined()
                 }
                 return try performAsync {
@@ -152,27 +147,27 @@ import Foundation
                 }
             },
 
-            "sendTextMessage": NodeFunction { info in
-                guard info.arguments.count == 2,
-                      let text = try? info.arguments[0].as(NodeString.self)?.string(),
-                      let threadID = try? info.arguments[1].as(NodeString.self)?.string()
+            "sendTextMessage": NodeFunction { args in
+                guard args.count == 2,
+                      let text = try? args[0].as(String.self),
+                      let threadID = try? args[1].as(String.self)
                 else { return try NodeUndefined() }
                 return try performAsync {
                     try controller().sendTextMessage(text, threadID: threadID)
                 }
             },
 
-            "sendReply": NodeFunction { info in
-                guard info.arguments.count == 2,
-                      let guid = try? info.arguments[0].as(NodeString.self)?.string(),
-                      let text = try? info.arguments[1].as(NodeString.self)?.string()
+            "sendReply": NodeFunction { args in
+                guard args.count == 2,
+                      let guid = try? args[0].as(String.self),
+                      let text = try? args[1].as(String.self)
                 else { return try NodeUndefined() }
                 return try performAsync {
                     try controller().sendReply(guid: guid, text: text)
                 }
             },
 
-            "dispose": NodeFunction { info in
+            "dispose": NodeFunction { args in
                 debugLog("disposing SwiftServer...")
                 MessagesController.queue.sync {
                     _controller?.dispose()
