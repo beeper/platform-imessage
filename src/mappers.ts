@@ -505,8 +505,8 @@ export function mapThread(
   */
   const props = chat.properties ? safeBplitParse(Buffer.from(chat.properties)) : null
   const messageRows = mapMessageArgs?.[0]
-  const lastNonActionMessage = messageRows ? findLast(messageRows, r => r.item_type === 0) : undefined
-  const isUnreadInSqlite = lastNonActionMessage?.is_read === 0 && lastNonActionMessage?.is_from_me === 0
+  const lastNonActionReceivedMessage = messageRows ? findLast(messageRows, r => r.item_type === 0 && r.is_from_me === 0) : undefined
+  const isUnreadInSqlite = lastNonActionReceivedMessage?.is_read === 0
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
