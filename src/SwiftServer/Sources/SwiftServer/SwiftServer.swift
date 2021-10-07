@@ -4,38 +4,6 @@ import Foundation
 @main struct SwiftServer: NodeModule {
     let exports: NodeValueConvertible
 
-    static func decodeAttributedString(from data: Data) throws -> [NodeObject]? {
-        // TODO: Make async, return promise
-        guard let decoded = try AttributedStringDecoder.decodeAttributedString(from: data)
-            else { return nil }
-        return try decoded.map { frag in
-            let obj = try NodeObject()
-            try obj.define(properties: [
-                NodePropertyDescriptor(
-                    name: "from",
-                    attributes: .enumerable,
-                    value: .data(Double(frag.scalarRange.lowerBound))
-                ),
-                NodePropertyDescriptor(
-                    name: "to",
-                    attributes: .enumerable,
-                    value: .data(Double(frag.scalarRange.upperBound))
-                ),
-                NodePropertyDescriptor(
-                    name: "text",
-                    attributes: .enumerable,
-                    value: .data(String(frag.text))
-                ),
-                NodePropertyDescriptor(
-                    name: "attributes",
-                    attributes: .enumerable,
-                    value: .data(frag.attributes.mapValues { "\($0)" })
-                ),
-            ])
-            return obj
-        }
-    }
-
     init() throws {
         var threadObserveRequestToken: UUID?
         let threadObserveRequestTokenLock = NSLock()
@@ -66,8 +34,8 @@ import Foundation
                 }
             }
         }
-        exports = [
-            "init": try NodeFunction { info in
+        exports = try NodeObject([
+            "init": NodeFunction { info in
                 if info.arguments.count == 1,
                    let isLoggingEnabled = try? info.arguments[0].as(NodeBool.self)?.bool() {
                     gIsLoggingEnabled = isLoggingEnabled
@@ -79,14 +47,24 @@ import Foundation
                     }
                 }
             },
-            "decodeAttributedString": try NodeFunction { info in
+
+            "decodeAttributedString": NodeFunction { info in
                 guard let buffer = try info.arguments.first?.as(NodeBuffer.self),
-                      let decoded = try Self.decodeAttributedString(from: buffer.data()) else {
+                      let decoded = try? AttributedStringDecoder.decodeAttributedString(from: buffer.data()) else {
                     return try NodeUndefined()
                 }
-                return decoded
+                return try decoded.map { frag -> NodeObject in
+                    let obj = try NodeObject([
+                        "from": Double(frag.scalarRange.lowerBound),
+                        "to": Double(frag.scalarRange.upperBound),
+                        "text": "\(frag.text)",
+                        "attributes": frag.attributes.mapValues { "\($0)" }
+                    ])
+                    return obj
+                }
             },
-            "createThread": try NodeFunction { info in
+
+            "createThread": NodeFunction { info in
                 guard info.arguments.count == 2,
                       let arr = try info.arguments[0].as(NodeArray.self),
                       let message = try info.arguments[1].as(NodeString.self)?.string() else {
@@ -99,7 +77,8 @@ import Foundation
                     try controller().createThread(addresses: addresses, message: message)
                 }
             },
-            "markRead": try NodeFunction { info in
+
+            "markRead": NodeFunction { info in
                 guard let guid = try info.arguments.first?.as(NodeString.self) else {
                     return try NodeUndefined()
                 }
@@ -108,7 +87,8 @@ import Foundation
                     try controller().markAsRead(guid: guidString)
                 }
             },
-            "sendTypingStatus": try NodeFunction { info in
+
+            "sendTypingStatus": NodeFunction { info in
                 guard info.arguments.count == 2,
                       let isTyping = try? info.arguments[0].as(NodeBool.self)?.bool(),
                       let address = try? info.arguments[1].as(NodeString.self)?.string()
@@ -117,7 +97,8 @@ import Foundation
                     try controller().sendTypingStatus(isTyping, address: address)
                 }
             },
-            "watchThreadActivity": try NodeFunction { info in
+
+            "watchThreadActivity": NodeFunction { info in
                 let args: (String, (MessagesController.ActivityStatus) -> Void)?
                 if try info.arguments.count == 1 && info.arguments[0].as(NodeNull.self) != nil {
                     args = nil
@@ -156,7 +137,8 @@ import Foundation
                     }
                 }
             },
-            "setReaction": try NodeFunction { info in
+
+            "setReaction": NodeFunction { info in
                 guard info.arguments.count == 4,
                       let guid = try? info.arguments[0].as(NodeString.self)?.string(),
                       let offset = try? info.arguments[1].as(NodeNumber.self)?.double(),
@@ -169,7 +151,8 @@ import Foundation
                     try controller().setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on)
                 }
             },
-            "sendTextMessage": try NodeFunction { info in
+
+            "sendTextMessage": NodeFunction { info in
                 guard info.arguments.count == 2,
                       let text = try? info.arguments[0].as(NodeString.self)?.string(),
                       let threadID = try? info.arguments[1].as(NodeString.self)?.string()
@@ -178,7 +161,8 @@ import Foundation
                     try controller().sendTextMessage(text, threadID: threadID)
                 }
             },
-            "sendReply": try NodeFunction { info in
+
+            "sendReply": NodeFunction { info in
                 guard info.arguments.count == 2,
                       let guid = try? info.arguments[0].as(NodeString.self)?.string(),
                       let text = try? info.arguments[1].as(NodeString.self)?.string()
@@ -187,7 +171,8 @@ import Foundation
                     try controller().sendReply(guid: guid, text: text)
                 }
             },
-            "dispose": try NodeFunction { info in
+
+            "dispose": NodeFunction { info in
                 debugLog("disposing SwiftServer...")
                 MessagesController.queue.sync {
                     _controller?.dispose()
@@ -195,6 +180,6 @@ import Foundation
                 }
                 return try NodeUndefined()
             }
-        ]
+        ])
     }
 }

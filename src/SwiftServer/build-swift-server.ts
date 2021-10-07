@@ -12,6 +12,7 @@ async function isRosetta(): Promise<boolean> {
   const buildOptions: Config = {
     packagePath: 'src/SwiftServer',
     macVersion: '10.11',
+    static: true,
     swiftFlags: '',
   }
 

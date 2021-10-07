@@ -7,12 +7,11 @@ enum AttributedStringDecoder {
         let attributes: [String: Any]
     }
 
-    static func decodeAttributedString(from data: Data) throws -> [Fragment]? {
+    static func decodeAttributedString(from data: Data) throws -> [Fragment] {
         let unarchiver = NSUnarchiver(forReadingWith: data)!
         let decoded = unarchiver.decodeObject()
-        guard let nsStr = decoded as? NSAttributedString else {
-            return nil // "decoded object type unknown"
-        }
+        let nsStr = try (decoded as? NSAttributedString)
+            .orThrow(ErrorMessage("Decoded object type unknown"))
         let string = nsStr.string
 
         var fragments: [Fragment] = []
