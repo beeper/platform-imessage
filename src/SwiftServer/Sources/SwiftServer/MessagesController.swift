@@ -301,6 +301,16 @@ final class MessagesController {
         space = try Space(newSpaceOfKind: .fullscreen)
         lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
 
+        if app.isHidden {
+            debugLog("Unhiding Messages...")
+            try Self.retry(withTimeout: 1, interval: 0.1) { [app] in
+                app.unhide()
+                if app.isHidden {
+                    throw ErrorMessage("Could not launch Messages")
+                }
+            }
+        }
+
         #if DEBUG
         let existing = try Space.list()
         debugLog("Number of spaces: \(existing.count)")
@@ -500,8 +510,7 @@ final class MessagesController {
             try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
 
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-                debugLog("warning: Cell for message \(guid) could not be found.")
-                return
+                throw ErrorMessage("Cell for message \(guid) could not be found.")
             }
 
             // we now click another cell and then come back

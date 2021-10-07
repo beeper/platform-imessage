@@ -364,7 +364,7 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         await server.markRead(messageID)
         await bluebird.delay(100)
-        if ((await this.dbAPI.isMessageRead(messageID)) !== 1) {
+        if (!(await this.dbAPI.isThreadRead(threadID))) {
           throw new Error('sendReadReceipt failed (cause unknown)')
         }
       }, {

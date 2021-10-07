@@ -80,6 +80,13 @@ WHERE t.guid = ?
 ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
+  isThreadRead: `SELECT is_read
+FROM message AS m
+LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+WHERE cmj.chat_id = ?
+AND m.is_from_me = 0 AND m.item_type = 0
+ORDER BY m.date DESC
+LIMIT 1`,
   searchMessages: (cursorDirection: string, chatGUID?: string) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
@@ -203,6 +210,13 @@ export default class DatabaseAPI {
     const chat: MappedChatRow = await this.db.get(SQLS.getThread, [chatGUID])
     if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     return chat
+  }
+
+  async isThreadRead(chatGUID: string): Promise<boolean> {
+    const rowID = this.chatGUIDRowIDMap.get(chatGUID)
+    if (typeof rowID !== 'number') return false
+    const row = await this.db.get(SQLS.isThreadRead, [rowID])
+    return row?.is_read === 1
   }
 
   getThreadWithWait(chatGUID: string) {
