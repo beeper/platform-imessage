@@ -169,7 +169,7 @@ const FDAAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
         </>
       )}
       <div className="buttons">
-        <button type="button" onClick={nmp.askForFullDiskAccess} disabled={authorized}>{authorized ? 'Authorized' : 'Open System Preferences'}</button>
+        <button type="button" onClick={() => nmp.askForFullDiskAccess()} disabled={authorized}>{authorized ? 'Authorized' : 'Open System Preferences'}</button>
         {authorized && <button type="button" onClick={selectNextPage}>Next &rarr;</button>}
       </div>
       {showMore ? (
