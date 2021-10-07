@@ -140,6 +140,7 @@ export default class AppleiMessage implements PlatformAPI {
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUserID,
         threadReadStore: this.threadReadStore,
+        mapMessageArgsMap: { [chatRow.guid]: await this.dbAPI.fetchLastMessageRows(chatRow.ROWID) },
       },
     )
   }
