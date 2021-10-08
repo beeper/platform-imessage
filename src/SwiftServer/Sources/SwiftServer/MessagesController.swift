@@ -477,11 +477,15 @@ final class MessagesController {
         try withMessageCell(guid: guid, offset: offset) { targetCell in
 //            targetCell.printAttributes()
             let allActions = try targetCell.supportedActions()
-            // TODO: Does "React" need to be localized here?
-            guard let reactAction = allActions.first(where: { $0.name.value.contains("Name:React") }) else {
+            // should be [react, reply, copy]
+            let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
+            guard customActions.count >= 2 else {
                 throw ErrorMessage("Could not find react action")
             }
+
+            let reactAction = customActions[0]
             try reactAction()
+
             let reactionsView = try Self.retry(withTimeout: 2, interval: 0.1) { try self.reactionsView() }
             guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == "AXButton" }),
                   buttons.count == 7 // last button is Reply
@@ -608,11 +612,12 @@ final class MessagesController {
 
         try withMessageCell(guid: guid, offset: 0) { targetCell in
             let allActions = try targetCell.supportedActions()
-
-            // TODO: Does "Reply" need to be localized here?
-            guard let replyAction = allActions.first(where: { $0.name.value.contains("Name:Reply") }) else {
-                throw ErrorMessage("Could not find react action")
+            let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
+            guard customActions.count >= 2 else {
+                throw ErrorMessage("Could not find reply action")
             }
+
+            let replyAction = customActions[1]
             try replyAction()
 
             let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
