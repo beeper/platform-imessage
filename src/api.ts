@@ -54,19 +54,8 @@ export default class AppleiMessage implements PlatformAPI {
     return { type: 'error', errorMessage: 'Please grant full disk access and try again.' }
   }
 
-  private initSwiftServer = async () => {
-    if (!IS_BIG_SUR_OR_UP) return
-    try {
-      await __swiftServer.init(texts.isLoggingEnabled || texts.IS_DEV)
-      return __swiftServer
-    } catch (err) {
-      texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-      texts.error('[imessage] initSwiftServer', err)
-      throw err
-    }
-  }
-
   private getSwiftServer = async () => {
+    if (!IS_BIG_SUR_OR_UP) return
     if (this._swiftServer) {
       try {
         return await this._swiftServer
@@ -76,7 +65,16 @@ export default class AppleiMessage implements PlatformAPI {
       }
     }
     // if _swiftServer is undefined/rejected, try creating it again
-    this._swiftServer = this.initSwiftServer()
+    this._swiftServer = (async () => {
+      try {
+        await __swiftServer.init(texts.isLoggingEnabled || texts.IS_DEV)
+        return __swiftServer
+      } catch (err) {
+        texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
+        texts.error('[imessage] initSwiftServer', err)
+        throw err
+      }
+    })()
     // Note: since the swiftServer promise can be rejected without immediately
     // beind handled, Node logs an unhandled promise rejection warning, but it's
     // a false alarm since the next call to this function would throw the error

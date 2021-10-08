@@ -53,14 +53,13 @@ import Foundation
                       let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
                     return try NodeUndefined()
                 }
-                return try decoded.map { frag -> NodeObject in
-                    let obj = try NodeObject([
+                return try decoded.map { frag in
+                    try NodeObject([
                         "from": Double(frag.scalarRange.lowerBound),
                         "to": Double(frag.scalarRange.upperBound),
                         "text": "\(frag.text)",
                         "attributes": frag.attributes.mapValues { "\($0)" }
                     ])
-                    return obj
                 }
             },
 
