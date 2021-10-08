@@ -719,14 +719,17 @@ final class MessagesController {
         activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
     }
 
-    // this is called before the final deinit
-    func dispose() {
-        // no-op for now
-    }
+    private var isDisposed = false
 
-    deinit {
+    func dispose() {
+        guard !isDisposed else { return }
+        isDisposed = true
         timer?.invalidate()
         loopThread?.cancel()
         app.terminate()
+    }
+
+    deinit {
+        dispose()
     }
 }

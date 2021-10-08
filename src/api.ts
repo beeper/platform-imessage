@@ -15,8 +15,11 @@ import ThreadReadStore from './thread-read-store'
 import { IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import __swiftServer, { ActivityStatus } from './SwiftServer/lib'
+import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+
+swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
+const { messagesControllerClass } = swiftServer
 
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
@@ -31,7 +34,9 @@ export default class AppleiMessage implements PlatformAPI {
 
   private api = iMessageAPI()
 
-  private _swiftServer: Promise<typeof __swiftServer>
+  private messagesControllerFetchPromise: Promise<MessagesController>
+
+  private messagesControllerCreatePromise: Promise<MessagesController>
 
   private onEvent: OnServerEventCallback
 
@@ -54,31 +59,50 @@ export default class AppleiMessage implements PlatformAPI {
     return { type: 'error', errorMessage: 'Please grant full disk access and try again.' }
   }
 
-  private getSwiftServer = async () => {
+  // here be dragons
+  private getMessagesController = async (attempt = 0): Promise<MessagesController> => {
     if (!IS_BIG_SUR_OR_UP) return
-    if (this._swiftServer) {
-      try {
-        return await this._swiftServer
-      } catch (err) {
-        texts.error('[imessage] getSwiftServer', err)
-        // fallthrough
-      }
+
+    // we want to reuse existing instances of the fetch promise while any one is
+    // running, but once it's done the next call to getMessagesController should
+    // start up a new invocation (so that isValid() is checked again)
+    //
+    // the create promise, meanwhile, should be recreated sparingly: only if a previous
+    // create() call failed, or inside the fetch promise when isValid is false (in either
+    // case, the main fetchPromsie closure will throw and be caught by the catch)
+    if (!this.messagesControllerFetchPromise) {
+      this.messagesControllerFetchPromise = (async () => {
+        if (!this.messagesControllerCreatePromise) {
+          texts.log('creating MessagesController...')
+          this.messagesControllerCreatePromise = messagesControllerClass.create()
+        }
+        const controller = await this.messagesControllerCreatePromise
+        if (!(await controller.isValid())) {
+          controller.dispose()
+          throw new Error('MessagesController is invalid')
+        }
+        return controller
+      })().finally(() => {
+        // this `finally` must run *before* the catch since the catch recurses
+        // getMessagesController, and when that happens the fetch promise should
+        // already be undefined
+        this.messagesControllerFetchPromise = undefined
+      }).catch(err => {
+        // we always unset createPromise here, but only auto-retry up to twice.
+        // This means that a single call to getMessagesController() will spawn
+        // at most three create() calls, but if all three fail then a future call
+        // to getMessagesController() can spawn up to three more again
+        this.messagesControllerCreatePromise = undefined
+        texts.error('[imessage] getMessagesController', err)
+        if (attempt > 2) {
+          texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
+          throw err
+        }
+        texts.log('retrying...')
+        return this.getMessagesController(attempt + 1)
+      })
     }
-    // if _swiftServer is undefined/rejected, try creating it again
-    this._swiftServer = (async () => {
-      try {
-        await __swiftServer.init(texts.isLoggingEnabled || texts.IS_DEV)
-        return __swiftServer
-      } catch (err) {
-        texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-        texts.error('[imessage] initSwiftServer', err)
-        throw err
-      }
-    })()
-    // Note: since the swiftServer promise can be rejected without immediately
-    // beind handled, Node logs an unhandled promise rejection warning, but it's
-    // a false alarm since the next call to this function would throw the error
-    return this._swiftServer
+    return this.messagesControllerFetchPromise
   }
 
   private static singleParticipantForThread(threadID: string | null): string | null {
@@ -91,7 +115,7 @@ export default class AppleiMessage implements PlatformAPI {
   init = async (_: undefined, { dataDirPath }: AccountInfo) => {
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we have FDA which means user went through auth flow
-      this.getSwiftServer()
+      this.getMessagesController()
     }
     this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
     csrStatus().then(status => {
@@ -103,7 +127,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = () => {
-    this._swiftServer?.then(s => s.dispose())
+    this.messagesControllerFetchPromise?.then(s => s.dispose())
     this.api.dispose()
     this.filesToDelete.forEach(filePath => {
       fs.unlink(filePath).catch(() => {})
@@ -170,10 +194,10 @@ export default class AppleiMessage implements PlatformAPI {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
       if (existingThread) return existingThread
-      await (await this.getSwiftServer()).createThread([address], message)
+      await (await this.getMessagesController()).createThread([address], message)
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
-      await (await this.getSwiftServer()).createThread(userIDs, message)
+      await (await this.getMessagesController()).createThread(userIDs, message)
     }
   }
 
@@ -269,7 +293,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
         this.elideStopTyping = true
-        const server = await this.getSwiftServer()
+        const server = await this.getMessagesController()
         await server.sendReply(options.quotedMessageID, content.text)
         return true
       }
@@ -277,7 +301,7 @@ export default class AppleiMessage implements PlatformAPI {
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
           this.elideStopTyping = true
-          const server = await this.getSwiftServer()
+          const server = await this.getMessagesController()
           await server.sendTextMessage(content.text, threadID)
           return true
         } catch (err) {
@@ -337,13 +361,13 @@ export default class AppleiMessage implements PlatformAPI {
         return
       }
     }
-    return (await this.getSwiftServer()).sendTypingStatus(isTyping, participantID)
+    return (await this.getMessagesController()).sendTypingStatus(isTyping, participantID)
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
     const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID) // todo optimize by calling only if needed
-    await (await this.getSwiftServer()).setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
+    await (await this.getMessagesController()).setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
   }
 
   addReaction = (threadID: string, messageID: string, reactionKey: string) =>
@@ -358,7 +382,7 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
     this.threadReadStore.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
-      const server = await this.getSwiftServer()
+      const server = await this.getMessagesController()
       await pRetry(async () => {
         await server.markRead(messageID)
         await bluebird.delay(100)
@@ -376,17 +400,17 @@ export default class AppleiMessage implements PlatformAPI {
 
   onThreadSelected = async (threadID: string) => {
     // we don't need to Promise.all because the Promise has already been
-    // fired for swiftServer
-    const swiftServer = await this.getSwiftServer()
-    if (!swiftServer) return
+    // fired for messagesController
+    const messagesController = await this.getMessagesController()
+    if (!messagesController) return
 
     // ignore groups and sms threads
     const participantID = AppleiMessage.singleParticipantForThread(threadID)
     if (!participantID) {
-      return swiftServer.watchThreadActivity(null)
+      return messagesController.watchThreadActivity(null)
     }
 
-    return swiftServer.watchThreadActivity(participantID, status => {
+    return messagesController.watchThreadActivity(participantID, status => {
       this.onEvent([
         {
           type: ServerEventType.USER_ACTIVITY,

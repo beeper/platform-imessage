@@ -18,20 +18,35 @@ export enum ActivityStatus {
   Unknown = 'UNKNOWN',
 }
 
-export type SwiftServer = {
-  decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
+export declare class MessagesController {
+  static create(): Promise<MessagesController>
+
+  isValid: () => Promise<boolean>
+
   createThread: (addresses: string[], message: string) => Promise<void>
+
   markRead: (guid: string) => Promise<void>
+
   sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
+
   watchThreadActivity: (
     address: string | null,
     onTyping?: (status: ActivityStatus) => void
   ) => Promise<void>
+
   setReaction: (guid: string, offset: number, reaction: string, on: boolean) => Promise<void>
+
   sendTextMessage: (text: string, threadID: string) => Promise<void>
+
   sendReply: (guid: string, text: string) => Promise<void>
+
   dispose: () => void
-  init: (isLoggingEnabled?: boolean) => Promise<void>
+}
+
+export type SwiftServer = {
+  decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
+  isLoggingEnabled: boolean
+  messagesControllerClass: typeof MessagesController
 }
 
 const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`)
@@ -39,6 +54,7 @@ const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node
 let _swiftServer: SwiftServer | undefined
 if (IS_SWIFT_STABLE) {
   _swiftServer = actualRequire(swiftServerPath)
+  _swiftServer.messagesControllerClass = (_swiftServer as any).MessagesController
 }
 
 const swiftServer = _swiftServer
