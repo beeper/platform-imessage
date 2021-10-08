@@ -22,7 +22,7 @@ async function isRosetta(): Promise<boolean> {
     buildOptions.swiftFlags += '-DNO_SPACES'
   }
 
-  // await clean();
+  if (config === 'release') await clean()
 
   async function buildTriple(triple: string, arch: string) {
     console.log(`Building SwiftServer for ${triple}...`)
@@ -32,10 +32,12 @@ async function isRosetta(): Promise<boolean> {
       triple,
     })
 
-    await fsPromises.copyFile(
-      binaryPath,
-      `binaries/swift_${arch}.node`,
-    )
+    const dest = `binaries/swift_${arch}.node`
+    if (config === 'release') {
+      await shellExec('strip', '-ur', binaryPath, '-o', dest)
+    } else {
+      await fsPromises.copyFile(binaryPath, dest)
+    }
   }
 
   await buildTriple('x86_64-apple-macosx', 'x64')
