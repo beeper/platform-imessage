@@ -2,13 +2,14 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import bluebird from 'bluebird'
+import childProcess from 'child_process'
 import { v4 as uuid } from 'uuid'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin, MessageWithExtra } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import iMessageAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
@@ -194,7 +195,8 @@ export default class AppleiMessage implements PlatformAPI {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
       if (existingThread) return existingThread
-      await (await this.getMessagesController()).createThread([address], message)
+      if (message) await (await this.getMessagesController()).createThread([address], message)
+      else childProcess.spawn('open', [`imessage://${address}`])
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
       await (await this.getMessagesController()).createThread(userIDs, message)
