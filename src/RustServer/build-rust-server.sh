@@ -1,17 +1,13 @@
 #!/usr/bin/env sh
 
-cargo build --manifest-path src/RustServer/Cargo.toml --release --target=aarch64-apple-darwin
+function build_arch {
+    cargo build --manifest-path src/RustServer/Cargo.toml --release --target="$1"
+    local built_path="src/RustServer/target/$1/release/librust_server.dylib"
+    local out_path="binaries/macos-$2/rust-server.node"
+    ls -lah "${built_path}"
+    strip -ur "${built_path}" -o "${out_path}"
+    codesign -fs - "${out_path}"
+}
 
-cargo build --manifest-path src/RustServer/Cargo.toml --release
-
-FILE_PATH_X64=src/RustServer/target/release/librust_server.dylib
-FILE_PATH_ARM64=src/RustServer/target/aarch64-apple-darwin/release/librust_server.dylib
-
-ls -lah $FILE_PATH_X64
-ls -lah $FILE_PATH_ARM64
-
-strip -ru $FILE_PATH_X64
-strip -ru $FILE_PATH_ARM64
-
-cp $FILE_PATH_X64 binaries/rs_x64.node
-cp $FILE_PATH_ARM64 binaries/rs_arm64.node
+build_arch aarch64-apple-darwin arm64
+build_arch x86_64-apple-darwin x64

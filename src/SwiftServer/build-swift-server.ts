@@ -2,6 +2,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build, Config } from 'node-swift'
 import { promises as fsPromises } from 'fs'
+import { resolve } from 'path'
 import { shellExec } from '../util'
 
 async function isRosetta(): Promise<boolean> {
@@ -12,7 +13,6 @@ async function isRosetta(): Promise<boolean> {
   const buildOptions: Config = {
     packagePath: 'src/SwiftServer',
     macVersion: '10.11',
-    static: true,
     swiftFlags: '',
   }
 
@@ -25,23 +25,30 @@ async function isRosetta(): Promise<boolean> {
   if (config === 'release') await clean()
 
   async function buildTriple(triple: string, arch: string) {
-    console.log(`Building SwiftServer for ${triple}...`)
+    console.log(`Building ${triple}...`)
 
     const binaryPath = await build(config, {
       ...buildOptions,
       triple,
     })
 
-    const dest = `binaries/swift_${arch}.node`
+    const outdir = `binaries/macos-${arch}`
+    fsPromises.mkdir(outdir, { recursive: true })
+    const dest = `${outdir}/swift-server.node`
     if (config === 'release') {
       await shellExec('strip', '-ur', binaryPath, '-o', dest)
     } else {
       await fsPromises.copyFile(binaryPath, dest)
     }
+
+    await fsPromises.copyFile(resolve(binaryPath, '../libNodeAPI.dylib'), `${outdir}/libNodeAPI.dylib`)
   }
 
-  await buildTriple('x86_64-apple-macosx', 'x64')
-  if (config === 'release' || process.arch === 'arm64' || await isRosetta()) {
+  const onRosetta = await isRosetta()
+  if (config === 'release' || onRosetta || process.arch === 'x64') {
+    await buildTriple('x86_64-apple-macosx', 'x64')
+  }
+  if (config === 'release' || onRosetta || process.arch === 'arm64') {
     await buildTriple('arm64-apple-macosx', 'arm64')
   }
 })()

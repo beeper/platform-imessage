@@ -49,7 +49,7 @@ export type SwiftServer = {
   messagesControllerClass: typeof MessagesController
 }
 
-const swiftServerPath = path.join(BINARIES_DIR_PATH, `swift_${process.arch}.node`)
+const swiftServerPath = path.join(BINARIES_DIR_PATH, `macos-${process.arch}`, 'swift-server.node')
 
 let _swiftServer: SwiftServer | undefined
 if (IS_SWIFT_STABLE) {
