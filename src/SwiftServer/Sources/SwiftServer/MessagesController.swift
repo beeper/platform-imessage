@@ -12,14 +12,11 @@ struct ErrorMessage: Error, CustomStringConvertible {
     var description: String { message }
 }
 
-// don't do globals, kids
-var gIsLoggingEnabled = false
-
 // will be optimized out in release mode
 @_transparent
 func debugLog(_ message: @autoclosure () -> String) {
     #if DEBUG
-    guard gIsLoggingEnabled else { return }
+    guard SwiftServer.isLoggingEnabled else { return }
     print(message())
     #endif
 }
@@ -187,8 +184,6 @@ final class MessagesController {
             callback(status)
         }
     }
-
-    static let queue = DispatchQueue(label: "swift-server-queue")
 
     private static let messagesBundleID = "com.apple.MobileSMS"
     private static let messagesBundle = NSWorkspace.shared.urlForApplication(
