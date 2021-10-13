@@ -131,14 +131,12 @@ export default class AppleiMessage implements PlatformAPI {
     // if the promise is undefined, we probably failed to create the controller
     // and so getMessagesController() would re-initialize it. We only really care
     // about disposing any existing handle.
-    if (this.messagesControllerCreatePromise) {
-      (await this.getMessagesController()).dispose()
-    }
-    this.api.dispose()
-    this.filesToDelete.forEach(filePath => {
-      fs.unlink(filePath).catch(() => {})
-    })
-    return this.dbAPI.dispose()
+    await Promise.all([
+      this.messagesControllerCreatePromise && (await this.getMessagesController()).dispose(),
+      ...[...this.filesToDelete].map(filePath => fs.unlink(filePath).catch(() => { })),
+      this.dbAPI.dispose(),
+      this.api.dispose(),
+    ])
   }
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
