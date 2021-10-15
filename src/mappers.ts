@@ -1,7 +1,7 @@
 import { groupBy, omit, truncate, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, texts } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, HEADING_SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplitParse from './safe-bplist-parse'
@@ -396,10 +396,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         didFail = true
         break
       case 'heading':
-        m.text = m.text.replace(
-          HEADING_SENDER_NAME_CONSTANT,
-          m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`,
-        )
+        m.text = m.text
+          .replace(RECEIVER_NAME_CONSTANT, m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`)
+          .replace(SENDER_NAME_CONSTANT, m.isSender ? `{{${currentUserID}}}` : `{{${msgRow.participantID}}}`)
         m.parseTemplate = true
         break
       default:

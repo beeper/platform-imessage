@@ -65,7 +65,8 @@ export enum BalloonBundleID {
 
 export const MSG_EXTENSION_PREFIX = 'com.apple.messages.MSMessageExtensionBalloonPlugin'
 
-export const HEADING_SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)'
+export const RECEIVER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)'
+export const SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextSenderIdentifier)'
 
 const [DARWIN_MAJOR_VERSON, DARWIN_MINOR_VERSION] = os.release().split('.').map(Number)
 export const IS_MOJAVE_OR_UP = DARWIN_MAJOR_VERSON >= 18
