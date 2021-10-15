@@ -32,7 +32,7 @@ async function isRosetta(): Promise<boolean> {
       triple,
     })
 
-    const outdir = `binaries/macos-${arch}`
+    const outdir = `binaries/${process.platform}-${arch}`
     fsPromises.mkdir(outdir, { recursive: true })
     const dest = `${outdir}/swift-server.node`
     if (config === 'release') {

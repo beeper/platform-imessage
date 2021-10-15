@@ -12,7 +12,7 @@ const {
 
   startPoller,
   stopPoller,
-} = actualRequire(path.join(BINARIES_DIR_PATH, `macos-${process.arch}`, 'rust-server.node'))
+} = actualRequire(path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`, 'rust-server.node'))
 
 export class Server {
   #client: object

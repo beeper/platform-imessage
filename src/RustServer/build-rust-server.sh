@@ -3,7 +3,7 @@
 function build_arch {
     cargo build --manifest-path src/RustServer/Cargo.toml --release --target="$1"
     local built_path="src/RustServer/target/$1/release/librust_server.dylib"
-    local out_path="binaries/macos-$2/rust-server.node"
+    local out_path="binaries/darwin-$2/rust-server.node"
     ls -lah "${built_path}"
     strip -ur "${built_path}" -o "${out_path}"
     codesign -fs - "${out_path}"
