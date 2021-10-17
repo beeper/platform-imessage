@@ -8,11 +8,13 @@ import iMessageAPI from './as2'
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH } from './constants'
 import useAsync from './use-async'
 
+declare const __IS_BROWSER__: boolean
+
 const contactsImgPrefix = IS_BIG_SUR_OR_UP ? 'img/bigsur' : 'img/catalina'
 const contactsImg = `${contactsImgPrefix}-contacts-allow.png`
 const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.png`
 
-const staticPrefix = `file://${BINARIES_DIR_PATH}`
+const staticPrefix = __IS_BROWSER__ ? './platform-imessage' : `file://${BINARIES_DIR_PATH}`
 const staticImgPrefix = `${staticPrefix}/${IS_BIG_SUR_OR_UP ? 'bigsur' : 'catalina'}`
 const fdaImg = path.join(staticImgPrefix, 'fda.png')
 const axImg = path.join(staticImgPrefix, 'ax.png')
