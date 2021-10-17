@@ -3,7 +3,7 @@ import bluebird, { promisify } from 'bluebird'
 import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
 // import { parentPort } from 'worker_threads'
 import imageSizeSync from 'image-size'
-import { Message, OnServerEventCallback, ServerEvent, texts } from '@textshq/platform-sdk'
+import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
 import { Server as RustServer } from './RustServer/lib'
@@ -100,8 +100,7 @@ LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
 }
 
-// @ts-expect-error FIXME
-const { AsyncSqlite } = globalThis
+const AsyncSqlite = (globalThis as any).AsyncSqlite as IAsyncSqlite
 
 async function getDB() {
   try {
