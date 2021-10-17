@@ -3,6 +3,7 @@ import { createElement, useState, useEffect, useRef, useMemo, useCallback } from
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
+import type { PlatformAPI } from '@textshq/platform-sdk'
 
 import iMessageAPI from './as2'
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH } from './constants'
@@ -52,6 +53,7 @@ type PageProps = {
   login: Function
   isReauthing: boolean
   nmp: NMP
+  api: PlatformAPI
 }
 
 const useNMP = (nmp: NMP, authType: AuthType) => {
@@ -191,7 +193,7 @@ const FDAAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
 }
 
 let automationAuthorized = false
-const AutomationAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
+const AutomationAuthPage: React.FC<PageProps> = ({ api, selectNextPage }) => {
   const [showMore, setShowMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [calledOnce, setCalledOnce] = useState(false)
@@ -199,9 +201,8 @@ const AutomationAuthPage: React.FC<PageProps> = ({ selectNextPage }) => {
   const authorizeClick = async () => {
     if (calledOnce) return openAutomationPrefs()
     setLoading(true)
-    const api = iMessageAPI()
-    automationAuthorized = await api.askForAutomationAccess()
-    api.dispose()
+    // unclean way to do it but fine for now
+    automationAuthorized = (await api.getAsset('askForAutomationAccess')) === 'true'
     setCalledOnce(true)
     setLoading(false)
   }
@@ -309,7 +310,7 @@ const pages = [
   AddAccountPage,
 ].filter(Boolean)
 
-const AppleiMessageAuth: React.FC<{ login: Function, isReauthing: boolean, callNMP: (methodName: string, args: any[]) => Promise<any> }> = ({ login, isReauthing, callNMP }) => {
+const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, callNMP: (methodName: string, args: any[]) => Promise<any> }> = ({ api, login, isReauthing, callNMP }) => {
   const [pageIndex, setPageIndex] = useState(0)
   const selectPrevPage = () => setPageIndex(pi => Math.max(0, pi - 1))
   const selectNextPage = () => setPageIndex(pi => Math.min(pages.length - 1, pi + 1))
@@ -336,7 +337,7 @@ const AppleiMessageAuth: React.FC<{ login: Function, isReauthing: boolean, callN
       <Helmet>
         <link rel="stylesheet" href={cssPath} />
       </Helmet>
-      {createElement(pages[pageIndex], { selectPrevPage, selectNextPage, selectFDAPage, login, isReauthing, nmp })}
+      {createElement(pages[pageIndex], { api, selectPrevPage, selectNextPage, selectFDAPage, login, isReauthing, nmp })}
       <div className="page-dots">
         {pages.map((_, index) =>
           <div key={index} className={cn('dot', { selected: pageIndex === index })} onClick={() => setPageIndex(index)} />)}

@@ -439,6 +439,7 @@ export default class AppleiMessage implements PlatformAPI {
   //   }
 
   getAsset = async (pathHex: string) => {
+    if (pathHex === 'askForAutomationAccess') return String(await this.asAPI.askForAutomationAccess())
     const filePath = Buffer.from(pathHex, 'hex').toString()
     const buffer = await fs.readFile(filePath)
     try {
