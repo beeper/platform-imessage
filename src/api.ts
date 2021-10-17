@@ -10,7 +10,7 @@ import pRetry from 'p-retry'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
-import iMessageAPI from './as2'
+import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
 import { IS_BIG_SUR_OR_UP } from './constants'
@@ -33,7 +33,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!this.dbAPI.connected) throw new ReAuthError('Unable to connect to iMessage database')
   }
 
-  private api = iMessageAPI()
+  private asAPI = ASAPI()
 
   private messagesControllerFetchPromise: Promise<MessagesController>
 
@@ -135,7 +135,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.messagesControllerCreatePromise && (await this.getMessagesController()).dispose(),
       ...[...this.filesToDelete].map(filePath => fs.unlink(filePath).catch(() => { })),
       this.dbAPI.dispose(),
-      this.api.dispose(),
+      this.asAPI.dispose(),
     ])
   }
 
@@ -172,7 +172,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private catalinaCreateThread = async (userIDs: string[]) => {
-    const threadID = await this.api.createThread(userIDs)
+    const threadID = await this.asAPI.createThread(userIDs)
     await bluebird.delay(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
     if (!chatRow) return
@@ -320,7 +320,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendTextMessage = async (threadID: string, text: string) => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)
-    await this.api.sendTextMessage(threadID, text)
+    await this.asAPI.sendTextMessage(threadID, text)
     let newCount = 0
     while (newCount === 0) {
       await bluebird.delay(25)
@@ -331,7 +331,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendFileFromFilePath = async (threadID: string, filePath: string) => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)
-    await this.api.sendFile(threadID, filePath)
+    await this.asAPI.sendFile(threadID, filePath)
     let newCount = 0
     while (newCount === 0) {
       await bluebird.delay(25)
