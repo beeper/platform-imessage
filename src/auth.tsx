@@ -5,7 +5,6 @@ import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
 import type { PlatformAPI } from '@textshq/platform-sdk'
 
-import iMessageAPI from './as2'
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH } from './constants'
 import useAsync from './use-async'
 
