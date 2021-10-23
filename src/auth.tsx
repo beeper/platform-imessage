@@ -10,6 +10,8 @@ import useAsync from './use-async'
 
 declare const __IS_BROWSER__: boolean
 
+if (typeof globalThis.__IS_BROWSER__ === 'undefined') globalThis.__IS_BROWSER__ = false
+
 const contactsImgPrefix = IS_BIG_SUR_OR_UP ? 'img/bigsur' : 'img/catalina'
 const contactsImg = `${contactsImgPrefix}-contacts-allow.png`
 const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.png`
@@ -56,13 +58,25 @@ type PageProps = {
 }
 
 const useNMP = (nmp: NMP, authType: AuthType) => {
-  const getAuthStatus = useCallback(() => nmp.getAuthStatus(authType).then(res => res === 'authorized'), [])
-  const { execute: refreshAuthorization, value: authorized, pending, error } = useAsync(getAuthStatus)
+  const isAuthorized = useCallback(() => nmp.getAuthStatus(authType).then(res => res === 'authorized'), [])
+  const { execute: refreshAuthorization, value: authorized, pending, error } = useAsync(isAuthorized)
   if (error) throw error
   useEffect(() => {
     window.addEventListener('focus', refreshAuthorization)
     return () => window.removeEventListener('focus', refreshAuthorization)
   }, [refreshAuthorization])
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>
+    async function checkIfAuthorized() {
+      if (await isAuthorized()) {
+        refreshAuthorization()
+      } else {
+        timeout = setTimeout(checkIfAuthorized, 1_000)
+      }
+    }
+    checkIfAuthorized()
+    return () => clearTimeout(timeout)
+  }, [])
   console.log(authType, 'authorized', authorized)
   return { refreshAuthorization, authorized, pending }
 }
