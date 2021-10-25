@@ -422,7 +422,7 @@ final class MessagesController {
 
     private func reactionsView() throws -> Accessibility.Element {
         guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
-              (try? mainView.children.count()) ?? 0 >= 2,
+//              (try? mainView.children.count()) ?? 0 >= 2,
               let presView = try? mainView.children.value(at: 0),
               (try? presView.children.count()) ?? 0 > 0 else {
             throw ErrorMessage("Could not find reactions view")
