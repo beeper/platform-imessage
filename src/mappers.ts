@@ -344,7 +344,14 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const messages = messageParts.map<MessageWithExtra>((part, partIdx) => {
     const message = { ...partialMessage }
     if (messageParts.length > 1) {
-      message.extra.part = part.index
+      // we have to copy message.extra, otherwise it shares the object
+      // among different message parts
+      message.extra = {
+        ...message.extra,
+        // we mean part number (part.index), not partIdx. The latter is
+        // 0-based whereas part.index can be negative for the subject.
+        part: part.index,
+      }
     }
     // we mean idx, not part number
     if (partIdx === 0) Object.assign(message, partialHeader)
