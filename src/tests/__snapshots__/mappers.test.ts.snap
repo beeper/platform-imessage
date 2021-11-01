@@ -1,0 +1,171 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`multi part messages 0 1`] = `
+Array [
+  Object {
+    "cursor": "657208635075000000",
+    "extra": Object {
+      "part": 0,
+    },
+    "id": "262F0210-126B-40E1-8247-C3EECF585C66",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "reactions": Array [
+      Object {
+        "id": "kishan24x7@gmail.com",
+        "participantID": "kishan24x7@gmail.com",
+        "reactionKey": "❤️",
+      },
+    ],
+    "seen": undefined,
+    "senderID": "kishan24x7@gmail.com",
+    "text": "1 2",
+    "textAttributes": undefined,
+    "timestamp": 2021-10-29T13:57:15.075Z,
+  },
+  Object {
+    "attachments": Array [
+      Object {
+        "fileName": "IMG_9997.png",
+        "id": "at_0_262F0210-126B-40E1-8247-C3EECF585C66",
+        "loading": false,
+        "size": Object {
+          "height": 102,
+          "width": 156,
+        },
+        "srcURL": "asset://$accountID/2f55736572732f6b697368616e2f4c6962726172792f4d657373616765732f4174746163686d656e74732f39622f31312f41344344333634312d373732362d344143322d383945332d3646333038313243374331382f494d475f393939372e706e67",
+        "type": "img",
+      },
+    ],
+    "cursor": "657208635075000000",
+    "extra": Object {
+      "part": 1,
+    },
+    "id": "262F0210-126B-40E1-8247-C3EECF585C66_1",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "reactions": Array [
+      Object {
+        "id": "kishan24x7@gmail.com",
+        "participantID": "kishan24x7@gmail.com",
+        "reactionKey": "👍",
+      },
+    ],
+    "seen": undefined,
+    "senderID": "kishan24x7@gmail.com",
+    "timestamp": 2021-10-29T13:57:15.075Z,
+  },
+  Object {
+    "attachments": Array [
+      Object {
+        "fileName": "IMG_9528.png",
+        "id": "at_2_262F0210-126B-40E1-8247-C3EECF585C66",
+        "loading": false,
+        "size": Object {
+          "height": 144,
+          "width": 204,
+        },
+        "srcURL": "asset://$accountID/2f55736572732f6b697368616e2f4c6962726172792f4d657373616765732f4174746163686d656e74732f38612f31302f31413032343432422d363836362d344245382d424335362d4534363539344231343346342f494d475f393532382e706e67",
+        "type": "img",
+      },
+    ],
+    "cursor": "657208635075000000",
+    "extra": Object {
+      "part": 2,
+    },
+    "id": "262F0210-126B-40E1-8247-C3EECF585C66_2",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "reactions": Array [
+      Object {
+        "id": "kishan24x7@gmail.com",
+        "participantID": "kishan24x7@gmail.com",
+        "reactionKey": "👎",
+      },
+    ],
+    "seen": undefined,
+    "senderID": "kishan24x7@gmail.com",
+    "textFooter": undefined,
+    "timestamp": 2021-10-29T13:57:15.075Z,
+  },
+]
+`;
+
+exports[`multi part messages 1 1`] = `
+Array [
+  Object {
+    "behavior": "keep_read",
+    "cursor": "657208647322373600",
+    "extra": Object {
+      "part": 0,
+    },
+    "id": "829D7284-F1C6-4848-B7C7-C4190EA416BD",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": false,
+    "seen": 2021-10-29T13:57:28.863Z,
+    "senderID": "+918470075752",
+    "text": "part 0 part 2 part 4",
+    "textAttributes": undefined,
+    "timestamp": 2021-10-29T13:57:27.322Z,
+  },
+  Object {
+    "attachments": Array [
+      Object {
+        "fileName": "Screenshot 2021-10-29 at 4.10.47 PM.jpeg",
+        "id": "at_1_829D7284-F1C6-4848-B7C7-C4190EA416BD",
+        "loading": false,
+        "size": Object {
+          "height": 926,
+          "width": 1306,
+        },
+        "srcURL": "file:///Users/kishan/Library/Messages/Attachments/97/07/26DEB5BA-D048-4D8E-8E20-AD64B3456A66/Screenshot%202021-10-29%20at%204.10.47%20PM.jpeg",
+        "type": "img",
+      },
+    ],
+    "behavior": "keep_read",
+    "cursor": "657208647322373600",
+    "extra": Object {
+      "part": 1,
+    },
+    "id": "829D7284-F1C6-4848-B7C7-C4190EA416BD_1",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": false,
+    "seen": 2021-10-29T13:57:28.863Z,
+    "senderID": "+918470075752",
+    "timestamp": 2021-10-29T13:57:27.322Z,
+  },
+  Object {
+    "attachments": Array [
+      Object {
+        "fileName": "Screenshot 2021-10-29 at 4.07.41 PM.jpeg",
+        "id": "at_3_829D7284-F1C6-4848-B7C7-C4190EA416BD",
+        "loading": false,
+        "size": Object {
+          "height": 724,
+          "width": 1010,
+        },
+        "srcURL": "file:///Users/kishan/Library/Messages/Attachments/11/01/9F9773B6-3E39-4D2B-9F07-451372FB28D6/Screenshot%202021-10-29%20at%204.07.41%20PM.jpeg",
+        "type": "img",
+      },
+    ],
+    "behavior": "keep_read",
+    "cursor": "657208647322373600",
+    "extra": Object {
+      "part": 2,
+    },
+    "id": "829D7284-F1C6-4848-B7C7-C4190EA416BD_2",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": false,
+    "seen": 2021-10-29T13:57:28.863Z,
+    "senderID": "+918470075752",
+    "textFooter": undefined,
+    "timestamp": 2021-10-29T13:57:27.322Z,
+  },
+]
+`;
