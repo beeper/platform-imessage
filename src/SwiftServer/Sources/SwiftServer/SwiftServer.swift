@@ -42,21 +42,18 @@ final class MessagesControllerWrapper: NodeClass {
     private func performAsync(
         _ action: @escaping () throws -> Void
     ) throws -> NodePromise {
-        try Self.returnAsync(on: swiftJSQueue) {
+        try returnAsync {
             try action()
-            return NodeDeferredValue { try NodeUndefined() }
+            return NodeUndefined.deferred
         }
     }
 
     static func create(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        guard let ctor = try args.this?.as(NodeFunction.self) else {
-            throw ErrorMessage("Invalid invocation of create")
-        }
         let q = try NodeAsyncQueue(label: "create-messages-controller")
         return try returnAsync(on: q) {
             let controller = try MessagesController()
             return NodeDeferredValue {
-                try ctor.new(NodeExternal(value: controller))
+                try MessagesControllerWrapper(controller: controller).wrapped()
             }
         }
     }
@@ -68,16 +65,14 @@ final class MessagesControllerWrapper: NodeClass {
     private let watchCBQueue: NodeAsyncQueue
 
     let controller: MessagesController
-    init(_ args: NodeFunction.Arguments) throws {
-        guard let controller = try args[0].as(NodeExternal.self)?.value() as? MessagesController else {
-            throw ErrorMessage("MessagesController was not constructed using create()")
-        }
+    // must be called on JS queue
+    init(controller: MessagesController) throws {
         self.controller = controller
         self.swiftJSQueue = try NodeAsyncQueue(label: "messages-controller-async")
         self.watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
     }
 
-    func isValid(_: NodeFunction.Arguments) throws -> NodeValueConvertible {
+    func isValid() throws -> NodeValueConvertible {
         try returnAsync { self.controller.isValid }
     }
 
@@ -87,29 +82,17 @@ final class MessagesControllerWrapper: NodeClass {
               let message = try args[1].as(String.self) else {
                   throw ErrorMessage("Bad MessagesController call: \(#function)")
         }
-        return try performAsync { [self] in
-            try controller.createThread(addresses: addresses, message: message)
+        return try performAsync {
+            try self.controller.createThread(addresses: addresses, message: message)
         }
     }
 
-    func markRead(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        guard args.count == 1,
-              let guid = try args[0].as(String.self) else {
-            return try NodeUndefined()
-        }
-        return try performAsync { [self] in
-            try controller.markAsRead(guid: guid)
-        }
+    func markRead(guid: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.markAsRead(guid: guid) }
     }
 
-    func sendTypingStatus(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        guard args.count == 2,
-              let isTyping = try args[0].as(Bool.self),
-              let address = try args[1].as(String.self)
-        else { return try NodeUndefined() }
-        return try performAsync { [self] in
-            try controller.sendTypingStatus(isTyping, address: address)
-        }
+    func sendTypingStatus(isTyping: Bool, address: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendTypingStatus(isTyping, address: address) }
     }
 
     func watchThreadActivity(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
@@ -150,43 +133,26 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        guard args.count == 4,
-              let guid = try args[0].as(String.self),
-              let offset = try args[1].as(Double.self),
-              let reactionName = try args[2].as(String.self),
-              let reaction = MessagesController.Reaction(rawValue: reactionName),
-              let on = try args[3].as(Bool.self) else {
-            return try NodeUndefined()
+    func setReaction(guid: String, offset: Double, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+        guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
+            return NodeUndefined.deferred
         }
         return try performAsync { [self] in
             try controller.setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on)
         }
     }
 
-    func sendTextMessage(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        guard args.count == 2,
-              let text = try? args[0].as(String.self),
-              let threadID = try? args[1].as(String.self)
-        else { return try NodeUndefined() }
-        return try performAsync { [self] in
-            try controller.sendTextMessage(text, threadID: threadID)
-        }
+    func sendTextMessage(text: String, threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendTextMessage(text, threadID: threadID) }
     }
 
-    func sendReply(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        guard args.count == 2,
-              let guid = try args[0].as(String.self),
-              let text = try args[1].as(String.self)
-        else { return try NodeUndefined() }
-        return try performAsync { [self] in
-            try controller.sendReply(guid: guid, text: text)
-        }
+    func sendReply(guid: String, text: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendReply(guid: guid, text: text) }
     }
 
-    func dispose(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
+    func dispose() throws -> NodeValueConvertible {
         Self.queue.sync { controller.dispose() }
-        return try NodeUndefined()
+        return NodeUndefined.deferred
     }
 }
 

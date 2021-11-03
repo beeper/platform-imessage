@@ -44,7 +44,7 @@
     "husky": "^4.3.8",
     "jest": "^27.3.1",
     "node-sass": "^6.0.0",
-    "node-swift": "https://github.com/kabiroberai/node-swift#a3ddbc136d644769f1d61e9d763b2fe365c1a02e",
+    "node-swift": "https://github.com/kabiroberai/node-swift#master",
     "ts-jest": "^27.0.7",
     "ts-node": "^10.2.1",
     "typescript": "^4.2.3"
