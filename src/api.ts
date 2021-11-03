@@ -299,7 +299,14 @@ export default class AppleiMessage implements PlatformAPI {
       if (options?.quotedMessageID) {
         this.elideStopTyping = true
         const server = await this.getMessagesController()
-        await server.sendReply(options.quotedMessageID, content.text)
+        await pRetry(async () => {
+          await server.sendReply(options.quotedMessageID, content.text)
+        }, {
+          onFailedAttempt: error => {
+            texts.log(`sendMessage (reply) failed. Retries left: ${error.retriesLeft}`)
+          },
+          retries: 1,
+        })
         return true
       }
 
@@ -307,10 +314,17 @@ export default class AppleiMessage implements PlatformAPI {
         try {
           this.elideStopTyping = true
           const server = await this.getMessagesController()
-          await server.sendTextMessage(content.text, threadID)
+          await pRetry(async () => {
+            await server.sendTextMessage(content.text, threadID)
+          }, {
+            onFailedAttempt: error => {
+              texts.log(`sendMessage (rich text) failed. Retries left: ${error.retriesLeft}`)
+            },
+            retries: 1,
+          })
           return true
         } catch (err) {
-          texts.error('could not send message with swift server', err)
+          texts.error('could not send rich text iMessage; falling back to plaintext', err)
           // fall back to sendTextMessage
         }
       }

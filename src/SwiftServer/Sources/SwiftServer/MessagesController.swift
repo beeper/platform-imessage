@@ -438,7 +438,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             let transcripts = try transcriptsView()
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
-                throw ErrorMessage("Could not find selected child")
+                throw ErrorMessage("Could not find selected message")
             }
 //            selected.printAttributes()
             let targetCell: Accessibility.Element
@@ -569,7 +569,17 @@ final class MessagesController {
         try sendReturnKey(down: false)
     }
 
-    private func sendTextMessage(_ text: String, url: URL) throws {
+    private func waitUntilEmpty(_ messageField: Accessibility.Element) throws {
+        try Self.retry(withTimeout: 0.5, interval: 0.1) {
+            guard (try? messageField.value() as? String)?.isEmpty != false else {
+                throw ErrorMessage("Could not send text message")
+            }
+        }
+    }
+
+    // the URL should be a deep link that fills the text field with the required message
+    // (in the appropriate thread)
+    private func sendTextMessage(url: URL) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -585,20 +595,23 @@ final class MessagesController {
             let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
             try messageField.isFocused(assign: true)
             try Self.retry(withTimeout: 0.5, interval: 0.1) {
-                guard try messageField.isFocused() else { throw ErrorMessage("") }
+                guard try messageField.isFocused() else {
+                    throw ErrorMessage("Could not activate Messages text field")
+                }
             }
             try self.sendReturnPress()
+            try waitUntilEmpty(messageField)
         }
     }
 
     func sendTextMessage(_ text: String, threadID: String) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: text).url()
-        try sendTextMessage(text, url: url)
+        try sendTextMessage(url: url)
     }
 
     func createThread(addresses: [String], message: String) throws {
         let url = try MessagesDeepLink.addresses(addresses, body: message).url()
-        try sendTextMessage(message, url: url)
+        try sendTextMessage(url: url)
     }
 
     func sendReply(guid: String, text: String) throws {
@@ -624,8 +637,8 @@ final class MessagesController {
             try self.sendReturnPress()
 
             // escape
-            Thread.sleep(forTimeInterval: 0.1)
-            try transcriptsView().cancel()
+            defer { try? transcriptsView().cancel() }
+            try waitUntilEmpty(messageField)
         }
     }
 
@@ -717,6 +730,7 @@ final class MessagesController {
     private var isDisposed = false
 
     func dispose() {
+        debugLog("Disposing MessagesController...")
         guard !isDisposed else { return }
         isDisposed = true
         timer?.invalidate()
