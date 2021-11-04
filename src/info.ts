@@ -34,7 +34,8 @@ const info: PlatformInfo = {
       ? [
         Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
         Attribute.SUPPORTS_STOP_TYPING_INDICATOR,
-        Attribute.GROUP_CREATION_REQUIRES_MESSAGE,
+        Attribute.SINGLE_THREAD_CREATION_REQUIRES_MESSAGE,
+        Attribute.GROUP_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.SUPPORTS_QUOTED_MESSAGES,
       ]
       : [
