@@ -323,7 +323,7 @@ const pages = [
   AddAccountPage,
 ].filter(Boolean)
 
-const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, callNMP: (methodName: string, args: any[]) => Promise<any> }> = ({ api, login, isReauthing, callNMP }) => {
+const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, nmp: NMP }> = ({ api, login, isReauthing, nmp }) => {
   const [pageIndex, setPageIndex] = useState(0)
   const selectPrevPage = () => setPageIndex(pi => Math.max(0, pi - 1))
   const selectNextPage = () => setPageIndex(pi => Math.min(pages.length - 1, pi + 1))
@@ -339,12 +339,6 @@ const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthi
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
-  const nmp = useMemo(() => new Proxy({}, {
-    get: (target, key) =>
-      (typeof key === 'string'
-        ? (...args: any[]) => callNMP(key, args)
-        : target[key]),
-  }) as NMP, [])
   return (
     <div className="auth imessage-auth">
       <Helmet>
