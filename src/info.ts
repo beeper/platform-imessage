@@ -50,6 +50,7 @@ const info: PlatformInfo = {
   extra: {
     canQuote: isSelectable,
     canReact: isSelectable,
+    requiresAccessibilityAccess: IS_BIG_SUR_OR_UP,
   },
   auth: texts.React?.lazy(() => import('./auth')),
   getUserProfileLink: ({ email, phoneNumber }) =>
