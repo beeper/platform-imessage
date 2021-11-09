@@ -634,6 +634,8 @@ final class MessagesController {
             try Self.retry(withTimeout: 0.5, interval: 0.1) {
                 guard try messageField.isFocused() else { throw ErrorMessage("") }
             }
+
+            Thread.sleep(forTimeInterval: 0.1)
             try self.sendReturnPress()
 
             // escape
