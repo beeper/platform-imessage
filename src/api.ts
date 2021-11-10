@@ -43,6 +43,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private filesToDelete = new Set<string>()
 
+  private forceInvalidate = false
+
   getCurrentUser = async (): Promise<CurrentUser> => {
     this.ensureDB()
     const logins = await this.dbAPI.getAccountLogins()
@@ -78,7 +80,8 @@ export default class AppleiMessage implements PlatformAPI {
           this.messagesControllerCreatePromise = messagesControllerClass.create()
         }
         const controller = await this.messagesControllerCreatePromise
-        if (!(await controller.isValid())) {
+        if (!(await controller.isValid()) || this.forceInvalidate) {
+          this.forceInvalidate = false
           controller.dispose()
           throw new Error('MessagesController is invalid')
         }
@@ -298,14 +301,19 @@ export default class AppleiMessage implements PlatformAPI {
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
         this.elideStopTyping = true
-        const server = await this.getMessagesController()
         await pRetry(async () => {
-          await server.sendReply(options.quotedMessageID, content.text)
+          // re-fetch the controller on each attempt so that invalidation is respected
+          const controller = await this.getMessagesController()
+          await controller.sendReply(options.quotedMessageID, content.text)
         }, {
           onFailedAttempt: error => {
             texts.log(`sendMessage (reply) failed. Retries left: ${error.retriesLeft}`)
+            if (error.attemptNumber === 2) {
+              texts.log('second retry; force-invalidating MessagesController')
+              this.forceInvalidate = true
+            }
           },
-          retries: 1,
+          retries: 3,
         })
         return true
       }
@@ -313,14 +321,18 @@ export default class AppleiMessage implements PlatformAPI {
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
           this.elideStopTyping = true
-          const server = await this.getMessagesController()
           await pRetry(async () => {
-            await server.sendTextMessage(content.text, threadID)
+            const controller = await this.getMessagesController()
+            await controller.sendTextMessage(content.text, threadID)
           }, {
             onFailedAttempt: error => {
               texts.log(`sendMessage (rich text) failed. Retries left: ${error.retriesLeft}`)
+              if (error.attemptNumber === 2) {
+                texts.log('second retry; force-invalidating MessagesController')
+                this.forceInvalidate = true
+              }
             },
-            retries: 1,
+            retries: 3,
           })
           return true
         } catch (err) {
@@ -401,9 +413,9 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
     this.threadReadStore.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
-      const server = await this.getMessagesController()
       await pRetry(async () => {
-        await server.markRead(messageID)
+        const controller = await this.getMessagesController()
+        await controller.markRead(messageID)
         await bluebird.delay(100)
         if (!(await this.dbAPI.isThreadRead(threadID))) {
           throw new Error('sendReadReceipt failed (cause unknown)')
