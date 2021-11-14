@@ -560,10 +560,17 @@ final class MessagesController {
     }
 
     private func sendReturnPress() throws {
-        func sendReturnKey(down: Bool) throws {
+        func _sendReturnKey(down: Bool) throws {
             try CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: down)
                 .orThrow(ErrorMessage("Could not send return press"))
                 .postToPid(app.processIdentifier)
+        }
+        func sendReturnKey(down: Bool) throws {
+            if Thread.isMainThread {
+                try _sendReturnKey(down: down)
+            } else {
+                try DispatchQueue.main.sync { try _sendReturnKey(down: down) }
+            }
         }
         try sendReturnKey(down: true)
         try sendReturnKey(down: false)
