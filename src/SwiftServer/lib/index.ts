@@ -47,6 +47,7 @@ export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   isLoggingEnabled: boolean
   messagesControllerClass: typeof MessagesController
+  askForMessagesDirAccess: () => Promise<void>
 }
 
 const swiftServerPath = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`, 'swift-server.node')

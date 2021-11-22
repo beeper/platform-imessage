@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fsSync, { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import bluebird from 'bluebird'
@@ -13,7 +13,7 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { IS_BIG_SUR_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
@@ -21,6 +21,14 @@ import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReac
 
 swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 const { messagesControllerClass } = swiftServer
+
+function canAccessMessagesDir() {
+  try {
+    const fd = fsSync.openSync(CHAT_DB_PATH, 'r')
+    fsSync.closeSync(fd)
+    return true
+  } catch (err) { return false }
+}
 
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
@@ -59,7 +67,7 @@ export default class AppleiMessage implements PlatformAPI {
   login = async (): Promise<LoginResult> => {
     await this.dbAPI.init()
     if (this.dbAPI.connected) return { type: 'success' }
-    return { type: 'error', errorMessage: 'Please grant full disk access and try again.' }
+    return { type: 'error', errorMessage: 'Please grant access to messages directory and try again.' }
   }
 
   // here be dragons
@@ -118,7 +126,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   init = async (_: undefined, { dataDirPath }: AccountInfo) => {
     await this.dbAPI.init()
-    if (this.dbAPI.connected) { // we have FDA which means user went through auth flow
+    if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       this.getMessagesController()
     }
     this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
@@ -465,13 +473,19 @@ export default class AppleiMessage implements PlatformAPI {
   //   }
 
   getAsset = async (pathHex: string) => {
-    if (pathHex === 'askForAutomationAccess') return String(await this.asAPI.askForAutomationAccess())
-    const filePath = Buffer.from(pathHex, 'hex').toString()
-    const buffer = await fs.readFile(filePath)
-    try {
-      return await convertCGBI(buffer)
-    } catch (err) {
-      return 'file://' + encodeURI(filePath)
+    switch (pathHex) {
+      case 'askForAutomationAccess': return String(await this.asAPI.askForAutomationAccess())
+      case 'canAccessMessagesDir': return String(canAccessMessagesDir())
+      case 'askForMessagesDirAccess': return String(await swiftServer.askForMessagesDirAccess())
+      default: {
+        const filePath = Buffer.from(pathHex, 'hex').toString()
+        const buffer = await fs.readFile(filePath)
+        try {
+          return await convertCGBI(buffer)
+        } catch (err) {
+          return 'file://' + encodeURI(filePath)
+        }
+      }
     }
   }
 }

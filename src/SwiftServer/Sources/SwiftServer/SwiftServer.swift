@@ -162,11 +162,29 @@ final class MessagesControllerWrapper: NodeClass {
     let exports: NodeValueConvertible
 
     init() throws {
+        // strongly retained by askForMessagesDirAccess, deinit called on exit
+        let accessManager = MessagesAccessManager()
+
         exports = try NodeObject([
             "isLoggingEnabled": NodeComputedProperty { _ in
                 Self.isLoggingEnabled
             } set: { args in
                 Self.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
+            },
+
+            "askForMessagesDirAccess": NodeFunction { _ in
+                let queue = try NodeAsyncQueue(label: "messages-dir-callback")
+                return try NodePromise { deferred in
+                    DispatchQueue.main.async {
+                        let result = Result<NodeValueConvertible, Error> {
+                            try accessManager.requestAccess()
+                            return NodeUndefined.deferred
+                        }
+                        try? queue.async {
+                            try deferred(result)
+                        }
+                    }
+                }
             },
 
             "decodeAttributedString": NodeFunction { args in

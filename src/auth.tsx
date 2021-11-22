@@ -1,5 +1,5 @@
 import path from 'path'
-import { createElement, useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createElement, useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
@@ -18,7 +18,6 @@ const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.
 
 const staticPrefix = __IS_BROWSER__ ? './platform-imessage' : `file://${BINARIES_DIR_PATH}`
 const staticImgPrefix = `${staticPrefix}/${IS_BIG_SUR_OR_UP ? 'bigsur' : 'catalina'}`
-const fdaImg = path.join(staticImgPrefix, 'fda.png')
 const axImg = path.join(staticImgPrefix, 'ax.png')
 const axHighlightedImg = path.join(staticImgPrefix, 'ax-highlighted.png')
 const automationAccessHighlightedImg = path.join(staticImgPrefix, 'automation-messages-highlighted.png')
@@ -50,7 +49,8 @@ type NMP = Promisified<typeof import('node-mac-permissions')>
 type PageProps = {
   selectPrevPage: () => void
   selectNextPage: () => void
-  selectFDAPage: () => void
+  selectMessagesDirAccessPage: () => void
+  canAccessMessagesDir: () => Promise<boolean>
   login: Function
   isReauthing: boolean
   nmp: NMP
@@ -164,42 +164,34 @@ const AXAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
   )
 }
 
-const FDAAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
+const MessagesDirAuthPage: React.FC<PageProps> = ({ api, nmp, selectNextPage, canAccessMessagesDir }) => {
   const [showMore, setShowMore] = useState(false)
-  const [grayscale, setGrayscale] = useState(false)
-  const { authorized, pending } = useNMP(nmp, 'full-disk-access')
-  const imgClick = () => {
-    setGrayscale(true)
-    nmp.askForFullDiskAccess()
+  const { execute: refreshAuthorization, value: authorized, pending } = useAsync(canAccessMessagesDir)
+  const onAuthorizeClick = async () => {
+    await api.getAsset('askForMessagesDirAccess')
+    await refreshAuthorization()
   }
   const inner = (
     <>
       {!authorized && (
         <>
-          <img className={cn({ grayscale })} src={fdaImg} alt="System Preferences – Full Disk Access" width={IS_BIG_SUR_OR_UP ? 764 : 521} onClick={imgClick} />
-          <p>Texts needs full disk access to access the local iMessage database. Your data never touches our servers.</p>
-          <ol>
-            <li>Click the 🔒 icon in the bottom-left corner</li>
-            <li>Check <strong>Texts.app</strong></li>
-            <li>Click <strong>Later</strong> (you don't need to restart Texts, the macOS popup is incorrect)</li>
-          </ol>
+          <p>Texts needs to access the local iMessage database. Your data never touches our servers.</p>
         </>
       )}
       <div className="buttons">
-        <button type="button" onClick={() => nmp.askForFullDiskAccess()} disabled={authorized}>{authorized ? 'Authorized' : 'Open System Preferences'}</button>
+        <button type="button" onClick={onAuthorizeClick} disabled={authorized}>{authorized ? 'Authorized' : 'Authorize'}</button>
         {authorized && <button type="button" onClick={selectNextPage}>Next &rarr;</button>}
       </div>
       {showMore ? (
-        <div className="show-more-info">
-          If Texts doesn&apos;t show up in the list, try adding it manually by clicking the + button and selecting Texts.app from your Applications folder
+        <div className="show-more-info" onClick={() => nmp.askForFullDiskAccess()}>
+          If this doesn&apos;t work, try giving Texts.app Full Disk Access in System Preferences &rarr;
         </div>
       ) : <div className="show-more-info grayed" onClick={() => setShowMore(true)}>Having trouble?</div>}
-      {renderWhyNeeded('Full disk access allows Texts to read data from the local iMessage database.')}
     </>
   )
   return (
-    <div className="page fda">
-      <h3>Full Disk Access</h3>
+    <div className="page">
+      <h3>Messages Directory Access</h3>
       {!pending && inner}
     </div>
   )
@@ -273,9 +265,9 @@ const NotificationsPromptPage: React.FC<PageProps> = ({ selectNextPage }) => {
   )
 }
 
-const AddAccountPage: React.FC<PageProps> = ({ selectFDAPage, login, isReauthing, nmp }) => {
-  const { authorized: fdaAuthorized, pending } = useNMP(nmp, 'full-disk-access')
-  const inner = fdaAuthorized
+const AddAccountPage: React.FC<PageProps> = ({ selectMessagesDirAccessPage, canAccessMessagesDir, login, isReauthing }) => {
+  const { value: authorized, pending } = useAsync(canAccessMessagesDir)
+  const inner = authorized
     ? (
       <>
         <h3>Almost Done</h3>
@@ -285,9 +277,9 @@ const AddAccountPage: React.FC<PageProps> = ({ selectFDAPage, login, isReauthing
       </>
     ) : (
       <>
-        <h3>You must authorize Full Disk Access to {isReauthing ? 'reauthenticate' : 'add'} iMessage</h3>
+        <h3>You must authorize access to the messages directory to {isReauthing ? 'reauthenticate' : 'add'} iMessage</h3>
         <div className="buttons">
-          <button type="button" onClick={() => selectFDAPage()}>&larr;</button>
+          <button type="button" onClick={() => selectMessagesDirAccessPage()}>&larr;</button>
         </div>
       </>
     )
@@ -316,7 +308,7 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
 const pages = [
   KnownIssuesPage,
   ContactsAuthPage,
-  IS_MOJAVE_OR_UP && FDAAuthPage,
+  IS_MOJAVE_OR_UP && MessagesDirAuthPage,
   IS_MOJAVE_OR_UP && AutomationAuthPage,
   IS_MOJAVE_OR_UP && AXAuthPage,
   NotificationsPromptPage,
@@ -327,7 +319,8 @@ const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthi
   const [pageIndex, setPageIndex] = useState(0)
   const selectPrevPage = () => setPageIndex(pi => Math.max(0, pi - 1))
   const selectNextPage = () => setPageIndex(pi => Math.min(pages.length - 1, pi + 1))
-  const selectFDAPage = () => setPageIndex(1)
+  const selectMessagesDirAccessPage = () => setPageIndex(1)
+  const canAccessMessagesDir = useCallback(async () => (await api.getAsset('canAccessMessagesDir')) === 'true', [])
   useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {
       if (ev.key === 'ArrowLeft') {
@@ -344,7 +337,7 @@ const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthi
       <Helmet>
         <link rel="stylesheet" href={cssPath} />
       </Helmet>
-      {createElement(pages[pageIndex], { api, selectPrevPage, selectNextPage, selectFDAPage, login, isReauthing, nmp })}
+      {createElement(pages[pageIndex], { api, selectPrevPage, selectNextPage, selectMessagesDirAccessPage, canAccessMessagesDir, login, isReauthing, nmp })}
       <div className="page-dots">
         {pages.map((_, index) =>
           <div key={index} className={cn('dot', { selected: pageIndex === index })} onClick={() => setPageIndex(index)} />)}
