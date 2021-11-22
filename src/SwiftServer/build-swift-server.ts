@@ -1,7 +1,7 @@
 // linter doesn't know that this file is compile-time-only
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build, Config } from 'node-swift'
-import { promises as fsPromises } from 'fs'
+import { promises as fsp } from 'fs'
 import { resolve } from 'path'
 import { shellExec } from '../util'
 
@@ -9,7 +9,12 @@ async function isRosetta(): Promise<boolean> {
   return (await shellExec('sysctl', '-in', 'sysctl.proc_translated')) === '1\n'
 }
 
-(async () => {
+const codesign = (filePath: string) => shellExec('codesign', '-fs', '-', filePath)
+
+const dropboxIgnoreDir = (dirPath: string) =>
+  shellExec('xattr', '-w', 'com.dropbox.ignored', '1', dirPath)
+
+async function main() {
   const buildOptions: Config = {
     packagePath: 'src/SwiftServer',
     macVersion: '10.11',
@@ -22,7 +27,10 @@ async function isRosetta(): Promise<boolean> {
     buildOptions.swiftFlags += '-DNO_SPACES'
   }
 
-  if (config === 'release') await clean()
+  if (config === 'release') {
+    await clean()
+    await dropboxIgnoreDir('build')
+  }
 
   async function buildTriple(triple: string, arch: string) {
     console.log(`Building ${triple}...`)
@@ -33,15 +41,21 @@ async function isRosetta(): Promise<boolean> {
     })
 
     const outdir = `binaries/${process.platform}-${arch}`
-    fsPromises.mkdir(outdir, { recursive: true })
+    fsp.mkdir(outdir, { recursive: true })
     const dest = `${outdir}/swift-server.node`
     if (config === 'release') {
       await shellExec('strip', '-ur', binaryPath, '-o', dest)
     } else {
-      await fsPromises.copyFile(binaryPath, dest)
+      await fsp.copyFile(binaryPath, dest)
     }
 
-    await fsPromises.copyFile(resolve(binaryPath, '../libNodeAPI.dylib'), `${outdir}/libNodeAPI.dylib`)
+    const libNodeAPIDest = `${outdir}/libNodeAPI.dylib`
+    await fsp.copyFile(resolve(binaryPath, '../libNodeAPI.dylib'), libNodeAPIDest)
+
+    await Promise.all([
+      codesign(dest),
+      codesign(libNodeAPIDest),
+    ])
   }
 
   const onRosetta = await isRosetta()
@@ -51,4 +65,7 @@ async function isRosetta(): Promise<boolean> {
   if (config === 'release' || onRosetta || process.arch === 'arm64') {
     await buildTriple('arm64-apple-macosx', 'arm64')
   }
-})()
+  await dropboxIgnoreDir('build')
+}
+
+main()
