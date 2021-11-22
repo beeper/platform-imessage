@@ -13,9 +13,10 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
+import { shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
@@ -477,6 +478,10 @@ export default class AppleiMessage implements PlatformAPI {
       case 'askForAutomationAccess': return String(await this.asAPI.askForAutomationAccess())
       case 'canAccessMessagesDir': return String(canAccessMessagesDir())
       case 'askForMessagesDirAccess': return String(await swiftServer.askForMessagesDirAccess())
+      case 'revokeFDA': {
+        await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)
+        return 'true'
+      }
       default: {
         const filePath = Buffer.from(pathHex, 'hex').toString()
         const buffer = await fs.readFile(filePath)

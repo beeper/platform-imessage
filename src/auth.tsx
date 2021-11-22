@@ -164,6 +164,24 @@ const AXAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
   )
 }
 
+const RevokeFDA: React.FC<{ nmp: NMP, api: PlatformAPI }> = ({ nmp, api }) => {
+  const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
+  const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
+  if (!authorized || pending) return null
+  const onClick = async () => {
+    if (await api.getAsset('revokeFDA') !== 'true') return
+    setTimeout(() => {
+      refreshAuthorization()
+    }, 100)
+  }
+  return (
+    <div className="revoke-fda">
+      <p>Texts has Full Disk Access. It's no longer required and you're recommended to revoke it.</p>
+      <button onClick={onClick}>Revoke Full Disk Access</button>
+    </div>
+  )
+}
+
 const MessagesDirAuthPage: React.FC<PageProps> = ({ api, nmp, selectNextPage, canAccessMessagesDir }) => {
   const [showMore, setShowMore] = useState(false)
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(canAccessMessagesDir)
@@ -193,6 +211,7 @@ const MessagesDirAuthPage: React.FC<PageProps> = ({ api, nmp, selectNextPage, ca
     <div className="page">
       <h3>Messages Directory Access</h3>
       {!pending && inner}
+      <RevokeFDA {...{ api, nmp }} />
     </div>
   )
 }
