@@ -169,7 +169,7 @@ const RevokeFDA: React.FC<{ nmp: NMP, api: PlatformAPI }> = ({ nmp, api }) => {
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
   if (!authorized || pending) return null
   const onClick = async () => {
-    if (await api.getAsset('revokeFDA') !== 'true') return
+    if (await api.getAsset('proxied', 'revokeFDA') !== 'true') return
     setTimeout(() => {
       refreshAuthorization()
     }, 100)
@@ -186,7 +186,7 @@ const MessagesDirAuthPage: React.FC<PageProps> = ({ api, nmp, selectNextPage, ca
   const [showMore, setShowMore] = useState(false)
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(canAccessMessagesDir)
   const onAuthorizeClick = async () => {
-    await api.getAsset('askForMessagesDirAccess')
+    await api.getAsset('proxied', 'askForMessagesDirAccess')
     await refreshAuthorization()
   }
   const inner = (
@@ -226,7 +226,7 @@ const AutomationAuthPage: React.FC<PageProps> = ({ api, selectNextPage }) => {
     if (calledOnce) return openAutomationPrefs()
     setLoading(true)
     // unclean way to do it but fine for now
-    automationAuthorized = (await api.getAsset('askForAutomationAccess')) === 'true'
+    automationAuthorized = (await api.getAsset('proxied', 'askForAutomationAccess')) === 'true'
     setCalledOnce(true)
     setLoading(false)
   }
@@ -339,7 +339,7 @@ const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthi
   const selectPrevPage = () => setPageIndex(pi => Math.max(0, pi - 1))
   const selectNextPage = () => setPageIndex(pi => Math.min(pages.length - 1, pi + 1))
   const selectMessagesDirAccessPage = () => setPageIndex(1)
-  const canAccessMessagesDir = useCallback(async () => (await api.getAsset('canAccessMessagesDir')) === 'true', [])
+  const canAccessMessagesDir = useCallback(async () => (await api.getAsset('proxied', 'canAccessMessagesDir')) === 'true', [])
   useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {
       if (ev.key === 'ArrowLeft') {

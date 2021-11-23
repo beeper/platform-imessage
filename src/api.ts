@@ -473,24 +473,27 @@ export default class AppleiMessage implements PlatformAPI {
   //     return x.c
   //   }
 
-  getAsset = async (pathHex: string) => {
-    switch (pathHex) {
-      case 'askForAutomationAccess': return String(await this.asAPI.askForAutomationAccess())
-      case 'canAccessMessagesDir': return String(canAccessMessagesDir())
-      case 'askForMessagesDirAccess': return String(await swiftServer.askForMessagesDirAccess())
-      case 'revokeFDA': {
-        await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)
-        return 'true'
-      }
-      default: {
-        const filePath = Buffer.from(pathHex, 'hex').toString()
-        const buffer = await fs.readFile(filePath)
-        try {
-          return await convertCGBI(buffer)
-        } catch (err) {
-          return 'file://' + encodeURI(filePath)
-        }
-      }
+  proxiedAuthFns = {
+    canAccessMessagesDir,
+    askForAutomationAccess: () => this.asAPI.askForAutomationAccess(),
+    askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
+    revokeFDA: async () => {
+      await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)
+      return true
+    },
+  }
+
+  getAsset = async (pathHex: string, methodName: string) => {
+    if (pathHex === 'proxied') {
+      const result = await this.proxiedAuthFns[methodName]()
+      return JSON.stringify(result)
+    }
+    const filePath = Buffer.from(pathHex, 'hex').toString()
+    const buffer = await fs.readFile(filePath)
+    try {
+      return await convertCGBI(buffer)
+    } catch (err) {
+      return 'file://' + encodeURI(filePath)
     }
   }
 }
