@@ -86,7 +86,16 @@ export default class AppleiMessage implements PlatformAPI {
       this.messagesControllerFetchPromise = (async () => {
         if (!this.messagesControllerCreatePromise) {
           texts.log('creating MessagesController...')
-          this.messagesControllerCreatePromise = messagesControllerClass.create()
+          this.messagesControllerCreatePromise = messagesControllerClass.create().then(result => {
+            if (this.hideMessagesApp) {
+              setTimeout(async () => {
+                texts.log('creating pht conn')
+                const conn = await (texts as any).createPHTConn?.(true)
+                await conn?.setMessagesHidden(true)
+              }, 1)
+            }
+            return result
+          })
         }
         const controller = await this.messagesControllerCreatePromise
         if (!(await controller.isValid()) || this.forceInvalidate) {
@@ -125,7 +134,10 @@ export default class AppleiMessage implements PlatformAPI {
     return threadID.split(';', 3).pop()
   }
 
-  init = async (_: undefined, { dataDirPath }: AccountInfo) => {
+  private hideMessagesApp = false
+
+  init = async (_: undefined, { dataDirPath }: AccountInfo, prefs: Record<string, any>) => {
+    this.hideMessagesApp = prefs.hide_messages_app
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       this.getMessagesController()

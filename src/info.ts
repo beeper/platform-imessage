@@ -48,6 +48,13 @@ const info: PlatformInfo = {
   attachments: {
     gifMimeType: 'image/gif',
   },
+  prefs: {
+    hide_messages_app: {
+      label: 'Hide Messages.app',
+      type: 'checkbox',
+      default: false,
+    },
+  },
   extra: {
     canQuote: isSelectable,
     canReact: isSelectable,
