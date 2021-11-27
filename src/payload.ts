@@ -52,7 +52,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
     ...alternates,
   ] : alternates
   const url = richLinkMetadata.originalURL?.['NS.relative'] || richLinkMetadata.URL?.['NS.relative']
-  if (url && url.startsWith('https://twitter.com')) {
+  if (url?.startsWith('https://twitter.com') || url?.startsWith('http://twitter.com')) {
     const { tweetID, username } = parseTweetURL(url) || {}
     if (username) {
       const tweet = {

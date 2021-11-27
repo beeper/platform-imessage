@@ -38,7 +38,7 @@ export const stringifyWithArrayBuffers = <T>(obj: T, space?: string | number) =>
   )
 
 export function parseTweetURL(url: string) {
-  const [, username, tweetID] = /https:\/\/twitter\.com\/(.+?)\/status\/(\d+)/.exec(url) || []
+  const [, username, tweetID] = /https?:\/\/twitter\.com\/(.+?)\/status\/(\d+)/.exec(url) || []
   if (tweetID) return { username, tweetID }
 }
 
