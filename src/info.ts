@@ -11,7 +11,7 @@ const info: PlatformInfo = {
   name: 'imessage',
   version: '1.0.0',
   displayName: 'iMessage',
-  tags: ['Beta'],
+  tags: IS_BIG_SUR_OR_UP ? [] : ['Beta'],
   icon: `
 <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect width="16" height="16" rx="5" fill="#A7A7A7"/>
