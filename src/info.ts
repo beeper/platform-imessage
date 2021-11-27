@@ -50,7 +50,8 @@ const info: PlatformInfo = {
   },
   prefs: {
     hide_messages_app: {
-      label: 'Hide Messages.app',
+      label: 'Hide Messages.app in Dock',
+      description: 'This will require the installation of a helper tool.',
       type: 'checkbox',
       default: false,
     },
