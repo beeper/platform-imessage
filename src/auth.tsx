@@ -274,7 +274,7 @@ const NotificationsPromptPage: React.FC<PageProps> = ({ selectNextPage }) => {
       <h3>Notifications</h3>
       <img className={cn({ grayscale })} src={notificationsMessagesImg} alt="System Preferences – Notifications" width={521} onClick={imgClick} />
       <p>
-        Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get double notifications.
+        Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get duplicate notifications.
       </p>
       <div className="buttons">
         <button type="button" onClick={openNotificationsSystemPrefs}>Open System Preferences</button>
@@ -313,7 +313,7 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
   <div className="page known-issues">
     <h3>Known Issues</h3>
     <ol>
-      <li>Messages.app needs to be open in the background for powering most functionality but you can hide/minimize it.</li>
+      <li>Messages.app will be open in the background for powering functionality but Texts can keep it hidden.</li>
       {IS_BIG_SUR_OR_UP
         ? <li>Reacting to non-text messages isn't supported.</li>
         : <li>On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported.</li>}
