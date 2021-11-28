@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { BINARIES_DIR_PATH, IS_SWIFT_STABLE } from '../../constants'
+import { ARCH_BINARIES_DIR_PATH, IS_SWIFT_STABLE } from '../../constants'
 
 declare const __non_webpack_require__: NodeRequire
 const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require : __non_webpack_require__
@@ -50,7 +50,7 @@ export type SwiftServer = {
   askForMessagesDirAccess: () => Promise<void>
 }
 
-const swiftServerPath = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`, 'swift-server.node')
+const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'swift-server.node')
 
 let _swiftServer: SwiftServer | undefined
 if (IS_SWIFT_STABLE) {

@@ -8,4 +8,5 @@ ls -lah Release/AppleScriptServer
 strip Release/AppleScriptServer
 ls -lah Release/AppleScriptServer
 
-cp Release/AppleScriptServer ../../binaries/
+lipo Release/AppleScriptServer -thin x86_64 -output ../../binaries/darwin-x64/AppleScriptServer
+lipo Release/AppleScriptServer -thin arm64 -output ../../binaries/darwin-arm64/AppleScriptServer

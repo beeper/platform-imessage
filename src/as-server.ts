@@ -1,10 +1,11 @@
+import path from 'path'
 import childProcess from 'child_process'
 import { EventEmitter } from 'events'
 import { texts } from '@textshq/platform-sdk'
-import { BINARIES_DIR_PATH } from './constants'
+import { ARCH_BINARIES_DIR_PATH } from './constants'
 import IS_DEV_ENVIRON from './is-dev-environ'
 
-const serverPath = BINARIES_DIR_PATH + '/AppleScriptServer'
+const serverPath = path.join(ARCH_BINARIES_DIR_PATH, 'AppleScriptServer')
 
 function spawnASServer() {
   const spawn = () => childProcess.spawn(serverPath, ['embedded-json'])
