@@ -2,6 +2,16 @@ import Foundation
 import AppKit
 import CWindowControl
 
+extension UUID {
+    public init(cfUUID: CFUUID) {
+        self = withUnsafePointer(to: CFUUIDGetUUIDBytes(cfUUID)) { buf in
+            buf.withMemoryRebound(to: uuid_t.self, capacity: 1) { raw in
+                UUID(uuid: raw.pointee)
+            }
+        }
+    }
+}
+
 public struct Display {
     public enum Error: Swift.Error {
         case invalidDisplay
@@ -50,10 +60,6 @@ public struct Display {
 
     public func uuid() throws -> UUID {
         let uuid = try CGDisplayCreateUUIDFromDisplayID(raw).orThrow(Error.invalidDisplay).takeRetainedValue()
-        return withUnsafePointer(to: CFUUIDGetUUIDBytes(uuid)) { buf in
-            buf.withMemoryRebound(to: uuid_t.self, capacity: 1) { raw in
-                UUID(uuid: raw.pointee)
-            }
-        }
+        return UUID(cfUUID: uuid)
     }
 }

@@ -1,6 +1,17 @@
 import Foundation
 import CWindowControl
 
+extension ProcessSerialNumber {
+    public init(pid: pid_t) throws {
+        var psn = ProcessSerialNumber()
+        let err = TXTGetProcessForPID(pid, &psn)
+        if err != kOSReturnSuccess {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(err))
+        }
+        self = psn
+    }
+}
+
 public struct GraphicsConnection {
     public struct Error: Swift.Error, CustomStringConvertible {
         public let code: CGError
@@ -41,11 +52,7 @@ public struct GraphicsConnection {
     }
 
     public func connection(for pid: pid_t) throws -> GraphicsConnection {
-        var psn = ProcessSerialNumber()
-        let err = TXTGetProcessForPID(pid, &psn)
-        if err != kOSReturnSuccess {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(err))
-        }
+        var psn = try ProcessSerialNumber(pid: pid)
         var cid: CGSConnectionID = 0
         try Self.check(CGSGetConnectionIDForPSN(raw, &psn, &cid))
         return GraphicsConnection(raw: cid)
