@@ -217,7 +217,7 @@ final class MessagesController {
         // FIXME: this doesn't seem to work consistently with multiple displays
         let lastActiveDisplay: Display
         if let lastActiveSpace = try? windowCG.currentSpaces(.allVisibleSpaces).first,
-           let activeDisplay = try? Display.allOnline().first(where: { try $0.currentSpace() == lastActiveSpace }) {
+           let activeDisplay = try? Display.allOnline().first(where: { (try? $0.currentSpace()) == lastActiveSpace }) {
             lastActiveDisplay = activeDisplay
         } else {
             lastActiveDisplay = .main
