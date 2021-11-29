@@ -343,8 +343,10 @@ const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthi
   useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {
       if (ev.key === 'ArrowLeft') {
+        ev.preventDefault()
         selectPrevPage()
       } else if (ev.key === 'ArrowRight') {
+        ev.preventDefault()
         selectNextPage()
       }
     }
