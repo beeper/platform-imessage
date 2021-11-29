@@ -20,8 +20,8 @@ import { shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
-swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
-const { messagesControllerClass } = swiftServer
+if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
+const messagesControllerClass = swiftServer?.messagesControllerClass
 
 function canAccessMessagesDir() {
   try {
@@ -86,16 +86,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.messagesControllerFetchPromise = (async () => {
         if (!this.messagesControllerCreatePromise) {
           texts.log('creating MessagesController...')
-          this.messagesControllerCreatePromise = messagesControllerClass.create().then(result => {
-            if (this.hideMessagesApp) {
-              setTimeout(async () => {
-                texts.log('creating pht conn')
-                const conn = await (texts as any).createPHTConn?.(true)
-                await conn?.setMessagesHidden(true)
-              }, 1)
-            }
-            return result
-          })
+          this.messagesControllerCreatePromise = messagesControllerClass.create()
         }
         const controller = await this.messagesControllerCreatePromise
         if (!(await controller.isValid()) || this.forceInvalidate) {
@@ -138,6 +129,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   init = async (_: undefined, { dataDirPath }: AccountInfo, prefs: Record<string, any>) => {
     this.hideMessagesApp = prefs.hide_messages_app
+    if (swiftServer) swiftServer.isPHTEnabled = this.hideMessagesApp
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       this.getMessagesController()

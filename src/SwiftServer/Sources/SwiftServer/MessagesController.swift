@@ -3,6 +3,7 @@ import AppKit
 import AccessibilityControl
 import WindowControl
 import Carbon.HIToolbox.Events
+import PHTClient
 
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
@@ -199,6 +200,8 @@ final class MessagesController {
     private let mainWindow: Accessibility.Element
     private let conversations: Accessibility.Element
 
+    private let phtConn: PHTConnection?
+
     private var timer: Timer?
     private var loopThread: RunLoopThread?
 
@@ -281,6 +284,14 @@ final class MessagesController {
             app = try NSWorkspace.shared.open(MessagesDeepLink.compose.url(), options: [.andHide], configuration: [:])
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
+
+        if SwiftServer.isPHTEnabled {
+            let phtConn = try PHTConnection.create(allowInstall: true)
+            try phtConn.setMessagesHidden(true)
+            self.phtConn = phtConn
+        } else {
+            self.phtConn = nil
+        }
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
             guard let child = try? appElement.children().first(
@@ -656,6 +667,7 @@ final class MessagesController {
     private func activateMessages() {
         do {
             try mainWindow.window().moveToSpace(lastActiveDisplay.currentSpace())
+            try phtConn?.setMessagesHidden(false)
         } catch {
             debugLog("warning: Could not show Messages window: \(error)")
         }
@@ -664,6 +676,7 @@ final class MessagesController {
     private func deactivateMessages() {
         do {
             lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
+            try phtConn?.setMessagesHidden(true)
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")
         }

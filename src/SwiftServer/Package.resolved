@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "PHTCommon",
+        "repositoryURL": "https://github.com/TextsHQ/PHTCommon.git",
+        "state": {
+          "branch": "main",
+          "revision": "a9752c32cccc967df5929cd8cc68cd5e122c431e",
+          "version": null
+        }
+      }
+    ]
+  },
+  "version": 1
+}

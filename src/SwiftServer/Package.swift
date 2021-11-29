@@ -12,7 +12,8 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(path: "../../node_modules/node-swift")
+        .package(path: "../../node_modules/node-swift"),
+        .package(url: "https://github.com/TextsHQ/PHTCommon.git", .branch("main"))
     ],
     targets: [
         .target(
@@ -34,7 +35,8 @@ let package = Package(
             dependencies: [
                 "AccessibilityControl",
                 "WindowControl",
-                .product(name: "NodeAPI", package: "node-swift")
+                .product(name: "NodeAPI", package: "node-swift"),
+                .product(name: "PHTClient", package: "PHTCommon")
             ]
         ),
     ]

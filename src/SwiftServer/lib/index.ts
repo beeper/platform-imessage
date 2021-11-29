@@ -46,6 +46,7 @@ export declare class MessagesController {
 export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   isLoggingEnabled: boolean
+  isPHTEnabled: boolean
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
 }

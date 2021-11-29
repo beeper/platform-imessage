@@ -158,6 +158,7 @@ final class MessagesControllerWrapper: NodeClass {
 
 @main struct SwiftServer: NodeModule {
     static var isLoggingEnabled = false
+    static var isPHTEnabled = false
 
     let exports: NodeValueConvertible
 
@@ -170,6 +171,12 @@ final class MessagesControllerWrapper: NodeClass {
                 Self.isLoggingEnabled
             } set: { args in
                 Self.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
+            },
+
+            "isPHTEnabled": NodeComputedProperty { _ in
+                Self.isPHTEnabled
+            } set: { args in
+                Self.isPHTEnabled = try args.first?.as(Bool.self) ?? false
             },
 
             "askForMessagesDirAccess": NodeFunction { _ in
