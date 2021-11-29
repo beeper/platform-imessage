@@ -684,14 +684,31 @@ final class MessagesController {
 
     private func activityStatus() -> ActivityStatus {
         guard let transcripts = try? transcriptsView(),
-              let count = try? transcripts.children.count(),
-              count > 0,
-              let elt = try? transcripts.children.value(at: count - 1) else {
+              let count = try? transcripts.children.count() else {
+              return .unknown
+          }
+        let cellsToCheck: [Accessibility.Element]
+        switch count {
+        case 0:
             return .unknown
+        case 1:
+            guard let elt = try? transcripts.children.value(at: 0) else {
+                return .unknown
+            }
+            cellsToCheck = [elt]
+        default:
+            // check the last two cells if possible, because the last cell might be the focus
+            // indicator
+            guard let elts = try? transcripts.children(range: (count - 2)..<count), elts.count == 2 else {
+                return .unknown
+            }
+            cellsToCheck = elts
         }
-        // children can briefly be 0 for newly sent messages as well, so
-        // that by itself isn't a good enough heuristic
-        let isTyping = (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
+        let isTyping = cellsToCheck.contains { elt in
+            // children can briefly be 0 for newly sent messages as well, so
+            // that by itself isn't a good enough heuristic
+            (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
+        }
         return isTyping ? .typing : .notTyping
     }
 
