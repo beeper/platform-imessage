@@ -125,11 +125,8 @@ export default class AppleiMessage implements PlatformAPI {
     return threadID.split(';', 3).pop()
   }
 
-  private hideMessagesApp = false
-
   init = async (_: undefined, { dataDirPath }: AccountInfo, prefs: Record<string, any>) => {
-    this.hideMessagesApp = prefs.hide_messages_app
-    if (swiftServer) swiftServer.isPHTEnabled = this.hideMessagesApp
+    if (swiftServer) swiftServer.isPHTEnabled = prefs.hide_messages_app
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       this.getMessagesController()
