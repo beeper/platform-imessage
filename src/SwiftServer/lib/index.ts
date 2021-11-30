@@ -1,6 +1,7 @@
 import path from 'path'
+import fs from 'fs'
 
-import { ARCH_BINARIES_DIR_PATH, IS_SWIFT_STABLE } from '../../constants'
+import { ARCH_BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP } from '../../constants'
 
 declare const __non_webpack_require__: NodeRequire
 const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require : __non_webpack_require__
@@ -51,10 +52,11 @@ export type SwiftServer = {
   askForMessagesDirAccess: () => Promise<void>
 }
 
+const hasSwiftLibs = IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift')
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'swift-server.node')
 
 let _swiftServer: SwiftServer | undefined
-if (IS_SWIFT_STABLE) {
+if (hasSwiftLibs) {
   _swiftServer = actualRequire(swiftServerPath)
   _swiftServer.messagesControllerClass = (_swiftServer as any).MessagesController
 }
