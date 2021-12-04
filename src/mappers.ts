@@ -38,7 +38,7 @@ function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   if (VIDEO_EXTS.includes(ext)) {
     return { ...common, type: MessageAttachmentType.VIDEO }
   }
-  if (AUDIO_EXTS.includes(ext) && !['caf', 'amr'].includes(ext)) {
+  if (AUDIO_EXTS.includes(ext)) {
     return { ...common, type: MessageAttachmentType.AUDIO }
   }
   return { ...common, type: MessageAttachmentType.UNKNOWN }
