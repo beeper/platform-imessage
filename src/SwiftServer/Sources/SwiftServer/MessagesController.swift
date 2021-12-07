@@ -589,8 +589,9 @@ final class MessagesController {
 
     private func waitUntilEmpty(_ messageField: Accessibility.Element) throws {
         try Self.retry(withTimeout: 0.5, interval: 0.1) {
-            guard (try? messageField.value() as? String)?.isEmpty != false else {
-                throw ErrorMessage("Could not send text message")
+            if let message = try? messageField.value() as? String, !message.isEmpty {
+                let hasNewline = message.hasSuffix("\n")
+                throw ErrorMessage("Could not send text message\(hasNewline ? " (extraneous newline)" : "")")
             }
         }
     }

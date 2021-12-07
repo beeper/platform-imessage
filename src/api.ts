@@ -317,7 +317,7 @@ export default class AppleiMessage implements PlatformAPI {
           await controller.sendReply(options.quotedMessageID, content.text)
         }, {
           onFailedAttempt: error => {
-            texts.log(`sendMessage (reply) failed. Retries left: ${error.retriesLeft}`)
+            texts.log('sendMessage (reply) failed', error)
             if (error.attemptNumber === 2) {
               texts.log('second retry; force-invalidating MessagesController')
               this.forceInvalidate = true
@@ -336,7 +336,7 @@ export default class AppleiMessage implements PlatformAPI {
             await controller.sendTextMessage(content.text, threadID)
           }, {
             onFailedAttempt: error => {
-              texts.log(`sendMessage (rich text) failed. Retries left: ${error.retriesLeft}`)
+              texts.log('sendMessage (rich text) failed', error)
               if (error.attemptNumber === 2) {
                 texts.log('second retry; force-invalidating MessagesController')
                 this.forceInvalidate = true
