@@ -399,7 +399,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     let didFail = false
     switch (assocMsgType) {
       case 'sticker':
-        messages[0].linkedMessageID = m.linkedMessageID
+        if (messages[0]) messages[0].linkedMessageID = m.linkedMessageID
         didFail = true
         break
       case 'heading':
