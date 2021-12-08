@@ -31,6 +31,19 @@ function canAccessMessagesDir() {
   } catch (err) { return false }
 }
 
+enum OSAError {
+  // {
+  //   NSLocalizedDescription = "Error: Error: An error occurred."
+  //   NSLocalizedFailureReason = "Error: Error: An error occurred."
+  //   OSAScriptErrorBriefMessageKey = "Error: Error: An error occurred."
+  //   OSAScriptErrorMessageKey = "Error: Error: An error occurred."
+  //   OSAScriptErrorNumberKey = "-1743"
+  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
+  // }
+  AnErrorOccurred = -1743,
+  CantGetObject = -1728,
+}
+
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
 
@@ -301,6 +314,27 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  private axSendWithRetry = async (threadID: string, text: string, quotedMessageID?: string) => {
+    await pRetry(async () => {
+      // re-fetch the controller on each attempt so that invalidation is respected
+      const controller = await this.getMessagesController()
+      if (quotedMessageID) {
+        await controller.sendReply(quotedMessageID, text)
+      } else {
+        await controller.sendTextMessage(text, threadID)
+      }
+    }, {
+      onFailedAttempt: error => {
+        texts.log('sendMessage failed', { quotedMessageID }, error)
+        if (error.attemptNumber === 2) {
+          texts.log('second retry; force-invalidating MessagesController')
+          this.forceInvalidate = true
+        }
+      },
+      retries: 3,
+    })
+  }
+
   sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName)
@@ -311,39 +345,15 @@ export default class AppleiMessage implements PlatformAPI {
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
         this.elideStopTyping = true
-        await pRetry(async () => {
-          // re-fetch the controller on each attempt so that invalidation is respected
-          const controller = await this.getMessagesController()
-          await controller.sendReply(options.quotedMessageID, content.text)
-        }, {
-          onFailedAttempt: error => {
-            texts.log('sendMessage (reply) failed', error)
-            if (error.attemptNumber === 2) {
-              texts.log('second retry; force-invalidating MessagesController')
-              this.forceInvalidate = true
-            }
-          },
-          retries: 3,
-        })
+        await this.axSendWithRetry(threadID, content.text, options.quotedMessageID)
         return true
       }
 
+      // has a mention or link
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
           this.elideStopTyping = true
-          await pRetry(async () => {
-            const controller = await this.getMessagesController()
-            await controller.sendTextMessage(content.text, threadID)
-          }, {
-            onFailedAttempt: error => {
-              texts.log('sendMessage (rich text) failed', error)
-              if (error.attemptNumber === 2) {
-                texts.log('second retry; force-invalidating MessagesController')
-                this.forceInvalidate = true
-              }
-            },
-            retries: 3,
-          })
+          await this.axSendWithRetry(threadID, content.text, options.quotedMessageID)
           return true
         } catch (err) {
           texts.error('could not send rich text iMessage; falling back to plaintext', err)
@@ -354,27 +364,35 @@ export default class AppleiMessage implements PlatformAPI {
     return this.sendTextMessage(threadID, content.text)
   }
 
-  private sendTextMessage = async (threadID: string, text: string) => {
+  private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>) => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)
-    await this.asAPI.sendTextMessage(threadID, text)
+    await callback()
     let newCount = 0
+    const startTime = Date.now()
     while (newCount === 0) {
       await bluebird.delay(25)
       newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
+      if ((Date.now() - startTime) > 60_000) return false
     }
     return true
   }
 
-  private sendFileFromFilePath = async (threadID: string, filePath: string) => {
-    const count = await this.dbAPI.getThreadMessagesCount(threadID)
-    await this.asAPI.sendFile(threadID, filePath)
-    let newCount = 0
-    while (newCount === 0) {
-      await bluebird.delay(25)
-      newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
+  private sendTextMessage = async (threadID: string, text: string) => {
+    try {
+      return await this.waitForThreadMessageCountIncrease(threadID, () =>
+        this.asAPI.sendTextMessage(threadID, text))
+    } catch (err) {
+      if (err.message.includes(`= "${OSAError.AnErrorOccurred}"`)) {
+        await this.axSendWithRetry(threadID, text)
+        return true
+      }
+      throw err
     }
-    return true
   }
+
+  private sendFileFromFilePath = async (threadID: string, filePath: string) =>
+    this.waitForThreadMessageCountIncrease(threadID, () =>
+      this.asAPI.sendFile(threadID, filePath))
 
   private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string) => {
     const tmpFilePath = path.join(os.tmpdir(), fileName || uuid())
