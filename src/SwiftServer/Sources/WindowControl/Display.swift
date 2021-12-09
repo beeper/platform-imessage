@@ -19,7 +19,7 @@ public struct Display: Hashable {
         case switchingToSameSpace
     }
 
-    public static let main = Self(raw: CGMainDisplayID())
+    public static var main: Display { .init(raw: CGMainDisplayID()) }
 
     public let raw: CGDirectDisplayID
     public init(raw: CGDirectDisplayID) {
