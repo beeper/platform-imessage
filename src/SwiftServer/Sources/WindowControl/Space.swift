@@ -78,13 +78,12 @@ public class Space: Hashable {
         display: Display = .main,
         connection: GraphicsConnection = .main
     ) throws {
-        let uuid = try display.uuid().uuidString
         raw = CGSSpaceCreate(
             // honestly not yet sure why this has to be 1
             connection.raw, UnsafeMutableRawPointer(bitPattern: 1),
             [
                 "type": kind.raw.rawValue as CFNumber,
-                "uuid": uuid as CFString
+                "uuid": try display.uuid() as CFString
             ] as CFDictionary
         )
         self.destroyWhenDone = destroyWhenDone

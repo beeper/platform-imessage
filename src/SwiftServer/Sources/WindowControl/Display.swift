@@ -12,9 +12,10 @@ extension UUID {
     }
 }
 
-public struct Display {
+public struct Display: Hashable {
     public enum Error: Swift.Error {
         case invalidDisplay
+        case invalidMainDisplay
         case switchingToSameSpace
     }
 
@@ -49,7 +50,7 @@ public struct Display {
     }
 
     public func currentSpace(for connection: GraphicsConnection = .main) throws -> Space {
-        let space = try CGSManagedDisplayGetCurrentSpace(connection.raw, uuid().uuidString as CFString)
+        let space = try CGSManagedDisplayGetCurrentSpace(connection.raw, uuid() as CFString)
         return try Space(raw: space).orThrow(Space.Error.invalid)
     }
 
@@ -58,8 +59,15 @@ public struct Display {
         print(disps ?? [])
     }
 
-    public func uuid() throws -> UUID {
+    public func uuid() throws -> String {
+        if self == .main {
+            // this isn't actually a UUID (it's "Main") so we can't return
+            // an [NS]UUID
+            return try kCGSPackagesMainDisplayIdentifier
+                .flatMap { $0.takeUnretainedValue() as String? }
+                .orThrow(Error.invalidMainDisplay)
+        }
         let uuid = try CGDisplayCreateUUIDFromDisplayID(raw).orThrow(Error.invalidDisplay).takeRetainedValue()
-        return UUID(cfUUID: uuid)
+        return UUID(cfUUID: uuid).uuidString
     }
 }
