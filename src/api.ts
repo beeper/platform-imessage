@@ -382,9 +382,11 @@ export default class AppleiMessage implements PlatformAPI {
       return await this.waitForThreadMessageCountIncrease(threadID, () =>
         this.asAPI.sendTextMessage(threadID, text))
     } catch (err) {
-      if (err.message.includes(`= "${OSAError.AnErrorOccurred}"`)) {
-        await this.axSendWithRetry(threadID, text)
-        return true
+      if (IS_BIG_SUR_OR_UP) {
+        if (err.message.includes(`= "${OSAError.AnErrorOccurred}"`) || err.message.includes(`= "${OSAError.CantGetObject}"`)) {
+          await this.axSendWithRetry(threadID, text)
+          return true
+        }
       }
       throw err
     }
