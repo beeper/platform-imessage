@@ -427,8 +427,20 @@ export default class AppleiMessage implements PlatformAPI {
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
-    const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID) // todo optimize by calling only if needed
-    await (await this.getMessagesController()).setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
+    await pRetry(async () => {
+      const controller = await this.getMessagesController()
+      const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID) // todo optimize by calling only if needed
+      await controller.setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
+    }, {
+      onFailedAttempt: error => {
+        texts.log(`setReaction failed. Retries left: ${error.retriesLeft}`)
+        if (error.attemptNumber === 2) {
+          texts.log('second retry; force-invalidating MessagesController')
+          this.forceInvalidate = true
+        }
+      },
+      retries: 3,
+    })
   }
 
   addReaction = (threadID: string, messageID: string, reactionKey: string) =>
