@@ -457,7 +457,8 @@ export default class AppleiMessage implements PlatformAPI {
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
         const controller = await this.getMessagesController()
-        await controller.markRead(messageID)
+        const messageGUID = messageID.split('_', 1)[0]
+        await controller.markRead(messageGUID)
         await bluebird.delay(100)
         if (!(await this.dbAPI.isThreadRead(threadID))) {
           throw new Error('sendReadReceipt failed (cause unknown)')
