@@ -325,9 +325,9 @@ final class MessagesController {
             debugLog("Kind: \((try? $0.kind()) as Any)")
             debugLog("Owners: \((try? $0.owners()) ?? [])")
         }
-//        existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
-//            $0.destroy()
-//        }
+        //        existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
+        //            $0.destroy()
+        //        }
         #endif
 
         guard let conversations = mainWindow.child(withID: "ConversationList") else {
@@ -433,7 +433,7 @@ final class MessagesController {
 
     private func reactionsView() throws -> Accessibility.Element {
         guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
-//              (try? mainView.children.count()) ?? 0 >= 2,
+              //              (try? mainView.children.count()) ?? 0 >= 2,
               let presView = try? mainView.children.value(at: 0),
               (try? presView.children.count()) ?? 0 > 0 else {
             throw ErrorMessage("Could not find reactions view")
@@ -451,7 +451,7 @@ final class MessagesController {
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
                 throw ErrorMessage("Could not find selected message")
             }
-//            selected.printAttributes()
+            //            selected.printAttributes()
             let targetCell: Accessibility.Element
             if offset == 0 {
                 targetCell = selected
@@ -481,7 +481,7 @@ final class MessagesController {
 
         let idx = reaction.index
         try withMessageCell(guid: guid, offset: offset) { targetCell in
-//            targetCell.printAttributes()
+            //            targetCell.printAttributes()
             let allActions = try targetCell.supportedActions()
             // should be [react, reply, copy]
             let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
@@ -686,8 +686,8 @@ final class MessagesController {
     private func activityStatus() -> ActivityStatus {
         guard let transcripts = try? transcriptsView(),
               let count = try? transcripts.children.count() else {
-              return .unknown
-          }
+            return .unknown
+        }
         let cellsToCheck: [Accessibility.Element]
         switch count {
         case 0:
@@ -727,7 +727,7 @@ final class MessagesController {
         guard let observer = activityObserver else { return }
 
         guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
-//            debugLog("warning: Title changed. Not polling activity status.")
+            //            debugLog("warning: Title changed. Not polling activity status.")
             observer.send(.unknown)
             return
         }

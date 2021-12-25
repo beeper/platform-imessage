@@ -80,7 +80,7 @@ final class MessagesControllerWrapper: NodeClass {
         guard args.count == 2,
               let addresses = try args[0].as([String].self),
               let message = try args[1].as(String.self) else {
-                  throw ErrorMessage("Bad MessagesController call: \(#function)")
+            throw ErrorMessage("Bad MessagesController call: \(#function)")
         }
         return try performAsync {
             try self.controller.createThread(addresses: addresses, message: message)

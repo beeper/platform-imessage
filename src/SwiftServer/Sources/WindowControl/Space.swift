@@ -113,7 +113,7 @@ public class Space: Hashable {
         for connection: GraphicsConnection = .main
     ) throws -> [Space] {
         guard let ids = CGSCopySpaces(connection.raw, options.raw)?.takeRetainedValue() as? [CGSSpaceID]
-            else { throw Error.listFailed }
+        else { throw Error.listFailed }
         return try ids.map { try Space(raw: $0).orThrow(Error.listFailed) }
     }
 
@@ -124,16 +124,16 @@ public class Space: Hashable {
     }
 
     // doesn't work on regular spaces
-//    public func setName(_ name: String?, for connection: GraphicsConnection = .main) throws {
-//        try GraphicsConnection.check(CGSSpaceSetName(connection.raw, raw, name as CFString?))
-//    }
+    //    public func setName(_ name: String?, for connection: GraphicsConnection = .main) throws {
+    //        try GraphicsConnection.check(CGSSpaceSetName(connection.raw, raw, name as CFString?))
+    //    }
 
     // very easy to misuse
-//    public func show(for connection: GraphicsConnection = .main) {
-//        CGSShowSpaces(connection.raw, [raw] as CFArray)
-//    }
-//
-//    public func hide(for connection: GraphicsConnection = .main) {
-//        CGSHideSpaces(connection.raw, [raw] as CFArray)
-//    }
+    //    public func show(for connection: GraphicsConnection = .main) {
+    //        CGSShowSpaces(connection.raw, [raw] as CFArray)
+    //    }
+    //
+    //    public func hide(for connection: GraphicsConnection = .main) {
+    //        CGSHideSpaces(connection.raw, [raw] as CFArray)
+    //    }
 }

@@ -157,7 +157,7 @@ public struct Window: Hashable {
     }
 
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {
-//        print("Move from \(spaces.map(\.raw)) to \(second.raw)")
+        //        print("Move from \(spaces.map(\.raw)) to \(second.raw)")
         guard spaces.count != 1 || spaces[0] != second else { return } // no-op
         CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
         CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
@@ -170,13 +170,13 @@ public struct Window: Hashable {
 
     public func describe() throws -> Description {
         try Self.listDescriptions().first { $0.window == self }.orThrow(Error.windowNotFound)
-//        guard let array = CGWindowListCreateDescriptionFromArray([raw] as CFArray) as? [[String: Any]],
-//              array.count == 1 else { throw Error.windowNotFound }
-//        let desc = try Description(rawDescriptor: array[0])
-//        // this should always be true since we asked for exactly one window and got
-//        // one back, but it's an extra sanity check
-//        guard desc.window.raw == raw else { throw Error.windowNotFound }
-//        return desc
+        //        guard let array = CGWindowListCreateDescriptionFromArray([raw] as CFArray) as? [[String: Any]],
+        //              array.count == 1 else { throw Error.windowNotFound }
+        //        let desc = try Description(rawDescriptor: array[0])
+        //        // this should always be true since we asked for exactly one window and got
+        //        // one back, but it's an extra sanity check
+        //        guard desc.window.raw == raw else { throw Error.windowNotFound }
+        //        return desc
     }
 
     public static func list(_ options: ListOptions = .all, excludeDesktopElements: Bool = false) throws -> [Window] {
