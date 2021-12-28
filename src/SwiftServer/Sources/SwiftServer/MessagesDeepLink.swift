@@ -1,9 +1,6 @@
 import Foundation
 
 enum MessagesDeepLink {
-    private static let groupPrefix = "iMessage;+;"
-    private static let singlePrefix = "iMessage;-;"
-
     case addresses([String], body: String?)
     case group(chatID: String, body: String?)
     case message(guid: String)
@@ -11,10 +8,12 @@ enum MessagesDeepLink {
     static let compose: MessagesDeepLink = .addresses([], body: nil)
 
     init(threadID: String, body: String?) throws {
-        if threadID.hasPrefix(Self.singlePrefix) {
-            self = .addresses([String(threadID.dropFirst(Self.singlePrefix.count))], body: body)
-        } else if threadID.hasPrefix(Self.groupPrefix) {
-            self = .group(chatID: String(threadID.dropFirst(Self.groupPrefix.count)), body: body)
+        let components = threadID.split(separator: ";", maxSplits: 2)
+        let (_, type, id) = (components[0], components[1], components[2])
+        if type == "-" {
+            self = .addresses([String(id)], body: body)
+        } else if type == "+" {
+            self = .group(chatID: String(id), body: body)
         } else {
             throw ErrorMessage("Invalid thread ID: \(threadID)")
         }
