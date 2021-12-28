@@ -8,6 +8,7 @@ final class MessagesControllerWrapper: NodeClass {
         "createThread": NodeMethod(createThread),
         "markRead": NodeMethod(markRead),
         "muteThread": NodeMethod(muteThread),
+        "deleteThread": NodeMethod(deleteThread),
         "sendTypingStatus": NodeMethod(sendTypingStatus),
         "watchThreadActivity": NodeMethod(watchThreadActivity),
         "setReaction": NodeMethod(setReaction),
@@ -94,6 +95,10 @@ final class MessagesControllerWrapper: NodeClass {
 
     func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {
         try performAsync { try self.controller.muteThread(threadID: threadID, muted: muted) }
+    }
+
+    func deleteThread(threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.deleteThread(threadID: threadID) }
     }
 
     func sendTypingStatus(isTyping: Bool, address: String) throws -> NodeValueConvertible {

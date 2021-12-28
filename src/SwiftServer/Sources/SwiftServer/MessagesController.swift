@@ -547,13 +547,39 @@ final class MessagesController {
             // review: this is strangely needed, without this the currently observed thread is muted
             let _ = selectedCell()
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-                throw ErrorMessage("Cell for thread \(threadID) could not be found.")
+                throw ErrorMessage("Cell for thread \(threadID) not found")
             }
-
             guard let muteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix(muted ? "Name:Hide Alerts" : "Name:Show Alerts") }) else {
                 throw ErrorMessage("muteAction not found")
             }
             try muteAction()
+        }
+    }
+
+    func deleteThread(threadID: String) throws {
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            // review: copied over from muteThread
+            // this is a destructive method and can delete the wrong thread if targetCell is incorrect
+            let _ = selectedCell()
+            guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
+                throw ErrorMessage("Cell for thread \(threadID) not found")
+            }
+            guard let deleteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") }) else {
+                throw ErrorMessage("deleteAction not found")
+            }
+            try deleteAction()
+            guard let alertSheet = try mainWindow.children().first(where: { try $0.role() == "AXSheet" }) else {
+                throw ErrorMessage("alertSheet not found")
+            }
+            guard let deleteButton = try alertSheet.children().first(where: { try $0.role() == "AXButton" }) else {
+                throw ErrorMessage("deleteButton not found")
+            }
+            try deleteButton.press()
         }
     }
 

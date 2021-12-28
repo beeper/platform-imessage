@@ -38,14 +38,13 @@ const info: PlatformInfo = {
         Attribute.SINGLE_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.GROUP_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.SUPPORTS_QUOTED_MESSAGES,
+        Attribute.SUPPORTS_DELETE_THREAD,
       ]
       : [
         Attribute.NO_SUPPORT_TYPING_INDICATOR,
       ]),
   ]),
-  reactions: IS_BIG_SUR_OR_UP ? {
-    supported: supportedReactions,
-  } : undefined,
+  reactions: IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
   },

@@ -30,6 +30,8 @@ export declare class MessagesController {
 
   muteThread: (threadID: string, muted: boolean) => Promise<void>
 
+  deleteThread: (threadID: string) => Promise<void>
+
   sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
 
   watchThreadActivity: (

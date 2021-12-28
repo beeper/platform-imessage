@@ -412,6 +412,12 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  deleteThread = async (threadID: string) => {
+    if (!IS_BIG_SUR_OR_UP) return
+    const mc = await this.getMessagesController()
+    await mc.deleteThread(threadID)
+  }
+
   private elideStopTyping = false
 
   sendActivityIndicator = async (type: ActivityType, threadID: string) => {
