@@ -294,14 +294,9 @@ final class MessagesController {
         }
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
-            guard let child = try? appElement.children().first(
-                where: { (try? $0.identifier()) == "SceneWindow" }
-            ) else {
-                throw ErrorMessage("Could not get main Messages window")
-            }
-            return child
+            try appElement.children().first(where: { (try? $0.identifier()) == "SceneWindow" })
+                .orThrow(ErrorMessage("Could not get main Messages window"))
         }
-
         self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow)
 
         space = try Space(newSpaceOfKind: .fullscreen)
@@ -330,10 +325,11 @@ final class MessagesController {
         //        }
         #endif
 
-        guard let conversations = mainWindow.child(withID: "ConversationList") else {
-            throw ErrorMessage("Could not get Messages conversation list")
+        let getConversationsList = { [mainWindow] () throws -> Accessibility.Element in
+            try mainWindow.child(withID: "ConversationList")
+                .orThrow(ErrorMessage("Could not get Messages conversation list"))
         }
-        self.conversations = conversations
+        self.conversations = try Self.retry(withTimeout: 1, interval: 0.2, getConversationsList)
 
         // we need a run loop for polling (and for any future AX observers), but Node
         // doesn't offer us one (since it uses its own uv loop which is incompatible
@@ -381,13 +377,17 @@ final class MessagesController {
     }
 
     private func transcriptsView() throws -> Accessibility.Element {
-        try mainWindow.child(withID: "TranscriptCollectionView")
-            .orThrow(ErrorMessage("Could not find TranscriptCollectionView"))
+        try Self.retry(withTimeout: 1, interval: 0.2) {
+            try mainWindow.child(withID: "TranscriptCollectionView")
+                .orThrow(ErrorMessage("Could not find TranscriptCollectionView"))
+        }
     }
 
     private func messagesField() throws -> Accessibility.Element {
-        try mainWindow.child(withID: "messageBodyField")
-            .orThrow(ErrorMessage("Could not find message body field"))
+        try Self.retry(withTimeout: 1, interval: 0.2) {
+            try mainWindow.child(withID: "messageBodyField")
+                .orThrow(ErrorMessage("Could not find message body field"))
+        }
     }
 
     @discardableResult
