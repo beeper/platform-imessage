@@ -55,6 +55,7 @@ export enum AttachmentTransferState {
   UNKNOWN_2 = 6,
 }
 
+// /System/Library/Messages/iMessageBalloons/
 export enum BalloonBundleID {
   URL = 'com.apple.messages.URLBalloonProvider',
   DIGITAL_TOUCH = 'com.apple.DigitalTouchBalloonProvider',
@@ -62,7 +63,6 @@ export enum BalloonBundleID {
   BIZ_EXTENSION = 'com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension',
   APPLE_PAY = 'com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.PassbookUIService.PeerPaymentMessagesExtension',
 }
-
 export const MSG_EXTENSION_PREFIX = 'com.apple.messages.MSMessageExtensionBalloonPlugin'
 
 export const RECEIVER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)'

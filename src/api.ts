@@ -4,7 +4,7 @@ import path from 'path'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
 import { v4 as uuid } from 'uuid'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
@@ -402,6 +402,14 @@ export default class AppleiMessage implements PlatformAPI {
     const result = await this.sendFileFromFilePath(threadID, tmpFilePath)
     this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
     return result
+  }
+
+  updateThread = async (threadID: string, updates: Partial<Thread>) => {
+    if (!IS_BIG_SUR_OR_UP) return
+    if ('mutedUntil' in updates) {
+      const mc = await this.getMessagesController()
+      await mc.muteThread(threadID, updates.mutedUntil === 'forever')
+    }
   }
 
   private elideStopTyping = false

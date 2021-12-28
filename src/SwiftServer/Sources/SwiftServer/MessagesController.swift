@@ -415,7 +415,7 @@ final class MessagesController {
 
         let newTitle: String?
         if let openAfter = openAfter {
-            debugLog("Returning to observed thread")
+            debugLog("withActivation: Returning to openAfter \(openAfter)")
             let oldTitle = try mainWindow.windowTitle()
             try NSWorkspace.shared.open(openAfter, options: [.andHide, .withoutActivation], configuration: [:])
             newTitle = try? Self.retry(withTimeout: 1, interval: 0.1) {
@@ -504,8 +504,8 @@ final class MessagesController {
         }
     }
 
-    func markAsRead(guid: String) throws {
-        let url = try MessagesDeepLink.message(guid: guid).url()
+    func markAsRead(messageGUID: String) throws {
+        let url = try MessagesDeepLink.message(guid: messageGUID).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -520,24 +520,40 @@ final class MessagesController {
             try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
 
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
-                throw ErrorMessage("Cell for message \(guid) could not be found.")
+                throw ErrorMessage("Cell for message \(messageGUID) could not be found.")
             }
 
             // we now click another cell and then come back
 
             debugLog("Pressing compose cell")
-
             try composeCell.press()
-
             waitUntilSelected(isCompose: true, timeout: 0.5)
 
             debugLog("Pressing target cell")
-
             try targetCell.press()
-
             waitUntilSelected(isCompose: false, timeout: 0.5)
 
             debugLog("Done!")
+        }
+    }
+
+    func muteThread(threadID: String, muted: Bool) throws {
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            // review: this is strangely needed, without this the currently observed thread is muted
+            let _ = selectedCell()
+            guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
+                throw ErrorMessage("Cell for thread \(threadID) could not be found.")
+            }
+
+            guard let muteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix(muted ? "Name:Hide Alerts" : "Name:Show Alerts") }) else {
+                throw ErrorMessage("muteAction not found")
+            }
+            try muteAction()
         }
     }
 
