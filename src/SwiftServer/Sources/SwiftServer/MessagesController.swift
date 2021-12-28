@@ -537,6 +537,47 @@ final class MessagesController {
         }
     }
 
+    #if DEBUG
+    func markAsReadWithMenu(messageGUID: String) throws {
+        let url = try MessagesDeepLink.message(guid: messageGUID).url()
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            _ = selectedCell()
+            guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
+                throw ErrorMessage("Cell for message \(messageGUID) not found")
+            }
+            let showMenuAction = targetCell.action("AXShowMenu")
+            try showMenuAction()
+
+            // Thread.sleep(forTimeInterval: 1)
+            guard let group = (try Self.retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == "AXGroup" }) }) else {
+                throw ErrorMessage("Could not find main view")
+            }
+            guard let menu = (try Self.retry(withTimeout: 4, interval: 0.5) { try group.children().first(where: { try $0.role() == "AXMenu" }) }) else {
+                throw ErrorMessage("Could not find menu")
+            }
+            /*
+             AXMenuItem unpin
+             AXMenuItem open_conversation_in_separate_window
+             AXMenuItem delete_conversation…
+             AXMenuItem
+             AXMenuItem details…
+             AXMenuItem hide_alerts
+             AXMenuItem mark_as_read
+             AXMenuItem
+             AXMenuItem
+             */
+            guard let markAsReadMenuItem = try menu.children().first(where: { (try? $0.identifier()) == "mark_as_read" }) else {
+                throw ErrorMessage("Could not find mark as read menu item")
+            }
+            try markAsReadMenuItem.press()
+        }
+    }
+    #endif
+
     func muteThread(threadID: String, muted: Bool) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
@@ -545,7 +586,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             // review: this is strangely needed, without this the currently observed thread is muted
-            let _ = selectedCell()
+            _ = selectedCell()
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
                 throw ErrorMessage("Cell for thread \(threadID) not found")
             }
@@ -565,7 +606,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             // review: copied over from muteThread
             // this is a destructive method and can delete the wrong thread if targetCell is incorrect
-            let _ = selectedCell()
+            _ = selectedCell()
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
                 throw ErrorMessage("Cell for thread \(threadID) not found")
             }
