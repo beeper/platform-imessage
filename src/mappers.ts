@@ -470,6 +470,7 @@ type Context = {
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore
+  dndState: Set<string>
   // todo this shouldnt be optional
   groupImagesMap?: { [attachmentID: string]: string }
 }
@@ -520,8 +521,9 @@ export function mapThread(
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
     isUnread: isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
-    // this is not working, mute state doesn't seem to get persisted to chat.db
+    // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
+    mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
     messages: {

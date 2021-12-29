@@ -13,12 +13,13 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, DND_PLIST_PATH } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import safeBplistParse from './safe-bplist-parse'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 const messagesControllerClass = swiftServer?.messagesControllerClass
@@ -42,6 +43,31 @@ enum OSAError {
   // }
   AnErrorOccurred = -1743,
   CantGetObject = -1728,
+}
+
+const DISTANT_FUTURE_CONSTANT = 64092211200
+async function getDNDState() {
+  const set = new Set<string>()
+  if (!DND_PLIST_PATH) return set
+  const bplist = await fs.readFile(DND_PLIST_PATH)
+  /*
+    {
+      CatalystDNDMigrationVersion: 2,
+      CKDNDMigrationKey: 2,
+      CKDNDListKey: {
+        'hi@kishan.info': 64092211200,
+        // chat.group_id
+        '2B4EFF7E-3F26-4251-8902-F7062096CCCC: 64092211200,
+        '+15551231234': 64092211200
+      }
+    }
+  */
+  const parsed = safeBplistParse(bplist)
+  if (!parsed?.CKDNDListKey) return set
+  Object.entries(parsed.CKDNDListKey).forEach(([id, timestamp]) => {
+    if (timestamp === DISTANT_FUTURE_CONSTANT) set.add(id)
+  })
+  return set
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -185,14 +211,19 @@ export default class AppleiMessage implements PlatformAPI {
   getThread = async (threadID: string) => {
     const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
-    const handleRows = await this.dbAPI.getThreadParticipants(chatRow.ROWID)
+    const [handleRows, lastMessageRows, dndState] = await Promise.all([
+      this.dbAPI.getThreadParticipants(chatRow.ROWID),
+      this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
+      getDNDState(),
+    ])
     return mapThread(
       chatRow,
       {
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUserID,
         threadReadStore: this.threadReadStore,
-        mapMessageArgsMap: { [chatRow.guid]: await this.dbAPI.fetchLastMessageRows(chatRow.ROWID) },
+        mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
+        dndState,
       },
     )
   }
@@ -202,7 +233,11 @@ export default class AppleiMessage implements PlatformAPI {
     await bluebird.delay(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
     if (!chatRow) return
-    const handleRows = await this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs)
+    const [handleRows, lastMessageRows, dndState] = await Promise.all([
+      this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs),
+      this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
+      getDNDState(),
+    ])
     if (handleRows.length > 0) {
       return mapThread(
         chatRow,
@@ -210,7 +245,8 @@ export default class AppleiMessage implements PlatformAPI {
           handleRowsMap: { [chatRow.guid]: handleRows },
           currentUserID: this.currentUserID,
           threadReadStore: this.threadReadStore,
-          mapMessageArgsMap: { [chatRow.guid]: await this.dbAPI.fetchLastMessageRows(chatRow.ROWID) },
+          mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
+          dndState,
         },
       )
     }
@@ -246,7 +282,7 @@ export default class AppleiMessage implements PlatformAPI {
     const mapMessageArgsMap: { [chatGUID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] } = {}
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
-    const [,, groupImagesRows] = await Promise.all([
+    const [,, groupImagesRows, dndState] = await Promise.all([
       bluebird.map(chatRows, async chat => {
         const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
@@ -256,12 +292,13 @@ export default class AppleiMessage implements PlatformAPI {
         handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
       }),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
+      getDNDState(),
     ])
     const groupImagesMap: { [attachmentID: string]: string } = {}
     groupImagesRows?.forEach(([attachmentID, fileName]) => {
       groupImagesMap[attachmentID] = fileName
     })
-    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
+    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     return {
       items,
