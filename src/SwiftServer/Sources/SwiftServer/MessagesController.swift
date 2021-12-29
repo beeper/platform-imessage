@@ -187,9 +187,7 @@ final class MessagesController {
     }
 
     private static let messagesBundleID = "com.apple.MobileSMS"
-    private static let messagesBundle = NSWorkspace.shared.urlForApplication(
-        withBundleIdentifier: messagesBundleID
-    )!
+    private static let messagesBundle = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID)!
 
     private static let pollingInterval: TimeInterval = 1
 
@@ -247,6 +245,15 @@ final class MessagesController {
         return try res.get()
     }
 
+    @discardableResult
+    private static func openDeepLink(_ url: URL, withoutActivation: Bool) throws -> NSRunningApplication {
+        try NSWorkspace.shared.open(
+            url,
+            options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
+            configuration: [:]
+        )
+    }
+
     init() throws {
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Texts does not have Accessibility permissions")
@@ -281,7 +288,7 @@ final class MessagesController {
             app = reusableApp
         } else {
             debugLog("Launching Messages...")
-            app = try NSWorkspace.shared.open(MessagesDeepLink.compose.url(), options: [.andHide], configuration: [:])
+            app = try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: false)
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
@@ -408,7 +415,7 @@ final class MessagesController {
         perform: () throws -> Void
     ) throws -> String? {
         if let openBefore = openBefore {
-            try NSWorkspace.shared.open(openBefore, options: [.andHide, .withoutActivation], configuration: [:])
+            try Self.openDeepLink(openBefore, withoutActivation: true)
         }
 
         try perform()
@@ -417,7 +424,7 @@ final class MessagesController {
         if let openAfter = openAfter {
             debugLog("withActivation: Returning to openAfter \(openAfter)")
             let oldTitle = try mainWindow.windowTitle()
-            try NSWorkspace.shared.open(openAfter, options: [.andHide, .withoutActivation], configuration: [:])
+            try Self.openDeepLink(openAfter, withoutActivation: true)
             newTitle = try? Self.retry(withTimeout: 1, interval: 0.1) {
                 let newTitle = try mainWindow.windowTitle()
                 // the message doesn't matter since we're try?-ing
@@ -517,7 +524,7 @@ final class MessagesController {
             }
 
             debugLog("Opened compose. Opening target URL")
-            try NSWorkspace.shared.open(url, options: [.andHide, .withoutActivation], configuration: [:])
+            try Self.openDeepLink(url, withoutActivation: true)
 
             guard let targetCell = waitUntilSelected(isCompose: false, timeout: 0.5) else {
                 throw ErrorMessage("Cell for message \(messageGUID) could not be found.")
