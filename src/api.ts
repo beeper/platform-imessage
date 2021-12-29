@@ -18,7 +18,7 @@ import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
-import getDNDState from './dnd-state'
+import DNDState from './DNDState'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
@@ -49,6 +49,8 @@ export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
 
   private threadReadStore: ThreadReadStore
+
+  private dndState = new DNDState()
 
   private dbAPI = new DatabaseAPI(this)
 
@@ -189,7 +191,7 @@ export default class AppleiMessage implements PlatformAPI {
     const [handleRows, lastMessageRows, dndState] = await Promise.all([
       this.dbAPI.getThreadParticipants(chatRow.ROWID),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
-      getDNDState(),
+      this.dndState.get(),
     ])
     return mapThread(
       chatRow,
@@ -211,7 +213,7 @@ export default class AppleiMessage implements PlatformAPI {
     const [handleRows, lastMessageRows, dndState] = await Promise.all([
       this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
-      getDNDState(),
+      this.dndState.get(),
     ])
     if (handleRows.length > 0) {
       return mapThread(
@@ -267,7 +269,7 @@ export default class AppleiMessage implements PlatformAPI {
         handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
       }),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
-      getDNDState(),
+      this.dndState.get(),
     ])
     const groupImagesMap: { [attachmentID: string]: string } = {}
     groupImagesRows?.forEach(([attachmentID, fileName]) => {
