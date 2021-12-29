@@ -13,13 +13,13 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, DND_PLIST_PATH } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
+import getDNDState from './dnd-state'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
-import safeBplistParse from './safe-bplist-parse'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 const messagesControllerClass = swiftServer?.messagesControllerClass
@@ -43,31 +43,6 @@ enum OSAError {
   // }
   AnErrorOccurred = -1743,
   CantGetObject = -1728,
-}
-
-const DISTANT_FUTURE_CONSTANT = 64092211200
-async function getDNDState() {
-  const set = new Set<string>()
-  if (!DND_PLIST_PATH) return set
-  const bplist = await fs.readFile(DND_PLIST_PATH)
-  /*
-    {
-      CatalystDNDMigrationVersion: 2,
-      CKDNDMigrationKey: 2,
-      CKDNDListKey: {
-        'hi@kishan.info': 64092211200,
-        // chat.group_id
-        '2B4EFF7E-3F26-4251-8902-F7062096CCCC: 64092211200,
-        '+15551231234': 64092211200
-      }
-    }
-  */
-  const parsed = safeBplistParse(bplist)
-  if (!parsed?.CKDNDListKey) return set
-  Object.entries(parsed.CKDNDListKey).forEach(([id, timestamp]) => {
-    if (timestamp === DISTANT_FUTURE_CONSTANT) set.add(id)
-  })
-  return set
 }
 
 export default class AppleiMessage implements PlatformAPI {

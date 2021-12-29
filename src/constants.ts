@@ -84,3 +84,6 @@ export const BINARIES_DIR_PATH = texts
 export const ARCH_BINARIES_DIR_PATH = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`)
 
 export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
+
+// Date.distantFuture === January 1, 4001 at 12:00:00 AM GMT
+export const DISTANT_FUTURE_CONSTANT = 64092211200
