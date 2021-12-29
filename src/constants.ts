@@ -74,7 +74,9 @@ export const IS_BIG_SUR_OR_UP = DARWIN_MAJOR_VERSON >= 20
 
 export const CHAT_DB_PATH = path.join(os.homedir(), 'Library/Messages/chat.db')
 
-export const BINARIES_DIR_PATH = texts.constants.BUILD_DIR_PATH + '/platform-imessage'
+export const BINARIES_DIR_PATH = texts
+  ? texts.constants.BUILD_DIR_PATH + '/platform-imessage'
+  : path.join(process.cwd(), 'binaries')
 export const ARCH_BINARIES_DIR_PATH = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`)
 
 export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
