@@ -1,5 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
-import { supportedReactions, IS_BIG_SUR_OR_UP } from './constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP } from './common-constants'
 import type { MessageWithExtra } from './mappers'
 
 const isSelectable = (message: MessageWithExtra) =>

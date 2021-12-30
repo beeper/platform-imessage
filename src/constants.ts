@@ -1,15 +1,9 @@
 import os from 'os'
 import path from 'path'
-import { texts, SupportedReaction } from '@textshq/platform-sdk'
+import { texts } from '@textshq/platform-sdk'
+import { IS_BIG_SUR_OR_UP } from './common-constants'
 
-export const supportedReactions: Record<string, SupportedReaction> = {
-  heart: { title: 'Heart', render: '❤️' },
-  like: { title: 'Like', render: '👍' },
-  dislike: { title: 'Dislike', render: '👎' },
-  laugh: { title: 'Laugh', render: '😂' },
-  emphasize: { title: 'Emphasize', render: '‼️' },
-  question: { title: 'Question', render: '❓' },
-}
+export * from './common-constants'
 
 export const ASSOC_MSG_TYPE = {
   3: 'heading', // only seen used with apple watch replies like "completed a workout" or "closed all three Activity rings"
@@ -67,10 +61,6 @@ export const MSG_EXTENSION_PREFIX = 'com.apple.messages.MSMessageExtensionBalloo
 
 export const RECEIVER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)'
 export const SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextSenderIdentifier)'
-
-const [DARWIN_MAJOR_VERSON] = os.release().split('.').map(Number)
-export const IS_MOJAVE_OR_UP = DARWIN_MAJOR_VERSON >= 18
-export const IS_BIG_SUR_OR_UP = DARWIN_MAJOR_VERSON >= 20
 
 export const homedir = os.homedir()
 export const CHAT_DB_PATH = path.join(homedir, 'Library/Messages/chat.db')

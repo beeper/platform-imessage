@@ -1,5 +1,5 @@
 import { groupBy, omit, truncate, findLast } from 'lodash'
-import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, texts } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
@@ -254,9 +254,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (!didFail) return [m]
   }
 
-  const partialHeader: Partial<MessageWithExtra> = {}
-
-  const partialFooter: Partial<MessageWithExtra> = {
+  const partialHeader: Pick<Message, 'textHeading' | 'linkedMessageID'> = {}
+  const partialFooter: Pick<Message, 'textFooter'> = {
     textFooter: msgRow.expressive_send_style_id
       ? `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)`
       : undefined,
