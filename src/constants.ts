@@ -70,6 +70,8 @@ export const BINARIES_DIR_PATH = texts
   : path.join(process.cwd(), 'binaries')
 export const ARCH_BINARIES_DIR_PATH = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`)
 
+export const TMP_MOBILE_SMS_PATH = IS_BIG_SUR_OR_UP ? path.join(os.tmpdir(), 'com.apple.MobileSMS') : undefined
+
 export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
 
 // Date.distantFuture === January 1, 4001 at 12:00:00 AM GMT

@@ -1,9 +1,9 @@
 import fsSync, { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
+import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { v4 as uuid } from 'uuid'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
@@ -13,10 +13,10 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import { shellExec } from './util'
+import { waitForFileToExist, shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import DNDState from './DNDState'
 import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
@@ -411,7 +411,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.asAPI.sendFile(threadID, filePath))
 
   private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string) => {
-    const tmpFilePath = path.join(os.tmpdir(), fileName || uuid())
+    const tmpFilePath = path.join(os.tmpdir(), fileName || crypto.randomUUID())
     await fs.writeFile(tmpFilePath, fileBuffer)
     const result = await this.sendFileFromFilePath(threadID, tmpFilePath)
     this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
@@ -546,16 +546,44 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getAsset = async (pathHex: string, methodName: string) => {
-    if (pathHex === 'proxied') {
-      const result = await this.proxiedAuthFns[methodName]()
-      return JSON.stringify(result)
-    }
-    const filePath = Buffer.from(pathHex, 'hex').toString()
-    const buffer = await fs.readFile(filePath)
-    try {
-      return await convertCGBI(buffer)
-    } catch (err) {
-      return 'file://' + encodeURI(filePath)
+    switch (pathHex) {
+      case 'proxied': {
+        const result = await this.proxiedAuthFns[methodName]()
+        return JSON.stringify(result)
+      }
+
+      case 'hw': {
+        const [uuid] = methodName.split('.', 1)
+        const fileNames = await fs.readdir(TMP_MOBILE_SMS_PATH)
+        let attemptsRemaining = 10
+        while (attemptsRemaining--) {
+          const fileName = fileNames.find(fn => fn.startsWith(`hw_${uuid}_`))
+          if (!fileName) {
+            await bluebird.delay(100)
+            continue
+          }
+          const hwPath = path.join(TMP_MOBILE_SMS_PATH, fileName)
+          return 'file://' + encodeURI(hwPath)
+        }
+        return
+      }
+
+      case 'dt': {
+        const [uuid] = methodName.split('.', 1)
+        const filePath = path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)
+        await waitForFileToExist(filePath, 5_000)
+        return 'file://' + encodeURI(filePath)
+      }
+
+      default: {
+        const filePath = Buffer.from(pathHex, 'hex').toString()
+        const buffer = await fs.readFile(filePath)
+        try {
+          return await convertCGBI(buffer)
+        } catch (err) {
+          return 'file://' + encodeURI(filePath)
+        }
+      }
     }
   }
 }

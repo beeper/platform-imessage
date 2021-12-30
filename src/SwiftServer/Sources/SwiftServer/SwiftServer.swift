@@ -177,6 +177,10 @@ final class MessagesControllerWrapper: NodeClass {
         let accessManager = MessagesAccessManager()
 
         exports = try NodeObject([
+            "appleInterfaceStyle": NodeComputedProperty { _ in
+                UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
+            },
+
             "isLoggingEnabled": NodeComputedProperty { _ in
                 Self.isLoggingEnabled
             } set: { args in

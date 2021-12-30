@@ -1,7 +1,8 @@
+import path from 'path'
 import { groupBy, omit, truncate, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplitParse from './safe-bplist-parse'
@@ -154,6 +155,9 @@ export type MessageWithExtra = Omit<Message, 'extra'> & {
   }
 }
 
+const UUID_START = 11
+const UUID_LENGTH = 36
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): MessageWithExtra[] {
   if (msgRow.was_data_detected === 0) return
   const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
@@ -266,8 +270,35 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   if (msgRow.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH) {
     partialHeader.textHeading = 'Digital Touch Message'
+    if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
+      const uuid = Buffer.from(msgRow.payload_data.slice(-(UUID_START + UUID_LENGTH), -UUID_START)).toString('utf-8')
+      if (UUID_REGEX.test(uuid)) {
+        partialMessage.attachments = [{
+          id: uuid,
+          type: MessageAttachmentType.VIDEO,
+          isGif: true,
+          // file:// will mostly work fine but we use asset:// since it can take a few seconds before the file is written to disk by messages.app
+          srcURL: `asset://$accountID/dt/${uuid}.mov`,
+          // srcURL: 'file://' + encodeURI(path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)),
+          size: { width: 144, height: 180 },
+        }]
+      }
+    }
   } else if (msgRow.balloon_bundle_id === BalloonBundleID.HANDWRITING) {
     partialHeader.textHeading = 'Handwritten Message'
+    if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
+      const uuid = Buffer.from(msgRow.payload_data.slice(UUID_START, UUID_START + UUID_LENGTH)).toString('utf-8')
+      if (UUID_REGEX.test(uuid)) {
+        partialMessage.attachments = [{
+          id: uuid,
+          type: MessageAttachmentType.IMG,
+          isGif: true,
+          // todo: since we don't know w & h, we use asset://
+          // srcURL: 'file://' + encodeURI(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)),
+          srcURL: `asset://$accountID/hw/${uuid}.png`,
+        }]
+      }
+    }
   } else if (msgRow.balloon_bundle_id === BalloonBundleID.BIZ_EXTENSION) {
     partialHeader.textHeading = 'Business Chat Extension'
     // TODO: Handle busines chats

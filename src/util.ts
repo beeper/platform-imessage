@@ -1,5 +1,7 @@
 import os from 'os'
+import fs from 'fs/promises'
 import childProcess from 'child_process'
+import bluebird from 'bluebird'
 
 const DATE_OFFSET = 978307200000
 
@@ -53,4 +55,18 @@ export async function shellExec(command: string, ...args: readonly string[]): Pr
       resolve(Buffer.concat(chunks).toString())
     })
   })
+}
+
+export const pathExists = (fp: string) =>
+  fs.access(fp)
+    .then(() => true)
+    .catch(() => false)
+
+export async function waitForFileToExist(filePath: string, maxWaitMs: number) {
+  const stopAt = Date.now() + maxWaitMs
+  while (!await pathExists(filePath)) {
+    if (Date.now() > stopAt) return false
+    await bluebird.delay(20)
+  }
+  return true
 }
