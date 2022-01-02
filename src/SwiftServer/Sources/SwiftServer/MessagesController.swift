@@ -402,7 +402,7 @@ final class MessagesController {
     }
 
     @discardableResult
-    private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval) -> Accessibility.Element? {
+    private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
         try? Self.retry(withTimeout: timeout) { () throws -> Accessibility.Element in
             guard let selected = selectedThreadCell() else { throw ErrorMessage("") }
             let desc = try? selected.localizedDescription()
@@ -526,14 +526,14 @@ final class MessagesController {
 
         let compose = try MessagesDeepLink.compose.url()
         try withActivation(openBefore: compose, openAfter: activityObserver?.url) {
-            guard let composeCell = waitUntilSelectedThreadCell(isCompose: true, timeout: 0.5) else {
+            guard let composeCell = waitUntilSelectedThreadCell(isCompose: true) else {
                 throw ErrorMessage("Compose thread cell not found")
             }
 
             debugLog("Opened compose. Opening target URL")
             try Self.openDeepLink(url, withoutActivation: true)
 
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false, timeout: 0.5) else {
+            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Thread cell with message \(messageGUID) not found")
             }
 
@@ -541,11 +541,11 @@ final class MessagesController {
 
             debugLog("Pressing compose cell")
             try composeCell.press()
-            waitUntilSelectedThreadCell(isCompose: true, timeout: 0.5)
+            waitUntilSelectedThreadCell(isCompose: true)
 
             debugLog("Pressing target cell")
             try targetCell.press()
-            waitUntilSelectedThreadCell(isCompose: false, timeout: 0.5)
+            waitUntilSelectedThreadCell(isCompose: false)
 
             debugLog("Done!")
         }
@@ -560,7 +560,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             _ = selectedThreadCell()
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false, timeout: 0.5) else {
+            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Thread cell with message \(messageGUID) not found")
             }
             let showMenuAction = targetCell.action("AXShowMenu")
@@ -601,7 +601,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             // review: this is strangely needed, without this the currently observed thread is muted
             _ = selectedThreadCell()
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false, timeout: 0.5) else {
+            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Cell for thread \(threadID) not found")
             }
             guard let muteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix(muted ? "Name:Hide Alerts" : "Name:Show Alerts") }) else {
@@ -621,7 +621,7 @@ final class MessagesController {
             // review: copied over from muteThread
             // this is a destructive method and can delete the wrong thread if targetCell is incorrect
             _ = selectedThreadCell()
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false, timeout: 0.5) else {
+            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Cell for thread \(threadID) not found")
             }
             guard let deleteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") }) else {
