@@ -187,7 +187,6 @@ final class MessagesController {
     }
 
     private static let messagesBundleID = "com.apple.MobileSMS"
-    private static let messagesBundle = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID)!
 
     private static let pollingInterval: TimeInterval = 1
 
