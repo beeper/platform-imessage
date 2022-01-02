@@ -30,6 +30,7 @@ extension Accessibility.Notification {
 
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
+    var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
     var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
@@ -377,9 +378,7 @@ final class MessagesController {
     }
 
     private func selectedThreadCell() -> Accessibility.Element? {
-        try? conversations.children().first {
-            (try? $0.isSelected()) == true
-        }
+        try? conversations.selectedChildren.value(at: 0)
     }
 
     private func transcriptsView() throws -> Accessibility.Element {
