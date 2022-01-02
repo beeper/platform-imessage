@@ -28,10 +28,16 @@ extension Accessibility.Notification {
     static let applicationDeactivated = Self(kAXApplicationDeactivatedNotification)
 }
 
+// refer to AXAttributeConstants.h
+// https://gist.github.com/p6p/24fbac5d12891fcfffa2b53761f4343e
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
+
+    // this wont work without the com.apple.private.accessibility.inspection entitlement
+    // https://stackoverflow.com/questions/45590888/how-to-get-the-objective-c-class-name-corresponding-to-an-axuielement
+    var className: AttributeName<String> { "AXClassName" }
 
     var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
     var maxValue: AttributeName<Any> { .init(kAXMaxValueAttribute) }
