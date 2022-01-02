@@ -85,6 +85,17 @@ extension Accessibility.Element {
         })
     }
 
+    func recursiveSelectedChildren() -> AnySequence<Accessibility.Element> {
+        AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
+            guard !queue.isEmpty else { return nil }
+            let elt = queue.removeFirst()
+            if let selectedChildren = try? elt.selectedChildren() {
+                queue.append(contentsOf: selectedChildren)
+            }
+            return elt
+        })
+    }
+
     func child(withID id: String) -> Accessibility.Element? {
         recursiveChildren().lazy.first {
             (try? $0.identifier()) == id
@@ -333,9 +344,9 @@ final class MessagesController {
             debugLog("Kind: \((try? $0.kind()) as Any)")
             debugLog("Owners: \((try? $0.owners()) ?? [])")
         }
-        //        existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
-        //            $0.destroy()
-        //        }
+        // existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
+        //     $0.destroy()
+        // }
         #endif
 
         let getConversationsList = { [mainWindow] () throws -> Accessibility.Element in
@@ -447,7 +458,7 @@ final class MessagesController {
 
     private func reactionsView() throws -> Accessibility.Element {
         guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
-              //              (try? mainView.children.count()) ?? 0 >= 2,
+              // (try? mainView.children.count()) ?? 0 >= 2,
               let presView = try? mainView.children.value(at: 0),
               (try? presView.children.count()) ?? 0 > 0 else {
             throw ErrorMessage("Could not find reactions view")
@@ -465,7 +476,7 @@ final class MessagesController {
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
                 throw ErrorMessage("Could not find selected message")
             }
-            //            selected.printAttributes()
+            // selected.printAttributes()
             let targetCell: Accessibility.Element
             if offset == 0 {
                 targetCell = selected
@@ -495,7 +506,7 @@ final class MessagesController {
 
         let idx = reaction.index
         try withMessageCell(guid: guid, offset: offset) { targetCell in
-            //            targetCell.printAttributes()
+            // targetCell.printAttributes()
             let allActions = try targetCell.supportedActions()
             // should be [react, reply, copy]
             let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
@@ -530,20 +541,31 @@ final class MessagesController {
                 throw ErrorMessage("Compose thread cell not found")
             }
 
-            debugLog("Opened compose. Opening target URL")
+            debugLog("Opened compose. Opening target thread")
             try Self.openDeepLink(url, withoutActivation: true)
+
+            // Thread.sleep(forTimeInterval: 1)
+            // debugLog("Deleting compose")
+            // guard let deleteAction = try composeCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") }) else {
+            //     throw ErrorMessage("composeCell.deleteAction not found")
+            // }
+            // // this will scroll to the selected cell
+            // try deleteAction()
+            // Thread.sleep(forTimeInterval: 1)
 
             guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Thread cell with message \(messageGUID) not found")
             }
 
+            // Thread.sleep(forTimeInterval: 1)
             // we now click another cell and then come back
 
-            debugLog("Pressing compose cell")
+            debugLog("Pressing compose thread cell")
             try composeCell.press()
             waitUntilSelectedThreadCell(isCompose: true)
 
-            debugLog("Pressing target cell")
+            // Thread.sleep(forTimeInterval: 1)
+            debugLog("Pressing target thread cell")
             try targetCell.press()
             waitUntilSelectedThreadCell(isCompose: false)
 
@@ -824,7 +846,7 @@ final class MessagesController {
         guard let observer = activityObserver else { return }
 
         guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
-            //            debugLog("warning: Title changed. Not polling activity status.")
+            // debugLog("warning: Title changed. Not polling activity status.")
             observer.send(.unknown)
             return
         }
