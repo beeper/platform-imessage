@@ -225,8 +225,17 @@ final class MessagesController {
 
     private var activityObserver: ActivityObserver?
 
+    // this increases the viewport height so that mark as read works more reliably
+    private static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
+        var frame = try window.frame()
+        frame.origin.y = 0
+        frame.size.height = Double.infinity
+        try window.setFrame(frame)
+    }
+
     // returns last active display
     private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Display {
+        try? Self.resizeWindowToMaxHeight(window)
         #if NO_SPACES
         return .main
         #else
