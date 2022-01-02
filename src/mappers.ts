@@ -1,23 +1,21 @@
-import path from 'path'
-import { groupBy, omit, truncate, findLast } from 'lodash'
+import { groupBy, omit, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
-import safeBplitParse from './safe-bplist-parse'
+import safeBplistParse from './safe-bplist-parse'
 import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
-const whitespaceRegexGlobal = /\s+/g
 
 function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
   if (a.transfer_state == null) return
@@ -305,13 +303,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     // if (m.attachments[0]) m.attachments[0].size = { height: 80, width: 80 }
   }
 
-  // {
-  //   "amc" => 0
-  //   "amsa" => "com.apple.siri"
-  //   "ust" => 1
-  // }
+  const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined
   if (msgRow.message_summary_info) {
-    const msi = safeBplitParse(Buffer.from(msgRow.message_summary_info))
     if (msi?.amsa === 'com.apple.siri') {
       partialFooter.textFooter = 'Sent with Siri'
     }
@@ -461,8 +454,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         }
         if (supportedReactions[actionKey]) {
           m.parseTemplate = true
-          // todo fix for localized reaction messages
-          m.text = `{{sender}}: ${truncate(m.text.replace(whitespaceRegexGlobal, ' '), { length: 50 })}`
+          m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} "${msi?.ams}"`
           m.isHidden = true
         }
     }
@@ -541,7 +533,7 @@ export function mapThread(
       "hasResponded": true
     }
   */
-  const props = chat.properties ? safeBplitParse(Buffer.from(chat.properties)) : null
+  const props = chat.properties ? safeBplistParse(chat.properties) : null
   const messageRows = mapMessageArgs?.[0]
   const lastNonActionReceivedMessage = messageRows ? findLast(messageRows, r => r.item_type === 0 && r.is_from_me === 0) : undefined
   const isUnreadInSqlite = lastNonActionReceivedMessage?.is_read === 0

@@ -25,6 +25,22 @@ export const ASSOC_MSG_TYPE = {
   3005: 'unreacted_question',
 }
 
+export const REACTION_VERB_MAP = {
+  reacted_heart: 'loved',
+  reacted_like: 'liked',
+  reacted_dislike: 'disliked',
+  reacted_laugh: 'laughed',
+  reacted_emphasize: 'emphasized',
+  reacted_question: 'questioned',
+
+  unreacted_heart: 'removed a heart from',
+  unreacted_like: 'removed a like from',
+  unreacted_dislike: 'removed a dislike from',
+  unreacted_laugh: 'removed a laugh from',
+  unreacted_emphasize: 'removed an exclamation from',
+  unreacted_question: 'removed a question mark from',
+}
+
 export const EXPRESSIVE_MSGS = {
   'com.apple.messages.effect.CKEchoEffect': 'Echo screen',
   'com.apple.messages.effect.CKSpotlightEffect': 'Spotlight screen',

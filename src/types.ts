@@ -152,3 +152,10 @@ export type MappedHandleRow = {
   participantID: string
   uncanonicalized_id?: string
 }
+
+export interface MessageSummaryInfo {
+  amc?: number // 0
+  ust?: number // 1
+  amsa?: string // "com.apple.siri"
+  ams?: string // "Quick brown fox..."
+}
