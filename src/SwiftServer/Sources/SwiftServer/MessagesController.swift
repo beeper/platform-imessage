@@ -406,6 +406,9 @@ final class MessagesController {
         try? Self.retry(withTimeout: timeout) { () throws -> Accessibility.Element in
             guard let selected = selectedThreadCell() else { throw ErrorMessage("") }
             let desc = try? selected.localizedDescription()
+            let isOutsideViewport = (try? selected.frame()) == CGRect.null
+            // when outside viewport, desc will always be nil so return it always
+            if isOutsideViewport { return selected }
             let isActuallyCompose = desc == nil
             guard isCompose == isActuallyCompose else { throw ErrorMessage("") }
             return selected
