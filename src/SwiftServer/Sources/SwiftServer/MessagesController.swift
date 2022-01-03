@@ -145,6 +145,8 @@ private final class RunLoopThread: Thread {
     }
 }
 
+let IS_MONTEREY_OR_UP = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12
+
 // external API is thread safe
 final class MessagesController {
     enum Reaction: String {
@@ -823,14 +825,16 @@ final class MessagesController {
             }
             cellsToCheck = [elt]
         default:
-            guard let elts = try? transcripts.children(range: (count - 3)..<count), elts.count == 3 else {
+            // todo review if 2 : 1 is enough
+            let lastN = IS_MONTEREY_OR_UP ? 3 : 2
+            guard let elts = try? transcripts.children(range: (count - lastN)..<count), elts.count == lastN else {
                 return [.unknown]
             }
             cellsToCheck = elts
         }
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
-        let isDND = cellsToCheck.contains { elt in
+        let isDND = IS_MONTEREY_OR_UP && cellsToCheck.contains { elt in
             (try? elt.children.count()) == 1 && (try? elt.children.value(at: 0).role()) == "AXStaticText"
         }
         let isTyping = cellsToCheck.contains { elt in
