@@ -4,6 +4,8 @@ dist
 src/RustServer/target
 src/AppleScriptServer/Release
 build
+swift-server.node
+libNodeAPI.dylib
 
 .DS_Store
 node_modules
