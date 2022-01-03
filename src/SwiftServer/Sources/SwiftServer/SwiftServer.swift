@@ -106,14 +106,14 @@ final class MessagesControllerWrapper: NodeClass {
     }
 
     func watchThreadActivity(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
-        let controllerArgs: (String, (MessagesController.ActivityStatus) -> Void)?
+        let controllerArgs: (String, ([MessagesController.ActivityStatus]) -> Void)?
         if try args.count == 1 && args[0].as(NodeNull.self) != nil {
             controllerArgs = nil
         } else if args.count == 2,
                   let address = try args[0].as(String.self),
                   let fn = try args[1].as(NodeFunction.self) {
             controllerArgs = (address, { status in
-                try? self.watchCBQueue.async { try fn(status.rawValue) }
+                try? self.watchCBQueue.async { try fn(status.map { $0.rawValue }) }
             })
         } else {
             print("warning: Invalid args to watchThreadActivity")

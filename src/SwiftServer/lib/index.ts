@@ -14,6 +14,7 @@ export interface Fragment {
 }
 
 export enum ActivityStatus {
+  DND = 'DND',
   Typing = 'TYPING',
   NotTyping = 'NOT_TYPING',
   Unknown = 'UNKNOWN',
@@ -36,7 +37,7 @@ export declare class MessagesController {
 
   watchThreadActivity: (
     address: string | null,
-    onTyping?: (status: ActivityStatus) => void
+    onTyping?: (status: ActivityStatus[]) => void
   ) => Promise<void>
 
   setReaction: (guid: string, offset: number, reaction: string, on: boolean) => Promise<void>

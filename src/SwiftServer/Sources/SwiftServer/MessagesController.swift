@@ -168,6 +168,7 @@ final class MessagesController {
     }
 
     enum ActivityStatus: String {
+        case dnd = "DND"
         case typing = "TYPING"
         case notTyping = "NOT_TYPING"
         case unknown = "UNKNOWN"
@@ -179,26 +180,25 @@ final class MessagesController {
         let windowTitle: String
 
         // may be called on a bg thread
-        private let callback: (ActivityStatus) -> Void
+        private let callback: ([ActivityStatus]) -> Void
 
-        private var lastSentTyping = false
+        private var lastSent: [ActivityStatus] = [.notTyping]
         private var lastSentTime = Date()
 
-        init(address: String, url: URL, windowTitle: String, callback: @escaping (ActivityStatus) -> Void) {
+        init(address: String, url: URL, windowTitle: String, callback: @escaping ([ActivityStatus]) -> Void) {
             self.address = address
             self.url = url
             self.windowTitle = windowTitle
             self.callback = callback
         }
 
-        func send(_ status: ActivityStatus) {
-            let sendTyping = status == .typing
+        func send(_ status: [ActivityStatus]) {
             // send if the status is different OR if we're sending typing events and it's
             // been a long time since the last one
-            guard lastSentTyping != sendTyping || (sendTyping && lastSentTime.timeIntervalSinceNow > 30) else {
+            guard lastSent != status || (status.contains(.typing) && lastSentTime.timeIntervalSinceNow > 30) else {
                 return
             }
-            lastSentTyping = sendTyping
+            lastSent = status
             lastSentTime = Date()
             callback(status)
         }
@@ -808,34 +808,38 @@ final class MessagesController {
         }
     }
 
-    private func activityStatus() -> ActivityStatus {
+    private func activityStatus() -> [ActivityStatus] {
         guard let transcripts = try? transcriptsView(),
               let count = try? transcripts.children.count() else {
-            return .unknown
+            return [.unknown]
         }
         let cellsToCheck: [Accessibility.Element]
         switch count {
         case 0:
-            return .unknown
+            return [.unknown]
         case 1:
             guard let elt = try? transcripts.children.value(at: 0) else {
-                return .unknown
+                return [.unknown]
             }
             cellsToCheck = [elt]
         default:
-            // check the last two cells if possible, because the last cell might be the focus
-            // indicator
-            guard let elts = try? transcripts.children(range: (count - 2)..<count), elts.count == 2 else {
-                return .unknown
+            guard let elts = try? transcripts.children(range: (count - 3)..<count), elts.count == 3 else {
+                return [.unknown]
             }
             cellsToCheck = elts
+        }
+        // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
+        // AXButton, localizedDescription="Notify Anyway"
+        let isDND = cellsToCheck.contains { elt in
+            (try? elt.children.count()) == 1 && (try? elt.children.value(at: 0).role()) == "AXStaticText"
         }
         let isTyping = cellsToCheck.contains { elt in
             // children can briefly be 0 for newly sent messages as well, so
             // that by itself isn't a good enough heuristic
             (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
         }
-        return isTyping ? .typing : .notTyping
+        let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (isDND ? [.dnd] : [])
+        return flags
     }
 
     // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe
@@ -853,7 +857,7 @@ final class MessagesController {
 
         guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
             // debugLog("warning: Title changed. Not polling activity status.")
-            observer.send(.unknown)
+            observer.send([.unknown])
             return
         }
 
@@ -863,7 +867,7 @@ final class MessagesController {
     // must call with lock held
     private func _removeObserver() throws {
         if let old = activityObserver {
-            old.send(.notTyping)
+            old.send([.notTyping])
             activityObserver = nil
         }
     }
@@ -874,7 +878,7 @@ final class MessagesController {
         try _removeObserver()
     }
 
-    func observe(address: String, callback: @escaping (ActivityStatus) -> Void) throws {
+    func observe(address: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
         let url = try MessagesDeepLink.addresses([address], body: nil).url()
 
         activityLock.lock()

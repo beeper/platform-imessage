@@ -4,7 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable, PresenceMap } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
@@ -500,6 +500,8 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  private dndSet = new Set<string>()
+
   onThreadSelected = async (threadID: string) => {
     // we don't need to Promise.all because the Promise has already been
     // fired for messagesController
@@ -512,16 +514,38 @@ export default class AppleiMessage implements PlatformAPI {
       return messagesController.watchThreadActivity(null)
     }
 
-    return messagesController.watchThreadActivity(participantID, status => {
-      this.onEvent([
-        {
-          type: ServerEventType.USER_ACTIVITY,
-          activityType: status === ActivityStatus.Typing ? ActivityType.TYPING : ActivityType.NONE,
-          threadID,
-          participantID,
-          durationMs: 120_000,
-        },
-      ])
+    // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
+    return messagesController.watchThreadActivity(participantID, statuses => {
+      const events: ServerEvent[] = [{
+        type: ServerEventType.USER_ACTIVITY,
+        activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,
+        threadID,
+        participantID,
+        durationMs: 120_000,
+      }]
+      const userID = threadID.split(';', 3).pop()
+      if (statuses.includes(ActivityStatus.DND)) {
+        this.dndSet.add(userID)
+        events.push({
+          type: ServerEventType.USER_PRESENCE_UPDATED,
+          presence: {
+            userID,
+            isActive: null,
+            status: 'dnd',
+          },
+        })
+      } else if (this.dndSet.has(userID)) {
+        this.dndSet.delete(userID)
+        events.push({
+          type: ServerEventType.USER_PRESENCE_UPDATED,
+          presence: {
+            userID,
+            isActive: null,
+            status: undefined,
+          },
+        })
+      }
+      this.onEvent(events)
     })
   }
 
