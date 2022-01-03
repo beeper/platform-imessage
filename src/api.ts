@@ -530,7 +530,6 @@ export default class AppleiMessage implements PlatformAPI {
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
             userID,
-            isActive: null,
             status: 'dnd',
           },
         })
@@ -540,7 +539,6 @@ export default class AppleiMessage implements PlatformAPI {
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
             userID,
-            isActive: null,
             status: undefined,
           },
         })
