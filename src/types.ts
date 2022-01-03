@@ -154,7 +154,7 @@ export type MappedHandleRow = {
 }
 
 export interface MessageSummaryInfo {
-  amc?: number // 0
+  amc?: number // 0, 3
   ust?: number // 1
   amsa?: string // "com.apple.siri"
   ams?: string // "Quick brown fox..."

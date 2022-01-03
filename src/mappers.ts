@@ -454,7 +454,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         }
         if (supportedReactions[actionKey]) {
           m.parseTemplate = true
-          m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} "${msi?.ams}"`
+          m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} ${msi?.ams ? `"${msi?.ams}"` : 'a message'}`
           m.isHidden = true
         }
     }
