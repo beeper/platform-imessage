@@ -50,6 +50,7 @@ extension Accessibility.Names {
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
+    var subrole: AttributeName<String> { .init(kAXSubroleAttribute) }
     var roleDescription: AttributeName<String> { .init(kAXRoleDescriptionAttribute) }
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
@@ -215,7 +216,6 @@ final class MessagesController {
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
     private let mainWindow: Accessibility.Element
-    private let conversations: Accessibility.Element
 
     private let phtConn: PHTConnection?
 
@@ -259,14 +259,22 @@ final class MessagesController {
     private static func retry<T>(
         withTimeout timeout: TimeInterval,
         interval: TimeInterval? = nil,
-        _ perform: () throws -> T
+        _ perform: () throws -> T,
+        onError: ((_ err: Error?) throws -> Void)? = nil
     ) throws -> T {
         let start = Date()
         var res: Result<T, Error>
         repeat {
             res = Result(catching: perform)
-            if case let .success(val) = res {
+            switch res {
+            case let .success(val):
                 return val
+            case let .failure(err):
+                do {
+                    try onError?(err)
+                } catch {
+                    debugLog("retry onError errored \(error)")
+                }
             }
             interval.map(Thread.sleep(forTimeInterval:))
         } while -start.timeIntervalSinceNow < timeout
@@ -360,12 +368,6 @@ final class MessagesController {
         // }
         #endif
 
-        let getConversationsList = { [mainWindow] () throws -> Accessibility.Element in
-            try mainWindow.child(withID: "ConversationList")
-                .orThrow(ErrorMessage("Could not get Messages conversation list"))
-        }
-        self.conversations = try Self.retry(withTimeout: 1, interval: 0.2, getConversationsList)
-
         // we need a run loop for polling (and for any future AX observers), but Node
         // doesn't offer us one (since it uses its own uv loop which is incompatible
         // with NS/CFRunLoop). Therefore we create a background thread with a run loop.
@@ -402,11 +404,31 @@ final class MessagesController {
     var isValid: Bool {
         !app.isTerminated
             && (try? mainWindow.frame()) != nil
-            && conversations.isValid
     }
 
     private func selectedThreadCell() -> Accessibility.Element? {
-        try? conversations.selectedChildren.value(at: 0)
+        try? conversationsList.selectedChildren.value(at: 0)
+    }
+
+    private var cachedConversationsList: Accessibility.Element?
+
+    private var conversationsList: Accessibility.Element {
+        get throws {
+            if let cached = cachedConversationsList, cached.isValid {
+                return cached
+            }
+            let cl = try Self.retry(withTimeout: 1, interval: 0.2) {
+                try mainWindow.child(withID: "ConversationList")
+                    .orThrow(ErrorMessage("Could not find ConversationList"))
+            } onError: { err in
+                let searchField = try self.searchField()
+                debugLog("Getting ConversationList errored, calling searchField.cancel")
+                // this will close the search results if active
+                try searchField.cancel()
+            }
+            cachedConversationsList = cl
+            return cl
+        }
     }
 
     private func transcriptsView() throws -> Accessibility.Element {
@@ -419,7 +441,16 @@ final class MessagesController {
     private func messagesField() throws -> Accessibility.Element {
         try Self.retry(withTimeout: 1, interval: 0.2) {
             try mainWindow.child(withID: "messageBodyField")
-                .orThrow(ErrorMessage("Could not find message body field"))
+                .orThrow(ErrorMessage("Could not find messageBodyField"))
+        }
+    }
+
+    private func searchField() throws -> Accessibility.Element {
+        try Self.retry(withTimeout: 1, interval: 0.2) {
+            let CKConversationListCollectionView = try mainWindow.child(withID: "CKConversationListCollectionView")
+                .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
+            return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == "AXSearchField" }
+                .orThrow(ErrorMessage("Could not find searchField"))
         }
     }
 
