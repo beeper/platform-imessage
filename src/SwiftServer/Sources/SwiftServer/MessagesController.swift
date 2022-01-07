@@ -326,7 +326,7 @@ final class MessagesController {
             app = reusableApp
         } else {
             debugLog("Launching Messages...")
-            app = try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: false)
+            app = try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
