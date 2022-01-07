@@ -48,14 +48,14 @@ const info: PlatformInfo = {
   attachments: {
     gifMimeType: 'image/gif',
   },
-  prefs: {
+  prefs: IS_BIG_SUR_OR_UP ? {
     hide_messages_app: {
       label: 'Hide Messages.app in Dock',
       description: 'This will require the installation of a helper tool.',
       type: 'checkbox',
       default: false,
     },
-  },
+  } : {},
   extra: {
     canQuote: isSelectable,
     canReact: isSelectable,
