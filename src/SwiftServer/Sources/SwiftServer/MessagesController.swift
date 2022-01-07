@@ -260,10 +260,11 @@ final class MessagesController {
         withTimeout timeout: TimeInterval,
         interval: TimeInterval? = nil,
         _ perform: () throws -> T,
-        onError: ((_ err: Error?) throws -> Void)? = nil
+        onError: ((_ attempt: Int, _ err: Error?) throws -> Void)? = nil
     ) throws -> T {
         let start = Date()
         var res: Result<T, Error>
+        var attempt = 0
         repeat {
             res = Result(catching: perform)
             switch res {
@@ -271,7 +272,8 @@ final class MessagesController {
                 return val
             case let .failure(err):
                 do {
-                    try onError?(err)
+                    try onError?(attempt, err)
+                    attempt += 1
                 } catch {
                     debugLog("retry onError errored \(error)")
                 }
@@ -305,9 +307,6 @@ final class MessagesController {
                let windows = try? appEl.appWindows(),
                let spaces = try? windows.map({ try $0.window().currentSpaces() }),
                spaces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(knownSpaces.contains) }) {
-                if windows.isEmpty {
-                    try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
-                }
                 reusableApp = running
             } else {
                 debugLog("Terminating existing Messages...")
@@ -339,10 +338,16 @@ final class MessagesController {
         }
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
-            try appElement.children().first(where: { (try? $0.identifier()) == "SceneWindow" })
+            try appElement.appWindows().first(where: {
+                $0.recursiveChildren().contains(where: { (try? $0.role()) == "AXSplitter" })
+            })
                 .orThrow(ErrorMessage("Could not get main Messages window"))
         }
-        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow)
+        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow, onError: { attempt, _ in
+            if attempt == 0 {
+                try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+            }
+        })
 
         space = try Space(newSpaceOfKind: .fullscreen)
         lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
@@ -422,7 +427,7 @@ final class MessagesController {
             let cl = try Self.retry(withTimeout: 1, interval: 0.2) {
                 try mainWindow.child(withID: "ConversationList")
                     .orThrow(ErrorMessage("Could not find ConversationList"))
-            } onError: { err in
+            } onError: { _, _ in
                 let searchField = try self.searchField()
                 debugLog("Getting ConversationList errored, calling searchField.cancel")
                 // this will close the search results if active
