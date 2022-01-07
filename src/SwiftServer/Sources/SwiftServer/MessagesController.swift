@@ -297,16 +297,17 @@ final class MessagesController {
 
         var reusableApp: NSRunningApplication?
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
-            let element = Accessibility.Element(pid: running.processIdentifier)
+            let appEl = Accessibility.Element(pid: running.processIdentifier)
             let knownSpaces = Set((try? Space.list()) ?? [])
             if !knownSpaces.isEmpty,
                // iff each Messages window exists in visible spaces and
                // visible spaces only
-               let windows = try? element.appWindows(),
-               !windows.isEmpty,
+               let windows = try? appEl.appWindows(),
                let spaces = try? windows.map({ try $0.window().currentSpaces() }),
                spaces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(knownSpaces.contains) }) {
-                debugLog("Reusing existing Messages...")
+                if windows.isEmpty {
+                    try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+                }
                 reusableApp = running
             } else {
                 debugLog("Terminating existing Messages...")
@@ -321,6 +322,7 @@ final class MessagesController {
         }
 
         if let reusableApp = reusableApp {
+            debugLog("Reusing existing Messages...")
             app = reusableApp
         } else {
             debugLog("Launching Messages...")
