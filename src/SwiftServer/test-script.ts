@@ -1,6 +1,20 @@
 import path from 'path'
+import readline from 'readline'
 import fs from 'fs/promises'
 import swiftServer from './lib/index'
+
+function prompt(query: string) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
+  return new Promise<string>(resolve => {
+    rl.question(query, answer => {
+      resolve(answer)
+      rl.close()
+    })
+  })
+}
 
 (async () => {
   swiftServer.isLoggingEnabled = true
@@ -14,11 +28,14 @@ import swiftServer from './lib/index'
   // })
   // await mc.markRead('F8C3DBB1-9FB0-1183-A0A7-70FCA8E3E6C9')
   await mc.markRead('8C9D7F10-E961-4FD6-BD67-54F18767E582')
+  await prompt('do it again?')
+  await mc.markRead('8C9D7F10-E961-4FD6-BD67-54F18767E582')
   // await mc.setReaction('FEDED224-E379-4AC5-A6B9-09973F21E3C7', 0, 'laugh', true, true)
   // await mc.setReaction('1617F5D1-E661-46C9-A09D-724BB47BEF86', 0, 'laugh', true, false)
   // await mc.sendReply('4AF9C619-210E-4A52-B92E-45E709563F36', 'testing ' + Math.random(), true)
   // await mc.sendReply('1617F5D1-E661-46C9-A09D-724BB47BEF86', 'testing ' + Math.random(), true)
   console.log('done')
+  process.stdin.read()
   // await mc.dispose()
   // process.exit()
 })()

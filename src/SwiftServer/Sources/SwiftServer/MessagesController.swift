@@ -364,11 +364,11 @@ final class MessagesController {
 
         #if DEBUG
         let existing = try Space.list()
-        debugLog("Number of spaces: \(existing.count)")
+        debugLog("[debug] \(existing.count) space(s)")
         existing.forEach {
-            debugLog("Name: \((try? $0.name()) as Any)")
-            debugLog("Kind: \((try? $0.kind()) as Any)")
-            debugLog("Owners: \((try? $0.owners()) ?? [])")
+            debugLog("[debug] * Name: \((try? $0.name()) as Any)")
+            debugLog("[debug] * Kind: \((try? $0.kind()) as Any)")
+            debugLog("[debug] * Owners: \((try? $0.owners()) ?? [])")
         }
         // existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
         //     $0.destroy()
