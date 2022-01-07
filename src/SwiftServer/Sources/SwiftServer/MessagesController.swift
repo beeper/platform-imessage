@@ -697,21 +697,26 @@ final class MessagesController {
         }
     }
 
-    private func sendReturnPress() throws {
-        func _sendReturnKey(down: Bool) throws {
-            try CGEvent(keyboardEventSource: nil, virtualKey: .init(kVK_Return), keyDown: down)
-                .orThrow(ErrorMessage("Could not send return press"))
+    private func sendKeyPress(key: CGKeyCode) throws {
+        for keyDown in [true, false] {
+            try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
+                .orThrow(ErrorMessage("Could not send key \(key)"))
                 .postToPid(app.processIdentifier)
         }
-        func sendReturnKey(down: Bool) throws {
+    }
+
+    private func sendReturnPress() throws {
+        func _sendReturnKey() throws {
+            try sendKeyPress(key: CGKeyCode(kVK_Return))
+        }
+        func sendReturnKey() throws {
             if Thread.isMainThread {
-                try _sendReturnKey(down: down)
+                try _sendReturnKey()
             } else {
-                try DispatchQueue.main.sync { try _sendReturnKey(down: down) }
+                try DispatchQueue.main.sync { try _sendReturnKey() }
             }
         }
-        try sendReturnKey(down: true)
-        try sendReturnKey(down: false)
+        try sendReturnKey()
     }
 
     private func waitUntilEmpty(_ messageField: Accessibility.Element) throws {
