@@ -210,6 +210,12 @@ final class MessagesController {
     }
 
     private static let messagesBundleID = "com.apple.MobileSMS"
+    private static var hasNotificationsSilencedSuffix: String? {
+        guard IS_MONTEREY_OR_UP, let bundle = Bundle.init(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") else {
+            return nil
+        }
+        return bundle.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "")
+    }
 
     private static let pollingInterval: TimeInterval = 1
 
@@ -886,7 +892,15 @@ final class MessagesController {
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let isDND = IS_MONTEREY_OR_UP && cellsToCheck.contains { elt in
-            (try? elt.children.count()) == 1 && (try? elt.children.value(at: 0).role()) == "AXStaticText"
+            if (try? elt.children.count()) == 1,
+                let child = try? elt.children.value(at: 0),
+                (try? child.role()) == "AXStaticText",
+               let hasNotificationsSilencedSuffix = Self.hasNotificationsSilencedSuffix,
+               (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true
+            {
+                return true
+            }
+            return false
         }
         let isTyping = cellsToCheck.contains { elt in
             // children can briefly be 0 for newly sent messages as well, so
