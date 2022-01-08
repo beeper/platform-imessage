@@ -420,7 +420,6 @@ final class MessagesController {
     }
 
     private var cachedConversationsList: Accessibility.Element?
-
     private var conversationsList: Accessibility.Element {
         get throws {
             if let cached = cachedConversationsList, cached.isValid {
@@ -440,10 +439,18 @@ final class MessagesController {
         }
     }
 
-    private func transcriptsView() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1, interval: 0.2) {
-            try mainWindow.child(withID: "TranscriptCollectionView")
-                .orThrow(ErrorMessage("Could not find TranscriptCollectionView"))
+    private var cachedTranscriptsView: Accessibility.Element?
+    private var transcriptsView: Accessibility.Element {
+        get throws {
+            if let cached = cachedTranscriptsView, cached.isValid {
+                return cached
+            }
+            let tcv = try Self.retry(withTimeout: 1, interval: 0.2) {
+                try mainWindow.child(withID: "TranscriptCollectionView")
+                    .orThrow(ErrorMessage("Could not find TranscriptCollectionView"))
+            }
+            cachedTranscriptsView = tcv
+            return tcv
         }
     }
 
@@ -520,7 +527,7 @@ final class MessagesController {
         let url = try MessagesDeepLink.message(guid: guid).url()
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            let transcripts = try transcriptsView()
+            let transcripts = try transcriptsView
             guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
                 throw ErrorMessage("Could not find selected message")
             }
@@ -732,8 +739,7 @@ final class MessagesController {
                 }
             }
 
-            let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
-            try messageField.value(assign: "")
+            try messagesField().value(assign: "")
         }
     }
 
@@ -783,11 +789,11 @@ final class MessagesController {
                 }
             }
 
-            let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
+            let messageField = try messagesField()
             try messageField.isFocused(assign: true)
             try Self.retry(withTimeout: 0.5, interval: 0.1) {
                 guard try messageField.isFocused() else {
-                    throw ErrorMessage("Could not activate Messages text field")
+                    throw ErrorMessage("Could not focus Messages text field")
                 }
             }
             try self.sendReturnPress()
@@ -819,7 +825,7 @@ final class MessagesController {
             let replyAction = customActions[1]
             try replyAction()
 
-            let messageField = try Self.retry(withTimeout: 1, interval: 0.1, messagesField)
+            let messageField = try messagesField()
             try messageField.value(assign: text)
             try messageField.isFocused(assign: true)
             try Self.retry(withTimeout: 0.5, interval: 0.1) {
@@ -830,7 +836,7 @@ final class MessagesController {
             try self.sendReturnPress()
 
             // escape
-            defer { try? transcriptsView().cancel() }
+            defer { try? transcriptsView.cancel() }
             try waitUntilEmpty(messageField)
         }
     }
@@ -856,7 +862,7 @@ final class MessagesController {
     }
 
     private func activityStatus() -> [ActivityStatus] {
-        guard let transcripts = try? transcriptsView(),
+        guard let transcripts = try? transcriptsView,
               let count = try? transcripts.children.count() else {
             return [.unknown]
         }
