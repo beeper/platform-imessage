@@ -771,7 +771,16 @@ final class MessagesController {
         try sendReturnKey()
     }
 
-    private func waitUntilEmpty(_ messageField: Accessibility.Element) throws {
+    private func focusMessageField(_ messageField: Accessibility.Element) throws {
+        try Self.retry(withTimeout: 0.5, interval: 0.1) {
+            try messageField.isFocused(assign: true)
+            guard try messageField.isFocused() else {
+                throw ErrorMessage("Could not focus message text field")
+            }
+        }
+    }
+
+    private func waitUntilMessageFieldEmpty(_ messageField: Accessibility.Element) throws {
         try Self.retry(withTimeout: 0.5, interval: 0.1) {
             if let message = try? messageField.value() as? String, !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
@@ -796,14 +805,9 @@ final class MessagesController {
             }
 
             let messageField = try messagesField()
-            try messageField.isFocused(assign: true)
-            try Self.retry(withTimeout: 0.5, interval: 0.1) {
-                guard try messageField.isFocused() else {
-                    throw ErrorMessage("Could not focus Messages text field")
-                }
-            }
+            try focusMessageField(messageField)
             try self.sendReturnPress()
-            try waitUntilEmpty(messageField)
+            try waitUntilMessageFieldEmpty(messageField)
         }
     }
 
@@ -833,17 +837,14 @@ final class MessagesController {
 
             let messageField = try messagesField()
             try messageField.value(assign: text)
-            try messageField.isFocused(assign: true)
-            try Self.retry(withTimeout: 0.5, interval: 0.1) {
-                guard try messageField.isFocused() else { throw ErrorMessage("") }
-            }
+            try focusMessageField(messageField)
 
             Thread.sleep(forTimeInterval: 0.1)
             try self.sendReturnPress()
 
             // escape
             defer { try? transcriptsView.cancel() }
-            try waitUntilEmpty(messageField)
+            try waitUntilMessageFieldEmpty(messageField)
         }
     }
 
