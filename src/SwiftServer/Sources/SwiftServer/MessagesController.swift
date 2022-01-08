@@ -30,6 +30,7 @@ extension Accessibility.Notification {
 
 // refer to AXAttributeConstants.h
 // https://gist.github.com/p6p/24fbac5d12891fcfffa2b53761f4343e
+// https://developer.apple.com/documentation/applicationservices/axattributeconstants_h/miscellaneous_defines
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
@@ -47,6 +48,7 @@ extension Accessibility.Names {
     var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
     var frame: AttributeName<CGRect> { "AXFrame" }
 
+    var title: AttributeName<String> { .init(kAXTitleAttribute) }
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
@@ -64,9 +66,9 @@ extension Accessibility.Names {
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
 
     // Window-specific
-    var windowTitle: AttributeName<String> { .init(kAXTitleAttribute) }
     var windowIsMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
     var windowIsFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
+    var windowCloseButton: AttributeName<Accessibility.Element> { .init(kAXCloseButtonAttribute) }
 }
 
 extension Accessibility.Element {
@@ -487,10 +489,10 @@ final class MessagesController {
         let newTitle: String?
         if let openAfter = openAfter {
             debugLog("withActivation: Returning to openAfter \(openAfter)")
-            let oldTitle = try mainWindow.windowTitle()
+            let oldTitle = try mainWindow.title()
             try Self.openDeepLink(openAfter, withoutActivation: true)
             newTitle = try? Self.retry(withTimeout: 1, interval: 0.1) {
-                let newTitle = try mainWindow.windowTitle()
+                let newTitle = try mainWindow.title()
                 // the message doesn't matter since we're try?-ing
                 guard newTitle != oldTitle else { throw ErrorMessage("") }
                 return newTitle
@@ -719,13 +721,13 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let initialTitle = try? mainWindow.windowTitle()
+        let initialTitle = try? mainWindow.title()
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
 
             try? Self.retry(withTimeout: 0.5, interval: 0.1) {
-                guard try mainWindow.windowTitle() != initialTitle else {
+                guard try mainWindow.title() != initialTitle else {
                     throw ErrorMessage("")
                 }
             }
@@ -772,11 +774,11 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let initialTitle = try? mainWindow.windowTitle()
+        let initialTitle = try? mainWindow.title()
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try? Self.retry(withTimeout: 0.5, interval: 0.1) {
-                guard try mainWindow.windowTitle() != initialTitle else {
+                guard try mainWindow.title() != initialTitle else {
                     throw ErrorMessage("")
                 }
             }
@@ -902,7 +904,7 @@ final class MessagesController {
 
         guard let observer = activityObserver else { return }
 
-        guard (try? mainWindow.windowTitle()) == observer.windowTitle else {
+        guard (try? mainWindow.title()) == observer.windowTitle else {
             // debugLog("warning: Title changed. Not polling activity status.")
             observer.send([.unknown])
             return
@@ -937,7 +939,7 @@ final class MessagesController {
         // successfully switched chats.
         try _removeObserver()
 
-        let title = try withActivation(openBefore: nil, openAfter: url) {} ?? mainWindow.windowTitle()
+        let title = try withActivation(openBefore: nil, openAfter: url) {} ?? mainWindow.title()
         debugLog("Observing with title \(title)")
 
         activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
