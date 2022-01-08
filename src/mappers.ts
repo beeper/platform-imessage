@@ -426,9 +426,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         didFail = true
         break
       case 'heading':
-        m.text = m.text
-          .replace(RECEIVER_NAME_CONSTANT, m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`)
-          .replace(SENDER_NAME_CONSTANT, m.isSender ? `{{${currentUserID}}}` : `{{${msgRow.participantID}}}`)
+        if (m.text) {
+          m.text = m.text
+            .replace(RECEIVER_NAME_CONSTANT, m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`)
+            .replace(SENDER_NAME_CONSTANT, m.isSender ? `{{${currentUserID}}}` : `{{${msgRow.participantID}}}`)
+        }
         m.parseTemplate = true
         break
       default:
