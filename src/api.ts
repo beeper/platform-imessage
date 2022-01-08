@@ -106,6 +106,11 @@ export default class AppleiMessage implements PlatformAPI {
         }
         const controller = await this.messagesControllerCreatePromise
         if (!(await controller.isValid()) || this.forceInvalidate) {
+          texts.trackPlatformEvent({
+            platform: 'imessage',
+            message: 'disposing MessagesController',
+            forceInvalidate: this.forceInvalidate,
+          })
           this.forceInvalidate = false
           controller.dispose()
           throw new Error('MessagesController is invalid')
