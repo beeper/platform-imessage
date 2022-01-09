@@ -63,12 +63,13 @@ extension Accessibility.Names {
     var press: ActionName { .init(kAXPressAction) }
     var cancel: ActionName { .init(kAXCancelAction) }
     #if DEBUG
-        var showMenu: ActionName { .init(kAXShowMenuAction) }
+    var showMenu: ActionName { .init(kAXShowMenuAction) }
     #endif
 
     // App-specific
     var appWindows: AttributeName<[Accessibility.Element]> { .init(kAXWindowsAttribute) }
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
+    var appFocusedWindow: AttributeName<Accessibility.Element> { .init(kAXFocusedWindowAttribute) }
 
     // Window-specific
     var windowIsMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
@@ -252,6 +253,13 @@ final class MessagesController {
         try window.setFrame(frame)
     }
 
+    private static func closeWindow(_ window: Accessibility.Element) throws {
+        guard let closeButton = try? window.windowCloseButton() else {
+            throw ErrorMessage("window close button not found")
+        }
+        try closeButton.press()
+    }
+
     // returns last active display
     private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Display {
         try? Self.resizeWindowToMaxHeight(window)
@@ -314,14 +322,30 @@ final class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
+        func getAppWindowsClosingInaccessibleWindows(_ appEl: Accessibility.Element) -> [Accessibility.Element] {
+            if let windows = try? appEl.appWindows() {
+                // after a window is moved to the new space, AX doesn't list the window in appWindows or children
+                if windows.isEmpty {
+                    if let win = try? appEl.appMainWindow() {
+                        debugLog("appWindows empty, closing app main window")
+                        try? Self.closeWindow(win)
+                    } else if let win = try? appEl.appFocusedWindow() {
+                        debugLog("appWindows empty, closing focused main window")
+                        try? Self.closeWindow(win)
+                    }
+                }
+                return windows
+            }
+            return []
+        }
+
         var reusableApp: NSRunningApplication?
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
             let appEl = Accessibility.Element(pid: running.processIdentifier)
             let knownSpaces = Set((try? Space.list()) ?? [])
+            let windows = getAppWindowsClosingInaccessibleWindows(appEl)
             if !knownSpaces.isEmpty,
-               // iff each Messages window exists in visible spaces and
-               // visible spaces only
-               let windows = try? appEl.appWindows(),
+               // iff each Messages window exists in visible spaces and visible spaces only
                let spaces = try? windows.map({ try $0.window().currentSpaces() }),
                spaces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(knownSpaces.contains) }) {
                 reusableApp = running
@@ -360,7 +384,7 @@ final class MessagesController {
             })
             .orThrow(ErrorMessage("Could not get main Messages window"))
         }
-        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow, onError: { attempt, _ in
+        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.2, getMainWindow, onError: { attempt, _ in
             if attempt == 0 {
                 try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
             }
