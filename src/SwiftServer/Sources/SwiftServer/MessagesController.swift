@@ -360,15 +360,15 @@ final class MessagesController {
         space = try Space(newSpaceOfKind: .fullscreen)
         lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
 
-        if app.isHidden {
-            debugLog("Unhiding Messages...")
-            try Self.retry(withTimeout: 1, interval: 0.1) { [app] in
-                app.unhide()
-                if app.isHidden {
-                    throw ErrorMessage("Could not launch Messages")
-                }
-            }
-        }
+        // if app.isHidden {
+        //     debugLog("Unhiding Messages...")
+        //     try Self.retry(withTimeout: 1, interval: 0.1) { [app] in
+        //         app.unhide()
+        //         if app.isHidden {
+        //             throw ErrorMessage("Could not launch Messages")
+        //         }
+        //     }
+        // }
 
         #if DEBUG
         let existing = try Space.list()
