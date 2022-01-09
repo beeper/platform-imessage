@@ -59,8 +59,12 @@ extension Accessibility.Names {
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }
 
+    // https://developer.apple.com/documentation/applicationservices/axactionconstants_h/miscellaneous_defines
     var press: ActionName { .init(kAXPressAction) }
     var cancel: ActionName { .init(kAXCancelAction) }
+    #if DEBUG
+        var showMenu: ActionName { .init(kAXShowMenuAction) }
+    #endif
 
     // App-specific
     var appWindows: AttributeName<[Accessibility.Element]> { .init(kAXWindowsAttribute) }
@@ -352,7 +356,7 @@ final class MessagesController {
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
             try appElement.appWindows().first(where: {
-                $0.recursiveChildren().contains(where: { (try? $0.role()) == "AXSplitter" })
+                $0.recursiveChildren().contains(where: { (try? $0.role()) == AXRole.splitter })
             })
             .orThrow(ErrorMessage("Could not get main Messages window"))
         }
@@ -476,7 +480,7 @@ final class MessagesController {
         let reactAction = try messageAction(targetCell: targetCell, name: "React", overlay: overlay)
         try reactAction()
         let reactionsView = try reactionsView()
-        guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == "AXButton" }) else {
+        guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == AXRole.button }) else {
             throw ErrorMessage("Could not find reaction buttons")
         }
         /*
@@ -543,14 +547,14 @@ final class MessagesController {
         try Self.retry(withTimeout: 1, interval: 0.2) {
             let CKConversationListCollectionView = try mainWindow.child(withID: "CKConversationListCollectionView")
                 .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
-            return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == "AXSearchField" }
+            return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
                 .orThrow(ErrorMessage("Could not find searchField"))
         }
     }
 
     private func reactionsView() throws -> Accessibility.Element {
         try Self.retry(withTimeout: 1, interval: 0.2) {
-            guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
+            guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == AXRole.group }),
                   // (try? mainView.children.count()) ?? 0 >= 2,
                   let presView = try? mainView.children.value(at: 0),
                   (try? presView.children.count()) ?? 0 > 0 else {
@@ -749,14 +753,13 @@ final class MessagesController {
             guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Thread cell with message \(messageGUID) not found")
             }
-            let showMenuAction = targetCell.action("AXShowMenu")
-            try showMenuAction()
+            try targetCell.showMenu()
 
             // Thread.sleep(forTimeInterval: 1)
-            guard let group = (try Self.retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == "AXGroup" }) }) else {
+            guard let group = (try Self.retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == AXRole.group }) }) else {
                 throw ErrorMessage("Could not find main view")
             }
-            guard let menu = (try Self.retry(withTimeout: 4, interval: 0.5) { try group.children().first(where: { try $0.role() == "AXMenu" }) }) else {
+            guard let menu = (try Self.retry(withTimeout: 4, interval: 0.5) { try group.children().first(where: { try $0.role() == AXRole.menu }) }) else {
                 throw ErrorMessage("Could not find menu")
             }
             /*
@@ -814,10 +817,10 @@ final class MessagesController {
                 throw ErrorMessage("deleteAction not found")
             }
             try deleteAction()
-            guard let alertSheet = try mainWindow.children().first(where: { try $0.role() == "AXSheet" }) else {
+            guard let alertSheet = try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }) else {
                 throw ErrorMessage("alertSheet not found")
             }
-            guard let deleteButton = try alertSheet.children().first(where: { try $0.role() == "AXButton" }) else {
+            guard let deleteButton = try alertSheet.children().first(where: { try $0.role() == AXRole.button }) else {
                 throw ErrorMessage("deleteButton not found")
             }
             try deleteButton.press()
@@ -1002,7 +1005,7 @@ final class MessagesController {
         let isDND = IS_MONTEREY_OR_UP && cellsToCheck.contains { elt in
             if (try? elt.children.count()) == 1,
                let child = try? elt.children.value(at: 0),
-               (try? child.role()) == "AXStaticText",
+               (try? child.role()) == AXRole.staticText,
                let hasNotificationsSilencedSuffix = Self.hasNotificationsSilencedSuffix,
                (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true {
                 return true
