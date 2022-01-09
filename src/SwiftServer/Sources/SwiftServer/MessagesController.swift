@@ -386,7 +386,7 @@ final class MessagesController {
             })
             .orThrow(ErrorMessage("Could not get main Messages window"))
         }
-        self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.2, getMainWindow, onError: { attempt, _ in
+        self.mainWindow = try Self.retry(withTimeout: 5, interval: 0.2, getMainWindow, onError: { attempt, _ in
             if attempt == 0 {
                 try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
             }
@@ -563,14 +563,14 @@ final class MessagesController {
     }
 
     private func messagesField() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1, interval: 0.2) {
+        try Self.retry(withTimeout: 1.5, interval: 0.25) {
             try mainWindow.child(withID: "messageBodyField")
                 .orThrow(ErrorMessage("Could not find messageBodyField"))
         }
     }
 
     private func searchField() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1, interval: 0.2) {
+        try Self.retry(withTimeout: 1.5, interval: 0.25) {
             let CKConversationListCollectionView = try mainWindow.child(withID: "CKConversationListCollectionView")
                 .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
             return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
@@ -579,7 +579,7 @@ final class MessagesController {
     }
 
     private func reactionsView() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1, interval: 0.2) {
+        try Self.retry(withTimeout: 1.5, interval: 0.25) {
             guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == AXRole.group }),
                   // (try? mainView.children.count()) ?? 0 >= 2,
                   let presView = try? mainView.children.value(at: 0),
@@ -871,7 +871,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
 
-            try? Self.retry(withTimeout: 0.5, interval: 0.1) {
+            try? Self.retry(withTimeout: 1, interval: 0.2) {
                 guard try mainWindow.title() != initialTitle else {
                     throw ErrorMessage("")
                 }
@@ -906,7 +906,7 @@ final class MessagesController {
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
-        try Self.retry(withTimeout: 0.5, interval: 0.1) {
+        try Self.retry(withTimeout: 1, interval: 0.25) {
             try messageField.isFocused(assign: true)
             guard try messageField.isFocused() else {
                 throw ErrorMessage("Could not focus message text field")
@@ -915,7 +915,7 @@ final class MessagesController {
     }
 
     private func waitUntilMessageFieldEmpty(_ messageField: Accessibility.Element) throws {
-        try Self.retry(withTimeout: 0.5, interval: 0.1) {
+        try Self.retry(withTimeout: 1.5, interval: 0.25) {
             if let message = try? messageField.value() as? String, !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send text message\(hasNewline ? " (extraneous newline)" : "")")
@@ -932,7 +932,7 @@ final class MessagesController {
         let initialTitle = try? mainWindow.title()
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try? Self.retry(withTimeout: 0.5, interval: 0.1) {
+            try? Self.retry(withTimeout: 1, interval: 0.2) {
                 guard try mainWindow.title() != initialTitle else {
                     throw ErrorMessage("")
                 }
