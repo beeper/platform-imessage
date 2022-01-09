@@ -380,7 +380,9 @@ final class MessagesController {
 
         let getMainWindow = { [appElement] () throws -> Accessibility.Element in
             try appElement.appWindows().first(where: {
-                $0.recursiveChildren().contains(where: { (try? $0.role()) == AXRole.splitter })
+                // note: don't detect presence of AXSplitter here, it's unreliable
+                $0.child(withID: "ConversationList") != nil ||
+                    $0.child(withID: "CKConversationListCollectionView") != nil
             })
             .orThrow(ErrorMessage("Could not get main Messages window"))
         }
