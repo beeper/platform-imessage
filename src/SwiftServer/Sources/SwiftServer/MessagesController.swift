@@ -211,7 +211,7 @@ final class MessagesController {
 
     private static let messagesBundleID = "com.apple.MobileSMS"
     private static var hasNotificationsSilencedSuffix: String? {
-        guard IS_MONTEREY_OR_UP, let bundle = Bundle.init(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") else {
+        guard IS_MONTEREY_OR_UP, let bundle = Bundle(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") else {
             return nil
         }
         return bundle.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "")
@@ -349,7 +349,7 @@ final class MessagesController {
             try appElement.appWindows().first(where: {
                 $0.recursiveChildren().contains(where: { (try? $0.role()) == "AXSplitter" })
             })
-                .orThrow(ErrorMessage("Could not get main Messages window"))
+            .orThrow(ErrorMessage("Could not get main Messages window"))
         }
         self.mainWindow = try Self.retry(withTimeout: 10, interval: 0.1, getMainWindow, onError: { attempt, _ in
             if attempt == 0 {
@@ -894,11 +894,10 @@ final class MessagesController {
         // AXButton, localizedDescription="Notify Anyway"
         let isDND = IS_MONTEREY_OR_UP && cellsToCheck.contains { elt in
             if (try? elt.children.count()) == 1,
-                let child = try? elt.children.value(at: 0),
-                (try? child.role()) == "AXStaticText",
+               let child = try? elt.children.value(at: 0),
+               (try? child.role()) == "AXStaticText",
                let hasNotificationsSilencedSuffix = Self.hasNotificationsSilencedSuffix,
-               (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true
-            {
+               (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true {
                 return true
             }
             return false
