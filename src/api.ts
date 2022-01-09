@@ -379,6 +379,7 @@ export default class AppleiMessage implements PlatformAPI {
           return true
         } catch (err) {
           texts.error('could not send rich text iMessage; falling back to plaintext', err)
+          texts.Sentry.captureException(err)
           // fall back to sendTextMessage
         }
       }
