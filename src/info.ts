@@ -1,12 +1,10 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
-import { supportedReactions, IS_BIG_SUR_OR_UP } from './common-constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP } from './common-constants'
+import { isSelectable } from './common-util'
 import type { MessageWithExtra } from './mappers'
 
-const isSelectable = (message: MessageWithExtra) =>
-  !message.attachments?.length
-  && !message.links?.length
-  && !message.tweets?.length
-  && typeof message.extra?.part === 'undefined'
+const canQuote = !IS_MONTEREY_OR_UP ? isSelectable : (message: MessageWithExtra) => !message.extra?.part
+const canReact = !IS_MONTEREY_OR_UP ? isSelectable : (message: MessageWithExtra) => !message.extra?.part && (message.linkedMessageID ? isSelectable(message) : true)
 
 const info: PlatformInfo = {
   name: 'imessage',
@@ -57,8 +55,8 @@ const info: PlatformInfo = {
     },
   } : {},
   extra: {
-    canQuote: isSelectable,
-    canReact: isSelectable,
+    canQuote,
+    canReact,
     requiresAccessibilityAccess: IS_BIG_SUR_OR_UP,
     canQuoteOriginalMessageOnly: true,
   },

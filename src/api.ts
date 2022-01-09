@@ -9,11 +9,11 @@ import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec } from './util'
@@ -47,6 +47,8 @@ enum OSAError {
 
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
+
+  private accountID: string
 
   private threadReadStore: ThreadReadStore
 
@@ -146,7 +148,8 @@ export default class AppleiMessage implements PlatformAPI {
     return threadID.split(';', 3).pop()
   }
 
-  init = async (_: undefined, { dataDirPath }: AccountInfo, prefs: Record<string, any>) => {
+  init = async (_: undefined, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
+    this.accountID = accountID
     if (swiftServer) swiftServer.isPHTEnabled = prefs.hide_messages_app
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
@@ -338,7 +341,7 @@ export default class AppleiMessage implements PlatformAPI {
       // re-fetch the controller on each attempt so that invalidation is respected
       const controller = await this.getMessagesController()
       if (quotedMessageID) {
-        await controller.sendReply(quotedMessageID, text)
+        await controller.sendReply(quotedMessageID, text, IS_MONTEREY_OR_UP)
       } else {
         await controller.sendTextMessage(text, threadID)
       }
@@ -459,14 +462,24 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
-    if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
+    if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
+    // multi-part
+    if (messageID.includes('_')) throw Error('Cannot react to this message')
     await pRetry(async () => {
+      const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', messageID])
+      if (!ogMessageJSON) return
+      const [msgRow, attachmentRows, currentUserID] = JSON.parse(ogMessageJSON)
+      const [message] = mapMessage(msgRow, attachmentRows, [], currentUserID)
+      // use overlay mode only when the message is not in a thread
+      const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID
       const controller = await this.getMessagesController()
-      const closestMessage = await this.dbAPI.findClosestTextMessage(threadID, messageID) // todo optimize by calling only if needed
-      await controller.setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on)
+      const closestMessage = overlay
+        ? { guid: messageID, offset: 0 }
+        : await this.dbAPI.findClosestTextMessage(threadID, messageID, message) // todo optimize by calling only if needed
+      await controller.setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on, overlay)
     }, {
       onFailedAttempt: error => {
-        texts.log(`setReaction failed. Retries left: ${error.retriesLeft}`)
+        texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)
         if (error.attemptNumber === 2) {
           texts.log('second retry; force-invalidating MessagesController')
           this.forceInvalidate = true

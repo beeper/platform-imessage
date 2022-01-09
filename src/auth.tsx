@@ -5,7 +5,7 @@ import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
 import type { PlatformAPI } from '@textshq/platform-sdk'
 
-import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH } from './constants'
+import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from './constants'
 import useAsync from './use-async'
 
 declare const __IS_BROWSER__: boolean
@@ -309,20 +309,25 @@ const AddAccountPage: React.FC<PageProps> = ({ selectMessagesDirAccessPage, canA
   )
 }
 
-const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => (
-  <div className="page known-issues">
-    <h3>Known Issues</h3>
-    <ol>
-      <li>Messages.app will be open in the background for powering functionality but Texts can keep it hidden.</li>
-      {IS_BIG_SUR_OR_UP
-        ? <li>Reacting to non-text messages isn't supported.</li>
-        : <li>On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported.</li>}
-    </ol>
-    <div className="buttons">
-      <button type="button" onClick={selectNextPage}>Next &rarr;</button>
+const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => {
+  const getIssues = () => {
+    if (IS_MONTEREY_OR_UP) return ["Reacting/replying to some types of messages isn't supported."]
+    if (IS_BIG_SUR_OR_UP) return ["On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."]
+    return ["On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."]
+  }
+  return (
+    <div className="page known-issues">
+      <h3>Known Issues</h3>
+      <ol>
+        <li>Messages.app will be open in the background for powering functionality but Texts can keep it hidden.</li>
+        {getIssues().map(issue => <div key={issue}>{issue}</div>)}
+      </ol>
+      <div className="buttons">
+        <button type="button" onClick={selectNextPage}>Next &rarr;</button>
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 const pages = [
   KnownIssuesPage,

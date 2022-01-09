@@ -143,12 +143,12 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(guid: String, offset: Double, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    func setReaction(guid: String, offset: Double, reactionName: String, on: Bool, overlay: Bool) throws -> NodeValueConvertible {
         guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
-            return NodeUndefined.deferred
+            throw ErrorMessage("Invalid reaction: \(reactionName)")
         }
         return try performAsync { [self] in
-            try controller.setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on)
+            try controller.setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on, overlay: overlay)
         }
     }
 
@@ -156,8 +156,8 @@ final class MessagesControllerWrapper: NodeClass {
         try performAsync { try self.controller.sendTextMessage(text, threadID: threadID) }
     }
 
-    func sendReply(guid: String, text: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendReply(guid: guid, text: text) }
+    func sendReply(guid: String, text: String, overlay: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendReply(guid: guid, text: text, overlay: overlay) }
     }
 
     func dispose() throws -> NodeValueConvertible {

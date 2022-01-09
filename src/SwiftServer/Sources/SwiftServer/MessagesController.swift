@@ -34,6 +34,7 @@ extension Accessibility.Notification {
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
+    var linkedElements: AttributeName<[Accessibility.Element]> { .init(kAXLinkedUIElementsAttribute) }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
 
     // this wont work without the com.apple.private.accessibility.inspection entitlement
@@ -74,6 +75,10 @@ extension Accessibility.Names {
 extension Accessibility.Element {
     var isValid: Bool {
         (try? pid()) != nil
+    }
+
+    var isInViewport: Bool {
+        (try? self.frame()) != CGRect.null
     }
 
     // breadth-first, seems faster than dfs
@@ -445,17 +450,84 @@ final class MessagesController {
         }
     }
 
+    private func messageAction(targetCell: Accessibility.Element, name: String, overlay: Bool) throws -> Accessibility.Action {
+        let allActions = try targetCell.supportedActions()
+        // non-AX actions are [React, Reply, Copy, Pin]
+        // Pin is missing for non-links / Big Sur
+        if overlay {
+            guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(name)") }) else {
+                throw ErrorMessage("Could not find \(name) action")
+            }
+            return action
+        } else {
+            let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
+            guard customActions.count >= 2 else {
+                throw ErrorMessage("Could not find message actions")
+            }
+            guard let idx = ["React", "Reply"].firstIndex(of: name) else {
+                throw ErrorMessage("Unknown \(name) action")
+            }
+            let action = customActions[idx]
+            return action
+        }
+    }
+
+    private func reactButtons(targetCell: Accessibility.Element, overlay: Bool) throws -> [Accessibility.Element] {
+        let reactAction = try messageAction(targetCell: targetCell, name: "React", overlay: overlay)
+        try reactAction()
+        let reactionsView = try reactionsView()
+        guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == "AXButton" }) else {
+            throw ErrorMessage("Could not find reaction buttons")
+        }
+        /*
+         8 `AXButton`s
+         Heart
+         Thumbs up
+         Thumbs down
+         Ha ha!
+         Exclamation mark
+         Question mark
+         Reply -- only shows up when not in overlay mode
+         Pin -- only shows up for links/tweets in Monterey or above
+         */
+        guard buttons.count > 0 else {
+            throw ErrorMessage("\(buttons.count) buttons found in reactionsView")
+        }
+        return buttons
+    }
+
+    private func getTranscriptsView(replyTranscripts: Bool) throws -> Accessibility.Element {
+        func isReplyTranscriptsView(_ el: Accessibility.Element) -> Bool {
+            // alternative: (localizedDescription == "Messages" when not overlayed)
+            // (try? el.localizedDescription()) == "Reply transcript"
+            // when reply is active, linkedElements.count = 1 (the sole linked element is messageBodyField)
+            (try? el.linkedElements.count()) ?? 0 == 0
+        }
+        return try mainWindow.recursiveChildren().lazy.first {
+            (try? $0.identifier()) == "TranscriptCollectionView" && isReplyTranscriptsView($0) == replyTranscripts
+        }
+        .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscripts=\(replyTranscripts)"))
+    }
+
     private var cachedTranscriptsView: Accessibility.Element?
     private var transcriptsView: Accessibility.Element {
         get throws {
-            if let cached = cachedTranscriptsView, cached.isValid {
+            if let cached = cachedTranscriptsView, cached.isValid, cached.isInViewport {
                 return cached
             }
-            let tcv = try Self.retry(withTimeout: 1, interval: 0.2) {
-                try mainWindow.child(withID: "TranscriptCollectionView")
-                    .orThrow(ErrorMessage("Could not find TranscriptCollectionView"))
-            }
+            let tcv = try getTranscriptsView(replyTranscripts: false)
             cachedTranscriptsView = tcv
+            return tcv
+        }
+    }
+    private var cachedReplyTranscriptsView: Accessibility.Element?
+    private var replyTranscriptsView: Accessibility.Element {
+        get throws {
+            if let cached = cachedReplyTranscriptsView, cached.isValid, cached.isInViewport {
+                return cached
+            }
+            let tcv = try getTranscriptsView(replyTranscripts: true)
+            cachedReplyTranscriptsView = tcv
             return tcv
         }
     }
@@ -473,6 +545,18 @@ final class MessagesController {
                 .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
             return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == "AXSearchField" }
                 .orThrow(ErrorMessage("Could not find searchField"))
+        }
+    }
+
+    private func reactionsView() throws -> Accessibility.Element {
+        try Self.retry(withTimeout: 1, interval: 0.2) {
+            guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
+                  // (try? mainView.children.count()) ?? 0 >= 2,
+                  let presView = try? mainView.children.value(at: 0),
+                  (try? presView.children.count()) ?? 0 > 0 else {
+                throw ErrorMessage("Could not find reactions view")
+            }
+            return presView
         }
     }
 
@@ -517,81 +601,100 @@ final class MessagesController {
         return newTitle
     }
 
-    private func reactionsView() throws -> Accessibility.Element {
-        guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == "AXGroup" }),
-              // (try? mainView.children.count()) ?? 0 >= 2,
-              let presView = try? mainView.children.value(at: 0),
-              (try? presView.children.count()) ?? 0 > 0 else {
-            throw ErrorMessage("Could not find reactions view")
-        }
-        return presView
+    private static func isMessageContainerCell(_ el: Accessibility.Element) -> Bool {
+        (try? el.localizedDescription())?.isEmpty == false &&
+            (try? el.children.value(at: 0).supportedActions().contains(where: { $0.name.value.hasPrefix("Name:React") })) == true
     }
 
-    private func withMessageCell(guid: String, offset: Int, action: (_ cell: Accessibility.Element) throws -> Void) throws {
+    private static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
+        try tv.children().filter(Self.isMessageContainerCell)
+    }
+
+    private static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
+        try tv.children().first(where: Self.isMessageContainerCell)?.children.value(at: 0)
+    }
+    private static func firstSelectedMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
+        // selectedChildren wont work here
+        // tv.children().first { (try? $0.selectedChildren.value(at: 0)) != nil }?.children.value(at: 0)
+        try tv.children().first { (try? $0.children.value(at: 0).isSelected()) == true }?.children.value(at: 0)
+    }
+
+    private func withMessageCell(guid: String, offset: Int, overlay: Bool, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         debugLog("Finding cell at offset \(offset) from \(guid)")
 
-        let url = try MessagesDeepLink.message(guid: guid).url()
+        let url = try MessagesDeepLink.message(guid: guid, overlay: overlay).url()
+
+        // without closing reply transcripts, non-overlay deep link won't select the message
+        if !overlay, let rtv = try? replyTranscriptsView {
+            debugLog("calling replyTranscriptsView.cancel()")
+            try? rtv.cancel()
+        }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            let transcripts = try transcriptsView
-            guard let selected = transcripts.recursiveChildren().first(where: { (try? $0.isSelected()) == true }) else {
-                throw ErrorMessage("Could not find selected message")
+            // we don't close transcripts view here because when reacting, closing it will undo the reaction
+            // defer {
+            //     if overlay {
+            //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
+            //         Thread.sleep(forTimeInterval: 0.1)
+            //         try? replyTranscriptsView.cancel()
+            //     }
+            // }
+            // wait for animation
+            if overlay { Thread.sleep(forTimeInterval: 0.5) }
+            guard let selected = (try Self.retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
+                guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptsView) : Self.firstSelectedMessageCell(in: transcriptsView) else {
+                    throw ErrorMessage("")
+                }
+                guard cell.isInViewport else { throw ErrorMessage("") }
+                return cell
+            }) else {
+                throw ErrorMessage("Could not find message cell")
             }
-            // selected.printAttributes()
             let targetCell: Accessibility.Element
             if offset == 0 {
                 targetCell = selected
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let siblings = try containerCell.parent().children().filter {
-                    (try? $0.localizedDescription())?.isEmpty == false
-                }
-                guard let idx = siblings.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
-                    throw ErrorMessage("Could not find target cell")
+                let containerCells = try Self.messageContainerCells(in: overlay ? replyTranscriptsView : transcriptsView)
+                guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
+                    throw ErrorMessage("Could not find target message cell")
                 }
                 let target = idx - offset
                 debugLog("Index: \(idx) - \(offset) = \(target)")
-                guard siblings.indices.contains(target) else {
+                guard containerCells.indices.contains(target) else {
                     throw ErrorMessage("Desired index out of bounds")
                 }
-                targetCell = try siblings[target].children.value(at: 0)
+                targetCell = try containerCells[target].children.value(at: 0)
             }
             try action(targetCell)
         }
     }
 
-    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool) throws {
+    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool, overlay: Bool) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
         let idx = reaction.index
-        try withMessageCell(guid: guid, offset: offset) { targetCell in
-            // targetCell.printAttributes()
-            let allActions = try targetCell.supportedActions()
-            // should be [react, reply, copy]
-            let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
-            guard customActions.count >= 2 else {
-                throw ErrorMessage("Could not find react action")
-            }
+        try withMessageCell(guid: guid, offset: offset, overlay: overlay) { targetCell in
+            let buttons = try reactButtons(targetCell: targetCell, overlay: overlay)
 
-            let reactAction = customActions[0]
-            try reactAction()
-
-            let reactionsView = try Self.retry(withTimeout: 2, interval: 0.1) { try self.reactionsView() }
-            guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == "AXButton" }),
-                  buttons.count == 7 // last button is Reply
-            else { throw ErrorMessage("Could not find reaction buttons") }
             let btn = buttons[idx]
-            let isSelected = try btn.isSelected()
-            if isSelected != on {
-                try btn.press()
+            try Self.retry(withTimeout: 1, interval: 0.2) {
+                let isSelected = try btn.isSelected()
+                if isSelected != on {
+                    try btn.press()
+                    debugLog("Reaction: \(Result { try btn.localizedDescription() }) \(Result { try btn.isSelected() })")
+                    guard try btn.isSelected() == on else {
+                        throw ErrorMessage("Could not react")
+                    }
+                }
             }
         }
     }
 
     func markAsRead(messageGUID: String) throws {
-        let url = try MessagesDeepLink.message(guid: messageGUID).url()
+        let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -636,7 +739,7 @@ final class MessagesController {
 
     #if DEBUG
     func markAsReadWithMenu(messageGUID: String) throws {
-        let url = try MessagesDeepLink.message(guid: messageGUID).url()
+        let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
         activityLock.lock()
         defer { activityLock.unlock() }
@@ -751,6 +854,7 @@ final class MessagesController {
 
     private func sendKeyPress(key: CGKeyCode) throws {
         for keyDown in [true, false] {
+            debugLog("Sending key \(key) \(keyDown ? "down" : "up")")
             try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
                 .orThrow(ErrorMessage("Could not send key \(key)"))
                 .postToPid(app.processIdentifier)
@@ -762,6 +866,7 @@ final class MessagesController {
             try sendKeyPress(key: CGKeyCode(kVK_Return))
         }
         func sendReturnKey() throws {
+            debugLog("sendReturnKey Thread.isMainThread=\(Thread.isMainThread) queueName=\(__dispatch_queue_get_label(nil))")
             if Thread.isMainThread {
                 try _sendReturnKey()
             } else {
@@ -806,6 +911,7 @@ final class MessagesController {
 
             let messageField = try messagesField()
             try focusMessageField(messageField)
+            Thread.sleep(forTimeInterval: 0.1)
             try self.sendReturnPress()
             try waitUntilMessageFieldEmpty(messageField)
         }
@@ -821,30 +927,31 @@ final class MessagesController {
         try sendTextMessage(url: url)
     }
 
-    func sendReply(guid: String, text: String) throws {
+    func sendReply(guid: String, text: String, overlay: Bool) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        try withMessageCell(guid: guid, offset: 0) { targetCell in
-            let allActions = try targetCell.supportedActions()
-            let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
-            guard customActions.count >= 2 else {
-                throw ErrorMessage("Could not find reply action")
-            }
-
-            let replyAction = customActions[1]
-            try replyAction()
-
+        func send() throws {
             let messageField = try messagesField()
             try messageField.value(assign: text)
             try focusMessageField(messageField)
-
             Thread.sleep(forTimeInterval: 0.1)
             try self.sendReturnPress()
-
-            // escape
-            defer { try? transcriptsView.cancel() }
             try waitUntilMessageFieldEmpty(messageField)
+        }
+
+        if overlay {
+            let url = try MessagesDeepLink.message(guid: guid, overlay: overlay).url()
+            try Self.openDeepLink(url, withoutActivation: true)
+            Thread.sleep(forTimeInterval: 0.1)
+            try send()
+            return
+        }
+
+        try withMessageCell(guid: guid, offset: 0, overlay: overlay) { targetCell in
+            let replyAction = try messageAction(targetCell: targetCell, name: "Reply", overlay: overlay)
+            try replyAction()
+            try send()
         }
     }
 
@@ -977,6 +1084,7 @@ final class MessagesController {
     }
 
     deinit {
+        debugLog("deinit")
         dispose()
     }
 }
