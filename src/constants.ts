@@ -29,7 +29,7 @@ export const REACTION_VERB_MAP = {
   reacted_heart: 'loved',
   reacted_like: 'liked',
   reacted_dislike: 'disliked',
-  reacted_laugh: 'laughed',
+  reacted_laugh: 'laughed at',
   reacted_emphasize: 'emphasized',
   reacted_question: 'questioned',
 
