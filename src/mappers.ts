@@ -1,3 +1,4 @@
+import url from 'url'
 import { groupBy, omit, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
@@ -26,7 +27,7 @@ function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
     srcURL: filePath,
     loading: a.transfer_state !== AttachmentTransferState.DOWNLOADED,
   }
-  if (filePath) common.srcURL = 'file://' + encodeURI(filePath)
+  if (filePath) common.srcURL = url.pathToFileURL(filePath).href
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
     const size: Size = a.is_sticker ? { height: 80, width: undefined } : a.size
     if (ext === 'png') {
@@ -277,7 +278,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           isGif: true,
           // file:// will mostly work fine but we use asset:// since it can take a few seconds before the file is written to disk by messages.app
           srcURL: `asset://$accountID/dt/${uuid}.mov`,
-          // srcURL: 'file://' + encodeURI(path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)),
+          // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)).href,
           size: { width: 144, height: 180 },
         }]
       }
@@ -292,7 +293,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           type: MessageAttachmentType.IMG,
           isGif: true,
           // todo: since we don't know w & h, we use asset://
-          // srcURL: 'file://' + encodeURI(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)),
+          // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)).href,
           srcURL: `asset://$accountID/hw/${uuid}.png`,
         }]
       }
@@ -560,7 +561,7 @@ export function mapThread(
     },
     timestamp: fromAppleTime(chat.msgDate) || new Date(),
   }
-  if (thread.imgURL) thread.imgURL = 'file://' + encodeURI(thread.imgURL)
+  if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread
 }
 

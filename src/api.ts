@@ -1,5 +1,6 @@
 import fsSync, { promises as fs } from 'fs'
 import os from 'os'
+import url from 'url'
 import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
@@ -604,7 +605,7 @@ export default class AppleiMessage implements PlatformAPI {
             continue
           }
           const hwPath = path.join(TMP_MOBILE_SMS_PATH, fileName)
-          return 'file://' + encodeURI(hwPath)
+          return url.pathToFileURL(hwPath).href
         }
         return
       }
@@ -613,7 +614,7 @@ export default class AppleiMessage implements PlatformAPI {
         const [uuid] = methodName.split('.', 1)
         const filePath = path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)
         await waitForFileToExist(filePath, 5_000)
-        return 'file://' + encodeURI(filePath)
+        return url.pathToFileURL(filePath).href
       }
 
       default: {
@@ -622,7 +623,7 @@ export default class AppleiMessage implements PlatformAPI {
         try {
           return await convertCGBI(buffer)
         } catch (err) {
-          return 'file://' + encodeURI(filePath)
+          return url.pathToFileURL(filePath).href
         }
       }
     }

@@ -1,4 +1,5 @@
 import path from 'path'
+import url from 'url'
 import { createElement, useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
@@ -16,7 +17,7 @@ const contactsImgPrefix = IS_BIG_SUR_OR_UP ? 'img/bigsur' : 'img/catalina'
 const contactsImg = `${contactsImgPrefix}-contacts-allow.png`
 const contactsHighlightedImg = `${contactsImgPrefix}-contacts-allow-highlighted.png`
 
-const staticPrefix = __IS_BROWSER__ ? './platform-imessage' : `file://${BINARIES_DIR_PATH}`
+const staticPrefix = __IS_BROWSER__ ? './platform-imessage' : url.pathToFileURL(BINARIES_DIR_PATH).href
 const staticImgPrefix = `${staticPrefix}/${IS_BIG_SUR_OR_UP ? 'bigsur' : 'catalina'}`
 const axImg = path.join(staticImgPrefix, 'ax.png')
 const axHighlightedImg = path.join(staticImgPrefix, 'ax-highlighted.png')
