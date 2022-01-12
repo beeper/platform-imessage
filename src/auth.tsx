@@ -321,7 +321,7 @@ const KnownIssuesPage: React.FC<PageProps> = ({ selectNextPage }) => {
       <h3>Known Issues</h3>
       <ol>
         <li>Messages.app will be open in the background for powering functionality but Texts can keep it hidden.</li>
-        {getIssues().map(issue => <div key={issue}>{issue}</div>)}
+        {getIssues().map(issue => <li key={issue}>{issue}</li>)}
       </ol>
       <div className="buttons">
         <button type="button" onClick={selectNextPage}>Next &rarr;</button>
