@@ -305,29 +305,34 @@ export default class DatabaseAPI {
     }
   }
 
-  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, messageGUID: string, mapped: Message): Promise<{ offset: number, guid: string }> => {
-    texts.log('[imessage] searching for neighboring message', direction, threadID, messageGUID, mapped.cursor)
-    const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction as 'before' | 'after') // todo handle message splitting, optimize
+  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, mapped: Message): Promise<{ offset: number, guid: string }> => {
+    texts.log('[imessage] searching for neighboring message', direction, threadID, mapped.id, mapped.cursor)
+    const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction) // todo handle message splitting, optimize
+    const unhiddenMessages = messages.items.filter(m => !m.isHidden)
     // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
     const find = direction === 'before' ? findLastIndex : findIndex
-    const mIndex = find(messages.items.filter(m => !m.isHidden), isSelectable)
+    const mIndex = find(unhiddenMessages, isSelectable)
     if (mIndex > -1) {
-      const m = messages.items[mIndex]
-      return { guid: m.id, offset: direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1 }
+      const m = unhiddenMessages[mIndex]
+      return { guid: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1 }
     }
   }
 
-  findClosestTextMessage = async (threadID: string, messageGUID: string, mapped: MessageWithExtra): Promise<{ offset: number, guid: string }> => {
-    texts.log('[imessage] findClosestTextMessage', messageGUID)
+  findClosestTextMessage = async (threadID: string, messageGUIDWithPart: string, mapped: MessageWithExtra): Promise<{ offset: number, guid: string }> => {
+    const [messageGUID, partString] = messageGUIDWithPart.split('_', 2)
+    const part = +partString || 0
+    texts.log('[imessage] findClosestTextMessage', messageGUID, part)
     // const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', [messageGUID])
     // if (!message) throw Error('message not found')
     // const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
     if (isSelectable(mapped)) return { guid: mapped.id, offset: 0 }
     // todo loop over more pages if not found
     const [before, after] = await Promise.all([
-      this.findClosestTextInDirection('before', threadID, messageGUID, mapped),
-      this.findClosestTextInDirection('after', threadID, messageGUID, mapped),
+      this.findClosestTextInDirection('before', threadID, mapped),
+      this.findClosestTextInDirection('after', threadID, mapped),
     ])
+    if (before) before.offset -= part
+    if (after) after.offset += part
     if (before && after) return after.offset < -before.offset ? after : before
     if (before) return before
     if (after) return after

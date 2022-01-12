@@ -465,15 +465,14 @@ export default class AppleiMessage implements PlatformAPI {
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
-    // multi-part
-    if (messageID.includes('_')) throw Error('Cannot react to this message')
     await pRetry(async () => {
       const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', messageID])
       if (!ogMessageJSON) return
       const [msgRow, attachmentRows, currentUserID] = JSON.parse(ogMessageJSON)
-      const [message] = mapMessage(msgRow, attachmentRows, [], currentUserID)
+      const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
+      const message = messages[messageID.split('_', 2)[1] || 0]
       // use overlay mode only when the message is not in a thread
-      const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID
+      const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
       const controller = await this.getMessagesController()
       const closestMessage = overlay
         ? { guid: messageID, offset: 0 }
