@@ -594,8 +594,7 @@ final class MessagesController {
     private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
         try? Self.retry(withTimeout: timeout) { () throws -> Accessibility.Element in
             guard let selected = selectedThreadCell() else { throw ErrorMessage("") }
-            let desc = try? selected.localizedDescription()
-            let isActuallyCompose = desc == nil
+            let isActuallyCompose = Self.isThreadCellCompose(selected)
             guard isCompose == isActuallyCompose else { throw ErrorMessage("") }
             return selected
         }
@@ -629,6 +628,10 @@ final class MessagesController {
         }
 
         return newTitle
+    }
+
+    private static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
+        (try? el.localizedDescription()) == nil
     }
 
     private static func isMessageContainerCell(_ el: Accessibility.Element) -> Bool {
@@ -953,6 +956,10 @@ final class MessagesController {
 
     func createThread(addresses: [String], message: String) throws {
         let url = try MessagesDeepLink.addresses(addresses, body: message).url()
+        if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
+            // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
+            Thread.sleep(forTimeInterval: 1)
+        }
         try sendTextMessage(url: url)
     }
 
