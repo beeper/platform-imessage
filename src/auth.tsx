@@ -335,7 +335,7 @@ const pages = [
   ContactsAuthPage,
   IS_MOJAVE_OR_UP && MessagesDirAuthPage,
   IS_MOJAVE_OR_UP && AutomationAuthPage,
-  IS_MOJAVE_OR_UP && AXAuthPage,
+  IS_BIG_SUR_OR_UP && AXAuthPage,
   NotificationsPromptPage,
   AddAccountPage,
 ].filter(Boolean)
