@@ -66,12 +66,13 @@ export enum AttachmentTransferState {
 }
 
 // /System/Library/Messages/iMessageBalloons/
-export enum BalloonBundleID {
+export const enum BalloonBundleID {
   URL = 'com.apple.messages.URLBalloonProvider',
   DIGITAL_TOUCH = 'com.apple.DigitalTouchBalloonProvider',
   HANDWRITING = 'com.apple.Handwriting.HandwritingProvider',
   BIZ_EXTENSION = 'com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension',
   APPLE_PAY = 'com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.PassbookUIService.PeerPaymentMessagesExtension',
+  YOUTUBE = 'com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension',
 }
 export const MSG_EXTENSION_PREFIX = 'com.apple.messages.MSMessageExtensionBalloonPlugin'
 

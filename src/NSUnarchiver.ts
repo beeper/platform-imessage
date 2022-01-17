@@ -13,6 +13,15 @@ function mapObject(o: any, objects: any[]) {
   return o
 }
 
+export function unwrapDictionary(payloadData: any) {
+  const { 'NS.keys': keys, 'NS.objects': objects } = payloadData
+  const result: any = {}
+  Object.entries<string>(keys).forEach(([indexStr, keyName]) => {
+    result[keyName] = objects[+indexStr]
+  })
+  return result
+}
+
 export default function unarchive(plist: any) {
   if (!plist) throw TypeError('`plist` is empty')
   if (plist.$version !== 100000 || plist.$archiver !== 'NSKeyedArchiver' || !plist.$objects) {

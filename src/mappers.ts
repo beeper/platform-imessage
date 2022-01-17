@@ -267,41 +267,49 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const payloadData = getPayloadData(msgRow)
   Object.assign(partialMessage, getPayloadProps(payloadData, attachments, msgRow.balloon_bundle_id))
 
-  if (msgRow.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH) {
-    partialHeader.textHeading = 'Digital Touch Message'
-    if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
-      const uuid = Buffer.from(msgRow.payload_data.slice(-(UUID_START + UUID_LENGTH), -UUID_START)).toString('utf-8')
-      if (UUID_REGEX.test(uuid)) {
-        partialMessage.attachments = [{
-          id: uuid,
-          type: MessageAttachmentType.VIDEO,
-          isGif: true,
-          // file:// will mostly work fine but we use asset:// since it can take a few seconds before the file is written to disk by messages.app
-          srcURL: `asset://$accountID/dt/${uuid}.mov`,
-          // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)).href,
-          size: { width: 144, height: 180 },
-        }]
+  switch (msgRow.balloon_bundle_id) {
+    case BalloonBundleID.DIGITAL_TOUCH: {
+      partialHeader.textHeading = 'Digital Touch Message'
+      if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
+        const uuid = Buffer.from(msgRow.payload_data.slice(-(UUID_START + UUID_LENGTH), -UUID_START)).toString('utf-8')
+        if (UUID_REGEX.test(uuid)) {
+          partialMessage.attachments = [{
+            id: uuid,
+            type: MessageAttachmentType.VIDEO,
+            isGif: true,
+            // file:// will mostly work fine but we use asset:// since it can take a few seconds before the file is written to disk by messages.app
+            srcURL: `asset://$accountID/dt/${uuid}.mov`,
+            // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)).href,
+            size: { width: 144, height: 180 },
+          }]
+        }
       }
+      break
     }
-  } else if (msgRow.balloon_bundle_id === BalloonBundleID.HANDWRITING) {
-    partialHeader.textHeading = 'Handwritten Message'
-    if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
-      const uuid = Buffer.from(msgRow.payload_data.slice(UUID_START, UUID_START + UUID_LENGTH)).toString('utf-8')
-      if (UUID_REGEX.test(uuid)) {
-        partialMessage.attachments = [{
-          id: uuid,
-          type: MessageAttachmentType.IMG,
-          isGif: true,
-          // todo: since we don't know w & h, we use asset://
-          // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)).href,
-          srcURL: `asset://$accountID/hw/${uuid}.png`,
-        }]
+    case BalloonBundleID.HANDWRITING: {
+      partialHeader.textHeading = 'Handwritten Message'
+      if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
+        const uuid = Buffer.from(msgRow.payload_data.slice(UUID_START, UUID_START + UUID_LENGTH)).toString('utf-8')
+        if (UUID_REGEX.test(uuid)) {
+          partialMessage.attachments = [{
+            id: uuid,
+            type: MessageAttachmentType.IMG,
+            isGif: true,
+            // todo: since we don't know w & h, we use asset://
+            // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)).href,
+            srcURL: `asset://$accountID/hw/${uuid}.png`,
+          }]
+        }
       }
+      break
     }
-  } else if (msgRow.balloon_bundle_id === BalloonBundleID.BIZ_EXTENSION) {
-    partialHeader.textHeading = 'Business Chat Extension'
-    // TODO: Handle busines chats
-    // if (m.attachments[0]) m.attachments[0].size = { height: 80, width: 80 }
+    case BalloonBundleID.BIZ_EXTENSION: {
+      partialHeader.textHeading = 'Business Chat Extension'
+      // TODO: Handle busines chats
+      // if (m.attachments[0]) m.attachments[0].size = { height: 80, width: 80 }
+      break
+    }
+    default:
   }
 
   const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined

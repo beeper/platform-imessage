@@ -4,7 +4,7 @@ import { Message, MessageAttachment, Size, MessageAttachmentType, MessageLink } 
 
 import { parseTweetURL } from './util'
 import safeBplistParse from './safe-bplist-parse'
-import unarchive from './NSUnarchiver'
+import unarchive, { unwrapDictionary } from './NSUnarchiver'
 import { BalloonBundleID } from './constants'
 
 export function getPayloadData({ payload_data: payload, msgID }: { payload_data: Uint8Array, msgID?: string }) {
@@ -100,10 +100,28 @@ function getApplePayProps(payloadData: any) {
   }
 }
 
+function getYouTubeProps(payloadData: any, msgAttachments: MessageAttachment[]): Partial<Message> {
+  const unwrapped = unwrapDictionary(payloadData)
+  const img = msgAttachments[0]
+  return {
+    attachments: [],
+    links: [{
+      title: unwrapped.ldtext,
+      url: unwrapped.URL['NS.relative'],
+      // img: img?.srcURL,
+      // imgSize: img?.size,
+    }],
+  }
+}
+
 export function getPayloadProps(payloadData: any, msgAttachments: MessageAttachment[], balloon_bundle_id: string): Partial<Message> {
   if (!payloadData) return {}
-  if (balloon_bundle_id === BalloonBundleID.URL) return getURLBalloonProps(payloadData, msgAttachments)
-  if (balloon_bundle_id === BalloonBundleID.APPLE_PAY) return getApplePayProps(payloadData)
+  switch (balloon_bundle_id) {
+    case BalloonBundleID.URL: return getURLBalloonProps(payloadData, msgAttachments)
+    case BalloonBundleID.APPLE_PAY: return getApplePayProps(payloadData)
+    case BalloonBundleID.YOUTUBE: return getYouTubeProps(payloadData, msgAttachments)
+    default:
+  }
   console.log('[imessage] unknown balloon_bundle_id', balloon_bundle_id)
   try {
     if (balloon_bundle_id === null) return getURLBalloonProps(payloadData, msgAttachments)
