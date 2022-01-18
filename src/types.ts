@@ -159,3 +159,12 @@ export interface MessageSummaryInfo {
   amsa?: string // "com.apple.siri"
   ams?: string // "Quick brown fox..."
 }
+
+// custom
+
+export type AXMessageSelection = {
+  offset: number
+  guid: string
+  cellID: string | null
+  cellRole: string | null
+}

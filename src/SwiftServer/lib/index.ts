@@ -40,11 +40,11 @@ export declare class MessagesController {
     onTyping?: (status: ActivityStatus[]) => void
   ) => Promise<void>
 
-  setReaction: (guid: string, offset: number, reaction: string, on: boolean, overlay: boolean) => Promise<void>
-
   sendTextMessage: (text: string, threadID: string) => Promise<void>
 
-  sendReply: (guid: string, text: string, overlay: boolean) => Promise<void>
+  setReaction: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, reaction: string, on: boolean) => Promise<void>
+
+  sendReply: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, text: string) => Promise<void>
 
   dispose: () => void
 }

@@ -143,21 +143,23 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(guid: String, offset: Double, reactionName: String, on: Bool, overlay: Bool) throws -> NodeValueConvertible {
-        guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
-            throw ErrorMessage("Invalid reaction: \(reactionName)")
-        }
-        return try performAsync { [self] in
-            try controller.setReaction(guid: guid, offset: Int(offset), reaction: reaction, on: on, overlay: overlay)
-        }
-    }
-
     func sendTextMessage(text: String, threadID: String) throws -> NodeValueConvertible {
         try performAsync { try self.controller.sendTextMessage(text, threadID: threadID) }
     }
 
-    func sendReply(guid: String, text: String, overlay: Bool) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendReply(guid: guid, text: text, overlay: overlay) }
+    func setReaction(messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+        guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
+            throw ErrorMessage("Invalid reaction: \(reactionName)")
+        }
+        return try performAsync { [self] in
+            try controller.setReaction(messageGUID: messageGUID, offset: Int(offset), cellID: cellID == "" ? nil : cellID, cellRole: cellRole == "" ? nil : cellRole, overlay: overlay, reaction: reaction, on: on)
+        }
+    }
+
+    func sendReply(messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, text: String) throws -> NodeValueConvertible {
+        try performAsync {
+            try self.controller.sendReply(messageGUID: messageGUID, offset: Int(offset), cellID: cellID == "" ? nil : cellID, cellRole: cellRole == "" ? nil : cellRole, overlay: overlay, text: text)
+        }
     }
 
     func dispose() throws -> NodeValueConvertible {

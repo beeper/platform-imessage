@@ -652,7 +652,7 @@ final class MessagesController {
         try tv.children().first { (try? $0.children.value(at: 0).isSelected()) == true }?.children.value(at: 0)
     }
 
-    private func withMessageCell(guid: String, offset: Int, overlay: Bool, action: (_ cell: Accessibility.Element) throws -> Void) throws {
+    private func withMessageCell(guid: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         debugLog("Finding cell at offset \(offset) from \(guid)")
 
         let url = try MessagesDeepLink.message(guid: guid, overlay: overlay).url()
@@ -700,16 +700,28 @@ final class MessagesController {
                 }
                 targetCell = try containerCells[target].children.value(at: 0)
             }
+            if let cellRole = cellRole, let role = try? targetCell.role() {
+                guard role == cellRole else {
+                    debugLog("Expected cell role \(cellRole), got \(role)")
+                    throw ErrorMessage("Cell role mismatch")
+                }
+            }
+            if let cellID = cellID, let id = try? targetCell.identifier() {
+                guard id == cellID else {
+                    debugLog("Expected cell id \(cellID), got \(id)")
+                    throw ErrorMessage("Cell id mismatch")
+                }
+            }
             try action(targetCell)
         }
     }
 
-    func setReaction(guid: String, offset: Int, reaction: Reaction, on: Bool, overlay: Bool) throws {
+    func setReaction(messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, reaction: Reaction, on: Bool) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
         let idx = reaction.index
-        try withMessageCell(guid: guid, offset: offset, overlay: overlay) { targetCell in
+        try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
             let buttons = try reactButtons(targetCell: targetCell, overlay: overlay)
 
             let btn = buttons[idx]
@@ -963,7 +975,7 @@ final class MessagesController {
         try sendTextMessage(url: url)
     }
 
-    func sendReply(guid: String, text: String, overlay: Bool) throws {
+    func sendReply(messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -977,14 +989,14 @@ final class MessagesController {
         }
 
         if overlay {
-            let url = try MessagesDeepLink.message(guid: guid, overlay: overlay).url()
+            let url = try MessagesDeepLink.message(guid: messageGUID, overlay: overlay).url()
             try Self.openDeepLink(url, withoutActivation: true)
             Thread.sleep(forTimeInterval: 0.1)
             try send()
             return
         }
 
-        try withMessageCell(guid: guid, offset: 0, overlay: overlay) { targetCell in
+        try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
             let replyAction = try messageAction(targetCell: targetCell, name: "Reply", overlay: overlay)
             try replyAction()
             try send()

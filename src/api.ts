@@ -20,7 +20,7 @@ import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import DNDState from './DNDState'
-import type { MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 const messagesControllerClass = swiftServer?.messagesControllerClass
@@ -342,7 +342,8 @@ export default class AppleiMessage implements PlatformAPI {
       // re-fetch the controller on each attempt so that invalidation is respected
       const controller = await this.getMessagesController()
       if (quotedMessageID) {
-        await controller.sendReply(quotedMessageID, text, IS_MONTEREY_OR_UP)
+        // todo specify id/role
+        await controller.sendReply(quotedMessageID, 0, '', '', IS_MONTEREY_OR_UP, text)
       } else {
         await controller.sendTextMessage(text, threadID)
       }
@@ -467,17 +468,17 @@ export default class AppleiMessage implements PlatformAPI {
     if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
     await pRetry(async () => {
       const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', messageID])
-      if (!ogMessageJSON) return
-      const [msgRow, attachmentRows, currentUserID] = JSON.parse(ogMessageJSON)
+      if (!ogMessageJSON) throw Error('og message not found')
+      const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
       const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
       const message = messages[messageID.split('_', 2)[1] || 0]
       // use overlay mode only when the message is not in a thread
       const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
       const controller = await this.getMessagesController()
-      const closestMessage = overlay
-        ? { guid: messageID, offset: 0 }
-        : await this.dbAPI.findClosestTextMessage(threadID, messageID, message) // todo optimize by calling only if needed
-      await controller.setReaction(closestMessage.guid, closestMessage.offset, reactionKey, on, overlay)
+      const closestMessage: AXMessageSelection = overlay
+        ? { guid: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
+        : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
+      await controller.setReaction(closestMessage.guid, closestMessage.offset, closestMessage.cellID || '', closestMessage.cellRole || '', overlay, reactionKey, on)
     }, {
       onFailedAttempt: error => {
         texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)

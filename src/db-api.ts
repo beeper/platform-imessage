@@ -11,7 +11,7 @@ import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
 import IMAGE_EXTS from './image-exts.json'
 import { isSelectable } from './common-util'
-import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
+import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow, AXMessageSelection } from './types'
 import type PAPI from './api'
 
 const imageSizeAsync = promisify(imageSizeSync)
@@ -120,7 +120,6 @@ async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxA
   }
   return rows
 }
-
 
 export default class DatabaseAPI {
   private db: typeof AsyncSqlite & any
@@ -305,7 +304,7 @@ export default class DatabaseAPI {
     }
   }
 
-  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, mapped: Message): Promise<{ offset: number, guid: string }> => {
+  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, mapped: Message, msgRow: MappedMessageRow): Promise<AXMessageSelection> => {
     texts.log('[imessage] searching for neighboring message', direction, threadID, mapped.id, mapped.cursor)
     const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction) // todo handle message splitting, optimize
     const unhiddenMessages = messages.items.filter(m => !m.isHidden)
@@ -314,22 +313,22 @@ export default class DatabaseAPI {
     const mIndex = find(unhiddenMessages, isSelectable)
     if (mIndex > -1) {
       const m = unhiddenMessages[mIndex]
-      return { guid: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1 }
+      return { guid: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1, cellID: msgRow.balloon_bundle_id, cellRole: null }
     }
   }
 
-  findClosestTextMessage = async (threadID: string, messageGUIDWithPart: string, mapped: MessageWithExtra): Promise<{ offset: number, guid: string }> => {
+  findClosestTextMessage = async (threadID: string, messageGUIDWithPart: string, mapped: MessageWithExtra, msgRow: MappedMessageRow): Promise<AXMessageSelection> => {
     const [messageGUID, partString] = messageGUIDWithPart.split('_', 2)
     const part = +partString || 0
     texts.log('[imessage] findClosestTextMessage', messageGUID, part)
     // const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', [messageGUID])
     // if (!message) throw Error('message not found')
     // const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
-    if (isSelectable(mapped)) return { guid: mapped.id, offset: 0 }
+    if (isSelectable(mapped)) return { guid: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
     // todo loop over more pages if not found
     const [before, after] = await Promise.all([
-      this.findClosestTextInDirection('before', threadID, mapped),
-      this.findClosestTextInDirection('after', threadID, mapped),
+      this.findClosestTextInDirection('before', threadID, mapped, msgRow),
+      this.findClosestTextInDirection('after', threadID, mapped, msgRow),
     ])
     if (before) before.offset -= part
     if (after) after.offset += part
