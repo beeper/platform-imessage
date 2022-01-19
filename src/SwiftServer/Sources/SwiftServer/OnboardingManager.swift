@@ -6,10 +6,12 @@ final class OnboardingManager {
     private var pollingTimer: Timer?
     private var initialWidth: CGFloat?
 
-    private static let sysPrefsTitle: String? = Bundle(path: "/System/Applications/System Preferences.app")?.localizedString(forKey: "System Preferences", value: nil, table: nil)
+    private static let sysPrefsBundleID = "com.apple.systempreferences"
+    private static let sysPrefsURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sysPrefsBundleID)
+    private static let sysPrefsTitle: String? = sysPrefsURL != nil ? Bundle(url: sysPrefsURL!)?.localizedString(forKey: "System Preferences", value: nil, table: nil) : nil
 
     static func isPrefsFocused() -> Bool {
-        NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first?.isActive == true
+        NSRunningApplication.runningApplications(withBundleIdentifier: Self.sysPrefsBundleID).first?.isActive == true
     }
 
     static func getPrefsWindowBounds() -> CGRect? {
@@ -39,6 +41,7 @@ final class OnboardingManager {
             onboardingWindow?.contentView = NSHostingView(rootView: OnboardingView())
             onboardingWindow?.isOpaque = false
             onboardingWindow?.isMovableByWindowBackground = false
+            onboardingWindow?.isReleasedWhenClosed = false
             onboardingWindow?.isMovable = false
             onboardingWindow?.ignoresMouseEvents = true
             onboardingWindow?.backgroundColor = NSColor(calibratedHue: 0, saturation: 1.0, brightness: 0, alpha: 0)
@@ -56,7 +59,10 @@ final class OnboardingManager {
     func createWindow() {
         DispatchQueue.main.async {
             self.pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
-                guard let bounds = Self.getPrefsWindowBounds() else { return }
+                guard let bounds = Self.getPrefsWindowBounds() else {
+                    self.onboardingWindow?.setIsVisible(false)
+                    return
+                }
                 self.createOrUpdateWindow(bounds)
             }
             self.pollingTimer?.fire()
