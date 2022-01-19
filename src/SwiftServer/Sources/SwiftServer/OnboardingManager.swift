@@ -8,7 +8,7 @@ final class OnboardingManager {
 
     private static let sysPrefsBundleID = "com.apple.systempreferences"
     private static let sysPrefsURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sysPrefsBundleID)
-    private static let sysPrefsTitle: String? = sysPrefsURL != nil ? Bundle(url: sysPrefsURL!)?.localizedString(forKey: "System Preferences", value: nil, table: nil) : nil
+    private static let sysPrefsTitle = sysPrefsURL.flatMap(Bundle.init(url:))?.localizedString(forKey: "System Preferences", value: nil, table: nil)
 
     static func isPrefsFocused() -> Bool {
         NSRunningApplication.runningApplications(withBundleIdentifier: Self.sysPrefsBundleID).first?.isActive == true
