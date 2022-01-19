@@ -126,17 +126,24 @@ const ContactsAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
   )
 }
 
-const AXAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp }) => {
+const AXAuthPage: React.FC<PageProps> = ({ selectNextPage, nmp, api }) => {
   const [showMore, setShowMore] = useState(false)
   const [grayscale, setGrayscale] = useState(false)
   const { authorized, pending } = useNMP(nmp, 'accessibility')
   const authorizeClick = () => {
-    nmp.askForAccessibilityAccess()
+    openAXPrefs()
+    api.getAsset('proxied', 'startSysPrefsOnboarding')
   }
   const imgClick = () => {
     setGrayscale(true)
     authorizeClick()
   }
+  useEffect(() => {
+    if (!authorized) {
+      authorizeClick()
+    }
+    return () => { api.getAsset('proxied', 'stopSysPrefsOnboarding') }
+  }, [])
   const inner = (
     <>
       {!authorized && (

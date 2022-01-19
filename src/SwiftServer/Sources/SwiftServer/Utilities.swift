@@ -7,3 +7,12 @@ extension Optional {
         }
     }
 }
+
+// will be optimized out in release mode
+@_transparent
+func debugLog(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    guard SwiftServer.isLoggingEnabled else { return }
+    print(message())
+    #endif
+}

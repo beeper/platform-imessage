@@ -13,15 +13,6 @@ struct ErrorMessage: Error, CustomStringConvertible {
     var description: String { message }
 }
 
-// will be optimized out in release mode
-@_transparent
-func debugLog(_ message: @autoclosure () -> String) {
-    #if DEBUG
-    guard SwiftServer.isLoggingEnabled else { return }
-    print(message())
-    #endif
-}
-
 extension Accessibility.Notification {
     static let layoutChanged = Self(kAXLayoutChangedNotification)
     static let applicationActivated = Self(kAXApplicationActivatedNotification)

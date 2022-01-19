@@ -56,6 +56,9 @@ export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
+
+  startSysPrefsOnboarding: () => Promise<void>
+  stopSysPrefsOnboarding: () => void
 }
 
 const hasSwiftLibs = IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift')

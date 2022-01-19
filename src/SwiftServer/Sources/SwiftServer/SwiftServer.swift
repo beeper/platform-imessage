@@ -178,6 +178,8 @@ final class MessagesControllerWrapper: NodeClass {
         // strongly retained by askForMessagesDirAccess, deinit called on exit
         let accessManager = MessagesAccessManager()
 
+        var onboardingManager: OnboardingManager? = nil
+
         exports = try NodeObject([
             "appleInterfaceStyle": NodeComputedProperty { _ in
                 UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
@@ -225,7 +227,34 @@ final class MessagesControllerWrapper: NodeClass {
                 }
             },
 
-            "MessagesController": MessagesControllerWrapper.constructor()
+            "MessagesController": MessagesControllerWrapper.constructor(),
+
+            "startSysPrefsOnboarding": NodeFunction { _ in
+                let queue = try NodeAsyncQueue(label: "sys-prefs-callback")
+                return try NodePromise { deferred in
+                    DispatchQueue.main.async {
+                        let result = Result<NodeValueConvertible, Error> {
+                            guard onboardingManager == nil else {
+                                return NodeUndefined.deferred
+                            }
+                            onboardingManager = OnboardingManager()
+                            if let onboardingManager = onboardingManager {
+                                onboardingManager.createWindow()
+                            }
+                            return NodeUndefined.deferred
+                        }
+                        try? queue.async {
+                            try deferred(result)
+                        }
+                    }
+                }
+            },
+
+            "stopSysPrefsOnboarding": NodeFunction { _ in
+                onboardingManager?.closeWindow()
+                onboardingManager = nil
+                return try NodeUndefined()
+            }
         ])
     }
 }
