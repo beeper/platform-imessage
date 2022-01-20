@@ -73,6 +73,10 @@ extension Accessibility.Element {
         (try? pid()) != nil
     }
 
+    var isFrameValid: Bool {
+        (try? self.frame()) != nil
+    }
+
     var isInViewport: Bool {
         (try? self.frame()) != CGRect.null
     }
@@ -220,11 +224,10 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 1
 
-    private var lastActiveDisplay: Display
+    private var lastActiveDisplay: Display?
     private let space: Space
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
-    private let mainWindow: Accessibility.Element
 
     private let phtConn: PHTConnection?
 
@@ -334,7 +337,9 @@ final class MessagesController {
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
             let appEl = Accessibility.Element(pid: running.processIdentifier)
             let knownSpaces = Set((try? Space.list()) ?? [])
+            // TODO: closing is not needed here
             let windows = getAppWindowsClosingInaccessibleWindows(appEl)
+            // TODO: this if block may be unnecessary, we may be able to reuse messages app in all cases
             if !knownSpaces.isEmpty,
                // iff each Messages window exists in visible spaces and visible spaces only
                let spaces = try? windows.map({ try $0.window().currentSpaces() }),
@@ -369,22 +374,7 @@ final class MessagesController {
             self.phtConn = nil
         }
 
-        let getMainWindow = { [appElement] () throws -> Accessibility.Element in
-            try appElement.appWindows().first(where: {
-                // note: don't detect presence of AXSplitter here, it's unreliable
-                $0.child(withID: "ConversationList") != nil ||
-                    $0.child(withID: "CKConversationListCollectionView") != nil
-            })
-            .orThrow(ErrorMessage("Could not get main Messages window"))
-        }
-        self.mainWindow = try Self.retry(withTimeout: 5, interval: 0.2, getMainWindow, onError: { attempt, _ in
-            if attempt == 0 {
-                try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
-            }
-        })
-
         space = try Space(newSpaceOfKind: .fullscreen)
-        lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -443,12 +433,46 @@ final class MessagesController {
     }
 
     var isValid: Bool {
-        !app.isTerminated
-            && (try? mainWindow.frame()) != nil
+        !app.isTerminated && (try? mainWindow.isFrameValid) != nil
     }
 
     private func selectedThreadCell() -> Accessibility.Element? {
         try? conversationsList.selectedChildren.value(at: 0)
+    }
+
+    private var allWindows: [Accessibility.Element] {
+        get {
+            // after a window is moved to the new space, AX doesn't list the window in appWindows or children
+            (((try? appElement.appWindows()) ?? []) + [try? appElement.appMainWindow(), try? appElement.appFocusedWindow()]).compactMap { $0 }
+        }
+    }
+
+    private func getMainWindow() -> Accessibility.Element? {
+        allWindows.first(where: {
+            // note: don't detect presence of AXSplitter here, it's unreliable
+            $0.child(withID: "ConversationList") != nil ||
+                $0.child(withID: "CKConversationListCollectionView") != nil
+        })
+    }
+
+    private var cachedMainWindow: Accessibility.Element?
+    private var mainWindow: Accessibility.Element {
+        get throws {
+            if let cached = cachedMainWindow, cached.isValid, cached.isFrameValid {
+                return cached
+            }
+            let mainWindow = try Self.retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
+                try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
+            } onError: { attempt, _ in
+                if attempt == 0 {
+                    debugLog("Opening compose deep link to get main window")
+                    try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+                }
+            }
+            lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
+            cachedMainWindow = mainWindow
+            return mainWindow
+        }
     }
 
     private var cachedConversationsList: Accessibility.Element?
@@ -998,7 +1022,16 @@ final class MessagesController {
     // we want to actually show the app
     private func activateMessages() {
         do {
-            try mainWindow.window().moveToSpace(lastActiveDisplay.currentSpace())
+            debugLog("activateMessages")
+            if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window and hide it
+                if let space = try? lastActiveDisplay?.currentSpace() {
+                    try mainWindow.window().moveToSpace(space)
+                } else {
+                    debugLog("activateMessages: space not found")
+                }
+            } else {
+                debugLog("activateMessages: mainWindow nil")
+            }
             try phtConn?.setMessagesHidden(false)
         } catch {
             debugLog("warning: Could not show Messages window: \(error)")
@@ -1007,7 +1040,12 @@ final class MessagesController {
 
     private func deactivateMessages() {
         do {
-            lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
+            debugLog("deactivateMessages")
+            if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window
+                lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
+            } else {
+                debugLog("deactivateMessages: mainWindow nil")
+            }
             try phtConn?.setMessagesHidden(true)
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")

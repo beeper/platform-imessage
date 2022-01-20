@@ -17,7 +17,7 @@ const dropboxIgnoreDir = (dirPath: string) =>
 async function main() {
   const buildOptions: Config = {
     packagePath: 'src/SwiftServer',
-    macVersion: '10.11',
+    macVersion: '10.15',
     swiftFlags: '',
   }
 
