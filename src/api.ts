@@ -544,13 +544,14 @@ export default class AppleiMessage implements PlatformAPI {
         durationMs: 120_000,
       }]
       const userID = threadID.split(';', 3).pop()
-      if (statuses.includes(ActivityStatus.DND)) {
+      const isDNDCanNotify = statuses.includes(ActivityStatus.DNDCanNotify)
+      if (statuses.includes(ActivityStatus.DND) || isDNDCanNotify) {
         this.dndSet.add(userID)
         events.push({
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
             userID,
-            status: 'dnd',
+            status: isDNDCanNotify ? 'dnd_can_notify' : 'dnd',
           },
         })
       } else if (this.dndSet.has(userID)) {

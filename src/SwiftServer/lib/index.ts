@@ -15,6 +15,7 @@ export interface Fragment {
 
 export enum ActivityStatus {
   DND = 'DND',
+  DNDCanNotify = 'DND_CAN_NOTIFY',
   Typing = 'TYPING',
   NotTyping = 'NOT_TYPING',
   Unknown = 'UNKNOWN',

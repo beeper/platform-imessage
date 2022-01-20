@@ -179,6 +179,7 @@ final class MessagesController {
 
     enum ActivityStatus: String {
         case dnd = "DND"
+        case dndCanNotify = "DND_CAN_NOTIFY"
         case typing = "TYPING"
         case notTyping = "NOT_TYPING"
         case unknown = "UNKNOWN"
@@ -1073,22 +1074,27 @@ final class MessagesController {
         }
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
-        let isDND = IS_MONTEREY_OR_UP && cellsToCheck.contains { elt in
-            if (try? elt.children.count()) == 1,
-               let child = try? elt.children.value(at: 0),
-               (try? child.role()) == AXRole.staticText,
-               let hasNotificationsSilencedSuffix = Self.hasNotificationsSilencedSuffix,
-               (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true {
-                return true
+        let dndFlag: ActivityStatus? = {
+            guard IS_MONTEREY_OR_UP else { return nil }
+            for elt in cellsToCheck.reversed() {
+                guard let child = try? elt.children.value(at: 0) else { continue }
+                if (try? child.role()) == AXRole.button,
+                   (try? child.localizedDescription()) == Self.notifyAnywayString {
+                    return .dndCanNotify
+                } else if (try? child.role()) == AXRole.staticText,
+                          let hasNotificationsSilencedSuffix = Self.hasNotificationsSilencedSuffix,
+                          (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true {
+                    return .dnd
+                }
             }
-            return false
-        }
+            return nil
+        }()
         let isTyping = cellsToCheck.contains { elt in
             // children can briefly be 0 for newly sent messages as well, so
             // that by itself isn't a good enough heuristic
             (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
         }
-        let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (isDND ? [.dnd] : [])
+        let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? [])
         return flags
     }
 
@@ -1100,7 +1106,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             guard let transcripts = try? transcriptsView,
-                let count = try? transcripts.children.count() else {
+                  let count = try? transcripts.children.count() else {
                 throw ErrorMessage("transcriptsView not found")
             }
             guard let notifyAnywayButton = try? transcripts.children(range: (count - 2)..<count).first(where: {
