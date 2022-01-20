@@ -520,6 +520,11 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  notifyAnyway = async (threadID: string) => {
+    const controller = await this.getMessagesController()
+    await controller.notifyAnyway(threadID)
+  }
+
   private dndSet = new Set<string>()
 
   onThreadSelected = async (threadID: string) => {
