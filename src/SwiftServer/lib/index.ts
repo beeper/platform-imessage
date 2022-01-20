@@ -33,6 +33,8 @@ export declare class MessagesController {
 
   deleteThread: (threadID: string) => Promise<void>
 
+  notifyAnyway: (threadID: string) => Promise<void>
+
   sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
 
   watchThreadActivity: (

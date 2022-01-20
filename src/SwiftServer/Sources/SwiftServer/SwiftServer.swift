@@ -14,6 +14,7 @@ final class MessagesControllerWrapper: NodeClass {
         "setReaction": NodeMethod(setReaction),
         "sendTextMessage": NodeMethod(sendTextMessage),
         "sendReply": NodeMethod(sendReply),
+        "notifyAnyway": NodeMethod(notifyAnyway),
         "dispose": NodeMethod(dispose)
     ]
 
@@ -103,6 +104,10 @@ final class MessagesControllerWrapper: NodeClass {
 
     func sendTypingStatus(isTyping: Bool, address: String) throws -> NodeValueConvertible {
         try performAsync { try self.controller.sendTypingStatus(isTyping, address: address) }
+    }
+
+    func notifyAnyway(threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.notifyAnyway(threadID: threadID) }
     }
 
     func watchThreadActivity(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {

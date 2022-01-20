@@ -24,11 +24,12 @@ async function main() {
   // console.log(swiftServer.decodeAttributedString(buf))
   mc = await messagesControllerClass.create()
   console.log(await mc.isValid())
+  await mc.notifyAnyway('iMessage;-;kb24x7@gmail.com')
   // await mc.markRead('2A077AC2-AD53-46F8-ABBB-D82EF6D3D2BF')
   // await mc.setReaction('FEDED224-E379-4AC5-A6B9-09973F21E3C7', 0, 'laugh', true, true)
   // await mc.setReaction('1617F5D1-E661-46C9-A09D-724BB47BEF86', 0, 'laugh', true, false)
   // await mc.sendReply('4AF9C619-210E-4A52-B92E-45E709563F36', 'testing ' + Math.random(), true)
-  await mc.setReaction('0367450D-F385-4561-AD28-9670FDFCD8BE', 0, 'com.apple.messages.URLBalloonProvider', '', true, 'laugh', true)
+  // await mc.setReaction('0367450D-F385-4561-AD28-9670FDFCD8BE', 0, 'com.apple.messages.URLBalloonProvider', '', true, 'laugh', true)
   // await mc.sendReply('0367450D-F385-4561-AD28-9670FDFCD8BE', 0, 'asd', '', true, `testing ${Math.random()} ${new Date()}`)
   // await mc.watchThreadActivity('kb24x7@gmail.com', status => {
   //   console.log(status)

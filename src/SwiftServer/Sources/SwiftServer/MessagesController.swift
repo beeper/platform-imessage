@@ -215,12 +215,9 @@ final class MessagesController {
     }
 
     private static let messagesBundleID = "com.apple.MobileSMS"
-    private static var hasNotificationsSilencedSuffix: String? {
-        guard IS_MONTEREY_OR_UP, let bundle = Bundle(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") else {
-            return nil
-        }
-        return bundle.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "")
-    }
+    private static let focusSettingsUIBundle = IS_MONTEREY_OR_UP ? Bundle(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") : nil
+    private static let hasNotificationsSilencedSuffix = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "") }
+    private static let notifyAnywayString = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_NOTIFY_ANYWAY", value: nil, table: nil) }
 
     private static let pollingInterval: TimeInterval = 1
 
@@ -1093,6 +1090,27 @@ final class MessagesController {
         }
         let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (isDND ? [.dnd] : [])
         return flags
+    }
+
+    func notifyAnyway(threadID: String) throws {
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            guard let transcripts = try? transcriptsView,
+                let count = try? transcripts.children.count() else {
+                throw ErrorMessage("transcriptsView not found")
+            }
+            guard let notifyAnywayButton = try? transcripts.children(range: (count - 2)..<count).first(where: {
+                let child = try $0.children.value(at: 0)
+                return (try? child.role()) == AXRole.button && (try? child.localizedDescription()) == Self.notifyAnywayString
+            }) else {
+                throw ErrorMessage("notify anyway not found")
+            }
+            try notifyAnywayButton.press()
+        }
     }
 
     // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe
