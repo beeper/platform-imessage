@@ -361,6 +361,8 @@ final class MessagesController {
         } else {
             debugLog("Launching Messages...")
             app = try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+            // without sleeping appElement.observe applicationActivated/applicationDeactivated doesn't fire
+            Thread.sleep(forTimeInterval: 1.5)
         }
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
