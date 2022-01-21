@@ -314,46 +314,7 @@ final class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
-        func getAppWindowsClosingInaccessibleWindows(_ appEl: Accessibility.Element) -> [Accessibility.Element] {
-            if let windows = try? appEl.appWindows() {
-                // after a window is moved to the new space, AX doesn't list the window in appWindows or children
-                if windows.isEmpty {
-                    if let win = try? appEl.appMainWindow() {
-                        debugLog("appWindows empty, closing app main window")
-                        try? Self.closeWindow(win)
-                    } else if let win = try? appEl.appFocusedWindow() {
-                        debugLog("appWindows empty, closing focused main window")
-                        try? Self.closeWindow(win)
-                    }
-                }
-                return windows
-            }
-            return []
-        }
-
-        var reusableApp: NSRunningApplication?
-        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first {
-            let appEl = Accessibility.Element(pid: running.processIdentifier)
-            let knownSpaces = Set((try? Space.list()) ?? [])
-            // TODO: closing is not needed here
-            let windows = getAppWindowsClosingInaccessibleWindows(appEl)
-            // TODO: this if block may be unnecessary, we may be able to reuse messages app in all cases
-            if !knownSpaces.isEmpty,
-               // iff each Messages window exists in visible spaces and visible spaces only
-               let spaces = try? windows.map({ try $0.window().currentSpaces() }),
-               spaces.allSatisfy({ !$0.isEmpty && $0.allSatisfy(knownSpaces.contains) }) {
-                reusableApp = running
-            } else {
-                debugLog("Terminating existing Messages...")
-                if running.terminate() {
-                    try? Self.retry(withTimeout: 1, interval: 0.1) {
-                        guard running.isTerminated else {
-                            throw ErrorMessage("Could not restart Messages")
-                        }
-                    }
-                }
-            }
-        }
+        let reusableApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first
 
         if let reusableApp = reusableApp {
             debugLog("Reusing existing Messages...")
