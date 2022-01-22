@@ -245,7 +245,10 @@ export default class AppleiMessage implements PlatformAPI {
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
-      if (existingThread) return existingThread
+      if (existingThread) {
+        this.sendMessage(existingThread.id, { text: message })
+        return existingThread
+      }
       if (message) await (await this.getMessagesController()).createThread([address], message)
       else childProcess.spawn('open', [`imessage://${address}`])
     } else {
