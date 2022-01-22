@@ -49,6 +49,7 @@ extension Accessibility.Names {
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }
+    var isEnabled: AttributeName<Bool> { .init(kAXEnabledAttribute) }
 
     // https://developer.apple.com/documentation/applicationservices/axactionconstants_h/miscellaneous_defines
     var press: ActionName { .init(kAXPressAction) }
@@ -220,6 +221,8 @@ final class MessagesController {
     private static let hasNotificationsSilencedSuffix = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "") }
     private static let notifyAnywayString = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_NOTIFY_ANYWAY", value: nil, table: nil) }
 
+    private static let messagesUserDefaults = UserDefaults(suiteName: messagesBundleID)
+
     private static let pollingInterval: TimeInterval = 1
 
     private var lastActiveDisplay: Display?
@@ -309,14 +312,27 @@ final class MessagesController {
         )
     }
 
+    static func getMessagesApp() -> NSRunningApplication? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first
+    }
+
+    static func resetPrompts() {
+        // Self.messagesUserDefaults?.set(true, forKey: "kHasSetupHashtagImages") // unknown
+        Self.messagesUserDefaults?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
+        Self.messagesUserDefaults?.set(true, forKey: "ReadReceiptSettingsConfirmed")
+        Self.messagesUserDefaults?.set(2, forKey: "BusinessChatPrivacyPageDisplayed")
+    }
+
+    func isPromptVisibleInMessagesApp() -> Bool {
+        allWindows.contains(where: { (try? $0.windowCloseButton().isEnabled()) == false })
+    }
+
     init() throws {
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
-        let reusableApp = NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first
-
-        if let reusableApp = reusableApp {
+        if let reusableApp = Self.getMessagesApp() {
             debugLog("Reusing existing Messages...")
             app = reusableApp
         } else {
@@ -428,6 +444,16 @@ final class MessagesController {
                 if attempt == 0 {
                     debugLog("Opening compose deep link to get main window")
                     try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+                } else if attempt == 1 {
+                    if self.isPromptVisibleInMessagesApp() {
+                        Self.resetPrompts()
+                    }
+                } else if attempt == 2 {
+                    if self.isPromptVisibleInMessagesApp() {
+                        // regular terminate wont work since all window close buttons are disabled
+                        self.app.forceTerminate()
+                        // this should invalidate the MessagesController
+                    }
                 }
             }
             lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
