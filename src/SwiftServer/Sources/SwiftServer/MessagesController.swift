@@ -948,6 +948,12 @@ final class MessagesController {
 
         let initialTitle = try? mainWindow.title()
 
+        if let rtv = try? replyTranscriptsView {
+            debugLog("calling replyTranscriptsView.cancel()")
+            try? rtv.cancel()
+            Thread.sleep(forTimeInterval: 0.2) // wait for animation
+        }
+
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try? Self.retry(withTimeout: 1, interval: 0.2) {
                 guard try mainWindow.title() != initialTitle else {
