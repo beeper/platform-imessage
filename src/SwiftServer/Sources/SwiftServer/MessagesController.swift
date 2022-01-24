@@ -338,9 +338,14 @@ final class MessagesController {
         } else {
             debugLog("Launching Messages...")
             app = try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
-            // without sleeping appElement.observe applicationActivated/applicationDeactivated doesn't fire
-            Thread.sleep(forTimeInterval: 1.5)
         }
+        // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
+        while !app.isFinishedLaunching {
+            debugLog("sleeping 0.1s for messages to finish launching")
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        Thread.sleep(forTimeInterval: 0.01)
+
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         if SwiftServer.isPHTEnabled {
