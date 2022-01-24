@@ -594,7 +594,7 @@ final class MessagesController {
 
     @discardableResult
     private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
-        try? Self.retry(withTimeout: timeout) { () throws -> Accessibility.Element in
+        try? Self.retry(withTimeout: timeout, interval: 0.01) { () throws -> Accessibility.Element in
             guard let selected = selectedThreadCell() else { throw ErrorMessage("") }
             let isActuallyCompose = Self.isThreadCellCompose(selected)
             guard isCompose == isActuallyCompose else { throw ErrorMessage("") }
