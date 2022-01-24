@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "prepack": "yarn build",
-    "transpile-scss": "node-sass --output-style compressed src/auth.scss binaries/imessage-auth.css",
+    "transpile-scss": "node-sass --output-style compressed src/auth/auth.scss binaries/imessage-auth.css",
     "build": "yarn transpile-scss; yarn tsc; yarn build-swift-server",
     "swiftlint": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
@@ -28,6 +28,7 @@
     "node-mac-permissions": "^2.2.0",
     "p-retry": "^4.4.0",
     "react": "https://github.com/TextsHQ/react-global-shim",
+    "react-dom": "^17.0.2",
     "react-helmet": "^6.1.0",
     "url-regex": "^5.0.0",
     "use-force-update": "^1.0.7",

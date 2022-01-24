@@ -166,6 +166,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = async () => {
+    swiftServer.stopSysPrefsOnboarding()
     // if the promise is undefined, we probably failed to create the controller
     // and so getMessagesController() would re-initialize it. We only really care
     // about disposing any existing handle.
@@ -596,13 +597,18 @@ export default class AppleiMessage implements PlatformAPI {
       await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)
       return true
     },
+    revokeAll: async () => {
+      await shellExec('/usr/bin/tccutil', 'reset', 'All', 'com.googlecode.iterm2')
+      return true
+    },
   }
 
   getAsset = async (pathHex: string, methodName: string) => {
     switch (pathHex) {
       case 'proxied': {
         const result = await this.proxiedAuthFns[methodName]()
-        return JSON.stringify(result)
+        const json = JSON.stringify(result)
+        return json === undefined ? 'null' : json
       }
 
       case 'hw': {
