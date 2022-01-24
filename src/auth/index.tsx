@@ -1,6 +1,6 @@
 import path from 'path'
 import url from 'url'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
@@ -8,7 +8,6 @@ import type { PlatformAPI } from '@textshq/platform-sdk'
 
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
 import useAsync from './use-async'
-import Tooltip from './tooltip'
 
 declare const __IS_BROWSER__: boolean
 
@@ -47,6 +46,7 @@ type Props = {
   api: PlatformAPI
   isReauthing: boolean
   open?: boolean
+  Tooltip: React.FC<any>
 }
 
 const useNMP = (nmp: NMP, authType: AuthType) => {
@@ -127,7 +127,8 @@ const ChecklistItem = ({
   action,
   more,
   showMore,
-}: ChecklistItemProps) => (
+  Tooltip,
+}: ChecklistItemProps & { Tooltip: React.FC<any> }) => (
   <article>
     <div onClick={action}>
       <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
@@ -281,7 +282,7 @@ const ChecklistPage: React.FC<Props> = props => {
       <RevokeFDASection {...{ nmp, callProxiedFn }} />
       <details open={!allAuthorized} className="permissions-section">
         <summary><h4>Permissions{allAuthorized ? ' (Authorized)' : ''}</h4></summary>
-        {checklistItems.map(i => <ChecklistItem {...i} />)}
+        {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
         {nextUncompletedItem && <div><button className="primary" onClick={() => nextUncompletedItem.action()}>Authorize {nextUncompletedItem.title}</button></div>}
         {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
         {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
@@ -292,7 +293,8 @@ const ChecklistPage: React.FC<Props> = props => {
   )
 }
 
-const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, nmp: NMP }> = ({ api, login, isReauthing, nmp }) => {
+const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, nmp: NMP, Tooltip: React.FC<any> }> = props => {
+  const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset('proxied', fnName) as string), [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
   return (
@@ -300,7 +302,7 @@ const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthi
       <Helmet>
         <link rel="stylesheet" href={cssPath} />
       </Helmet>
-      <ChecklistPage {...{ api, canAccessMessagesDir, callProxiedFn, login, isReauthing, nmp }} />
+      <ChecklistPage {...{ ...props, canAccessMessagesDir, callProxiedFn }} />
     </div>
   )
 }
