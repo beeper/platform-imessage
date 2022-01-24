@@ -276,33 +276,6 @@ final class MessagesController {
         #endif
     }
 
-    private static func retry<T>(
-        withTimeout timeout: TimeInterval,
-        interval: TimeInterval? = nil,
-        _ perform: () throws -> T,
-        onError: ((_ attempt: Int, _ err: Error?) throws -> Void)? = nil
-    ) throws -> T {
-        let start = Date()
-        var res: Result<T, Error>
-        var attempt = 0
-        repeat {
-            res = Result(catching: perform)
-            switch res {
-            case let .success(val):
-                return val
-            case let .failure(err):
-                do {
-                    try onError?(attempt, err)
-                    attempt += 1
-                } catch {
-                    debugLog("retry onError errored \(error)")
-                }
-            }
-            interval.map(Thread.sleep(forTimeInterval:))
-        } while -start.timeIntervalSinceNow < timeout
-        return try res.get()
-    }
-
     @discardableResult
     private static func openDeepLink(_ url: URL, withoutActivation: Bool) throws -> NSRunningApplication {
         try NSWorkspace.shared.open(
@@ -360,7 +333,7 @@ final class MessagesController {
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
-        //     try Self.retry(withTimeout: 1, interval: 0.1) { [app] in
+        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
         //         app.unhide()
         //         if app.isHidden {
         //             throw ErrorMessage("Could not launch Messages")
@@ -443,7 +416,7 @@ final class MessagesController {
             if let cached = cachedMainWindow, cached.isValid, cached.isFrameValid {
                 return cached
             }
-            let mainWindow = try Self.retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
+            let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
             } onError: { attempt, _ in
                 if attempt == 0 {
@@ -473,7 +446,7 @@ final class MessagesController {
             if let cached = cachedConversationsList, cached.isValid {
                 return cached
             }
-            let cl = try Self.retry(withTimeout: 1, interval: 0.2) {
+            let cl = try retry(withTimeout: 1, interval: 0.2) {
                 try mainWindow.child(withID: "ConversationList")
                     .orThrow(ErrorMessage("Could not find ConversationList"))
             } onError: { _, _ in
@@ -570,14 +543,14 @@ final class MessagesController {
     }
 
     private func messagesField() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1.5, interval: 0.25) {
+        try retry(withTimeout: 1.5, interval: 0.25) {
             try mainWindow.child(withID: "messageBodyField")
                 .orThrow(ErrorMessage("Could not find messageBodyField"))
         }
     }
 
     private func searchField() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1.5, interval: 0.25) {
+        try retry(withTimeout: 1.5, interval: 0.25) {
             let CKConversationListCollectionView = try mainWindow.child(withID: "CKConversationListCollectionView")
                 .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
             return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
@@ -586,7 +559,7 @@ final class MessagesController {
     }
 
     private func reactionsView() throws -> Accessibility.Element {
-        try Self.retry(withTimeout: 1.5, interval: 0.25) {
+        try retry(withTimeout: 1.5, interval: 0.25) {
             guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == AXRole.group }),
                   // (try? mainView.children.count()) ?? 0 >= 2,
                   let presView = try? mainView.children.value(at: 0),
@@ -599,7 +572,7 @@ final class MessagesController {
 
     @discardableResult
     private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
-        try? Self.retry(withTimeout: timeout, interval: 0.01) { () throws -> Accessibility.Element in
+        try? retry(withTimeout: timeout, interval: 0.01) { () throws -> Accessibility.Element in
             guard let selected = selectedThreadCell() else { throw ErrorMessage("") }
             let isActuallyCompose = Self.isThreadCellCompose(selected)
             guard isCompose == isActuallyCompose else { throw ErrorMessage("") }
@@ -624,7 +597,7 @@ final class MessagesController {
             debugLog("withActivation: Returning to openAfter \(openAfter)")
             let oldTitle = try mainWindow.title()
             try Self.openDeepLink(openAfter, withoutActivation: true)
-            newTitle = try? Self.retry(withTimeout: 1, interval: 0.1) {
+            newTitle = try? retry(withTimeout: 1, interval: 0.1) {
                 let newTitle = try mainWindow.title()
                 // the message doesn't matter since we're try?-ing
                 guard newTitle != oldTitle else { throw ErrorMessage("") }
@@ -681,7 +654,7 @@ final class MessagesController {
             // }
             // wait for animation
             if overlay { Thread.sleep(forTimeInterval: 0.5) }
-            guard let selected = (try Self.retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
+            guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptsView) : Self.firstSelectedMessageCell(in: transcriptsView) else {
                     throw ErrorMessage("")
                 }
@@ -732,7 +705,7 @@ final class MessagesController {
             let buttons = try reactButtons(targetCell: targetCell, overlay: overlay)
 
             let btn = buttons[idx]
-            try Self.retry(withTimeout: 1, interval: 0.2) {
+            try retry(withTimeout: 1, interval: 0.2) {
                 let isSelected = try btn.isSelected()
                 if isSelected != on {
                     try btn.press()
@@ -804,10 +777,10 @@ final class MessagesController {
             try targetCell.showMenu()
 
             // Thread.sleep(forTimeInterval: 1)
-            guard let group = (try Self.retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == AXRole.group }) }) else {
+            guard let group = (try retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == AXRole.group }) }) else {
                 throw ErrorMessage("Could not find main view")
             }
-            guard let menu = (try Self.retry(withTimeout: 4, interval: 0.5) { try group.children().first(where: { try $0.role() == AXRole.menu }) }) else {
+            guard let menu = (try retry(withTimeout: 4, interval: 0.5) { try group.children().first(where: { try $0.role() == AXRole.menu }) }) else {
                 throw ErrorMessage("Could not find menu")
             }
             /*
@@ -893,7 +866,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
 
-            try? Self.retry(withTimeout: 1, interval: 0.2) {
+            try? retry(withTimeout: 1, interval: 0.2) {
                 guard try mainWindow.title() != initialTitle else {
                     throw ErrorMessage("")
                 }
@@ -928,7 +901,7 @@ final class MessagesController {
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
-        try Self.retry(withTimeout: 1, interval: 0.25) {
+        try retry(withTimeout: 1, interval: 0.25) {
             try messageField.isFocused(assign: true)
             guard try messageField.isFocused() else {
                 throw ErrorMessage("Could not focus message text field")
@@ -937,7 +910,7 @@ final class MessagesController {
     }
 
     private func waitUntilMessageFieldEmpty(_ messageField: Accessibility.Element) throws {
-        try Self.retry(withTimeout: 1.5, interval: 0.25) {
+        try retry(withTimeout: 1.5, interval: 0.25) {
             if let message = try? messageField.value() as? String, !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send text message\(hasNewline ? " (extraneous newline)" : "")")
@@ -960,7 +933,7 @@ final class MessagesController {
         }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try? Self.retry(withTimeout: 1, interval: 0.2) {
+            try? retry(withTimeout: 1, interval: 0.2) {
                 guard try mainWindow.title() != initialTitle else {
                     throw ErrorMessage("")
                 }
