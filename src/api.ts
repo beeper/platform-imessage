@@ -81,6 +81,8 @@ export default class AppleiMessage implements PlatformAPI {
     return {
       id: this.currentUserID,
       displayText: accounts.join(', '),
+      // phone #s will likely not be present in account_login
+      ...(accounts[0].includes('@') ? { email: accounts[0] } : { phoneNumber: accounts[0] }),
     }
   }
 
