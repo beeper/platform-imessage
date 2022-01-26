@@ -48,6 +48,12 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
         openPanel.directoryURL = messagesDir
         let response = openPanel.runModal()
+        defer {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                UserDefaults.standard.removeObject(forKey: "NSNavLastRootDirectory") // to make sure future NSOpenPanels don't show the Messages directory
+                UserDefaults.standard.synchronize()
+            }
+        }
         guard response == .OK else {
             throw AccessError.userCancelled
         }
