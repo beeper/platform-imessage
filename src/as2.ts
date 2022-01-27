@@ -94,7 +94,7 @@ function createAPIServer() {
     async askForAutomationAccess() {
       try {
         await run(ScriptName.ASK_FOR_AUTOMATION)
-        await run(ScriptName.IS_MESSAGES_VISIBLE)
+        if (!IS_BIG_SUR_OR_UP) await run(ScriptName.IS_MESSAGES_VISIBLE)
         return true
       } catch {
         return false
