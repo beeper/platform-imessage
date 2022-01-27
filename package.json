@@ -35,7 +35,7 @@
     "zlib": "^1.0.5"
   },
   "devDependencies": {
-    "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#040cbc5cc54c554dc181d330ac575dd7391d6f12",
+    "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
     "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main",
     "@types/bluebird": "^3.5.33",
     "@types/eslint": "^7.2.7",

@@ -1,4 +1,5 @@
 import AppKit
+import AccessibilityControl
 
 final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
     enum AccessError: Error {
@@ -38,15 +39,22 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         let library = try FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
         let messagesDir = library.appendingPathComponent("Messages", isDirectory: true)
         expectedURL = messagesDir
+        let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
         openPanel.delegate = self
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseDirectories = true
         openPanel.canCreateDirectories = false
         openPanel.canChooseFiles = false
-        openPanel.prompt = "Grant Access"
+        openPanel.prompt = buttonTitle
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
         openPanel.directoryURL = messagesDir
+        if Accessibility.isTrusted() {
+            // DispatchQueue.main won't work here:
+            DispatchQueue.global(qos: .background).async {
+                try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)
+            }
+        }
         let response = openPanel.runModal()
         defer {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {

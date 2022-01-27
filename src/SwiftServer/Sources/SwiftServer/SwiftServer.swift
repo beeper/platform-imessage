@@ -259,6 +259,21 @@ final class MessagesControllerWrapper: NodeClass {
                 onboardingManager?.closeWindow()
                 onboardingManager = nil
                 return try NodeUndefined()
+            },
+
+            "confirmUNCPrompt": NodeFunction { _ in
+                let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
+                return try NodePromise { deferred in
+                    DispatchQueue.main.async {
+                        let result = Result<NodeValueConvertible, Error> {
+                            try PromptAutomation.confirmUNCPrompt()
+                            return NodeUndefined.deferred
+                        }
+                        try? queue.async {
+                            try deferred(result)
+                        }
+                    }
+                }
             }
         ])
     }

@@ -17,6 +17,8 @@ const staticPrefix = __IS_BROWSER__ ? './platform-imessage' : url.pathToFileURL(
 const notificationsMessagesImg = path.join(staticPrefix, 'notifications-messages.png')
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 const openSecuritySystemPrefs = (prefPath: string) =>
   window.open('x-apple.systempreferences:com.apple.preference.security?' + prefPath)
 
@@ -130,7 +132,7 @@ const ChecklistItem = ({
   Tooltip,
 }: ChecklistItemProps & { Tooltip: React.FC<any> }) => (
   <article>
-    <div onClick={action}>
+    <div onClick={() => action()}>
       <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
       <span>{title}</span>
       <Tooltip
@@ -195,6 +197,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const authorizeContacts = async () => {
     if (askedContacts.current) return openContactsPrefs()
+    if (axAuthorized) setTimeout(() => callProxiedFn('confirmUNCPrompt'), 1)
     await nmp.askForContactsAccess()
     askedContacts.current = true
   }
@@ -206,6 +209,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const authorizeAutomation = async () => {
     if (calledAutomationOnce) return openAutomationPrefs()
+    if (axAuthorized) setTimeout(() => callProxiedFn('confirmUNCPrompt'), 1)
     setAutomationAuthorized(await callProxiedFn('askForAutomationAccess'))
     setCalledAutomationOnce(true)
   }
@@ -221,6 +225,14 @@ const ChecklistPage: React.FC<Props> = props => {
   // }
 
   const checklistItems: ChecklistItemProps[] = [
+    IS_BIG_SUR_OR_UP && {
+      title: 'Accessibility',
+      completed: axAuthorized,
+      action: authorizeAX,
+      info: 'Accessibility access allows Texts to power many iMessage features.',
+      more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
+      showMore,
+    },
     {
       title: 'Contacts',
       completed: contactsAuthorized,
@@ -243,14 +255,6 @@ const ChecklistPage: React.FC<Props> = props => {
       action: authorizeAutomation,
       info: 'Automation access allows Texts to send iMessages.',
       more: <div onClick={openAutomationPrefs}>Try: open System Preferences and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
-      showMore,
-    },
-    IS_BIG_SUR_OR_UP && {
-      title: 'Accessibility',
-      completed: axAuthorized,
-      action: authorizeAX,
-      info: 'Accessibility access allows Texts to power many iMessage features.',
-      more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
       showMore,
     },
   ].filter(Boolean)
@@ -277,13 +281,27 @@ const ChecklistPage: React.FC<Props> = props => {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [nextUncompletedItem])
 
+  const authorizeAll = async () => {
+    const uncompletedItems = checklistItems.filter(i => !i.completed)
+    for (const item of uncompletedItems) {
+      await item.action()
+      await sleep(50)
+    }
+  }
+
   return (
     <div>
       <RevokeFDASection {...{ nmp, callProxiedFn }} />
       <details open={!allAuthorized} className="permissions-section">
         <summary><h4>Permissions{allAuthorized ? ' (Authorized)' : ''}</h4></summary>
         {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
-        {nextUncompletedItem && <div><button className="primary" onClick={() => nextUncompletedItem.action()}>Authorize {nextUncompletedItem.title}</button></div>}
+        {nextUncompletedItem && (
+          <div>
+            {axAuthorized
+              ? <button className="primary" onClick={authorizeAll}>Authorize All</button>
+              : <button className="primary" onClick={() => nextUncompletedItem.action()}>Authorize {nextUncompletedItem.title}</button>}
+          </div>
+        )}
         {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
         {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
       </details>
