@@ -1101,6 +1101,10 @@ final class MessagesController {
         // if someone else (observe/removeObserver) holds the lock,
         // silently skip this polling attempt
         guard activityLock.try() else { return }
+        guard self.isValid else {
+            debugLog("pollActivityStatus: invalid MessagesController")
+            return
+        }
         defer { activityLock.unlock() }
 
         guard let observer = activityObserver else { return }
