@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -28,7 +28,7 @@ struct PollerInner {
 
     database_paths: [(PathBuf, SystemTime); 2],
 
-    chat_read_map: HashMap<String, bool>,
+    unread_chat_set: HashSet<u64>,
 
     shared: Arc<Shared>,
 }
@@ -37,11 +37,6 @@ struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
     thread_guid: Option<String>,
-    // max_msg_date: u64,
-}
-struct PollThreadResultRow {
-    thread_guid: Option<String>,
-    is_read: bool,
     // max_msg_date: u64,
 }
 
@@ -64,23 +59,18 @@ ORDER BY
 	date DESC
 "#;
 
-// limit of 400 is arbitrary, if the user scrolls down 400 chats and reads something, it'll be ignored
-static POLL_THREAD_READ_QUERY: &str = r#"
+static POLL_UNREAD_CHATS_QUERY: &str = r#"
 SELECT
-	chat.guid,
-	(m.is_from_me = 1 OR m.is_read = 1) AS isRead,
-	max(m.date) AS msgDate
+	cm.chat_id
 FROM
-	chat
-	LEFT JOIN chat_message_join AS cmj ON cmj.chat_id = chat.ROWID
-	LEFT JOIN message AS m ON cmj.message_id = m.ROWID
+	message m
+	INNER JOIN chat_message_join cm ON m.ROWiD = cm.message_id
 WHERE
-	m.item_type = 0
+	m.item_type == 0
+	AND m.is_read == 0
+	AND m.is_from_me == 0
 GROUP BY
-	chat.guid
-ORDER BY
-	msgDate desc
-LIMIT 400
+	cm.chat_id
 "#;
 
 impl Poller {
@@ -139,7 +129,7 @@ impl PollerInner {
                 (Self::format_path(&"chat.db")?, SystemTime::now()),
                 (Self::format_path(&"chat.db-wal")?, SystemTime::now()),
             ],
-            chat_read_map: HashMap::new(),
+            unread_chat_set: HashSet::new(),
             shared,
         })
     }
@@ -148,7 +138,7 @@ impl PollerInner {
         self.last_row_id = last_row_id;
         self.last_date_read = last_date_read;
 
-        self.init_chat_read_map()?;
+        self.init_unread_chat_set()?;
 
         Ok(())
     }
@@ -212,13 +202,9 @@ impl PollerInner {
             })?;
 
             let mut res = Vec::new();
-
             for row in stmt {
-                let row = row?;
-
-                res.push(row);
+                res.push(row?);
             }
-
             res
         };
 
@@ -261,63 +247,45 @@ impl PollerInner {
         Ok(())
     }
 
-    fn query_thread_reads(&mut self) -> ServerResult<Vec<PollThreadResultRow>> {
-        let rows: Vec<PollThreadResultRow> = {
-            // kb: todo optimize
-            // this sql query takes ~150ms for me with 1,033 chat rows and 190,179 message rows
-            let mut stmt = self.conn.prepare_cached(POLL_THREAD_READ_QUERY)?;
+    fn query_unread_chats(&mut self) -> ServerResult<HashSet<u64>> {
+        let mut stmt = self.conn.prepare_cached(POLL_UNREAD_CHATS_QUERY)?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
 
-            let stmt = stmt.query_map([], |row| {
-                Ok(PollThreadResultRow {
-                    thread_guid: row.get(0)?,
-                    is_read: row.get(1)?,
-                    // max_msg_date: row.get(2)?,
-                })
-            })?;
-
-            let mut res = Vec::new();
-
-            // (522) SQLITE_IOERR_SHORT_READ may occur here, propagate back.
-            for row in stmt {
-                let row = row?;
-
-                res.push(row);
-            }
-
-            res
-        };
-
-        Ok(rows)
+        let mut set = HashSet::new();
+        // (522) SQLITE_IOERR_SHORT_READ may occur here, propagate back.
+        for chat_rowid in rows {
+            set.insert(chat_rowid?);
+        }
+        Ok(set)
     }
 
-    fn init_chat_read_map(&mut self) -> ServerResult<()> {
-        let rows = self.query_thread_reads()?;
-
-        for row in rows {
-            if let Some(guid) = row.thread_guid {
-                self.chat_read_map.insert(guid, row.is_read);
-            }
-        }
-
+    fn init_unread_chat_set(&mut self) -> ServerResult<()> {
+        self.unread_chat_set = self.query_unread_chats()?;
         Ok(())
     }
 
+    fn get_thread_guid(&self, chat_rowid: &u64) -> Option<String> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT guid FROM chat WHERE ROWID = ?")
+            .ok()?;
+        let mut rows = stmt.query_map([chat_rowid], |row| row.get(0)).ok()?;
+
+        rows.next()?.ok()?
+    }
+
     fn poll_thread_updates(&mut self) -> ServerResult<()> {
-        let rows = self.query_thread_reads()?;
+        let unread_chat_ids = self.query_unread_chats()?;
         let mut thread_ids: Vec<String> = Vec::new();
 
-        for row in rows {
-            if let Some(guid) = row.thread_guid {
-                let was_read = self
-                    .chat_read_map
-                    .insert(guid.clone(), row.is_read)
-                    .unwrap_or(true);
-
-                if !was_read && row.is_read {
-                    thread_ids.push(guid);
+        for chat_id in &self.unread_chat_set {
+            if !unread_chat_ids.contains(chat_id) {
+                if let Some(thread_id) = self.get_thread_guid(chat_id) {
+                    thread_ids.push(thread_id);
                 }
             }
         }
+        self.unread_chat_set = unread_chat_ids;
 
         if !thread_ids.is_empty() {
             let shared = self.shared.clone();
