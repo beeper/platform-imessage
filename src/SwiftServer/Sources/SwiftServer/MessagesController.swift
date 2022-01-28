@@ -125,16 +125,6 @@ extension Accessibility.Element {
     }
 }
 
-private final class TimerBlockWatcher {
-    let block: () -> Void
-    init(_ block: @escaping () -> Void) {
-        self.block = block
-    }
-    @objc func timerFired() {
-        block()
-    }
-}
-
 private final class RunLoopThread: Thread {
     private var initialize: (() -> Void)?
     // safe to retain self inside initialize because it's nil'd out
@@ -232,11 +222,11 @@ final class MessagesController {
 
     private let phtConn: PHTConnection?
 
-    private var timer: Timer?
     private var loopThread: RunLoopThread?
 
     private var activateToken: Accessibility.Observer.Token?
     private var deactivateToken: Accessibility.Observer.Token?
+    private var layoutChangedToken: Accessibility.Observer.Token?
 
     private var activityObserver: ActivityObserver?
 
@@ -361,21 +351,14 @@ final class MessagesController {
         // create our own thread for it; see https://stackoverflow.com/a/38001438/3769927 and
         // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
         let thread = RunLoopThread {
-            let watcher = TimerBlockWatcher { [weak self] in
-                self?.pollActivityStatus()
-            }
-            self.timer = Timer.scheduledTimer(
-                timeInterval: Self.pollingInterval,
-                target: watcher,
-                selector: #selector(TimerBlockWatcher.timerFired),
-                userInfo: nil,
-                repeats: true
-            )
             self.activateToken = try? self.appElement.observe(.applicationActivated) { [weak self] _ in
                 self?.activateMessages()
             }
             self.deactivateToken = try? self.appElement.observe(.applicationDeactivated) { [weak self] _ in
                 self?.deactivateMessages()
+            }
+            self.layoutChangedToken = try? self.appElement.observe(.layoutChanged) { [weak self] _ in
+                self?.pollActivityStatus()
             }
         }
         thread.qualityOfService = .utility
@@ -1156,7 +1139,6 @@ final class MessagesController {
         debugLog("Disposing MessagesController...")
         guard !isDisposed else { return }
         isDisposed = true
-        timer?.invalidate()
         loopThread?.cancel()
         app.terminate()
     }
