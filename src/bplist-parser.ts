@@ -129,7 +129,7 @@ export function parseBuffer(buffer: Buffer) {
     }
 
     function parseInteger() {
-      const length = Math.pow(2, objInfo)
+      const length = 2 ** objInfo
 
       if (objInfo === 0x4) {
         const data = buffer.slice(offset + 1, offset + 1 + length)
@@ -154,7 +154,7 @@ export function parseBuffer(buffer: Buffer) {
     }
 
     function parseReal() {
-      const length = Math.pow(2, objInfo)
+      const length = 2 ** objInfo
       if (length < maxObjectSize) {
         const realBuffer = buffer.slice(offset + 1, offset + 1 + length)
         if (length === 4) {
@@ -186,7 +186,7 @@ export function parseBuffer(buffer: Buffer) {
           console.error('0x4: UNEXPECTED LENGTH-INT TYPE! ' + intType)
         }
         const intInfo = int_type & 0x0F
-        const intLength = Math.pow(2, intInfo)
+        const intLength = 2 ** intInfo
         dataoffset = 2 + intLength
         if (intLength < 3) {
           length = readUInt(buffer.slice(offset + 2, offset + 2 + intLength))
@@ -212,7 +212,7 @@ export function parseBuffer(buffer: Buffer) {
           console.error('UNEXPECTED LENGTH-INT TYPE! ' + intType)
         }
         const intInfo = int_type & 0x0F
-        const intLength = Math.pow(2, intInfo)
+        const intLength = 2 ** intInfo
         stroffset = 2 + intLength
         if (intLength < 3) {
           length = readUInt(buffer.slice(offset + 2, offset + 2 + intLength))
@@ -243,7 +243,7 @@ export function parseBuffer(buffer: Buffer) {
           console.error('0xa: UNEXPECTED LENGTH-INT TYPE! ' + intType)
         }
         const intInfo = int_type & 0x0F
-        const intLength = Math.pow(2, intInfo)
+        const intLength = 2 ** intInfo
         arrayoffset = 2 + intLength
         if (intLength < 3) {
           length = readUInt(buffer.slice(offset + 2, offset + 2 + intLength))
@@ -272,7 +272,7 @@ export function parseBuffer(buffer: Buffer) {
           console.error('0xD: UNEXPECTED LENGTH-INT TYPE! ' + intType)
         }
         const intInfo = int_type & 0x0F
-        const intLength = Math.pow(2, intInfo)
+        const intLength = 2 ** intInfo
         dictoffset = 2 + intLength
         if (intLength < 3) {
           length = readUInt(buffer.slice(offset + 2, offset + 2 + intLength))

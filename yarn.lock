@@ -2137,7 +2137,7 @@ __metadata:
 
 "@textshq/eslint-config@https://github.com/TextsHQ/eslint-config#main":
   version: 1.0.5
-  resolution: "@textshq/eslint-config@https://github.com/TextsHQ/eslint-config.git#commit=99a387a0fcf375fead59e98a52caf69d7ed68c28"
+  resolution: "@textshq/eslint-config@https://github.com/TextsHQ/eslint-config.git#commit=4d55f12d0f6bb9069a83332d7626146567ef646e"
   dependencies:
     "@typescript-eslint/eslint-plugin": 5.3.1
     "@typescript-eslint/parser": 5.3.1
@@ -2152,7 +2152,7 @@ __metadata:
   peerDependencies:
     eslint: ">=7"
     typescript: ">=4"
-  checksum: bbc00dab7ac69aaf4797cabb2c5a298596c4769e7f072c1c5c276aee7a72068b037817f089a2c8816e623780f94ec5b4da6f4c92536340a01a9a2f8396399afe
+  checksum: 0addf73f328ccf033174b3bbff1bfd911ce1ef30efe4ae74be1a3efb9ca6cd401ff797cd48837f9b21b357b93c2ed924c0e4eb17030f4d3bae8d215991debe39
   languageName: node
   linkType: hard
 
