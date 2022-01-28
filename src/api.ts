@@ -1,5 +1,6 @@
 import fsSync, { promises as fs } from 'fs'
 import url from 'url'
+import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
@@ -150,10 +151,7 @@ export default class AppleiMessage implements PlatformAPI {
     return threadID.split(';', 3).pop()
   }
 
-  private dataDirPath: string
-
   init = async (_: undefined, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
-    this.dataDirPath = dataDirPath
     this.accountID = accountID
     if (swiftServer) swiftServer.isPHTEnabled = prefs.hide_messages_app
     await this.dbAPI.init()
@@ -167,7 +165,6 @@ export default class AppleiMessage implements PlatformAPI {
         enabled: status.includes('enabled.'),
       })
     }).catch(console.error)
-    await fs.mkdir(this.dataDirPath).catch(() => {})
   }
 
   dispose = async () => {
@@ -181,10 +178,6 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.dispose(),
       this.asAPI.dispose(),
     ])
-  }
-
-  logout = async () => {
-    await fs.rm(this.dataDirPath, { recursive: true, force: true })
   }
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
@@ -435,7 +428,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.asAPI.sendFile(threadID, filePath))
 
   private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string) => {
-    const tmpFilePath = path.join(this.dataDirPath, fileName || crypto.randomUUID())
+    const tmpFilePath = path.join(os.tmpdir(), fileName || crypto.randomUUID())
     await fs.writeFile(tmpFilePath, fileBuffer)
     const result = await this.sendFileFromFilePath(threadID, tmpFilePath)
     this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
