@@ -14,7 +14,7 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from 
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP } from './constants'
+import { CHAT_DB_PATH, MESSAGES_DIR_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec } from './util'
@@ -44,6 +44,13 @@ enum OSAError {
   // }
   AnErrorOccurred = -1743,
   CantGetObject = -1728,
+}
+
+async function getAttachmentPath(threadID: string, fileName: string) {
+  const [,, address] = threadID.split(';', 3)
+  const dirPath = path.join(MESSAGES_DIR_PATH, 'Drafts', address, 'Attachments', crypto.randomUUID().toUpperCase())
+  await fs.mkdir(dirPath, { recursive: true })
+  return path.join(dirPath, fileName)
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -428,10 +435,10 @@ export default class AppleiMessage implements PlatformAPI {
       this.asAPI.sendFile(threadID, filePath))
 
   private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string) => {
-    const tmpFilePath = path.join(os.tmpdir(), fileName || crypto.randomUUID())
-    await fs.writeFile(tmpFilePath, fileBuffer)
-    const result = await this.sendFileFromFilePath(threadID, tmpFilePath)
-    this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
+    const attFilePath = await getAttachmentPath(threadID, fileName || crypto.randomUUID())
+    await fs.writeFile(attFilePath, fileBuffer)
+    const result = await this.sendFileFromFilePath(threadID, attFilePath)
+    this.filesToDelete.add(attFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
     return result
   }
 
