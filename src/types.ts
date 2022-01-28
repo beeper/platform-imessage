@@ -143,7 +143,7 @@ export type MappedAttachmentRow = {
 
   size?: { width: number, height: number }
   ext: string
-  fileName: string
+  fileName: string // this is not MappedAttachmentRow.filename and intentional
   filePath: string
 }
 
