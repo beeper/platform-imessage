@@ -59,9 +59,9 @@ function assignReactions(message: Message, _reactionRows: MappedReactionMessageR
     ? _reactionRows.filter(r => r.associated_message_guid.startsWith(`p:${filterIndex}/`))
     : _reactionRows
   reactionRows.forEach(reaction => {
-    const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
+    const assocMsgType: string = ASSOC_MSG_TYPE[reaction.associated_message_type]
     if (assocMsgType !== 'sticker' && assocMsgType) {
-      const [actionType, actionKey] = assocMsgType.split('_') || []
+      const [actionType, actionKey] = assocMsgType.split('_', 2) || []
       const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
       if (actionType === 'reacted') {
         reactions.push({
@@ -78,16 +78,19 @@ function assignReactions(message: Message, _reactionRows: MappedReactionMessageR
   if (reactions.length > 0) message.reactions = reactions
 }
 
+const enum MessagePartKind {
+  TEXT,
+  ATTACHMENT,
+}
 interface MessagePartText {
-  kind: 'TEXT'
+  kind: MessagePartKind.TEXT
   index: number
   text: string
   end: number
   attributes?: TextAttributes
 }
-
 interface MessagePartAttachment {
-  kind: 'ATTACHMENT'
+  kind: MessagePartKind.ATTACHMENT
   index: number
   end: number
   attachmentID: string
@@ -102,7 +105,7 @@ function decodeMessageParts(fragments: Fragment[]): MessagePart[] {
     const attachmentID = frag.attributes.__kIMFileTransferGUIDAttributeName
     if (typeof attachmentID === 'string') {
       parts.push({
-        kind: 'ATTACHMENT',
+        kind: MessagePartKind.ATTACHMENT,
         index: parts.length,
         end: frag.to,
         attachmentID,
@@ -111,7 +114,7 @@ function decodeMessageParts(fragments: Fragment[]): MessagePart[] {
       const partStr = frag.attributes.__kIMMessagePartAttributeName
       if (typeof partStr === 'undefined' || +partStr !== parts.length - 1) {
         parts.push({
-          kind: 'TEXT',
+          kind: MessagePartKind.TEXT,
           index: parts.length,
           end: 0,
           text: '',
@@ -137,7 +140,7 @@ function decodeMessageParts(fragments: Fragment[]): MessagePart[] {
   }
   for (let i = 1; i < parts.length; i++) {
     const part = parts[i]
-    if (part.kind !== 'TEXT') continue
+    if (part.kind !== MessagePartKind.TEXT) continue
     const start = parts[i - 1]
     part.attributes?.entities?.forEach(e => {
       e.from -= start.end
@@ -329,7 +332,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       *
       * 18446744073709551615 is -1 (https://stackoverflow.com/questions/40608111/why-is-18446744073709551615-1-true)
      */
-    let partIndex = msgRow.thread_originator_part?.split(':')?.[0]
+    let partIndex = msgRow.thread_originator_part?.split(':', 1)?.[0]
     if (partIndex === '0') partIndex = ''
     if (partIndex === '18446744073709551615') partIndex = '-1'
     partialHeader.linkedMessageID = msgRow.thread_originator_guid + (partIndex ? `_${partIndex}` : '')
@@ -344,21 +347,21 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
   if (messageParts.length === 0) {
     messageParts = [{
-      kind: 'TEXT',
+      kind: MessagePartKind.TEXT,
       index: 0,
       // @ts-expect-error replaceAll
       text: removeObjReplacementChar(msgRow.text || '').replaceAll(IMSG_EXTENSION_CHAR, ''),
     } as MessagePart].concat(...(attachments.map((a, i) => ({
-      kind: 'ATTACHMENT',
+      kind: MessagePartKind.ATTACHMENT,
       attachmentID: a.id,
       index: i + 1,
     })) as MessagePartAttachment[]))
   }
 
-  const addSubjectInline = msgRow.subject && messageParts[0].kind === 'TEXT' && messageParts[0].text.length
+  const addSubjectInline = msgRow.subject && messageParts[0].kind === MessagePartKind.TEXT && messageParts[0].text.length
   if (msgRow.subject && !addSubjectInline) {
     messageParts.unshift({
-      kind: 'TEXT',
+      kind: MessagePartKind.TEXT,
       index: -1,
       end: 0,
       text: msgRow.subject,
@@ -389,10 +392,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (partIdx === 0) Object.assign(message, partialHeader)
     if (partIdx === messageParts.length - 1) Object.assign(message, partialFooter)
     if (part.index !== 0) message.id = `${message.id}_${part.index}`
-    if (part.kind === 'TEXT') {
+    if (part.kind === MessagePartKind.TEXT) {
       message.text = part.text
       message.textAttributes = part.attributes
-    } else if (part.kind === 'ATTACHMENT') {
+    } else if (part.kind === MessagePartKind.ATTACHMENT) {
       // TODO: make this faster if necessary
       const att = attachments.find(a => a.id === part.attachmentID)
       if (att) message.attachments = [att]
