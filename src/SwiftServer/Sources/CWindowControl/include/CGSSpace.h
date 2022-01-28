@@ -89,7 +89,7 @@ CG_EXTERN CGSSpaceType CGSSpaceGetType(CGSConnectionID cid, CGSSpaceID sid);
 
 /// Gets the current space management mode.
 ///
-/// This method reflects whether the “Displays have separate Spaces” option is 
+/// This method reflects whether the “Displays have separate Spaces” option is
 /// enabled in Mission Control system preference. You might use the return value
 /// to determine how to present your app when in fullscreen mode.
 CG_EXTERN CGSSpaceManagementMode CGSGetSpaceManagementMode(CGSConnectionID cid) AVAILABLE_MAC_OS_X_VERSION_10_9_AND_LATER;
@@ -149,3 +149,7 @@ CG_EXTERN void CGSManagedDisplaySetCurrentSpace(CGSConnectionID cid, CFStringRef
 
 #endif /// CGS_SPACE_INTERNAL_H */
 
+// from https://github.com/DamianSullivan/TaskRail-Mac/blob/23e62e5a91c870fc26a28782026b2697ce73cf63/TaskRail/CGSSpaces.h
+
+CG_EXTERN int CGSSpaceGetAbsoluteLevel(const CGSConnectionID cid, CGSSpaceID space);
+CG_EXTERN void CGSSpaceSetAbsoluteLevel(const CGSConnectionID cid, CGSSpaceID space, int level);

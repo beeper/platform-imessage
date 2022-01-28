@@ -333,11 +333,12 @@ final class MessagesController {
 
         #if DEBUG
         let existing = try Space.list()
-        debugLog("[debug] \(existing.count) space(s)")
+        debugLog("[spaces] \(existing.count) space(s)")
         existing.forEach {
-            debugLog("[debug] * Name: \((try? $0.name()) as Any)")
-            debugLog("[debug] * Kind: \((try? $0.kind()) as Any)")
-            debugLog("[debug] * Owners: \((try? $0.owners()) ?? [])")
+            debugLog("[spaces] * Name: \((try? $0.name()) as Any)")
+            debugLog("[spaces] * Kind: \((try? $0.kind()) as Any)")
+            debugLog("[spaces] * Owners: \((try? $0.owners()) ?? [])")
+            debugLog("[spaces] * Level: \(try? $0.level())")
         }
         // existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
         //     $0.destroy()
@@ -979,6 +980,7 @@ final class MessagesController {
             debugLog("activateMessages")
             if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window and hide it
                 if let space = try? lastActiveDisplay?.currentSpace() {
+                    debugLog("activateMessages: moving window")
                     try mainWindow.window().moveToSpace(space)
                 } else {
                     debugLog("activateMessages: space not found")
@@ -996,6 +998,7 @@ final class MessagesController {
         do {
             debugLog("deactivateMessages")
             if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window
+                debugLog("deactivateMessages: moving window")
                 lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
             } else {
                 debugLog("deactivateMessages: mainWindow nil")
@@ -1081,6 +1084,7 @@ final class MessagesController {
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
+        debugLog("pollActivityStatus")
         // if someone else (observe/removeObserver) holds the lock,
         // silently skip this polling attempt
         guard activityLock.try() else { return }

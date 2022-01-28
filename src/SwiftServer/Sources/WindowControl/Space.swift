@@ -86,7 +86,16 @@ public class Space: Hashable {
                 "uuid": try display.uuid() as CFString
             ] as CFDictionary
         )
+        debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone)")
         self.destroyWhenDone = destroyWhenDone
+    }
+
+    public func level(for connection: GraphicsConnection = .main) -> Int32 {
+        CGSSpaceGetAbsoluteLevel(connection.raw, raw)
+    }
+
+    public func setLevel(for connection: GraphicsConnection = .main, level: Int32) {
+        CGSSpaceSetAbsoluteLevel(connection.raw, raw, level)
     }
 
     public func destroy(for connection: GraphicsConnection = .main) {
@@ -119,6 +128,7 @@ public class Space: Hashable {
 
     deinit {
         if destroyWhenDone {
+            debugLog("[spaces] destroying space id=\(raw)")
             destroy()
         }
     }
