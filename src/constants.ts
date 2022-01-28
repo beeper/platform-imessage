@@ -80,8 +80,7 @@ export const RECEIVER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiv
 export const SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextSenderIdentifier)'
 
 export const homedir = os.homedir()
-export const MESSAGES_DIR_PATH = path.join(homedir, 'Library/Messages')
-export const CHAT_DB_PATH = path.join(MESSAGES_DIR_PATH, 'chat.db')
+export const CHAT_DB_PATH = path.join(homedir, 'Library/Messages/chat.db')
 
 export const BINARIES_DIR_PATH = texts
   ? texts.constants.BUILD_DIR_PATH + '/platform-imessage'
