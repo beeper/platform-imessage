@@ -102,8 +102,6 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 1
 
-    private var lastActiveDisplay: Display?
-    private let space: Space
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
 
@@ -116,6 +114,8 @@ final class MessagesController {
     private var layoutChangedToken: Accessibility.Observer.Token?
 
     private var activityObserver: ActivityObserver?
+
+    private let whm: WindowHidingManager
 
     // this increases the viewport height so that mark as read works more reliably
     private static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
@@ -130,27 +130,6 @@ final class MessagesController {
             throw ErrorMessage("window close button not found")
         }
         try closeButton.press()
-    }
-
-    // returns last active display
-    private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Display {
-        try? Self.resizeWindowToMaxHeight(window)
-        #if NO_SPACES
-        return .main
-        #else
-        let windowCG = try window.window()
-
-        // FIXME: this doesn't seem to work consistently with multiple displays
-        let lastActiveDisplay: Display
-        if let lastActiveSpace = try? windowCG.currentSpaces(.allVisibleSpaces).first,
-           let activeDisplay = try? Display.allOnline().first(where: { (try? $0.currentSpace()) == lastActiveSpace }) {
-            lastActiveDisplay = activeDisplay
-        } else {
-            lastActiveDisplay = .main
-        }
-        try windowCG.moveToSpace(space)
-        return lastActiveDisplay
-        #endif
     }
 
     @discardableResult
@@ -206,7 +185,7 @@ final class MessagesController {
             self.phtConn = nil
         }
 
-        space = try Space(newSpaceOfKind: .fullscreen)
+        whm = try WindowHidingManager()
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -217,20 +196,6 @@ final class MessagesController {
         //         }
         //     }
         // }
-
-        #if DEBUG
-        let existing = try Space.list()
-        debugLog("[spaces] \(existing.count) space(s)")
-        existing.forEach {
-            debugLog("[spaces] * Name: \((try? $0.name()) as Any)")
-            debugLog("[spaces] * Kind: \((try? $0.kind()) as Any)")
-            debugLog("[spaces] * Owners: \((try? $0.owners()) ?? [])")
-            debugLog("[spaces] * Level: \(try? $0.level())")
-        }
-        // existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
-        //     $0.destroy()
-        // }
-        #endif
 
         // we need a run loop for polling (and for any future AX observers), but Node
         // doesn't offer us one (since it uses its own uv loop which is incompatible
@@ -305,7 +270,8 @@ final class MessagesController {
                     }
                 }
             }
-            lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
+            try? Self.resizeWindowToMaxHeight(mainWindow)
+            try? whm.mainWindowFetched(mainWindow)
             cachedMainWindow = mainWindow
             return mainWindow
         }
@@ -866,12 +832,7 @@ final class MessagesController {
         do {
             debugLog("activateMessages")
             if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window and hide it
-                if let space = try? lastActiveDisplay?.currentSpace() {
-                    debugLog("activateMessages: moving window")
-                    try mainWindow.window().moveToSpace(space)
-                } else {
-                    debugLog("activateMessages: space not found")
-                }
+                try whm.appActivated(window: mainWindow)
             } else {
                 debugLog("activateMessages: mainWindow nil")
             }
@@ -885,8 +846,8 @@ final class MessagesController {
         do {
             debugLog("deactivateMessages")
             if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window
-                debugLog("deactivateMessages: moving window")
-                lastActiveDisplay = try Self.moveWindow(mainWindow, to: space)
+                try? Self.resizeWindowToMaxHeight(mainWindow)
+                try whm.appDeactivated(window: mainWindow)
             } else {
                 debugLog("deactivateMessages: mainWindow nil")
             }
