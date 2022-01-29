@@ -1,6 +1,5 @@
 import Foundation
 import CWindowControl
-import SkyLight
 
 public struct Window: Hashable {
     public enum Error: Swift.Error {
@@ -163,8 +162,8 @@ public struct Window: Hashable {
             debugLog("Move window skipped")
             return
         } // no-op
-        SLSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
-        SLSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
+        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
+        CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
     }
 
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
