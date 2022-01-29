@@ -136,7 +136,7 @@ final class MessagesController {
     static func terminateApp(_ app: NSRunningApplication) throws {
         app.terminate()
         try retry(withTimeout: 2, interval: 0.1) {
-            guard app.isTerminated else { throw ErrorMessage("") }
+            guard app.isTerminated else { throw ErrorMessage("App couldn't be terminated") }
         } onError: { attempt, _ in
             if attempt == 19 {
                 debugLog("Force terminating app")
