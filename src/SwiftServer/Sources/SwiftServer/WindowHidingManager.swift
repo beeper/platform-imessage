@@ -76,13 +76,17 @@ final class SpacesWindowHidingManager: WindowHidingManager {
 final class RelaunchWindowHidingManager: WindowHidingManager {
     let canReuseApp = false
     var isValid = true
+    var invalidate = false
 
     func mainWindowFetched(_ mainWindow: Accessibility.Element) throws {}
 
     func appActivated(window: Accessibility.Element) throws {
         debugLog("WindowHidingManager.appActivated: invalidating")
-        self.isValid = false
+        invalidate = true
     }
 
-    func appDeactivated(window: Accessibility.Element) throws {}
+    func appDeactivated(window: Accessibility.Element) throws {
+        isValid = false
+        debugLog("WindowHidingManager.appDeactivated: invalidated")
+    }
 }
