@@ -202,10 +202,19 @@ final class MessagesController {
             // we launch with activation because mark as read doesn't work until the app is activated at least once
             app = try launchMessages(withoutActivation: false)
         }
+
+        let start = Date()
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         while !app.isFinishedLaunching {
-            debugLog("sleeping 0.1s for messages to finish launching")
+            debugLog("sleeping 0.1s for messages.app to finish launching")
             Thread.sleep(forTimeInterval: 0.1)
+            if app.isTerminated {
+                throw ErrorMessage("messages.app terminated")
+            }
+            if start.timeIntervalSinceNow < -5 {
+                debugLog("assuming messages.app has launched") // sometimes this gets stuck in an infinite loop
+                break
+            }
         }
         Thread.sleep(forTimeInterval: 0.01)
 
