@@ -344,6 +344,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private axSendWithRetry = async (threadID: string, text: string, quotedMessageID?: string) => {
+    const retries = quotedMessageID ? 3 : 1
     await pRetry(async () => {
       // re-fetch the controller on each attempt so that invalidation is respected
       const controller = await this.getMessagesController()
@@ -356,12 +357,12 @@ export default class AppleiMessage implements PlatformAPI {
     }, {
       onFailedAttempt: error => {
         texts.log('sendMessage failed', { quotedMessageID }, error)
-        if (error.attemptNumber === 2) {
+        if (error.attemptNumber === (retries - 1)) {
           texts.log('second retry; force-invalidating MessagesController')
           this.forceInvalidate = true
         }
       },
-      retries: 3,
+      retries,
     })
   }
 
