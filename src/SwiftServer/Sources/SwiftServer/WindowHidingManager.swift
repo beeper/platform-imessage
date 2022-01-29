@@ -20,6 +20,10 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         space = try Space(newSpaceOfKind: .fullscreen)
 
         #if DEBUG
+        StarkSpace.all().forEach {
+            print($0.identifier, $0.isNormal, $0.isFullscreen, $0.screens())
+        }
+
         let existing = try Space.list()
         debugLog("[spaces] \(existing.count) space(s)")
         existing.forEach {
@@ -49,7 +53,10 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         } else {
             lastActiveDisplay = .main
         }
-        try windowCG.moveToSpace(space)
+        let sw = StarkWindow(element: window.raw)
+        StarkSpace.all().last?.addWindows([sw])
+        StarkSpace.all().first?.removeWindows([sw])
+        // try windowCG.moveToSpace(space)
         return lastActiveDisplay
         #endif
     }
@@ -64,7 +71,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
             return
         }
         debugLog("WindowHidingManager.appActivated: moving window")
-        try window.window().moveToSpace(space)
+        // try window.window().moveToSpace(space)
     }
 
     func appDeactivated(window: Accessibility.Element) throws {

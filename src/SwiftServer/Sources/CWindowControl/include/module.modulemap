@@ -2,3 +2,9 @@ module CWindowControl {
     umbrella header "WindowControl.h"
     link "CoreGraphics"
 }
+module SkyLight {
+    requires macos
+    header "SkyLight.h"
+    link framework "/System/Library/PrivateFrameworks/SkyLight.framework"
+    export *
+}
