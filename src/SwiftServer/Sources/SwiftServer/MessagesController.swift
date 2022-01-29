@@ -135,10 +135,10 @@ final class MessagesController {
 
     static func terminateApp(_ app: NSRunningApplication) throws {
         app.terminate()
-        try retry(withTimeout: 1, interval: 0.1) {
+        try retry(withTimeout: 2, interval: 0.1) {
             guard app.isTerminated else { throw ErrorMessage("") }
         } onError: { attempt, _ in
-            if attempt == 9 {
+            if attempt == 19 {
                 debugLog("Force terminating app")
                 app.forceTerminate()
             }
@@ -154,8 +154,8 @@ final class MessagesController {
         )
     }
 
-    static func getMessagesApp() -> NSRunningApplication? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID).first
+    static func getRunningMessagesApps() -> [NSRunningApplication] {
+        NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID)
     }
 
     static func resetPrompts() {
@@ -182,7 +182,13 @@ final class MessagesController {
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
         }
 
-        if let existingApp = Self.getMessagesApp() {
+        var messagesApps = Self.getRunningMessagesApps()
+        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
+            debugLog("\(messagesApps.count) messages.app instances, terminating all")
+            messagesApps.forEach { try? Self.terminateApp($0) }
+            messagesApps.removeAll()
+        }
+        if let existingApp = messagesApps.first {
             if whm.canReuseApp {
                 debugLog("Reusing existing Messages...")
                 app = existingApp
