@@ -1,7 +1,18 @@
 import AccessibilityControl
 import WindowControl
 
-final class WindowHidingManager {
+protocol WindowHidingManager {
+    var isValid: Bool { get }
+    var canReuseApp: Bool { get }
+
+    func mainWindowFetched(_ mainWindow: Accessibility.Element) throws
+    func appActivated(window: Accessibility.Element) throws
+    func appDeactivated(window: Accessibility.Element) throws
+}
+
+final class SpacesWindowHidingManager: WindowHidingManager {
+    let canReuseApp = true
+    var isValid = true
     private var lastActiveDisplay: Display?
     private let space: Space
 
@@ -60,4 +71,18 @@ final class WindowHidingManager {
         debugLog("WindowHidingManager.appDeactivated: moving window")
         lastActiveDisplay = try Self.moveWindow(window, to: space)
     }
+}
+
+final class RelaunchWindowHidingManager: WindowHidingManager {
+    let canReuseApp = false
+    var isValid = true
+
+    func mainWindowFetched(_ mainWindow: Accessibility.Element) throws {}
+
+    func appActivated(window: Accessibility.Element) throws {
+        debugLog("WindowHidingManager.appActivated: invalidating")
+        self.isValid = false
+    }
+
+    func appDeactivated(window: Accessibility.Element) throws {}
 }

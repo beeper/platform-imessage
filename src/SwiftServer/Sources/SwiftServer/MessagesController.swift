@@ -32,6 +32,7 @@ private final class RunLoopThread: Thread {
 }
 
 let IS_MONTEREY_OR_UP = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12
+let CAN_USE_SPACES_API = !(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12 && ProcessInfo.processInfo.operatingSystemVersion.minorVersion >= 2)
 
 // external API is thread safe
 final class MessagesController {
@@ -132,6 +133,18 @@ final class MessagesController {
         try closeButton.press()
     }
 
+    static func terminateApp(_ app: NSRunningApplication) throws {
+        app.terminate()
+        try retry(withTimeout: 1, interval: 0.1) {
+            guard app.isTerminated else { throw ErrorMessage("") }
+        } onError: { attempt, _ in
+            if attempt == 9 {
+                debugLog("Force terminating app")
+                app.forceTerminate()
+            }
+        }
+    }
+
     @discardableResult
     private static func openDeepLink(_ url: URL, withoutActivation: Bool) throws -> NSRunningApplication {
         try NSWorkspace.shared.open(
@@ -161,12 +174,26 @@ final class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
-        if let reusableApp = Self.getMessagesApp() {
-            debugLog("Reusing existing Messages...")
-            app = reusableApp
-        } else {
+        debugLog("CAN_USE_SPACES_API \(CAN_USE_SPACES_API)")
+        whm = CAN_USE_SPACES_API ? try SpacesWindowHidingManager() : RelaunchWindowHidingManager()
+
+        func launchMessages() throws -> NSRunningApplication {
             debugLog("Launching Messages...")
-            app = try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+        }
+
+        if let existingApp = Self.getMessagesApp() {
+            if whm.canReuseApp {
+                debugLog("Reusing existing Messages...")
+                app = existingApp
+            } else {
+                debugLog("Terminating Messages...")
+                try Self.terminateApp(existingApp)
+                Thread.sleep(forTimeInterval: 0.1)
+                app = try launchMessages()
+            }
+        } else {
+            app = try launchMessages()
         }
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         while !app.isFinishedLaunching {
@@ -184,8 +211,6 @@ final class MessagesController {
         } else {
             self.phtConn = nil
         }
-
-        whm = try WindowHidingManager()
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -224,7 +249,7 @@ final class MessagesController {
     }
 
     var isValid: Bool {
-        !app.isTerminated && (try? mainWindow.isFrameValid) != nil
+        !app.isTerminated && (try? mainWindow.isFrameValid) != nil && whm.isValid
     }
 
     private func selectedThreadCell() -> Accessibility.Element? {
