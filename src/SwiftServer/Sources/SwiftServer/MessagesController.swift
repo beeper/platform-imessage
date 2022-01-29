@@ -177,9 +177,9 @@ final class MessagesController {
         debugLog("CAN_USE_SPACES_API \(CAN_USE_SPACES_API)")
         whm = CAN_USE_SPACES_API ? try SpacesWindowHidingManager() : RelaunchWindowHidingManager()
 
-        func launchMessages() throws -> NSRunningApplication {
+        func launchMessages(withoutActivation: Bool) throws -> NSRunningApplication {
             debugLog("Launching Messages...")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
         }
 
         var messagesApps = Self.getRunningMessagesApps()
@@ -196,10 +196,11 @@ final class MessagesController {
                 debugLog("Terminating Messages...")
                 try Self.terminateApp(existingApp)
                 Thread.sleep(forTimeInterval: 0.1)
-                app = try launchMessages()
+                app = try launchMessages(withoutActivation: true)
             }
         } else {
-            app = try launchMessages()
+            // we launch with activation because mark as read doesn't work until the app is activated at least once
+            app = try launchMessages(withoutActivation: false)
         }
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         while !app.isFinishedLaunching {
