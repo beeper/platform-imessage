@@ -11,12 +11,16 @@ public class Space: Hashable {
         case user
         case fullscreen
         case system
+        case unknown
+        case tiled
 
         public var raw: CGSSpaceType {
             switch self {
             case .user: return CGSSpaceTypeUser
             case .fullscreen: return CGSSpaceTypeFullscreen
             case .system: return CGSSpaceTypeSystem
+            case .unknown: return CGSSpaceTypeUnknown
+            case .tiled: return CGSSpaceTypeTiled
             }
         }
 
@@ -25,6 +29,8 @@ public class Space: Hashable {
             case CGSSpaceTypeUser: self = .user
             case CGSSpaceTypeFullscreen: self = .fullscreen
             case CGSSpaceTypeSystem: self = .system
+            case CGSSpaceTypeUnknown: self = .unknown
+            case CGSSpaceTypeTiled: self = .tiled
             default: return nil
             }
         }
@@ -82,19 +88,29 @@ public class Space: Hashable {
             // honestly not yet sure why this has to be 1
             connection.raw, UnsafeMutableRawPointer(bitPattern: 1),
             [
+                // "wsid": 1234 as CFNumber, // Compat ID
+                // "ManagedSpaceID": 1234 as CFNumber, // will be ignored
+                // "id64": 1234 as CFNumber, // will be overridden
                 "type": kind.raw.rawValue as CFNumber,
-                "uuid": try display.uuid() as CFString
+                "uuid": UUID().uuidString as CFString,
             ] as CFDictionary
         )
-        debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone) kind=\(kind)")
         self.destroyWhenDone = destroyWhenDone
+        #if DEBUG
+        debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone) kind=\(kind) (\(kind.raw.rawValue))")
+        self.printAttributes()
+        #endif
+    }
+
+    public func values(for connection: GraphicsConnection = .main) throws -> CFDictionary {
+        try CGSSpaceCopyValues(connection.raw, raw).orThrow(Error.invalid).takeRetainedValue()
     }
 
     public func level(for connection: GraphicsConnection = .main) -> Int32 {
         CGSSpaceGetAbsoluteLevel(connection.raw, raw)
     }
 
-    public func setLevel(for connection: GraphicsConnection = .main, level: Int32) {
+    public func level(for connection: GraphicsConnection = .main, assign level: Int32) {
         CGSSpaceSetAbsoluteLevel(connection.raw, raw, level)
     }
 
@@ -106,6 +122,10 @@ public class Space: Hashable {
         try Space.Kind(raw: CGSSpaceGetType(connection.raw, raw)).orThrow(Error.invalid)
     }
 
+    public func kind(for connection: GraphicsConnection = .main, assign value: Kind) {
+        CGSSpaceSetType(connection.raw, raw, value.raw)
+    }
+
     public func name(for connection: GraphicsConnection = .main) throws -> String {
         try CGSSpaceCopyName(connection.raw, raw).orThrow(Error.invalid).takeRetainedValue() as String
     }
@@ -115,6 +135,10 @@ public class Space: Hashable {
             throw Error.invalid
         }
         return owners
+    }
+
+    public func compatID(for connection: GraphicsConnection = .main) -> Int32 {
+        CGSSpaceGetCompatID(connection.raw, raw)
     }
 
     public static func list(
@@ -134,16 +158,25 @@ public class Space: Hashable {
     }
 
     // doesn't work on regular spaces
-    //    public func setName(_ name: String?, for connection: GraphicsConnection = .main) throws {
-    //        try GraphicsConnection.check(CGSSpaceSetName(connection.raw, raw, name as CFString?))
-    //    }
+    // public func setName(_ name: String?, for connection: GraphicsConnection = .main) throws {
+    //     try GraphicsConnection.check(CGSSpaceSetName(connection.raw, raw, name as CFString?))
+    // }
 
+    public func show(for connection: GraphicsConnection = .main) {
+        CGSShowSpaces(connection.raw, [raw] as CFArray)
+    }
     // very easy to misuse
-    //    public func show(for connection: GraphicsConnection = .main) {
-    //        CGSShowSpaces(connection.raw, [raw] as CFArray)
-    //    }
     //
-    //    public func hide(for connection: GraphicsConnection = .main) {
-    //        CGSHideSpaces(connection.raw, [raw] as CFArray)
-    //    }
+    // public func hide(for connection: GraphicsConnection = .main) {
+    //     CGSHideSpaces(connection.raw, [raw] as CFArray)
+    // }
+
+    public func printAttributes() {
+        debugLog("[space \(raw)] Name: \((try? name()) as Any)")
+        debugLog("[space \(raw)] Kind: \((try? kind()) as Any)")
+        debugLog("[space \(raw)] Owners: \((try? owners()) ?? [])")
+        debugLog("[space \(raw)] Level: \(level())")
+        debugLog("[space \(raw)] Compat ID: \(compatID())")
+        debugLog("[space \(raw)] Values: \((try? values()) as Any)")
+    }
 }

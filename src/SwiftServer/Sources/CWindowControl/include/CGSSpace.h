@@ -6,6 +6,7 @@
 //  Copyright © 2015-2016 CodaFi. All rights reserved.
 //  Released under the MIT license.
 //
+// https://github.com/omzcj/movespace/blob/0bad6893ae175a584504af84fedf12c35d24ccf0/movespace/CGSSpace.h
 
 #ifndef CGS_SPACE_INTERNAL_H
 #define CGS_SPACE_INTERNAL_H
@@ -17,33 +18,43 @@ typedef size_t CGSSpaceID;
 
 /// Representations of the possible types of spaces the system can create.
 typedef enum {
-	/// User-created desktop spaces.
-	CGSSpaceTypeUser		= 0,
-	/// Fullscreen spaces.
-	CGSSpaceTypeFullscreen	= 1,
-	/// System spaces e.g. Dashboard.
-	CGSSpaceTypeSystem		= 2,
+  /// User-created desktop spaces.
+  CGSSpaceTypeUser,
+  /// Fullscreen spaces.
+  CGSSpaceTypeFullscreen,
+  /// System spaces e.g. Dashboard.
+  CGSSpaceTypeSystem,
+
+  CGSSpaceTypeUnknown,
+  CGSSpaceTypeTiled,
 } CGSSpaceType;
 
 /// Flags that can be applied to queries for spaces.
 typedef enum {
-	CGSSpaceIncludesCurrent = 1 << 0,
-	CGSSpaceIncludesOthers	= 1 << 1,
-	CGSSpaceIncludesUser	= 1 << 2,
+  CGSSpaceIncludesCurrent  = 1 << 0,    // Dock, Notification Center, etc.
+  CGSSpaceIncludesOthers   = 1 << 1,    // Expose
 
-	CGSSpaceVisible			= 1 << 16,
+  CGSSpaceIncludesUser     = 1 << 2,    // User controlled spaces
+  CGSSpaceIncludesOS       = 1 << 3,    // OS X controlled spaces
 
-	kCGSCurrentSpaceMask = CGSSpaceIncludesUser | CGSSpaceIncludesCurrent,
-	kCGSOtherSpacesMask = CGSSpaceIncludesOthers | CGSSpaceIncludesCurrent,
-	kCGSAllSpacesMask = CGSSpaceIncludesUser | CGSSpaceIncludesOthers | CGSSpaceIncludesCurrent,
-	KCGSAllVisibleSpacesMask = CGSSpaceVisible | kCGSAllSpacesMask,
+  CGSSpaceVisible          = 1 << 16,   // ?
+
+  kCGSCurrentSpacesMask    = CGSSpaceIncludesUser | CGSSpaceIncludesCurrent,
+  kCGSOtherSpacesMask      = CGSSpaceIncludesUser | CGSSpaceIncludesOthers,
+  kCGSAllSpacesMask        = CGSSpaceIncludesUser | CGSSpaceIncludesOthers |  CGSSpaceIncludesCurrent,
+
+  kCGSCurrentOSSpacesMask  = CGSSpaceIncludesOS   | CGSSpaceIncludesCurrent,
+  kCGSOtherOSSpacesMask    = CGSSpaceIncludesOS   | CGSSpaceIncludesOthers,
+  kCGSAllOSSpacesMask      = CGSSpaceIncludesOS   | CGSSpaceIncludesOthers |  CGSSpaceIncludesCurrent,
+
+  kCGSAllVisibleSpacesMask = CGSSpaceVisible      | kCGSAllSpacesMask,  // ?
 } CGSSpaceMask;
 
 typedef enum {
-	/// Each display manages a single contiguous space.
-	kCGSPackagesSpaceMandagementModeNone = 0,
-	/// Each display manages a separate stack of spaces.
-	kCGSPackagesSpaceManagementModePerDesktop = 1,
+  /// Each display manages a single contiguous space.
+  kCGSPackagesSpaceMandagementModeNone = 0,
+  /// Each display manages a separate stack of spaces.
+  kCGSPackagesSpaceManagementModePerDesktop = 1,
 } CGSSpaceManagementMode;
 
 #pragma mark - Space Lifecycle
@@ -55,7 +66,7 @@ typedef enum {
 ///
 ///     "type": CFNumberRef
 ///     "uuid": CFStringRef
-CG_EXTERN CGSSpaceID CGSSpaceCreate(CGSConnectionID cid, void *unknown, CFDictionaryRef options);
+CG_EXTERN CGSSpaceID CGSSpaceCreate(CGSConnectionID cid, void *flag, CFDictionaryRef options);
 
 /// Removes and destroys the space corresponding to the given space ID.
 CG_EXTERN void CGSSpaceDestroy(CGSConnectionID cid, CGSSpaceID sid);
@@ -149,7 +160,20 @@ CG_EXTERN void CGSManagedDisplaySetCurrentSpace(CGSConnectionID cid, CFStringRef
 
 #endif /// CGS_SPACE_INTERNAL_H */
 
-// from https://github.com/DamianSullivan/TaskRail-Mac/blob/23e62e5a91c870fc26a28782026b2697ce73cf63/TaskRail/CGSSpaces.h
+// from
+// https://github.com/DamianSullivan/TaskRail-Mac/blob/23e62e5a91c870fc26a28782026b2697ce73cf63/TaskRail/CGSSpaces.h
+// https://github.com/jonas-mika/dotfiles/blob/477e7e0fb46b499cc03af06fcaf898adf08d97ca/.hammerspoon/hs._asm.undocumented.spaces/CGSSpace.h
 
 CG_EXTERN int CGSSpaceGetAbsoluteLevel(const CGSConnectionID cid, CGSSpaceID space);
 CG_EXTERN void CGSSpaceSetAbsoluteLevel(const CGSConnectionID cid, CGSSpaceID space, int level);
+
+CG_EXTERN int CGSSpaceGetCompatID(const CGSConnectionID cid, CGSSpaceID space);
+CG_EXTERN void CGSSpaceSetCompatID(const CGSConnectionID cid, CGSSpaceID space, int compatID);
+
+CG_EXTERN void CGSSpaceSetType(const CGSConnectionID cid, CGSSpaceID space, CGSSpaceType type);
+
+CG_EXTERN CFStringRef CGSCopyBestManagedDisplayForRect(const CGSConnectionID cid, CGRect rect);
+CG_EXTERN CFStringRef CGSCopyManagedDisplayForSpace(const CGSConnectionID cid, CGSSpaceID space);
+
+CG_EXTERN bool CGSManagedDisplayIsAnimating(const CGSConnectionID cid, CFStringRef display);
+CG_EXTERN void CGSManagedDisplaySetIsAnimating(const CGSConnectionID cid, CFStringRef display, bool isAnimating);

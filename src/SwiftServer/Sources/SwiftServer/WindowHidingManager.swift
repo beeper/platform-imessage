@@ -23,12 +23,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         #if DEBUG
         let existing = try Space.list()
         debugLog("[spaces] \(existing.count) space(s)")
-        existing.forEach {
-            debugLog("[spaces] * Name: \((try? $0.name()) as Any)")
-            debugLog("[spaces] * Kind: \((try? $0.kind()) as Any)")
-            debugLog("[spaces] * Owners: \((try? $0.owners()) ?? [])")
-            debugLog("[spaces] * Level: \($0.level())")
-        }
+        existing.forEach { $0.printAttributes() }
         // existing.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach {
         //     $0.destroy()
         // }
