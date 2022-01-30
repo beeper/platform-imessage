@@ -32,7 +32,6 @@ private final class RunLoopThread: Thread {
 }
 
 let IS_MONTEREY_OR_UP = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12
-let CAN_USE_SPACES_API = !(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12 && ProcessInfo.processInfo.operatingSystemVersion.minorVersion >= 2)
 
 // external API is thread safe
 final class MessagesController {
@@ -174,8 +173,7 @@ final class MessagesController {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
 
-        debugLog("CAN_USE_SPACES_API \(CAN_USE_SPACES_API)")
-        whm = CAN_USE_SPACES_API ? try SpacesWindowHidingManager() : RelaunchWindowHidingManager()
+        whm = try getBestWHM()
 
         let launchMessages = { [whm] (withoutActivation: Bool) throws -> NSRunningApplication in
             if !whm.canReuseApp { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)

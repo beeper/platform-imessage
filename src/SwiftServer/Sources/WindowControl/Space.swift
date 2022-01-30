@@ -86,7 +86,7 @@ public class Space: Hashable {
                 "uuid": try display.uuid() as CFString
             ] as CFDictionary
         )
-        debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone)")
+        debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone) kind=\(kind)")
         self.destroyWhenDone = destroyWhenDone
     }
 

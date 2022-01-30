@@ -1,3 +1,4 @@
+import Foundation
 import AccessibilityControl
 import WindowControl
 
@@ -89,4 +90,10 @@ final class RelaunchWindowHidingManager: WindowHidingManager {
         isValid = false
         debugLog("WindowHidingManager.appDeactivated: invalidated")
     }
+}
+
+let CAN_USE_SPACES_API = !(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12 && ProcessInfo.processInfo.operatingSystemVersion.minorVersion >= 2)
+func getBestWHM() throws -> WindowHidingManager {
+    debugLog("CAN_USE_SPACES_API \(CAN_USE_SPACES_API)")
+    return CAN_USE_SPACES_API ? try SpacesWindowHidingManager() : RelaunchWindowHidingManager()
 }
