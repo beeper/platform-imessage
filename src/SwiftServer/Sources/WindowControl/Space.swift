@@ -101,7 +101,7 @@ public class Space: Hashable {
             "uuid": "Texts-\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
         ]
         if isUnknownKind == false {
-            dockPID = Dock.getPID()
+            dockPID = Dock.pid
             values["dockPID"] = dockPID ?? 0 as CFNumber
         } else {
             dockPID = nil

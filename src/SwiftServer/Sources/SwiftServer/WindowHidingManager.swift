@@ -6,14 +6,14 @@ protocol WindowHidingManager {
     var isValid: Bool { get }
     var canReuseApp: Bool { get }
 
-    func mainWindowFetched(_ mainWindow: Accessibility.Element) throws
+    func mainWindowChanged(_ mainWindow: Accessibility.Element) throws
     func appActivated(window: Accessibility.Element) throws
     func appDeactivated(window: Accessibility.Element) throws
 }
 
 extension Space {
     var isVisibleInMissionControl: Bool {
-        self.dockPID != Dock.getPID()
+        self.dockPID != Dock.pid
     }
 }
 
@@ -29,7 +29,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
             guard let dict = values as? [String: AnyObject] else { return false }
             let createdByUs = (dict["uuid"] as? String)?.hasPrefix("Texts") == true
             let isSpaceKindUser = (dict["type"] as? UInt32) == Space.Kind.user.raw.rawValue
-            let isSameDock = (dict["dockPID"] as? pid_t) == Dock.getPID() // has to be the same dock instance or the space will be visible
+            let isSameDock = (dict["dockPID"] as? pid_t) == Dock.pid // has to be the same dock instance or the space will be visible
             if createdByUs, isSpaceKindUser, !isSameDock {
                 debugLog("space \($0.raw) was created by us and dock has been relaunched (it may be visible now)")
                 // hide/destroy apparently has no effect atm
@@ -51,10 +51,20 @@ final class SpacesWindowHidingManager: WindowHidingManager {
             return _hiddenSpace
         }
     }
+    private var dockObserver: Dock.Observer?
 
     init() throws {
         debugLog("CAN_USE_UNKNOWN_SPACE \(CAN_USE_UNKNOWN_SPACE)")
         _hiddenSpace = try CAN_USE_UNKNOWN_SPACE ? Space(newSpaceOfKind: .unknown) : Self.createOrGetInvisibleUserSpace()
+        if !CAN_USE_UNKNOWN_SPACE {
+            dockObserver = Dock.Observer { [self] in
+                // hiddenSpace is now visible so create another hidden space and move window
+                if let mw = mainWindow {
+                    lastActiveDisplay = try? Self.moveWindow(mw, to: self.hiddenSpace)
+                }
+            }
+        }
+
         #if DEBUG
         // the main space has an empty string as uuid/name and 1 as compat id
         // "mission-control", "dock", "NotificationCenter", "SpacesBarWindowController", "SensorIndicators", "ControlCenter", "com.apple.loginUI", "AccessibilityVisualsSpace"
@@ -86,8 +96,11 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         #endif
     }
 
-    func mainWindowFetched(_ mainWindow: Accessibility.Element) throws {
-        lastActiveDisplay = try Self.moveWindow(mainWindow, to: hiddenSpace)
+    weak var mainWindow: Accessibility.Element?
+
+    func mainWindowChanged(_ window: Accessibility.Element) throws {
+        mainWindow = window
+        lastActiveDisplay = try Self.moveWindow(window, to: hiddenSpace)
     }
 
     func appActivated(window: Accessibility.Element) throws {
@@ -110,7 +123,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
 //     var isValid = true
 //     var invalidate = false
 
-//     func mainWindowFetched(_ mainWindow: Accessibility.Element) throws {}
+//     func mainWindowChanged(_ mainWindow: Accessibility.Element) throws {}
 
 //     func appActivated(window: Accessibility.Element) throws {
 //         debugLog("WindowHidingManager.appActivated: invalidating")

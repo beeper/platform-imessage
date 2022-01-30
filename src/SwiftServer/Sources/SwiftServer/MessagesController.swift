@@ -310,7 +310,7 @@ final class MessagesController {
                 }
             }
             try? Self.resizeWindowToMaxHeight(mainWindow)
-            try? whm.mainWindowFetched(mainWindow)
+            try? whm.mainWindowChanged(mainWindow)
             cachedMainWindow = mainWindow
             return mainWindow
         }
