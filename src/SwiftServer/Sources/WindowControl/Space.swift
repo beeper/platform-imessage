@@ -50,11 +50,13 @@ public class Space: Hashable {
         public static let includesCurrent = Self(CGSSpaceIncludesCurrent)
         public static let includesOthers = Self(CGSSpaceIncludesOthers)
         public static let includesUser = Self(CGSSpaceIncludesUser)
+        public static let includesOS = Self(CGSSpaceIncludesOS)
         public static let onlyVisible = Self(CGSSpaceVisible)
 
         public static let currentSpaces: ListOptions = [.includesCurrent, .includesUser]
         public static let otherSpaces: ListOptions = [.includesCurrent, .includesOthers]
         public static let allSpaces: ListOptions = [.includesCurrent, .includesOthers, .includesUser]
+        public static let allOSSpaces: ListOptions = [.includesCurrent, .includesOS, .includesOthers, .includesUser]
         public static let allVisibleSpaces: ListOptions = [.allSpaces, .onlyVisible]
     }
 
@@ -65,9 +67,15 @@ public class Space: Hashable {
     public let raw: CGSSpaceID
     private let destroyWhenDone: Bool
 
+    // these two are used for self created spaces
+    let isUnknownKind: Bool? // used to determine if to use CGSAddWindowsToSpaces/CGSRemoveWindowsFromSpaces or CGSMoveWindowsToManagedSpace
+    public let dockPID: pid_t? // used for determining if the user space is visible
+
     public init?(raw: CGSSpaceID) {
         guard raw != 0 else { return nil }
         self.raw = raw
+        self.isUnknownKind = nil
+        self.dockPID = nil
         self.destroyWhenDone = false
     }
 
@@ -84,16 +92,25 @@ public class Space: Hashable {
         display: Display = .main,
         connection: GraphicsConnection = .main
     ) throws {
+        isUnknownKind = kind == .unknown
+        var values: [String: Any] = [
+            // "wsid": 1234 as CFNumber, // Compat ID
+            // "ManagedSpaceID": 1234 as CFNumber, // will be ignored, spaces of unknown kind don't have this key
+            // "id64": 1234 as CFNumber, // will be overridden
+            "type": kind.raw.rawValue as CFNumber,
+            "uuid": "Texts-\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
+        ]
+        if isUnknownKind == false {
+            dockPID = Dock.getPID()
+            values["dockPID"] = dockPID ?? 0 as CFNumber
+        } else {
+            dockPID = nil
+        }
         raw = CGSSpaceCreate(
-            // honestly not yet sure why this has to be 1
-            connection.raw, UnsafeMutableRawPointer(bitPattern: 1),
-            [
-                // "wsid": 1234 as CFNumber, // Compat ID
-                // "ManagedSpaceID": 1234 as CFNumber, // will be ignored
-                // "id64": 1234 as CFNumber, // will be overridden
-                "type": kind.raw.rawValue as CFNumber,
-                "uuid": UUID().uuidString as CFString,
-            ] as CFDictionary
+            connection.raw,
+            // kind will be set to .unknown only when second arg is 1
+            UnsafeMutableRawPointer(bitPattern: kind == .unknown ? 1 : 0),
+            values as CFDictionary
         )
         self.destroyWhenDone = destroyWhenDone
         #if DEBUG
@@ -105,11 +122,16 @@ public class Space: Hashable {
     public func values(for connection: GraphicsConnection = .main) throws -> CFDictionary {
         try CGSSpaceCopyValues(connection.raw, raw).orThrow(Error.invalid).takeRetainedValue()
     }
+    public func setValues(for connection: GraphicsConnection = .main, _ values: [String: Any]) throws {
+        try GraphicsConnection.check(CGSSpaceSetValues(connection.raw, raw, values as CFDictionary))
+    }
+    public func removeKeys(for connection: GraphicsConnection = .main, _ keys: [String]) throws {
+        try GraphicsConnection.check(CGSSpaceRemoveValuesForKeys(connection.raw, raw, keys as CFArray))
+    }
 
     public func level(for connection: GraphicsConnection = .main) -> Int32 {
         CGSSpaceGetAbsoluteLevel(connection.raw, raw)
     }
-
     public func level(for connection: GraphicsConnection = .main, assign level: Int32) {
         CGSSpaceSetAbsoluteLevel(connection.raw, raw, level)
     }
@@ -121,7 +143,6 @@ public class Space: Hashable {
     public func kind(for connection: GraphicsConnection = .main) throws -> Kind {
         try Space.Kind(raw: CGSSpaceGetType(connection.raw, raw)).orThrow(Error.invalid)
     }
-
     public func kind(for connection: GraphicsConnection = .main, assign value: Kind) {
         CGSSpaceSetType(connection.raw, raw, value.raw)
     }
@@ -142,7 +163,7 @@ public class Space: Hashable {
     }
 
     public static func list(
-        _ options: ListOptions = .allSpaces,
+        _ options: ListOptions,
         for connection: GraphicsConnection = .main
     ) throws -> [Space] {
         guard let ids = CGSCopySpaces(connection.raw, options.raw)?.takeRetainedValue() as? [CGSSpaceID]
@@ -162,14 +183,13 @@ public class Space: Hashable {
     //     try GraphicsConnection.check(CGSSpaceSetName(connection.raw, raw, name as CFString?))
     // }
 
+    // NOTE(kabir): very easy to misuse show/hide
     public func show(for connection: GraphicsConnection = .main) {
         CGSShowSpaces(connection.raw, [raw] as CFArray)
     }
-    // very easy to misuse
-    //
-    // public func hide(for connection: GraphicsConnection = .main) {
-    //     CGSHideSpaces(connection.raw, [raw] as CFArray)
-    // }
+    public func hide(for connection: GraphicsConnection = .main) {
+        CGSHideSpaces(connection.raw, [raw] as CFArray)
+    }
 
     public func printAttributes() {
         debugLog("[space \(raw)] Name: \((try? name()) as Any)")

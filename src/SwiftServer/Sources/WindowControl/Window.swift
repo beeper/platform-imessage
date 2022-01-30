@@ -157,18 +157,36 @@ public struct Window: Hashable {
     }
 
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {
-        debugLog("Move window from \(spaces.map(\.raw)) to \(second.raw)")
-        guard spaces.count != 1 || spaces[0] != second else {
-            debugLog("Move window skipped")
-            return
-        } // no-op
-        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
-        CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
+        debugLog("CGSAddWindowsToSpaces/CGSRemoveWindowsFromSpaces")
+        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)              // no op on macOS 12.2
+        CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)    // no op on macOS 12.2
+        // SLSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)           // no op on 12.2 [alias]
+        // SLSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray) // no op on 12.2 [alias]
+
+        // let tx = SLSTransactionCreate(connection.raw)
+        // debugLog("created SLS transaction \(tx)")
+        // SLSTransactionAddWindowToSpace(SLSMainConnectionID(), raw, second.raw)                     // SIGSEGV
+        // SLSTransactionRemoveWindowFromSpaces(connection.raw, raw, spaces.map(\.raw) as CFArray)    // SIGSEGV
+        // SLSTransactionRemoveWindowFromSpace(connection.raw, raw, spaces.first?.raw ?? 0)           // SIGSEGV
+        // SLSTransactionCommit(connection.raw, tx!)                                                  // SIGSEGV
     }
 
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
         let curr = try currentSpaces(.allSpaces, for: connection)
-        try move(from: curr, to: space, for: connection)
+        debugLog("Move window from \(curr.map(\.raw)) to \(space.raw)")
+        guard curr.count != 1 || curr.first != space else {
+            debugLog("Move window skipped")
+            return
+        } // no-op
+        if space.isUnknownKind == true {
+            try move(from: curr, to: space)
+        } else {
+            // CGSMoveWindowsToManagedSpace doesn't work with kind=unknown spaces, regardless of macOS 12.2
+            // likely because unknown spaces aren't "managed"
+            debugLog("CGSMoveWindowsToManagedSpace")
+            CGSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw)
+            // SLSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw) // alias
+        }
     }
 
     public func describe() throws -> Description {

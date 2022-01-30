@@ -128,7 +128,7 @@ CG_EXTERN CFArrayRef CGSCopySpacesForWindows(CGSConnectionID cid, CGSSpaceMask m
 
 
 /// Connection-local data in a given space.
-CG_EXTERN CFDictionaryRef CGSSpaceCopyValues(CGSConnectionID cid, CGSSpaceID space);
+CG_EXTERN CFDictionaryRef CGSSpaceCopyValues(CGSConnectionID cid, CGSSpaceID sid);
 CG_EXTERN CGError CGSSpaceSetValues(CGSConnectionID cid, CGSSpaceID sid, CFDictionaryRef values);
 CG_EXTERN CGError CGSSpaceRemoveValuesForKeys(CGSConnectionID cid, CGSSpaceID sid, CFArrayRef values);
 
@@ -149,6 +149,8 @@ CG_EXTERN void CGSAddWindowsToSpaces(CGSConnectionID cid, CFArrayRef windows, CF
 
 /// Given an array of window numbers and an array of space IDs, removes each window from each space.
 CG_EXTERN void CGSRemoveWindowsFromSpaces(CGSConnectionID cid, CFArrayRef windows, CFArrayRef spaces);
+
+CG_EXTERN void CGSMoveWindowsToManagedSpace(CGSConnectionID cid, CFArrayRef windows, CGSSpaceID space);
 
 CG_EXTERN CFStringRef kCGSPackagesMainDisplayIdentifier;
 
