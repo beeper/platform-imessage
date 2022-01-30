@@ -1,7 +1,8 @@
 // linter doesn't know that this file is compile-time-only
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build, Config } from 'node-swift'
-import { promises as fsp } from 'fs'
+import { debounce } from 'lodash'
+import fs, { promises as fsp } from 'fs'
 import path from 'path'
 import { shellExec } from '../util'
 
@@ -16,6 +17,7 @@ const dropboxIgnoreDir = (dirPath: string) =>
 
 const ROOT_DIR_PATH = path.join(__dirname, '../..')
 const BUILD_DIR_PATH = path.join(ROOT_DIR_PATH, 'build')
+const PACKAGE_DIR_PATH = path.join(ROOT_DIR_PATH, 'src/SwiftServer')
 
 async function main() {
   const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
@@ -30,7 +32,7 @@ async function main() {
       // we isolate the build directory for arch and config because of this random error on subsequent builds if it's just isolated by config
       // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/SwiftServer.node']
       buildPath: path.join(BUILD_DIR_PATH, `${config}-${arch}`),
-      packagePath: path.join(ROOT_DIR_PATH, 'src/SwiftServer'),
+      packagePath: PACKAGE_DIR_PATH,
       macVersion: '10.15',
       swiftFlags: '',
     }
@@ -70,4 +72,9 @@ async function main() {
   await dropboxIgnoreDir(BUILD_DIR_PATH)
 }
 
-main()
+main().catch(console.error)
+
+if (process.argv.includes('--watch')) {
+  console.log('Watching for changes...')
+  fs.watch(PACKAGE_DIR_PATH, { recursive: true }, debounce(() => main().catch(console.error), 10))
+}
