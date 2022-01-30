@@ -27,6 +27,10 @@ let package = Package(
             name: "CAccessibilityControl"
         ),
         .target(
+            name: "Kqueue",
+            exclude: ["readme.md"]
+        ),
+        .target(
             name: "AccessibilityControl",
             dependencies: ["CAccessibilityControl", "WindowControl"]
         ),
@@ -35,6 +39,7 @@ let package = Package(
             dependencies: [
                 "AccessibilityControl",
                 "WindowControl",
+                "Kqueue",
                 .product(name: "NodeAPI", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon")
             ]
