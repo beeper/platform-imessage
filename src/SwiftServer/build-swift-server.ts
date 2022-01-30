@@ -2,7 +2,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build, Config } from 'node-swift'
 import { promises as fsp } from 'fs'
-import { resolve } from 'path'
+import path from 'path'
 import { shellExec } from '../util'
 
 async function isRosetta(): Promise<boolean> {
@@ -14,33 +14,36 @@ const codesign = (filePath: string) => shellExec('codesign', '-fs', '-', filePat
 const dropboxIgnoreDir = (dirPath: string) =>
   shellExec('xattr', '-w', 'com.dropbox.ignored', '1', dirPath)
 
-async function main() {
-  const buildOptions: Config = {
-    packagePath: 'src/SwiftServer',
-    macVersion: '10.15',
-    swiftFlags: '',
-  }
+const ROOT_DIR_PATH = path.join(__dirname, '../..')
+const BUILD_DIR_PATH = path.join(ROOT_DIR_PATH, 'build')
 
+async function main() {
   const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
 
-  if (process.argv.includes('--no-spaces')) {
-    buildOptions.swiftFlags += '-DNO_SPACES'
-  }
-
-  if (config === 'release') {
-    await clean()
-    await dropboxIgnoreDir('build')
-  }
+  if (config === 'release' || process.argv.includes('--clean')) await clean()
+  await dropboxIgnoreDir(BUILD_DIR_PATH)
 
   async function buildTriple(triple: string, arch: string) {
     console.log(`Building ${triple}...`)
+
+    const buildOptions: Config = {
+      // we isolate the build directory for arch and config because of this random error on subsequent builds if it's just isolated by config
+      // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/SwiftServer.node']
+      buildPath: path.join(BUILD_DIR_PATH, `${config}-${arch}`),
+      packagePath: path.join(ROOT_DIR_PATH, 'src/SwiftServer'),
+      macVersion: '10.15',
+      swiftFlags: '',
+    }
+    if (process.argv.includes('--no-spaces')) {
+      buildOptions.swiftFlags += '-DNO_SPACES'
+    }
 
     const binaryPath = await build(config, {
       ...buildOptions,
       triple,
     })
 
-    const outdir = `binaries/${process.platform}-${arch}`
+    const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${arch}`)
     fsp.mkdir(outdir, { recursive: true })
     const dest = `${outdir}/swift-server.node`
     if (config === 'release') {
@@ -50,7 +53,7 @@ async function main() {
     }
 
     const libNodeAPIDest = `${outdir}/libNodeAPI.dylib`
-    await fsp.copyFile(resolve(binaryPath, '../libNodeAPI.dylib'), libNodeAPIDest)
+    await fsp.copyFile(path.join(binaryPath, '../libNodeAPI.dylib'), libNodeAPIDest)
 
     await Promise.all([
       codesign(dest),
@@ -59,13 +62,12 @@ async function main() {
   }
 
   const onRosetta = await isRosetta()
-  if (config === 'release' || onRosetta || process.arch === 'x64') {
-    await buildTriple('x86_64-apple-macosx', 'x64')
+  for (const [arch, triple] of Object.entries({ arm64: 'arm64-apple-macosx', x64: 'x86_64-apple-macosx' })) {
+    if (config === 'release' || onRosetta || process.arch === arch || process.argv.includes('--all-archs')) {
+      await buildTriple(triple, arch)
+    }
   }
-  if (config === 'release' || onRosetta || process.arch === 'arm64') {
-    await buildTriple('arm64-apple-macosx', 'arm64')
-  }
-  await dropboxIgnoreDir('build')
+  await dropboxIgnoreDir(BUILD_DIR_PATH)
 }
 
 main()
