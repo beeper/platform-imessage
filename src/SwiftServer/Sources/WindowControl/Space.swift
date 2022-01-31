@@ -69,7 +69,7 @@ public class Space: Hashable {
 
     // these two are used for self created spaces
     let isUnknownKind: Bool? // used to determine if to use CGSAddWindowsToSpaces/CGSRemoveWindowsFromSpaces or CGSMoveWindowsToManagedSpace
-    public let dockPID: pid_t? // used for determining if the user space is visible
+    public var dockPID: pid_t? // used for determining if the user space is visible
 
     public init?(raw: CGSSpaceID) {
         guard raw != 0 else { return nil }
@@ -86,6 +86,8 @@ public class Space: Hashable {
         hasher.combine(raw)
     }
 
+    public static let prefix = "Texts-"
+
     public init(
         newSpaceOfKind kind: Kind,
         destroyWhenDone: Bool = true,
@@ -98,13 +100,11 @@ public class Space: Hashable {
             // "ManagedSpaceID": 1234 as CFNumber, // will be ignored, spaces of unknown kind don't have this key
             // "id64": 1234 as CFNumber, // will be overridden
             "type": kind.raw.rawValue as CFNumber,
-            "uuid": "Texts-\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
+            "uuid": "\(Self.prefix)-\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
         ]
         if isUnknownKind == false {
             dockPID = Dock.pid
             values["dockPID"] = dockPID ?? 0 as CFNumber
-        } else {
-            dockPID = nil
         }
         raw = CGSSpaceCreate(
             connection.raw,

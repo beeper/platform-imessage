@@ -24,22 +24,29 @@ final class SpacesWindowHidingManager: WindowHidingManager {
 
     static func createOrGetInvisibleUserSpace() throws -> Space {
         let allSpaces = try Space.list(.allSpaces)
+        let kind = Space.Kind.user
         let existing = allSpaces.filter {
             guard let values = try? $0.values() else { return false }
             guard let dict = values as? [String: AnyObject] else { return false }
-            let createdByUs = (dict["uuid"] as? String)?.hasPrefix("Texts") == true
-            let isSpaceKindUser = (dict["type"] as? UInt32) == Space.Kind.user.raw.rawValue
-            let isSameDock = (dict["dockPID"] as? pid_t) == Dock.pid // has to be the same dock instance or the space will be visible
-            if createdByUs, isSpaceKindUser, !isSameDock {
-                debugLog("space \($0.raw) was created by us and dock has been relaunched (it may be visible now)")
-                // hide/destroy apparently has no effect atm
-                // $0.hide()
-                // $0.destroy()
+            let createdByUs = (dict["uuid"] as? String)?.hasPrefix(Space.prefix) == true
+            let isSpaceKindUser = (dict["type"] as? UInt32) == kind.raw.rawValue
+            let dockPID = Dock.pid
+            let isSameDock = (dict["dockPID"] as? pid_t) == dockPID // has to be the same dock instance or the space will be visible
+            if createdByUs, isSpaceKindUser {
+                if isSameDock {
+                    $0.dockPID = dockPID
+                    return true
+                } else {
+                    debugLog("space \($0.raw) was created by us and dock has been relaunched (it may be visible now)")
+                    // hide/destroy apparently has no effect atm
+                    // $0.hide()
+                    // $0.destroy()
+                }
             }
-            return createdByUs && isSpaceKindUser && isSameDock
+            return false
         }.first
         if let existing = existing { debugLog("reusing existing space \(existing.raw)") }
-        return try existing ?? Space(newSpaceOfKind: .user)
+        return try existing ?? Space(newSpaceOfKind: kind)
     }
 
     private var lastActiveDisplay: Display?
@@ -60,7 +67,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
             dockObserver = Dock.Observer { [self] in
                 // hiddenSpace is now visible so create another hidden space and move window
                 if let mw = mainWindow {
-                    lastActiveDisplay = try? Self.moveWindow(mw, to: self.hiddenSpace)
+                    try? self.move(window: mw, to: self.hiddenSpace, isHidden: true)
                 }
             }
         }
@@ -77,12 +84,10 @@ final class SpacesWindowHidingManager: WindowHidingManager {
     }
 
     // returns last active display
-    private static func moveWindow(_ window: Accessibility.Element, to space: Space) throws -> Display {
+    private static func moveWindow(_ windowCG: Window, to space: Space) throws -> Display {
         #if NO_SPACES
         return .main
         #else
-        let windowCG = try window.window()
-
         // FIXME: this doesn't seem to work consistently with multiple displays
         let lastActiveDisplay: Display
         if let lastActiveSpace = try? windowCG.currentSpaces(.allVisibleSpaces).first,
@@ -96,25 +101,40 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         #endif
     }
 
+    private func move(window: Accessibility.Element, to space: Space, isHidden: Bool) throws {
+        if (try? window.windowIsFullScreen()) == true {
+            debugLog("WindowHidingManager.move: window is full screen, not moving")
+        } else {
+            // this would be an alternative way to hide the window but it changes the active space and doesn't allow us to close/open at will
+            // if isHidden { try window.windowIsFullScreen(assign: true) }
+            let windowCG = try window.window()
+            if isHidden {
+                lastActiveDisplay = try Self.moveWindow(windowCG, to: space)
+            } else {
+                try windowCG.moveToSpace(space)
+            }
+        }
+    }
+
     weak var mainWindow: Accessibility.Element?
 
     func mainWindowChanged(_ window: Accessibility.Element) throws {
         mainWindow = window
-        lastActiveDisplay = try Self.moveWindow(window, to: hiddenSpace)
+        try self.move(window: window, to: hiddenSpace, isHidden: true)
     }
 
     func appActivated(window: Accessibility.Element) throws {
+        debugLog("WindowHidingManager.appActivated: moving window")
         guard let currentSpace = try? lastActiveDisplay?.currentSpace() else {
-            debugLog("WindowHidingManager.appActivated: space not found")
+            debugLog("WindowHidingManager.appActivated: current space not found")
             return
         }
-        debugLog("WindowHidingManager.appActivated: moving window")
-        try window.window().moveToSpace(currentSpace)
+        try self.move(window: window, to: currentSpace, isHidden: false)
     }
 
     func appDeactivated(window: Accessibility.Element) throws {
         debugLog("WindowHidingManager.appDeactivated: moving window")
-        lastActiveDisplay = try Self.moveWindow(window, to: hiddenSpace)
+        try self.move(window: window, to: hiddenSpace, isHidden: true)
     }
 }
 
