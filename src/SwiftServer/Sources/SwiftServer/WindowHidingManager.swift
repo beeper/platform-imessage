@@ -17,10 +17,10 @@ extension Space {
     }
 }
 
-let CAN_USE_UNKNOWN_SPACE = !(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12 && ProcessInfo.processInfo.operatingSystemVersion.minorVersion >= 2)
 final class SpacesWindowHidingManager: WindowHidingManager {
     let canReuseApp = true
     var isValid = true
+    static let canUseUnknownSpace = !(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12 && ProcessInfo.processInfo.operatingSystemVersion.minorVersion >= 2)
 
     static func createOrGetInvisibleUserSpace() throws -> Space {
         let allSpaces = try Space.list(.allSpaces)
@@ -46,7 +46,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
     private var _hiddenSpace: Space
     private var hiddenSpace: Space {
         get throws {
-            if CAN_USE_UNKNOWN_SPACE || !_hiddenSpace.isVisibleInMissionControl { return _hiddenSpace }
+            if Self.canUseUnknownSpace || !_hiddenSpace.isVisibleInMissionControl { return _hiddenSpace }
             _hiddenSpace = try Self.createOrGetInvisibleUserSpace()
             return _hiddenSpace
         }
@@ -54,9 +54,9 @@ final class SpacesWindowHidingManager: WindowHidingManager {
     private var dockObserver: Dock.Observer?
 
     init() throws {
-        debugLog("CAN_USE_UNKNOWN_SPACE \(CAN_USE_UNKNOWN_SPACE)")
-        _hiddenSpace = try CAN_USE_UNKNOWN_SPACE ? Space(newSpaceOfKind: .unknown) : Self.createOrGetInvisibleUserSpace()
-        if !CAN_USE_UNKNOWN_SPACE {
+        debugLog("canUseUnknownSpace \(Self.canUseUnknownSpace)")
+        _hiddenSpace = try Self.canUseUnknownSpace ? Space(newSpaceOfKind: .unknown) : Self.createOrGetInvisibleUserSpace()
+        if !Self.canUseUnknownSpace {
             dockObserver = Dock.Observer { [self] in
                 // hiddenSpace is now visible so create another hidden space and move window
                 if let mw = mainWindow {

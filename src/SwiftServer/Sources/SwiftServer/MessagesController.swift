@@ -31,7 +31,7 @@ private final class RunLoopThread: Thread {
     }
 }
 
-let IS_MONTEREY_OR_UP = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12
+let isMontereyOrUp = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12
 
 // external API is thread safe
 final class MessagesController {
@@ -94,7 +94,7 @@ final class MessagesController {
     }
 
     private static let messagesBundleID = "com.apple.MobileSMS"
-    private static let focusSettingsUIBundle = IS_MONTEREY_OR_UP ? Bundle(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") : nil
+    private static let focusSettingsUIBundle = isMontereyOrUp ? Bundle(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") : nil
     private static let hasNotificationsSilencedSuffix = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "") }
     private static let notifyAnywayString = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_NOTIFY_ANYWAY", value: nil, table: nil) }
 
@@ -912,7 +912,7 @@ final class MessagesController {
             cellsToCheck = [elt]
         default:
             // todo review if 2 : 1 is enough
-            let lastN = IS_MONTEREY_OR_UP ? 3 : 2
+            let lastN = isMontereyOrUp ? 3 : 2
             guard let elts = try? transcripts.children(range: (count - lastN)..<count), elts.count == lastN else {
                 return [.unknown]
             }
@@ -921,7 +921,7 @@ final class MessagesController {
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let dndFlag: ActivityStatus? = {
-            guard IS_MONTEREY_OR_UP else { return nil }
+            guard isMontereyOrUp else { return nil }
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children.value(at: 0) else { continue }
                 if (try? child.role()) == AXRole.button,
