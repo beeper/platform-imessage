@@ -1,7 +1,5 @@
 import AppKit
 
-let DOCK_BUNDLE_ID = "com.apple.dock"
-
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
     init(_ message: String) {
@@ -10,13 +8,15 @@ struct ErrorMessage: Error, CustomStringConvertible {
     var description: String { message }
 }
 
-public class Dock {
+public enum Dock {
+    static let bundleID = "com.apple.dock"
+
     public static var pid: pid_t? {
         self.getApp()?.processIdentifier
     }
 
     public static func getApp() -> NSRunningApplication? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: DOCK_BUNDLE_ID).first
+        NSRunningApplication.runningApplications(withBundleIdentifier: Dock.bundleID).first
     }
 
     public class Observer {
@@ -40,7 +40,7 @@ public class Dock {
             try retry(withTimeout: 5, interval: 0.1) {
                 guard Dock.getApp() != nil, let pid = Dock.pid else { throw ErrorMessage("Dock not running") }
                 debugLog("observing dock exit with pid=\(pid)")
-                try Kqueue.observeProcessExit(pid: UInt(pid), self.onDockTerminate)
+                try Process.monitorExit(pid: pid, self.onDockTerminate)
             }
         }
 
