@@ -157,7 +157,7 @@ public struct Window: Hashable {
     }
 
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {
-        debugLog("CGSAddWindowsToSpaces/CGSRemoveWindowsFromSpaces")
+        // debugLog("CGSAddWindowsToSpaces/CGSRemoveWindowsFromSpaces")
         CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)              // no op on macOS 12.2
         CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)    // no op on macOS 12.2
         // SLSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)           // no op on 12.2 [alias]
@@ -183,7 +183,7 @@ public struct Window: Hashable {
         } else {
             // CGSMoveWindowsToManagedSpace doesn't work with kind=unknown spaces, regardless of macOS 12.2
             // likely because unknown spaces aren't "managed"
-            debugLog("CGSMoveWindowsToManagedSpace")
+            // debugLog("CGSMoveWindowsToManagedSpace")
             CGSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw)
             // SLSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw) // alias
         }

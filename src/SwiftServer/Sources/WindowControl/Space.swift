@@ -96,11 +96,11 @@ public class Space: Hashable {
     ) throws {
         isUnknownKind = kind == .unknown
         var values: [String: Any] = [
-            // "wsid": 1234 as CFNumber, // Compat ID
+            // "wsid": 1234 as CFNumber, // Compat ID, can be used with SLSMoveWorkspaceWindowList(conn, {windowID}, 1, wsid)
             // "ManagedSpaceID": 1234 as CFNumber, // will be ignored, spaces of unknown kind don't have this key
             // "id64": 1234 as CFNumber, // will be overridden
             "type": kind.raw.rawValue as CFNumber,
-            "uuid": "\(Self.prefix)-\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
+            "uuid": "\(Self.prefix)\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
         ]
         if isUnknownKind == false {
             dockPID = Dock.pid
@@ -166,6 +166,7 @@ public class Space: Hashable {
         _ options: ListOptions,
         for connection: GraphicsConnection = .main
     ) throws -> [Space] {
+        // or read ~/Library/Preferences/com.apple.spaces.plist which is more descriptive
         guard let ids = CGSCopySpaces(connection.raw, options.raw)?.takeRetainedValue() as? [CGSSpaceID]
         else { throw Error.listFailed }
         return try ids.map { try Space(raw: $0).orThrow(Error.listFailed) }
