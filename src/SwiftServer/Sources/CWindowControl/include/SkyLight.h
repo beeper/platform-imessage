@@ -27,8 +27,6 @@ void SLSRemoveWindowsFromSpaces(SLSConnectionID cid, CFArrayRef window_list, CFA
 // Move the given windows (window IDs) to the given space.
 void SLSMoveWindowsToManagedSpace(SLSConnectionID cid, CFArrayRef window_list, SLSSpaceID sid);
 
-// SLSTransactionAddWindowToSpaceAndRemoveFromSpaces
-
 // Get the space ID for the currently active space for the given screen.
 uint64 SLSManagedDisplayGetCurrentSpace(SLSConnectionID cid, CFStringRef uuid);
 
@@ -52,10 +50,13 @@ int SLSSpaceGetType(SLSConnectionID cid, uint64 sid);
 
 // SLSTransactionCreate returns Optional(<SLSTransaction [0x600002300ac0] cid: 493239, data: 0x109664000, size: 0, capacity: 16384, valid>)
 SLSTransaction* SLSTransactionCreate(SLSConnectionID cid);
-int SLSTransactionCommit(SLSConnectionID cid, SLSTransaction* txID);
+int SLSTransactionCommit(SLSTransaction* txID, int unknown);
 
-// these cause a SIGSEGV, hopper shows the same bytecode for all three functions
-void SLSTransactionAddWindowToSpace(SLSConnectionID cid, CGWindowID window, SLSSpaceID space);
-void SLSTransactionRemoveWindowFromSpace(SLSConnectionID cid, CGWindowID window, SLSSpaceID space);
-void SLSTransactionRemoveWindowFromSpaces(SLSConnectionID cid, CGWindowID window, CFArrayRef spaces);
+int SLSTransactionAddWindowToSpace(SLSTransaction* txID, CGWindowID window, SLSSpaceID space);
+int SLSTransactionRemoveWindowFromSpace(SLSTransaction* txID, CGWindowID window, SLSSpaceID space);
+int SLSTransactionRemoveWindowFromSpaces(SLSTransaction* txID, CGWindowID window, CFArrayRef spaces);
+int SLSTransactionMoveWindowsToManagedSpace(SLSTransaction* txID, CFArrayRef windows, SLSSpaceID space);
+int SLSTransactionAddWindowToSpaceAndRemoveFromSpaces(SLSTransaction* txID, CGWindowID window_id, SLSSpaceID add_space_id, CFArrayRef remove_space_ids);
+
+// void SLSSpaceAddWindowsAndRemoveFromSpaces(SLSConnectionID cid, CFArrayRef window_list, CFArrayRef add_space_list, CFArrayRef remove_space_list);
 #endif

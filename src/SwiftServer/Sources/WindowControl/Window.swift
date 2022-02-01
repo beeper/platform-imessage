@@ -1,5 +1,6 @@
 import Foundation
 import CWindowControl
+// import SkyLight
 
 public struct Window: Hashable {
     public enum Error: Swift.Error {
@@ -165,15 +166,17 @@ public struct Window: Hashable {
 
         // let tx = SLSTransactionCreate(connection.raw)
         // debugLog("created SLS transaction \(tx)")
-        // SLSTransactionAddWindowToSpace(SLSMainConnectionID(), raw, second.raw)                     // SIGSEGV
-        // SLSTransactionRemoveWindowFromSpaces(connection.raw, raw, spaces.map(\.raw) as CFArray)    // SIGSEGV
-        // SLSTransactionRemoveWindowFromSpace(connection.raw, raw, spaces.first?.raw ?? 0)           // SIGSEGV
-        // SLSTransactionCommit(connection.raw, tx!)                                                  // SIGSEGV
+        // SLSTransactionAddWindowToSpace(tx, raw, second.raw)
+        // SLSTransactionRemoveWindowFromSpaces(tx, raw, spaces.map(\.raw) as CFArray)
+        // SLSTransactionRemoveWindowFromSpace(tx, raw, spaces.first?.raw ?? 0)
+        // SLSTransactionAddWindowToSpaceAndRemoveFromSpaces(tx, raw, second.raw, spaces.map(\.raw) as CFArray)
+        // SLSTransactionMoveWindowsToManagedSpace(tx, [raw] as CFArray, second.raw)
+        // SLSTransactionCommit(tx, tx!)
     }
 
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
         let curr = try currentSpaces(.allSpaces, for: connection)
-        debugLog("Move window from \(curr.map(\.raw)) to \(space.raw)")
+        debugLog("Move window \(raw) from \(curr.map(\.raw)) to \(space.raw)")
         guard curr.count != 1 || curr.first != space else {
             debugLog("Move window skipped")
             return
