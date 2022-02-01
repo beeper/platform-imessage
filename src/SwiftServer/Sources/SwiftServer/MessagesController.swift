@@ -1052,6 +1052,7 @@ final class MessagesController {
         timer?.invalidate()
         loopThread?.cancel()
         app.terminate()
+        whm.dispose()
     }
 
     deinit {

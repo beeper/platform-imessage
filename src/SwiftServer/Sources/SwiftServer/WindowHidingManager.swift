@@ -9,6 +9,7 @@ protocol WindowHidingManager {
     func mainWindowChanged(_ mainWindow: Accessibility.Element) throws
     func appActivated(window: Accessibility.Element) throws
     func appDeactivated(window: Accessibility.Element) throws
+    func dispose()
 }
 
 extension Space {
@@ -135,6 +136,11 @@ final class SpacesWindowHidingManager: WindowHidingManager {
     func appDeactivated(window: Accessibility.Element) throws {
         debugLog("WindowHidingManager.appDeactivated: moving window")
         try self.move(window: window, to: hiddenSpace, isHidden: true)
+    }
+
+    func dispose() {
+        debugLog("destroying hiddenSpace")
+        try? hiddenSpace.destroy()
     }
 }
 
