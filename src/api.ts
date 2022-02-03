@@ -77,12 +77,13 @@ export default class AppleiMessage implements PlatformAPI {
     this.ensureDB()
     const logins = await this.dbAPI.getAccountLogins()
     const accounts = logins.map(mapAccountLogin).filter(Boolean)
-    this.currentUserID = accounts[0] || 'default'
+    const [firstAccount] = accounts || []
+    this.currentUserID = firstAccount || 'default'
     return {
       id: this.currentUserID,
       displayText: accounts.join(', '),
       // phone #s will likely not be present in account_login
-      ...(accounts[0].includes('@') ? { email: accounts[0] } : { phoneNumber: accounts[0] }),
+      ...(firstAccount && (firstAccount.includes('@') ? { email: firstAccount } : { phoneNumber: firstAccount })),
     }
   }
 
