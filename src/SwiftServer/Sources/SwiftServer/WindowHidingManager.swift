@@ -73,7 +73,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
             }
         }
 
-        #if DEBUG
+        #if DEBUG && !NO_SPACES
         // the main space has an empty string as uuid/name and 1 as compat id
         // "mission-control", "dock", "NotificationCenter", "SpacesBarWindowController", "SensorIndicators", "ControlCenter", "com.apple.loginUI", "AccessibilityVisualsSpace"
         // are some unknown spaces not present in .allSpaces

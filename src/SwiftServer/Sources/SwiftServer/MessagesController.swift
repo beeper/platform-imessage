@@ -156,7 +156,8 @@ final class MessagesController {
 
     @discardableResult
     private static func openDeepLink(_ url: URL, withoutActivation: Bool) throws -> NSRunningApplication {
-        try NSWorkspace.shared.open(
+        debugLog("Opening deep link: \(url) withoutActivation=\(withoutActivation)")
+        return try NSWorkspace.shared.open(
             url,
             options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
             configuration: [:]
@@ -305,9 +306,21 @@ final class MessagesController {
     }
 
     private var cachedMainWindow: Accessibility.Element?
+    private var cachedConversationsList: Accessibility.Element?
+    private var cachedTranscriptsView: Accessibility.Element?
+    private var cachedReplyTranscriptsView: Accessibility.Element?
+
+    private func clearCachedElements() {
+        // these are manually cleared because we aren't checking for validity on each property access
+        // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
+        cachedConversationsList = nil
+        cachedTranscriptsView = nil
+        cachedReplyTranscriptsView = nil
+    }
+
     private var mainWindow: Accessibility.Element {
         get throws {
-            if let cached = cachedMainWindow, cached.isValid, cached.isFrameValid {
+            if let cached = cachedMainWindow, cached.isFrameValid {
                 return cached
             }
             let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
@@ -330,15 +343,15 @@ final class MessagesController {
             }
             try? Self.resizeWindowToMaxHeight(mainWindow)
             try? whm.mainWindowChanged(mainWindow)
+            clearCachedElements()
             cachedMainWindow = mainWindow
             return mainWindow
         }
     }
 
-    private var cachedConversationsList: Accessibility.Element?
     private var conversationsList: Accessibility.Element {
         get throws {
-            if let cached = cachedConversationsList, cached.isValid {
+            if let cached = cachedConversationsList {
                 return cached
             }
             let cl = try retry(withTimeout: 1, interval: 0.2) {
@@ -414,10 +427,9 @@ final class MessagesController {
         .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscripts=\(replyTranscripts)"))
     }
 
-    private var cachedTranscriptsView: Accessibility.Element?
     private var transcriptsView: Accessibility.Element {
         get throws {
-            if let cached = cachedTranscriptsView, cached.isValid, cached.isInViewport {
+            if let cached = cachedTranscriptsView, cached.isInViewport {
                 return cached
             }
             let tcv = try getTranscriptsView(replyTranscripts: false)
@@ -425,10 +437,10 @@ final class MessagesController {
             return tcv
         }
     }
-    private var cachedReplyTranscriptsView: Accessibility.Element?
+
     private var replyTranscriptsView: Accessibility.Element {
         get throws {
-            if let cached = cachedReplyTranscriptsView, cached.isValid, cached.isInViewport {
+            if let cached = cachedReplyTranscriptsView, cached.isInViewport {
                 return cached
             }
             let tcv = try getTranscriptsView(replyTranscripts: true)
@@ -468,9 +480,9 @@ final class MessagesController {
     @discardableResult
     private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
         try? retry(withTimeout: timeout, interval: 0.01) { () throws -> Accessibility.Element in
-            guard let selected = selectedThreadCell() else { throw ErrorMessage("") }
+            guard let selected = selectedThreadCell() else { throw ErrorMessage("selected != selectedThreadCell") }
             let isActuallyCompose = Self.isThreadCellCompose(selected)
-            guard isCompose == isActuallyCompose else { throw ErrorMessage("") }
+            guard isCompose == isActuallyCompose else { throw ErrorMessage("isCompose != isActuallyCompose") }
             return selected
         }
     }
