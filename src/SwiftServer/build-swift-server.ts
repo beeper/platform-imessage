@@ -1,7 +1,6 @@
 // linter doesn't know that this file is compile-time-only
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { clean, build, Config } from 'node-swift'
-import { debounce } from 'lodash'
 import fs, { promises as fsp } from 'fs'
 import path from 'path'
 import { shellExec } from '../util'
@@ -77,5 +76,15 @@ main().catch(console.error)
 
 if (process.argv.includes('--watch')) {
   console.log('Watching for changes...')
-  fs.watch(PACKAGE_DIR_PATH, { recursive: true }, debounce(() => main().catch(console.error), 10))
+  let isBuilding = false
+  const listener = (event: fs.WatchEventType, fileName: string) => {
+    console.log('[fs watch event]', event, fileName, new Date().toLocaleString(), isBuilding ? '[existing build in progress]' : '')
+    if (!isBuilding) {
+      isBuilding = true
+      main()
+        .catch(console.error)
+        .finally(() => { isBuilding = false })
+    }
+  }
+  fs.watch(PACKAGE_DIR_PATH, { recursive: true }, listener)
 }
