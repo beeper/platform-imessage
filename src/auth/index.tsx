@@ -31,18 +31,18 @@ const openAXPrefs = () => openSecuritySystemPrefs('Privacy_Accessibility')
 
 const openAutomationPrefs = () => openSecuritySystemPrefs('Privacy_Automation')
 
-type AnyFunction = (...args: any[]) => any
+type AnyFunction = (...args: any[])=> any
 type Async<F extends AnyFunction> = ReturnType<F> extends Promise<any>
   ? F
-  : (...args: Parameters<F>) => Promise<ReturnType<F>>
+  : (...args: Parameters<F>)=> Promise<ReturnType<F>>
 
 type Promisified<T> = { [K in keyof T]: T[K] extends AnyFunction ? Async<T[K]> : never }
 
 type NMP = Promisified<typeof import('node-mac-permissions')>
 
 type Props = {
-  canAccessMessagesDir: () => Promise<boolean>
-  callProxiedFn: (fnName: string) => any
+  canAccessMessagesDir: ()=> Promise<boolean>
+  callProxiedFn: (fnName: string)=> any
   login: Function
   nmp: NMP
   api: PlatformAPI
@@ -75,7 +75,7 @@ const useNMP = (nmp: NMP, authType: AuthType) => {
   return { refreshAuthorization, authorized, pending }
 }
 
-const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: (fnName: string) => any }> = ({ nmp, callProxiedFn }) => {
+const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: (fnName: string)=> any }> = ({ nmp, callProxiedFn }) => {
   const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
   if (!authorized || pending) return null
@@ -117,7 +117,7 @@ type ChecklistItemProps = {
   title: string
   info: string
   completed: boolean
-  action: () => void | Promise<void>
+  action: ()=> void | Promise<void>
   more: React.ReactNode
   showMore?: boolean
 }
@@ -154,18 +154,20 @@ const NotificationsSection: React.FC<Props> = ({ login, canAccessMessagesDir, is
   return (
     <details open={open} className="notifications-section">
       <summary><h4>Double Notifications</h4></summary>
-      <div>Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get duplicate notifications.</div>
+      <div className="imessage-auth-well">
+        <div>Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get duplicate notifications.</div>
 
-      <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
+        <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
 
-      {authorized ? (
-        <div className="buttons">
-          <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
-          <button type="button" className="primary" onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
-        </div>
-      ) : (
-        <h4>You must authorize access to messages data to {isReauthing ? 'reauthenticate' : 'add'} iMessage</h4>
-      )}
+        {authorized ? (
+          <div className="buttons">
+            <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
+            <button type="button" className="primary" onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
+          </div>
+        ) : (
+          <h4>You must authorize access to messages data to {isReauthing ? 'reauthenticate' : 'add'} iMessage</h4>
+        )}
+      </div>
     </details>
   )
 }
@@ -178,10 +180,12 @@ const getKnownIssues = () => {
 const KnownIssuesSection: React.FC<{ open: boolean }> = ({ open }) => (
   <details open={open} className="known-issues-section">
     <summary><h4>Known Issues</h4></summary>
-    <ul>
-      <li>1. Messages.app will be open in the background but Texts can keep it hidden.</li>
-      {getKnownIssues().map((issue, i) => <li key={issue}>{i + 2}. {issue}</li>)}
-    </ul>
+    <div className="imessage-auth-well">
+      <ul>
+        <li>1. Messages.app will be open in the background but Texts can keep it hidden.</li>
+        {getKnownIssues().map((issue, i) => <li key={issue}>{i + 2}. {issue}</li>)}
+      </ul>
+    </div>
   </details>
 )
 
@@ -294,16 +298,18 @@ const ChecklistPage: React.FC<Props> = props => {
       <RevokeFDASection {...{ nmp, callProxiedFn }} />
       <details open={!allAuthorized} className="permissions-section">
         <summary><h4>Permissions{allAuthorized ? ' (Authorized)' : ''}</h4></summary>
-        {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
-        {nextUncompletedItem && (
-          <div>
-            {axAuthorized
-              ? <button className="primary" onClick={authorizeAll}>Authorize All</button>
-              : <button className="primary" onClick={() => nextUncompletedItem.action()}>Authorize {nextUncompletedItem.title}</button>}
-          </div>
-        )}
-        {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
-        {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
+        <div className="imessage-auth-well">
+          {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
+          {nextUncompletedItem && (
+            <div>
+              {axAuthorized
+                ? <button className="primary" onClick={authorizeAll}>Authorize All</button>
+                : <button className="primary" onClick={() => nextUncompletedItem.action()}>Authorize {nextUncompletedItem.title}</button>}
+            </div>
+          )}
+          {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
+          {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
+        </div>
       </details>
       <KnownIssuesSection open={!allAuthorized} />
       <NotificationsSection open={allAuthorized} {...props} />

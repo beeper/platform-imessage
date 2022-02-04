@@ -13,6 +13,31 @@
     font-weight: 500;
   }
 
+  summary {
+    background: rgba(var(--color-fg-rgb), 0.1);
+    border-radius: 8px;
+    padding: 8px 14px;
+  }
+
+  details[open] summary {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  details h4 {
+    margin-top: 0;
+    margin-bottom: 0;
+    display: inline-block;
+    font-weight: 500;
+  }
+
+  .imessage-auth-well {
+    padding: 16px;
+    background: var(--prefs-well);
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+  }
+
   .known-issues-section ul {
     margin: 0;
     opacity: 0.8;
