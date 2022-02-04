@@ -228,18 +228,19 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
       this.dndState.get(),
     ])
-    if (handleRows.length > 0) {
-      return mapThread(
-        chatRow,
-        {
-          handleRowsMap: { [chatRow.guid]: handleRows },
-          currentUserID: this.currentUserID,
-          threadReadStore: this.threadReadStore,
-          mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
-          dndState,
-        },
-      )
-    }
+    if (handleRows.length < 1) return
+    const thread = mapThread(
+      chatRow,
+      {
+        handleRowsMap: { [chatRow.guid]: handleRows },
+        currentUserID: this.currentUserID,
+        threadReadStore: this.threadReadStore,
+        mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
+        dndState,
+      },
+    )
+    if (!thread.timestamp) thread.timestamp = new Date()
+    return thread
   }
 
   createThread = async (userIDs: string[], title?: string, message?: string) => {

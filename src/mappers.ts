@@ -570,7 +570,7 @@ export function mapThread(
       hasMore: false,
       items: participants,
     },
-    timestamp: fromAppleTime(chat.msgDate) || new Date(),
+    timestamp: fromAppleTime(chat.msgDate),
   }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread
