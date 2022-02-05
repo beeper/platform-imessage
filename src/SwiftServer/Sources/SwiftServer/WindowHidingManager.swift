@@ -21,7 +21,7 @@ extension Space {
 final class SpacesWindowHidingManager: WindowHidingManager {
     let canReuseApp = true
     var isValid = true
-    static let canUseUnknownSpace = !(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12 && ProcessInfo.processInfo.operatingSystemVersion.minorVersion >= 2)
+    static let canUseUnknownSpace = !ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 2, patchVersion: 0))
 
     static func createOrGetInvisibleUserSpace() throws -> Space {
         let allSpaces = try Space.list(.allSpaces)

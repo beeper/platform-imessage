@@ -41,7 +41,7 @@ private final class RunLoopThread: Thread {
     }
 }
 
-let isMontereyOrUp = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 12
+let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 
 // external API is thread safe
 final class MessagesController {
