@@ -31,18 +31,18 @@ const openAXPrefs = () => openSecuritySystemPrefs('Privacy_Accessibility')
 
 const openAutomationPrefs = () => openSecuritySystemPrefs('Privacy_Automation')
 
-type AnyFunction = (...args: any[])=> any
+type AnyFunction = (...args: any[]) => any
 type Async<F extends AnyFunction> = ReturnType<F> extends Promise<any>
   ? F
-  : (...args: Parameters<F>)=> Promise<ReturnType<F>>
+  : (...args: Parameters<F>) => Promise<ReturnType<F>>
 
 type Promisified<T> = { [K in keyof T]: T[K] extends AnyFunction ? Async<T[K]> : never }
 
 type NMP = Promisified<typeof import('node-mac-permissions')>
 
 type Props = {
-  canAccessMessagesDir: ()=> Promise<boolean>
-  callProxiedFn: (fnName: string)=> any
+  canAccessMessagesDir: () => Promise<boolean>
+  callProxiedFn: (fnName: string) => any
   login: Function
   nmp: NMP
   api: PlatformAPI
@@ -75,7 +75,7 @@ const useNMP = (nmp: NMP, authType: AuthType) => {
   return { refreshAuthorization, authorized, pending }
 }
 
-const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: (fnName: string)=> any }> = ({ nmp, callProxiedFn }) => {
+const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: (fnName: string) => any }> = ({ nmp, callProxiedFn }) => {
   const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
   if (!authorized || pending) return null
@@ -117,7 +117,7 @@ type ChecklistItemProps = {
   title: string
   info: string
   completed: boolean
-  action: ()=> void | Promise<void>
+  action: () => void | Promise<void>
   more: React.ReactNode
   showMore?: boolean
 }
