@@ -175,7 +175,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     // text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
     isSender: msgRow.is_from_me === 1,
     isErrored: msgRow.error !== 0,
-    isDelivered: true, // msgRow.is_delivered === 1,
+    isDelivered: msgRow.is_delivered === 1,
     seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
     extra: {},
   }
