@@ -88,9 +88,12 @@ const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: (fnName: string) => 
   return (
     <details open className="revoke-fda-section">
       <summary><h4>Revoke Full Disk Access</h4></summary>
-      <p>Texts has Full Disk Access. It's no longer required and you're recommended to revoke it.</p>
-      <div>
-        <button className="primary" onClick={onClick}>Revoke Full Disk Access</button>
+      <div className="imessage-auth-well">
+        <div>Texts has Full Disk Access. It's no longer required and you're recommended to revoke it.</div>
+        <br />
+        <div>
+          <button className="primary" onClick={onClick}>Revoke Full Disk Access</button>
+        </div>
       </div>
     </details>
   )
