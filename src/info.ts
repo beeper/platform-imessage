@@ -45,6 +45,13 @@ const info: PlatformInfo = {
   reactions: IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
+    maxSize: {
+      /*
+        100 MB as of macOS Monterey 12.2
+        Big media files are automatically compressed
+      */
+      files: 100 * 1024 * 1024,
+    },
   },
   prefs: IS_BIG_SUR_OR_UP ? {
     hide_messages_app: {
