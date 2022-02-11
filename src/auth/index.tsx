@@ -9,11 +9,9 @@ import type { PlatformAPI } from '@textshq/platform-sdk'
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
 import useAsync from './use-async'
 
-declare const __IS_BROWSER__: boolean
-
-if (typeof globalThis.__IS_BROWSER__ === 'undefined') globalThis.__IS_BROWSER__ = false
-
-const staticPrefix = __IS_BROWSER__ ? './platform-imessage' : url.pathToFileURL(BINARIES_DIR_PATH).href
+const staticPrefix = window.location.protocol === 'file:'
+  ? url.pathToFileURL(BINARIES_DIR_PATH).href
+  : './platform-imessage'
 const notificationsMessagesImg = path.join(staticPrefix, 'notifications-messages.png')
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
