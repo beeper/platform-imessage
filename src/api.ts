@@ -353,6 +353,8 @@ export default class AppleiMessage implements PlatformAPI {
       if (quotedMessageID) {
         // todo specify id/role
         await controller.sendReply(threadID, quotedMessageID, 0, '', '', IS_MONTEREY_OR_UP, text || '', filePath || '')
+      } else if (filePath) {
+        await controller.sendFile(filePath, threadID)
       } else {
         await controller.sendTextMessage(text, threadID)
       }

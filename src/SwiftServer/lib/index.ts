@@ -45,9 +45,11 @@ export declare class MessagesController {
 
   sendTextMessage: (text: string, threadID: string) => Promise<void>
 
-  setReaction: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, reaction: string, on: boolean) => Promise<void>
+  sendFile: (filePath: string, threadID: string) => Promise<void>
 
   sendReply: (threadID: string, messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, text: string, filePath?: string) => Promise<void>
+
+  setReaction: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, reaction: string, on: boolean) => Promise<void>
 
   dispose: () => void
 }

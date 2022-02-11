@@ -851,7 +851,7 @@ final class MessagesController {
 
             let messageField = try messagesField()
             try focusMessageField(messageField)
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.01)
             try self.sendReturnPress()
             try waitUntilMessageFieldEmpty(messageField)
         }
@@ -860,6 +860,23 @@ final class MessagesController {
     func sendTextMessage(_ text: String, threadID: String) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: text).url()
         try sendTextMessage(url: url)
+    }
+
+    func sendFile(_ filePath: String, threadID: String) throws {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        try Self.openDeepLink(url, withoutActivation: true)
+        Thread.sleep(forTimeInterval: 0.01)
+
+        try self.pasteFileInBodyField(filePath: filePath)
+
+        let messageField = try messagesField()
+        try focusMessageField(messageField)
+        Thread.sleep(forTimeInterval: 0.01)
+        try self.sendReturnPress()
+        try waitUntilMessageFieldEmpty(messageField)
     }
 
     func createThread(addresses: [String], message: String) throws {
@@ -884,6 +901,7 @@ final class MessagesController {
     }
 
     func assignFileToBodyField(filePath: String) throws {
+        let url = URL(fileURLWithPath: filePath)
         let data = try Data(contentsOf: url)
         print(data, url)
 
@@ -892,6 +910,7 @@ final class MessagesController {
         let mas = NSMutableAttributedString()
         mas.append(myAttrString)
 
+        let messageField = try messagesField()
         try messageField.value(assign: url) // no op
         try messageField.value(assign: mas) // illegalArgument
         try messageField.value(assign: data) // cannotComplete
@@ -903,7 +922,9 @@ final class MessagesController {
 
     func pasteFileInBodyField(filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
-        try messagesField().value(assign: "")
+        let messageField = try messagesField()
+        try messageField.value(assign: "")
+        try focusMessageField(messageField)
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
@@ -921,7 +942,7 @@ final class MessagesController {
                 try messageField.value(assign: text)
             }
             try focusMessageField(messageField)
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.01)
             try self.sendReturnPress()
             try waitUntilMessageFieldEmpty(messageField)
         }

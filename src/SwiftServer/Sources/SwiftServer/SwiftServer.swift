@@ -13,6 +13,7 @@ final class MessagesControllerWrapper: NodeClass {
         "watchThreadActivity": NodeMethod(watchThreadActivity),
         "setReaction": NodeMethod(setReaction),
         "sendTextMessage": NodeMethod(sendTextMessage),
+        "sendFile": NodeMethod(sendFile),
         "sendReply": NodeMethod(sendReply),
         "notifyAnyway": NodeMethod(notifyAnyway),
         "dispose": NodeMethod(dispose)
@@ -148,10 +149,6 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func sendTextMessage(text: String, threadID: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendTextMessage(text, threadID: threadID) }
-    }
-
     func setReaction(messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
             throw ErrorMessage("Invalid reaction: \(reactionName)")
@@ -159,6 +156,14 @@ final class MessagesControllerWrapper: NodeClass {
         return try performAsync { [self] in
             try controller.setReaction(messageGUID: messageGUID, offset: Int(offset), cellID: cellID == "" ? nil : cellID, cellRole: cellRole == "" ? nil : cellRole, overlay: overlay, reaction: reaction, on: on)
         }
+    }
+
+    func sendTextMessage(text: String, threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendTextMessage(text, threadID: threadID) }
+    }
+
+    func sendFile(filePath: String, threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendFile(filePath, threadID: threadID) }
     }
 
     func sendReply(threadID: String, messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, text: String, filePath: String) throws -> NodeValueConvertible {
