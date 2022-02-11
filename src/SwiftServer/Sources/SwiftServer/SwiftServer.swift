@@ -161,9 +161,18 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func sendReply(messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, text: String) throws -> NodeValueConvertible {
+    func sendReply(threadID: String, messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, text: String, filePath: String) throws -> NodeValueConvertible {
         try performAsync {
-            try self.controller.sendReply(messageGUID: messageGUID, offset: Int(offset), cellID: cellID == "" ? nil : cellID, cellRole: cellRole == "" ? nil : cellRole, overlay: overlay, text: text)
+            try self.controller.sendReply(
+                threadID: threadID,
+                messageGUID: messageGUID,
+                offset: Int(offset),
+                cellID: cellID == "" ? nil : cellID,
+                cellRole: cellRole == "" ? nil : cellRole,
+                overlay: overlay,
+                text: text == "" ? nil : text,
+                filePath: filePath == "" ? nil : filePath
+            )
         }
     }
 

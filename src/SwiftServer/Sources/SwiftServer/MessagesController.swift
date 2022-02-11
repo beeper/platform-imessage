@@ -783,32 +783,35 @@ final class MessagesController {
         }
     }
 
-    private func sendKeyPress(key: CGKeyCode) throws {
+    private func sendKeyPress(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
         for keyDown in [true, false] {
             debugLog("Sending key \(key) \(keyDown ? "down" : "up")")
-            try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
+            let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
                 .orThrow(ErrorMessage("Could not send key \(key)"))
-                .postToPid(app.processIdentifier)
+            if let flags = flags { ev.flags = flags }
+            ev.postToPid(app.processIdentifier)
         }
     }
-
-    private func sendReturnPress() throws {
-        func _sendReturnKey() throws {
-            try sendKeyPress(key: CGKeyCode(kVK_Return))
-        }
-        func sendReturnKey() throws {
-            debugLog("sendReturnKey Thread.isMainThread=\(Thread.isMainThread) queueName=\(__dispatch_queue_get_label(nil))")
-            if Thread.isMainThread {
-                try _sendReturnKey()
-            } else {
-                try DispatchQueue.main.sync { try _sendReturnKey() }
+    private func sendKeyPressOnMainThread(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
+        debugLog("sendKey key=\(key) Thread.isMainThread=\(Thread.isMainThread) queueName=\(__dispatch_queue_get_label(nil))")
+        if Thread.isMainThread {
+            try sendKeyPress(key: key, flags: flags)
+        } else {
+            try DispatchQueue.main.sync {
+                try sendKeyPress(key: key, flags: flags)
             }
         }
-        try sendReturnKey()
+    }
+    private func sendReturnPress() throws {
+        try sendKeyPressOnMainThread(key: CGKeyCode(kVK_Return))
+    }
+    private func sendCommandVPress() throws {
+        try sendKeyPressOnMainThread(key: CGKeyCode(kVK_ANSI_V), flags: .maskCommand)
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
         try retry(withTimeout: 1, interval: 0.25) {
+            // this doesn't ever focus in compose thread for some reason
             try messageField.isFocused(assign: true)
             guard try messageField.isFocused() else {
                 throw ErrorMessage("Could not focus message text field")
@@ -868,23 +871,61 @@ final class MessagesController {
         try sendTextMessage(url: url)
     }
 
-    func sendReply(messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String) throws {
+    #if DEBUG
+    func closeAllWindows() throws {
+        try Self.closeWindow(mainWindow)
+        try appElement.appWindows().forEach(Self.closeWindow)
+    }
+
+    func withAllWindowsClosed(perform: () throws -> Void) throws {
+        try closeAllWindows()
+        try perform()
+        _ = try mainWindow // accessing will open it
+    }
+    #endif
+
+    func pasteFileInBodyField(filePath: String) throws {
+        let fileURL = URL(fileURLWithPath: filePath)
+        try messagesField().value(assign: "")
+        let pasteboard = NSPasteboard.general
+        try pasteboard.withRestoration {
+            pasteboard.setString(fileURL.relativeString, forType: .fileURL)
+            try self.sendCommandVPress()
+        }
+    }
+
+    func sendReply(threadID: String, messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
         func send() throws {
             let messageField = try messagesField()
-            try messageField.value(assign: text)
+            if let text = text {
+                try messageField.value(assign: text)
+            }
             try focusMessageField(messageField)
             Thread.sleep(forTimeInterval: 0.1)
             try self.sendReturnPress()
             try waitUntilMessageFieldEmpty(messageField)
         }
 
+        // this isn't reliable so we use pasteFileInBodyField:
+        // if let filePath = filePath {
+        //     guard let address = threadID.split(separator: ";", maxSplits: 2).last else { throw ErrorMessage("invalid threadID") }
+        //     try withAllWindowsClosed {
+        //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
+        //     }
+        // }
+
         if overlay {
             let url = try MessagesDeepLink.message(guid: messageGUID, overlay: overlay).url()
             try Self.openDeepLink(url, withoutActivation: true)
             Thread.sleep(forTimeInterval: 0.1)
+
+            if let filePath = filePath {
+                try self.pasteFileInBodyField(filePath: filePath)
+            }
+
             try send()
             return
         }

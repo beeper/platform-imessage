@@ -345,14 +345,14 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private axSendWithRetry = async (threadID: string, text: string, quotedMessageID?: string) => {
+  private axSendWithRetry = async (threadID: string, text: string, filePath?: string, quotedMessageID?: string) => {
     const retries = quotedMessageID ? 3 : 1
     await pRetry(async () => {
       // re-fetch the controller on each attempt so that invalidation is respected
       const controller = await this.getMessagesController()
       if (quotedMessageID) {
         // todo specify id/role
-        await controller.sendReply(quotedMessageID, 0, '', '', IS_MONTEREY_OR_UP, text)
+        await controller.sendReply(threadID, quotedMessageID, 0, '', '', IS_MONTEREY_OR_UP, text || '', filePath || '')
       } else {
         await controller.sendTextMessage(text, threadID)
       }
@@ -370,15 +370,15 @@ export default class AppleiMessage implements PlatformAPI {
 
   sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
     if (content.fileBuffer) {
-      return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName)
+      return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, options.quotedMessageID)
     }
     if (content.filePath) {
-      return this.sendFileFromFilePath(threadID, content.filePath)
+      return this.sendFileFromFilePath(threadID, content.filePath, options.quotedMessageID)
     }
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
         this.elideStopTyping = true
-        await this.axSendWithRetry(threadID, content.text, options.quotedMessageID)
+        await this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID)
         return true
       }
 
@@ -386,7 +386,7 @@ export default class AppleiMessage implements PlatformAPI {
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
           this.elideStopTyping = true
-          await this.axSendWithRetry(threadID, content.text, options.quotedMessageID)
+          await this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID)
           return true
         } catch (err) {
           texts.error('could not send rich text iMessage; falling back to plaintext', err)
@@ -426,14 +426,17 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private sendFileFromFilePath = async (threadID: string, filePath: string) =>
-    this.waitForThreadMessageCountIncrease(threadID, () =>
-      this.asAPI.sendFile(threadID, filePath))
+  private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string) =>
+    this.waitForThreadMessageCountIncrease(threadID, () => (
+      // send all with AX to increase reliability
+      IS_BIG_SUR_OR_UP // && quotedMessageID
+        ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
+        : this.asAPI.sendFile(threadID, filePath)))
 
-  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string) => {
+  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string) => {
     const tmpFilePath = path.join(os.tmpdir(), fileName || crypto.randomUUID())
     await fs.writeFile(tmpFilePath, fileBuffer)
-    const result = await this.sendFileFromFilePath(threadID, tmpFilePath)
+    const result = await this.sendFileFromFilePath(threadID, tmpFilePath, quotedMessageID)
     this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
     return result
   }

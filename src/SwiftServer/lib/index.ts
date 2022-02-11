@@ -47,7 +47,7 @@ export declare class MessagesController {
 
   setReaction: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, reaction: string, on: boolean) => Promise<void>
 
-  sendReply: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, text: string) => Promise<void>
+  sendReply: (threadID: string, messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, text: string, filePath?: string) => Promise<void>
 
   dispose: () => void
 }
