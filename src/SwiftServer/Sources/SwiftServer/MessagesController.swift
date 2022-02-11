@@ -882,6 +882,23 @@ final class MessagesController {
         try perform()
         _ = try mainWindow // accessing will open it
     }
+
+    func assignFileToBodyField(filePath: String) throws {
+        let data = try Data(contentsOf: url)
+        print(data, url)
+
+        let myString = "something"
+        let myAttrString = NSAttributedString(string: myString, attributes: [:])
+        let mas = NSMutableAttributedString()
+        mas.append(myAttrString)
+
+        try messageField.value(assign: url) // no op
+        try messageField.value(assign: mas) // illegalArgument
+        try messageField.value(assign: data) // cannotComplete
+
+        try messageField.value(assign: "\u{fffc}") // obj replacement char
+        try messageField.value(assign: url)
+    }
     #endif
 
     func pasteFileInBodyField(filePath: String) throws {
