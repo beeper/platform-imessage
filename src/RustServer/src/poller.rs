@@ -24,6 +24,8 @@ struct PollerInner {
 
     last_date_read: u64,
 
+    last_failed_message_rowid: Option<u64>,
+
     conn: Connection,
 
     database_paths: [(PathBuf, SystemTime); 2],
@@ -59,6 +61,15 @@ ORDER BY
 	date DESC
 "#;
 
+static GET_LAST_FAILED_MESSAGE_QUERY: &str = r#"
+SELECT
+	CAST(value AS INTEGER)
+FROM
+	kvtable
+WHERE
+	KEY = 'lastFailedMessageRowID'
+"#;
+
 static POLL_UNREAD_CHATS_QUERY: &str = r#"
 SELECT
 	cm.chat_id
@@ -71,6 +82,24 @@ WHERE
 	AND m.is_from_me == 0
 GROUP BY
 	cm.chat_id
+"#;
+
+static GET_CHAT_GUID_QUERY: &str = r#"SELECT guid FROM chat WHERE ROWID = ?"#;
+
+static GET_CHAT_GUID_FROM_MESSAGE_ROWID_QUERY: &str = r#"
+SELECT
+	guid
+FROM
+	chat
+WHERE
+	rowid = (
+		SELECT
+			chat_id
+		FROM
+			chat_message_join
+		WHERE
+			message_id = ?
+    )
 "#;
 
 impl Poller {
@@ -121,6 +150,7 @@ impl PollerInner {
         Ok(Self {
             last_row_id: 0,
             last_date_read: 0,
+            last_failed_message_rowid: None,
             conn: Connection::open_with_flags(
                 Self::format_path(&"chat.db")?,
                 OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -139,6 +169,7 @@ impl PollerInner {
         self.last_date_read = last_date_read;
 
         self.init_unread_chat_set()?;
+        self.init_last_failed_message_rowid();
 
         Ok(())
     }
@@ -176,7 +207,8 @@ impl PollerInner {
 
     fn run_subtasks(&mut self) -> ServerResult<()> {
         self.poll_message_updates()?;
-        self.poll_thread_updates()?;
+        self.poll_chat_updates()?;
+        self.poll_last_failed_message();
 
         Ok(())
     }
@@ -185,6 +217,36 @@ impl PollerInner {
         for (_, last_modified) in &mut self.database_paths {
             *last_modified = SystemTime::now();
         }
+    }
+
+    fn send_thread_messages_refresh_event(&mut self, thread_ids: Vec<String>) {
+        if thread_ids.is_empty() { return; }
+
+        let shared = self.shared.clone();
+
+        self.shared.channel.send(move |mut cx| {
+            let cb = shared.callback.0.to_inner(&mut cx);
+            let this = cx.undefined();
+
+            let events = cx.empty_array();
+
+            for (i, thread_id) in thread_ids.iter().enumerate() {
+                let event_obj = cx.empty_object();
+
+                let event_type = cx.string("thread_messages_refresh");
+                let event_id = cx.string(thread_id);
+                event_obj.set(&mut cx, "type", event_type)?;
+                event_obj.set(&mut cx, "threadID", event_id)?;
+
+                events.set(&mut cx, i as u32, event_obj)?;
+            }
+
+            let args = vec![events];
+
+            cb.call(&mut cx, this, args)?;
+
+            Ok(())
+        });
     }
 
     fn poll_message_updates(&mut self) -> ServerResult<()> {
@@ -214,33 +276,7 @@ impl PollerInner {
             .map(|r| r.thread_guid.clone().unwrap())
             .collect();
 
-        if !thread_ids.is_empty() {
-            let shared = self.shared.clone();
-
-            self.shared.channel.send(move |mut cx| {
-                let cb = shared.callback.0.to_inner(&mut cx);
-                let this = cx.undefined();
-
-                let events = cx.empty_array();
-
-                for (i, thread_id) in thread_ids.iter().enumerate() {
-                    let event_obj = cx.empty_object();
-
-                    let event_type = cx.string("thread_messages_refresh");
-                    let event_id = cx.string(thread_id);
-                    event_obj.set(&mut cx, "type", event_type)?;
-                    event_obj.set(&mut cx, "threadID", event_id)?;
-
-                    events.set(&mut cx, i as u32, event_obj)?;
-                }
-
-                let args = vec![events];
-
-                cb.call(&mut cx, this, args)?;
-
-                Ok(())
-            });
-        }
+        self.send_thread_messages_refresh_event(thread_ids);
 
         self.update_cursors(rows);
 
@@ -264,30 +300,42 @@ impl PollerInner {
         Ok(())
     }
 
-    fn get_thread_guid(&self, chat_rowid: &u64) -> Option<String> {
+    fn init_last_failed_message_rowid(&mut self) {
+        self.last_failed_message_rowid = self.get_last_failed_message();
+    }
+
+    fn get_chat_guid_from_chat_rowid(&self, chat_rowid: &u64) -> Option<String> {
         let mut stmt = self
             .conn
-            .prepare_cached("SELECT guid FROM chat WHERE ROWID = ?")
+            .prepare_cached(GET_CHAT_GUID_QUERY)
             .ok()?;
         let mut rows = stmt.query_map([chat_rowid], |row| row.get(0)).ok()?;
-
         rows.next()?.ok()?
     }
 
-    fn poll_thread_updates(&mut self) -> ServerResult<()> {
+    fn get_chat_guid_from_msg_rowid(&self, msg_rowid: &u64) -> Option<String> {
+        let mut stmt = self
+            .conn
+            .prepare_cached(GET_CHAT_GUID_FROM_MESSAGE_ROWID_QUERY)
+            .ok()?;
+        let mut rows = stmt.query_map([msg_rowid], |row| row.get(0)).ok()?;
+        rows.next()?.ok()?
+    }
+
+    fn poll_chat_updates(&mut self) -> ServerResult<()> {
         let unread_chat_ids = self.query_unread_chats()?;
-        let mut thread_ids: Vec<String> = Vec::new();
+        let mut chat_guids: Vec<String> = Vec::new();
 
         for chat_id in &self.unread_chat_set {
             if !unread_chat_ids.contains(chat_id) {
-                if let Some(thread_id) = self.get_thread_guid(chat_id) {
-                    thread_ids.push(thread_id);
+                if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
+                    chat_guids.push(chat_guid);
                 }
             }
         }
         self.unread_chat_set = unread_chat_ids;
 
-        if !thread_ids.is_empty() {
+        if !chat_guids.is_empty() {
             let shared = self.shared.clone();
 
             self.shared.channel.send(move |mut cx| {
@@ -296,7 +344,7 @@ impl PollerInner {
 
                 let events = cx.empty_array();
 
-                for (i, thread_id) in thread_ids.iter().enumerate() {
+                for (i, thread_id) in chat_guids.iter().enumerate() {
                     let event_obj = cx.empty_object();
 
                     let event_type = cx.string("state_sync");
@@ -332,6 +380,24 @@ impl PollerInner {
         }
 
         Ok(())
+    }
+
+    fn poll_last_failed_message(&mut self) {
+        let last_failed_message_rowid = self.get_last_failed_message();
+        if self.last_failed_message_rowid != last_failed_message_rowid {
+            self.last_failed_message_rowid = last_failed_message_rowid;
+            if let Some(rowid) = last_failed_message_rowid {
+                if let Some(chat_guid) = self.get_chat_guid_from_msg_rowid(&rowid) {
+                    self.send_thread_messages_refresh_event(vec![chat_guid]);
+                }
+            }
+        }
+    }
+
+    fn get_last_failed_message(&mut self) -> Option<u64> {
+        let mut stmt = self.conn.prepare_cached(GET_LAST_FAILED_MESSAGE_QUERY).ok()?;
+        let mut rows = stmt.query_map([], |row| row.get(0)).ok()?;
+        rows.next()?.ok()?
     }
 
     fn update_cursors(&mut self, rows: Vec<PollMessageResultRow>) {
