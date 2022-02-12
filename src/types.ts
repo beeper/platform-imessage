@@ -3,24 +3,32 @@ type MessageRow = {
   ROWID: number
   guid: string
   text: string
+  /** kb: 0 for all my messages */
   replace: number
   service_center: string
   handle_id: number
   subject: string
+  /** kb: NULL for all my messages */
   country: string
   attributedBody: Buffer
+  /** kb: 10 for all my messages */
   version: number
+  /** 0 or 1 */
   type: number
+  /** "iMessage" or "SMS" – might have other values in really old databases (from iChat days) */
   service: string
   account: string
   account_guid: string
+  /** number representing error code, 0 is success */
   error: number
   date: number
   date_read: number
   date_delivered: number
   is_delivered: number
+  /** kb: 1 for all my messages */
   is_finished: number
   is_emote: number
+  /** 0 or 1, slightly different from is_sent */
   is_from_me: number
   is_empty: number
   is_delayed: number
@@ -28,16 +36,21 @@ type MessageRow = {
   is_prepared: number
   is_read: number
   is_system_message: number
+  /** 0 or 1, slightly different from is_from_me */
   is_sent: number
   has_dd_results: number
   is_service_message: number
+  /** kb: 0 for all my messages */
   is_forward: number
+  /** 0 or 1 */
   was_downgraded: number
+  /** kb: 0 for all my messages */
   is_archive: number
   cache_has_attachments: number
   cache_roomnames: string
   was_data_detected: number
   was_deduplicated: number
+  /** 0 or 1 */
   is_audio_message: number
   is_played: number
   date_played: number
@@ -67,13 +80,20 @@ type MessageRow = {
   sr_ck_sync_state: number
   sr_ck_record_id: string
   sr_ck_record_change_tag: string
+  /** kb: 0 for all my messages */
   is_corrupt: number
   reply_to_guid: string
   sort_id: number
+  /** kb: 0 for all my messages */
   is_spam: number
   has_unseen_mention: number
   thread_originator_guid: string
   thread_originator_part: string
+  // following were added in monterey:
+  syndication_ranges: string
+  synced_syndication_ranges: string
+  was_delivered_quietly: number
+  did_notify_recipient: number
 }
 
 // taken from chat.db on big sur
@@ -105,6 +125,9 @@ export type ChatRow = {
   sr_cloudkit_record_id: string
   last_addressed_sim_id: string
   is_blackholed: number
+  // following were added in monterey:
+  syndication_date: number
+  syndication_type: number
 }
 
 // db-api.ts -> SQLS
