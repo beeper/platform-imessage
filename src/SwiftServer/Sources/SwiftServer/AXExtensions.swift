@@ -10,6 +10,7 @@ extension Accessibility.Notification {
 // refer to AXAttributeConstants.h
 // https://gist.github.com/p6p/24fbac5d12891fcfffa2b53761f4343e
 // https://developer.apple.com/documentation/applicationservices/axattributeconstants_h/miscellaneous_defines
+// https://github.com/tmandry/AXSwift/blob/main/Sources/Constants.swift
 extension Accessibility.Names {
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
@@ -34,6 +35,8 @@ extension Accessibility.Names {
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
     var subrole: AttributeName<String> { .init(kAXSubroleAttribute) }
     var roleDescription: AttributeName<String> { .init(kAXRoleDescriptionAttribute) }
+
+    var noOfChars: AttributeName<Int> { .init(kAXNumberOfCharactersAttribute) }
 
     var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }

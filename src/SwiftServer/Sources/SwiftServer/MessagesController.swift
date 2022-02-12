@@ -882,9 +882,8 @@ final class MessagesController {
         try Self.openDeepLink(url, withoutActivation: true)
         Thread.sleep(forTimeInterval: 0.01)
 
-        try self.pasteFileInBodyField(filePath: filePath)
-
         let messageField = try messagesField()
+        try self.pasteFileInBodyField(messageField, filePath: filePath)
         try sendMessageInField(messageField)
     }
 
@@ -929,15 +928,18 @@ final class MessagesController {
     }
     #endif
 
-    func pasteFileInBodyField(filePath: String) throws {
+    func pasteFileInBodyField(_ messageField: Accessibility.Element, filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
-        let messageField = try messagesField()
         try assignToMessageField(messageField, text: "")
         try focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
             try self.sendCommandVPress()
+            try retry(withTimeout: 2, interval: 0.1) {
+                // 2 for <OBJ_REPLACEMENT_CHAR> and \n
+                guard (try? messageField.noOfChars()) == 2 else { throw ErrorMessage("file was not pasted") }
+            }
         }
     }
 
@@ -945,8 +947,7 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        func send() throws {
-            let messageField = try messagesField()
+        func send(_ messageField: Accessibility.Element) throws {
             if let text = text {
                 try assignToMessageField(messageField, text: text)
             }
@@ -966,18 +967,20 @@ final class MessagesController {
             try Self.openDeepLink(url, withoutActivation: true)
             Thread.sleep(forTimeInterval: 0.1)
 
+            let messageField = try messagesField()
             if let filePath = filePath {
-                try self.pasteFileInBodyField(filePath: filePath)
+                try self.pasteFileInBodyField(messageField, filePath: filePath)
             }
 
-            try send()
+            try send(messageField)
             return
         }
 
         try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
             let replyAction = try messageAction(targetCell: targetCell, name: "Reply", overlay: overlay)
             try replyAction()
-            try send()
+            let messageField = try messagesField()
+            try send(messageField)
         }
     }
 

@@ -17,7 +17,7 @@ extension NSPasteboard {
     func withRestoration(perform: () throws -> Void) rethrows {
         let backup = self.backup()
         defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
                 self.prepareForNewContents()
                 if let backup = backup { self.writeObjects(backup) }
             }
