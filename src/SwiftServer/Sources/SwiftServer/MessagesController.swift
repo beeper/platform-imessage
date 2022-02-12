@@ -814,16 +814,31 @@ final class MessagesController {
             // this doesn't ever focus in compose thread for some reason
             try messageField.isFocused(assign: true)
             guard try messageField.isFocused() else {
-                throw ErrorMessage("Could not focus message text field")
+                throw ErrorMessage("Could not focus message field")
             }
         }
     }
 
-    private func waitUntilMessageFieldEmpty(_ messageField: Accessibility.Element) throws {
+    private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
+        try retry(withTimeout: 1, interval: 0.25) {
+            try messageField.value(assign: text)
+            guard (try? messageField.value() as? String) != text else {
+                throw ErrorMessage("Could not assign value to message field")
+            }
+        }
+    }
+
+    private func sendMessageInField(_ messageField: Accessibility.Element) throws {
+        try focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
+        try self.sendReturnPress()
         try retry(withTimeout: 1.5, interval: 0.25) {
             if let message = try? messageField.value() as? String, !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
-                throw ErrorMessage("Could not send text message\(hasNewline ? " (extraneous newline)" : "")")
+                throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
+            }
+        } onError: { (attempt, _ ) in
+            if attempt == 5 { // penultimate attempt
+                try? self.sendReturnPress()
             }
         }
     }
@@ -850,10 +865,7 @@ final class MessagesController {
             }
 
             let messageField = try messagesField()
-            try focusMessageField(messageField)
-            Thread.sleep(forTimeInterval: 0.01)
-            try self.sendReturnPress()
-            try waitUntilMessageFieldEmpty(messageField)
+            try sendMessageInField(messageField)
         }
     }
 
@@ -873,10 +885,7 @@ final class MessagesController {
         try self.pasteFileInBodyField(filePath: filePath)
 
         let messageField = try messagesField()
-        try focusMessageField(messageField)
-        Thread.sleep(forTimeInterval: 0.01)
-        try self.sendReturnPress()
-        try waitUntilMessageFieldEmpty(messageField)
+        try sendMessageInField(messageField)
     }
 
     func createThread(addresses: [String], message: String) throws {
@@ -923,8 +932,8 @@ final class MessagesController {
     func pasteFileInBodyField(filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
         let messageField = try messagesField()
-        try messageField.value(assign: "")
-        try focusMessageField(messageField)
+        try assignToMessageField(messageField, text: "")
+        try focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
@@ -939,12 +948,9 @@ final class MessagesController {
         func send() throws {
             let messageField = try messagesField()
             if let text = text {
-                try messageField.value(assign: text)
+                try assignToMessageField(messageField, text: text)
             }
-            try focusMessageField(messageField)
-            Thread.sleep(forTimeInterval: 0.01)
-            try self.sendReturnPress()
-            try waitUntilMessageFieldEmpty(messageField)
+            try sendMessageInField(messageField)
         }
 
         // this isn't reliable so we use pasteFileInBodyField:
