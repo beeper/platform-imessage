@@ -149,27 +149,30 @@ const ChecklistItem = ({
   </article>
 )
 
-const NotificationsSection: React.FC<Props> = ({ login, canAccessMessagesDir, isReauthing, open }) => {
+const NotificationsSection: React.FC<Props> = ({ open }) => (
+  <details open={open} className="notifications-section">
+    <summary><h4>Double Notifications</h4></summary>
+    <div className="imessage-auth-well">
+      <div>Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get duplicate notifications.</div>
+
+      <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
+
+      <div className="buttons">
+        <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
+      </div>
+    </div>
+  </details>
+)
+
+const AddAccountSection: React.FC<Props> = ({ login, canAccessMessagesDir, isReauthing }) => {
   const { value: authorized, pending } = useAsync(canAccessMessagesDir)
   if (pending) return null
   return (
-    <details open={open} className="notifications-section">
-      <summary><h4>Double Notifications</h4></summary>
-      <div className="imessage-auth-well">
-        <div>Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get duplicate notifications.</div>
-
-        <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
-
-        {authorized ? (
-          <div className="buttons">
-            <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
-            <button type="button" className="primary" onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
-          </div>
-        ) : (
-          <h4>You must authorize access to messages data to {isReauthing ? 'reauthenticate' : 'add'} iMessage</h4>
-        )}
+    <div className="imessage-auth-well" style={{ borderRadius: 8 }}>
+      <div className="buttons">
+        <button type="button" className="primary" disabled={!authorized} onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
       </div>
-    </details>
+    </div>
   )
 }
 
@@ -314,6 +317,7 @@ const ChecklistPage: React.FC<Props> = props => {
       </details>
       <KnownIssuesSection open={!allAuthorized} />
       <NotificationsSection open={allAuthorized} {...props} />
+      <AddAccountSection {...props} />
     </div>
   )
 }
