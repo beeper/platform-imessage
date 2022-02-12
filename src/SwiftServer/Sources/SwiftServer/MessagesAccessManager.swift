@@ -50,7 +50,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
         openPanel.directoryURL = messagesDir
         if Accessibility.isTrusted() {
-            // DispatchQueue.main won't work here:
+            // DispatchQueue.main won't work here because runModal is blocking
             DispatchQueue.global(qos: .background).async {
                 try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)
             }

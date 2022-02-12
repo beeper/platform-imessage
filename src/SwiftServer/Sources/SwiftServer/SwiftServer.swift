@@ -278,7 +278,8 @@ final class MessagesControllerWrapper: NodeClass {
             "confirmUNCPrompt": NodeFunction { _ in
                 let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
                 return try NodePromise { deferred in
-                    DispatchQueue.main.async {
+                    // we don't use DispatchQueue.main to prevent freezing the UI
+                    DispatchQueue.global(qos: .background).async {
                         let result = Result<NodeValueConvertible, Error> {
                             try PromptAutomation.confirmUNCPrompt()
                             return NodeUndefined.deferred
