@@ -822,7 +822,7 @@ final class MessagesController {
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
         try retry(withTimeout: 1, interval: 0.25) {
             try messageField.value(assign: text)
-            guard (try? messageField.value() as? String) != text else {
+            guard (try? messageField.value() as? String) == text else {
                 throw ErrorMessage("Could not assign value to message field")
             }
         }
