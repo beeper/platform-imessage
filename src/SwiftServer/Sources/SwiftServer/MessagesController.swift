@@ -930,7 +930,7 @@ final class MessagesController {
 
     func pasteFileInBodyField(_ messageField: Accessibility.Element, filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
-        try assignToMessageField(messageField, text: "")
+        try? messageField.value(assign: "")
         try focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
