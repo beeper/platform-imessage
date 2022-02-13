@@ -199,18 +199,16 @@ impl PollerInner {
         }
 
         if is_modified {
-            self.run_subtasks()?;
+            self.run_subtasks();
         }
 
         Ok(())
     }
 
-    fn run_subtasks(&mut self) -> ServerResult<()> {
-        self.poll_message_updates()?;
-        self.poll_chat_updates()?;
+    fn run_subtasks(&mut self) {
+        self.poll_message_updates().ok();
+        self.poll_chat_updates().ok();
         self.poll_last_failed_message();
-
-        Ok(())
     }
 
     fn reset_timestamp(&mut self) {
@@ -220,7 +218,9 @@ impl PollerInner {
     }
 
     fn send_thread_messages_refresh_event(&mut self, thread_ids: Vec<String>) {
-        if thread_ids.is_empty() { return; }
+        if thread_ids.is_empty() {
+            return;
+        }
 
         let shared = self.shared.clone();
 
@@ -287,11 +287,8 @@ impl PollerInner {
         let mut stmt = self.conn.prepare_cached(POLL_UNREAD_CHATS_QUERY)?;
         let rows = stmt.query_map([], |row| row.get(0))?;
 
-        let mut set = HashSet::new();
-        // (522) SQLITE_IOERR_SHORT_READ may occur here, propagate back.
-        for chat_rowid in rows {
-            set.insert(chat_rowid?);
-        }
+        let set = rows.into_iter().flat_map(|v| v).collect();
+
         Ok(set)
     }
 
@@ -305,10 +302,7 @@ impl PollerInner {
     }
 
     fn get_chat_guid_from_chat_rowid(&self, chat_rowid: &u64) -> Option<String> {
-        let mut stmt = self
-            .conn
-            .prepare_cached(GET_CHAT_GUID_QUERY)
-            .ok()?;
+        let mut stmt = self.conn.prepare_cached(GET_CHAT_GUID_QUERY).ok()?;
         let mut rows = stmt.query_map([chat_rowid], |row| row.get(0)).ok()?;
         rows.next()?.ok()?
     }
@@ -395,7 +389,11 @@ impl PollerInner {
     }
 
     fn get_last_failed_message(&mut self) -> Option<u64> {
-        let mut stmt = self.conn.prepare_cached(GET_LAST_FAILED_MESSAGE_QUERY).ok()?;
+        let mut stmt = self
+            .conn
+            .prepare_cached(GET_LAST_FAILED_MESSAGE_QUERY)
+            .ok()?;
+
         let mut rows = stmt.query_map([], |row| row.get(0)).ok()?;
         rows.next()?.ok()?
     }
