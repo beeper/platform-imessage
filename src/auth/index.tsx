@@ -149,20 +149,49 @@ const ChecklistItem = ({
   </article>
 )
 
-const NotificationsSection: React.FC<Props> = ({ open }) => (
-  <details open={open} className="notifications-section">
-    <summary><h4>Double Notifications</h4></summary>
-    <div className="imessage-auth-well">
-      <div>Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages to not get duplicate notifications.</div>
+const NotificationsSection: React.FC<Props> = ({ open, callProxiedFn, nmp }) => {
+  const { authorized: axAuthorized } = useNMP(nmp, 'accessibility')
+  const [done, setDone] = useState(false)
 
-      <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
+  const canDisableNotifs = IS_BIG_SUR_OR_UP && axAuthorized
+  const text = canDisableNotifs
+    ? "Both Texts and Messages will notify you for new messages. Texts can disable notifications for Messages.app so you don't get duplicate notifications."
+    : 'Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages.app to not get duplicate notifications.'
 
-      <div className="buttons">
-        <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
+  return (
+    <details open={open} className="notifications-section">
+      <summary><h4>Double Notifications</h4></summary>
+      <div className="imessage-auth-well">
+        <div>
+          {text}
+        </div>
+
+        <br />
+
+        {!canDisableNotifs && (
+          <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
+        )}
+
+        <div className="buttons">
+          {canDisableNotifs ? (
+            <button
+              className="primary"
+              onClick={() => {
+                callProxiedFn('disableMessagesNotifications')
+                setDone(true)
+              }}
+              disabled={done}
+            >
+              Disable{done ? 'd' : ''} Messages.app Notifications
+            </button>
+          ) : (
+            <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
+          )}
+        </div>
       </div>
-    </div>
-  </details>
-)
+    </details>
+  )
+}
 
 const AddAccountSection: React.FC<Props> = ({ login, canAccessMessagesDir, isReauthing }) => {
   const { value: authorized, pending } = useAsync(canAccessMessagesDir)

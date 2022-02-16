@@ -30,6 +30,7 @@ extension Accessibility.Names {
     var frame: AttributeName<CGRect> { "AXFrame" }
 
     var title: AttributeName<String> { .init(kAXTitleAttribute) }
+    var titleUIElement: AttributeName<Accessibility.Element> { .init(kAXTitleUIElementAttribute) }
     var localizedDescription: AttributeName<String> { .init(kAXDescriptionAttribute) }
     var identifier: AttributeName<String> { .init(kAXIdentifierAttribute) }
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
@@ -38,7 +39,7 @@ extension Accessibility.Names {
 
     var noOfChars: AttributeName<Int> { .init(kAXNumberOfCharactersAttribute) }
 
-    var isSelected: AttributeName<Bool> { .init(kAXSelectedAttribute) }
+    var isSelected: MutableAttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }
     var isEnabled: AttributeName<Bool> { .init(kAXEnabledAttribute) }
 

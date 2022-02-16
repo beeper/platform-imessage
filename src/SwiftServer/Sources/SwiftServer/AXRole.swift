@@ -52,3 +52,34 @@ enum AXRole {
     static let matte = kAXMatteRole
     static let dockItem = kAXDockItemRole
 }
+
+enum AXSubrole {
+    static let `switch` = kAXSwitchSubrole
+    static let closeButton = kAXCloseButtonSubrole
+    static let minimizeButton = kAXMinimizeButtonSubrole
+    static let zoomButton = kAXZoomButtonSubrole
+    static let toolbarButton = kAXToolbarButtonSubrole
+    static let secureTextField = kAXSecureTextFieldSubrole
+    static let tableRow = kAXTableRowSubrole
+    static let outlineRow = kAXOutlineRowSubrole
+    static let unknown = kAXUnknownSubrole
+    static let standardWindow = kAXStandardWindowSubrole
+    static let dialog = kAXDialogSubrole
+    static let systemDialog = kAXSystemDialogSubrole
+    static let floatingWindow = kAXFloatingWindowSubrole
+    static let systemFloatingWindow = kAXSystemFloatingWindowSubrole
+    static let incrementArrow = kAXIncrementArrowSubrole
+    static let decrementArrow = kAXDecrementArrowSubrole
+    static let incrementPage = kAXIncrementPageSubrole
+    static let decrementPage = kAXDecrementPageSubrole
+    static let sortButton = kAXSortButtonSubrole
+    static let searchField = kAXSearchFieldSubrole
+    static let applicationDockItem = kAXApplicationDockItemSubrole
+    static let documentDockItem = kAXDocumentDockItemSubrole
+    static let folderDockItem = kAXFolderDockItemSubrole
+    static let minimizedWindowDockItem = kAXMinimizedWindowDockItemSubrole
+    static let urlDockItem = kAXURLDockItemSubrole
+    static let dockExtraDockItem = kAXDockExtraDockItemSubrole
+    static let trashDockItem = kAXTrashDockItemSubrole
+    static let processSwitcherList = kAXProcessSwitcherListSubrole
+}

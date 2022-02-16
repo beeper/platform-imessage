@@ -1,6 +1,14 @@
 import AccessibilityControl
 import AppKit
 
+// func sendMouseClick(at point: CGPoint, to pid: pid_t) throws {
+//     for mouseType in [CGEventType.leftMouseDown, CGEventType.leftMouseUp] {
+//         let ev = try CGEvent(mouseEventSource: nil, mouseType: mouseType, mouseCursorPosition: point, mouseButton: .left)
+//             .orThrow(ErrorMessage("Could not create mouse event"))
+//         ev.postToPid(pid)
+//     }
+// }
+
 enum PromptAutomation {
     static func confirmUNCPrompt() throws {
         debugLog("confirmUNCPrompt")
@@ -25,7 +33,7 @@ enum PromptAutomation {
                 })) == true
             }) else { throw ErrorMessage("window not found") }
 
-            guard let lastButton = try window.children().last(where: { el in (try? el.role()) == AXRole.button }) else {
+            guard let lastButton = try window.children().last(where: { (try? $0.role()) == AXRole.button }) else {
                 throw ErrorMessage("no buttons found")
             }
 
@@ -50,6 +58,40 @@ enum PromptAutomation {
             guard let grantButton = try window.children().last(where: isGrantButton) else { throw ErrorMessage("grant button not found") }
             try grantButton.press()
             debugLog("grant button pressed")
+        }
+    }
+
+    static func disableNotificationsForApp(named appName: String) throws -> Bool {
+        let app = try NSWorkspace.shared.open(
+            URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!,
+            options: [.withoutActivation], // .andHide shows a gray background and doesn't render the UI
+            configuration: [:]
+        )
+        try app.waitForLaunch()
+        return try retry(withTimeout: 2, interval: 0.1) {
+            let appElement = Accessibility.Element(pid: app.processIdentifier)
+            let windows = try appElement.appWindows()
+            let window = try windows.first.orThrow(ErrorMessage("window not found"))
+            let tabView = try window.children().first(where: { (try? $0.role()) == AXRole.tabGroup }).orThrow(ErrorMessage("tabView not found"))
+            let scrollView = try tabView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
+            let paneView = try tabView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("paneView not found"))
+            let tableView = try scrollView.children().first(where: { (try? $0.role()) == AXRole.table }).orThrow(ErrorMessage("tableView not found"))
+            let targetRow = try tableView.children().first(where: {
+                (try? $0.role()) == AXRole.row &&
+                    (try? $0.children.value(at: 0).titleUIElement().value() as? String) == appName
+            }).orThrow(ErrorMessage("targetRow not found"))
+
+            try targetRow.isSelected(assign: true)
+            guard try targetRow.isSelected() == true else { throw ErrorMessage("targetRow not selected") }
+
+            let notificationsSwitch = try paneView.children().first(where: { (try? $0.subrole()) == AXSubrole.switch }).orThrow(ErrorMessage("switch not found"))
+            if (try? notificationsSwitch.value() as? String) == "on" { // unknown if on is localized
+                // .decrement() will turn it off as well but only the switch UI changes, the value remains unchanged
+                try notificationsSwitch.press()
+            }
+
+            try? window.windowCloseButton().press()
+            return true
         }
     }
 }

@@ -212,21 +212,8 @@ final class MessagesController {
             app = try launchMessages(false)
         }
 
-        let start = Date()
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        while !app.isFinishedLaunching {
-            debugLog("sleeping 0.1s for messages.app to finish launching")
-            Thread.sleep(forTimeInterval: 0.1)
-            if app.isTerminated {
-                throw ErrorMessage("messages.app terminated")
-            }
-            if start.timeIntervalSinceNow < -5 {
-                debugLog("assuming messages.app has launched") // sometimes this gets stuck in an infinite loop
-                break
-            }
-        }
-        Thread.sleep(forTimeInterval: 0.01)
-
+        try app.waitForLaunch()
         appElement = Accessibility.Element(pid: app.processIdentifier)
 
         if SwiftServer.isPHTEnabled {
@@ -836,7 +823,7 @@ final class MessagesController {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
-        } onError: { (attempt, _ ) in
+        } onError: { attempt, _  in
             if attempt == 5 { // penultimate attempt
                 try? self.sendReturnPress()
             }
@@ -1090,12 +1077,12 @@ final class MessagesController {
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
-        debugLog("pollActivityStatus")
         // if someone else (observe/removeObserver) holds the lock,
         // silently skip this polling attempt
         guard activityLock.try() else { return }
         defer { activityLock.unlock() }
 
+        debugLog("pollActivityStatus")
         guard let observer = activityObserver else { return }
 
         guard self.isValid else {

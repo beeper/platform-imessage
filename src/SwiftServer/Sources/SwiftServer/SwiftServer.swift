@@ -289,6 +289,25 @@ final class MessagesControllerWrapper: NodeClass {
                         }
                     }
                 }
+            },
+
+            "disableNotificationsForApp": NodeFunction { args in
+                let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
+                guard args.count == 1, let appName = try? args[0].as(String.self) else {
+                    throw ErrorMessage("invalid args")
+                }
+                return try NodePromise { deferred in
+                    // we don't use DispatchQueue.main to prevent freezing the UI
+                    DispatchQueue.global(qos: .background).async {
+                        let result = Result<NodeValueConvertible, Error> {
+                            try PromptAutomation.disableNotificationsForApp(named: appName)
+                        }
+
+                        try? queue.async {
+                            try deferred(result)
+                        }
+                    }
+                }
             }
         ])
     }

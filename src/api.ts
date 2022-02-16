@@ -603,6 +603,7 @@ export default class AppleiMessage implements PlatformAPI {
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
     startSysPrefsOnboarding: () => swiftServer.startSysPrefsOnboarding(),
     confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
+    disableMessagesNotifications: () => swiftServer.disableNotificationsForApp('Messages'),
     stopSysPrefsOnboarding: () => swiftServer.stopSysPrefsOnboarding(),
     revokeFDA: async () => {
       await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)

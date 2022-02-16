@@ -66,6 +66,7 @@ export type SwiftServer = {
   stopSysPrefsOnboarding: () => void
 
   confirmUNCPrompt: () => Promise<void>
+  disableNotificationsForApp: (appName: string) => Promise<void>
 }
 
 const hasSwiftLibs = IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift')
