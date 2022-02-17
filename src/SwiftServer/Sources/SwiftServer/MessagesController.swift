@@ -925,7 +925,10 @@ final class MessagesController {
             try self.sendCommandVPress()
             try retry(withTimeout: 2, interval: 0.1) {
                 // 2 for <OBJ_REPLACEMENT_CHAR> and \n
-                guard (try? messageField.noOfChars()) == 2 else { throw ErrorMessage("file was not pasted") }
+                let charCountResult = Result { try messageField.noOfChars() }
+                guard case let .success(charCount) = charCountResult, charCount == 2 else {
+                    throw ErrorMessage("file was not pasted. \(charCountResult)")
+                }
             }
         }
     }
