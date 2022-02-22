@@ -742,6 +742,18 @@ final class MessagesController {
         }
     }
 
+    // TODO: consider comparing selectedThreadCell instead
+    private func getWaitForWindowTitleChangeFn() -> () -> Void {
+        let initialTitle = try? mainWindow.title()
+        return {
+            try? retry(withTimeout: 1, interval: 0.2) {
+                guard try self.mainWindow.title() != initialTitle else {
+                    throw ErrorMessage("")
+                }
+            }
+        }
+    }
+
     func sendTypingStatus(_ isTyping: Bool, address: String) throws {
         debugLog("Sending typing status \(isTyping) for address \(address)")
 
@@ -755,16 +767,11 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let initialTitle = try? mainWindow.title()
-
+        let wait = getWaitForWindowTitleChangeFn()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
 
-            try? retry(withTimeout: 1, interval: 0.2) {
-                guard try mainWindow.title() != initialTitle else {
-                    throw ErrorMessage("")
-                }
-            }
+            wait()
 
             try messagesField().value(assign: "")
         }
@@ -836,20 +843,15 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let initialTitle = try? mainWindow.title()
-
         if let rtv = try? replyTranscriptsView {
             debugLog("calling replyTranscriptsView.cancel()")
             try? rtv.cancel()
             Thread.sleep(forTimeInterval: 0.2) // wait for animation
         }
 
+        let wait = getWaitForWindowTitleChangeFn()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try? retry(withTimeout: 1, interval: 0.2) {
-                guard try mainWindow.title() != initialTitle else {
-                    throw ErrorMessage("")
-                }
-            }
+            wait()
 
             let messageField = try messagesField()
             try sendMessageInField(messageField)
@@ -865,13 +867,21 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
-        try Self.openDeepLink(url, withoutActivation: true)
-        Thread.sleep(forTimeInterval: 0.01)
+        if let rtv = try? replyTranscriptsView {
+            debugLog("calling replyTranscriptsView.cancel()")
+            try? rtv.cancel()
+            Thread.sleep(forTimeInterval: 0.2) // wait for animation
+        }
 
-        let messageField = try messagesField()
-        try self.pasteFileInBodyField(messageField, filePath: filePath)
-        try sendMessageInField(messageField)
+        let wait = getWaitForWindowTitleChangeFn()
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            wait()
+
+            let messageField = try messagesField()
+            try self.pasteFileInBodyField(messageField, filePath: filePath)
+            try sendMessageInField(messageField)
+        }
     }
 
     func createThread(addresses: [String], message: String) throws {
