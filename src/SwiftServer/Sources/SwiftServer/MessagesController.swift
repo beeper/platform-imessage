@@ -888,7 +888,7 @@ final class MessagesController {
         let url = try MessagesDeepLink.addresses(addresses, body: message).url()
         if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
             // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-            Thread.sleep(forTimeInterval: 1)
+            Thread.sleep(forTimeInterval: 2)
         }
         try sendTextMessage(url: url)
     }
