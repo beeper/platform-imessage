@@ -1,9 +1,11 @@
 _*
 !__snapshots__
-dist
-src/RustServer/target
-src/AppleScriptServer/Release
-build
+/dist
+/src/RustServer/target
+/src/AppleScriptServer/Release
+/build
+/src/SwiftServer/.build
+
 *.node
 libNodeAPI.dylib
 
