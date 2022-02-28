@@ -347,7 +347,6 @@ impl PollerInner {
 
                     let object_ids = cx.empty_object();
                     let event_id = cx.string(thread_id);
-                    object_ids.set(&mut cx, "threadID", event_id)?;
 
                     let entries = cx.empty_array();
                     let entry_object = cx.empty_object();
