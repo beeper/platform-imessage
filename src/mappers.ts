@@ -18,7 +18,7 @@ const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 
-function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
+function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): MessageAttachment {
   if (a.transfer_state == null) return
   const { ext, fileName, filePath } = a
   const common = {
@@ -39,7 +39,7 @@ function mapAttachment(a: MappedAttachmentRow): MessageAttachment {
     return { ...common, type: MessageAttachmentType.VIDEO }
   }
   if (AUDIO_EXTS.includes(ext)) {
-    return { ...common, type: MessageAttachmentType.AUDIO }
+    return { ...common, isVoiceNote: msgRow.is_audio_message === 1, type: MessageAttachmentType.AUDIO }
   }
   return { ...common, type: MessageAttachmentType.UNKNOWN }
 }
@@ -162,7 +162,7 @@ const UUID_LENGTH = 36
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): MessageWithExtra[] {
   if (msgRow.was_data_detected === 0) return
-  const attachments = attachmentRows.map(mapAttachment).filter(Boolean)
+  const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(Boolean)
   const isSMS = msgRow.service === 'SMS'
   const isGroup = !!msgRow.room_name
 
