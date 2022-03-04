@@ -5,7 +5,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable, PresenceMap } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable, PresenceMap, PhoneNumber } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
@@ -260,6 +260,12 @@ export default class AppleiMessage implements PlatformAPI {
       // potential todo: we can search for an existing thread with the specified userIDs here
       await (await this.getMessagesController()).createThread(userIDs, message)
     }
+  }
+
+  getUser = async (ids: { phoneNumber?: PhoneNumber } | { email?: string }): Promise<User> => {
+    // todo find if actually registered on imessage
+    if ('phoneNumber' in ids) return { id: ids.phoneNumber, phoneNumber: ids.phoneNumber }
+    if ('email' in ids) return { id: ids.email, email: ids.email }
   }
 
   getThreads = async (inboxName: InboxName, pagination: PaginationArg): Promise<Paginated<Thread>> => {
