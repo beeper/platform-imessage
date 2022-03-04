@@ -353,7 +353,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
 const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, nmp: NMP, Tooltip: React.FC<any> }> = props => {
   const { api } = props
-  const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset('proxied', fnName) as string), [])
+  const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset(null, 'proxied', fnName) as string), [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
   return (
     <div className="auth imessage-auth styled-inputs">

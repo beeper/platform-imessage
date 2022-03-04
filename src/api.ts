@@ -615,7 +615,7 @@ export default class AppleiMessage implements PlatformAPI {
     },
   }
 
-  getAsset = async (pathHex: string, methodName: string) => {
+  getAsset = async (_, pathHex: string, methodName: string) => {
     switch (pathHex) {
       case 'proxied': {
         const result = await this.proxiedAuthFns[methodName]()
