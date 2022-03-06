@@ -76,7 +76,7 @@ const useNMP = (nmp: NMP, authType: AuthType) => {
 const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: (fnName: string) => any }> = ({ nmp, callProxiedFn }) => {
   const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
-  if (!authorized || pending) return null
+  if (!IS_MOJAVE_OR_UP || !authorized || pending) return null
   const onClick = async () => {
     if (!await callProxiedFn('revokeFDA')) return
     setTimeout(() => {
@@ -193,17 +193,13 @@ const NotificationsSection: React.FC<Props> = ({ open, callProxiedFn, nmp }) => 
   )
 }
 
-const AddAccountSection: React.FC<Props> = ({ login, canAccessMessagesDir, isReauthing }) => {
-  const { value: authorized, pending } = useAsync(canAccessMessagesDir)
-  if (pending) return null
-  return (
-    <div className="imessage-auth-well" style={{ borderRadius: 8 }}>
-      <div className="buttons">
-        <button type="button" className="primary" disabled={!authorized} onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
-      </div>
+const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { buttonDisabled: boolean }> = ({ buttonDisabled, login, isReauthing }) => (
+  <div className="imessage-auth-well" style={{ borderRadius: 8 }}>
+    <div className="buttons">
+      <button type="button" className="primary" disabled={buttonDisabled} onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
     </div>
-  )
-}
+  </div>
+)
 
 const getKnownIssues = () => {
   if (IS_MONTEREY_OR_UP) return ["Reacting/replying to some types of messages isn't supported."]
@@ -346,7 +342,7 @@ const ChecklistPage: React.FC<Props> = props => {
       </details>
       <KnownIssuesSection open={!allAuthorized} />
       <NotificationsSection open={allAuthorized} {...props} />
-      <AddAccountSection {...props} />
+      <AddAccountSection {...props} buttonDisabled={!messageDirAuthorized} />
     </div>
   )
 }
