@@ -853,6 +853,12 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             wait()
 
+            if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
+                // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
+                debugLog("waiting 1.5s for address to resolve")
+                Thread.sleep(forTimeInterval: 1.5)
+            }
+
             let messageField = try messagesField()
             try sendMessageInField(messageField)
         }
@@ -886,10 +892,6 @@ final class MessagesController {
 
     func createThread(addresses: [String], message: String) throws {
         let url = try MessagesDeepLink.addresses(addresses, body: message).url()
-        if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
-            // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-            Thread.sleep(forTimeInterval: 2)
-        }
         try sendTextMessage(url: url)
     }
 
