@@ -29,6 +29,7 @@ const info: PlatformInfo = {
     Attribute.NO_SUPPORT_GROUP_REMOVE_PARTICIPANT,
     Attribute.NO_SUPPORT_DUPLICATE_GROUP_CREATION,
     Attribute.SORT_MESSAGES_ON_PUSH,
+    Attribute.GET_MESSAGES_SUPPORTS_AFTER_DIRECTION,
     ...(IS_BIG_SUR_OR_UP
       ? [
         Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
