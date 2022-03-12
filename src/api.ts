@@ -90,7 +90,7 @@ export default class AppleiMessage implements PlatformAPI {
   login = async (): Promise<LoginResult> => {
     await this.dbAPI.init()
     if (this.dbAPI.connected) return { type: 'success' }
-    return { type: 'error', errorMessage: 'Please grant access to messages directory and try again.' }
+    return { type: 'error', errorMessage: 'Please grant access to Messages Data and try again.' }
   }
 
   // here be dragons
