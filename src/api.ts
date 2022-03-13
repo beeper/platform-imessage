@@ -357,8 +357,8 @@ export default class AppleiMessage implements PlatformAPI {
       // re-fetch the controller on each attempt so that invalidation is respected
       const controller = await this.getMessagesController()
       if (quotedMessageID) {
-        // todo specify id/role
-        await controller.sendReply(threadID, quotedMessageID, 0, '', '', IS_MONTEREY_OR_UP, text || '', filePath || '')
+        // TODO: specify id/role
+        await controller.sendReply(threadID, quotedMessageID, 0, null, null, IS_MONTEREY_OR_UP, text, filePath)
       } else if (filePath) {
         await controller.sendFile(filePath, threadID)
       } else {
@@ -498,7 +498,7 @@ export default class AppleiMessage implements PlatformAPI {
       const closestMessage: AXMessageSelection = overlay
         ? { guid: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
         : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
-      await controller.setReaction(closestMessage.guid, closestMessage.offset, closestMessage.cellID || '', closestMessage.cellRole || '', overlay, reactionKey, on)
+      await controller.setReaction(closestMessage.guid, closestMessage.offset, closestMessage.cellID, closestMessage.cellRole, overlay, reactionKey, on)
     }, {
       onFailedAttempt: error => {
         texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)

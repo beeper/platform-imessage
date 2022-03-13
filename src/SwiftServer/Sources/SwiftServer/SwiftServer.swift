@@ -149,12 +149,12 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    func setReaction(messageGUID: String, offset: Double, cellID: String?, cellRole: String?, overlay: Bool, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
             throw ErrorMessage("Invalid reaction: \(reactionName)")
         }
         return try performAsync { [self] in
-            try controller.setReaction(messageGUID: messageGUID, offset: Int(offset), cellID: cellID == "" ? nil : cellID, cellRole: cellRole == "" ? nil : cellRole, overlay: overlay, reaction: reaction, on: on)
+            try controller.setReaction(messageGUID: messageGUID, offset: Int(offset), cellID: cellID, cellRole: cellRole, overlay: overlay, reaction: reaction, on: on)
         }
     }
 
@@ -166,17 +166,17 @@ final class MessagesControllerWrapper: NodeClass {
         try performAsync { try self.controller.sendFile(filePath, threadID: threadID) }
     }
 
-    func sendReply(threadID: String, messageGUID: String, offset: Double, cellID: String, cellRole: String, overlay: Bool, text: String, filePath: String) throws -> NodeValueConvertible {
+    func sendReply(threadID: String, messageGUID: String, offset: Double, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws -> NodeValueConvertible {
         try performAsync {
             try self.controller.sendReply(
                 threadID: threadID,
                 messageGUID: messageGUID,
                 offset: Int(offset),
-                cellID: cellID == "" ? nil : cellID,
-                cellRole: cellRole == "" ? nil : cellRole,
+                cellID: cellID,
+                cellRole: cellRole,
                 overlay: overlay,
-                text: text == "" ? nil : text,
-                filePath: filePath == "" ? nil : filePath
+                text: text,
+                filePath: filePath
             )
         }
     }
