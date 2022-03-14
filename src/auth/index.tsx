@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
-import type { PlatformAPI } from '@textshq/platform-sdk'
+import type { AuthProps, PlatformAPI } from '@textshq/platform-sdk'
 
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
 import useAsync from './use-async'
@@ -38,15 +38,11 @@ type Promisified<T> = { [K in keyof T]: T[K] extends AnyFunction ? Async<T[K]> :
 
 type NMP = Promisified<typeof import('node-mac-permissions')>
 
-type Props = {
+type Props = AuthProps & {
+  nmp: NMP
   canAccessMessagesDir: () => Promise<boolean>
   callProxiedFn: (fnName: string) => any
-  login: Function
-  nmp: NMP
-  api: PlatformAPI
-  isReauthing: boolean
   open?: boolean
-  Tooltip: React.FC<any>
 }
 
 const useNMP = (nmp: NMP, authType: AuthType) => {
@@ -347,7 +343,7 @@ const ChecklistPage: React.FC<Props> = props => {
   )
 }
 
-const AppleiMessageAuth: React.FC<{ api: PlatformAPI, login: Function, isReauthing: boolean, nmp: NMP, Tooltip: React.FC<any> }> = props => {
+const AppleiMessageAuth: React.FC<AuthProps & { nmp: NMP }> = props => {
   const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset(null, 'proxied', fnName) as string), [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
