@@ -800,7 +800,10 @@ final class MessagesController {
         try sendKeyPressOnMainThread(key: CGKeyCode(kVK_Return))
     }
     private func sendCommandVPress() throws {
-        try sendKeyPressOnMainThread(key: CGKeyCode(kVK_ANSI_V), flags: .maskCommand)
+        // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
+        // we can't memoize this because layouts can change mid-run
+        guard let keyCode = KeyUtil.stringToKeyCode("v") else { return }
+        try sendKeyPressOnMainThread(key: CGKeyCode(keyCode), flags: .maskCommand)
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
