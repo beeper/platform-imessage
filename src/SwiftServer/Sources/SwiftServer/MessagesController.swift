@@ -801,8 +801,7 @@ final class MessagesController {
     }
     private func sendCommandVPress() throws {
         // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
-        // we can't memoize this because layouts can change mid-run
-        guard let keyCode = KeyUtil.stringToKeyCode("v") else { return }
+        guard let keyCode = KeyMap.shared["v"] else { return }
         try sendKeyPressOnMainThread(key: CGKeyCode(keyCode), flags: .maskCommand)
     }
 
