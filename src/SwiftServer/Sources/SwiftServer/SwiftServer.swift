@@ -63,7 +63,7 @@ final class MessagesControllerWrapper: NodeClass {
     }
 
     private var threadObserveRequestToken: UUID?
-    private let threadObserveRequestTokenLock = NSLock()
+    private let threadObserveRequestTokenLock = UnfairLock()
 
     private let swiftJSQueue: NodeAsyncQueue
     private let watchCBQueue: NodeAsyncQueue
