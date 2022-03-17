@@ -115,4 +115,11 @@ extension Accessibility.Element {
             }
         }
     }
+
+    func closeWindow() throws {
+        guard let closeButton = try? self.windowCloseButton() else {
+            throw ErrorMessage("window close button not found")
+        }
+        try closeButton.press()
+    }
 }

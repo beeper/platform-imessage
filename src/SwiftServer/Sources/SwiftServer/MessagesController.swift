@@ -2,7 +2,6 @@ import AppKit
 import AccessibilityControl
 import WindowControl
 import Carbon.HIToolbox.Events
-import PHTClient
 
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
@@ -115,8 +114,6 @@ final class MessagesController {
     private let app: NSRunningApplication
     private let appElement: Accessibility.Element
 
-    private let phtConn: PHTConnection?
-
     private var timer: Timer?
     private var loopThread: RunLoopThread?
 
@@ -133,13 +130,6 @@ final class MessagesController {
         frame.origin.y = 0
         frame.size.height = Double.infinity
         try window.setFrame(frame)
-    }
-
-    private static func closeWindow(_ window: Accessibility.Element) throws {
-        guard let closeButton = try? window.windowCloseButton() else {
-            throw ErrorMessage("window close button not found")
-        }
-        try closeButton.press()
     }
 
     static func terminateApp(_ app: NSRunningApplication) throws {
@@ -215,13 +205,9 @@ final class MessagesController {
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
         appElement = Accessibility.Element(pid: app.processIdentifier)
-
-        if SwiftServer.isPHTEnabled {
-            let phtConn = try PHTConnection.create(allowInstall: true)
-            try phtConn.setMessagesHidden(true)
-            self.phtConn = phtConn
-        } else {
-            self.phtConn = nil
+        whm.setApp(app)
+        whm.setAfterHide {
+            self.getMainWindow().map { try? Self.resizeWindowToMaxHeight($0) }
         }
 
         // if app.isHidden {
@@ -591,6 +577,7 @@ final class MessagesController {
     }
 
     func setReaction(messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, reaction: Reaction, on: Bool) throws {
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -613,6 +600,7 @@ final class MessagesController {
     }
 
     func markAsRead(messageGUID: String) throws {
+        whm.hide()
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
         activityLock.lock()
@@ -658,6 +646,7 @@ final class MessagesController {
 
     #if DEBUG
     func markAsReadWithMenu(messageGUID: String) throws {
+        whm.hide()
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
         activityLock.lock()
@@ -697,6 +686,7 @@ final class MessagesController {
     #endif
 
     func muteThread(threadID: String, muted: Bool) throws {
+        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         activityLock.lock()
@@ -716,6 +706,7 @@ final class MessagesController {
     }
 
     func deleteThread(threadID: String) throws {
+        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         activityLock.lock()
@@ -755,6 +746,7 @@ final class MessagesController {
     }
 
     func sendTypingStatus(_ isTyping: Bool, address: String) throws {
+        whm.hide()
         debugLog("Sending typing status \(isTyping) for address \(address)")
 
         // a space is enough to send a typing indicator, while ensuring that
@@ -862,11 +854,13 @@ final class MessagesController {
     }
 
     func sendTextMessage(_ text: String, threadID: String) throws {
+        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: text).url()
         try sendTextMessage(url: url)
     }
 
     func sendFile(_ filePath: String, threadID: String) throws {
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -888,14 +882,15 @@ final class MessagesController {
     }
 
     func createThread(addresses: [String], message: String) throws {
+        whm.hide()
         let url = try MessagesDeepLink.addresses(addresses, body: message).url()
         try sendTextMessage(url: url)
     }
 
     #if DEBUG
     func closeAllWindows() throws {
-        try Self.closeWindow(mainWindow)
-        try appElement.appWindows().forEach(Self.closeWindow)
+        try mainWindow.closeWindow()
+        try appElement.appWindows().forEach { try $0.closeWindow() }
     }
 
     func withAllWindowsClosed(perform: () throws -> Void) throws {
@@ -943,6 +938,7 @@ final class MessagesController {
     }
 
     func sendReply(threadID: String, messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws {
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -988,12 +984,8 @@ final class MessagesController {
     private func activateMessages() {
         do {
             debugLog("activateMessages")
-            if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window and hide it
-                try whm.appActivated(window: mainWindow)
-            } else {
-                debugLog("activateMessages: mainWindow nil")
-            }
-            try phtConn?.setMessagesHidden(false)
+            // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+            try whm.appActivated(window: getMainWindow())
         } catch {
             debugLog("warning: Could not show Messages window: \(error)")
         }
@@ -1002,13 +994,8 @@ final class MessagesController {
     private func deactivateMessages() {
         do {
             debugLog("deactivateMessages")
-            if getMainWindow() != nil { // this check is to make sure accessing mainWindow doesn't reopen the window
-                try? Self.resizeWindowToMaxHeight(mainWindow)
-                try whm.appDeactivated(window: mainWindow)
-            } else {
-                debugLog("deactivateMessages: mainWindow nil")
-            }
-            try phtConn?.setMessagesHidden(true)
+            // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+            try whm.appDeactivated(window: getMainWindow())
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")
         }
@@ -1063,6 +1050,7 @@ final class MessagesController {
     }
 
     func notifyAnyway(threadID: String) throws {
+        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         activityLock.lock()
@@ -1126,6 +1114,7 @@ final class MessagesController {
     }
 
     func observe(address: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
+        whm.hide()
         let url = try MessagesDeepLink.addresses([address], body: nil).url()
 
         activityLock.lock()

@@ -1,14 +1,21 @@
+import AppKit
 import Foundation
 import AccessibilityControl
 import WindowControl
+import PHTClient
 
 protocol WindowHidingManager {
     var isValid: Bool { get }
     var canReuseApp: Bool { get }
 
+    func setApp(_ app: NSRunningApplication)
+    func setAfterHide(fn: @escaping () -> Void)
+
+    func hide()
+    func unhide()
     func mainWindowChanged(_ mainWindow: Accessibility.Element) throws
-    func appActivated(window: Accessibility.Element) throws
-    func appDeactivated(window: Accessibility.Element) throws
+    func appActivated(window: Accessibility.Element?) throws
+    func appDeactivated(window: Accessibility.Element?) throws
     func dispose()
 }
 
@@ -19,9 +26,21 @@ extension Space {
 }
 
 final class SpacesWindowHidingManager: WindowHidingManager {
+    static let canUseUnknownSpace = !ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 2, patchVersion: 0))
+    
     let canReuseApp = true
     var isValid = true
-    static let canUseUnknownSpace = !ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 2, patchVersion: 0))
+
+    private var app: NSRunningApplication?
+    private var afterHide: (() -> Void)?
+    private let phtConn: PHTConnection?
+
+    func setApp(_ app: NSRunningApplication) {
+        self.app = app
+    }
+    func setAfterHide(fn: @escaping () -> Void) {
+        self.afterHide = fn
+    }
 
     static func createOrGetInvisibleUserSpace() throws -> Space {
         let allSpaces = try Space.list(.allSpaces)
@@ -62,6 +81,13 @@ final class SpacesWindowHidingManager: WindowHidingManager {
     private var dockObserver: Dock.Observer?
 
     init() throws {
+        if SwiftServer.isPHTEnabled {
+            // ignore pht connection errors
+            let phtConn = try? PHTConnection.create(allowInstall: true)
+            self.phtConn = phtConn
+        } else {
+            self.phtConn = nil
+        }
         debugLog("canUseUnknownSpace \(Self.canUseUnknownSpace)")
         _hiddenSpace = try Self.canUseUnknownSpace ? Space(newSpaceOfKind: .unknown) : Self.createOrGetInvisibleUserSpace()
         if !Self.canUseUnknownSpace {
@@ -124,23 +150,42 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         try self.move(window: window, to: hiddenSpace, isHidden: true)
     }
 
-    func appActivated(window: Accessibility.Element) throws {
-        debugLog("WindowHidingManager.appActivated: moving window")
-        guard let currentSpace = try? lastActiveDisplay?.currentSpace() else {
-            debugLog("WindowHidingManager.appActivated: current space not found")
+    func hide() {
+        try? phtConn?.setMessagesHidden(true)
+        if app?.isActive == true {
             return
         }
-        try self.move(window: window, to: currentSpace, isHidden: false)
+        mainWindow.map {
+            try? self.move(window: $0, to: hiddenSpace, isHidden: true)
+        }
+        self.afterHide?()
     }
 
-    func appDeactivated(window: Accessibility.Element) throws {
-        debugLog("WindowHidingManager.appDeactivated: moving window")
-        try self.move(window: window, to: hiddenSpace, isHidden: true)
+    func unhide() {
+        try? phtConn?.setMessagesHidden(false)
+        guard let currentSpace = try? lastActiveDisplay?.currentSpace() else {
+            debugLog("WindowHidingManager.unhide: current space not found")
+            return
+        }
+        mainWindow.map {
+            try? self.move(window: $0, to: currentSpace, isHidden: false)
+        }
     }
+
+    func appActivated(window: Accessibility.Element?) throws {
+        unhide()
+    }
+
+    func appDeactivated(window: Accessibility.Element?) throws {}
 
     func dispose() {
         debugLog("destroying hiddenSpace")
         try? hiddenSpace.destroy()
+    }
+
+    deinit {
+        // closing window better than moving back to regular space
+        try? mainWindow?.closeWindow()
     }
 }
 
