@@ -778,6 +778,7 @@ final class MessagesController {
     }
 
     private func sendKeyPress(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
+        debugLog("sendKey key=\(key)")
         for keyDown in [true, false] {
             debugLog("Sending key \(key) \(keyDown ? "down" : "up")")
             let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
@@ -786,23 +787,17 @@ final class MessagesController {
             ev.postToPid(app.processIdentifier)
         }
     }
-    private func sendKeyPressOnMainThread(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
-        debugLog("sendKey key=\(key) Thread.isMainThread=\(Thread.isMainThread) queueName=\(__dispatch_queue_get_label(nil))")
-        if Thread.isMainThread {
-            try sendKeyPress(key: key, flags: flags)
-        } else {
-            try DispatchQueue.main.sync {
-                try sendKeyPress(key: key, flags: flags)
-            }
+    private func sendReturnPress() throws {
+        try runOnMainThread { 
+            try sendKeyPress(key: CGKeyCode(kVK_Return))
         }
     }
-    private func sendReturnPress() throws {
-        try sendKeyPressOnMainThread(key: CGKeyCode(kVK_Return))
-    }
     private func sendCommandVPress() throws {
-        // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
-        guard let keyCode = KeyMap.shared["v"] else { return }
-        try sendKeyPressOnMainThread(key: CGKeyCode(keyCode), flags: .maskCommand)
+        try runOnMainThread { 
+            // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
+            guard let keyCode = KeyMap.shared["v"] else { return }
+            try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
