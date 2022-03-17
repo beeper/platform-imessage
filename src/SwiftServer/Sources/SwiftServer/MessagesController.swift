@@ -1094,13 +1094,13 @@ final class MessagesController {
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
+        guard let observer = activityObserver else { return }
         // if someone else (observe/removeObserver) holds the lock,
         // silently skip this polling attempt
         guard activityLock.try() else { return }
         defer { activityLock.unlock() }
 
         debugLog("pollActivityStatus")
-        guard let observer = activityObserver else { return }
 
         guard self.isValid else {
             debugLog("pollActivityStatus: invalid MessagesController")
