@@ -1,10 +1,11 @@
 import path from 'path'
 import url from 'url'
+import bluebird from 'bluebird'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
-import type { AuthProps, PlatformAPI } from '@textshq/platform-sdk'
+import type { AuthProps } from '@textshq/platform-sdk'
 
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
 import useAsync from './use-async'
@@ -14,8 +15,6 @@ const staticPrefix = window.location.protocol === 'file:'
   : './platform-imessage'
 const notificationsMessagesImg = path.join(staticPrefix, 'notifications-messages.png')
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const openSecuritySystemPrefs = (prefPath: string) =>
   window.open('x-apple.systempreferences:com.apple.preference.security?' + prefPath)
@@ -314,7 +313,7 @@ const ChecklistPage: React.FC<Props> = props => {
     const uncompletedItems = checklistItems.filter(i => !i.completed)
     for (const item of uncompletedItems) {
       await item.action()
-      await sleep(50)
+      await bluebird.delay(50)
     }
   }
 

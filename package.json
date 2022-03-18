@@ -40,6 +40,7 @@
     "@types/jest": "^27.0.2",
     "@types/lodash": "^4.14.168",
     "@types/react": "^17.0.38",
+    "@types/react-helmet": "^6.1.5",
     "eslint": "^7.22.0",
     "husky": "^4.3.8",
     "jest": "^27.4.7",

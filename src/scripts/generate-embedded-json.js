@@ -12,7 +12,7 @@ async function echo(bigSur = false) {
   const files = await fs.readdir(dirPath)
   const out = {}
   // to keep order intact
-  files.map(fileName => {
+  files.forEach(fileName => {
     const { name, ext } = path.parse(fileName)
     if (!['.applescript', '.js'].includes(ext)) return
     out[name] = []
