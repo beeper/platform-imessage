@@ -135,6 +135,7 @@ export default class DatabaseAPI {
   constructor(private readonly papi: InstanceType<typeof PAPI>) {}
 
   async init() {
+    if (this.db) return
     this.db = await getDB()
     await this.db?.run(SQLS.createIndexes)
   }
@@ -341,6 +342,9 @@ export default class DatabaseAPI {
   isMessageRead(messageGUID: string): Promise<number> {
     return this.db.pluck_get(SQLS.isMessageRead, [messageGUID])
   }
+
+  isEmpty = async (): Promise<boolean> =>
+    (await this.db.pluck_get('SELECT count(*) FROM kvtable', [])) === 0
 
   // async markMessageRead(messageID: string) {
   //   await this.db.run(SQLS.updateReadTimestamp, [messageID])
