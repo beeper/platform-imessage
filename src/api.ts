@@ -33,7 +33,15 @@ function canAccessMessagesDir() {
   } catch (err) { return false }
 }
 
-enum OSAError {
+const OSAError = {
+  // {
+  //   NSLocalizedDescription = "Error: Error: AppleEvent timed out.";
+  //   NSLocalizedFailureReason = "Error: Error: AppleEvent timed out.";
+  //   OSAScriptErrorBriefMessageKey = "Error: Error: AppleEvent timed out.";
+  //   OSAScriptErrorMessageKey = "Error: Error: AppleEvent timed out.";
+  //   OSAScriptErrorNumberKey = "-1712";
+  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+  // }
   // {
   //   NSLocalizedDescription = "Error: Error: An error occurred."
   //   NSLocalizedFailureReason = "Error: Error: An error occurred."
@@ -42,8 +50,17 @@ enum OSAError {
   //   OSAScriptErrorNumberKey = "-1743"
   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
   // }
-  AnErrorOccurred = -1743,
-  CantGetObject = -1728,
+  // {
+  //   NSLocalizedDescription = "Error: Error: Application isn't running.";
+  //   NSLocalizedFailureReason = "Error: Error: Application isn't running.";
+  //   OSAScriptErrorBriefMessageKey = "Error: Error: Application isn't running.";
+  //   OSAScriptErrorMessageKey = "Error: Error: Application isn't running.";
+  //   OSAScriptErrorNumberKey = "-600";
+  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+  // }
+  AnErrorOccurred: -1743,
+  CantGetObject: -1728,
+  AppIsntRunning: -600,
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -425,7 +442,7 @@ export default class AppleiMessage implements PlatformAPI {
         this.asAPI.sendTextMessage(threadID, text))
     } catch (err) {
       if (IS_BIG_SUR_OR_UP) {
-        if (err.message.includes(`= "${OSAError.AnErrorOccurred}"`) || err.message.includes(`= "${OSAError.CantGetObject}"`)) {
+        if (Object.values(OSAError).some(no => err.message.includes(`= "${no}"`))) {
           await this.axSendWithRetry(threadID, text)
           return true
         }
