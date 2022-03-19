@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@textshq/platform-sdk": "link:../platform-sdk",
-    "bluebird": "^3.7.2",
     "clsx": "^1.1.1",
     "conf": "^8.0.0",
     "crc": "^4.1.0",
@@ -31,6 +30,9 @@
     "react-helmet": "^6.1.0",
     "url-regex": "^5.0.0",
     "zlib": "^1.0.5"
+  },
+  "peerDependencies": {
+    "bluebird": "^3.7.2"
   },
   "devDependencies": {
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
