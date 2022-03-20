@@ -7062,12 +7062,12 @@ __metadata:
 
 "node-swift@https://github.com/kabiroberai/node-swift#master":
   version: 1.0.0
-  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=a1e09354b23e61b8c550ecd3a1cc9d74c270f3d0"
+  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=8d129aaf232b724bbf3591d42aa63a8eb08f107e"
   dependencies:
     import-cwd: ^3.0.0
   bin:
     node-swift: ./lib/cli.js
-  checksum: f766d6cb21d4458c6c7a6afc07c140aee33555d8011cea2ffded5e0f00efaf63d612e00418eeca32891922e9164ca95300be2efc6dbd0526ea8de164edcef773
+  checksum: 4a6bc206b011ab98d69e923f9b27ebc0b74ea5876b18647abf9c72d51aa6341d8d0d9df6f2e8676f4470cbd2b68c82ce66e1ffec7640422030b4bc5195918599
   languageName: node
   linkType: hard
 

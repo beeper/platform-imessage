@@ -48,11 +48,11 @@ final class MessagesControllerWrapper: NodeClass {
     ) throws -> NodePromise {
         try returnAsync {
             try action()
-            return NodeUndefined.deferred
+            return undefined
         }
     }
 
-    static func create(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
+    static func create(_ args: NodeArguments) throws -> NodeValueConvertible {
         let q = try NodeAsyncQueue(label: "create-messages-controller")
         return try returnAsync(on: q) {
             let controller = try MessagesController()
@@ -80,7 +80,7 @@ final class MessagesControllerWrapper: NodeClass {
         try returnAsync { self.controller.isValid }
     }
 
-    func createThread(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
+    func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
         guard args.count == 2,
               let addresses = try args[0].as([String].self),
               let message = try args[1].as(String.self) else {
@@ -111,7 +111,7 @@ final class MessagesControllerWrapper: NodeClass {
         try performAsync { try self.controller.notifyAnyway(threadID: threadID) }
     }
 
-    func watchThreadActivity(_ args: NodeFunction.Arguments) throws -> NodeValueConvertible {
+    func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
         let controllerArgs: (String, ([MessagesController.ActivityStatus]) -> Void)?
         if try args.count == 1 && args[0].as(NodeNull.self) != nil {
             controllerArgs = nil
@@ -183,7 +183,7 @@ final class MessagesControllerWrapper: NodeClass {
 
     func dispose() throws -> NodeValueConvertible {
         Self.queue.sync { controller.dispose() }
-        return NodeUndefined.deferred
+        return undefined
     }
 }
 
@@ -216,13 +216,13 @@ final class MessagesControllerWrapper: NodeClass {
                 Self.isPHTEnabled = try args.first?.as(Bool.self) ?? false
             },
 
-            "askForMessagesDirAccess": NodeFunction { _ in
+            "askForMessagesDirAccess": NodeFunction {
                 let queue = try NodeAsyncQueue(label: "messages-dir-callback")
                 return try NodePromise { deferred in
                     DispatchQueue.main.async {
                         let result = Result<NodeValueConvertible, Error> {
                             try accessManager.requestAccess()
-                            return NodeUndefined.deferred
+                            return undefined
                         }
                         try? queue.async {
                             try deferred(result)
@@ -231,9 +231,8 @@ final class MessagesControllerWrapper: NodeClass {
                 }
             },
 
-            "decodeAttributedString": NodeFunction { args in
-                guard let data = try args.first?.as(Data.self),
-                      let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
+            "decodeAttributedString": NodeFunction { (data: Data) in
+                guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
                     return try NodeUndefined()
                 }
                 return try decoded.map { frag in
@@ -248,19 +247,19 @@ final class MessagesControllerWrapper: NodeClass {
 
             "MessagesController": MessagesControllerWrapper.constructor(),
 
-            "startSysPrefsOnboarding": NodeFunction { _ in
+            "startSysPrefsOnboarding": NodeFunction {
                 let queue = try NodeAsyncQueue(label: "sys-prefs-callback")
                 return try NodePromise { deferred in
                     DispatchQueue.main.async {
                         let result = Result<NodeValueConvertible, Error> {
                             guard onboardingManager == nil else {
-                                return NodeUndefined.deferred
+                                return undefined
                             }
                             onboardingManager = OnboardingManager()
                             if let onboardingManager = onboardingManager {
                                 onboardingManager.createWindow()
                             }
-                            return NodeUndefined.deferred
+                            return undefined
                         }
                         try? queue.async {
                             try deferred(result)
@@ -269,20 +268,20 @@ final class MessagesControllerWrapper: NodeClass {
                 }
             },
 
-            "stopSysPrefsOnboarding": NodeFunction { _ in
+            "stopSysPrefsOnboarding": NodeFunction {
                 onboardingManager?.closeWindow()
                 onboardingManager = nil
                 return try NodeUndefined()
             },
 
-            "confirmUNCPrompt": NodeFunction { _ in
+            "confirmUNCPrompt": NodeFunction {
                 let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
                 return try NodePromise { deferred in
                     // we don't use DispatchQueue.main to prevent freezing the UI
                     DispatchQueue.global(qos: .background).async {
                         let result = Result<NodeValueConvertible, Error> {
                             try PromptAutomation.confirmUNCPrompt()
-                            return NodeUndefined.deferred
+                            return undefined
                         }
                         try? queue.async {
                             try deferred(result)
@@ -291,11 +290,8 @@ final class MessagesControllerWrapper: NodeClass {
                 }
             },
 
-            "disableNotificationsForApp": NodeFunction { args in
+            "disableNotificationsForApp": NodeFunction { (appName: String) in
                 let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
-                guard args.count == 1, let appName = try? args[0].as(String.self) else {
-                    throw ErrorMessage("invalid args")
-                }
                 return try NodePromise { deferred in
                     // we don't use DispatchQueue.main to prevent freezing the UI
                     DispatchQueue.global(qos: .background).async {
