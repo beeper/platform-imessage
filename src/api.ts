@@ -577,7 +577,9 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
-    return messagesController.watchThreadActivity(participantID, statuses => {
+    return messagesController.watchThreadActivity(participantID, status => {
+      // workaround for https://bugs.swift.org/browse/SR-16039
+      const statuses = status.split(',')
       const events: ServerEvent[] = [{
         type: ServerEventType.USER_ACTIVITY,
         activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,

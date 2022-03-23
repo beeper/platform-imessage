@@ -119,7 +119,8 @@ final class MessagesControllerWrapper: NodeClass {
                   let address = try args[0].as(String.self),
                   let fn = try args[1].as(NodeFunction.self) {
             controllerArgs = (address, { status in
-                try? self.watchCBQueue.async { try fn(status.map { $0.rawValue }) }
+                // workaround for https://bugs.swift.org/browse/SR-16039
+                try? self.watchCBQueue.async { try fn(status.map { $0.rawValue }.joined(separator: ",")) }
             })
         } else {
             print("warning: Invalid args to watchThreadActivity")

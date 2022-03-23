@@ -40,7 +40,7 @@ export declare class MessagesController {
 
   watchThreadActivity: (
     address: string | null,
-    onTyping?: (status: ActivityStatus[]) => void
+    onTyping?: (status: string) => void
   ) => Promise<void>
 
   sendTextMessage: (text: string, threadID: string) => Promise<void>
