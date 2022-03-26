@@ -56,3 +56,13 @@ func runOnMainThread<T>(fn: () throws -> T) rethrows -> T {
         }
     }
 }
+
+func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -> (() -> Void) {
+    var timer: Timer?
+    return {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { _ in
+            action()
+        }
+    }
+}

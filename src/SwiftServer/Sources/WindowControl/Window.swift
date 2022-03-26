@@ -192,9 +192,9 @@ public struct Window: Hashable {
         }
         #if DEBUG
         let newCurr = try currentSpaces(.allSpaces, for: connection)
-        debugLog("\(curr.map { $0.raw }) -> \(newCurr.map { $0.raw })")
+        debugLog("\(curr.map { $0.raw }) → \(newCurr.map { $0.raw })")
         if newCurr.count != 1 || newCurr.first != space {
-            debugLog("moveToSpace failed \(newCurr)")
+            debugLog("!!! moveToSpace failed \(newCurr.map { $0.raw })")
         }
         #endif
     }

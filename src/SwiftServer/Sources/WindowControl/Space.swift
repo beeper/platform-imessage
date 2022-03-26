@@ -99,6 +99,7 @@ public class Space: Hashable {
             // "wsid": 1234 as CFNumber, // Compat ID, can be used with SLSMoveWorkspaceWindowList(conn, {windowID}, 1, wsid)
             // "ManagedSpaceID": 1234 as CFNumber, // will be ignored, spaces of unknown kind don't have this key
             // "id64": 1234 as CFNumber, // will be overridden
+            "canReuse": true,
             "type": kind.raw.rawValue as CFNumber,
             "uuid": "\(Self.prefix)\(UUID().uuidString)" as CFString, // another space with the same uuid can exist and the space will be created still
         ]

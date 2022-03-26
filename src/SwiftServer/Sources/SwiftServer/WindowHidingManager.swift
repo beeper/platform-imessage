@@ -82,13 +82,14 @@ final class SpacesWindowHidingManager: WHMBase {
             let createdByUs = (dict["uuid"] as? String)?.hasPrefix(Space.prefix) == true
             let isSpaceKindUser = (dict["type"] as? UInt32) == kind.raw.rawValue
             let dockPID = Dock.pid
-            let isSameDock = (dict["dockPID"] as? pid_t) == dockPID // has to be the same dock instance or the space will be visible
             if createdByUs, isSpaceKindUser {
-                if isSameDock {
+                let isSameDock = (dict["dockPID"] as? pid_t) == dockPID // has to be the same dock instance or the space will be visible
+                let canReuse = (dict["canReuse"] as? Bool) == true
+                if isSameDock, canReuse {
                     $0.dockPID = dockPID
                     return true
                 } else {
-                    debugLog("space \($0.raw) was created by us and dock has been relaunched (it may be visible now)")
+                    debugLog("space \($0.raw) was created by us but is visible now")
                     // hide/destroy apparently has no effect atm
                     // $0.hide()
                     // $0.destroy()
@@ -110,18 +111,33 @@ final class SpacesWindowHidingManager: WHMBase {
         }
     }
     private var dockObserver: Dock.Observer?
+    private var ncToken: NSObjectProtocol?
+
+    lazy var debouncedOnDidChangeScreenParams = debounced(for: 2) {
+        // Space.setValues isn't working so we remove the key instead of setting a new value
+        // not needed when dock process is changed
+        try? self._hiddenSpace.removeKeys(["canReuse"])
+        (try? Self.createOrGetInvisibleUserSpace()).map { self._hiddenSpace = $0 }
+        self.hide()
+    }
+    
+    // hiddenSpace will become visible when dock is restarted or display config is changed so create another hidden space and move window
+    private func monitorMissionControlChanges() {
+        dockObserver = Dock.Observer { [weak self] in
+            self?.hide()
+        }
+        ncToken = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil) { [weak self] _ in
+            debugLog("ncDidChangeScreenParameters")
+            self?.debouncedOnDidChangeScreenParams()
+        }
+    }
 
     override init() throws {
         debugLog("canUseUnknownSpace \(Self.canUseUnknownSpace)")
         _hiddenSpace = try Self.canUseUnknownSpace ? Space(newSpaceOfKind: .unknown) : Self.createOrGetInvisibleUserSpace()
         try super.init()
         if !Self.canUseUnknownSpace {
-            dockObserver = Dock.Observer { [self] in
-                // hiddenSpace is now visible so create another hidden space and move window
-                if let mw = mainWindow {
-                    try? self.move(window: mw, to: self.hiddenSpace, isHidden: true)
-                }
-            }
+            self.monitorMissionControlChanges()
         }
 
         #if DEBUG && !NO_SPACES
@@ -176,8 +192,8 @@ final class SpacesWindowHidingManager: WHMBase {
         }
         mainWindow.map {
             try? self.move(window: $0, to: hiddenSpace, isHidden: true)
+            self.afterHide?()
         }
-        self.afterHide?()
     }
 
     override func unhide() {
@@ -198,6 +214,7 @@ final class SpacesWindowHidingManager: WHMBase {
     }
 
     deinit {
+        ncToken.map { NotificationCenter.default.removeObserver($0) }
         // closing window better than moving back to regular space
         try? mainWindow?.closeWindow()
     }
