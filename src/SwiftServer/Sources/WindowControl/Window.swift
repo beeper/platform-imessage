@@ -190,6 +190,13 @@ public struct Window: Hashable {
             CGSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw)
             // SLSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw) // alias
         }
+        #if DEBUG
+        let newCurr = try currentSpaces(.allSpaces, for: connection)
+        debugLog("\(curr.map { $0.raw }) -> \(newCurr.map { $0.raw })")
+        if newCurr.count != 1 || newCurr.first != space {
+            debugLog("moveToSpace failed \(newCurr)")
+        }
+        #endif
     }
 
     public func describe() throws -> Description {

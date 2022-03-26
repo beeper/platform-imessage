@@ -25,22 +25,53 @@ extension Space {
     }
 }
 
-final class SpacesWindowHidingManager: WindowHidingManager {
-    static let canUseUnknownSpace = !ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 2, patchVersion: 0))
-    
+class WHMBase: WindowHidingManager {
     let canReuseApp = true
-    var isValid = true
+    let isValid = true
 
-    private var app: NSRunningApplication?
-    private var afterHide: (() -> Void)?
-    private let phtConn: PHTConnection?
+    let phtConn: PHTConnection?
+    var app: NSRunningApplication?
+    var afterHide: (() -> Void)?
+
+    weak var mainWindow: Accessibility.Element?
 
     func setApp(_ app: NSRunningApplication) {
         self.app = app
     }
+
     func setAfterHide(fn: @escaping () -> Void) {
         self.afterHide = fn
     }
+
+    func mainWindowChanged(_ window: Accessibility.Element) throws {
+        mainWindow = window
+        self.hide()
+    }
+
+    init() throws {
+        if SwiftServer.isPHTEnabled {
+            // ignore pht connection errors
+            let phtConn = try? PHTConnection.create(allowInstall: true)
+            self.phtConn = phtConn
+        } else {
+            self.phtConn = nil
+        }
+    }
+
+    func appActivated(window: Accessibility.Element?) throws {
+        unhide()
+    }
+
+    func appDeactivated(window: Accessibility.Element?) throws {}
+
+    func hide() { debugLog("whm.hide()") }
+    func unhide() { debugLog("whm.unhide()") }
+
+    func dispose() {}
+}
+
+final class SpacesWindowHidingManager: WHMBase {
+    static let canUseUnknownSpace = !ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 2, patchVersion: 0))
 
     static func createOrGetInvisibleUserSpace() throws -> Space {
         let allSpaces = try Space.list(.allSpaces)
@@ -80,16 +111,10 @@ final class SpacesWindowHidingManager: WindowHidingManager {
     }
     private var dockObserver: Dock.Observer?
 
-    init() throws {
-        if SwiftServer.isPHTEnabled {
-            // ignore pht connection errors
-            let phtConn = try? PHTConnection.create(allowInstall: true)
-            self.phtConn = phtConn
-        } else {
-            self.phtConn = nil
-        }
+    override init() throws {
         debugLog("canUseUnknownSpace \(Self.canUseUnknownSpace)")
         _hiddenSpace = try Self.canUseUnknownSpace ? Space(newSpaceOfKind: .unknown) : Self.createOrGetInvisibleUserSpace()
+        try super.init()
         if !Self.canUseUnknownSpace {
             dockObserver = Dock.Observer { [self] in
                 // hiddenSpace is now visible so create another hidden space and move window
@@ -143,14 +168,8 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         }
     }
 
-    weak var mainWindow: Accessibility.Element?
-
-    func mainWindowChanged(_ window: Accessibility.Element) throws {
-        mainWindow = window
-        try self.move(window: window, to: hiddenSpace, isHidden: true)
-    }
-
-    func hide() {
+    override func hide() {
+        super.hide()
         try? phtConn?.setMessagesHidden(true)
         if app?.isActive == true {
             return
@@ -161,7 +180,8 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         self.afterHide?()
     }
 
-    func unhide() {
+    override func unhide() {
+        super.unhide()
         try? phtConn?.setMessagesHidden(false)
         guard let currentSpace = try? lastActiveDisplay?.currentSpace() else {
             debugLog("WindowHidingManager.unhide: current space not found")
@@ -172,13 +192,7 @@ final class SpacesWindowHidingManager: WindowHidingManager {
         }
     }
 
-    func appActivated(window: Accessibility.Element?) throws {
-        unhide()
-    }
-
-    func appDeactivated(window: Accessibility.Element?) throws {}
-
-    func dispose() {
+    override func dispose() {
         debugLog("destroying hiddenSpace")
         try? hiddenSpace.destroy()
     }
@@ -194,16 +208,38 @@ final class SpacesWindowHidingManager: WindowHidingManager {
 //     var isValid = true
 //     var invalidate = false
 
-//     func mainWindowChanged(_ mainWindow: Accessibility.Element) throws {}
-
-//     func appActivated(window: Accessibility.Element) throws {
+//     override func appActivated(window: Accessibility.Element) throws {
 //         debugLog("WindowHidingManager.appActivated: invalidating")
 //         invalidate = true
 //     }
 
-//     func appDeactivated(window: Accessibility.Element) throws {
+//     override func appDeactivated(window: Accessibility.Element) throws {
 //         isValid = false
 //         debugLog("WindowHidingManager.appDeactivated: invalidated")
+//     }
+// }
+
+// final class RepositionWindowHidingManager: WHMBase {
+//     override func hide() {
+//         debugLog("whm.hide()")
+//         try? phtConn?.setMessagesHidden(true)
+//         if app?.isActive == true {
+//             return
+//         }
+//         try? mainWindow.map {
+//             print(NSScreen.screens.map { $0.frame })
+//             // 1728 x 1117
+//             try $0.position(assign: CGPoint(x: 1727, y: 1116))
+//         }
+//         self.afterHide?()
+//     }
+
+//     override func unhide() {
+//         debugLog("whm.unhide()")
+//         try? phtConn?.setMessagesHidden(false)
+//         try? mainWindow.map {
+//             try $0.position(assign: CGPoint(x: 0, y: 0))
+//         }
 //     }
 // }
 
