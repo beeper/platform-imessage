@@ -41,6 +41,9 @@ function getExternalVideos(videos: any): MessageAttachment[] {
   }).filter(Boolean)
 }
 
+const unquote = (str: string) =>
+  ((str[0] === '“' && str[str.length - 1] === '”') ? str : str.slice(1, -1))
+
 function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[]): Partial<Message> {
   const { richLinkMetadata } = payloadData
   if (!richLinkMetadata) return {}
@@ -63,7 +66,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
           name: title?.split(' on ')?.shift(),
         },
         url,
-        text: trimStart(trimEnd(summary, '”'), '“'),
+        text: unquote(summary || ''),
         attachments: [ppa[image?.richLinkImageAttachmentSubstituteIndex], ...attachments].filter(Boolean),
       }
       if (tweet.attachments.length > 0 || tweet.text) {
