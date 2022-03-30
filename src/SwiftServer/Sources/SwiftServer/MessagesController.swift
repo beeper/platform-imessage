@@ -780,12 +780,12 @@ final class MessagesController {
         }
     }
     private func sendReturnPress() throws {
-        try runOnMainThread { 
+        try runOnMainThread {
             try sendKeyPress(key: CGKeyCode(kVK_Return))
         }
     }
     private func sendCommandVPress() throws {
-        try runOnMainThread { 
+        try runOnMainThread {
             // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
             guard let keyCode = KeyMap.shared["v"] else { return }
             try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
@@ -821,7 +821,7 @@ final class MessagesController {
             }
         } onError: { attempt, _  in
             if attempt == 5 { // penultimate attempt
-                try? self.sendReturnPress()
+                // try? self.sendReturnPress()
             }
         }
     }
