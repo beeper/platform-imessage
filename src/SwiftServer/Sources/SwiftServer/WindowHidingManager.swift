@@ -113,7 +113,7 @@ final class SpacesWindowHidingManager: WHMBase {
     private var dockObserver: Dock.Observer?
     private var ncToken: NSObjectProtocol?
 
-    lazy var debouncedOnDidChangeScreenParams = debounced(for: 2) {
+    lazy var debouncedOnDidChangeScreenParams = debounced(for: 5) {
         // Space.setValues isn't working so we remove the key instead of setting a new value
         // not needed when dock process is changed
         try? self._hiddenSpace.removeKeys(["canReuse"])
