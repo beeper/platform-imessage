@@ -66,6 +66,7 @@ const info: PlatformInfo = {
     canQuote,
     canReact,
     requiresAccessibilityAccess: IS_BIG_SUR_OR_UP,
+    requiresContactsAccess: true,
     canQuoteOriginalMessageOnly: true,
   },
   auth: texts.React?.lazy(() => import('./auth')),
