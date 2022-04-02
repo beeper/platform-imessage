@@ -63,6 +63,8 @@ const OSAError = {
   AppIsntRunning: -600,
 }
 
+const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
+
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
 
@@ -85,8 +87,6 @@ export default class AppleiMessage implements PlatformAPI {
   private messagesControllerCreatePromise: Promise<MessagesController>
 
   private onEvent: OnServerEventCallback
-
-  private filesToDelete = new Set<string>()
 
   private forceInvalidate = false
 
@@ -192,7 +192,7 @@ export default class AppleiMessage implements PlatformAPI {
     // about disposing any existing handle.
     await Promise.all([
       this.messagesControllerCreatePromise && (await this.getMessagesController()).dispose(),
-      ...[...this.filesToDelete].map(filePath => fs.unlink(filePath).catch(() => { })),
+      fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(),
       this.dbAPI.dispose(),
       this.asAPI.dispose(),
     ])
@@ -393,6 +393,39 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
+  private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000) => {
+    const count = await this.dbAPI.getThreadMessagesCount(threadID)
+    await callback()
+    let newCount = 0
+    const startTime = Date.now()
+    while (newCount === 0) {
+      await bluebird.delay(25)
+      newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
+      if ((Date.now() - startTime) > timeoutMs) return false
+    }
+    return true
+  }
+
+  private sendTextMessageWithAS = (threadID: string, text: string) =>
+    this.waitForThreadMessageCountIncrease(threadID, () =>
+      this.asAPI.sendTextMessage(threadID, text))
+
+  private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string) =>
+    this.waitForThreadMessageCountIncrease(threadID, () => (
+      // send all with AX to increase reliability
+      IS_MONTEREY_OR_UP // && quotedMessageID
+        ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
+        : this.asAPI.sendFile(threadID, filePath)))
+
+  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string) => {
+    await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
+    const tmpFilePath = path.join(TMP_ATTACHMENT_DIR_PATH, fileName || crypto.randomUUID())
+    await fs.writeFile(tmpFilePath, fileBuffer)
+    const result = await this.sendFileFromFilePath(threadID, tmpFilePath, quotedMessageID)
+    // we don't immediately delete the file because imessage takes an unknown amount of time to send
+    return result
+  }
+
   sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, options.quotedMessageID)
@@ -420,50 +453,17 @@ export default class AppleiMessage implements PlatformAPI {
         }
       }
     }
-    return this.sendTextMessage(threadID, content.text)
-  }
-
-  private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>) => {
-    const count = await this.dbAPI.getThreadMessagesCount(threadID)
-    await callback()
-    let newCount = 0
-    const startTime = Date.now()
-    while (newCount === 0) {
-      await bluebird.delay(25)
-      newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
-      if ((Date.now() - startTime) > 60_000) return false
-    }
-    return true
-  }
-
-  private sendTextMessage = async (threadID: string, text: string) => {
     try {
-      return await this.waitForThreadMessageCountIncrease(threadID, () =>
-        this.asAPI.sendTextMessage(threadID, text))
+      return await this.sendTextMessageWithAS(threadID, content.text)
     } catch (err) {
       if (IS_BIG_SUR_OR_UP) {
         if (Object.values(OSAError).some(no => err.message.includes(`= "${no}"`))) {
-          await this.axSendWithRetry(threadID, text)
+          await this.axSendWithRetry(threadID, content.text)
           return true
         }
       }
       throw err
     }
-  }
-
-  private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string) =>
-    this.waitForThreadMessageCountIncrease(threadID, () => (
-      // send all with AX to increase reliability
-      IS_MONTEREY_OR_UP // && quotedMessageID
-        ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
-        : this.asAPI.sendFile(threadID, filePath)))
-
-  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string) => {
-    const tmpFilePath = path.join(os.tmpdir(), fileName || crypto.randomUUID())
-    await fs.writeFile(tmpFilePath, fileBuffer)
-    const result = await this.sendFileFromFilePath(threadID, tmpFilePath, quotedMessageID)
-    this.filesToDelete.add(tmpFilePath) // we don't immediately delete because imessage takes an unknown amount of time to send
-    return result
   }
 
   updateThread = async (threadID: string, updates: Partial<Thread>) => {
