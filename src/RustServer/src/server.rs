@@ -79,13 +79,13 @@ impl Server {
     }
 
     pub fn js_destroy(mut cx: FunctionContext) -> JsResult<JsUndefined> {
-        let boxed = cx.this().downcast_or_throw::<BoxedServer, _>(&mut cx)?;
+        if let Ok(boxed) = cx.this().downcast::<BoxedServer, _>(&mut cx) {
+            let mut rm = boxed.borrow_mut();
 
-        let mut rm = boxed.borrow_mut();
+            let cb = rm.0.take().unwrap();
 
-        let cb = rm.0.take().unwrap();
-
-        drop(cb);
+            drop(cb);
+        }
 
         Ok(cx.undefined())
     }

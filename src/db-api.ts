@@ -145,7 +145,6 @@ export default class DatabaseAPI {
   }
 
   dispose() {
-    this.rustServer?.stopPoller()
     this.rustServer?.destroy()
     return this.db?.dispose()
   }
