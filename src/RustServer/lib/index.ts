@@ -15,22 +15,33 @@ const {
 } = actualRequire(path.join(ARCH_BINARIES_DIR_PATH, 'rust-server.node'))
 
 export class Server {
-  #client: object
+  #client: object | null = null
 
   constructor(fn: OnServerEventCallback) {
     this.#client = newServer(fn)
   }
 
   public startPoller(last_row_id: number, last_date_read: number) {
-    this.#client = startPoller.call(this.#client, last_row_id, last_date_read)
+    if (this.#client !== null) {
+      this.#client = startPoller.call(this.#client, last_row_id, last_date_read)
+    }
+
+    return this.#client !== null
   }
 
   public stopPoller() {
-    this.#client = stopPoller.call(this.#client)
+    if (this.#client !== null) {
+      this.#client = stopPoller.call(this.#client)
+    }
+
+    return this.#client !== null
   }
 
   public destroy() {
-    dropServer.call(this.#client)
+    if (this.#client !== null) {
+      dropServer.call(this.#client)
+    }
+
     this.#client = null
   }
 }
