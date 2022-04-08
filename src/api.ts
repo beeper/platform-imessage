@@ -192,7 +192,7 @@ export default class AppleiMessage implements PlatformAPI {
     // about disposing any existing handle.
     await Promise.all([
       this.messagesControllerCreatePromise && (await this.getMessagesController()).dispose(),
-      fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(),
+      fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
       this.dbAPI.dispose(),
       this.asAPI.dispose(),
     ])
