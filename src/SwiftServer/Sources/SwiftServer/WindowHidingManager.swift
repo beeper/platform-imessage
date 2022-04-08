@@ -111,7 +111,7 @@ final class SpacesWindowHidingManager: WHMBase {
         }
     }
     private var dockObserver: Dock.Observer?
-    private var ncToken: NSObjectProtocol?
+    // private var ncToken: NSObjectProtocol?
 
     lazy var debouncedOnDidChangeScreenParams = debounced(for: 5) {
         // Space.setValues isn't working so we remove the key instead of setting a new value
@@ -120,16 +120,16 @@ final class SpacesWindowHidingManager: WHMBase {
         (try? Self.createOrGetInvisibleUserSpace()).map { self._hiddenSpace = $0 }
         self.hide()
     }
-    
+
     // hiddenSpace will become visible when dock is restarted or display config is changed so create another hidden space and move window
     private func monitorMissionControlChanges() {
         dockObserver = Dock.Observer { [weak self] in
             self?.hide()
         }
-        ncToken = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil) { [weak self] _ in
-            debugLog("ncDidChangeScreenParameters")
-            self?.debouncedOnDidChangeScreenParams()
-        }
+        // ncToken = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil) { [weak self] _ in
+        //     debugLog("ncDidChangeScreenParameters")
+        //     self?.debouncedOnDidChangeScreenParams()
+        // }
     }
 
     override init() throws {
@@ -214,7 +214,7 @@ final class SpacesWindowHidingManager: WHMBase {
     }
 
     deinit {
-        ncToken.map { NotificationCenter.default.removeObserver($0) }
+        // ncToken.map { NotificationCenter.default.removeObserver($0) }
         // closing window better than moving back to regular space
         try? mainWindow?.closeWindow()
     }
