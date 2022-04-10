@@ -532,7 +532,7 @@ final class MessagesController {
             //         try? replyTranscriptView.cancel()
             //     }
             // }
-            if overlay { waitUntilReplyTranscriptVisible() }
+            if overlay { try waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptView) : Self.firstSelectedMessageCell(in: transcriptView) else {
                     throw ErrorMessage("")
@@ -832,8 +832,13 @@ final class MessagesController {
         Thread.sleep(forTimeInterval: 0.2) // wait for animation, todo use better logic
     }
 
-    private func waitUntilReplyTranscriptVisible() {
-        Thread.sleep(forTimeInterval: 0.5) // wait for animation, todo use better logic
+    private func waitUntilReplyTranscriptVisible() throws {
+        debugLog("waitUntilReplyTranscriptVisible")
+        try retry(withTimeout: 1.5, interval: 0.1) {
+            if (try? replyTranscriptView.isInViewport) != true {
+                throw ErrorMessage("Could not find replyTranscriptView")
+            }
+        }
     }
 
     // the URL should be a deep link that fills the text field with the required message
@@ -959,8 +964,8 @@ final class MessagesController {
 
         if overlay {
             let url = try MessagesDeepLink.message(guid: messageGUID, overlay: overlay).url()
-            try self.withActivation(openBefore: url, openAfter: activityObserver?.url) {
-                self.waitUntilReplyTranscriptVisible()
+            try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+                try waitUntilReplyTranscriptVisible()
                 let messageField = try messagesField()
                 if let filePath = filePath {
                     try self.pasteFileInBodyField(messageField, filePath: filePath)
