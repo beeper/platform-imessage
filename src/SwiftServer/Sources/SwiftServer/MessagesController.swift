@@ -280,15 +280,15 @@ final class MessagesController {
 
     private var cachedMainWindow: Accessibility.Element?
     private var cachedConversationsList: Accessibility.Element?
-    private var cachedTranscriptsView: Accessibility.Element?
-    private var cachedReplyTranscriptsView: Accessibility.Element?
+    private var cachedTranscriptView: Accessibility.Element?
+    private var cachedReplyTranscriptView: Accessibility.Element?
 
     private func clearCachedElements() {
         // these are manually cleared because we aren't checking for validity on each property access
         // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
         cachedConversationsList = nil
-        cachedTranscriptsView = nil
-        cachedReplyTranscriptsView = nil
+        cachedTranscriptView = nil
+        cachedReplyTranscriptView = nil
     }
 
     private var mainWindow: Accessibility.Element {
@@ -387,37 +387,37 @@ final class MessagesController {
         return buttons
     }
 
-    private func getTranscriptsView(replyTranscripts: Bool) throws -> Accessibility.Element {
-        func isReplyTranscriptsView(_ el: Accessibility.Element) -> Bool {
+    private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
+        func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
             // alternative: (localizedDescription == "Messages" when not overlayed)
             // (try? el.localizedDescription()) == "Reply transcript"
             // when reply is active, linkedElements.count = 1 (the sole linked element is messageBodyField)
             (try? el.linkedElements.count()) ?? 0 == 0
         }
         return try mainWindow.recursiveChildren().lazy.first {
-            (try? $0.identifier()) == "TranscriptCollectionView" && isReplyTranscriptsView($0) == replyTranscripts
+            (try? $0.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView($0) == replyTranscript
         }
-        .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscripts=\(replyTranscripts)"))
+        .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscript=\(replyTranscript)"))
     }
 
-    private var transcriptsView: Accessibility.Element {
+    private var transcriptView: Accessibility.Element {
         get throws {
-            if let cached = cachedTranscriptsView, cached.isInViewport {
+            if let cached = cachedTranscriptView, cached.isInViewport {
                 return cached
             }
-            let tcv = try getTranscriptsView(replyTranscripts: false)
-            cachedTranscriptsView = tcv
+            let tcv = try getTranscriptView(replyTranscript: false)
+            cachedTranscriptView = tcv
             return tcv
         }
     }
 
-    private var replyTranscriptsView: Accessibility.Element {
+    private var replyTranscriptView: Accessibility.Element {
         get throws {
-            if let cached = cachedReplyTranscriptsView, cached.isInViewport {
+            if let cached = cachedReplyTranscriptView, cached.isInViewport {
                 return cached
             }
-            let tcv = try getTranscriptsView(replyTranscripts: true)
-            cachedReplyTranscriptsView = tcv
+            let tcv = try getTranscriptView(replyTranscript: true)
+            cachedReplyTranscriptView = tcv
             return tcv
         }
     }
@@ -517,24 +517,24 @@ final class MessagesController {
 
         let url = try MessagesDeepLink.message(guid: guid, overlay: overlay).url()
 
-        // without closing reply transcripts, non-overlay deep link won't select the message
-        if !overlay, let rtv = try? replyTranscriptsView {
-            debugLog("calling replyTranscriptsView.cancel()")
+        // without closing reply transcript, non-overlay deep link won't select the message
+        if !overlay, let rtv = try? replyTranscriptView {
+            debugLog("calling replyTranscriptView.cancel()")
             try? rtv.cancel()
         }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            // we don't close transcripts view here because when reacting, closing it will undo the reaction
+            // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
             //     if overlay {
             //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
             //         Thread.sleep(forTimeInterval: 0.1)
-            //         try? replyTranscriptsView.cancel()
+            //         try? replyTranscriptView.cancel()
             //     }
             // }
             if overlay { waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
-                guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptsView) : Self.firstSelectedMessageCell(in: transcriptsView) else {
+                guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptView) : Self.firstSelectedMessageCell(in: transcriptView) else {
                     throw ErrorMessage("")
                 }
                 guard cell.isInViewport else { throw ErrorMessage("") }
@@ -548,7 +548,7 @@ final class MessagesController {
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let containerCells = try Self.messageContainerCells(in: overlay ? replyTranscriptsView : transcriptsView)
+                let containerCells = try Self.messageContainerCells(in: overlay ? replyTranscriptView : transcriptView)
                 guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
                     throw ErrorMessage("Could not find target message cell")
                 }
@@ -826,8 +826,8 @@ final class MessagesController {
     }
 
     private func closeReplyTranscriptView() {
-        guard let rtv = try? replyTranscriptsView else { return }
-        debugLog("calling replyTranscriptsView.cancel()")
+        guard let rtv = try? replyTranscriptView else { return }
+        debugLog("calling replyTranscriptView.cancel()")
         try? rtv.cancel()
         Thread.sleep(forTimeInterval: 0.2) // wait for animation, todo use better logic
     }
@@ -1002,8 +1002,8 @@ final class MessagesController {
     }
 
     private func activityStatus() -> [ActivityStatus] {
-        guard let transcripts = try? transcriptsView,
-              let count = try? transcripts.children.count() else {
+        guard let transcript = try? transcriptView,
+              let count = try? transcript.children.count() else {
             return [.unknown]
         }
         let cellsToCheck: [Accessibility.Element]
@@ -1011,14 +1011,14 @@ final class MessagesController {
         case 0:
             return [.unknown]
         case 1:
-            guard let elt = try? transcripts.children.value(at: 0) else {
+            guard let elt = try? transcript.children.value(at: 0) else {
                 return [.unknown]
             }
             cellsToCheck = [elt]
         default:
             // todo review if 2 : 1 is enough
             let lastN = isMontereyOrUp ? 3 : 2
-            guard let elts = try? transcripts.children(range: (count - lastN)..<count), elts.count == lastN else {
+            guard let elts = try? transcript.children(range: (count - lastN)..<count), elts.count == lastN else {
                 return [.unknown]
             }
             cellsToCheck = elts
@@ -1057,11 +1057,11 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            guard let transcripts = try? transcriptsView,
-                  let count = try? transcripts.children.count() else {
-                throw ErrorMessage("transcriptsView not found")
+            guard let transcript = try? transcriptView,
+                  let count = try? transcript.children.count() else {
+                throw ErrorMessage("transcriptView not found")
             }
-            guard let notifyAnywayButton = try? transcripts.children(range: (count - 2)..<count).first(where: {
+            guard let notifyAnywayButton = try? transcript.children(range: (count - 2)..<count).first(where: {
                 let child = try $0.children.value(at: 0)
                 return (try? child.role()) == AXRole.button && (try? child.localizedDescription()) == Self.notifyAnywayString
             }) else {
