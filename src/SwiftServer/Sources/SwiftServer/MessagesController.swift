@@ -532,8 +532,7 @@ final class MessagesController {
             //         try? replyTranscriptsView.cancel()
             //     }
             // }
-            // wait for animation
-            if overlay { Thread.sleep(forTimeInterval: 0.5) }
+            if overlay { waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptsView) : Self.firstSelectedMessageCell(in: transcriptsView) else {
                     throw ErrorMessage("")
@@ -826,18 +825,24 @@ final class MessagesController {
         }
     }
 
+    private func closeReplyTranscriptView() {
+        guard let rtv = try? replyTranscriptsView else { return }
+        debugLog("calling replyTranscriptsView.cancel()")
+        try? rtv.cancel()
+        Thread.sleep(forTimeInterval: 0.2) // wait for animation, todo use better logic
+    }
+
+    private func waitUntilReplyTranscriptVisible() {
+        Thread.sleep(forTimeInterval: 0.5) // wait for animation, todo use better logic
+    }
+
     // the URL should be a deep link that fills the text field with the required message
     // (in the appropriate thread)
     private func sendTextMessage(url: URL) throws {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        if let rtv = try? replyTranscriptsView {
-            debugLog("calling replyTranscriptsView.cancel()")
-            try? rtv.cancel()
-            Thread.sleep(forTimeInterval: 0.2) // wait for animation
-        }
-
+        self.closeReplyTranscriptView()
         let wait = getWaitForWindowTitleChangeFn()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             wait()
@@ -864,12 +869,7 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        if let rtv = try? replyTranscriptsView {
-            debugLog("calling replyTranscriptsView.cancel()")
-            try? rtv.cancel()
-            Thread.sleep(forTimeInterval: 0.2) // wait for animation
-        }
-
+        self.closeReplyTranscriptView()
         let wait = getWaitForWindowTitleChangeFn()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -959,15 +959,15 @@ final class MessagesController {
 
         if overlay {
             let url = try MessagesDeepLink.message(guid: messageGUID, overlay: overlay).url()
-            try Self.openDeepLink(url, withoutActivation: true)
-            Thread.sleep(forTimeInterval: 0.1)
+            try self.withActivation(openBefore: url, openAfter: activityObserver?.url) {
+                self.waitUntilReplyTranscriptVisible()
+                let messageField = try messagesField()
+                if let filePath = filePath {
+                    try self.pasteFileInBodyField(messageField, filePath: filePath)
+                }
 
-            let messageField = try messagesField()
-            if let filePath = filePath {
-                try self.pasteFileInBodyField(messageField, filePath: filePath)
+                try send(messageField)
             }
-
-            try send(messageField)
             return
         }
 
