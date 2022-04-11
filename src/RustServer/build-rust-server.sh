@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+export MACOSX_DEPLOYMENT_TARGET=10.12
+
 function build_arch {
     cargo build --manifest-path src/RustServer/Cargo.toml --release --target="$1"
     local built_path="src/RustServer/target/$1/release/librust_server.dylib"
