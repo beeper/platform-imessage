@@ -412,8 +412,9 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string) =>
     this.waitForThreadMessageCountIncrease(threadID, () => (
-      // send all with AX to increase reliability
-      IS_MONTEREY_OR_UP // && quotedMessageID
+      // ~~send all with AX to increase reliability~~
+      // IS_MONTEREY_OR_UP // && quotedMessageID
+      quotedMessageID
         ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
         : this.asAPI.sendFile(threadID, filePath)))
 
@@ -534,7 +535,7 @@ export default class AppleiMessage implements PlatformAPI {
   removeReaction = (threadID: string, messageID: string, reactionKey: string) =>
     this.setReaction(threadID, messageID, reactionKey, false)
 
-  deleteMessage = async (threadID: string, messageID: string) => true
+  // deleteMessage = async (threadID: string, messageID: string) => false
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
@@ -652,7 +653,7 @@ export default class AppleiMessage implements PlatformAPI {
         return json === undefined ? 'null' : json
       }
 
-      case 'hw': {
+      case 'hw': { // handwriting
         const [uuid] = methodName.split('.', 1)
         const fileNames = await fs.readdir(TMP_MOBILE_SMS_PATH)
         let attemptsRemaining = 10
@@ -668,7 +669,7 @@ export default class AppleiMessage implements PlatformAPI {
         return
       }
 
-      case 'dt': {
+      case 'dt': { // digital touch
         const [uuid] = methodName.split('.', 1)
         const filePath = path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)
         await waitForFileToExist(filePath, 5_000)
