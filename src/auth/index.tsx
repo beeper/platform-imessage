@@ -95,8 +95,8 @@ const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: CallProxiedFn }> = (
 }
 
 const SetupMessagesSection: React.FC<{ callProxiedFn: CallProxiedFn }> = ({ callProxiedFn }) => {
-  const isEmpty = useCallback(() => callProxiedFn('isMessagesAppSetup'), [])
-  const { value: isSetup, pending } = useAsync(isEmpty)
+  const isMessagesAppSetup = useCallback(() => callProxiedFn('isMessagesAppSetup'), [])
+  const { value: isSetup, pending } = useAsync(isMessagesAppSetup)
   if (pending || isSetup) return null
   return (
     <details open>

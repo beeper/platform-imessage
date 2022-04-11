@@ -626,7 +626,7 @@ export default class AppleiMessage implements PlatformAPI {
   proxiedAuthFns = {
     isMessagesAppSetup: async () => {
       await this.dbAPI.init()
-      return this.dbAPI?.isEmpty()
+      return !await this.dbAPI?.isEmpty()
     },
     canAccessMessagesDir,
     askForAutomationAccess: () => this.asAPI.askForAutomationAccess(),
