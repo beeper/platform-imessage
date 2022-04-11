@@ -27,7 +27,7 @@ async function main() {
       // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/SwiftServer.node']
       buildPath: path.join(BUILD_DIR_PATH, `${config}-${arch}`),
       packagePath: PACKAGE_DIR_PATH,
-      macVersion: '10.15',
+      macVersion: '10.14',
       swiftFlags: '',
     }
 

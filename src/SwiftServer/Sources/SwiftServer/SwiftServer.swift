@@ -188,6 +188,38 @@ final class MessagesControllerWrapper: NodeClass {
     }
 }
 
+@available(macOS 10.15, *)
+enum SysPrefsOnboarding {
+    static var onboardingManager: OnboardingManager? = nil
+
+    static func start() throws -> NodeValueConvertible {
+        let queue = try NodeAsyncQueue(label: "sys-prefs-callback")
+        return try NodePromise { deferred in
+            DispatchQueue.main.async {
+                let result = Result<NodeValueConvertible, Error> {
+                    guard onboardingManager == nil else {
+                        return undefined
+                    }
+                    onboardingManager = OnboardingManager()
+                    if let onboardingManager = onboardingManager {
+                        onboardingManager.createWindow()
+                    }
+                    return undefined
+                }
+                try? queue.async {
+                    try deferred(result)
+                }
+            }
+        }
+    }
+
+    static func stop() throws -> NodeValueConvertible {
+        onboardingManager?.closeWindow()
+        onboardingManager = nil
+        return try NodeUndefined()
+    }
+}
+
 @main struct SwiftServer: NodeModule {
     static var isLoggingEnabled = false
     static var isPHTEnabled = false
@@ -197,10 +229,7 @@ final class MessagesControllerWrapper: NodeClass {
     init() throws {
         // strongly retained by askForMessagesDirAccess, deinit called on exit
         let accessManager = MessagesAccessManager()
-
-        var onboardingManager: OnboardingManager? = nil
-
-        exports = try NodeObject([
+        var dict: [String: NodePropertyConvertible] = try [
             "appleInterfaceStyle": NodeComputedProperty { _ in
                 UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
             },
@@ -248,33 +277,6 @@ final class MessagesControllerWrapper: NodeClass {
 
             "MessagesController": MessagesControllerWrapper.constructor(),
 
-            "startSysPrefsOnboarding": NodeFunction {
-                let queue = try NodeAsyncQueue(label: "sys-prefs-callback")
-                return try NodePromise { deferred in
-                    DispatchQueue.main.async {
-                        let result = Result<NodeValueConvertible, Error> {
-                            guard onboardingManager == nil else {
-                                return undefined
-                            }
-                            onboardingManager = OnboardingManager()
-                            if let onboardingManager = onboardingManager {
-                                onboardingManager.createWindow()
-                            }
-                            return undefined
-                        }
-                        try? queue.async {
-                            try deferred(result)
-                        }
-                    }
-                }
-            },
-
-            "stopSysPrefsOnboarding": NodeFunction {
-                onboardingManager?.closeWindow()
-                onboardingManager = nil
-                return try NodeUndefined()
-            },
-
             "confirmUNCPrompt": NodeFunction {
                 let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
                 return try NodePromise { deferred in
@@ -306,6 +308,13 @@ final class MessagesControllerWrapper: NodeClass {
                     }
                 }
             }
-        ])
+        ]
+
+        if #available(macOS 10.15, *) {
+            dict["startSysPrefsOnboarding"] = try NodeFunction { try SysPrefsOnboarding.start() }
+            dict["stopSysPrefsOnboarding"] = try NodeFunction { try SysPrefsOnboarding.stop() }
+        }
+
+        exports = dict
     }
 }

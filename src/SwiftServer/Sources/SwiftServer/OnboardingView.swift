@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@available(macOS 10.15, *)
 struct RoundedCorners: Shape {
     var tl: CGFloat = 0.0
     var tr: CGFloat = 0.0
@@ -41,6 +42,7 @@ struct RoundedCorners: Shape {
     }
 }
 
+@available(macOS 10.15, *)
 struct MessageBubble: View {
     var text: String
 
@@ -67,6 +69,7 @@ struct MessageBubble: View {
     }
 }
 
+@available(macOS 10.15, *)
 struct OnboardingView: View {
     var body: some View {
         HStack(spacing: 0) {

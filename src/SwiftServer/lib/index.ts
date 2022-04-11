@@ -62,8 +62,8 @@ export type SwiftServer = {
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
 
-  startSysPrefsOnboarding: () => Promise<void>
-  stopSysPrefsOnboarding: () => void
+  startSysPrefsOnboarding?: () => Promise<void>
+  stopSysPrefsOnboarding?: () => void
 
   confirmUNCPrompt: () => Promise<void>
   disableNotificationsForApp: (appName: string) => Promise<void>

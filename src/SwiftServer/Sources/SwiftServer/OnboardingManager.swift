@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@available(macOS 10.15, *)
 final class OnboardingManager {
     private var onboardingWindow: NSWindow?
     private var pollingTimer: Timer?
