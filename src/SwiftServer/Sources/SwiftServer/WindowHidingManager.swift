@@ -111,15 +111,17 @@ final class SpacesWindowHidingManager: WHMBase {
         }
     }
     private var dockObserver: Dock.Observer?
-    // private var ncToken: NSObjectProtocol?
+    private var ncToken: NSObjectProtocol?
 
-    lazy var debouncedOnDidChangeScreenParams = debounced(for: 5) {
-        // Space.setValues isn't working so we remove the key instead of setting a new value
-        // not needed when dock process is changed
-        try? self._hiddenSpace.removeKeys(["canReuse"])
-        (try? Self.createOrGetInvisibleUserSpace()).map { self._hiddenSpace = $0 }
-        self.hide()
-    }
+    private var lastActivate: Date?
+
+    // lazy var debouncedOnDidChangeScreenParams = debounced(for: 5) {
+    //     // Space.setValues isn't working so we remove the key instead of setting a new value
+    //     // not needed when dock process is changed
+    //     try? self._hiddenSpace.removeKeys(["canReuse"])
+    //     (try? Self.createOrGetInvisibleUserSpace()).map { self._hiddenSpace = $0 }
+    //     self.hide()
+    // }
 
     // hiddenSpace will become visible when dock is restarted or display config is changed so create another hidden space and move window
     private func monitorMissionControlChanges() {
@@ -130,6 +132,16 @@ final class SpacesWindowHidingManager: WHMBase {
         //     debugLog("ncDidChangeScreenParameters")
         //     self?.debouncedOnDidChangeScreenParams()
         // }
+        // if the hidden space is actually visible, activating messages app would cause the active space to change 
+        ncToken = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
+            debugLog("ncActiveSpaceDidChangeNotification")
+            self?.lastActivate.map {
+                if $0.timeIntervalSinceNow > -1 {
+                    debugLog("hiding (unhiding) window because space changed after app activate \($0.timeIntervalSinceNow)")
+                    self?.hide()
+                }
+            }
+        }
     }
 
     override init() throws {
@@ -149,6 +161,11 @@ final class SpacesWindowHidingManager: WHMBase {
         all.forEach { $0.printAttributes() }
         // all.filter { (try? $0.name()) == "1FBF2F7F-57EC-56E5-521F-556A305D1A61" }.forEach { $0.destroy() }
         #endif
+    }
+
+    override func appActivated(window: Accessibility.Element?) throws {
+        try super.appActivated(window: window)
+        lastActivate = Date()
     }
 
     // returns last active display
@@ -214,7 +231,7 @@ final class SpacesWindowHidingManager: WHMBase {
     }
 
     deinit {
-        // ncToken.map { NotificationCenter.default.removeObserver($0) }
+        ncToken.map { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         // closing window better than moving back to regular space
         try? mainWindow?.closeWindow()
     }
