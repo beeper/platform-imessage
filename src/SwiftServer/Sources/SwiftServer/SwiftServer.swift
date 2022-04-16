@@ -69,11 +69,17 @@ final class MessagesControllerWrapper: NodeClass {
     private let watchCBQueue: NodeAsyncQueue
 
     let controller: MessagesController
+    let hook: AsyncCleanupHook
     // must be called on JS queue
     init(controller: MessagesController) throws {
         self.controller = controller
         self.swiftJSQueue = try NodeAsyncQueue(label: "messages-controller-async")
         self.watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
+        hook = try NodeEnvironment.current.addAsyncCleanupHook { completion in
+            debugLog("[MessagesControllerWrapper] running dispose inside cleanup hook")
+            controller.dispose()
+            completion()
+        }
     }
 
     func isValid() throws -> NodeValueConvertible {
@@ -184,6 +190,7 @@ final class MessagesControllerWrapper: NodeClass {
 
     func dispose() throws -> NodeValueConvertible {
         Self.queue.sync { controller.dispose() }
+        try NodeEnvironment.current.removeCleanupHook(hook)
         return undefined
     }
 }
