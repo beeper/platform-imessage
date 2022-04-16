@@ -49,7 +49,7 @@ class WHMBase: WindowHidingManager {
     }
 
     init() throws {
-        if SwiftServer.isPHTEnabled {
+        if Preferences.isPHTEnabled {
             // ignore pht connection errors
             let phtConn = try? PHTConnection.create(allowInstall: true)
             self.phtConn = phtConn

@@ -14,7 +14,7 @@ extension Optional {
 @_transparent
 func debugLog(_ message: @autoclosure () -> String) {
     #if DEBUG
-    guard SwiftServer.isLoggingEnabled else { return }
+    guard Preferences.isLoggingEnabled else { return }
     print(message())
     #endif
 }

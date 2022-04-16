@@ -30,7 +30,7 @@ final class MessagesControllerWrapper: NodeClass {
         try NodePromise { deferred in
             queue.async {
                 let result = Result { try action() }
-                try? jsQueue.async {
+                try? jsQueue.run {
                     try deferred(result)
                 }
             }
@@ -75,7 +75,7 @@ final class MessagesControllerWrapper: NodeClass {
         self.controller = controller
         self.swiftJSQueue = try NodeAsyncQueue(label: "messages-controller-async")
         self.watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
-        hook = try NodeEnvironment.current.addAsyncCleanupHook { completion in
+        hook = try NodeEnvironment.current.addCleanupHook { completion in
             debugLog("[MessagesControllerWrapper] running dispose inside cleanup hook")
             controller.dispose()
             completion()
@@ -125,8 +125,7 @@ final class MessagesControllerWrapper: NodeClass {
                   let address = try args[0].as(String.self),
                   let fn = try args[1].as(NodeFunction.self) {
             controllerArgs = (address, { status in
-                // workaround for https://bugs.swift.org/browse/SR-16039
-                try? self.watchCBQueue.async { try fn(status.map { $0.rawValue }.joined(separator: ",")) }
+                try? self.watchCBQueue.run { try fn(status.map { $0.rawValue }) }
             })
         } else {
             print("warning: Invalid args to watchThreadActivity")
@@ -199,38 +198,25 @@ final class MessagesControllerWrapper: NodeClass {
 enum SysPrefsOnboarding {
     static var onboardingManager: OnboardingManager? = nil
 
-    static func start() throws -> NodeValueConvertible {
-        let queue = try NodeAsyncQueue(label: "sys-prefs-callback")
-        return try NodePromise { deferred in
-            DispatchQueue.main.async {
-                let result = Result<NodeValueConvertible, Error> {
-                    guard onboardingManager == nil else {
-                        return undefined
-                    }
-                    onboardingManager = OnboardingManager()
-                    if let onboardingManager = onboardingManager {
-                        onboardingManager.createWindow()
-                    }
-                    return undefined
-                }
-                try? queue.async {
-                    try deferred(result)
-                }
-            }
-        }
+    static func start() {
+        guard onboardingManager == nil else { return }
+        let onboardingManager = OnboardingManager()
+        self.onboardingManager = onboardingManager
+        onboardingManager.createWindow()
     }
 
-    static func stop() throws -> NodeValueConvertible {
+    static func stop() {
         onboardingManager?.closeWindow()
         onboardingManager = nil
-        return try NodeUndefined()
     }
 }
 
-@main struct SwiftServer: NodeModule {
+enum Preferences {
     static var isLoggingEnabled = false
     static var isPHTEnabled = false
+}
 
+@main struct SwiftServer: NodeModule {
     let exports: NodeValueConvertible
 
     init() throws {
@@ -242,15 +228,15 @@ enum SysPrefsOnboarding {
             },
 
             "isLoggingEnabled": NodeComputedProperty { _ in
-                Self.isLoggingEnabled
+                Preferences.isLoggingEnabled
             } set: { args in
-                Self.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
+                Preferences.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
             },
 
             "isPHTEnabled": NodeComputedProperty { _ in
-                Self.isPHTEnabled
+                Preferences.isPHTEnabled
             } set: { args in
-                Self.isPHTEnabled = try args.first?.as(Bool.self) ?? false
+                Preferences.isPHTEnabled = try args.first?.as(Bool.self) ?? false
             },
 
             "askForMessagesDirAccess": NodeFunction {
@@ -261,7 +247,7 @@ enum SysPrefsOnboarding {
                             try accessManager.requestAccess()
                             return undefined
                         }
-                        try? queue.async {
+                        try? queue.run {
                             try deferred(result)
                         }
                     }
@@ -293,7 +279,7 @@ enum SysPrefsOnboarding {
                             try PromptAutomation.confirmUNCPrompt()
                             return undefined
                         }
-                        try? queue.async {
+                        try? queue.run {
                             try deferred(result)
                         }
                     }
@@ -309,7 +295,7 @@ enum SysPrefsOnboarding {
                             try PromptAutomation.disableNotificationsForApp(named: appName)
                         }
 
-                        try? queue.async {
+                        try? queue.run {
                             try deferred(result)
                         }
                     }
@@ -318,8 +304,14 @@ enum SysPrefsOnboarding {
         ]
 
         if #available(macOS 10.15, *) {
-            dict["startSysPrefsOnboarding"] = try NodeFunction { try SysPrefsOnboarding.start() }
-            dict["stopSysPrefsOnboarding"] = try NodeFunction { try SysPrefsOnboarding.stop() }
+            dict["startSysPrefsOnboarding"] = try NodeFunction {
+                SysPrefsOnboarding.start()
+                return undefined
+            }
+            dict["stopSysPrefsOnboarding"] = try NodeFunction {
+                SysPrefsOnboarding.stop()
+                return undefined
+            }
         }
 
         exports = dict
