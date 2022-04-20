@@ -1,5 +1,13 @@
 import AppKit
 
+// extension FileManager {
+//     func directoryExists(atPath: URL) -> Bool {
+//         var isDirectory: ObjCBool = false
+//         let exists = fileExists(atPath: atPath.path, isDirectory: &isDirectory)
+//         return exists && isDirectory.boolValue
+//     }
+// }
+
 enum DraftsManager {
     static let libraryDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
     static let draftsDir = libraryDir?
@@ -11,7 +19,7 @@ enum DraftsManager {
     static let CKCompositionFileURL = NSAttributedString.Key(rawValue: "CKCompositionFileURL")
 
     static func saveDraft(address: String, filePath: String) throws {
-        guard let draftsDir = draftsDir else { throw ErrorMessage("draftsDir not found") }
+        let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir not found"))
 
         let ogFileURL = URL(fileURLWithPath: filePath)
         let addressDir = draftsDir.appendingPathComponent(address, isDirectory: true)
@@ -30,4 +38,13 @@ enum DraftsManager {
 
         try (compositionDict as NSDictionary).write(to: addressDir.appendingPathComponent("composition.plist"))
     }
+
+    // static var pendingDraftExists: Bool {
+    //     get throws {
+    //         let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir not found"))
+
+    //         let pendingDir = draftsDir.appendingPathComponent("Pending", isDirectory: true)
+    //         return FileManager.default.directoryExists(atPath: pendingDir)
+    //     }
+    // }
 }

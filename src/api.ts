@@ -17,7 +17,7 @@ import ThreadReadStore from './thread-read-store'
 import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import { waitForFileToExist, shellExec } from './util'
+import { pathExists, waitForFileToExist, shellExec } from './util'
 import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
 import DNDState from './DNDState'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
@@ -171,12 +171,17 @@ export default class AppleiMessage implements PlatformAPI {
 
   init = async (_: undefined, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
     this.accountID = accountID
-    if (swiftServer) swiftServer.isPHTEnabled = prefs.hide_messages_app
+    const userDataDirPath = path.dirname(dataDirPath)
+    if (swiftServer) {
+      swiftServer.isPHTEnabled = prefs.hide_messages_app
+      swiftServer.enabledExperiments = await pathExists(path.join(userDataDirPath, 'imessage-enabled-experiments')) ? 'true' : ''
+      texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
+    }
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       this.getMessagesController()
     }
-    this.threadReadStore = new ThreadReadStore(path.dirname(dataDirPath))
+    this.threadReadStore = new ThreadReadStore(userDataDirPath)
     csrStatus().then(status => {
       texts.trackPlatformEvent({
         csrutilStatus: status,

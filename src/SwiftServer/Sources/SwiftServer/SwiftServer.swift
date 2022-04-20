@@ -214,6 +214,7 @@ enum SysPrefsOnboarding {
 enum Preferences {
     static var isLoggingEnabled = false
     static var isPHTEnabled = false
+    static var enabledExperiments = ""
 }
 
 @main struct SwiftServer: NodeModule {
@@ -225,6 +226,12 @@ enum Preferences {
         var dict: [String: NodePropertyConvertible] = try [
             "appleInterfaceStyle": NodeComputedProperty { _ in
                 UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
+            },
+
+            "enabledExperiments": NodeComputedProperty { _ in
+                Preferences.enabledExperiments
+            } set: { args in
+                Preferences.enabledExperiments = try args.first?.as(String.self) ?? ""
             },
 
             "isLoggingEnabled": NodeComputedProperty { _ in

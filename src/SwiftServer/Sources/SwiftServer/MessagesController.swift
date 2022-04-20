@@ -278,6 +278,10 @@ final class MessagesController {
         })
     }
 
+    private func getComposeCell() -> Accessibility.Element? {
+        try? conversationsList.children().first(where: Self.isThreadCellCompose)
+    }
+
     private var cachedMainWindow: Accessibility.Element?
     private var cachedConversationsList: Accessibility.Element?
     private var cachedTranscriptView: Accessibility.Element?
@@ -598,6 +602,13 @@ final class MessagesController {
         }
     }
 
+    func removeComposeCell(_ composeCell: Accessibility.Element) throws {
+        debugLog("removeComposeCell")
+        let deleteAction = try composeCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") })
+            .orThrow(ErrorMessage("composeCell.deleteAction not found"))
+        try deleteAction()
+    }
+
     func markAsRead(messageGUID: String) throws {
         whm.hide()
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
@@ -607,20 +618,15 @@ final class MessagesController {
 
         let compose = try MessagesDeepLink.compose.url()
         try withActivation(openBefore: compose, openAfter: activityObserver?.url) {
-            guard let composeCell = waitUntilSelectedThreadCell(isCompose: true) else {
-                throw ErrorMessage("Compose thread cell not found")
-            }
+            let composeCell = try waitUntilSelectedThreadCell(isCompose: true)
+                .orThrow(ErrorMessage("Compose thread cell not found"))
 
             debugLog("Opened compose. Opening target thread")
             try Self.openDeepLink(url, withoutActivation: true)
 
             // Thread.sleep(forTimeInterval: 1)
-            // debugLog("Deleting compose")
-            // guard let deleteAction = try composeCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") }) else {
-            //     throw ErrorMessage("composeCell.deleteAction not found")
-            // }
-            // // this will scroll to the selected cell
-            // try deleteAction()
+            // // removing compose cell scrolls to the selected cell
+            // try removeComposeCell(composeCell)
             // Thread.sleep(forTimeInterval: 1)
 
             guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
@@ -990,7 +996,13 @@ final class MessagesController {
         do {
             debugLog("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            try whm.appActivated(window: getMainWindow())
+            let window = getMainWindow()
+            try whm.appActivated(window: window)
+            if window != nil, !Preferences.enabledExperiments.isEmpty  {
+                if let composeCell = getComposeCell() {
+                    try? removeComposeCell(composeCell)
+                }
+            }
         } catch {
             debugLog("warning: Could not show Messages window: \(error)")
         }

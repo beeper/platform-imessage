@@ -58,6 +58,8 @@ export type SwiftServer = {
   appleInterfaceStyle: string
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
+  enabledExperiments: string
+
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
