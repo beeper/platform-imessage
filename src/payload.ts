@@ -42,7 +42,7 @@ function getExternalVideos(videos: any): MessageAttachment[] {
 }
 
 const unquote = (str: string) =>
-  ((str[0] === '“' && str[str.length - 1] === '”') ? str : str.slice(1, -1))
+  ((str[0] === '“' && str[str.length - 1] === '”') ? str.slice(1, -1) : str)
 
 function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[]): Partial<Message> {
   const { richLinkMetadata } = payloadData
