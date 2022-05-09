@@ -3,6 +3,41 @@ import AccessibilityControl
 import WindowControl
 import Carbon.HIToolbox.Events
 
+enum Logger {
+    static var logFile: URL? {
+        guard let libraryDirectory = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
+        return libraryDirectory
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("jack", isDirectory: true)
+            .appendingPathComponent("platform-imessage.log")
+    }
+
+    static func log(_ message: String) {
+        guard Preferences.isLoggingEnabled else { return }
+        
+        guard let logFile = logFile else {
+            return
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let timestamp = formatter.string(from: Date())
+        let str = "\(timestamp): \(message)"
+        print(str)
+        guard let data = "\(str)\n".data(using: String.Encoding.utf8) else { return }
+
+        if FileManager.default.fileExists(atPath: logFile.path) {
+            if let fileHandle = try? FileHandle(forWritingTo: logFile) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(data)
+                fileHandle.closeFile()
+            }
+        } else {
+            try? data.write(to: logFile, options: .atomicWrite)
+        }
+    }
+}
+
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
     init(_ message: String) {
@@ -850,28 +885,42 @@ final class MessagesController {
     // the URL should be a deep link that fills the text field with the required message
     // (in the appropriate thread)
     private func sendTextMessage(url: URL) throws {
+        Logger.log("stm 4")
         activityLock.lock()
         defer { activityLock.unlock() }
 
+        Logger.log("stm 5")
         self.closeReplyTranscriptView()
+        Logger.log("stm 6")
         let wait = getWaitForWindowTitleChangeFn()
+        Logger.log("stm 7")
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            Logger.log("stm 8")
             wait()
+            Logger.log("stm 9")
 
             if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
+                Logger.log("stm 10")
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                 debugLog("waiting 1.5s for address to resolve")
                 Thread.sleep(forTimeInterval: 1.5)
+                Logger.log("stm 11")
             }
 
+            Logger.log("stm 12")
             let messageField = try messagesField()
+            Logger.log("stm 13")
             try sendMessageInField(messageField)
+            Logger.log("stm 14")
         }
     }
 
     func sendTextMessage(_ text: String, threadID: String) throws {
+        Logger.log("stm 1")
         whm.hide()
+        Logger.log("stm 2")
         let url = try MessagesDeepLink(threadID: threadID, body: text).url()
+        Logger.log("stm 3")
         try sendTextMessage(url: url)
     }
 
