@@ -9,7 +9,7 @@
   "scripts": {
     "prepack": "yarn build",
     "transpile-scss": "node-sass --output-style compressed src/auth/auth.scss binaries/imessage-auth.css",
-    "build": "yarn transpile-scss; yarn tsc; yarn build-swift-server",
+    "build": "yarn transpile-scss; yarn tsc; yarn build-binaries",
     "swiftlint": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
     "build-swift-server": "ts-node src/SwiftServer/build-swift-server.ts",
