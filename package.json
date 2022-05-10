@@ -2,6 +2,9 @@
   "name": "@textshq/platform-imessage",
   "version": "0.1.0",
   "main": "dist/index.js",
+  "files": [
+    "dist/**/*"
+  ],
   "scripts": {
     "prepack": "yarn build",
     "transpile-scss": "node-sass --output-style compressed src/auth/auth.scss binaries/imessage-auth.css",
