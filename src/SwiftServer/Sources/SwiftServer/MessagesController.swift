@@ -14,7 +14,7 @@ enum Logger {
 
     static func log(_ message: String) {
         guard Preferences.isLoggingEnabled else { return }
-        
+
         guard let logFile = logFile else {
             return
         }
@@ -820,9 +820,13 @@ final class MessagesController {
         }
     }
     private func sendReturnPress() throws {
+        Logger.log("srp 1")
         try runOnMainThread {
+            Logger.log("srp 2")
             try sendKeyPress(key: CGKeyCode(kVK_Return))
+            Logger.log("srp 3")
         }
+        Logger.log("srp 4")
     }
     private func sendCommandVPress() throws {
         try runOnMainThread {
@@ -852,10 +856,15 @@ final class MessagesController {
     }
 
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
+        Logger.log("smif 1")
         try focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
+        Logger.log("smif 2")
         try self.sendReturnPress()
+        Logger.log("smif 3")
         try retry(withTimeout: 1.5, interval: 0.25) {
+            Logger.log("smif 4")
             if let message = try? messageField.value() as? String, !message.isEmpty {
+                Logger.log("smif 5")
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
@@ -864,6 +873,7 @@ final class MessagesController {
                 // try? self.sendReturnPress()
             }
         }
+        Logger.log("smif 6")
     }
 
     private func closeReplyTranscriptView() {
