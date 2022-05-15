@@ -277,7 +277,6 @@ export default class DatabaseAPI {
   }
 
   async searchMessages(typed: string, chatGUID: string, cursor: string, direction: string) {
-    // @ts-expect-error replaceAll
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]

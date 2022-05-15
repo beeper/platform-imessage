@@ -49,7 +49,6 @@ const serializeMessageRow = (msgRow: MappedMessageRow) =>
 
 const removeObjReplacementChar = (text: string): string => {
   if (!text?.includes(OBJ_REPLACEMENT_CHAR)) return text
-  // @ts-expect-error replaceAll
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
@@ -349,7 +348,6 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     messageParts = [{
       kind: MessagePartKind.TEXT,
       index: 0,
-      // @ts-expect-error replaceAll
       text: removeObjReplacementChar(msgRow.text || '').replaceAll(IMSG_EXTENSION_CHAR, ''),
     } as MessagePart].concat(...(attachments.map((a, i) => ({
       kind: MessagePartKind.ATTACHMENT,

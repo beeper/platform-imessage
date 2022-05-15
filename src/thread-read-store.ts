@@ -1,7 +1,6 @@
 import Conf from 'conf'
 
 export const normalizeThreadID = (t: string) =>
-  // @ts-expect-error replaceAll
   t.replaceAll('.', '|')
 
 export default class ThreadReadStore {
