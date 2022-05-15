@@ -286,7 +286,7 @@ final class MessagesController {
         self.loopThread = thread
 
         guard self.isValid else {
-            throw ErrorMessage("Initialized MessagesController in an invalid state")
+            throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(try? mainWindow.isFrameValid), whmValid=\(whm.isValid)")
         }
     }
 
