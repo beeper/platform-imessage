@@ -37,6 +37,7 @@
     "zlib": "^1.0.5"
   },
   "devDependencies": {
+    "@jxa/global-type": "^1.3.5",
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
     "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main",
     "@types/bluebird": "^3.5.33",

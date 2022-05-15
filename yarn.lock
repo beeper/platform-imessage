@@ -2047,6 +2047,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@jxa/global-type@npm:^1.3.5":
+  version: 1.3.5
+  resolution: "@jxa/global-type@npm:1.3.5"
+  dependencies:
+    "@jxa/types": ^1.3.5
+  checksum: 021be95880b117d595d41fed0d7ee41deda33f87eec76238716bf44ae92cc9f8b59c188ae79a4bfa23a22412e8b5a51d9fb038fe539dbee333845dc24c845bdd
+  languageName: node
+  linkType: hard
+
+"@jxa/types@npm:^1.3.5":
+  version: 1.3.5
+  resolution: "@jxa/types@npm:1.3.5"
+  checksum: 8803b796c876c46b71f593a22aeef4bb460f1a971deeb93cdf07993024a3d139100821bc11ae1c5a9d6b0e09dc3dcc5e55400b52a0333862cc3a121f788f9d22
+  languageName: node
+  linkType: hard
+
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -2160,6 +2176,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@textshq/platform-imessage@workspace:."
   dependencies:
+    "@jxa/global-type": ^1.3.5
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main"
     "@textshq/platform-sdk": "link:../platform-sdk"
     "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main"
