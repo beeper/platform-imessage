@@ -4,9 +4,11 @@ export const normalizeThreadID = (t: string) =>
   t.replaceAll('.', '|')
 
 export default class ThreadReadStore {
-  constructor(private readonly userDataDirPath: string) {}
+  private store: Conf
 
-  private store = new Conf({ cwd: this.userDataDirPath, configName: 'imessage' })
+  constructor(userDataDirPath: string) {
+    this.store = new Conf({ cwd: userDataDirPath, configName: 'imessage' })
+  }
 
   markThreadRead(threadID: string, messageID: string) {
     this.store.set('lastRead.' + normalizeThreadID(threadID), messageID || '')
