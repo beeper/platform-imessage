@@ -10,6 +10,8 @@ pub type EventCallback = ThreadsafeFunction<Vec<ServerEvent>, ErrorStrategy::Fat
 
 #[napi]
 pub struct PollerServer {
+    // For future usage
+    #[allow(dead_code)]
     callback: EventCallback,
 
     poller: Poller,
