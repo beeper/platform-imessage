@@ -130,7 +130,7 @@ export default class DatabaseAPI {
 
   private chatGUIDRowIDMap = new Map<string, number>()
 
-  private rustServer: RustServer
+  private rustServer: RustServer | null = null
 
   constructor(private readonly papi: InstanceType<typeof PAPI>) {}
 
@@ -145,7 +145,9 @@ export default class DatabaseAPI {
   }
 
   dispose() {
-    this.rustServer?.destroy()
+    this.rustServer?.stopPoller()
+    this.rustServer = null
+
     return this.db?.dispose()
   }
 
@@ -161,7 +163,7 @@ export default class DatabaseAPI {
     while (!this.rustServer) {
       await bluebird.delay(10)
     }
-    this.rustServer.startPoller(maxRowID, maxDateRead)
+    this.rustServer?.startPoller(maxRowID, maxDateRead)
   }
 
   setLastCursor(allMsgRows: MappedMessageRow[]) {

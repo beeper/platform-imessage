@@ -1,7 +1,7 @@
-import { Server as RustServer } from './lib/index'
+import { Server } from './lib/index'
 
 function test() {
-  const server = new RustServer(t => {
+  const server = new Server(t => {
     console.log(t)
   })
 

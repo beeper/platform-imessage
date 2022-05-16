@@ -4,14 +4,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-use dirs::home_dir;
+use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 
-use neon::prelude::*;
+use dirs::home_dir;
 
 use rusqlite::{Connection, OpenFlags};
 
 use crate::error::{ServerError, ServerResult};
-use crate::server::Shared;
+use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
+use crate::server::EventCallback;
 
 pub struct Poller {
     inner: Arc<Mutex<PollerInner>>,
@@ -32,7 +33,7 @@ struct PollerInner {
 
     unread_chat_set: HashSet<u64>,
 
-    shared: Arc<Shared>,
+    callback: EventCallback,
 }
 
 struct PollMessageResultRow {
@@ -103,9 +104,9 @@ WHERE
 "#;
 
 impl Poller {
-    pub fn new(shared: Arc<Shared>) -> ServerResult<Self> {
+    pub fn new(callback: EventCallback) -> ServerResult<Self> {
         Ok(Self {
-            inner: Arc::new(Mutex::new(PollerInner::new(shared)?)),
+            inner: Arc::new(Mutex::new(PollerInner::new(callback)?)),
             should_stop: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -118,12 +119,12 @@ impl Poller {
             let mut lock = inner.lock().unwrap();
 
             if let Err(e) = lock.init(last_row_id, last_date_read) {
-                lock.shared.emit_error(&e);
+                lock.emit_error(&e);
             }
 
             loop {
                 if let Err(e) = lock.run() {
-                    lock.shared.emit_error(&e);
+                    lock.emit_error(&e);
 
                     // Run has failed, reset timestamp so it can pick it up next time.
                     lock.reset_timestamp();
@@ -146,7 +147,7 @@ impl Poller {
 }
 
 impl PollerInner {
-    pub fn new(shared: Arc<Shared>) -> ServerResult<Self> {
+    pub fn new(callback: EventCallback) -> ServerResult<Self> {
         Ok(Self {
             last_row_id: 0,
             last_date_read: 0,
@@ -160,7 +161,7 @@ impl PollerInner {
                 (Self::format_path(&"chat.db-wal")?, SystemTime::now()),
             ],
             unread_chat_set: HashSet::new(),
-            shared,
+            callback,
         })
     }
 
@@ -172,6 +173,16 @@ impl PollerInner {
         self.init_last_failed_message_rowid();
 
         Ok(())
+    }
+
+    pub fn emit_error<E>(&self, error: &E)
+    where
+        E: std::error::Error + ?Sized,
+    {
+        self.callback.call(
+            vec![ServerEvent::A(ToastEvent::new(error.to_string()))],
+            ThreadsafeFunctionCallMode::NonBlocking,
+        );
     }
 
     pub fn run(&mut self) -> ServerResult<()> {
@@ -222,31 +233,13 @@ impl PollerInner {
             return;
         }
 
-        let shared = self.shared.clone();
+        let events: Vec<ServerEvent> = thread_ids
+            .into_iter()
+            .map(|v| ServerEvent::B(ThreadMessagesRefreshEvent::new(v)))
+            .collect();
 
-        self.shared.channel.send(move |mut cx| {
-            let cb = shared.callback.0.to_inner(&mut cx);
-            let this = cx.undefined();
-
-            let events = cx.empty_array();
-
-            for (i, thread_id) in thread_ids.iter().enumerate() {
-                let event_obj = cx.empty_object();
-
-                let event_type = cx.string("thread_messages_refresh");
-                let event_id = cx.string(thread_id);
-                event_obj.set(&mut cx, "type", event_type)?;
-                event_obj.set(&mut cx, "threadID", event_id)?;
-
-                events.set(&mut cx, i as u32, event_obj)?;
-            }
-
-            let args = vec![events];
-
-            cb.call(&mut cx, this, args)?;
-
-            Ok(())
-        });
+        self.callback
+            .call(events, ThreadsafeFunctionCallMode::NonBlocking);
     }
 
     fn poll_message_updates(&mut self) -> ServerResult<()> {
@@ -287,7 +280,7 @@ impl PollerInner {
         let mut stmt = self.conn.prepare_cached(POLL_UNREAD_CHATS_QUERY)?;
         let rows = stmt.query_map([], |row| row.get(0))?;
 
-        let set = rows.into_iter().flat_map(|v| v).collect();
+        let set = rows.into_iter().flatten().collect();
 
         Ok(set)
     }
@@ -327,49 +320,17 @@ impl PollerInner {
                 }
             }
         }
+
         self.unread_chat_set = unread_chat_ids;
 
-        if !chat_guids.is_empty() {
-            let shared = self.shared.clone();
+        let events: Vec<ServerEvent> = chat_guids
+            .into_iter()
+            .map(|v| ServerEvent::C(UpdateStateSyncEvent::new(v)))
+            .collect();
 
-            self.shared.channel.send(move |mut cx| {
-                let cb = shared.callback.0.to_inner(&mut cx);
-                let this = cx.undefined();
-
-                let events = cx.empty_array();
-
-                for (i, thread_id) in chat_guids.iter().enumerate() {
-                    let event_obj = cx.empty_object();
-
-                    let event_type = cx.string("state_sync");
-                    let mutation_type = cx.string("update");
-                    let object_name = cx.string("thread");
-
-                    let object_ids = cx.empty_object();
-                    let event_id = cx.string(thread_id);
-
-                    let entries = cx.empty_array();
-                    let entry_object = cx.empty_object();
-                    let is_unread = cx.boolean(false);
-                    entry_object.set(&mut cx, "id", event_id)?;
-                    entry_object.set(&mut cx, "isUnread", is_unread)?;
-                    entries.set(&mut cx, 0, entry_object)?;
-
-                    event_obj.set(&mut cx, "type", event_type)?;
-                    event_obj.set(&mut cx, "mutationType", mutation_type)?;
-                    event_obj.set(&mut cx, "objectName", object_name)?;
-                    event_obj.set(&mut cx, "objectIDs", object_ids)?;
-                    event_obj.set(&mut cx, "entries", entries)?;
-
-                    events.set(&mut cx, i as u32, event_obj)?;
-                }
-
-                let args = vec![events];
-
-                cb.call(&mut cx, this, args)?;
-
-                Ok(())
-            });
+        if !events.is_empty() {
+            self.callback
+                .call(events, ThreadsafeFunctionCallMode::NonBlocking);
         }
 
         Ok(())
