@@ -5,7 +5,7 @@ function test() {
     console.log(t)
   })
 
-  server.startPoller(0, 577933761537943424)
+  server.startPoller(0n, 577933761537943424n)
 }
 
 test()

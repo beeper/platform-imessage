@@ -163,7 +163,7 @@ export default class DatabaseAPI {
     while (!this.rustServer) {
       await bluebird.delay(10)
     }
-    this.rustServer?.startPoller(maxRowID, maxDateRead)
+    this.rustServer!.startPoller(BigInt(maxRowID), BigInt(maxDateRead))
   }
 
   setLastCursor(allMsgRows: MappedMessageRow[]) {
