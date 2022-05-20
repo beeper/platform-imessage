@@ -36,6 +36,7 @@ struct PollerInner {
     callback: EventCallback,
 }
 
+#[derive(Debug)]
 struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
@@ -325,7 +326,7 @@ impl PollerInner {
 
         let events: Vec<ServerEvent> = chat_guids
             .into_iter()
-            .map(|v| ServerEvent::C(UpdateStateSyncEvent::new(v)))
+            .map(|v| ServerEvent::C(UpdateStateSyncEvent::new(v, false)))
             .collect();
 
         if !events.is_empty() {

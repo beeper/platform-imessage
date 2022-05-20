@@ -80,7 +80,7 @@ pub struct UpdateStateSyncEventEntry {
 }
 
 impl UpdateStateSyncEvent {
-    pub fn new(thread_id: String) -> Self {
+    pub fn new(thread_id: String, is_unread: bool) -> Self {
         UpdateStateSyncEvent {
             r#type: "state_sync".to_string(),
             object_ids: ObjectIDs {
@@ -91,7 +91,7 @@ impl UpdateStateSyncEvent {
             mutation_type: "update".to_string(),
             entries: vec![UpdateStateSyncEventEntry {
                 id: thread_id,
-                is_unread: false,
+                is_unread,
             }],
         }
     }

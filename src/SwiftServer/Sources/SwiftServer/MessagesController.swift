@@ -665,7 +665,7 @@ final class MessagesController {
             // Thread.sleep(forTimeInterval: 1)
 
             guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
-                throw ErrorMessage("Thread cell with message \(messageGUID) not found")
+                throw ErrorMessage("Thread cell with message guid not found")
             }
 
             // Thread.sleep(forTimeInterval: 1)
