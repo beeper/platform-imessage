@@ -2227,7 +2227,7 @@ __metadata:
   dependencies:
     "@textshq/platform-sdk": "link:../platform-sdk"
     got: ^11.8.2
-  checksum: 3f24112c8abb8ee5c23b78585b22e0a64de9bf52692920098d6a0155c6865dc0646401a61566ee013de53af9636c50262bb4f4dc45d22f54c60767c0c738abcb
+  checksum: 801b4eed95a626dd446b0f06014cea79d71f49fade58fa395ff438ee647a966a6e6d4d204948649c85f6de88fe358c591fb444a7d77b782a09656031415178e0
   languageName: node
   linkType: hard
 
