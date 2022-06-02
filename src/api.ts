@@ -5,7 +5,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, Awaitable, PresenceMap, PhoneNumber } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 
