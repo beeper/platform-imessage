@@ -291,6 +291,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThreads = async (inboxName: InboxName, pagination: PaginationArg): Promise<Paginated<Thread>> => {
+    if (texts.isLoggingEnabled) console.time('imsg getThreads')
     if (inboxName !== InboxName.NORMAL) {
       return {
         items: [],
@@ -300,10 +301,13 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     this.ensureDB()
+    if (texts.isLoggingEnabled) console.time('imsg dbapi')
     const chatRows = await this.dbAPI.getThreads(cursor, direction)
+    if (texts.isLoggingEnabled) console.timeEnd('imsg dbapi')
     const mapMessageArgsMap: { [chatGUID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] } = {}
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
+    if (texts.isLoggingEnabled) console.time('imsg Promise.all')
     const [,, groupImagesRows, dndState] = await Promise.all([
       bluebird.map(chatRows, async chat => {
         const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
@@ -316,12 +320,16 @@ export default class AppleiMessage implements PlatformAPI {
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
       this.dndState.get(),
     ])
+    if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
     const groupImagesMap: { [attachmentID: string]: string } = {}
     groupImagesRows?.forEach(([attachmentID, fileName]) => {
       groupImagesMap[attachmentID] = fileName
     })
+    if (texts.isLoggingEnabled) console.time('imsg mapThreads')
     const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
+    if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
+    if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
       items,
       hasMore: chatRows.length === THREADS_LIMIT,
