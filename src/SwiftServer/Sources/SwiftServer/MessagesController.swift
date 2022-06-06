@@ -20,7 +20,8 @@ enum Logger {
         }
 
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+        formatter.timeZone = TimeZone(abbreviation: "UTC")
         let timestamp = formatter.string(from: Date())
         let str = "\(timestamp): \(message)"
         print(str)
@@ -1008,15 +1009,22 @@ final class MessagesController {
     }
 
     func sendReply(threadID: String, messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws {
+        Logger.log("sr 1")
         whm.hide()
+        Logger.log("sr 2")
         activityLock.lock()
         defer { activityLock.unlock() }
+        Logger.log("sr 3")
 
         func send(_ messageField: Accessibility.Element) throws {
+            Logger.log("sr.s 1")
             if let text = text {
+                Logger.log("sr.s 2")
                 try assignToMessageField(messageField, text: text)
             }
+            Logger.log("sr.s 3")
             try sendMessageInField(messageField)
+            Logger.log("sr.s 4")
         }
 
         // this isn't reliable so we use pasteFileInBodyField:
@@ -1028,25 +1036,41 @@ final class MessagesController {
         // }
 
         if overlay {
+            Logger.log("sr 4")
             let url = try MessagesDeepLink.message(guid: messageGUID, overlay: overlay).url()
+            Logger.log("sr 5")
             try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+                Logger.log("sr 6")
                 try waitUntilReplyTranscriptVisible()
+                Logger.log("sr 7")
                 let messageField = try messagesField()
+                Logger.log("sr 8")
                 if let filePath = filePath {
+                    Logger.log("sr 9")
                     try self.pasteFileInBodyField(messageField, filePath: filePath)
                 }
 
+                Logger.log("sr 10")
                 try send(messageField)
+                Logger.log("sr 11")
             }
+            Logger.log("sr 12")
             return
         }
 
+        Logger.log("sr 13")
         try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
+            Logger.log("sr 14")
             let replyAction = try messageAction(targetCell: targetCell, name: "Reply", overlay: overlay)
+            Logger.log("sr 15")
             try replyAction()
+            Logger.log("sr 16")
             let messageField = try messagesField()
+            Logger.log("sr 17")
             try send(messageField)
+            Logger.log("sr 18")
         }
+        Logger.log("sr 19")
     }
 
     // when the user manually cmd+tab's or clicks the Messages dock icon,
