@@ -363,6 +363,17 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  getMessage = async (threadID: string, messageID: string): Promise<Message> => {
+    this.ensureDB()
+    const msgRow = await this.dbAPI.getMessage(threadID, messageID)
+    const [attachmentRows, reactionRows] = await Promise.all([
+      this.dbAPI.getAttachments([msgRow.msgRowID]),
+      this.dbAPI.getMessageReactions([msgRow.guid], threadID),
+    ])
+    const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUserID)
+    return items.find(i => i.id === messageID)
+  }
+
   searchMessages = async (typed: string, pagination: PaginationArg, threadID?: string): Promise<Paginated<Message>> => {
     this.ensureDB()
     const { cursor, direction } = pagination || { cursor: null, direction: null }

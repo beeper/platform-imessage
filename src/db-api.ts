@@ -81,6 +81,12 @@ WHERE t.guid = ?
 ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
+  getMessage: `SELECT
+${MAP_MESSAGES_COLS}
+FROM message AS m
+${MESSAGE_JOINS}
+WHERE t.guid = ?
+AND m.guid = ?`,
   threadUnreadCount: `SELECT COUNT(m.ROWID)
 FROM message AS m
 INDEXED BY message_idx_isRead_isFromMe_itemType
@@ -252,6 +258,10 @@ export default class DatabaseAPI {
       SQLS.getMessages(cursorDirection),
       cursor ? [chatGUID, +cursor] : [chatGUID],
     )
+  }
+
+  getMessage(chatGUID: string, messageGUID: string): Promise<MappedMessageRow> {
+    return this.db.get(SQLS.getMessage, [chatGUID, messageGUID])
   }
 
   private imageSizeMemoized = memoize(imageSizeAsync)
