@@ -179,6 +179,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     extra: {},
   }
 
+  if (msgRow.date_edited) partialMessage.editedTimestamp = fromAppleTime(msgRow.date_edited)
+  if (msgRow.date_retracted || msgRow.was_detonated) partialMessage.isDeleted = true
   if (isSMS) partialMessage.extra.isSMS = true
   if (addThreadIDs) partialMessage.threadID = msgRow.threadID
   if (msgRow.is_read) {

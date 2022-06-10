@@ -1,3 +1,4 @@
+type NumberBool = 0 | 1
 // taken from chat.db on big sur
 type MessageRow = {
   ROWID: number
@@ -13,8 +14,7 @@ type MessageRow = {
   attributedBody: Buffer
   /** kb: 10 for all my messages */
   version: number
-  /** 0 or 1 */
-  type: number
+  type: NumberBool
   /** "iMessage" or "SMS" – might have other values in really old databases (from iChat days) */
   service: string
   account: string
@@ -28,30 +28,28 @@ type MessageRow = {
   /** kb: 1 for all my messages */
   is_finished: number
   is_emote: number
-  /** 0 or 1, slightly different from is_sent */
-  is_from_me: number
+  /** slightly different from is_sent */
+  is_from_me: NumberBool
   is_empty: number
   is_delayed: number
   is_auto_reply: number
   is_prepared: number
   is_read: number
   is_system_message: number
-  /** 0 or 1, slightly different from is_from_me */
-  is_sent: number
+  /** slightly different from is_from_me */
+  is_sent: NumberBool
   has_dd_results: number
   is_service_message: number
   /** kb: 0 for all my messages */
   is_forward: number
-  /** 0 or 1 */
-  was_downgraded: number
+  was_downgraded: NumberBool
   /** kb: 0 for all my messages */
   is_archive: number
   cache_has_attachments: number
   cache_roomnames: string
   was_data_detected: number
   was_deduplicated: number
-  /** 0 or 1 */
-  is_audio_message: number
+  is_audio_message: NumberBool
   is_played: number
   date_played: number
   item_type: number
@@ -89,11 +87,16 @@ type MessageRow = {
   has_unseen_mention: number
   thread_originator_guid: string
   thread_originator_part: string
-  // following were added in monterey:
+  // added in monterey:
   syndication_ranges: string
   synced_syndication_ranges: string
   was_delivered_quietly: number
   did_notify_recipient: number
+  // added in ventura:
+  date_retracted: number
+  date_edited: number
+  was_detonated: NumberBool
+  part_count: number
 }
 
 // taken from chat.db on big sur
@@ -112,11 +115,11 @@ export type ChatRow = {
   last_addressed_handle: string
   display_name: string
   group_id: string
-  is_filtered: number
-  successful_query: number
+  is_filtered: NumberBool
+  successful_query: NumberBool
   engram_id: string
   server_change_token: string
-  ck_sync_state: number
+  ck_sync_state: NumberBool
   original_group_id: string
   last_read_message_timestamp: number
   sr_server_change_token: string
@@ -124,8 +127,8 @@ export type ChatRow = {
   cloudkit_record_id: string
   sr_cloudkit_record_id: string
   last_addressed_sim_id: string
-  is_blackholed: number
-  // following were added in monterey:
+  is_blackholed: NumberBool
+  // added in monterey:
   syndication_date: number
   syndication_type: number
 }
