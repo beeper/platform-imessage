@@ -191,7 +191,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   dispose = async () => {
-    swiftServer?.stopSysPrefsOnboarding()
+    swiftServer?.stopSysPrefsOnboarding?.()
     // if the promise is undefined, we probably failed to create the controller
     // and so getMessagesController() would re-initialize it. We only really care
     // about disposing any existing handle.
