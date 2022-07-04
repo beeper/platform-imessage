@@ -184,6 +184,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.threadReadStore = new ThreadReadStore(userDataDirPath)
     csrStatus().then(status => {
       texts.trackPlatformEvent({
+        platform: 'imessage',
         csrutilStatus: status,
         enabled: status.includes('enabled.'),
       })
