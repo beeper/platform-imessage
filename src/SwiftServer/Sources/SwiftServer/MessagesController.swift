@@ -14,10 +14,7 @@ enum Logger {
 
     static func log(_ message: String) {
         guard Preferences.isLoggingEnabled else { return }
-
-        guard let logFile = logFile else {
-            return
-        }
+        guard let logFile = logFile else { return }
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
@@ -42,6 +39,7 @@ enum Logger {
 struct ErrorMessage: Error, CustomStringConvertible {
     let message: String
     init(_ message: String) {
+        Logger.log(message)
         self.message = message
     }
     var description: String { message }
