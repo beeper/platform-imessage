@@ -8,7 +8,8 @@ enum AttributedStringDecoder {
     }
 
     static func decodeAttributedString(from data: Data) throws -> [Fragment] {
-        let unarchiver = NSUnarchiver(forReadingWith: data)!
+        let unarchiver = try NSUnarchiver(forReadingWith: data)
+            .orThrow(ErrorMessage("Couldn't create NSUnarchiver"))
         let decoded = unarchiver.decodeObject()
         let nsStr = try (decoded as? NSAttributedString)
             .orThrow(ErrorMessage("Decoded object type unknown"))
