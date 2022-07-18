@@ -518,7 +518,7 @@ final class MessagesController {
             newTitle = try? retry(withTimeout: 1, interval: 0.1) {
                 let newTitle = try mainWindow.title()
                 // the message doesn't matter since we're try?-ing
-                guard newTitle != oldTitle else { throw ErrorMessage("") }
+                guard newTitle != oldTitle else { throw ErrorMessage("newTitle == oldTitle") }
                 return newTitle
             }
         } else {
@@ -573,9 +573,9 @@ final class MessagesController {
             if overlay { try waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptView) : Self.firstSelectedMessageCell(in: transcriptView) else {
-                    throw ErrorMessage("")
+                    throw ErrorMessage("message cell nil")
                 }
-                guard cell.isInViewport else { throw ErrorMessage("") }
+                guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
                 return cell
             }) else {
                 throw ErrorMessage("Could not find message cell")
@@ -778,7 +778,7 @@ final class MessagesController {
         return {
             try? retry(withTimeout: 1, interval: 0.2) {
                 guard try self.mainWindow.title() != initialTitle else {
-                    throw ErrorMessage("")
+                    throw ErrorMessage("self.mainWindow.title() == initialTitle")
                 }
             }
         }
