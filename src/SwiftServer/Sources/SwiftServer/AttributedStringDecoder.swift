@@ -10,7 +10,7 @@ enum AttributedStringDecoder {
     static func decodeAttributedString(from data: Data) throws -> [Fragment] {
         let unarchiver = try NSUnarchiver(forReadingWith: data)
             .orThrow(ErrorMessage("Couldn't create NSUnarchiver"))
-        let decoded = unarchiver.decodeObject()
+        let decoded = try unarchiver.decodeTopLevelObject()
         let nsStr = try (decoded as? NSAttributedString)
             .orThrow(ErrorMessage("Decoded object type unknown"))
         let string = nsStr.string
