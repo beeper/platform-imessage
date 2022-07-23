@@ -437,9 +437,9 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string) =>
     this.waitForThreadMessageCountIncrease(threadID, () => (
-      // ~~send all with AX to increase reliability~~
-      // IS_MONTEREY_OR_UP // && quotedMessageID
-      quotedMessageID
+      // send all with AX to increase reliability
+      IS_MONTEREY_OR_UP // && quotedMessageID
+      // quotedMessageID
         ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
         : this.asAPI.sendFile(threadID, filePath)))
 
