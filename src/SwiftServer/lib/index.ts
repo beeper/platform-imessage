@@ -43,9 +43,7 @@ export declare class MessagesController {
     onTyping?: (status: ActivityStatus[]) => void
   ) => Promise<void>
 
-  sendTextMessage: (text: string, threadID: string) => Promise<void>
-
-  sendFile: (filePath: string, threadID: string) => Promise<void>
+  sendMessage: (threadID: string, text: string | null, filePath: string | null) => Promise<void>
 
   sendReply: (threadID: string, messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, text: string | null, filePath: string | null) => Promise<void>
 

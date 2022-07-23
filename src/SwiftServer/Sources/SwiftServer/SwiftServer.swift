@@ -12,8 +12,7 @@ final class MessagesControllerWrapper: NodeClass {
         "sendTypingStatus": NodeMethod(sendTypingStatus),
         "watchThreadActivity": NodeMethod(watchThreadActivity),
         "setReaction": NodeMethod(setReaction),
-        "sendTextMessage": NodeMethod(sendTextMessage),
-        "sendFile": NodeMethod(sendFile),
+        "sendMessage": NodeMethod(sendMessage),
         "sendReply": NodeMethod(sendReply),
         "notifyAnyway": NodeMethod(notifyAnyway),
         "dispose": NodeMethod(dispose)
@@ -86,17 +85,6 @@ final class MessagesControllerWrapper: NodeClass {
         try returnAsync { self.controller.isValid }
     }
 
-    func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
-        guard args.count == 2,
-              let addresses = try args[0].as([String].self),
-              let message = try args[1].as(String.self) else {
-            throw ErrorMessage("Bad MessagesController call: \(#function)")
-        }
-        return try performAsync {
-            try self.controller.createThread(addresses: addresses, message: message)
-        }
-    }
-
     func markRead(messageGUID: String) throws -> NodeValueConvertible {
         try performAsync { try self.controller.markAsRead(messageGUID: messageGUID) }
     }
@@ -164,12 +152,19 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func sendTextMessage(text: String, threadID: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendTextMessage(text, threadID: threadID) }
+    func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
+        guard args.count == 2,
+              let addresses = try args[0].as([String].self),
+              let message = try args[1].as(String.self) else {
+            throw ErrorMessage("Bad MessagesController call: \(#function)")
+        }
+        return try performAsync {
+            try self.controller.sendMessage(threadID: nil, addresses: addresses, text: message, filePath: nil)
+        }
     }
 
-    func sendFile(filePath: String, threadID: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendFile(filePath, threadID: threadID) }
+    func sendMessage(threadID: String, text: String?, filePath: String?) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath) }
     }
 
     func sendReply(threadID: String, messageGUID: String, offset: Double, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws -> NodeValueConvertible {
@@ -263,7 +258,7 @@ enum Preferences {
 
             "decodeAttributedString": NodeFunction { (data: Data) in
                 guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
-                    return try NodeUndefined()
+                    return undefined
                 }
                 return try decoded.map { frag in
                     try NodeObject([

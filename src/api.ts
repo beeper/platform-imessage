@@ -402,9 +402,9 @@ export default class AppleiMessage implements PlatformAPI {
         // TODO: specify id/role
         await controller.sendReply(threadID, quotedMessageID, 0, null, null, IS_MONTEREY_OR_UP, text, filePath)
       } else if (filePath) {
-        await controller.sendFile(filePath, threadID)
+        await controller.sendMessage(threadID, undefined, filePath)
       } else {
-        await controller.sendTextMessage(text, threadID)
+        await controller.sendMessage(threadID, text, undefined)
       }
     }, {
       onFailedAttempt: error => {

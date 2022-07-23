@@ -891,69 +891,39 @@ final class MessagesController {
         }
     }
 
-    // the URL should be a deep link that fills the text field with the required message
-    // (in the appropriate thread)
-    private func sendTextMessage(url: URL) throws {
-        Logger.log("stm 4")
+    func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?) throws {
+        let url: URL
+        if let threadID = threadID {
+            url = try MessagesDeepLink(threadID: threadID, body: text).url()
+        } else if let addresses = addresses {
+            url = try MessagesDeepLink.addresses(addresses, body: text).url()
+        } else {
+            throw ErrorMessage("not implemented")
+        }
+
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        Logger.log("stm 5")
-        self.closeReplyTranscriptView()
-        Logger.log("stm 6")
+        self.closeReplyTranscriptView() // needed even when opening deep link
         let wait = getWaitForWindowTitleChangeFn()
-        Logger.log("stm 7")
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            Logger.log("stm 8")
             wait()
-            Logger.log("stm 9")
+            if text != nil {
+                if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
+                    // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
+                    debugLog("waiting 1.5s for address to resolve")
+                    Thread.sleep(forTimeInterval: 1.5)
+                }
 
-            if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
-                Logger.log("stm 10")
-                // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-                debugLog("waiting 1.5s for address to resolve")
-                Thread.sleep(forTimeInterval: 1.5)
-                Logger.log("stm 11")
+                let messageField = try messagesField()
+                try sendMessageInField(messageField)
+            } else if let filePath = filePath {
+                let messageField = try messagesField()
+                try self.pasteFileInBodyField(messageField, filePath: filePath)
+                try sendMessageInField(messageField)
             }
-
-            Logger.log("stm 12")
-            let messageField = try messagesField()
-            Logger.log("stm 13")
-            try sendMessageInField(messageField)
-            Logger.log("stm 14")
         }
-    }
-
-    func sendTextMessage(_ text: String, threadID: String) throws {
-        Logger.log("stm 1")
-        whm.hide()
-        Logger.log("stm 2")
-        let url = try MessagesDeepLink(threadID: threadID, body: text).url()
-        Logger.log("stm 3")
-        try sendTextMessage(url: url)
-    }
-
-    func sendFile(_ filePath: String, threadID: String) throws {
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
-
-        self.closeReplyTranscriptView()
-        let wait = getWaitForWindowTitleChangeFn()
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            wait()
-
-            let messageField = try messagesField()
-            try self.pasteFileInBodyField(messageField, filePath: filePath)
-            try sendMessageInField(messageField)
-        }
-    }
-
-    func createThread(addresses: [String], message: String) throws {
-        whm.hide()
-        let url = try MessagesDeepLink.addresses(addresses, body: message).url()
-        try sendTextMessage(url: url)
     }
 
     #if DEBUG
