@@ -8,6 +8,7 @@ import childProcess from 'child_process'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
+import PQueue from 'p-queue'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from './mappers'
@@ -393,30 +394,31 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private axSendWithRetry = async (threadID: string, text: string, filePath?: string, quotedMessageID?: string) => {
-    const retries = quotedMessageID ? 3 : 1
-    await pRetry(async () => {
-      // re-fetch the controller on each attempt so that invalidation is respected
-      const controller = await this.getMessagesController()
-      if (quotedMessageID) {
-        // TODO: specify id/role
-        await controller.sendReply(threadID, quotedMessageID, 0, null, null, IS_MONTEREY_OR_UP, text, filePath)
-      } else if (filePath) {
-        await controller.sendMessage(threadID, undefined, filePath)
-      } else {
-        await controller.sendMessage(threadID, text, undefined)
-      }
-    }, {
-      onFailedAttempt: error => {
-        texts.log('sendMessage failed', { quotedMessageID }, error)
-        if (error.attemptNumber === (retries - 1)) {
-          texts.log('second retry; force-invalidating MessagesController')
-          this.forceInvalidate = true
+  private axSendQueue = new PQueue({ concurrency: 1 })
+
+  private axSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
+    this.axSendQueue.add(async () => {
+      const retries = quotedMessageID ? 3 : 1
+      await pRetry(async () => {
+        // re-fetch the controller on each attempt so that invalidation is respected
+        const controller = await this.getMessagesController()
+        if (quotedMessageID) {
+          // TODO: specify id/role
+          await controller.sendReply(threadID, quotedMessageID, 0, null, null, IS_MONTEREY_OR_UP, text, filePath)
+        } else {
+          await controller.sendMessage(threadID, text, filePath)
         }
-      },
-      retries,
+      }, {
+        onFailedAttempt: error => {
+          texts.log('sendMessage failed', { quotedMessageID }, error)
+          if (error.attemptNumber === (retries - 1)) {
+            texts.log('second retry; force-invalidating MessagesController')
+            this.forceInvalidate = true
+          }
+        },
+        retries,
+      })
     })
-  }
 
   private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000) => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)

@@ -427,9 +427,10 @@ final class MessagesController {
 
     private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
         func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
-            // alternative: (localizedDescription == "Messages" when not overlayed)
+            // alternative: (localizedDescription == "Messages" when main transcript)
             // (try? el.localizedDescription()) == "Reply transcript"
-            // when reply is active, linkedElements.count = 1 (the sole linked element is messageBodyField)
+            // when it's replyTranscript/overlay=true, linkedElements.count = 1 (the sole linked element is messageBodyField),
+            // BUT only when it's not a compose cell
             (try? el.linkedElements.count()) ?? 0 == 0
         }
         return try mainWindow.recursiveChildren().lazy.first {
