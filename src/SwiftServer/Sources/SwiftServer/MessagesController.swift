@@ -76,6 +76,15 @@ private final class RunLoopThread: Thread {
 
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 
+enum LocalizedStrings {
+    private static let chatKitFramework = isMontereyOrUp ? Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework") : nil
+    private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")
+
+    static let hasNotificationsSilencedSuffix = chatKitFramework.flatMap { $0.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "") }
+    static let notifyAnyway = chatKitFramework.flatMap { $0.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit") }
+    static let replyTranscript = chatKitFrameworkAxBundle.flatMap { $0.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility") }
+}
+
 // external API is thread safe
 final class MessagesController {
     enum Reaction: String {
@@ -137,9 +146,6 @@ final class MessagesController {
     }
 
     private static let messagesBundleID = "com.apple.MobileSMS"
-    private static let focusSettingsUIBundle = isMontereyOrUp ? Bundle(path: "/System/Library/PrivateFrameworks/FocusSettingsUI.framework") : nil
-    private static let hasNotificationsSilencedSuffix = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_%@", value: nil, table: nil).replacingOccurrences(of: "%@", with: "") }
-    private static let notifyAnywayString = focusSettingsUIBundle.flatMap { $0.localizedString(forKey: "AVAILABILITY_STATUS_EXAMPLE_NOTIFY_ANYWAY", value: nil, table: nil) }
 
     private static let messagesUserDefaults = UserDefaults(suiteName: messagesBundleID)
 
@@ -428,10 +434,12 @@ final class MessagesController {
     private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
         func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
             // alternative: (localizedDescription == "Messages" when main transcript)
-            // (try? el.localizedDescription()) == "Reply transcript"
-            // when it's replyTranscript/overlay=true, linkedElements.count = 1 (the sole linked element is messageBodyField),
-            // BUT only when it's not a compose cell
-            (try? el.linkedElements.count()) ?? 0 == 0
+            (try? el.localizedDescription()) == LocalizedStrings.replyTranscript
+            /*
+              when it's replyTranscript/overlay=true, linkedElements.count == 1 (the sole linked element is messageBodyField),
+              BUT only when it's not a compose cell
+              so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
+            */
         }
         return try mainWindow.recursiveChildren().lazy.first {
             (try? $0.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView($0) == replyTranscript
@@ -1099,10 +1107,10 @@ final class MessagesController {
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children.value(at: 0) else { continue }
                 if (try? child.role()) == AXRole.button,
-                   (try? child.localizedDescription()) == Self.notifyAnywayString {
+                   (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify
                 } else if (try? child.role()) == AXRole.staticText,
-                          let hasNotificationsSilencedSuffix = Self.hasNotificationsSilencedSuffix,
+                          let hasNotificationsSilencedSuffix = LocalizedStrings.hasNotificationsSilencedSuffix,
                           (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
@@ -1132,7 +1140,7 @@ final class MessagesController {
             }
             guard let notifyAnywayButton = try? transcript.children(range: (count - 2)..<count).first(where: {
                 let child = try $0.children.value(at: 0)
-                return (try? child.role()) == AXRole.button && (try? child.localizedDescription()) == Self.notifyAnywayString
+                return (try? child.role()) == AXRole.button && (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway
             }) else {
                 throw ErrorMessage("notify anyway not found")
             }
