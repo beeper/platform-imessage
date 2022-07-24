@@ -77,12 +77,34 @@ private final class RunLoopThread: Thread {
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 
 enum LocalizedStrings {
-    private static let chatKitFramework = isMontereyOrUp ? Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework") : nil
-    private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")
+    private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
+    private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
 
-    static let hasNotificationsSilencedSuffix = chatKitFramework.flatMap { $0.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "") }
-    static let notifyAnyway = chatKitFramework.flatMap { $0.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit") }
-    static let replyTranscript = chatKitFrameworkAxBundle.flatMap { $0.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility") }
+    static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
+    static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
+
+    static let replyTranscript = chatKitFrameworkAxBundle.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility")
+
+    static let showAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "show.alerts.collection.view.cell", value: nil, table: "Accessibility")
+    static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
+
+    static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
+    static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
+
+    static let delete = chatKitFrameworkAxBundle.localizedString(forKey: "delete.button.label", value: nil, table: "Accessibility")
+}
+
+enum MessageAction {
+    case react, reply
+
+    var localized: String {
+        switch self {
+            case .react:
+                return LocalizedStrings.react
+            case .reply:
+                return LocalizedStrings.reply
+        }
+    }
 }
 
 // external API is thread safe
@@ -385,30 +407,18 @@ final class MessagesController {
         }
     }
 
-    private func messageAction(targetCell: Accessibility.Element, name: String, overlay: Bool) throws -> Accessibility.Action {
+    private func messageAction(targetCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
         let allActions = try targetCell.supportedActions()
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
-        if overlay {
-            guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(name)") }) else {
-                throw ErrorMessage("Could not find \(name) action")
-            }
-            return action
-        } else {
-            let customActions = allActions.filter { !$0.name.value.hasPrefix("AX") }
-            guard customActions.count >= 2 else {
-                throw ErrorMessage("Could not find message actions")
-            }
-            guard let idx = ["React", "Reply"].firstIndex(of: name) else {
-                throw ErrorMessage("Unknown \(name) action")
-            }
-            let action = customActions[idx]
-            return action
+        guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }) else {
+            throw ErrorMessage("Could not find \(action) action")
         }
+        return action
     }
 
     private func reactButtons(targetCell: Accessibility.Element, overlay: Bool) throws -> [Accessibility.Element] {
-        let reactAction = try messageAction(targetCell: targetCell, name: "React", overlay: overlay)
+        let reactAction = try messageAction(targetCell: targetCell, action: .react)
         try reactAction()
         let reactionsView = try reactionsView()
         guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == AXRole.button }) else {
@@ -543,7 +553,7 @@ final class MessagesController {
 
     private static func isMessageContainerCell(_ el: Accessibility.Element) -> Bool {
         (try? el.localizedDescription())?.isEmpty == false &&
-            (try? el.children.value(at: 0).supportedActions().contains(where: { $0.name.value.hasPrefix("Name:React") })) == true
+            (try? el.children.value(at: 0).supportedActions().contains(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)") })) == true
     }
 
     private static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
@@ -647,7 +657,7 @@ final class MessagesController {
 
     func removeComposeCell(_ composeCell: Accessibility.Element) throws {
         debugLog("removeComposeCell")
-        let deleteAction = try composeCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") })
+        let deleteAction = try composeCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") })
             .orThrow(ErrorMessage("composeCell.deleteAction not found"))
         try deleteAction()
     }
@@ -746,7 +756,7 @@ final class MessagesController {
             guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Cell for thread \(threadID) not found")
             }
-            guard let muteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix(muted ? "Name:Hide Alerts" : "Name:Show Alerts") }) else {
+            guard let muteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix(muted ? "Name:\(LocalizedStrings.hideAlerts)" : "Name:\(LocalizedStrings.showAlerts)") }) else {
                 throw ErrorMessage("muteAction not found")
             }
             try muteAction()
@@ -767,7 +777,7 @@ final class MessagesController {
             guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Cell for thread \(threadID) not found")
             }
-            guard let deleteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:Delete") }) else {
+            guard let deleteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }) else {
                 throw ErrorMessage("deleteAction not found")
             }
             try deleteAction()
@@ -1038,7 +1048,7 @@ final class MessagesController {
         Logger.log("sr 13")
         try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
             Logger.log("sr 14")
-            let replyAction = try messageAction(targetCell: targetCell, name: "Reply", overlay: overlay)
+            let replyAction = try messageAction(targetCell: targetCell, action: .reply)
             Logger.log("sr 15")
             try replyAction()
             Logger.log("sr 16")
@@ -1110,8 +1120,7 @@ final class MessagesController {
                    (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify
                 } else if (try? child.role()) == AXRole.staticText,
-                          let hasNotificationsSilencedSuffix = LocalizedStrings.hasNotificationsSilencedSuffix,
-                          (try? child.localizedDescription())?.hasSuffix(hasNotificationsSilencedSuffix) == true {
+                          (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
             }
