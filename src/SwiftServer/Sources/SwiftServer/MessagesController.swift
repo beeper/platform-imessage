@@ -75,6 +75,7 @@ private final class RunLoopThread: Thread {
 }
 
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
+let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 
 enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
@@ -864,10 +865,17 @@ final class MessagesController {
         }
     }
 
+    private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String? {
+        if isVenturaOrUp {
+            return (try messageField.value() as? NSAttributedString).flatMap { $0.string }
+        }
+        return try messageField.value() as? String
+    }
+
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
         try retry(withTimeout: 1, interval: 0.25) {
             try messageField.value(assign: text)
-            guard (try? messageField.value() as? String) == text else {
+            guard (try? messageFieldValue(messageField)) == text else {
                 throw ErrorMessage("Could not assign value to message field")
             }
         }
@@ -881,7 +889,7 @@ final class MessagesController {
         Logger.log("smif 3")
         try retry(withTimeout: 1.5, interval: 0.25) {
             Logger.log("smif 4")
-            if let message = try? messageField.value() as? String, !message.isEmpty {
+            if let message = try? messageFieldValue(messageField), !message.isEmpty {
                 Logger.log("smif 5")
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
