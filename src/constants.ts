@@ -80,16 +80,17 @@ export const RECEIVER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextReceiv
 export const SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextSenderIdentifier)'
 
 export const homedir = os.homedir()
+
+export const MESSAGES_APP_BUNDLE_ID = IS_BIG_SUR_OR_UP ? 'com.apple.MobileSMS' : 'com.apple.iChat'
+export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
+
 export const CHAT_DB_PATH = path.join(homedir, 'Library/Messages/chat.db')
+export const TMP_MOBILE_SMS_PATH = IS_BIG_SUR_OR_UP ? path.join(os.tmpdir(), MESSAGES_APP_BUNDLE_ID) : undefined
 
 export const BINARIES_DIR_PATH = texts
-  ? texts.constants.BUILD_DIR_PATH + '/platform-imessage'
+  ? path.join(texts.constants.BUILD_DIR_PATH, 'platform-imessage')
   : path.join(process.cwd(), 'binaries')
 export const ARCH_BINARIES_DIR_PATH = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`)
-
-export const TMP_MOBILE_SMS_PATH = IS_BIG_SUR_OR_UP ? path.join(os.tmpdir(), 'com.apple.MobileSMS') : undefined
-
-export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
 
 // Date.distantFuture === January 1, 4001 at 12:00:00 AM GMT
 export const DISTANT_FUTURE_CONSTANT = 64092211200

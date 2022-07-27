@@ -2,7 +2,7 @@ import childProcess from 'child_process'
 import pRetry from 'p-retry'
 import bluebird from 'bluebird'
 
-import { IS_BIG_SUR_OR_UP } from './constants'
+import { IS_BIG_SUR_OR_UP, MESSAGES_APP_BUNDLE_ID } from './constants'
 import spawnASServer from './as-server'
 import IS_DEV_ENVIRON from './is-dev-environ'
 
@@ -23,8 +23,6 @@ const RETRY_OPTIONS: pRetry.Options = {
   minTimeout: 10,
   onFailedAttempt: error => console.error(error),
 }
-
-const MESSAGES_APP_BUNDLE_ID = IS_BIG_SUR_OR_UP ? 'com.apple.MobileSMS' : 'com.apple.iChat'
 
 function createAPIServer() {
   const { run, exit } = spawnASServer()
