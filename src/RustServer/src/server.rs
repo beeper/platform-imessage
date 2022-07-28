@@ -36,7 +36,8 @@ impl PollerServer {
 
     #[napi]
     pub fn start_poller(&self, last_row_id: BigInt, last_date_read: BigInt) {
-        self.poller.start(last_row_id.get_u64().1, last_date_read.get_u64().1);
+        self.poller
+            .start(last_row_id.get_u64().1, last_date_read.get_u64().1);
     }
 
     #[napi]

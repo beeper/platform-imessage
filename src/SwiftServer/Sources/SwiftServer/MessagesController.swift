@@ -663,10 +663,23 @@ final class MessagesController {
         try deleteAction()
     }
 
-    func markAsRead(messageGUID: String) throws {
+    private func toggleThreadRead(url: URL) throws {
+        guard isVenturaOrUp else { throw ErrorMessage("ventura only") }
+
         whm.hide()
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try Self.openDeepLink(url, withoutActivation: true)
+        try sendCommandShiftUPress()
+    }
+
+    func toggleThreadRead(messageGUID: String) throws {
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
+        if isVenturaOrUp { return try toggleThreadRead(url: url) }
+
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -852,6 +865,12 @@ final class MessagesController {
             // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
             guard let keyCode = KeyMap.shared["v"] else { return }
             try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+    private func sendCommandShiftUPress() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["u"] else { return }
+            try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand.union(.maskShift))
         }
     }
 

@@ -2,7 +2,7 @@ import url from 'url'
 import { groupBy, omit, findLast } from 'lodash'
 import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP, IS_VENTURA_OR_UP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
@@ -556,7 +556,9 @@ export function mapThread(
     id: chat.guid,
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
-    isUnread: isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
+    isUnread: IS_VENTURA_OR_UP
+      ? isUnreadInSqlite
+      : isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,

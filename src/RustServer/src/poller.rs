@@ -312,21 +312,24 @@ impl PollerInner {
 
     fn poll_chat_updates(&mut self) -> ServerResult<()> {
         let unread_chat_ids = self.query_unread_chats()?;
-        let mut chat_guids: Vec<String> = Vec::new();
+        let mut updates: Vec<(String, bool)> = Vec::new();
 
-        for chat_id in &self.unread_chat_set {
-            if !unread_chat_ids.contains(chat_id) {
-                if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
-                    chat_guids.push(chat_guid);
-                }
+        for chat_id in self.unread_chat_set.difference(&unread_chat_ids) {
+            if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
+                updates.push((chat_guid, false));
+            }
+        }
+        for chat_id in unread_chat_ids.difference(&self.unread_chat_set) {
+            if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
+                updates.push((chat_guid, true));
             }
         }
 
         self.unread_chat_set = unread_chat_ids;
 
-        let events: Vec<ServerEvent> = chat_guids
+        let events: Vec<ServerEvent> = updates
             .into_iter()
-            .map(|v| ServerEvent::C(UpdateStateSyncEvent::new(v, false)))
+            .map(|v| ServerEvent::C(UpdateStateSyncEvent::new(v.0, v.1)))
             .collect();
 
         if !events.is_empty() {

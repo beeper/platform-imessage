@@ -5,7 +5,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
@@ -15,7 +15,7 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from 
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { pathExists, waitForFileToExist, shellExec } from './util'
@@ -565,17 +565,23 @@ export default class AppleiMessage implements PlatformAPI {
 
   // deleteMessage = async (threadID: string, messageID: string) => false
 
+  private toggleThreadRead = async (threadID: string, messageID?: string) => { // ventura and up only
+    const controller = await this.getMessagesController()
+    const messageGUID = messageID.split('_', 1)[0]
+    await controller.toggleThreadRead(messageGUID)
+  }
+
+  markAsUnread = this.toggleThreadRead
+
   sendReadReceipt = async (threadID: string, messageID: string) => {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
-    this.threadReadStore.markThreadRead(threadID, messageID)
+    if (!IS_VENTURA_OR_UP) this.threadReadStore.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
-        const controller = await this.getMessagesController()
-        const messageGUID = messageID.split('_', 1)[0]
-        await controller.markRead(messageGUID)
-        await bluebird.delay(100)
-        if (!(await this.dbAPI.isThreadRead(threadID))) {
-          throw new Error('sendReadReceipt failed (cause unknown)')
+        await this.toggleThreadRead(threadID, messageID)
+        if (!IS_VENTURA_OR_UP) {
+          await bluebird.delay(100)
+          if (!await this.dbAPI.isThreadRead(threadID)) throw new Error('sendReadReceipt failed (cause unknown)')
         }
       }, {
         onFailedAttempt: error => {

@@ -6,7 +6,7 @@ final class MessagesControllerWrapper: NodeClass {
         "create": NodeMethod(attributes: .static, create),
         "isValid": NodeMethod(isValid),
         "createThread": NodeMethod(createThread),
-        "markRead": NodeMethod(markRead),
+        "toggleThreadRead": NodeMethod(toggleThreadRead),
         "muteThread": NodeMethod(muteThread),
         "deleteThread": NodeMethod(deleteThread),
         "sendTypingStatus": NodeMethod(sendTypingStatus),
@@ -85,8 +85,8 @@ final class MessagesControllerWrapper: NodeClass {
         try returnAsync { self.controller.isValid }
     }
 
-    func markRead(messageGUID: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.markAsRead(messageGUID: messageGUID) }
+    func toggleThreadRead(messageGUID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.toggleThreadRead(messageGUID: messageGUID) }
     }
 
     func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {

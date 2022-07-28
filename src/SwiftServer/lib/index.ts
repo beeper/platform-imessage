@@ -28,7 +28,7 @@ export declare class MessagesController {
 
   createThread: (addresses: string[], message: string) => Promise<void>
 
-  markRead: (messageGUID: string) => Promise<void>
+  toggleThreadRead: (messageGUID: string) => Promise<void>
 
   muteThread: (threadID: string, muted: boolean) => Promise<void>
 

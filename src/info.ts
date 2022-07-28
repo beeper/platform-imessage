@@ -1,5 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
-import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP } from './common-constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import type { MessageWithExtra } from './mappers'
 
@@ -38,10 +38,15 @@ const info: PlatformInfo = {
         Attribute.GROUP_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.SUPPORTS_QUOTED_MESSAGES,
         // Attribute.SUPPORTS_DELETE_THREAD, unreliable atm and can delete a different thread
-      ]
-      : [
+      ] : [
         Attribute.NO_SUPPORT_TYPING_INDICATOR,
       ]),
+    ...(IS_VENTURA_OR_UP
+      ? [
+        Attribute.SUPPORTS_MARK_AS_UNREAD,
+        // Attribute.SUPPORTS_EDIT_MESSAGE,
+      ] : []
+    ),
   ]),
   reactions: IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
