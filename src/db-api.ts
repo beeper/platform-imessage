@@ -2,7 +2,7 @@ import path from 'path'
 import bluebird, { promisify } from 'bluebird'
 import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
 // import { parentPort } from 'worker_threads'
-import imageSizeSync from 'image-size'
+import imageSizeCallback from 'image-size'
 import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
@@ -14,7 +14,7 @@ import { isSelectable } from './common-util'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow, AXMessageSelection } from './types'
 import type PAPI from './api'
 
-const imageSizeAsync = promisify(imageSizeSync)
+const imageSizeAsync = promisify(imageSizeCallback)
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -276,8 +276,20 @@ export default class DatabaseAPI {
       Object.assign(a, { ext, fileName, filePath })
       if ((IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') && ext !== 'heic') { // heic isn't supported yet
         try {
-          const { width, height } = await this.imageSizeMemoized(filePath)
-          a.size = { width, height }
+          const { width, height, orientation } = await this.imageSizeMemoized(filePath)
+          /*
+            orientation:
+            https://exiftool.org/TagNames/EXIF.html#:~:text=0x0112,8%20=%20Rotate%20270%20CW
+            1 = Horizontal (normal)
+            2 = Mirror horizontal
+            3 = Rotate 180
+            4 = Mirror vertical
+            5 = Mirror horizontal and rotate 270 CW
+            6 = Rotate 90 CW
+            7 = Mirror horizontal and rotate 90 CW
+            8 = Rotate 270 CW
+          */
+          a.size = [6, 8].includes(orientation) ? { width: height, height: width } : { width, height }
         } catch (err) { texts.error(err) }
       }
       return a
