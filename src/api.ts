@@ -342,15 +342,7 @@ export default class AppleiMessage implements PlatformAPI {
   getMessages = async (threadID: string, pagination: PaginationArg): Promise<Paginated<Message>> => {
     this.ensureDB()
     const { cursor, direction } = pagination || { cursor: null, direction: null }
-    let msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
-    /**
-     * imessage has a quirk where is_read is initially 1 and updated to 0
-     * ck_record_id is initially null with is_read=1 and changed to an empty string with is_read=0
-     */
-    if (msgRows.some(row => row.ck_record_id === null)) {
-      await bluebird.delay(100)
-      msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
-    }
+    const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
     if (direction !== 'after') msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.msgRowID)
     const msgGUIDs = msgRows.map(m => m.guid)
