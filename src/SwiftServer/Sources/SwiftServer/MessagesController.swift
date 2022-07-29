@@ -670,8 +670,9 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        try Self.openDeepLink(url, withoutActivation: true)
-        try sendCommandShiftUPress()
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            try sendCommandShiftUPress()
+        }
     }
 
     func toggleThreadRead(messageGUID: String) throws {
@@ -718,9 +719,9 @@ final class MessagesController {
 
     #if DEBUG
     func markAsReadWithMenu(messageGUID: String) throws {
-        whm.hide()
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -758,9 +759,9 @@ final class MessagesController {
     #endif
 
     func muteThread(threadID: String, muted: Bool) throws {
-        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -778,9 +779,9 @@ final class MessagesController {
     }
 
     func deleteThread(threadID: String) throws {
-        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -818,7 +819,6 @@ final class MessagesController {
     }
 
     func sendTypingStatus(_ isTyping: Bool, address: String) throws {
-        whm.hide()
         debugLog("Sending typing status \(isTyping) for address \(address)")
 
         // a space is enough to send a typing indicator, while ensuring that
@@ -828,6 +828,7 @@ final class MessagesController {
         // shows up client-side as a ghost message.
         let url = try MessagesDeepLink.addresses([address], body: isTyping ? " " : nil).url()
 
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -1024,8 +1025,8 @@ final class MessagesController {
 
     func sendReply(threadID: String, messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws {
         Logger.log("sr 1")
-        whm.hide()
         Logger.log("sr 2")
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
         Logger.log("sr 3")
@@ -1163,9 +1164,9 @@ final class MessagesController {
     }
 
     func notifyAnyway(threadID: String) throws {
-        whm.hide()
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
@@ -1227,9 +1228,9 @@ final class MessagesController {
     }
 
     func observe(address: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
-        whm.hide()
         let url = try MessagesDeepLink.addresses([address], body: nil).url()
 
+        whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
