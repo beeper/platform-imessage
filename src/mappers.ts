@@ -506,6 +506,7 @@ type Context = {
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore
+  unreadChatRowIDs: Set<number>
   dndState: Set<string>
   // todo this shouldnt be optional
   groupImagesMap?: { [attachmentID: string]: string }
@@ -548,9 +549,7 @@ export function mapThread(
     }
   */
   const props = chat.properties ? safeBplistParse(chat.properties) : null
-  const messageRows = mapMessageArgs?.[0]
-  const lastNonActionReceivedMessage = messageRows ? findLast(messageRows, r => r.item_type === 0 && r.is_from_me === 0) : undefined
-  const isUnreadInSqlite = lastNonActionReceivedMessage?.is_read === 0
+  const isUnreadInSqlite = context.unreadChatRowIDs.has(chat.ROWID)
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,

@@ -225,9 +225,10 @@ export default class AppleiMessage implements PlatformAPI {
   getThread = async (threadID: string) => {
     const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
-    const [handleRows, lastMessageRows, dndState] = await Promise.all([
+    const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
       this.dbAPI.getThreadParticipants(chatRow.ROWID),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
+      this.dbAPI.getUnreadChatRowIDs(),
       this.dndState.get(),
     ])
     return mapThread(
@@ -237,6 +238,7 @@ export default class AppleiMessage implements PlatformAPI {
         currentUserID: this.currentUserID,
         threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
+        unreadChatRowIDs,
         dndState,
       },
     )
@@ -247,9 +249,10 @@ export default class AppleiMessage implements PlatformAPI {
     await bluebird.delay(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
     if (!chatRow) return
-    const [handleRows, lastMessageRows, dndState] = await Promise.all([
+    const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
       this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
+      this.dbAPI.getUnreadChatRowIDs(),
       this.dndState.get(),
     ])
     if (handleRows.length < 1) return
@@ -260,6 +263,7 @@ export default class AppleiMessage implements PlatformAPI {
         currentUserID: this.currentUserID,
         threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
+        unreadChatRowIDs,
         dndState,
       },
     )
@@ -310,7 +314,7 @@ export default class AppleiMessage implements PlatformAPI {
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
-    const [,, groupImagesRows, dndState] = await Promise.all([
+    const [, , groupImagesRows, unreadChatRowIDs, dndState] = await Promise.all([
       bluebird.map(chatRows, async chat => {
         const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
@@ -320,6 +324,7 @@ export default class AppleiMessage implements PlatformAPI {
         handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
       }),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
+      this.dbAPI.getUnreadChatRowIDs(),
       this.dndState.get(),
     ])
     if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
@@ -328,7 +333,7 @@ export default class AppleiMessage implements PlatformAPI {
       groupImagesMap[attachmentID] = fileName
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
-    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
+    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, unreadChatRowIDs, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')

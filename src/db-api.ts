@@ -105,9 +105,20 @@ ${chatGUID ? 'AND t.guid = ?' : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
+  getUnreadChatRowIDs: `SELECT
+  cm.chat_id
+FROM
+  message m
+  INNER JOIN chat_message_join cm ON m.ROWiD = cm.message_id
+WHERE
+  m.item_type == 0
+  AND m.is_read == 0
+  AND m.is_from_me == 0
+GROUP BY
+  cm.chat_id`,
 }
 
-const AsyncSqlite = (globalThis as any).AsyncSqlite as IAsyncSqlite
+declare const AsyncSqlite: IAsyncSqlite
 
 async function getDB() {
   try {
@@ -128,7 +139,7 @@ async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxA
 }
 
 export default class DatabaseAPI {
-  private db: typeof AsyncSqlite & any
+  private db: IAsyncSqlite
 
   private lastRowID = 0
 
@@ -155,6 +166,12 @@ export default class DatabaseAPI {
     this.rustServer = null
 
     return this.db?.dispose()
+  }
+
+  // this should ideally be fetched from rust server
+  async getUnreadChatRowIDs() {
+    const rows = await this.db.pluck_all<void[], number>(SQLS.getUnreadChatRowIDs)
+    return new Set(rows)
   }
 
   getAccountLogins(): Promise<string[]> {
@@ -204,15 +221,12 @@ export default class DatabaseAPI {
   }
 
   async fetchLastMessageRows(chatRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]]> {
-    const msgRows: MappedMessageRow[] = await this.db.all(SQLS.getMessagesWithChatRowID(undefined, 5), [chatRowID])
-    msgRows.reverse()
-    const msgRowIDs = msgRows.map(m => m.msgRowID)
-    const msgGUIDs = msgRows.map(m => m.msgID)
-    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
-      this.getAttachments(msgRowIDs),
-      this.getMessageReactions(msgGUIDs, undefined, chatRowID),
-    ])
-    return [msgRows, attachmentRows, reactionRows]
+    const msgRow: MappedMessageRow = await this.db.get(SQLS.getMessagesWithChatRowID(undefined, 1), [chatRowID])
+    const [attachmentRows, reactionRows] = msgRow ? await Promise.all([
+      this.getAttachments([msgRow.msgRowID]),
+      this.getMessageReactions([msgRow.msgID], undefined, chatRowID),
+    ]) : []
+    return [[msgRow], attachmentRows, reactionRows]
   }
 
   async getThread(chatGUID: string): Promise<MappedChatRow> {
