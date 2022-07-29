@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::ThreadSafeCallContext;
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction};
@@ -43,5 +44,10 @@ impl PollerServer {
     #[napi]
     pub fn stop_poller(&self) {
         self.poller.stop();
+    }
+
+    #[napi]
+    pub fn is_chat_rowid_unread(&self, chat_rowid: BigInt) -> bool {
+        self.poller.is_chat_rowid_unread(chat_rowid.get_u64().1)
     }
 }

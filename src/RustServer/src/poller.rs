@@ -145,6 +145,10 @@ impl Poller {
 
         should_stop.store(true, Ordering::Relaxed);
     }
+
+    pub fn is_chat_rowid_unread(&self, chat_rowid: u64) -> bool {
+        self.inner.lock().unwrap().unread_chat_set.contains(&chat_rowid)
+    }
 }
 
 impl PollerInner {

@@ -8,12 +8,10 @@ const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require :
 
 const { PollerServer } = actualRequire(path.join(ARCH_BINARIES_DIR_PATH, 'rust-server.node'))
 
-export interface Server {
+export interface IServer {
   startPoller(lastRowID: bigint, lastDateRead: bigint): void
 
   stopPoller(): void
 }
 
-export var Server: {
-  new(callback: OnServerEventCallback): Server
-} = PollerServer
+export const Server: { new(callback: OnServerEventCallback): IServer } = PollerServer
