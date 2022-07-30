@@ -83,7 +83,7 @@ function createAPIServer() {
     const isVisible = await isMessagesVisible()
     hideMessagesBehindTexts()
     const result = await cb()
-    if (isVisible === false) hideMessagesAppAfterDelay()
+    if (!isVisible) hideMessagesAppAfterDelay()
     return result
   }
 

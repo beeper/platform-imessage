@@ -71,7 +71,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private accountID: string
 
-  private threadReadStore: ThreadReadStore
+  private threadReadStore: ThreadReadStore | undefined
 
   private dndState = new DNDState()
 
@@ -170,6 +170,16 @@ export default class AppleiMessage implements PlatformAPI {
     return threadID.split(';', 3).pop()
   }
 
+  private sipEnabled = csrStatus().then(status => {
+    const enabled = status.includes('enabled.')
+    texts.trackPlatformEvent({
+      platform: 'imessage',
+      csrutilStatus: status,
+      enabled,
+    })
+    return enabled
+  }).catch(console.error)
+
   init = async (_: undefined, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
     this.accountID = accountID
     const userDataDirPath = path.dirname(dataDirPath)
@@ -182,14 +192,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       this.getMessagesController()
     }
-    this.threadReadStore = new ThreadReadStore(userDataDirPath)
-    csrStatus().then(status => {
-      texts.trackPlatformEvent({
-        platform: 'imessage',
-        csrutilStatus: status,
-        enabled: status.includes('enabled.'),
-      })
-    }).catch(console.error)
+    this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
   }
 
   dispose = async () => {
@@ -480,6 +483,7 @@ export default class AppleiMessage implements PlatformAPI {
       }
     }
     try {
+      // eslint-disable-next-line @typescript-eslint/return-await
       return await this.sendTextMessageWithAS(threadID, content.text)
     } catch (err) {
       if (IS_BIG_SUR_OR_UP) {
@@ -572,7 +576,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
-    if (!IS_VENTURA_OR_UP) this.threadReadStore.markThreadRead(threadID, messageID)
+    this.threadReadStore?.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
         await this.toggleThreadRead(threadID, messageID)
@@ -664,6 +668,7 @@ export default class AppleiMessage implements PlatformAPI {
     disableMessagesNotifications: () => swiftServer.disableNotificationsForApp('Messages'),
     startSysPrefsOnboarding: () => swiftServer.startSysPrefsOnboarding?.(),
     stopSysPrefsOnboarding: () => swiftServer.stopSysPrefsOnboarding?.(),
+    isSIPEnabled: () => this.sipEnabled,
     revokeFDA: async () => {
       await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)
       return true
@@ -709,6 +714,7 @@ export default class AppleiMessage implements PlatformAPI {
         const filePath = Buffer.from(pathHex, 'hex').toString()
         const buffer = await fs.readFile(filePath)
         try {
+          // eslint-disable-next-line @typescript-eslint/return-await
           return await convertCGBI(buffer)
         } catch (err) {
           return url.pathToFileURL(filePath).href

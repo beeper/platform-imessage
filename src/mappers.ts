@@ -505,7 +505,7 @@ type Context = {
   currentUserID: string
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
-  threadReadStore: ThreadReadStore
+  threadReadStore: ThreadReadStore | undefined
   unreadChatRowIDs: Set<number>
   dndState: Set<string>
   // todo this shouldnt be optional

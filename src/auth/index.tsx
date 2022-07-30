@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import type { AuthType } from 'node-mac-permissions'
-import type { AuthProps } from '@textshq/platform-sdk'
+import { AuthProps, texts } from '@textshq/platform-sdk'
 import type PAPI from '../api'
 
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
@@ -38,7 +38,7 @@ type Promisified<T> = { [K in keyof T]: T[K] extends AnyFunction ? Async<T[K]> :
 
 type NMP = Promisified<typeof import('node-mac-permissions')>
 
-type CallProxiedFn = (fnName: keyof PAPI['proxiedAuthFns']) => any
+type CallProxiedFn = <ReturnType>(fnName: keyof PAPI['proxiedAuthFns']) => Promise<ReturnType>
 type Props = AuthProps & {
   nmp: NMP
   canAccessMessagesDir: () => Promise<boolean>
@@ -71,13 +71,18 @@ const useNMP = (nmp: NMP, authType: AuthType) => {
 }
 
 const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: CallProxiedFn }> = ({ nmp, callProxiedFn }) => {
+  const [hidden, setHidden] = useState(false)
+  const isSIPEnabled = useCallback(() => callProxiedFn<boolean>('isSIPEnabled'), [])
   const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
-  if (!IS_MOJAVE_OR_UP || !authorized || pending) return null
+  const { value: sipEnabled } = useAsync(isSIPEnabled)
+  // no FDA in 10.13 or earlier
+  if (!IS_MOJAVE_OR_UP || !authorized || pending || !(sipEnabled ?? true) || hidden) return null
   const onClick = async () => {
     if (!await callProxiedFn('revokeFDA')) return
     setTimeout(() => {
       refreshAuthorization()
+      if (texts.IS_DEV) setHidden(true)
     }, 100)
   }
   return (
@@ -215,19 +220,20 @@ const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { butto
   </div>
 )
 
-const getKnownIssues = () => {
-  if (IS_MONTEREY_OR_UP) return ["Reacting/replying to some types of messages isn't supported."]
-  if (IS_BIG_SUR_OR_UP) return ["On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."]
-  return ["On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."]
-}
+const knownIssues = [
+  'Messages.app will be open in the background but Texts can keep it hidden.',
+  ...(() => {
+    if (IS_MONTEREY_OR_UP) return ["Reacting/replying to some types of messages isn't supported."]
+    if (IS_BIG_SUR_OR_UP) return ["On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."]
+    return ["On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."]
+  })(),
+].map((issue, i) => <li key={issue}>{i + 1}. {issue}</li>)
+
 const KnownIssuesSection: React.FC<{ open: boolean }> = ({ open }) => (
   <details open={open} className="known-issues-section">
     <summary><h4>Known Issues</h4></summary>
     <div className="imessage-auth-well">
-      <ul>
-        <li>1. Messages.app will be open in the background but Texts can keep it hidden.</li>
-        {getKnownIssues().map((issue, i) => <li key={issue}>{i + 2}. {issue}</li>)}
-      </ul>
+      <ul>{knownIssues}</ul>
     </div>
   </details>
 )

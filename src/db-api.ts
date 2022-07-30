@@ -6,7 +6,7 @@ import imageSizeCallback from 'image-size'
 import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 
 import { CHAT_DB_PATH } from './constants'
-import { Server as RustServer } from './RustServer/lib'
+import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
 import IMAGE_EXTS from './image-exts.json'
@@ -147,7 +147,7 @@ export default class DatabaseAPI {
 
   private chatGUIDRowIDMap = new Map<string, number>()
 
-  private rustServer: RustServer | null = null
+  private rustServer: IRustServer | null = null
 
   constructor(private readonly papi: InstanceType<typeof PAPI>) {}
 
