@@ -395,7 +395,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private axSendQueue = new PQueue({ concurrency: 1 })
+  private axSendQueue = new PQueue({ concurrency: 1, timeout: 60_000 })
 
   private axSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
     this.axSendQueue.add(async () => {
