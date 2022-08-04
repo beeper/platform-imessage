@@ -222,10 +222,11 @@ export default class DatabaseAPI {
 
   async fetchLastMessageRows(chatRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]]> {
     const msgRow: MappedMessageRow = await this.db.get(SQLS.getMessagesWithChatRowID(undefined, 1), [chatRowID])
-    const [attachmentRows, reactionRows] = msgRow ? await Promise.all([
+    if (!msgRow) return [[], [], []]
+    const [attachmentRows, reactionRows] = await Promise.all([
       this.getAttachments([msgRow.msgRowID]),
       this.getMessageReactions([msgRow.msgID], undefined, chatRowID),
-    ]) : []
+    ])
     return [[msgRow], attachmentRows, reactionRows]
   }
 
