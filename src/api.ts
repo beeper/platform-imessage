@@ -36,6 +36,14 @@ function canAccessMessagesDir() {
 
 const OSAError = {
   // {
+  //   NSLocalizedDescription = "Error: Error: Can not send message to a chat you are not a member of!";
+  //   NSLocalizedFailureReason = "Error: Error: Can not send message to a chat you are not a member of!";
+  //   OSAScriptErrorBriefMessageKey = "Error: Error: Can not send message to a chat you are not a member of!";
+  //   OSAScriptErrorMessageKey = "Error: Error: Can not send message to a chat you are not a member of!";
+  //   OSAScriptErrorNumberKey = 1;
+  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+  // }
+  // {
   //   NSLocalizedDescription = "Error: Error: Application isn't running.";
   //   NSLocalizedFailureReason = "Error: Error: Application isn't running.";
   //   OSAScriptErrorBriefMessageKey = "Error: Error: Application isn't running.";
@@ -59,6 +67,7 @@ const OSAError = {
   //   OSAScriptErrorNumberKey = "-1743"
   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
   // }
+  CantSendMessageToChatYouReNotMemberOf: 1,
   AppIsntRunning: -600,
   AppleEventTimedOut: -1712,
   CantGetObject: -1728,
@@ -488,7 +497,7 @@ export default class AppleiMessage implements PlatformAPI {
       return await this.sendTextMessageWithAS(threadID, content.text)
     } catch (err) {
       if (IS_BIG_SUR_OR_UP) {
-        if (Object.values(OSAError).some(no => err.message.includes(`= "${no}"`))) {
+        if (Object.values(OSAError).some(no => err.message.includes(`OSAScriptErrorNumberKey = "${no}"`))) {
           await this.axSendWithRetry(threadID, content.text)
           return true
         }
