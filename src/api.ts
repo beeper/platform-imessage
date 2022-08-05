@@ -36,6 +36,14 @@ function canAccessMessagesDir() {
 
 const OSAError = {
   // {
+  //   NSLocalizedDescription = "Error: Error: Application isn't running.";
+  //   NSLocalizedFailureReason = "Error: Error: Application isn't running.";
+  //   OSAScriptErrorBriefMessageKey = "Error: Error: Application isn't running.";
+  //   OSAScriptErrorMessageKey = "Error: Error: Application isn't running.";
+  //   OSAScriptErrorNumberKey = "-600";
+  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+  // }
+  // {
   //   NSLocalizedDescription = "Error: Error: AppleEvent timed out.";
   //   NSLocalizedFailureReason = "Error: Error: AppleEvent timed out.";
   //   OSAScriptErrorBriefMessageKey = "Error: Error: AppleEvent timed out.";
@@ -51,17 +59,10 @@ const OSAError = {
   //   OSAScriptErrorNumberKey = "-1743"
   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
   // }
-  // {
-  //   NSLocalizedDescription = "Error: Error: Application isn't running.";
-  //   NSLocalizedFailureReason = "Error: Error: Application isn't running.";
-  //   OSAScriptErrorBriefMessageKey = "Error: Error: Application isn't running.";
-  //   OSAScriptErrorMessageKey = "Error: Error: Application isn't running.";
-  //   OSAScriptErrorNumberKey = "-600";
-  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
-  // }
-  AnErrorOccurred: -1743,
-  CantGetObject: -1728,
   AppIsntRunning: -600,
+  AppleEventTimedOut: -1712,
+  CantGetObject: -1728,
+  AnErrorOccurred: -1743,
 }
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
