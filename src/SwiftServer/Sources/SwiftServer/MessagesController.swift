@@ -5,9 +5,8 @@ import Carbon.HIToolbox.Events
 
 enum Logger {
     static var logFile: URL? {
-        guard let libraryDirectory = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
+        guard let libraryDirectory = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
         return libraryDirectory
-            .appendingPathComponent("Application Support", isDirectory: true)
             .appendingPathComponent("jack", isDirectory: true)
             .appendingPathComponent("platform-imessage.log")
     }
