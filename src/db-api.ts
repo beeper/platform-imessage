@@ -174,9 +174,8 @@ export default class DatabaseAPI {
     return new Set(rows)
   }
 
-  getAccountLogins(): Promise<string[]> {
-    return this.db!.pluck_all(SQLS.getAccountLogins)
-  }
+  getAccountLogins = (): Promise<string[]> =>
+    this.db!.pluck_all<void[], string>(SQLS.getAccountLogins)
 
   private calledRustServerSetOnce = false
 
@@ -212,16 +211,14 @@ export default class DatabaseAPI {
     // })
   }
 
-  getThreadParticipants(chatRowID: number): Promise<MappedHandleRow[]> {
-    return this.db.all(SQLS.getThreadParticipants, [chatRowID])
-  }
+  getThreadParticipants = (chatRowID: number): Promise<MappedHandleRow[]> =>
+    this.db.all<number[], MappedHandleRow>(SQLS.getThreadParticipants, chatRowID)
 
-  getThreadParticipantsWithWait(chatRow: ChatRow, userIDs: string[]) {
-    return waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
-  }
+  getThreadParticipantsWithWait = (chatRow: ChatRow, userIDs: string[]) =>
+    waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
 
   async fetchLastMessageRows(chatRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]]> {
-    const msgRow: MappedMessageRow = await this.db.get(SQLS.getMessagesWithChatRowID(undefined, 1), [chatRowID])
+    const msgRow = await this.db.get<number[], MappedMessageRow>(SQLS.getMessagesWithChatRowID(undefined, 1), chatRowID)
     if (!msgRow) return [[], [], []]
     const [attachmentRows, reactionRows] = await Promise.all([
       this.getAttachments([msgRow.msgRowID]),
@@ -231,7 +228,7 @@ export default class DatabaseAPI {
   }
 
   async getThread(chatGUID: string): Promise<MappedChatRow> {
-    const chat: MappedChatRow = await this.db.get(SQLS.getThread, [chatGUID])
+    const chat = await this.db.get<string[], MappedChatRow>(SQLS.getThread, chatGUID)
     if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     return chat
   }
@@ -239,24 +236,22 @@ export default class DatabaseAPI {
   async isThreadRead(chatGUID: string): Promise<boolean> {
     const rowID = this.chatGUIDRowIDMap.get(chatGUID)
     if (typeof rowID !== 'number') return false
-    return (await this.db.pluck_get(SQLS.threadUnreadCount, [rowID])) === 0
+    return (await this.db.pluck_get<number[], number>(SQLS.threadUnreadCount, rowID)) === 0
   }
 
-  getThreadWithWait(chatGUID: string) {
-    return waitForRows(() => this.getThread(chatGUID).then(c => [c]), 1)
-  }
+  getThreadWithWait = (chatGUID: string) =>
+    waitForRows(() => this.getThread(chatGUID).then(c => [c]), 1)
 
   async getThreads(cursor: string, direction: 'after' | 'before'): Promise<MappedChatRow[]> {
-    const chats: MappedChatRow[] = await this.db.all(SQLS.getThreads(MAP_DIRECTION_TO_SQL_OP[direction]), cursor ? [+cursor] : [])
+    const chats = await this.db.all<number[], MappedChatRow>(SQLS.getThreads(MAP_DIRECTION_TO_SQL_OP[direction]), ...(cursor ? [+cursor] : []))
     chats.forEach(chat => {
       this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     })
     return chats
   }
 
-  getGroupImages(): Promise<[string, string][]> {
-    return this.db.raw_all(SQLS.getGroupImages)
-  }
+  getGroupImages = (): Promise<[string, string][]> =>
+    this.db.raw_all<void[], [string, string]>(SQLS.getGroupImages)
 
   // getMessagesWithChatRowID(chatGUID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
   //   const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
@@ -269,20 +264,17 @@ export default class DatabaseAPI {
 
   getMessages(chatGUID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
-    return this.db.all(
-      SQLS.getMessages(cursorDirection),
-      cursor ? [chatGUID, +cursor] : [chatGUID],
-    )
+    const bindings = cursor ? [chatGUID, +cursor] : [chatGUID]
+    return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(cursorDirection), ...bindings)
   }
 
-  getMessage(chatGUID: string, messageGUID: string): Promise<MappedMessageRow> {
-    return this.db.get(SQLS.getMessage, [chatGUID, messageGUID])
-  }
+  getMessage = (chatGUID: string, messageGUID: string): Promise<MappedMessageRow> =>
+    this.db.get<string[], MappedMessageRow>(SQLS.getMessage, chatGUID, messageGUID)
 
   private imageSizeMemoized = memoize(imageSizeAsync)
 
   getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
-    const attachments: Promise<MappedAttachmentRow[]> = this.db.all(SQLS.getAttachments(msgRowIDs), msgRowIDs)
+    const attachments = this.db.all<number[], MappedAttachmentRow>(SQLS.getAttachments(msgRowIDs), ...msgRowIDs)
     return bluebird.map(attachments, async a => {
       const filePath = replaceTilde(a.filename)
       const { base, ext: _ext } = filePath ? path.parse(filePath) : { base: a.transfer_name, ext: '' }
@@ -312,25 +304,25 @@ export default class DatabaseAPI {
   }
 
   getMessageReactions(msgGUIDs: string[], chatGUID: string, chatRowID: number = this.chatGUIDRowIDMap.get(chatGUID)): Promise<MappedReactionMessageRow[]> {
-    return this.db.all(SQLS.getMessageReactions(msgGUIDs), [...msgGUIDs, chatRowID])
+    const bindings = [...msgGUIDs, chatRowID]
+    return this.db.all<typeof bindings, MappedReactionMessageRow>(SQLS.getMessageReactions(msgGUIDs), ...bindings)
   }
 
-  async searchMessages(typed: string, chatGUID: string, cursor: string, direction: string) {
+  async searchMessages(typed: string, chatGUID: string, cursor: string, direction: string): Promise<MappedMessageRow[]> {
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]
     if (chatGUID) bindings.push(chatGUID)
-    const msgRows: MappedMessageRow[] = await this.db.all(
+    const msgRows = await this.db.all<typeof bindings, MappedMessageRow>(
       SQLS.searchMessages(cursorDirection, chatGUID),
-      bindings,
+      ...bindings,
     )
     msgRows.reverse()
     return msgRows
   }
 
-  getThreadMessagesCount(chatGUID: string): Promise<number> {
-    return this.db.pluck_get(SQLS.getMsgCount, chatGUID)
-  }
+  getThreadMessagesCount = (chatGUID: string): Promise<number> =>
+    this.db.pluck_get<string[], number>(SQLS.getMsgCount, chatGUID)
 
   private getMappedMessagesWithoutExtraRows = async (chatGUID: string, cursor: string, direction: 'before' | 'after') => {
     const msgRows = await this.getMessages(chatGUID, cursor, direction)
@@ -359,7 +351,7 @@ export default class DatabaseAPI {
     const [messageGUID, partString] = messageGUIDWithPart.split('_', 2)
     const part = +partString || 0
     texts.log('[imessage] findClosestTextMessage', messageGUID, part)
-    // const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', [messageGUID])
+    // const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', messageGUID)
     // if (!message) throw Error('message not found')
     // const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
     if (isSelectable(mapped)) return { guid: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
@@ -376,14 +368,13 @@ export default class DatabaseAPI {
     throw new Error('closest text message not found')
   }
 
-  isMessageRead(messageGUID: string): Promise<number> {
-    return this.db.pluck_get(SQLS.isMessageRead, [messageGUID])
-  }
+  isMessageRead = (messageGUID: string): Promise<number> =>
+    this.db.pluck_get<string[], number>(SQLS.isMessageRead, messageGUID)
 
   isEmpty = async (): Promise<boolean> =>
-    (await this.db.pluck_get('SELECT count(*) FROM kvtable', [])) === 0
+    (await this.db.pluck_get<void[], number>('SELECT count(*) FROM kvtable')) === 0
 
   // async markMessageRead(messageID: string) {
-  //   await this.db.run(SQLS.updateReadTimestamp, [messageID])
+  //   await this.db.run(SQLS.updateReadTimestamp, messageID)
   // }
 }
