@@ -1,3 +1,5 @@
+import type { MessageCell } from './SwiftServer/lib'
+
 type NumberBool = 0 | 1
 // taken from chat.db on big sur
 type MessageRow = {
@@ -188,9 +190,4 @@ export interface MessageSummaryInfo {
 
 // custom
 
-export type AXMessageSelection = {
-  offset: number
-  guid: string
-  cellID: string | null
-  cellRole: string | null
-}
+export type AXMessageSelection = Omit<MessageCell, 'overlay'>

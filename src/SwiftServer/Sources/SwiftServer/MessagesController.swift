@@ -107,6 +107,14 @@ enum MessageAction {
     }
 }
 
+struct MessageCell: Codable {
+    let messageGUID: String
+    let offset: Int
+    let cellID: String?
+    let cellRole: String?
+    let overlay: Bool
+}
+
 // external API is thread safe
 final class MessagesController {
     enum Reaction: String {
@@ -408,16 +416,18 @@ final class MessagesController {
     }
 
     private func messageAction(targetCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
-        let allActions = try targetCell.supportedActions()
+        // [press, AXScrollToVisible, show menu, Escape, scroll left by a page, scroll right by a page, React, Reply, Copy]
+        // ["AXPress", "AXScrollToVisible", "AXShowMenu", "AXCancel", "AXScrollLeftByPage", "AXScrollRightByPage", "Name:React\nTarget:0x0\nSelector:(null)", "Name:Reply\nTarget:0x0\nSelector:(null)", "Name:Copy\nTarget:0x0\nSelector:(null)"]
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
+        let allActions = try targetCell.supportedActions()
         guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }) else {
             throw ErrorMessage("Could not find \(action) action")
         }
         return action
     }
 
-    private func reactButtons(targetCell: Accessibility.Element, overlay: Bool) throws -> [Accessibility.Element] {
+    private func reactButtons(targetCell: Accessibility.Element) throws -> [Accessibility.Element] {
         let reactAction = try messageAction(targetCell: targetCell, action: .react)
         try reactAction()
         let reactionsView = try reactionsView()
@@ -569,13 +579,13 @@ final class MessagesController {
         try tv.children().first { (try? $0.children.value(at: 0).isSelected()) == true }?.children.value(at: 0)
     }
 
-    private func withMessageCell(guid: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, action: (_ cell: Accessibility.Element) throws -> Void) throws {
-        debugLog("Finding cell at offset \(offset) from \(guid)")
+    private func withMessageCell(messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
+        debugLog("Finding cell \(messageCell)")
 
-        let url = try MessagesDeepLink.message(guid: guid, overlay: overlay).url()
+        let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
 
         // without closing reply transcript, non-overlay deep link won't select the message
-        if !overlay, let rtv = try? replyTranscriptView {
+        if !messageCell.overlay, let rtv = try? replyTranscriptView {
             debugLog("calling replyTranscriptView.cancel()")
             try? rtv.cancel()
         }
@@ -583,15 +593,15 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
-            //     if overlay {
+            //     if messageCell.overlay {
             //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
             //         Thread.sleep(forTimeInterval: 0.1)
             //         try? replyTranscriptView.cancel()
             //     }
             // }
-            if overlay { try waitUntilReplyTranscriptVisible() }
+            if messageCell.overlay { try waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
-                guard let cell = try overlay ? Self.firstMessageCell(in: replyTranscriptView) : Self.firstSelectedMessageCell(in: transcriptView) else {
+                guard let cell = try messageCell.overlay ? Self.firstMessageCell(in: replyTranscriptView) : Self.firstSelectedMessageCell(in: transcriptView) else {
                     throw ErrorMessage("message cell nil")
                 }
                 guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
@@ -600,29 +610,29 @@ final class MessagesController {
                 throw ErrorMessage("Could not find message cell")
             }
             let targetCell: Accessibility.Element
-            if offset == 0 {
+            if messageCell.offset == 0 {
                 targetCell = selected
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let containerCells = try Self.messageContainerCells(in: overlay ? replyTranscriptView : transcriptView)
+                let containerCells = try Self.messageContainerCells(in: messageCell.overlay ? replyTranscriptView : transcriptView)
                 guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
                     throw ErrorMessage("Could not find target message cell")
                 }
-                let target = idx - offset
-                debugLog("Index: \(idx) - \(offset) = \(target)")
+                let target = idx - messageCell.offset
+                debugLog("Index: \(idx) - \(messageCell.offset) = \(target)")
                 guard containerCells.indices.contains(target) else {
                     throw ErrorMessage("Desired index out of bounds")
                 }
                 targetCell = try containerCells[target].children.value(at: 0)
             }
-            if let cellRole = cellRole, let role = try? targetCell.role() {
+            if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
                 guard role == cellRole else {
                     debugLog("Expected cell role \(cellRole), got \(role)")
                     throw ErrorMessage("Cell role mismatch")
                 }
             }
-            if let cellID = cellID, let id = try? targetCell.identifier() {
+            if let cellID = messageCell.cellID, let id = try? targetCell.identifier() {
                 guard id == cellID else {
                     debugLog("Expected cell id \(cellID), got \(id)")
                     throw ErrorMessage("Cell id mismatch")
@@ -632,17 +642,20 @@ final class MessagesController {
         }
     }
 
-    func setReaction(messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, reaction: Reaction, on: Bool) throws {
+    func setReaction(messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
+        let startTime = Date()
+        defer { Logger.log("Sent message reaction in \(Int(startTime.timeIntervalSinceNow * -1000))ms") }
+
         whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
         let idx = reaction.index
-        try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
-            let buttons = try reactButtons(targetCell: targetCell, overlay: overlay)
+        try withMessageCell(messageCell: messageCell) { targetCell in
+            let buttons = try reactButtons(targetCell: targetCell)
 
             let btn = buttons[idx]
-            try retry(withTimeout: 1, interval: 0.2) {
+            try retry(withTimeout: 1.2, interval: 0.2) {
                 let isSelected = try btn.isSelected()
                 if isSelected != on {
                     try btn.press()
@@ -852,13 +865,9 @@ final class MessagesController {
         }
     }
     private func sendReturnPress() throws {
-        Logger.log("srp 1")
         try runOnMainThread {
-            Logger.log("srp 2")
             try sendKeyPress(key: CGKeyCode(kVK_Return))
-            Logger.log("srp 3")
         }
-        Logger.log("srp 4")
     }
     private func sendCommandVPress() throws {
         try runOnMainThread {
@@ -901,15 +910,10 @@ final class MessagesController {
     }
 
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
-        Logger.log("smif 1")
         try focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        Logger.log("smif 2")
         try self.sendReturnPress()
-        Logger.log("smif 3")
         try retry(withTimeout: 1.5, interval: 0.25) {
-            Logger.log("smif 4")
             if let message = try? messageFieldValue(messageField), !message.isEmpty {
-                Logger.log("smif 5")
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
@@ -918,7 +922,6 @@ final class MessagesController {
                 // try? self.sendReturnPress()
             }
         }
-        Logger.log("smif 6")
     }
 
     private func closeReplyTranscriptView() {
@@ -937,9 +940,29 @@ final class MessagesController {
         }
     }
 
-    func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?) throws {
+    private func sendReplyWithoutOverlay(quotedMessage: MessageCell, text: String?, filePath: String?) throws {
+        try withMessageCell(messageCell: quotedMessage) { targetCell in
+            let replyAction = try messageAction(targetCell: targetCell, action: .reply)
+            try replyAction()
+            let messageField = try messagesField()
+            if let text = text {
+                try assignToMessageField(messageField, text: text)
+            } else if let filePath = filePath {
+                try self.pasteFileInBodyField(messageField, filePath: filePath)
+            }
+            try sendMessageInField(messageField)
+        }
+    }
+
+    // this method has a lot of combinations, test carefully
+    func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
+        let startTime = Date()
+        defer { Logger.log("Sent message in \(Int(startTime.timeIntervalSinceNow * -1000))ms") }
+
         let url: URL
-        if let threadID = threadID {
+        if let quotedMessage = quotedMessage {
+            url = try MessagesDeepLink.message(guid: quotedMessage.messageGUID, overlay: quotedMessage.overlay).url()
+        } else if let threadID = threadID {
             url = try MessagesDeepLink(threadID: threadID, body: text).url()
         } else if let addresses = addresses {
             url = try MessagesDeepLink.addresses(addresses, body: text).url()
@@ -951,11 +974,23 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        self.closeReplyTranscriptView() // needed even when opening deep link
+        // this isn't reliable so we use pasteFileInBodyField:
+        // if let filePath = filePath {
+        //     guard let address = threadID.split(separator: ";", maxSplits: 2).last else { throw ErrorMessage("invalid threadID") }
+        //     try withAllWindowsClosed {
+        //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
+        //     }
+        // }
+        if let quotedMessage = quotedMessage, !quotedMessage.overlay { return try sendReplyWithoutOverlay(quotedMessage: quotedMessage, text: text, filePath: filePath) }
+
+        if quotedMessage == nil { self.closeReplyTranscriptView() } // needed even when opening deep link
         let wait = getWaitForWindowTitleChangeFn()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             wait()
-            if text != nil {
+            if quotedMessage != nil {
+                try waitUntilReplyTranscriptVisible()
+            }
+            if let text = text {
                 if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
                     // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                     debugLog("waiting 1.5s for address to resolve")
@@ -963,6 +998,9 @@ final class MessagesController {
                 }
 
                 let messageField = try messagesField()
+                if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
+                    try assignToMessageField(messageField, text: text)
+                }
                 try sendMessageInField(messageField)
             } else if let filePath = filePath {
                 let messageField = try messagesField()
@@ -1020,71 +1058,6 @@ final class MessagesController {
                 }
             }
         }
-    }
-
-    func sendReply(threadID: String, messageGUID: String, offset: Int, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws {
-        Logger.log("sr 1")
-        Logger.log("sr 2")
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
-        Logger.log("sr 3")
-
-        func send(_ messageField: Accessibility.Element) throws {
-            Logger.log("sr.s 1")
-            if let text = text {
-                Logger.log("sr.s 2")
-                try assignToMessageField(messageField, text: text)
-            }
-            Logger.log("sr.s 3")
-            try sendMessageInField(messageField)
-            Logger.log("sr.s 4")
-        }
-
-        // this isn't reliable so we use pasteFileInBodyField:
-        // if let filePath = filePath {
-        //     guard let address = threadID.split(separator: ";", maxSplits: 2).last else { throw ErrorMessage("invalid threadID") }
-        //     try withAllWindowsClosed {
-        //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
-        //     }
-        // }
-
-        if overlay {
-            Logger.log("sr 4")
-            let url = try MessagesDeepLink.message(guid: messageGUID, overlay: overlay).url()
-            Logger.log("sr 5")
-            try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-                Logger.log("sr 6")
-                try waitUntilReplyTranscriptVisible()
-                Logger.log("sr 7")
-                let messageField = try messagesField()
-                Logger.log("sr 8")
-                if let filePath = filePath {
-                    Logger.log("sr 9")
-                    try self.pasteFileInBodyField(messageField, filePath: filePath)
-                }
-
-                Logger.log("sr 10")
-                try send(messageField)
-                Logger.log("sr 11")
-            }
-            Logger.log("sr 12")
-            return
-        }
-
-        Logger.log("sr 13")
-        try withMessageCell(guid: messageGUID, offset: offset, cellID: cellID, cellRole: cellRole, overlay: overlay) { targetCell in
-            Logger.log("sr 14")
-            let replyAction = try messageAction(targetCell: targetCell, action: .reply)
-            Logger.log("sr 15")
-            try replyAction()
-            Logger.log("sr 16")
-            let messageField = try messagesField()
-            Logger.log("sr 17")
-            try send(messageField)
-            Logger.log("sr 18")
-        }
-        Logger.log("sr 19")
     }
 
     // when the user manually cmd+tab's or clicks the Messages dock icon,

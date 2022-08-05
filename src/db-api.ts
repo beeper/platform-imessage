@@ -343,7 +343,7 @@ export default class DatabaseAPI {
     const mIndex = find(unhiddenMessages, isSelectable)
     if (mIndex > -1) {
       const m = unhiddenMessages[mIndex]
-      return { guid: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1, cellID: msgRow.balloon_bundle_id, cellRole: null }
+      return { messageGUID: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1, cellID: msgRow.balloon_bundle_id, cellRole: null }
     }
   }
 
@@ -354,7 +354,7 @@ export default class DatabaseAPI {
     // const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', messageGUID)
     // if (!message) throw Error('message not found')
     // const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
-    if (isSelectable(mapped)) return { guid: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
+    if (isSelectable(mapped)) return { messageGUID: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
     // todo loop over more pages if not found
     const [before, after] = await Promise.all([
       this.findClosestTextInDirection('before', threadID, mapped, msgRow),

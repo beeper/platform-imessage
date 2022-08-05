@@ -13,7 +13,6 @@ final class MessagesControllerWrapper: NodeClass {
         "watchThreadActivity": NodeMethod(watchThreadActivity),
         "setReaction": NodeMethod(setReaction),
         "sendMessage": NodeMethod(sendMessage),
-        "sendReply": NodeMethod(sendReply),
         "notifyAnyway": NodeMethod(notifyAnyway),
         "dispose": NodeMethod(dispose)
     ]
@@ -143,12 +142,15 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(messageGUID: String, offset: Double, cellID: String?, cellRole: String?, overlay: Bool, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    func setReaction(messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
+            throw ErrorMessage("Invalid messageCellJSON arg")
+        }
         guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
             throw ErrorMessage("Invalid reaction: \(reactionName)")
         }
         return try performAsync { [self] in
-            try controller.setReaction(messageGUID: messageGUID, offset: Int(offset), cellID: cellID, cellRole: cellRole, overlay: overlay, reaction: reaction, on: on)
+            try controller.setReaction(messageCell: messageCell, reaction: reaction, on: on)
         }
     }
 
@@ -159,27 +161,13 @@ final class MessagesControllerWrapper: NodeClass {
             throw ErrorMessage("Bad MessagesController call: \(#function)")
         }
         return try performAsync {
-            try self.controller.sendMessage(threadID: nil, addresses: addresses, text: message, filePath: nil)
+            try self.controller.sendMessage(threadID: nil, addresses: addresses, text: message, filePath: nil, quotedMessage: nil)
         }
     }
 
-    func sendMessage(threadID: String, text: String?, filePath: String?) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath) }
-    }
-
-    func sendReply(threadID: String, messageGUID: String, offset: Double, cellID: String?, cellRole: String?, overlay: Bool, text: String?, filePath: String?) throws -> NodeValueConvertible {
-        try performAsync {
-            try self.controller.sendReply(
-                threadID: threadID,
-                messageGUID: messageGUID,
-                offset: Int(offset),
-                cellID: cellID,
-                cellRole: cellRole,
-                overlay: overlay,
-                text: text,
-                filePath: filePath
-            )
-        }
+    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
+        let quotedMessage = try quotedMessageCellJSON?.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }
+        return try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage) }
     }
 
     func dispose() throws -> NodeValueConvertible {

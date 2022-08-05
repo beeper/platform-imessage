@@ -5,7 +5,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
@@ -19,7 +19,7 @@ import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { pathExists, waitForFileToExist, shellExec } from './util'
-import swiftServer, { ActivityStatus, MessagesController } from './SwiftServer/lib'
+import swiftServer, { ActivityStatus, MessageCell, MessagesController } from './SwiftServer/lib'
 import DNDState from './DNDState'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
@@ -374,12 +374,14 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
         const controller = await this.getMessagesController()
-        if (quotedMessageID) {
+        await controller.sendMessage(threadID, text, filePath, quotedMessageID ? JSON.stringify({
+          messageGUID: quotedMessageID,
+          offset: 0,
           // TODO: specify id/role
-          await controller.sendReply(threadID, quotedMessageID, 0, null, null, IS_MONTEREY_OR_UP, text, filePath)
-        } else {
-          await controller.sendMessage(threadID, text, filePath)
-        }
+          cellID: null,
+          cellRole: null,
+          overlay: IS_MONTEREY_OR_UP,
+        } as MessageCell) : undefined)
       }, {
         onFailedAttempt: error => {
           texts.log('sendMessage failed', { quotedMessageID }, error)
@@ -414,6 +416,7 @@ export default class AppleiMessage implements PlatformAPI {
       // send all with AX to increase reliability
       IS_MONTEREY_OR_UP // && quotedMessageID
       // quotedMessageID
+        // TODO fix on Big Sur this would send attachments without quoting
         ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
         : this.asAPI.sendFile(threadID, filePath)))
 
@@ -514,9 +517,9 @@ export default class AppleiMessage implements PlatformAPI {
       const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
       const controller = await this.getMessagesController()
       const closestMessage: AXMessageSelection = overlay
-        ? { guid: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
+        ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
         : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
-      await controller.setReaction(closestMessage.guid, closestMessage.offset, closestMessage.cellID, closestMessage.cellRole, overlay, reactionKey, on)
+      await controller.setReaction(JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on)
     }, {
       onFailedAttempt: error => {
         texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)
@@ -627,7 +630,7 @@ export default class AppleiMessage implements PlatformAPI {
   //     return x.c
   //   }
 
-  proxiedAuthFns = {
+  private proxiedAuthFns = {
     isMessagesAppSetup: async () => {
       await this.dbAPI.init()
       return !await this.dbAPI?.isEmpty()
@@ -650,7 +653,7 @@ export default class AppleiMessage implements PlatformAPI {
     },
   }
 
-  getAsset = async (_, pathHex: string, methodName: string) => {
+  getAsset = async (_: GetAssetOptions, pathHex: string, methodName: string) => {
     switch (pathHex) {
       case 'proxied': {
         const result = await this.proxiedAuthFns[methodName]()

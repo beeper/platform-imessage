@@ -21,6 +21,13 @@ export enum ActivityStatus {
   Unknown = 'UNKNOWN',
 }
 
+export interface MessageCell {
+  messageGUID: string
+  offset: number
+  cellID: string | null
+  cellRole: string | null
+  overlay: boolean
+}
 export declare class MessagesController {
   static create(): Promise<MessagesController>
 
@@ -43,11 +50,9 @@ export declare class MessagesController {
     onTyping?: (status: ActivityStatus[]) => void
   ) => Promise<void>
 
-  sendMessage: (threadID: string, text: string | null, filePath: string | null) => Promise<void>
+  sendMessage: (threadID: string, text: string | null, filePath: string | null, quotedMessageCellJSON: string) => Promise<void>
 
-  sendReply: (threadID: string, messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, text: string | null, filePath: string | null) => Promise<void>
-
-  setReaction: (messageGUID: string, offset: number, cellID: string | null, cellRole: string | null, overlay: boolean, reaction: string, on: boolean) => Promise<void>
+  setReaction: (messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
 
   dispose: () => void
 }

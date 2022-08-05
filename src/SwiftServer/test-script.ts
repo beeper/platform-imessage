@@ -29,7 +29,7 @@ async function main() {
   // await mc.setReaction('FEDED224-E379-4AC5-A6B9-09973F21E3C7', 0, 'laugh', true, true)
   // await mc.setReaction('1617F5D1-E661-46C9-A09D-724BB47BEF86', 0, 'laugh', true, false)
   // await mc.sendReply('iMessage;-;kb24x7@gmail.com', 'B391D825-7316-4268-85DE-67F9533ADC52', 0, '', '', true, '', '/Users/kb/Desktop/Screen Shot 2022-02-09 at 10.15.10 PM.png')
-  await mc.sendMessage('iMessage;-;kb24x7@gmail.com', undefined, '/Users/kb/Desktop/party-parrot.gif')
+  await mc.sendMessage('iMessage;-;kb24x7@gmail.com', undefined, '/Users/kb/Desktop/party-parrot.gif', undefined)
   // await mc.setReaction('0367450D-F385-4561-AD28-9670FDFCD8BE', 0, 'com.apple.messages.URLBalloonProvider', '', true, 'laugh', true)
   // await mc.sendReply('0367450D-F385-4561-AD28-9670FDFCD8BE', 0, 'asd', '', true, `testing ${Math.random()} ${new Date()}`)
   // await mc.watchThreadActivity('kb24x7@gmail.com', status => {
