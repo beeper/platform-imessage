@@ -174,11 +174,11 @@ final class MessagesController {
     }
 
     @discardableResult
-    private static func openDeepLink(_ url: URL, withoutActivation: Bool) throws -> NSRunningApplication {
-        debugLog("Opening deep link: \(url) withoutActivation=\(withoutActivation)")
+    private static func openDeepLink(_ url: URL) throws -> NSRunningApplication {
+        debugLog("Opening deep link: \(url)")
         return try NSWorkspace.shared.open(
             url,
-            options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
+            options: [.andHide, .withoutActivation],
             configuration: [:]
         )
     }
@@ -234,10 +234,10 @@ final class MessagesController {
 
         whm = try getBestWHM()
 
-        let launchMessages = { [whm] (withoutActivation: Bool) throws -> NSRunningApplication in
+        let launchMessages = { [whm] () throws -> NSRunningApplication in
             if !whm.canReuseApp { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
             debugLog("Launching Messages...")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
+            return try Self.openDeepLink(MessagesDeepLink.compose.url())
         }
 
         var messagesApps = Self.getRunningMessagesApps()
@@ -253,11 +253,10 @@ final class MessagesController {
             } else {
                 debugLog("Terminating Messages...")
                 try Self.terminateApp(existingApp)
-                app = try launchMessages(true)
+                app = try launchMessages()
             }
         } else {
-            // we launch with activation because mark as read doesn't work until the app is activated at least once
-            app = try launchMessages(false)
+            app = try launchMessages()
         }
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
@@ -364,7 +363,7 @@ final class MessagesController {
             } onError: { attempt, _ in
                 if attempt == 0 {
                     debugLog("Opening compose deep link to get main window")
-                    try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: true)
+                    try Self.openDeepLink(MessagesDeepLink.compose.url())
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         Self.resetPrompts()
@@ -564,7 +563,7 @@ final class MessagesController {
         perform: () throws -> Void
     ) throws {
         if let openBefore = openBefore {
-            try Self.openDeepLink(openBefore, withoutActivation: true)
+            try Self.openDeepLink(openBefore)
         }
 
         try perform()
@@ -574,7 +573,7 @@ final class MessagesController {
                 // debugLog("withActivation: skipping, openAfter == openBefore")
             } else {
                 // debugLog("withActivation: returning to openAfter \(openAfter)")
-                try Self.openDeepLink(openAfter, withoutActivation: true)
+                try Self.openDeepLink(openAfter)
             }
         }
     }
@@ -1184,7 +1183,7 @@ final class MessagesController {
         // successfully switched chats.
         try _removeObserver()
 
-        try Self.openDeepLink(url, withoutActivation: true)
+        try Self.openDeepLink(url)
         activityObserver = .init(threadID: threadID, url: url, callback: callback)
     }
 
