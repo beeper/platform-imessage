@@ -1,5 +1,14 @@
 import Foundation
 
+struct ErrorMessage: Error, CustomStringConvertible {
+    let message: String
+    init(_ message: String) {
+        Logger.log(message)
+        self.message = message
+    }
+    var description: String { message }
+}
+
 extension Optional {
     func orThrow(_ error: @autoclosure () -> Error) throws -> Wrapped {
         if let wrapped = self {
@@ -65,4 +74,9 @@ func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -
             action()
         }
     }
+}
+
+// iMessage;-;hi@kishan.info → hi@kishan.info
+func threadIDToAddress(_ threadID: String) -> String? {
+    threadID.split(separator: ";", maxSplits: 2).last.map(String.init)
 }

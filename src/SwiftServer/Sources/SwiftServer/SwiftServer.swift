@@ -84,8 +84,8 @@ final class MessagesControllerWrapper: NodeClass {
         try returnAsync { self.controller.isValid }
     }
 
-    func toggleThreadRead(messageGUID: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.toggleThreadRead(messageGUID: messageGUID) }
+    func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.toggleThreadRead(threadID: threadID, messageGUID: messageGUID, read: read) }
     }
 
     func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {
@@ -96,8 +96,8 @@ final class MessagesControllerWrapper: NodeClass {
         try performAsync { try self.controller.deleteThread(threadID: threadID) }
     }
 
-    func sendTypingStatus(isTyping: Bool, address: String) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendTypingStatus(isTyping, address: address) }
+    func sendTypingStatus(threadID: String, isTyping: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendTypingStatus(threadID: threadID, isTyping: isTyping) }
     }
 
     func notifyAnyway(threadID: String) throws -> NodeValueConvertible {
@@ -109,9 +109,9 @@ final class MessagesControllerWrapper: NodeClass {
         if try args.count == 1 && args[0].as(NodeNull.self) != nil {
             controllerArgs = nil
         } else if args.count == 2,
-                  let address = try args[0].as(String.self),
+                  let threadID = try args[0].as(String.self),
                   let fn = try args[1].as(NodeFunction.self) {
-            controllerArgs = (address, { status in
+            controllerArgs = (threadID, { status in
                 try? self.watchCBQueue.run { try fn(status.map { $0.rawValue }) }
             })
         } else {
@@ -134,15 +134,15 @@ final class MessagesControllerWrapper: NodeClass {
                 // prevent the current block from unnecessarily running
                 guard threadObserveRequestToken == req else { return }
             }
-            if let (address, callback) = controllerArgs {
-                try controller.observe(address: address, callback: callback)
+            if let (threadID, callback) = controllerArgs {
+                try controller.observe(threadID: threadID, callback: callback)
             } else {
                 try controller.removeObserver()
             }
         }
     }
 
-    func setReaction(messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
@@ -150,7 +150,7 @@ final class MessagesControllerWrapper: NodeClass {
             throw ErrorMessage("Invalid reaction: \(reactionName)")
         }
         return try performAsync { [self] in
-            try controller.setReaction(messageCell: messageCell, reaction: reaction, on: on)
+            try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
         }
     }
 

@@ -502,7 +502,7 @@ export default class AppleiMessage implements PlatformAPI {
         return
       }
     }
-    return (await this.getMessagesController()).sendTypingStatus(isTyping, participantID)
+    return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
   }
 
   setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
@@ -519,7 +519,7 @@ export default class AppleiMessage implements PlatformAPI {
       const closestMessage: AXMessageSelection = overlay
         ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
         : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
-      await controller.setReaction(JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on)
+      await controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on)
     }, {
       onFailedAttempt: error => {
         texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)
@@ -540,20 +540,20 @@ export default class AppleiMessage implements PlatformAPI {
 
   // deleteMessage = async (threadID: string, messageID: string) => false
 
-  private toggleThreadRead = async (threadID: string, messageID?: string) => { // ventura and up only
+  private toggleThreadRead = (read: boolean) => async (threadID: string, messageID: string) => {
     const controller = await this.getMessagesController()
     const messageGUID = messageID.split('_', 1)[0]
-    await controller.toggleThreadRead(messageGUID)
+    await controller.toggleThreadRead(threadID, messageGUID, read)
   }
 
-  markAsUnread = this.toggleThreadRead
+  markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
     texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
     this.threadReadStore?.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
-        await this.toggleThreadRead(threadID, messageID)
+        await this.toggleThreadRead(true)(threadID, messageID)
         if (!IS_VENTURA_OR_UP) {
           await bluebird.delay(100)
           if (!await this.dbAPI.isThreadRead(threadID)) throw new Error('sendReadReceipt failed (cause unknown)')
@@ -587,7 +587,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
-    return messagesController.watchThreadActivity(participantID, statuses => {
+    return messagesController.watchThreadActivity(threadID, statuses => {
       const events: ServerEvent[] = [{
         type: ServerEventType.USER_ACTIVITY,
         activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,

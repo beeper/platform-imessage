@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import type { MessageID, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP } from '../../constants'
 
@@ -22,7 +23,7 @@ export enum ActivityStatus {
 }
 
 export interface MessageCell {
-  messageGUID: string
+  messageGUID: MessageID
   offset: number
   cellID: string | null
   cellRole: string | null
@@ -33,26 +34,23 @@ export declare class MessagesController {
 
   isValid: () => Promise<boolean>
 
-  createThread: (addresses: string[], message: string) => Promise<void>
+  createThread: (addresses: string[], messageText: string) => Promise<void>
 
-  toggleThreadRead: (messageGUID: string) => Promise<void>
+  toggleThreadRead: (threadID: ThreadID, messageGUID: MessageID, read: boolean) => Promise<void>
 
-  muteThread: (threadID: string, muted: boolean) => Promise<void>
+  muteThread: (threadID: ThreadID, muted: boolean) => Promise<void>
 
-  deleteThread: (threadID: string) => Promise<void>
+  deleteThread: (threadID: ThreadID) => Promise<void>
 
-  notifyAnyway: (threadID: string) => Promise<void>
+  notifyAnyway: (threadID: ThreadID) => Promise<void>
 
-  sendTypingStatus: (isTyping: boolean, address: string) => Promise<void>
+  sendTypingStatus: (threadID: ThreadID, isTyping: boolean) => Promise<void>
 
-  watchThreadActivity: (
-    address: string | null,
-    onTyping?: (status: ActivityStatus[]) => void
-  ) => Promise<void>
+  watchThreadActivity: (threadID: ThreadID | null, onTyping?: (status: ActivityStatus[]) => void) => Promise<void>
 
-  sendMessage: (threadID: string, text: string | null, filePath: string | null, quotedMessageCellJSON: string) => Promise<void>
+  sendMessage: (threadID: ThreadID, text: string | null, filePath: string | null, quotedMessageCellJSON: string) => Promise<void>
 
-  setReaction: (messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
+  setReaction: (threadID: ThreadID, messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
 
   dispose: () => void
 }

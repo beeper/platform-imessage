@@ -3,47 +3,6 @@ import AccessibilityControl
 import WindowControl
 import Carbon.HIToolbox.Events
 
-enum Logger {
-    static var logFile: URL? {
-        guard let libraryDirectory = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return nil }
-        return libraryDirectory
-            .appendingPathComponent("jack", isDirectory: true)
-            .appendingPathComponent("platform-imessage.log")
-    }
-
-    static func log(_ message: String) {
-        guard Preferences.isLoggingEnabled else { return }
-        guard let logFile = logFile else { return }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
-        formatter.timeZone = TimeZone(abbreviation: "UTC")
-        let timestamp = formatter.string(from: Date())
-        let str = "\(timestamp): \(message)"
-        print(str)
-        guard let data = "\(str)\n".data(using: String.Encoding.utf8) else { return }
-
-        if FileManager.default.fileExists(atPath: logFile.path) {
-            if let fileHandle = try? FileHandle(forWritingTo: logFile) {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(data)
-                fileHandle.closeFile()
-            }
-        } else {
-            try? data.write(to: logFile, options: .atomicWrite)
-        }
-    }
-}
-
-struct ErrorMessage: Error, CustomStringConvertible {
-    let message: String
-    init(_ message: String) {
-        Logger.log(message)
-        self.message = message
-    }
-    var description: String { message }
-}
-
 private final class TimerBlockWatcher {
     let block: () -> Void
     init(_ block: @escaping () -> Void) {
@@ -76,7 +35,7 @@ private final class RunLoopThread: Thread {
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 
-enum LocalizedStrings {
+private enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
 
@@ -94,7 +53,7 @@ enum LocalizedStrings {
     static let delete = chatKitFrameworkAxBundle.localizedString(forKey: "delete.button.label", value: nil, table: "Accessibility")
 }
 
-enum MessageAction {
+private enum MessageAction {
     case react, reply
 
     var localized: String {
@@ -146,9 +105,8 @@ final class MessagesController {
     }
 
     private class ActivityObserver {
-        let address: String
+        let threadID: String
         let url: URL
-        let windowTitle: String
 
         // may be called on a bg thread
         private let callback: ([ActivityStatus]) -> Void
@@ -156,10 +114,9 @@ final class MessagesController {
         private var lastSent: [ActivityStatus] = [.notTyping]
         private var lastSentTime = Date()
 
-        init(address: String, url: URL, windowTitle: String, callback: @escaping ([ActivityStatus]) -> Void) {
-            self.address = address
+        init(threadID: String, url: URL, callback: @escaping ([ActivityStatus]) -> Void) {
+            self.threadID = threadID
             self.url = url
-            self.windowTitle = windowTitle
             self.callback = callback
         }
 
@@ -202,7 +159,7 @@ final class MessagesController {
         try window.setFrame(frame)
     }
 
-    static func terminateApp(_ app: NSRunningApplication) throws {
+    private static func terminateApp(_ app: NSRunningApplication) throws {
         app.terminate()
         try retry(withTimeout: 2, interval: 0.1) {
             guard app.isTerminated else { throw ErrorMessage("App couldn't be terminated") }
@@ -224,19 +181,47 @@ final class MessagesController {
         )
     }
 
-    static func getRunningMessagesApps() -> [NSRunningApplication] {
+    private static func getRunningMessagesApps() -> [NSRunningApplication] {
         NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID)
     }
 
-    static func resetPrompts() {
+    private static func resetPrompts() {
         // Self.messagesUserDefaults?.set(true, forKey: "kHasSetupHashtagImages") // unknown
         Self.messagesUserDefaults?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
         Self.messagesUserDefaults?.set(true, forKey: "ReadReceiptSettingsConfirmed")
         Self.messagesUserDefaults?.set(2, forKey: "BusinessChatPrivacyPageDisplayed")
     }
 
-    func isPromptVisibleInMessagesApp() -> Bool {
+    private func isPromptVisibleInMessagesApp() -> Bool {
         allWindows.contains(where: { (try? $0.windowCloseButton().isEnabled()) == false })
+    }
+
+    private static func getSelectedThreadID() -> String? {
+        // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
+        // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
+        // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
+        Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
+    }
+
+    private static func isSelectedThreadCellPinned() -> Bool {
+        Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
+    }
+
+    // remember transparent thread merging (edge case #1 in readme.md)
+    private static func ensureSelectedThread(threadID: String) throws {
+        try retry(withTimeout: 1.5, interval: 0.05) {
+            guard Self.getSelectedThreadID() == threadID else { throw ErrorMessage("thread not selected") }
+        }
+    }
+
+    private static func ensureComposeCellSelected() throws {
+        try retry(withTimeout: 1.5, interval: 0.05) {
+            guard Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier" else { throw ErrorMessage("compose cell not selected") }
+        }
+    }
+
+    private func selectedThreadCell() -> Accessibility.Element? {
+        try? conversationsList.selectedChildren.value(at: 0)
     }
 
     init() throws {
@@ -321,7 +306,8 @@ final class MessagesController {
         self.loopThread = thread
 
         guard self.isValid else {
-            throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(try? mainWindow.isFrameValid), whmValid=\(whm.isValid)")
+            dispose() // since deinit isn't called when init throws
+            throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
     }
 
@@ -329,22 +315,22 @@ final class MessagesController {
         !app.isTerminated && (try? mainWindow.isFrameValid) != nil && whm.isValid
     }
 
-    private func selectedThreadCell() -> Accessibility.Element? {
-        try? conversationsList.selectedChildren.value(at: 0)
-    }
-
-    private var allWindows: [Accessibility.Element] {
+    private var allWindows: [Accessibility.Element] { // takes ~0ms
         get {
             // after a window is moved to the new space, AX doesn't list the window in appWindows or children
             (((try? appElement.appWindows()) ?? []) + [try? appElement.appMainWindow(), try? appElement.appFocusedWindow()]).compactMap { $0 }
         }
     }
 
-    private func getMainWindow() -> Accessibility.Element? {
-        allWindows.first(where: {
+    private func getMainWindow() -> Accessibility.Element? { // takes ~24ms
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+        return allWindows.first(where: {
             // note: don't detect presence of AXSplitter here, it's unreliable
-            $0.child(withID: "ConversationList") != nil ||
-                $0.child(withID: "CKConversationListCollectionView") != nil
+            $0.recursivelyFindChild(withID: "ConversationList") != nil ||
+                $0.recursivelyFindChild(withID: "CKConversationListCollectionView") != nil
         })
     }
 
@@ -353,17 +339,17 @@ final class MessagesController {
     }
 
     private var cachedMainWindow: Accessibility.Element?
-    private var cachedConversationsList: Accessibility.Element?
-    private var cachedTranscriptView: Accessibility.Element?
-    private var cachedReplyTranscriptView: Accessibility.Element?
+    // private var cachedConversationsList: Accessibility.Element?
+    // private var cachedTranscriptView: Accessibility.Element?
+    // private var cachedReplyTranscriptView: Accessibility.Element?
 
-    private func clearCachedElements() {
-        // these are manually cleared because we aren't checking for validity on each property access
-        // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
-        cachedConversationsList = nil
-        cachedTranscriptView = nil
-        cachedReplyTranscriptView = nil
-    }
+    // private func clearCachedElements() {
+    //     // these are manually cleared because we aren't checking for validity on each property access
+    //     // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
+    //     cachedConversationsList = nil
+    //     cachedTranscriptView = nil
+    //     cachedReplyTranscriptView = nil
+    // }
 
     private var mainWindow: Accessibility.Element {
         get throws {
@@ -390,19 +376,23 @@ final class MessagesController {
             }
             try? Self.resizeWindowToMaxHeight(mainWindow)
             try? whm.mainWindowChanged(mainWindow)
-            clearCachedElements()
+            // clearCachedElements()
             cachedMainWindow = mainWindow
             return mainWindow
         }
     }
 
-    private var conversationsList: Accessibility.Element {
+    private var conversationsList: Accessibility.Element { // takes ~34ms
         get throws {
-            if let cached = cachedConversationsList {
-                return cached
-            }
-            let cl = try retry(withTimeout: 1, interval: 0.2) {
-                try mainWindow.child(withID: "ConversationList")
+            // if let cached = cachedConversationsList {
+            //     return cached
+            // }
+            #if DEBUG
+            let startTime = Date()
+            defer { Logger.log("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            #endif
+            let cl = try retry(withTimeout: 1, interval: 0.1) {
+                try mainWindow.recursivelyFindChild(withID: "ConversationList")
                     .orThrow(ErrorMessage("Could not find ConversationList"))
             } onError: { _, _ in
                 let searchField = try self.searchField()
@@ -410,26 +400,33 @@ final class MessagesController {
                 // this will close the search results if active
                 try searchField.cancel()
             }
-            cachedConversationsList = cl
+            // cachedConversationsList = cl
             return cl
         }
     }
 
-    private func messageAction(targetCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
+    // this return type was copied from compiler error
+    private var mainWindowSections: LazyMapCollection<LazyFilterSequence<LazyMapSequence<LazySequence<[[String: CFTypeRef]]>.Elements, Accessibility.Element?>>, Accessibility.Element> {
+        get throws {
+            try mainWindow.sections().lazy.compactMap { $0["SectionObject"].flatMap { Accessibility.Element(erased: $0) } }
+        }
+    }
+
+    private func messageAction(messageCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
         // [press, AXScrollToVisible, show menu, Escape, scroll left by a page, scroll right by a page, React, Reply, Copy]
         // ["AXPress", "AXScrollToVisible", "AXShowMenu", "AXCancel", "AXScrollLeftByPage", "AXScrollRightByPage", "Name:React\nTarget:0x0\nSelector:(null)", "Name:Reply\nTarget:0x0\nSelector:(null)", "Name:Copy\nTarget:0x0\nSelector:(null)"]
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
-        let allActions = try targetCell.supportedActions()
+        let allActions = try messageCell.supportedActions()
         guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }) else {
             throw ErrorMessage("Could not find \(action) action")
         }
         return action
     }
 
-    private func reactButtons(targetCell: Accessibility.Element) throws -> [Accessibility.Element] {
-        let reactAction = try messageAction(targetCell: targetCell, action: .react)
-        try reactAction()
+    private func reactButtons(messageCell: Accessibility.Element) throws -> [Accessibility.Element] {
+        let reactAction = try messageAction(messageCell: messageCell, action: .react)
+        try reactAction() // performing this 2x will close reaction view
         let reactionsView = try reactionsView()
         guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == AXRole.button }) else {
             throw ErrorMessage("Could not find reaction buttons")
@@ -452,6 +449,11 @@ final class MessagesController {
     }
 
     private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("getTranscriptView took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+
         func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
             // alternative: (localizedDescription == "Messages" when main transcript)
             (try? el.localizedDescription()) == LocalizedStrings.replyTranscript
@@ -461,44 +463,56 @@ final class MessagesController {
               so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
             */
         }
-        return try mainWindow.recursiveChildren().lazy.first {
-            (try? $0.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView($0) == replyTranscript
+        let predicate = { (el: Accessibility.Element) -> Bool in
+            (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
-        .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscript=\(replyTranscript)"))
+        // takes ~8ms
+        return try mainWindowSections.first(where: predicate)
+        // takes ~19ms
+        // return try mainWindow.recursiveChildren().lazy.first(where: predicate)
+            .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscript=\(replyTranscript)"))
     }
 
     private var transcriptView: Accessibility.Element {
         get throws {
-            if let cached = cachedTranscriptView, cached.isInViewport {
-                return cached
-            }
+            // if let cached = cachedTranscriptView, cached.isInViewport {
+            //     return cached
+            // }
             let tcv = try getTranscriptView(replyTranscript: false)
-            cachedTranscriptView = tcv
+            // cachedTranscriptView = tcv
             return tcv
         }
     }
 
     private var replyTranscriptView: Accessibility.Element {
         get throws {
-            if let cached = cachedReplyTranscriptView, cached.isInViewport {
-                return cached
-            }
+            // if let cached = cachedReplyTranscriptView, cached.isInViewport {
+            //     return cached
+            // }
             let tcv = try getTranscriptView(replyTranscript: true)
-            cachedReplyTranscriptView = tcv
+            // cachedReplyTranscriptView = tcv
             return tcv
         }
     }
 
     private func messagesField() throws -> Accessibility.Element {
-        try retry(withTimeout: 1.5, interval: 0.25) {
-            try mainWindow.child(withID: "messageBodyField")
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("messagesField took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+        return try retry(withTimeout: 1.5, interval: 0.2) {
+            try mainWindow.recursivelyFindChild(withID: "messageBodyField")
                 .orThrow(ErrorMessage("Could not find messageBodyField"))
         }
     }
 
     private func searchField() throws -> Accessibility.Element {
-        try retry(withTimeout: 1.5, interval: 0.25) {
-            let CKConversationListCollectionView = try mainWindow.child(withID: "CKConversationListCollectionView")
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+        return try retry(withTimeout: 1.5, interval: 0.2) {
+            let CKConversationListCollectionView = try mainWindow.recursivelyFindChild(withID: "CKConversationListCollectionView")
                 .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
             return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
                 .orThrow(ErrorMessage("Could not find searchField"))
@@ -506,10 +520,14 @@ final class MessagesController {
     }
 
     private func reactionsView() throws -> Accessibility.Element {
-        try retry(withTimeout: 1.5, interval: 0.25) {
-            guard let mainView = try mainWindow.children().first(where: { (try? $0.role()) == AXRole.group }),
-                  // (try? mainView.children.count()) ?? 0 >= 2,
-                  let presView = try? mainView.children.value(at: 0),
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+        return try retry(withTimeout: 1.5, interval: 0.2) {
+            guard let iOSContentGroup = try mainWindow.children().first(where: { (try? $0.role()) == AXRole.group && (try? $0.subrole()) == "iOSContentGroup" }),
+                  // (try? iOSContentGroup.children.count()) ?? 0 >= 2,
+                  let presView = try? iOSContentGroup.children.value(at: 0),
                   (try? presView.children.count()) ?? 0 > 0 else {
                 throw ErrorMessage("Could not find reactions view")
             }
@@ -527,34 +545,25 @@ final class MessagesController {
         }
     }
 
-    // performs `perform` while the Messages window is unhidden. Returns the new window title
-    @discardableResult
+    // performs `perform` while the Messages window is unhidden
     private func withActivation(
         openBefore: URL?, openAfter: URL?,
         perform: () throws -> Void
-    ) throws -> String? {
+    ) throws {
         if let openBefore = openBefore {
             try Self.openDeepLink(openBefore, withoutActivation: true)
         }
 
         try perform()
 
-        let newTitle: String?
         if let openAfter = openAfter {
-            debugLog("withActivation: Returning to openAfter \(openAfter)")
-            let oldTitle = try mainWindow.title()
-            try Self.openDeepLink(openAfter, withoutActivation: true)
-            newTitle = try? retry(withTimeout: 1, interval: 0.1) {
-                let newTitle = try mainWindow.title()
-                // the message doesn't matter since we're try?-ing
-                guard newTitle != oldTitle else { throw ErrorMessage("newTitle == oldTitle") }
-                return newTitle
+            if openAfter == openBefore {
+                // debugLog("withActivation: skipping, openAfter == openBefore")
+            } else {
+                // debugLog("withActivation: returning to openAfter \(openAfter)")
+                try Self.openDeepLink(openAfter, withoutActivation: true)
             }
-        } else {
-            newTitle = nil
         }
-
-        return newTitle
     }
 
     private static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
@@ -579,8 +588,8 @@ final class MessagesController {
         try tv.children().first { (try? $0.children.value(at: 0).isSelected()) == true }?.children.value(at: 0)
     }
 
-    private func withMessageCell(messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
-        debugLog("Finding cell \(messageCell)")
+    private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
+        debugLog("withMessageCell \(messageCell)")
 
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
 
@@ -591,6 +600,8 @@ final class MessagesController {
         }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            try Self.ensureSelectedThread(threadID: threadID)
+
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
             //     if messageCell.overlay {
@@ -642,17 +653,17 @@ final class MessagesController {
         }
     }
 
-    func setReaction(messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
+    func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
         let startTime = Date()
-        defer { Logger.log("Sent message reaction in \(Int(startTime.timeIntervalSinceNow * -1000))ms") }
+        defer { Logger.log("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
         let idx = reaction.index
-        try withMessageCell(messageCell: messageCell) { targetCell in
-            let buttons = try reactButtons(targetCell: targetCell)
+        try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            let buttons = try reactButtons(messageCell: $0)
 
             let btn = buttons[idx]
             try retry(withTimeout: 1.2, interval: 0.2) {
@@ -675,7 +686,7 @@ final class MessagesController {
         try deleteAction()
     }
 
-    private func toggleThreadRead(url: URL) throws {
+    private func toggleThreadRead(threadID: String, url: URL, read: Bool) throws {
         guard isVenturaOrUp else { throw ErrorMessage("ventura only") }
 
         whm.hide()
@@ -683,14 +694,18 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            try Self.ensureSelectedThread(threadID: threadID)
             try sendCommandShiftUPress()
         }
     }
 
-    func toggleThreadRead(messageGUID: String) throws {
+    func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws {
+        let startTime = Date()
+        defer { Logger.log("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
-        if isVenturaOrUp { return try toggleThreadRead(url: url) }
+        if isVenturaOrUp { return try toggleThreadRead(threadID: threadID, url: url, read: read) }
 
         whm.hide()
         activityLock.lock()
@@ -709,7 +724,7 @@ final class MessagesController {
             // try removeComposeCell(composeCell)
             // Thread.sleep(forTimeInterval: 1)
 
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
+            guard let threadCell = waitUntilSelectedThreadCell(isCompose: false) else {
                 throw ErrorMessage("Thread cell with message guid not found")
             }
 
@@ -722,7 +737,7 @@ final class MessagesController {
 
             // Thread.sleep(forTimeInterval: 1)
             debugLog("Pressing target thread cell")
-            try targetCell.press()
+            try threadCell.press()
             waitUntilSelectedThreadCell(isCompose: false)
 
             debugLog("Done!")
@@ -730,7 +745,7 @@ final class MessagesController {
     }
 
     #if DEBUG
-    func markAsReadWithMenu(messageGUID: String) throws {
+    func markAsReadWithMenu(threadID: String, messageGUID: String) throws {
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
         whm.hide()
@@ -738,17 +753,17 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            _ = selectedThreadCell()
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
-                throw ErrorMessage("Thread cell with message \(messageGUID) not found")
-            }
-            try targetCell.showMenu()
+            try Self.ensureSelectedThread(threadID: threadID)
+
+            let threadCell = try waitUntilSelectedThreadCell(isCompose: false)
+                .orThrow(ErrorMessage("Thread cell with message \(messageGUID) not found"))
+            try threadCell.showMenu()
 
             // Thread.sleep(forTimeInterval: 1)
             guard let group = (try retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == AXRole.group }) }) else {
                 throw ErrorMessage("Could not find main view")
             }
-            guard let menu = (try retry(withTimeout: 4, interval: 0.5) { try group.children().first(where: { try $0.role() == AXRole.menu }) }) else {
+            guard let menu = (try retry(withTimeout: 4, interval: 0.2) { try group.children().first(where: { try $0.role() == AXRole.menu }) }) else {
                 throw ErrorMessage("Could not find menu")
             }
             /*
@@ -778,14 +793,12 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            // review: this is strangely needed, without this the currently observed thread is muted
-            _ = selectedThreadCell()
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
-                throw ErrorMessage("Cell for thread \(threadID) not found")
-            }
-            guard let muteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix(muted ? "Name:\(LocalizedStrings.hideAlerts)" : "Name:\(LocalizedStrings.showAlerts)") }) else {
-                throw ErrorMessage("muteAction not found")
-            }
+            try Self.ensureSelectedThread(threadID: threadID)
+            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+            // at least on Monterey: for pinned thread cells, this should be
+            // Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
+            let name = muted || Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
+            let muteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(name)") }).orThrow(ErrorMessage("muteAction not found"))
             try muteAction()
         }
     }
@@ -798,57 +811,34 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            // review: copied over from muteThread
-            // this is a destructive method and can delete the wrong thread if targetCell is incorrect
-            _ = selectedThreadCell()
-            guard let targetCell = waitUntilSelectedThreadCell(isCompose: false) else {
-                throw ErrorMessage("Cell for thread \(threadID) not found")
-            }
-            guard let deleteAction = try targetCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }) else {
-                throw ErrorMessage("deleteAction not found")
-            }
+            try Self.ensureSelectedThread(threadID: threadID)
+            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+            let deleteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }).orThrow(ErrorMessage("deleteAction not found"))
             try deleteAction()
-            guard let alertSheet = try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }) else {
-                throw ErrorMessage("alertSheet not found")
-            }
-            guard let deleteButton = try alertSheet.children().first(where: { try $0.role() == AXRole.button }) else {
-                throw ErrorMessage("deleteButton not found")
-            }
+            let alertSheet = try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }).orThrow(ErrorMessage("alertSheet not found"))
+            let deleteButton = try alertSheet.children().first(where: { try $0.role() == AXRole.button }).orThrow(ErrorMessage("deleteButton not found"))
             try deleteButton.press()
         }
     }
 
-    // TODO: consider comparing selectedThreadCell instead
-    private func getWaitForWindowTitleChangeFn() -> () -> Void {
-        let initialTitle = try? mainWindow.title()
-        return {
-            try? retry(withTimeout: 1, interval: 0.2) {
-                guard try self.mainWindow.title() != initialTitle else {
-                    throw ErrorMessage("self.mainWindow.title() == initialTitle")
-                }
-            }
-        }
-    }
-
-    func sendTypingStatus(_ isTyping: Bool, address: String) throws {
-        debugLog("Sending typing status \(isTyping) for address \(address)")
+    func sendTypingStatus(threadID: String, isTyping: Bool) throws {
+        debugLog("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
 
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
         // (since Messages special-cases space-only messages). The NUL byte
         // is another option that doesn't get sent to the server, but it
         // shows up client-side as a ghost message.
-        let url = try MessagesDeepLink.addresses([address], body: isTyping ? " " : nil).url()
+        let url = try MessagesDeepLink(threadID: threadID, body: isTyping ? " " : nil).url()
 
         whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let wait = getWaitForWindowTitleChangeFn()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
 
-            wait()
+            try Self.ensureSelectedThread(threadID: threadID)
 
             try messagesField().value(assign: "")
         }
@@ -884,7 +874,7 @@ final class MessagesController {
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
-        try retry(withTimeout: 1, interval: 0.25) {
+        try retry(withTimeout: 1, interval: 0.2) {
             // this doesn't ever focus in compose thread for some reason
             try messageField.isFocused(assign: true)
             guard try messageField.isFocused() else {
@@ -901,7 +891,7 @@ final class MessagesController {
     }
 
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
-        try retry(withTimeout: 1, interval: 0.25) {
+        try retry(withTimeout: 1, interval: 0.2) {
             try messageField.value(assign: text)
             guard (try? messageFieldValue(messageField)) == text else {
                 throw ErrorMessage("Could not assign value to message field")
@@ -912,7 +902,7 @@ final class MessagesController {
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
         try focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try self.sendReturnPress()
-        try retry(withTimeout: 1.5, interval: 0.25) {
+        try retry(withTimeout: 1.5, interval: 0.2) {
             if let message = try? messageFieldValue(messageField), !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
@@ -940,9 +930,9 @@ final class MessagesController {
         }
     }
 
-    private func sendReplyWithoutOverlay(quotedMessage: MessageCell, text: String?, filePath: String?) throws {
-        try withMessageCell(messageCell: quotedMessage) { targetCell in
-            let replyAction = try messageAction(targetCell: targetCell, action: .reply)
+    private func sendReplyWithoutOverlay(threadID: String, quotedMessage: MessageCell, text: String?, filePath: String?) throws {
+        try withMessageCell(threadID: threadID, messageCell: quotedMessage) {
+            let replyAction = try messageAction(messageCell: $0, action: .reply)
             try replyAction()
             let messageField = try messagesField()
             if let text = text {
@@ -957,7 +947,7 @@ final class MessagesController {
     // this method has a lot of combinations, test carefully
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         let startTime = Date()
-        defer { Logger.log("Sent message in \(Int(startTime.timeIntervalSinceNow * -1000))ms") }
+        defer { Logger.log("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         let url: URL
         if let quotedMessage = quotedMessage {
@@ -976,17 +966,20 @@ final class MessagesController {
 
         // this isn't reliable so we use pasteFileInBodyField:
         // if let filePath = filePath {
-        //     guard let address = threadID.split(separator: ";", maxSplits: 2).last else { throw ErrorMessage("invalid threadID") }
+        //     guard let address = threadIDToAddress(threadID) else { throw ErrorMessage("invalid threadID") }
         //     try withAllWindowsClosed {
         //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
         //     }
         // }
-        if let quotedMessage = quotedMessage, !quotedMessage.overlay { return try sendReplyWithoutOverlay(quotedMessage: quotedMessage, text: text, filePath: filePath) }
+        if let quotedMessage = quotedMessage, !quotedMessage.overlay, let threadID = threadID {
+            return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+        }
 
         if quotedMessage == nil { self.closeReplyTranscriptView() } // needed even when opening deep link
-        let wait = getWaitForWindowTitleChangeFn()
+
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            wait()
+            if let threadID = threadID { try Self.ensureSelectedThread(threadID: threadID) }
+
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
             }
@@ -1143,6 +1136,8 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            try Self.ensureSelectedThread(threadID: threadID)
+
             guard let transcript = try? transcriptView,
                   let count = try? transcript.children.count() else {
                 throw ErrorMessage("transcriptView not found")
@@ -1176,8 +1171,9 @@ final class MessagesController {
             return
         }
 
-        guard (try? mainWindow.title()) == observer.windowTitle else {
-            // debugLog("warning: Title changed. Not polling activity status.")
+        let currentThreadID = Self.getSelectedThreadID()
+        guard currentThreadID == observer.threadID else {
+            debugLog("pollActivityStatus: selected thread changed, not polling \(currentThreadID ?? "nil") \(observer.threadID)")
             observer.send([.unknown])
             return
         }
@@ -1199,8 +1195,8 @@ final class MessagesController {
         try _removeObserver()
     }
 
-    func observe(address: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
-        let url = try MessagesDeepLink.addresses([address], body: nil).url()
+    func observe(threadID: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         whm.hide()
         activityLock.lock()
@@ -1212,10 +1208,8 @@ final class MessagesController {
         // successfully switched chats.
         try _removeObserver()
 
-        let title = try withActivation(openBefore: nil, openAfter: url) {} ?? mainWindow.title()
-        debugLog("Observing with title \(title)")
-
-        activityObserver = .init(address: address, url: url, windowTitle: title, callback: callback)
+        try Self.openDeepLink(url, withoutActivation: true)
+        activityObserver = .init(threadID: threadID, url: url, callback: callback)
     }
 
     private var isDisposed = false
