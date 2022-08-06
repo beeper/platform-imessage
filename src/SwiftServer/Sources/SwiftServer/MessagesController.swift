@@ -212,7 +212,8 @@ final class MessagesController {
     // remember transparent thread merging (edge case #1 in readme.md)
     private static func ensureSelectedThread(threadID: String) throws {
         try retry(withTimeout: 1.5, interval: 0.05) {
-            guard Self.getSelectedThreadID() == threadID else { throw ErrorMessage("thread not selected") }
+            // threadIDToAddress is used to ignore the service (SMS or iMessage) since it's merged in the UI
+            guard Self.getSelectedThreadID().flatMap(threadIDToAddress) == threadIDToAddress(threadID) else { throw ErrorMessage("thread not selected") }
         }
     }
 
@@ -1098,8 +1099,8 @@ final class MessagesController {
             return
         }
 
-        let currentThreadID = Self.getSelectedThreadID()
-        guard currentThreadID == observer.threadID else {
+        let currentThreadID = Self.getSelectedThreadID().flatMap(threadIDToAddress)
+        guard currentThreadID == threadIDToAddress(observer.threadID) else {
             debugLog("pollActivityStatus: selected thread changed, not polling \(currentThreadID ?? "nil") \(observer.threadID)")
             observer.send([.unknown])
             return
