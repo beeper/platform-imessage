@@ -37,7 +37,7 @@ const info: PlatformInfo = {
         Attribute.SINGLE_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.GROUP_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.SUPPORTS_QUOTED_MESSAGES,
-        // Attribute.SUPPORTS_DELETE_THREAD, unreliable atm and can delete a different thread
+        Attribute.SUPPORTS_DELETE_THREAD,
       ] : [
         Attribute.NO_SUPPORT_TYPING_INDICATOR,
       ]),
