@@ -167,7 +167,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   const partialMessage: MessageWithExtra = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
-    id: msgRow.msgID,
+    id: msgRow.guid,
     cursor: msgRow.date.toString(),
     timestamp: fromAppleTime(msgRow.date),
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
@@ -516,7 +516,7 @@ export function mapMessages(messages: MappedMessageRow[], attachmentRows: Mapped
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
   return messages
-    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.msgRowID], groupedReactionRows[message.guid], currentUserID, addThreadIDs))
+    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.ROWID], groupedReactionRows[message.guid], currentUserID, addThreadIDs))
     .filter(Boolean)
 }
 

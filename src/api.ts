@@ -323,7 +323,7 @@ export default class AppleiMessage implements PlatformAPI {
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
     if (direction !== 'after') msgRows.reverse()
-    const msgRowIDs = msgRows.map(m => m.msgRowID)
+    const msgRowIDs = msgRows.map(m => m.ROWID)
     const msgGUIDs = msgRows.map(m => m.guid)
     const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
       this.dbAPI.getAttachments(msgRowIDs),
@@ -341,7 +341,7 @@ export default class AppleiMessage implements PlatformAPI {
     const msgRow = await this.dbAPI.getMessage(threadID, messageID)
     if (!msgRow) return
     const [attachmentRows, reactionRows] = await Promise.all([
-      this.dbAPI.getAttachments([msgRow.msgRowID]),
+      this.dbAPI.getAttachments([msgRow.ROWID]),
       this.dbAPI.getMessageReactions([msgRow.guid], threadID),
     ])
     const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUserID)
@@ -352,7 +352,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.ensureDB()
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.searchMessages(typed, threadID, cursor, direction)
-    const msgRowIDs = msgRows.map(m => m.msgRowID)
+    const msgRowIDs = msgRows.map(m => m.ROWID)
     const msgGUIDs = msgRows.map(m => m.guid)
     const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
       this.dbAPI.getAttachments(msgRowIDs),

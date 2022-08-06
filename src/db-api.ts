@@ -29,7 +29,7 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID`
 
-const MAP_MESSAGES_COLS = 'm.ROWID AS msgRowID, m.guid AS msgID, m.*, t.guid AS threadID, t.room_name, h.id AS participantID, oh.id AS otherID'
+const MAP_MESSAGES_COLS = 'm.*, t.guid AS threadID, t.room_name, h.id AS participantID, oh.id AS otherID'
 
 const SQLS = {
   getThreads: (cursorDirection: string) => `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
@@ -191,7 +191,7 @@ export default class DatabaseAPI {
   setLastCursor(allMsgRows: MappedMessageRow[]) {
     if (!allMsgRows.length) return
     const maxDateRead = maxBy(allMsgRows, 'date_read')?.date_read
-    const maxRowID = maxBy(allMsgRows, 'msgRowID')?.msgRowID
+    const maxRowID = maxBy(allMsgRows, 'ROWID')?.ROWID
     if (maxRowID > this.lastRowID) {
       this.lastRowID = maxRowID
     }
@@ -221,8 +221,8 @@ export default class DatabaseAPI {
     const msgRow = await this.db.get<number[], MappedMessageRow>(SQLS.getMessagesWithChatRowID(undefined, 1), chatRowID)
     if (!msgRow) return [[], [], []]
     const [attachmentRows, reactionRows] = await Promise.all([
-      this.getAttachments([msgRow.msgRowID]),
-      this.getMessageReactions([msgRow.msgID], undefined, chatRowID),
+      this.getAttachments([msgRow.ROWID]),
+      this.getMessageReactions([msgRow.guid], undefined, chatRowID),
     ])
     return [[msgRow], attachmentRows, reactionRows]
   }
@@ -351,7 +351,7 @@ export default class DatabaseAPI {
     const [messageGUID, partString] = messageGUIDWithPart.split('_', 2)
     const part = +partString || 0
     texts.log('[imessage] findClosestTextMessage', messageGUID, part)
-    // const message = await this.db.get('SELECT m.ROWID AS msgRowID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', messageGUID)
+    // const message = await this.db.get('SELECT m.ROWID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', messageGUID)
     // if (!message) throw Error('message not found')
     // const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
     if (isSelectable(mapped)) return { messageGUID: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }

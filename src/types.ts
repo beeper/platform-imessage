@@ -137,8 +137,6 @@ export type ChatRow = {
 
 // db-api.ts -> SQLS
 export type MappedMessageRow = MessageRow & {
-  msgRowID: number
-  msgID: string
   threadID: string
   room_name: string
   participantID: string
