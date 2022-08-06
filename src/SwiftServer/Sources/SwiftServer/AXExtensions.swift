@@ -49,6 +49,7 @@ extension Accessibility.Names {
     var press: ActionName { .init(kAXPressAction) }
     var cancel: ActionName { .init(kAXCancelAction) }
     #if DEBUG
+    var scrollToVisible: ActionName { "AXScrollToVisible" }
     var showMenu: ActionName { .init(kAXShowMenuAction) }
     #endif
 

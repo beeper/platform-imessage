@@ -522,14 +522,24 @@ final class MessagesController {
         }
     }
 
+    private var iOSContentGroup: Accessibility.Element {
+        get throws {
+            #if DEBUG
+            let startTime = Date()
+            defer { Logger.log("iOSContentGroup took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            #endif
+            return try mainWindow.children().first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == AXRole.group })
+                .orThrow(ErrorMessage("Could not find iOSContentGroup"))
+        }
+    }
+
     private func reactionsView() throws -> Accessibility.Element {
         #if DEBUG
         let startTime = Date()
         defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
         return try retry(withTimeout: 1.5, interval: 0.2) {
-            guard let iOSContentGroup = try mainWindow.children().first(where: { (try? $0.role()) == AXRole.group && (try? $0.subrole()) == "iOSContentGroup" }),
-                  // (try? iOSContentGroup.children.count()) ?? 0 >= 2,
+            guard // (try? iOSContentGroup.children.count()) ?? 0 >= 2,
                   let presView = try? iOSContentGroup.children.value(at: 0),
                   (try? presView.children.count()) ?? 0 > 0 else {
                 throw ErrorMessage("Could not find reactions view")
@@ -688,6 +698,44 @@ final class MessagesController {
             .orThrow(ErrorMessage("composeCell.deleteAction not found"))
         try deleteAction()
     }
+
+    #if DEBUG
+    // this is unusable because showing menu makes it first responder
+    // keep this code as documentation
+    func markAsReadWithMenu(threadID: String, messageGUID: String) throws {
+        let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
+
+        whm.hide()
+        activityLock.lock()
+        defer { activityLock.unlock() }
+
+        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+            try Self.ensureSelectedThread(threadID: threadID)
+
+            let threadCell = try selectedThreadCell().orThrow(ErrorMessage("Thread cell not found"))
+            try threadCell.showMenu()
+
+            guard let menu = (try retry(withTimeout: 2, interval: 0.1) { try iOSContentGroup.children().first(where: { try $0.role() == AXRole.menu }) }) else {
+                throw ErrorMessage("Could not find menu")
+            }
+            /*
+             AXMenuItem unpin
+             AXMenuItem open_conversation_in_separate_window
+             AXMenuItem delete_conversation…
+             AXMenuItem
+             AXMenuItem details…
+             AXMenuItem hide_alerts
+             AXMenuItem mark_as_read
+             AXMenuItem
+             AXMenuItem
+             */
+            guard let markAsReadMenuItem = (try retry(withTimeout: 0.5, interval: 0.1) { try menu.children().first(where: { (try? $0.identifier()) == "mark_as_read" }) }) else {
+                throw ErrorMessage("Could not find mark as read menu item")
+            }
+            try markAsReadMenuItem.press()
+        }
+    }
+    #endif
 
     func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws {
         let startTime = Date()
