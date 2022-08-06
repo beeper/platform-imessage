@@ -556,7 +556,7 @@ export default class AppleiMessage implements PlatformAPI {
         await this.toggleThreadRead(true)(threadID, messageID)
         if (!IS_VENTURA_OR_UP) {
           await bluebird.delay(100)
-          if (!await this.dbAPI.isThreadRead(threadID)) throw new Error('sendReadReceipt failed (cause unknown)')
+          if (!await this.dbAPI.isThreadRead(threadID)) throw new Error('toggleThreadRead failed')
         }
       }, {
         onFailedAttempt: error => {

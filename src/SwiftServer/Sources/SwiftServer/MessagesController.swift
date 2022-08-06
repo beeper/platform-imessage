@@ -40,6 +40,7 @@ private enum LocalizedStrings {
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
 
     static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
+    static let markAsUnread = chatKitFramework.localizedString(forKey: "MARK_AS_UNREAD", value: nil, table: "ChatKit")
     static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
     static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
 
@@ -687,36 +688,27 @@ final class MessagesController {
         try deleteAction()
     }
 
-    private func toggleThreadRead(threadID: String, url: URL, read: Bool) throws {
-        guard isVenturaOrUp else { throw ErrorMessage("ventura only") }
-
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
-
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
-            try sendCommandShiftUPress()
-        }
-    }
-
     func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws {
         let startTime = Date()
         defer { Logger.log("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
 
-        if isVenturaOrUp { return try toggleThreadRead(threadID: threadID, url: url, read: read) }
-
         whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
-            let markReadAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.markAsRead)") }).orThrow(ErrorMessage("action not found"))
-            try markReadAction()
+            do {
+                let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+                let actionName = read ? LocalizedStrings.markAsRead : LocalizedStrings.markAsUnread
+                let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(actionName)") }).orThrow(ErrorMessage("action not found"))
+                try action()
+            } catch {
+                if isVenturaOrUp { try sendCommandShiftUPress() }
+                else { throw error }
+            }
         }
     }
 
