@@ -39,6 +39,7 @@ private enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
 
+    static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
     static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
     static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
 
@@ -711,79 +712,13 @@ final class MessagesController {
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let compose = try MessagesDeepLink.compose.url()
-        try withActivation(openBefore: compose, openAfter: activityObserver?.url) {
-            let composeCell = try waitUntilSelectedThreadCell(isCompose: true)
-                .orThrow(ErrorMessage("Compose thread cell not found"))
-
-            debugLog("Opened compose. Opening target thread")
-            try Self.openDeepLink(url, withoutActivation: true)
-
-            // Thread.sleep(forTimeInterval: 1)
-            // // removing compose cell scrolls to the selected cell
-            // try removeComposeCell(composeCell)
-            // Thread.sleep(forTimeInterval: 1)
-
-            guard let threadCell = waitUntilSelectedThreadCell(isCompose: false) else {
-                throw ErrorMessage("Thread cell with message guid not found")
-            }
-
-            // Thread.sleep(forTimeInterval: 1)
-            // we now click another cell and then come back
-
-            debugLog("Pressing compose thread cell")
-            try composeCell.press()
-            waitUntilSelectedThreadCell(isCompose: true)
-
-            // Thread.sleep(forTimeInterval: 1)
-            debugLog("Pressing target thread cell")
-            try threadCell.press()
-            waitUntilSelectedThreadCell(isCompose: false)
-
-            debugLog("Done!")
-        }
-    }
-
-    #if DEBUG
-    func markAsReadWithMenu(threadID: String, messageGUID: String) throws {
-        let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
-
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
-
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-
-            let threadCell = try waitUntilSelectedThreadCell(isCompose: false)
-                .orThrow(ErrorMessage("Thread cell with message \(messageGUID) not found"))
-            try threadCell.showMenu()
-
-            // Thread.sleep(forTimeInterval: 1)
-            guard let group = (try retry(withTimeout: 1, interval: 0.1) { try mainWindow.children().first(where: { try $0.role() == AXRole.group }) }) else {
-                throw ErrorMessage("Could not find main view")
-            }
-            guard let menu = (try retry(withTimeout: 4, interval: 0.2) { try group.children().first(where: { try $0.role() == AXRole.menu }) }) else {
-                throw ErrorMessage("Could not find menu")
-            }
-            /*
-             AXMenuItem unpin
-             AXMenuItem open_conversation_in_separate_window
-             AXMenuItem delete_conversation…
-             AXMenuItem
-             AXMenuItem details…
-             AXMenuItem hide_alerts
-             AXMenuItem mark_as_read
-             AXMenuItem
-             AXMenuItem
-             */
-            guard let markAsReadMenuItem = try menu.children().first(where: { (try? $0.identifier()) == "mark_as_read" }) else {
-                throw ErrorMessage("Could not find mark as read menu item")
-            }
-            try markAsReadMenuItem.press()
+            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+            let markReadAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.markAsRead)") }).orThrow(ErrorMessage("action not found"))
+            try markReadAction()
         }
     }
-    #endif
 
     func muteThread(threadID: String, muted: Bool) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
@@ -798,7 +733,7 @@ final class MessagesController {
             // at least on Monterey: for pinned thread cells, this should be
             // Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
             let name = muted || Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
-            let muteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(name)") }).orThrow(ErrorMessage("muteAction not found"))
+            let muteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(name)") }).orThrow(ErrorMessage("action not found"))
             try muteAction()
         }
     }
@@ -813,7 +748,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
             let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
-            let deleteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }).orThrow(ErrorMessage("deleteAction not found"))
+            let deleteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }).orThrow(ErrorMessage("action not found"))
             try deleteAction()
             let alertSheet = try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }).orThrow(ErrorMessage("alertSheet not found"))
             let deleteButton = try alertSheet.children().first(where: { try $0.role() == AXRole.button }).orThrow(ErrorMessage("deleteButton not found"))
