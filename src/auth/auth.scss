@@ -3,8 +3,12 @@
   flex-direction: column;
   max-width: 500px;
 
-  details { margin: 1em 0 }
-  details[open] { margin-bottom: 2em }
+  details {
+    margin: 1em 0;
+  }
+  details[open] {
+    margin-bottom: 2em;
+  }
 
   h4 {
     margin-top: 0;
@@ -45,11 +49,16 @@
   }
 
   ul {
-    padding: 0; list-style: none;
-    li { margin-bottom: 8px }
+    padding: 0;
+    list-style: none;
+    li {
+      margin-bottom: 8px;
+    }
   }
 
-  .show-more-button { margin: .5em 0 }
+  .show-more-button {
+    margin: 0.5em 0;
+  }
 
   .permissions-section {
     width: 100vw;
@@ -63,18 +72,24 @@
       align-items: center;
       margin-bottom: 12px;
     }
-    .more { margin-bottom: 1em }
+    .more {
+      margin-bottom: 1em;
+    }
     .check {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       border-radius: 60px;
       border: 2px solid var(--color-primary);
       margin-right: 8px;
-      svg { font-size: 12px }
-      &.completed { background-color: var(--color-primary) }
+      svg {
+        font-size: 10px;
+      }
+      &.completed {
+        background-color: var(--color-primary);
+      }
     }
   }
 
