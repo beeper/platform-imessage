@@ -178,7 +178,7 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(_ url: URL) throws -> NSRunningApplication {
-        debugLog("Opening deep link: \(url)")
+        debugLog("openDeepLink: \(url)")
         return try NSWorkspace.shared.open(
             url,
             options: [.andHide, .withoutActivation],
@@ -208,6 +208,10 @@ final class MessagesController {
         Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
     }
 
+    private static func isSelectedThreadCellCompose() -> Bool {
+        Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
+    }
+
     // remember transparent thread merging (edge case #1 in readme.md)
     private static func ensureSelectedThread(threadID: String) throws {
         try retry(withTimeout: 1.5, interval: 0.05) {
@@ -218,7 +222,7 @@ final class MessagesController {
 
     private static func ensureComposeCellSelected() throws {
         try retry(withTimeout: 1.5, interval: 0.05) {
-            guard Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier" else { throw ErrorMessage("compose cell not selected") }
+            guard isSelectedThreadCellCompose() else { throw ErrorMessage("compose cell not selected") }
         }
     }
 
@@ -330,14 +334,41 @@ final class MessagesController {
         return action
     }
 
-    @discardableResult
-    private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
-        try? retry(withTimeout: timeout, interval: 0.01) { () throws -> Accessibility.Element in
-            guard let selected = elements.selectedThreadCell else { throw ErrorMessage("selected != selectedThreadCell") }
-            let isActuallyCompose = MessagesAppElements.isThreadCellCompose(selected)
-            guard isCompose == isActuallyCompose else { throw ErrorMessage("isCompose != isActuallyCompose") }
-            return selected
+    /*
+        wrong approaches tried here:
+        #1:
+            1. select not-in-viewport thread by opening deep link
+            2. close all windows
+            3. open deep link, thread will be in viewport but only when `.withoutActivation` isn't included in options
+            ofc can't use bc can't activate app
+
+        #2:
+            try elements.selectedThreadCell?.scrollToVisible()
+            only works for thread cells that are slightly offscreen/fully visible and for thread cells whose reference was taken _when_ they were in viewport
+            elements.selectedThreadCell is an invalid reference if selected cell is offscreen
+    */
+    private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+        func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1, interval: TimeInterval = 0.01) -> Accessibility.Element? {
+            try? retry(withTimeout: timeout, interval: interval) { () throws -> Accessibility.Element in
+                guard let selected = elements.selectedThreadCell else { throw ErrorMessage("selectedThreadCell nil") }
+                let isActuallyCompose = MessagesAppElements.isThreadCellCompose(selected)
+                guard isCompose == isActuallyCompose else { throw ErrorMessage("isCompose != isActuallyCompose") }
+                return selected
+            }
         }
+        if let cell = waitUntilSelectedThreadCell(isCompose: false) { return cell }
+        try sendCommand1Press() // scrolls to first thread cell
+        try Self.openDeepLink(try MessagesDeepLink.compose.url())
+        // 2s is a good timeout for scroll to happen but may not be enough always
+        let composeCell = try waitUntilSelectedThreadCell(isCompose: true, timeout: 2, interval: 0.1).orThrow(ErrorMessage("composeCell not found"))
+        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try Self.ensureSelectedThread(threadID: threadID)
+        try? removeComposeCell(composeCell) // scrolls to wanted thread cell
+        return try waitUntilSelectedThreadCell(isCompose: false, timeout: 2, interval: 0.1).orThrow(ErrorMessage("threadCell not found"))
     }
 
     // performs `perform` while the Messages window is unhidden
@@ -458,7 +489,10 @@ final class MessagesController {
     }
 
     func removeComposeCell(_ composeCell: Accessibility.Element) throws {
-        debugLog("removeComposeCell")
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("removeComposeCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
         let deleteAction = try composeCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") })
             .orThrow(ErrorMessage("composeCell.deleteAction not found"))
         try deleteAction()
@@ -477,7 +511,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
 
-            let threadCell = try elements.selectedThreadCell.orThrow(ErrorMessage("threadCell not found"))
+            let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             try threadCell.showMenu()
 
             guard let menu = (try retry(withTimeout: 2, interval: 0.1) { try elements.iOSContentGroup.children().first(where: { try $0.role() == AXRole.menu }) }) else {
@@ -515,18 +549,24 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
             let actionName = read ? LocalizedStrings.markAsRead : LocalizedStrings.markAsUnread
+            let threadCell: Accessibility.Element
             do {
-                let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
-                let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(actionName)") }).orThrow(ErrorMessage("mark\(read ? "Read" : "Unread")Action not found"))
-                try action()
+                threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             } catch {
-                if isVenturaOrUp { try sendCommandShiftUPress() }
+                if isVenturaOrUp { return try sendCommandShiftUPress() }
                 else { throw error }
             }
+            let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(actionName)") }).orThrow(ErrorMessage("mark\(read ? "Read" : "Unread")Action not found"))
+            try action()
         }
     }
 
     func muteThread(threadID: String, muted: Bool) throws {
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         whm.hide()
@@ -535,7 +575,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
+            let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
             // Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
             let name = muted || Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
@@ -545,6 +585,11 @@ final class MessagesController {
     }
 
     func deleteThread(threadID: String) throws {
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("deleteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         whm.hide()
@@ -553,7 +598,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
+            let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             let deleteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }).orThrow(ErrorMessage("deleteAction not found"))
             try deleteAction()
             try elements.alertSheetDeleteButton.press()
@@ -584,11 +629,11 @@ final class MessagesController {
     }
 
     private func sendKeyPress(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
-        debugLog("sendKey key=\(key)")
+        debugLog("sendKey(key: \(key))")
         for keyDown in [true, false] {
-            debugLog("Sending key \(key) \(keyDown ? "down" : "up")")
+            debugLog("sendKey(key: \(key)) \(keyDown ? "down" : "up")")
             let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
-                .orThrow(ErrorMessage("Could not send key \(key)"))
+                .orThrow(ErrorMessage("key \(key) event empty"))
             if let flags = flags { ev.flags = flags }
             ev.postToPid(app.processIdentifier)
         }
@@ -608,7 +653,14 @@ final class MessagesController {
     private func sendCommandShiftUPress() throws {
         try runOnMainThread {
             guard let keyCode = KeyMap.shared["u"] else { return }
-            try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand.union(.maskShift))
+            try sendKeyPress(key: CGKeyCode(keyCode), flags: [.maskCommand, .maskShift])
+        }
+    }
+
+    private func sendCommand1Press() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["1"] else { return }
+            try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
         }
     }
 
@@ -722,7 +774,7 @@ final class MessagesController {
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
             }
-            if let selected = elements.selectedThreadCell, MessagesAppElements.isThreadCellCompose(selected) {
+            if Self.isSelectedThreadCellCompose() {
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                 debugLog("waiting 1.5s for address to resolve")
                 Thread.sleep(forTimeInterval: 1.5)
@@ -799,11 +851,6 @@ final class MessagesController {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             try whm.appActivated(window: window)
-            if window != nil, !Preferences.enabledExperiments.isEmpty  {
-                if let composeCell = elements.composeCell {
-                    try? removeComposeCell(composeCell)
-                }
-            }
         } catch {
             debugLog("warning: Could not show Messages window: \(error)")
         }

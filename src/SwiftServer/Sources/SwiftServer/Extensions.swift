@@ -1,7 +1,7 @@
 import AppKit
 
 extension NSRunningApplication {
-    func waitForLaunch(interval: Double = 0.05, timeout seconds: TimeInterval = 5) throws {
+    func waitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) throws {
         let start = Date()
         while !self.isFinishedLaunching {
             debugLog("sleeping \(interval)s for \(String(describing: self.localizedName)) to finish launching")
