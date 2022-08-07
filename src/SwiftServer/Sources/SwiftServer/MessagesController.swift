@@ -35,7 +35,7 @@ private final class RunLoopThread: Thread {
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 
-private enum LocalizedStrings {
+enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
 
@@ -141,7 +141,7 @@ final class MessagesController {
     private static let pollingInterval: TimeInterval = 1
 
     private let app: NSRunningApplication
-    private let appElement: Accessibility.Element
+    private let elements: MessagesAppElements
 
     private var timer: Timer?
     private var loopThread: RunLoopThread?
@@ -154,7 +154,7 @@ final class MessagesController {
     private let whm: WindowHidingManager
 
     // this increases the viewport height so that mark as read works more reliably
-    private static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
+    static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
         var frame = try window.frame()
         frame.origin.y = 0
         frame.size.height = Double.infinity
@@ -174,7 +174,7 @@ final class MessagesController {
     }
 
     @discardableResult
-    private static func openDeepLink(_ url: URL) throws -> NSRunningApplication {
+    static func openDeepLink(_ url: URL) throws -> NSRunningApplication {
         debugLog("Opening deep link: \(url)")
         return try NSWorkspace.shared.open(
             url,
@@ -187,15 +187,11 @@ final class MessagesController {
         NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID)
     }
 
-    private static func resetPrompts() {
+    static func resetPrompts() {
         // Self.messagesUserDefaults?.set(true, forKey: "kHasSetupHashtagImages") // unknown
         Self.messagesUserDefaults?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
-        Self.messagesUserDefaults?.set(true, forKey: "ReadReceiptSettingsConfirmed")
-        Self.messagesUserDefaults?.set(2, forKey: "BusinessChatPrivacyPageDisplayed")
-    }
-
-    private func isPromptVisibleInMessagesApp() -> Bool {
-        allWindows.contains(where: { (try? $0.windowCloseButton().isEnabled()) == false })
+        Self.messagesUserDefaults?.set(true, forKey: "ReadReceiptSettingsConfirmed") // shown to confirm read receipts settings
+        Self.messagesUserDefaults?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
     }
 
     private static func getSelectedThreadID() -> String? {
@@ -221,10 +217,6 @@ final class MessagesController {
         try retry(withTimeout: 1.5, interval: 0.05) {
             guard Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier" else { throw ErrorMessage("compose cell not selected") }
         }
-    }
-
-    private func selectedThreadCell() -> Accessibility.Element? {
-        try? conversationsList.selectedChildren.value(at: 0)
     }
 
     init() throws {
@@ -261,10 +253,10 @@ final class MessagesController {
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
-        appElement = Accessibility.Element(pid: app.processIdentifier)
+        elements = MessagesAppElements(runningApp: app, whm: whm)
         whm.setApp(app)
         whm.setAfterHide {
-            self.getMainWindow().map { try? Self.resizeWindowToMaxHeight($0) }
+            self.elements.getMainWindow().map { try? Self.resizeWindowToMaxHeight($0) }
         }
 
         // if app.isHidden {
@@ -296,10 +288,10 @@ final class MessagesController {
                 userInfo: nil,
                 repeats: true
             )
-            self.activateToken = try? self.appElement.observe(.applicationActivated) { [weak self] _ in
+            self.activateToken = try? self.elements.app.observe(.applicationActivated) { [weak self] _ in
                 self?.activateMessages()
             }
-            self.deactivateToken = try? self.appElement.observe(.applicationDeactivated) { [weak self] _ in
+            self.deactivateToken = try? self.elements.app.observe(.applicationDeactivated) { [weak self] _ in
                 self?.deactivateMessages()
             }
         }
@@ -309,109 +301,12 @@ final class MessagesController {
 
         guard self.isValid else {
             dispose() // since deinit isn't called when init throws
-            throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
+            throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
     }
 
     var isValid: Bool {
-        !app.isTerminated && (try? mainWindow.isFrameValid) != nil && whm.isValid
-    }
-
-    private var allWindows: [Accessibility.Element] { // takes ~0ms
-        get {
-            // after a window is moved to the new space, AX doesn't list the window in appWindows or children
-            (((try? appElement.appWindows()) ?? []) + [try? appElement.appMainWindow(), try? appElement.appFocusedWindow()]).compactMap { $0 }
-        }
-    }
-
-    private func getMainWindow() -> Accessibility.Element? { // takes ~24ms
-        #if DEBUG
-        let startTime = Date()
-        defer { Logger.log("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
-        return allWindows.first(where: {
-            // note: don't detect presence of AXSplitter here, it's unreliable
-            $0.recursivelyFindChild(withID: "ConversationList") != nil ||
-                $0.recursivelyFindChild(withID: "CKConversationListCollectionView") != nil
-        })
-    }
-
-    private func getComposeCell() -> Accessibility.Element? {
-        try? conversationsList.children().first(where: Self.isThreadCellCompose)
-    }
-
-    private var cachedMainWindow: Accessibility.Element?
-    // private var cachedConversationsList: Accessibility.Element?
-    // private var cachedTranscriptView: Accessibility.Element?
-    // private var cachedReplyTranscriptView: Accessibility.Element?
-
-    // private func clearCachedElements() {
-    //     // these are manually cleared because we aren't checking for validity on each property access
-    //     // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
-    //     cachedConversationsList = nil
-    //     cachedTranscriptView = nil
-    //     cachedReplyTranscriptView = nil
-    // }
-
-    private var mainWindow: Accessibility.Element {
-        get throws {
-            if let cached = cachedMainWindow, cached.isFrameValid {
-                return cached
-            }
-            let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
-                try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
-            } onError: { attempt, _ in
-                if attempt == 0 {
-                    debugLog("Opening compose deep link to get main window")
-                    try Self.openDeepLink(MessagesDeepLink.compose.url())
-                } else if attempt == 1 {
-                    if self.isPromptVisibleInMessagesApp() {
-                        Self.resetPrompts()
-                    }
-                } else if attempt == 2 {
-                    if self.isPromptVisibleInMessagesApp() {
-                        // regular terminate wont work since all window close buttons are disabled
-                        self.app.forceTerminate()
-                        // this should invalidate the MessagesController
-                    }
-                }
-            }
-            try? Self.resizeWindowToMaxHeight(mainWindow)
-            try? whm.mainWindowChanged(mainWindow)
-            // clearCachedElements()
-            cachedMainWindow = mainWindow
-            return mainWindow
-        }
-    }
-
-    private var conversationsList: Accessibility.Element { // takes ~34ms
-        get throws {
-            // if let cached = cachedConversationsList {
-            //     return cached
-            // }
-            #if DEBUG
-            let startTime = Date()
-            defer { Logger.log("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
-            let cl = try retry(withTimeout: 1, interval: 0.1) {
-                try mainWindow.recursivelyFindChild(withID: "ConversationList")
-                    .orThrow(ErrorMessage("Could not find ConversationList"))
-            } onError: { _, _ in
-                let searchField = try self.searchField()
-                debugLog("Getting ConversationList errored, calling searchField.cancel")
-                // this will close the search results if active
-                try searchField.cancel()
-            }
-            // cachedConversationsList = cl
-            return cl
-        }
-    }
-
-    // this return type was copied from compiler error
-    private var mainWindowSections: LazyMapCollection<LazyFilterSequence<LazyMapSequence<LazySequence<[[String: CFTypeRef]]>.Elements, Accessibility.Element?>>, Accessibility.Element> {
-        get throws {
-            try mainWindow.sections().lazy.compactMap { $0["SectionObject"].flatMap { Accessibility.Element(erased: $0) } }
-        }
+        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && whm.isValid
     }
 
     private func messageAction(messageCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
@@ -426,132 +321,11 @@ final class MessagesController {
         return action
     }
 
-    private func reactButtons(messageCell: Accessibility.Element) throws -> [Accessibility.Element] {
-        let reactAction = try messageAction(messageCell: messageCell, action: .react)
-        try reactAction() // performing this 2x will close reaction view
-        let reactionsView = try reactionsView()
-        guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == AXRole.button }) else {
-            throw ErrorMessage("Could not find reaction buttons")
-        }
-        /*
-         8 `AXButton`s
-         Heart
-         Thumbs up
-         Thumbs down
-         Ha ha!
-         Exclamation mark
-         Question mark
-         Reply -- only shows up when not in overlay mode
-         Pin -- only shows up for links/tweets in Monterey or above
-         */
-        guard buttons.count > 0 else {
-            throw ErrorMessage("\(buttons.count) buttons found in reactionsView")
-        }
-        return buttons
-    }
-
-    private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
-        #if DEBUG
-        let startTime = Date()
-        defer { Logger.log("getTranscriptView took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
-
-        func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
-            // alternative: (localizedDescription == "Messages" when main transcript)
-            (try? el.localizedDescription()) == LocalizedStrings.replyTranscript
-            /*
-              when it's replyTranscript/overlay=true, linkedElements.count == 1 (the sole linked element is messageBodyField),
-              BUT only when it's not a compose cell
-              so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
-            */
-        }
-        let predicate = { (el: Accessibility.Element) -> Bool in
-            (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
-        }
-        // takes ~8ms
-        return try mainWindowSections.first(where: predicate)
-        // takes ~19ms
-        // return try mainWindow.recursiveChildren().lazy.first(where: predicate)
-            .orThrow(ErrorMessage("Could not find TranscriptCollectionView, replyTranscript=\(replyTranscript)"))
-    }
-
-    private var transcriptView: Accessibility.Element {
-        get throws {
-            // if let cached = cachedTranscriptView, cached.isInViewport {
-            //     return cached
-            // }
-            let tcv = try getTranscriptView(replyTranscript: false)
-            // cachedTranscriptView = tcv
-            return tcv
-        }
-    }
-
-    private var replyTranscriptView: Accessibility.Element {
-        get throws {
-            // if let cached = cachedReplyTranscriptView, cached.isInViewport {
-            //     return cached
-            // }
-            let tcv = try getTranscriptView(replyTranscript: true)
-            // cachedReplyTranscriptView = tcv
-            return tcv
-        }
-    }
-
-    private func messagesField() throws -> Accessibility.Element {
-        #if DEBUG
-        let startTime = Date()
-        defer { Logger.log("messagesField took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
-        return try retry(withTimeout: 1.5, interval: 0.2) {
-            try mainWindow.recursivelyFindChild(withID: "messageBodyField")
-                .orThrow(ErrorMessage("Could not find messageBodyField"))
-        }
-    }
-
-    private func searchField() throws -> Accessibility.Element {
-        #if DEBUG
-        let startTime = Date()
-        defer { Logger.log("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
-        return try retry(withTimeout: 1.5, interval: 0.2) {
-            let CKConversationListCollectionView = try mainWindow.recursivelyFindChild(withID: "CKConversationListCollectionView")
-                .orThrow(ErrorMessage("Could not find CKConversationListCollectionView"))
-            return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
-                .orThrow(ErrorMessage("Could not find searchField"))
-        }
-    }
-
-    private var iOSContentGroup: Accessibility.Element {
-        get throws {
-            #if DEBUG
-            let startTime = Date()
-            defer { Logger.log("iOSContentGroup took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
-            return try mainWindow.children().first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == AXRole.group })
-                .orThrow(ErrorMessage("Could not find iOSContentGroup"))
-        }
-    }
-
-    private func reactionsView() throws -> Accessibility.Element {
-        #if DEBUG
-        let startTime = Date()
-        defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
-        return try retry(withTimeout: 1.5, interval: 0.2) {
-            guard // (try? iOSContentGroup.children.count()) ?? 0 >= 2,
-                  let presView = try? iOSContentGroup.children.value(at: 0),
-                  (try? presView.children.count()) ?? 0 > 0 else {
-                throw ErrorMessage("Could not find reactions view")
-            }
-            return presView
-        }
-    }
-
     @discardableResult
     private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1) -> Accessibility.Element? {
         try? retry(withTimeout: timeout, interval: 0.01) { () throws -> Accessibility.Element in
-            guard let selected = selectedThreadCell() else { throw ErrorMessage("selected != selectedThreadCell") }
-            let isActuallyCompose = Self.isThreadCellCompose(selected)
+            guard let selected = elements.selectedThreadCell else { throw ErrorMessage("selected != selectedThreadCell") }
+            let isActuallyCompose = MessagesAppElements.isThreadCellCompose(selected)
             guard isCompose == isActuallyCompose else { throw ErrorMessage("isCompose != isActuallyCompose") }
             return selected
         }
@@ -578,35 +352,13 @@ final class MessagesController {
         }
     }
 
-    private static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
-        (try? el.localizedDescription()) == nil
-    }
-
-    private static func isMessageContainerCell(_ el: Accessibility.Element) -> Bool {
-        (try? el.localizedDescription())?.isEmpty == false &&
-            (try? el.children.value(at: 0).supportedActions().contains(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)") })) == true
-    }
-
-    private static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
-        try tv.children().filter(Self.isMessageContainerCell)
-    }
-
-    private static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
-        try tv.children().first(where: Self.isMessageContainerCell)?.children.value(at: 0)
-    }
-    private static func firstSelectedMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
-        // selectedChildren wont work here
-        // tv.children().first { (try? $0.selectedChildren.value(at: 0)) != nil }?.children.value(at: 0)
-        try tv.children().first { (try? $0.children.value(at: 0).isSelected()) == true }?.children.value(at: 0)
-    }
-
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         debugLog("withMessageCell \(messageCell)")
 
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
 
         // without closing reply transcript, non-overlay deep link won't select the message
-        if !messageCell.overlay, let rtv = try? replyTranscriptView {
+        if !messageCell.overlay, let rtv = try? elements.replyTranscriptView {
             debugLog("calling replyTranscriptView.cancel()")
             try? rtv.cancel()
         }
@@ -619,12 +371,12 @@ final class MessagesController {
             //     if messageCell.overlay {
             //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
             //         Thread.sleep(forTimeInterval: 0.1)
-            //         try? replyTranscriptView.cancel()
+            //         try? elements.replyTranscriptView.cancel()
             //     }
             // }
             if messageCell.overlay { try waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
-                guard let cell = try messageCell.overlay ? Self.firstMessageCell(in: replyTranscriptView) : Self.firstSelectedMessageCell(in: transcriptView) else {
+                guard let cell = try messageCell.overlay ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView) : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
                     throw ErrorMessage("message cell nil")
                 }
                 guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
@@ -638,7 +390,7 @@ final class MessagesController {
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let containerCells = try Self.messageContainerCells(in: messageCell.overlay ? replyTranscriptView : transcriptView)
+                let containerCells = try MessagesAppElements.messageContainerCells(in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView)
                 guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
                     throw ErrorMessage("Could not find target message cell")
                 }
@@ -675,10 +427,15 @@ final class MessagesController {
 
         let idx = reaction.index
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
-            let buttons = try reactButtons(messageCell: $0)
+            let reactAction = try messageAction(messageCell: $0, action: .react)
+            try reactAction() // performing this 2x will close reaction view
+            let buttons = try elements.reactButtons
+            guard buttons.count >= idx else {
+                throw ErrorMessage("reactButtons count=\(buttons.count)")
+            }
 
             let btn = buttons[idx]
-            try retry(withTimeout: 1.2, interval: 0.2) {
+            try retry(withTimeout: 1.2, interval: 0.1) {
                 let isSelected = try btn.isSelected()
                 if isSelected != on {
                     try btn.press()
@@ -711,11 +468,11 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
 
-            let threadCell = try selectedThreadCell().orThrow(ErrorMessage("Thread cell not found"))
+            let threadCell = try elements.selectedThreadCell.orThrow(ErrorMessage("threadCell not found"))
             try threadCell.showMenu()
 
-            guard let menu = (try retry(withTimeout: 2, interval: 0.1) { try iOSContentGroup.children().first(where: { try $0.role() == AXRole.menu }) }) else {
-                throw ErrorMessage("Could not find menu")
+            guard let menu = (try retry(withTimeout: 2, interval: 0.1) { try elements.iOSContentGroup.children().first(where: { try $0.role() == AXRole.menu }) }) else {
+                throw ErrorMessage("menu not found")
             }
             /*
              AXMenuItem unpin
@@ -729,7 +486,7 @@ final class MessagesController {
              AXMenuItem
              */
             guard let markAsReadMenuItem = (try retry(withTimeout: 0.5, interval: 0.1) { try menu.children().first(where: { (try? $0.identifier()) == "mark_as_read" }) }) else {
-                throw ErrorMessage("Could not find mark as read menu item")
+                throw ErrorMessage("markAsReadMenuItem not found")
             }
             try markAsReadMenuItem.press()
         }
@@ -750,7 +507,7 @@ final class MessagesController {
             try Self.ensureSelectedThread(threadID: threadID)
             let actionName = read ? LocalizedStrings.markAsRead : LocalizedStrings.markAsUnread
             do {
-                let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+                let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
                 let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(actionName)") }).orThrow(ErrorMessage("mark\(read ? "Read" : "Unread")Action not found"))
                 try action()
             } catch {
@@ -769,7 +526,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
             // at least on Monterey: for pinned thread cells, this should be
             // Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
             let name = muted || Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
@@ -787,12 +544,10 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("Thread cell not found"))
+            let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
             let deleteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }).orThrow(ErrorMessage("deleteAction not found"))
             try deleteAction()
-            let alertSheet = try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }).orThrow(ErrorMessage("alertSheet not found"))
-            let deleteButton = try alertSheet.children().first(where: { try $0.role() == AXRole.button }).orThrow(ErrorMessage("deleteButton not found"))
-            try deleteButton.press()
+            try elements.alertSheetDeleteButton.press()
         }
     }
 
@@ -815,7 +570,7 @@ final class MessagesController {
 
             try Self.ensureSelectedThread(threadID: threadID)
 
-            try messagesField().value(assign: "")
+            try elements.messagesField.value(assign: "")
         }
     }
 
@@ -890,7 +645,7 @@ final class MessagesController {
     }
 
     private func closeReplyTranscriptView() {
-        guard let rtv = try? replyTranscriptView else { return }
+        guard let rtv = try? elements.replyTranscriptView else { return }
         debugLog("calling replyTranscriptView.cancel()")
         try? rtv.cancel()
         Thread.sleep(forTimeInterval: 0.2) // wait for animation, todo use better logic
@@ -899,7 +654,7 @@ final class MessagesController {
     private func waitUntilReplyTranscriptVisible() throws {
         debugLog("waitUntilReplyTranscriptVisible")
         try retry(withTimeout: 1.5, interval: 0.1) {
-            if (try? replyTranscriptView.isInViewport) != true {
+            if (try? elements.replyTranscriptView.isInViewport) != true {
                 throw ErrorMessage("Could not find replyTranscriptView")
             }
         }
@@ -909,7 +664,7 @@ final class MessagesController {
         try withMessageCell(threadID: threadID, messageCell: quotedMessage) {
             let replyAction = try messageAction(messageCell: $0, action: .reply)
             try replyAction()
-            let messageField = try messagesField()
+            let messageField = try elements.messagesField
             if let text = text {
                 try assignToMessageField(messageField, text: text)
             } else if let filePath = filePath {
@@ -958,20 +713,19 @@ final class MessagesController {
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
             }
-            if let text = text {
-                if let selected = selectedThreadCell(), Self.isThreadCellCompose(selected) {
-                    // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-                    debugLog("waiting 1.5s for address to resolve")
-                    Thread.sleep(forTimeInterval: 1.5)
-                }
+            if let selected = elements.selectedThreadCell, MessagesAppElements.isThreadCellCompose(selected) {
+                // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
+                debugLog("waiting 1.5s for address to resolve")
+                Thread.sleep(forTimeInterval: 1.5)
+            }
 
-                let messageField = try messagesField()
+            let messageField = try elements.messagesField
+            if let text = text {
                 if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
                     try assignToMessageField(messageField, text: text)
                 }
                 try sendMessageInField(messageField)
             } else if let filePath = filePath {
-                let messageField = try messagesField()
                 try self.pasteFileInBodyField(messageField, filePath: filePath)
                 try sendMessageInField(messageField)
             }
@@ -980,14 +734,14 @@ final class MessagesController {
 
     #if DEBUG
     func closeAllWindows() throws {
-        try mainWindow.closeWindow()
-        try appElement.appWindows().forEach { try $0.closeWindow() }
+        try elements.mainWindow.closeWindow()
+        try elements.app.appWindows().forEach { try $0.closeWindow() }
     }
 
     func withAllWindowsClosed(perform: () throws -> Void) throws {
         try closeAllWindows()
         try perform()
-        _ = try mainWindow // accessing will open it
+        _ = try elements.mainWindow // accessing will open it
     }
 
     func assignFileToBodyField(filePath: String) throws {
@@ -1000,7 +754,7 @@ final class MessagesController {
         let mas = NSMutableAttributedString()
         mas.append(myAttrString)
 
-        let messageField = try messagesField()
+        let messageField = try elements.messagesField
         try messageField.value(assign: url) // no op
         try messageField.value(assign: mas) // illegalArgument
         try messageField.value(assign: data) // cannotComplete
@@ -1034,10 +788,10 @@ final class MessagesController {
         do {
             debugLog("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            let window = getMainWindow()
+            let window = elements.getMainWindow()
             try whm.appActivated(window: window)
             if window != nil, !Preferences.enabledExperiments.isEmpty  {
-                if let composeCell = getComposeCell() {
+                if let composeCell = elements.composeCell {
                     try? removeComposeCell(composeCell)
                 }
             }
@@ -1050,14 +804,18 @@ final class MessagesController {
         do {
             debugLog("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            try whm.appDeactivated(window: getMainWindow())
+            try whm.appDeactivated(window: elements.getMainWindow())
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")
         }
     }
 
     private func activityStatus() -> [ActivityStatus] {
-        guard let transcript = try? transcriptView,
+        #if DEBUG
+        let startTime = Date()
+        defer { Logger.log("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        #endif
+        guard let transcript = try? elements.transcriptView,
               let count = try? transcript.children.count() else {
             return [.unknown]
         }
@@ -1112,18 +870,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try Self.ensureSelectedThread(threadID: threadID)
-
-            guard let transcript = try? transcriptView,
-                  let count = try? transcript.children.count() else {
-                throw ErrorMessage("transcriptView not found")
-            }
-            guard let notifyAnywayButton = try? transcript.children(range: (count - 2)..<count).first(where: {
-                let child = try $0.children.value(at: 0)
-                return (try? child.role()) == AXRole.button && (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway
-            }) else {
-                throw ErrorMessage("notify anyway not found")
-            }
-            try notifyAnywayButton.press()
+            try elements.notifyAnywayButton.press()
         }
     }
 
