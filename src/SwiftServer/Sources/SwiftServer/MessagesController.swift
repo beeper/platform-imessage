@@ -148,6 +148,9 @@ final class MessagesController {
 
     private var activateToken: Accessibility.Observer.Token?
     private var deactivateToken: Accessibility.Observer.Token?
+    #if DEBUG
+    private var layoutChangedToken: Accessibility.Observer.Token?
+    #endif
 
     private var activityObserver: ActivityObserver?
 
@@ -294,6 +297,12 @@ final class MessagesController {
             self.deactivateToken = try? self.elements.app.observe(.applicationDeactivated) { [weak self] _ in
                 self?.deactivateMessages()
             }
+            #if DEBUG
+            self.layoutChangedToken = try? self.elements.app.observe(.layoutChanged) { _ in // [weak self] _ in
+                debugLog("layoutChanged")
+                // self?.pollActivityStatus()
+            }
+            #endif
         }
         thread.qualityOfService = .utility
         thread.start()
