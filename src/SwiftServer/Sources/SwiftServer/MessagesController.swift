@@ -80,6 +80,64 @@ struct MessageCell: Codable {
     let overlay: Bool
 }
 
+// TODO: refactor
+private class KeyPresser {
+    let pid: pid_t
+
+    init(pid: pid_t) {
+        self.pid = pid
+    }
+
+    private func press(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
+        debugLog("sendKey(key: \(key))")
+        for keyDown in [true, false] {
+            debugLog("sendKey(key: \(key)) \(keyDown ? "down" : "up")")
+            let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
+                .orThrow(ErrorMessage("key \(key) event empty"))
+            if let flags = flags { ev.flags = flags }
+            ev.postToPid(self.pid)
+        }
+    }
+
+    func `return`() throws {
+        try runOnMainThread {
+            try press(key: CGKeyCode(kVK_Return))
+        }
+    }
+
+    func commandV() throws {
+        try runOnMainThread {
+            // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
+            guard let keyCode = KeyMap.shared["v"] else { return }
+            try press(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+
+    /// marks as read/unread on ventura
+    func commandShiftU() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["u"] else { return }
+            try press(key: CGKeyCode(keyCode), flags: [.maskCommand, .maskShift])
+        }
+    }
+
+    /// selects first thread
+    func command1() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["1"] else { return }
+            try press(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+
+    /// selects first non-pinned thread
+    func commandOption1() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["1"] else { return }
+            try press(key: CGKeyCode(keyCode), flags: [.maskCommand, .maskAlternate])
+        }
+    }
+}
+
 // external API is thread safe
 final class MessagesController {
     enum Reaction: String {
@@ -155,6 +213,7 @@ final class MessagesController {
     private var activityObserver: ActivityObserver?
 
     private let whm: WindowHidingManager
+    private let keyPresser: KeyPresser
     private let contacts = Contacts()
 
     // this increases the viewport height so that mark as read works more reliably
@@ -242,6 +301,7 @@ final class MessagesController {
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
         elements = MessagesAppElements(runningApp: app, whm: whm)
+        keyPresser = KeyPresser(pid: app.processIdentifier)
         whm.setApp(app)
         whm.setAfterHide {
             self.elements.getMainWindow().map { try? Self.resizeWindowToMaxHeight($0) }
@@ -356,7 +416,7 @@ final class MessagesController {
         defer { Logger.log("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
         if let cell = waitUntilSelectedThreadCell(isCompose: false) { return cell }
-        try sendCommand1Press() // scrolls to first thread cell
+        try keyPresser.command1() // scrolls to first thread cell
         if !Defaults.isSelectedThreadCellPinned() { // fast path since pinned cells are always at the top
             try Self.openDeepLink(try MessagesDeepLink.compose.url())
             // 2s is a good timeout for scroll to happen but may not be enough always
@@ -532,7 +592,7 @@ final class MessagesController {
         try openThread(threadID)
         let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
         // select any another cell and then come back
-        try sendCommand1Press()
+        try keyPresser.command1()
         try threadCell.press()
         waitUntilSelectedThreadCell(isCompose: false)
     }
@@ -557,7 +617,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
             if isVenturaOrUp {
-                return try sendCommandShiftUPress()
+                return try keyPresser.commandShiftU()
             }
             let actionName = read ? LocalizedStrings.markAsRead : LocalizedStrings.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
@@ -640,51 +700,6 @@ final class MessagesController {
         }
     }
 
-    private func sendKeyPress(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
-        debugLog("sendKey(key: \(key))")
-        for keyDown in [true, false] {
-            debugLog("sendKey(key: \(key)) \(keyDown ? "down" : "up")")
-            let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
-                .orThrow(ErrorMessage("key \(key) event empty"))
-            if let flags = flags { ev.flags = flags }
-            ev.postToPid(app.processIdentifier)
-        }
-    }
-    private func sendReturnPress() throws {
-        try runOnMainThread {
-            try sendKeyPress(key: CGKeyCode(kVK_Return))
-        }
-    }
-    private func sendCommandVPress() throws {
-        try runOnMainThread {
-            // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
-            guard let keyCode = KeyMap.shared["v"] else { return }
-            try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
-        }
-    }
-    private func sendCommandShiftUPress() throws {
-        try runOnMainThread {
-            guard let keyCode = KeyMap.shared["u"] else { return }
-            try sendKeyPress(key: CGKeyCode(keyCode), flags: [.maskCommand, .maskShift])
-        }
-    }
-
-    /// selects first thread
-    private func sendCommand1Press() throws {
-        try runOnMainThread {
-            guard let keyCode = KeyMap.shared["1"] else { return }
-            try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
-        }
-    }
-
-    /// selects first non-pinned thread
-    private func sendCommandOption1Press() throws {
-        try runOnMainThread {
-            guard let keyCode = KeyMap.shared["1"] else { return }
-            try sendKeyPress(key: CGKeyCode(keyCode), flags: [.maskCommand, .maskAlternate])
-        }
-    }
-
     private func focusMessageField(_ messageField: Accessibility.Element) throws {
         try retry(withTimeout: 1, interval: 0.2) {
             // this doesn't ever focus in compose thread for some reason
@@ -713,7 +728,7 @@ final class MessagesController {
 
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
         try focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        try self.sendReturnPress()
+        try keyPresser.return()
         try retry(withTimeout: 1.5, interval: 0.2) {
             if let message = try? messageFieldValue(messageField), !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
@@ -853,7 +868,7 @@ final class MessagesController {
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
-            try self.sendCommandVPress()
+            try keyPresser.commandV()
             try retry(withTimeout: 2, interval: 0.1) {
                 // 2 for <OBJ_REPLACEMENT_CHAR> and \n
                 let charCountResult = Result { try messageField.noOfChars() }
