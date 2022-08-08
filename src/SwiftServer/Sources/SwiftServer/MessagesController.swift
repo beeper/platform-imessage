@@ -33,6 +33,7 @@ private final class RunLoopThread: Thread {
     }
 }
 
+let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 
@@ -75,6 +76,33 @@ struct MessageCell: Codable {
     let cellID: String?
     let cellRole: String?
     let overlay: Bool
+}
+
+
+enum Defaults {
+    private static let ud = UserDefaults(suiteName: messagesBundleID)
+
+    static func resetPrompts() {
+        // ud?.set(true, forKey: "kHasSetupHashtagImages") // unknown
+        ud?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
+        ud?.set(true, forKey: "ReadReceiptSettingsConfirmed") // shown to confirm read receipts settings
+        ud?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
+    }
+
+    static func getSelectedThreadID() -> String? {
+        // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
+        // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
+        // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
+        ud?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
+    }
+
+    static func isSelectedThreadCellPinned() -> Bool {
+        ud?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
+    }
+
+    static func isSelectedThreadCellCompose() -> Bool {
+        ud?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
+    }
 }
 
 // external API is thread safe
@@ -135,10 +163,6 @@ final class MessagesController {
         }
     }
 
-    private static let messagesBundleID = "com.apple.MobileSMS"
-
-    private static let messagesUserDefaults = UserDefaults(suiteName: messagesBundleID)
-
     private static let pollingInterval: TimeInterval = 1
 
     private let app: NSRunningApplication
@@ -188,36 +212,14 @@ final class MessagesController {
     }
 
     private static func getRunningMessagesApps() -> [NSRunningApplication] {
-        NSRunningApplication.runningApplications(withBundleIdentifier: Self.messagesBundleID)
-    }
-
-    static func resetPrompts() {
-        // Self.messagesUserDefaults?.set(true, forKey: "kHasSetupHashtagImages") // unknown
-        Self.messagesUserDefaults?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
-        Self.messagesUserDefaults?.set(true, forKey: "ReadReceiptSettingsConfirmed") // shown to confirm read receipts settings
-        Self.messagesUserDefaults?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
-    }
-
-    private static func getSelectedThreadID() -> String? {
-        // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
-        // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
-        // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
-        Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
-    }
-
-    private static func isSelectedThreadCellPinned() -> Bool {
-        Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
-    }
-
-    private static func isSelectedThreadCellCompose() -> Bool {
-        Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
+        NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     }
 
     private static func ensureSelectedThread(threadID: String) throws {
         let addressToMatch = threadIDToAddress(threadID)
         try retry(withTimeout: 1.5, interval: 0.05) {
             // threadIDToAddress is used to ignore the service (SMS or iMessage) since it's merged in the UI
-            let selectedAddress = Self.getSelectedThreadID().flatMap(threadIDToAddress)
+            let selectedAddress = Defaults.getSelectedThreadID().flatMap(threadIDToAddress)
             guard selectedAddress == addressToMatch ||
                 selectedAddress.flatMap(Contacts.fetchID(for:)) == addressToMatch.flatMap(Contacts.fetchID(for:))
             else { throw ErrorMessage("thread not selected") }
@@ -226,7 +228,7 @@ final class MessagesController {
 
     private static func ensureComposeCellSelected() throws {
         try retry(withTimeout: 1.5, interval: 0.05) {
-            guard isSelectedThreadCellCompose() else { throw ErrorMessage("compose cell not selected") }
+            guard Defaults.isSelectedThreadCellCompose() else { throw ErrorMessage("compose cell not selected") }
         }
     }
 
@@ -587,8 +589,8 @@ final class MessagesController {
             try Self.ensureSelectedThread(threadID: threadID)
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
-            // Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
-            let name = muted || Self.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
+            // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
+            let name = muted || Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
             let muteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(name)") }).orThrow(ErrorMessage("muteAction not found"))
             try muteAction()
         }
@@ -784,7 +786,7 @@ final class MessagesController {
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
             }
-            if Self.isSelectedThreadCellCompose() {
+            if Defaults.isSelectedThreadCellCompose() {
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                 debugLog("waiting 1.5s for address to resolve")
                 Thread.sleep(forTimeInterval: 1.5)
@@ -959,7 +961,7 @@ final class MessagesController {
             return
         }
 
-        let selectedAddress = Self.getSelectedThreadID().flatMap(threadIDToAddress)
+        let selectedAddress = Defaults.getSelectedThreadID().flatMap(threadIDToAddress)
         let observerAddress = threadIDToAddress(observer.threadID)
         guard selectedAddress == observerAddress || selectedAddress.flatMap(Contacts.fetchID(for:)) == observerAddress.flatMap(Contacts.fetchID(for:)) else {
             debugLog("pollActivityStatus: selected thread changed, not polling \(selectedAddress ?? "nil") \(observer.threadID)")

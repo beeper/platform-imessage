@@ -88,7 +88,7 @@ final class MessagesAppElements {
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         Logger.log("Prompts visible, resetting prompts")
-                        MessagesController.resetPrompts()
+                        Defaults.resetPrompts()
                     }
                 } else if attempt == 2 {
                     if self.isPromptVisibleInMessagesApp() {
@@ -242,12 +242,11 @@ final class MessagesAppElements {
             defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
             #endif
             return try retry(withTimeout: 1.5, interval: 0.1) {
-                guard // (try? iOSContentGroup.children.count()) ?? 0 >= 2,
-                    let presView = try? iOSContentGroup.children.value(at: 0),
-                    (try? presView.children.count()) ?? 0 > 0 else {
+                guard let view = try? iOSContentGroup.children.value(at: 0),
+                    (try? view.children.count()) ?? 0 > 0 else {
                     throw ErrorMessage("reactionsView not found")
                 }
-                return presView
+                return view
             }
         }
     }
