@@ -129,6 +129,32 @@ private class KeyPresser {
         }
     }
 
+    /// selects prev thread, both keys aren't the same in practice
+    func commandLeftBracket() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["["] else { return }
+            try press(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+    func ctrlShiftTab() throws {
+        try runOnMainThread {
+            try press(key: CGKeyCode(kVK_Tab), flags: [.maskControl, .maskShift])
+        }
+    }
+
+    /// selects next thread, both keys aren't the same in practice
+    func commandRightBracket() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["]"] else { return }
+            try press(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+    func ctrlTab() throws {
+        try runOnMainThread {
+            try press(key: CGKeyCode(kVK_Tab), flags: .maskControl)
+        }
+    }
+
     /// selects first non-pinned thread
     func commandOption1() throws {
         try runOnMainThread {
@@ -398,7 +424,7 @@ final class MessagesController {
     }
 
     /*
-        wrong approaches tried here:
+        other approaches tried here:
         #1:
             1. select not-in-viewport thread by opening deep link
             2. close all windows
@@ -409,6 +435,12 @@ final class MessagesController {
             try elements.selectedThreadCell?.scrollToVisible()
             only works for thread cells that are slightly offscreen/fully visible and for thread cells whose reference was taken _when_ they were in viewport
             elements.selectedThreadCell is an invalid reference if selected cell is offscreen
+
+        #3
+            1. keyPresser.command1
+            2. open and get compose cell
+            3. open target thread
+            4. triggerThreadCellAction(threadCell: composeCell, actionName: LocalizedStrings.delete) // scrolls to wanted thread
     */
     private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
         #if DEBUG
@@ -416,15 +448,11 @@ final class MessagesController {
         defer { Logger.log("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
         if let cell = waitUntilSelectedThreadCell(isCompose: false) { return cell }
-        try keyPresser.command1() // scrolls to first thread cell
-        if !Defaults.isSelectedThreadCellPinned() { // fast path since pinned cells are always at the top
-            try Self.openDeepLink(try MessagesDeepLink.compose.url())
-            // 2s is a good timeout for scroll to happen but may not be enough always
-            let composeCell = try waitUntilSelectedThreadCell(isCompose: true, timeout: 2, interval: 0.1).orThrow(ErrorMessage("composeCell not found"))
-            try openThread(threadID)
-            try? triggerThreadCellAction(threadCell: composeCell, actionName: LocalizedStrings.delete) // scrolls to wanted thread cell
-        }
-        return try waitUntilSelectedThreadCell(isCompose: false, timeout: 2, interval: 0.1).orThrow(ErrorMessage("threadCell not found"))
+        // ctrlTab() acts differently, has no effect?
+        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
+        try openThread(threadID)
+        if let cell = waitUntilSelectedThreadCell(isCompose: false) { return cell }
+        throw ErrorMessage("threadCell not found")
     }
 
     // performs `perform` while the Messages window is unhidden
@@ -592,7 +620,12 @@ final class MessagesController {
         try openThread(threadID)
         let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
         // select any another cell and then come back
-        try keyPresser.command1()
+        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
+        try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
+            guard Defaults.getSelectedThreadID() != threadID else { throw ErrorMessage("diff thread not selected") }
+        }
+        // scrollToVisible is needed since sometimes the thread cell can be behind the search input field causing .press() to focus the input field instead
+        try threadCell.scrollToVisible()
         try threadCell.press()
         waitUntilSelectedThreadCell(isCompose: false)
     }
