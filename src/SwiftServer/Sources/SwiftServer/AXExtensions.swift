@@ -48,8 +48,8 @@ extension Accessibility.Names {
     // https://developer.apple.com/documentation/applicationservices/axactionconstants_h/miscellaneous_defines
     var press: ActionName { .init(kAXPressAction) }
     var cancel: ActionName { .init(kAXCancelAction) }
-    #if DEBUG
     var scrollToVisible: ActionName { "AXScrollToVisible" }
+    #if DEBUG
     var showMenu: ActionName { .init(kAXShowMenuAction) }
     #endif
 
