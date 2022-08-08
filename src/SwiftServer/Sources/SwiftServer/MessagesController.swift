@@ -180,6 +180,7 @@ final class MessagesController {
     private var activityObserver: ActivityObserver?
 
     private let whm: WindowHidingManager
+    private let contacts = Contacts()
 
     // this increases the viewport height so that mark as read works more reliably
     static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
@@ -215,13 +216,13 @@ final class MessagesController {
         NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     }
 
-    private static func ensureSelectedThread(threadID: String) throws {
+    private func ensureSelectedThread(threadID: String) throws {
         let addressToMatch = threadIDToAddress(threadID)
         try retry(withTimeout: 1.5, interval: 0.05) {
             // threadIDToAddress is used to ignore the service (SMS or iMessage) since it's merged in the UI
             let selectedAddress = Defaults.getSelectedThreadID().flatMap(threadIDToAddress)
             guard selectedAddress == addressToMatch ||
-                selectedAddress.flatMap(Contacts.fetchID(for:)) == addressToMatch.flatMap(Contacts.fetchID(for:))
+                selectedAddress.flatMap(contacts.fetchID(for:)) == addressToMatch.flatMap(contacts.fetchID(for:))
             else { throw ErrorMessage("thread not selected") }
         }
     }
@@ -322,12 +323,6 @@ final class MessagesController {
             dispose() // since deinit isn't called when init throws
             throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
-
-        NotificationCenter.default.addObserver(self, selector: #selector(self.contactStoreDidChange), name: .CNContactStoreDidChange, object: nil)
-    }
-
-    @objc private func contactStoreDidChange() {
-        Contacts.didChange()
     }
 
     var isValid: Bool {
@@ -378,7 +373,7 @@ final class MessagesController {
         // 2s is a good timeout for scroll to happen but may not be enough always
         let composeCell = try waitUntilSelectedThreadCell(isCompose: true, timeout: 2, interval: 0.1).orThrow(ErrorMessage("composeCell not found"))
         try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
-        try Self.ensureSelectedThread(threadID: threadID)
+        try ensureSelectedThread(threadID: threadID)
         try? removeComposeCell(composeCell) // scrolls to wanted thread cell
         return try waitUntilSelectedThreadCell(isCompose: false, timeout: 2, interval: 0.1).orThrow(ErrorMessage("threadCell not found"))
     }
@@ -416,7 +411,7 @@ final class MessagesController {
         }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
 
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
@@ -521,7 +516,7 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
 
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             try threadCell.showMenu()
@@ -559,7 +554,7 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
             let actionName = read ? LocalizedStrings.markAsRead : LocalizedStrings.markAsUnread
             let threadCell: Accessibility.Element
             do {
@@ -586,7 +581,7 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
             // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
@@ -609,7 +604,7 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             let deleteAction = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.delete)") }).orThrow(ErrorMessage("deleteAction not found"))
             try deleteAction()
@@ -634,7 +629,7 @@ final class MessagesController {
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
 
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
 
             try elements.messagesField.value(assign: "")
         }
@@ -781,7 +776,7 @@ final class MessagesController {
         if quotedMessage == nil { self.closeReplyTranscriptView() } // needed even when opening deep link
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            if let threadID = threadID { try Self.ensureSelectedThread(threadID: threadID) }
+            if let threadID = threadID { try ensureSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
@@ -937,7 +932,7 @@ final class MessagesController {
         defer { activityLock.unlock() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            try Self.ensureSelectedThread(threadID: threadID)
+            try ensureSelectedThread(threadID: threadID)
             try elements.notifyAnywayButton.press()
         }
     }
@@ -963,7 +958,7 @@ final class MessagesController {
 
         let selectedAddress = Defaults.getSelectedThreadID().flatMap(threadIDToAddress)
         let observerAddress = threadIDToAddress(observer.threadID)
-        guard selectedAddress == observerAddress || selectedAddress.flatMap(Contacts.fetchID(for:)) == observerAddress.flatMap(Contacts.fetchID(for:)) else {
+        guard selectedAddress == observerAddress || selectedAddress.flatMap(contacts.fetchID(for:)) == observerAddress.flatMap(contacts.fetchID(for:)) else {
             debugLog("pollActivityStatus: selected thread changed, not polling \(selectedAddress ?? "nil") \(observer.threadID)")
             observer.send([.unknown])
             return

@@ -1,11 +1,15 @@
 import Contacts
 
-enum Contacts {
-    private static let store = CNContactStore()
+final class Contacts {
+    private let store = CNContactStore()
 
-    private static var cache = [String: String?]()
+    private var cache = [String: String?]()
 
-    static func fetchID(for emailOrPhoneNumber: String) -> String? {
+    init() {
+        NotificationCenter.default.addObserver(self, selector: #selector(self.contactStoreDidChange), name: .CNContactStoreDidChange, object: nil)
+    }
+
+    func fetchID(for emailOrPhoneNumber: String) -> String? {
         if let identifier = cache[emailOrPhoneNumber] {
             return identifier
         }
@@ -30,7 +34,7 @@ enum Contacts {
         return identifier
     }
 
-    static func didChange() {
+    @objc private func contactStoreDidChange() {
         cache.removeAll()
     }
 }
