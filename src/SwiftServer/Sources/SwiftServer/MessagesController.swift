@@ -1001,8 +1001,18 @@ final class MessagesController {
         }
     }
 
-    // TODO: Switch to os_unfair_lock if we drop old OSes, or maybe
-    // determine the lock we use dynamically
+    /* TODO: Switch to os_unfair_lock if we drop old OSes, or maybe determine the lock we use dynamically.
+        activityLock.lock() called by:
+        MessagesController.observe()
+        MessagesController.removeObserver()
+        MessagesController.sendMessage()
+        MessagesController.setReaction()
+        MessagesController.sendTypingStatus()
+        MessagesController.notifyAnyway()
+        MessagesController.toggleThreadRead()
+        MessagesController.muteThread()
+        MessagesController.deleteThread()
+    */
     private let activityLock = NSLock()
 
     // called on run loop thread, not main node thread
