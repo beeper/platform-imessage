@@ -1,7 +1,8 @@
 import AppKit
+import Contacts
+import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
-import Carbon.HIToolbox.Events
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -212,11 +213,14 @@ final class MessagesController {
         Self.messagesUserDefaults?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
     }
 
-    // remember transparent thread merging (edge case #1 in readme.md)
     private static func ensureSelectedThread(threadID: String) throws {
+        let addressToMatch = threadIDToAddress(threadID)
         try retry(withTimeout: 1.5, interval: 0.05) {
             // threadIDToAddress is used to ignore the service (SMS or iMessage) since it's merged in the UI
-            guard Self.getSelectedThreadID().flatMap(threadIDToAddress) == threadIDToAddress(threadID) else { throw ErrorMessage("thread not selected") }
+            let selectedAddress = Self.getSelectedThreadID().flatMap(threadIDToAddress)
+            guard selectedAddress == addressToMatch ||
+                selectedAddress.flatMap(Contacts.fetchID(for:)) == addressToMatch.flatMap(Contacts.fetchID(for:))
+            else { throw ErrorMessage("thread not selected") }
         }
     }
 
@@ -316,6 +320,12 @@ final class MessagesController {
             dispose() // since deinit isn't called when init throws
             throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
+
+        NotificationCenter.default.addObserver(self, selector: #selector(self.contactStoreDidChange), name: .CNContactStoreDidChange, object: nil)
+    }
+
+    @objc private func contactStoreDidChange() {
+        Contacts.didChange()
     }
 
     var isValid: Bool {
@@ -949,9 +959,10 @@ final class MessagesController {
             return
         }
 
-        let currentThreadID = Self.getSelectedThreadID().flatMap(threadIDToAddress)
-        guard currentThreadID == threadIDToAddress(observer.threadID) else {
-            debugLog("pollActivityStatus: selected thread changed, not polling \(currentThreadID ?? "nil") \(observer.threadID)")
+        let selectedAddress = Self.getSelectedThreadID().flatMap(threadIDToAddress)
+        let observerAddress = threadIDToAddress(observer.threadID)
+        guard selectedAddress == observerAddress || selectedAddress.flatMap(Contacts.fetchID(for:)) == observerAddress.flatMap(Contacts.fetchID(for:)) else {
+            debugLog("pollActivityStatus: selected thread changed, not polling \(selectedAddress ?? "nil") \(observer.threadID)")
             observer.send([.unknown])
             return
         }
@@ -995,6 +1006,7 @@ final class MessagesController {
     func dispose() {
         debugLog("Disposing MessagesController...")
         guard !isDisposed else { return }
+        NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         timer?.invalidate()
         loopThread?.cancel()
