@@ -523,23 +523,27 @@ final class MessagesController {
 
     // this only works when the messages.app window has been activated at least once
     // can randomly stop working. a reactivation of messages.app may fix (unhandled)
-    private func markAsReadWithHack(threadID: String) throws {
+    private func markAsReadWithPressHack(threadID: String) throws {
         #if DEBUG
         let startTime = Date()
-        defer { Logger.log("markAsReadWithHack took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { Logger.log("markAsReadWithPressHack took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        try Self.openDeepLink(try MessagesDeepLink.compose.url())
-        let composeCell = try waitUntilSelectedThreadCell(isCompose: true).orThrow(ErrorMessage("composeCell not found"))
         try openThread(threadID)
-        let threadCell = try waitUntilSelectedThreadCell(isCompose: false).orThrow(ErrorMessage("threadCell not found"))
-        // select another cell and then come back
-        try composeCell.press() // or try Self.openDeepLink(try MessagesDeepLink.compose.url())
-        waitUntilSelectedThreadCell(isCompose: true)
+        let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+        // select any another cell and then come back
+        try sendCommand1Press()
         try threadCell.press()
         waitUntilSelectedThreadCell(isCompose: false)
     }
 
+    /*
+        uses four methods:
+        1. for ventura: hotkey                                                  (reliable)
+        2. for pinned threads: mark-read action                                 (reliable)
+        3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
+        4. threadCell.press() action hack                                       (unreliable)
+    */
     func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws {
         let startTime = Date()
         defer { Logger.log("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -568,7 +572,7 @@ final class MessagesController {
                 try openThread(threadID)
                 try triggerThreadCellAction(threadID: threadID, actionName: actionName)
             } else {
-                try markAsReadWithHack(threadID: threadID)
+                try markAsReadWithPressHack(threadID: threadID)
             }
         }
     }
@@ -665,10 +669,19 @@ final class MessagesController {
         }
     }
 
+    /// selects first thread
     private func sendCommand1Press() throws {
         try runOnMainThread {
             guard let keyCode = KeyMap.shared["1"] else { return }
             try sendKeyPress(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+
+    /// selects first non-pinned thread
+    private func sendCommandOption1Press() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["1"] else { return }
+            try sendKeyPress(key: CGKeyCode(keyCode), flags: [.maskCommand, .maskAlternate])
         }
     }
 
