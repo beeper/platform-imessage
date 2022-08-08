@@ -263,11 +263,11 @@ final class MessagesController {
     }
 
     @discardableResult
-    static func openDeepLink(_ url: URL) throws -> NSRunningApplication {
+    static func openDeepLink(_ url: URL, withoutActivation: Bool = true) throws -> NSRunningApplication {
         debugLog("openDeepLink: \(url)")
         return try NSWorkspace.shared.open(
             url,
-            options: [.andHide, .withoutActivation],
+            options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
             configuration: [:]
         )
     }
@@ -299,10 +299,10 @@ final class MessagesController {
 
         whm = try getBestWHM()
 
-        let launchMessages = { [whm] () throws -> NSRunningApplication in
+        let launchMessages = { [whm] (withoutActivation: Bool) throws -> NSRunningApplication in
             if !whm.canReuseApp { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
             debugLog("Launching Messages...")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url())
+            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
         }
 
         var messagesApps = Self.getRunningMessagesApps()
@@ -318,10 +318,12 @@ final class MessagesController {
             } else {
                 debugLog("Terminating Messages...")
                 try Self.terminateApp(existingApp)
-                app = try launchMessages()
+                // this is for markAsReadWithPressHack (monterey or lower)
+                // launch with activation because the hack doesn't work until the app is activated at least once
+                app = try launchMessages(!isVenturaOrUp)
             }
         } else {
-            app = try launchMessages()
+            app = try launchMessages(false)
         }
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
