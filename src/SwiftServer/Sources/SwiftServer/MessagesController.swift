@@ -78,33 +78,6 @@ struct MessageCell: Codable {
     let overlay: Bool
 }
 
-
-enum Defaults {
-    private static let ud = UserDefaults(suiteName: messagesBundleID)
-
-    static func resetPrompts() {
-        // ud?.set(true, forKey: "kHasSetupHashtagImages") // unknown
-        ud?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
-        ud?.set(true, forKey: "ReadReceiptSettingsConfirmed") // shown to confirm read receipts settings
-        ud?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
-    }
-
-    static func getSelectedThreadID() -> String? {
-        // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
-        // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
-        // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
-        ud?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
-    }
-
-    static func isSelectedThreadCellPinned() -> Bool {
-        ud?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
-    }
-
-    static func isSelectedThreadCellCompose() -> Bool {
-        ud?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
-    }
-}
-
 // external API is thread safe
 final class MessagesController {
     enum Reaction: String {
