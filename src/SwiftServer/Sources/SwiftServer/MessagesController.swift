@@ -279,7 +279,7 @@ final class MessagesController {
         try retry(withTimeout: 1.2, interval: 0.05) {
             let selectedAddress = try Defaults.getSelectedThreadID().flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
             guard selectedAddress == addressToMatch ||
-                (type == singleThreadType && contacts.fetchID(for: selectedAddress) == contacts.fetchID(for: addressToMatch))
+                (type == singleThreadType && contacts?.fetchID(for: selectedAddress) == contacts?.fetchID(for: addressToMatch))
             else { throw ErrorMessage("thread not selected") }
         }
     }
@@ -1035,7 +1035,7 @@ final class MessagesController {
         let observerAddress = threadIDToAddress(observer.threadID)
         guard let (_, type, selectedAddress) = selectedThread,
             (selectedAddress == observerAddress ||
-            (type == singleThreadType && contacts.fetchID(for: String(selectedAddress)) == contacts.fetchID(for: observerAddress))) else {
+            (type == singleThreadType && contacts?.fetchID(for: String(selectedAddress)) == contacts?.fetchID(for: observerAddress))) else {
             debugLog("pollActivityStatus: selected thread changed, not polling \(observer.threadID)")
             observer.send([.unknown])
             return

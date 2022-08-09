@@ -5,7 +5,11 @@ final class Contacts {
 
     private var cache = [String: String?]()
 
-    init() {
+    init?() {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
+            Logger.log("contacts access not authorized")
+            return nil
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(self.contactStoreDidChange), name: .CNContactStoreDidChange, object: nil)
     }
 
