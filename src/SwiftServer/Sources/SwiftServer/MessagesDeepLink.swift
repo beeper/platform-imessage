@@ -12,14 +12,14 @@ enum MessagesDeepLink {
     static let compose: MessagesDeepLink = .addresses([], body: nil)
 
     init(threadID: String, body: String?) throws {
-        let (_, type, id) = splitThreadID(threadID)
+        let (_, type, id) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID: \(threadID)"))
         switch type {
         case singleThreadType:
             self = .addresses([String(id)], body: body)
         case groupThreadType:
             self = .group(chatID: String(id), body: body)
         default:
-            throw ErrorMessage("Invalid thread ID: \(threadID)")
+            throw ErrorMessage("invalid threadID: \(threadID)")
         }
     }
 

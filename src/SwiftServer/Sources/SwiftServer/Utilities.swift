@@ -77,12 +77,13 @@ func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -
 }
 
 // iMessage;-;hi@kishan.info → hi@kishan.info
-@inlinable func threadIDToAddress(_ threadID: String) -> String {
-    String(splitThreadID(threadID).2)
+@inlinable func threadIDToAddress(_ threadID: String) -> String? {
+    splitThreadID(threadID).flatMap { String($0.2) }
 }
 
 // iMessage;-;hi@kishan.info → ("iMessage", "-", "hi@kishan.info")
-@inlinable func splitThreadID(_ threadID: String) -> (String.SubSequence, String.SubSequence, String.SubSequence) {
+@inlinable func splitThreadID(_ threadID: String) -> (String.SubSequence, String.SubSequence, String)? {
     let components = threadID.split(separator: ";", maxSplits: 2)
-    return (components[0], components[1], components[2])
+    guard components.count == 3 else { return nil }
+    return (components[0], components[1], String(components[2]))
 }

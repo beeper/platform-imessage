@@ -272,14 +272,18 @@ final class MessagesController {
         )
     }
 
+    private func isSameContact(_ a: String?, _ b: String?) -> Bool {
+        guard let contacts = contacts, let a = a, let b = b else { return false }
+        return contacts.fetchID(for: a) == contacts.fetchID(for: b)
+    }
+
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     private func ensureSelectedThread(threadID: String) throws {
-        let (_, type, _addressToMatch) = splitThreadID(threadID)
-        let addressToMatch = String(_addressToMatch)
+        let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
         try retry(withTimeout: 1.2, interval: 0.05) {
             let selectedAddress = try Defaults.getSelectedThreadID().flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
             guard selectedAddress == addressToMatch ||
-                (type == singleThreadType && contacts?.fetchID(for: selectedAddress) == contacts?.fetchID(for: addressToMatch))
+                (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
             else { throw ErrorMessage("thread not selected") }
         }
     }
@@ -1034,8 +1038,8 @@ final class MessagesController {
         let selectedThread = Defaults.getSelectedThreadID().flatMap(splitThreadID)
         let observerAddress = threadIDToAddress(observer.threadID)
         guard let (_, type, selectedAddress) = selectedThread,
-            (selectedAddress == observerAddress ||
-            (type == singleThreadType && contacts?.fetchID(for: String(selectedAddress)) == contacts?.fetchID(for: observerAddress))) else {
+              (selectedAddress == observerAddress ||
+              (type == singleThreadType && isSameContact(selectedAddress, observerAddress))) else {
             debugLog("pollActivityStatus: selected thread changed, not polling \(observer.threadID)")
             observer.send([.unknown])
             return
