@@ -272,13 +272,14 @@ final class MessagesController {
         )
     }
 
+    // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     private func ensureSelectedThread(threadID: String) throws {
-        let addressToMatch = threadIDToAddress(threadID)
-        try retry(withTimeout: 1.5, interval: 0.05) {
-            // threadIDToAddress is used to ignore the service (SMS or iMessage) since it's merged in the UI
-            let selectedAddress = Defaults.getSelectedThreadID().flatMap(threadIDToAddress)
+        let (_, type, _addressToMatch) = splitThreadID(threadID)
+        let addressToMatch = String(_addressToMatch)
+        try retry(withTimeout: 1.2, interval: 0.05) {
+            let selectedAddress = try Defaults.getSelectedThreadID().flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
             guard selectedAddress == addressToMatch ||
-                selectedAddress.flatMap(contacts.fetchID(for:)) == addressToMatch.flatMap(contacts.fetchID(for:))
+                (type == singleThreadType && contacts.fetchID(for: selectedAddress) == contacts.fetchID(for: addressToMatch))
             else { throw ErrorMessage("thread not selected") }
         }
     }
@@ -1030,10 +1031,12 @@ final class MessagesController {
             return
         }
 
-        let selectedAddress = Defaults.getSelectedThreadID().flatMap(threadIDToAddress)
+        let selectedThread = Defaults.getSelectedThreadID().flatMap(splitThreadID)
         let observerAddress = threadIDToAddress(observer.threadID)
-        guard selectedAddress == observerAddress || selectedAddress.flatMap(contacts.fetchID(for:)) == observerAddress.flatMap(contacts.fetchID(for:)) else {
-            debugLog("pollActivityStatus: selected thread changed, not polling \(selectedAddress ?? "nil") \(observer.threadID)")
+        guard let (_, type, selectedAddress) = selectedThread,
+            (selectedAddress == observerAddress ||
+            (type == singleThreadType && contacts.fetchID(for: String(selectedAddress)) == contacts.fetchID(for: observerAddress))) else {
+            debugLog("pollActivityStatus: selected thread changed, not polling \(observer.threadID)")
             observer.send([.unknown])
             return
         }

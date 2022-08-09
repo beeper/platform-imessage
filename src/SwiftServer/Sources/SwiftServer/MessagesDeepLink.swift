@@ -1,5 +1,8 @@
 import Foundation
 
+let singleThreadType = "-"
+let groupThreadType = "+"
+
 enum MessagesDeepLink {
     case addresses([String], body: String?)
     case group(chatID: String, body: String?)
@@ -9,13 +12,13 @@ enum MessagesDeepLink {
     static let compose: MessagesDeepLink = .addresses([], body: nil)
 
     init(threadID: String, body: String?) throws {
-        let components = threadID.split(separator: ";", maxSplits: 2)
-        let (_, type, id) = (components[0], components[1], components[2])
-        if type == "-" {
+        let (_, type, id) = splitThreadID(threadID)
+        switch type {
+        case singleThreadType:
             self = .addresses([String(id)], body: body)
-        } else if type == "+" {
+        case groupThreadType:
             self = .group(chatID: String(id), body: body)
-        } else {
+        default:
             throw ErrorMessage("Invalid thread ID: \(threadID)")
         }
     }
