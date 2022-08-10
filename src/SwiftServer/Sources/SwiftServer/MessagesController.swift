@@ -64,10 +64,23 @@ private enum MessageAction {
 
     var localized: String {
         switch self {
-            case .react:
-                return LocalizedStrings.react
-            case .reply:
-                return LocalizedStrings.reply
+            case .react: return LocalizedStrings.react
+            case .reply: return LocalizedStrings.reply
+        }
+    }
+}
+private enum ThreadAction {
+    case markAsRead, markAsUnread, delete, pin, unpin, showAlerts, hideAlerts
+
+    var localized: String {
+        switch self {
+            case .markAsRead: return LocalizedStrings.markAsRead
+            case .markAsUnread: return LocalizedStrings.markAsUnread
+            case .delete: return LocalizedStrings.delete
+            case .pin: return LocalizedStrings.pin
+            case .unpin: return LocalizedStrings.unpin
+            case .showAlerts: return LocalizedStrings.showAlerts
+            case .hideAlerts: return LocalizedStrings.hideAlerts
         }
     }
 }
@@ -403,7 +416,7 @@ final class MessagesController {
         // Pin is missing for non-links / Big Sur
         let allActions = try messageCell.supportedActions()
         guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }) else {
-            throw ErrorMessage("Could not find \(action) action")
+            throw ErrorMessage("MessageAction.\(action) not found")
         }
         return action
     }
@@ -420,14 +433,14 @@ final class MessagesController {
         }
     }
 
-    private func triggerThreadCellAction(threadCell: Accessibility.Element, actionName: String) throws {
-        let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(actionName)") }).orThrow(ErrorMessage("action(\(actionName)) not found"))
+    private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
+        let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }).orThrow(ErrorMessage("ThreadAction.\(action) not found"))
         try action()
     }
 
-    private func triggerThreadCellAction(threadID: String, actionName: String) throws {
+    private func triggerThreadCellAction(threadID: String, action: ThreadAction) throws {
         let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
-        try triggerThreadCellAction(threadCell: threadCell, actionName: actionName)
+        try triggerThreadCellAction(threadCell: threadCell, action: action)
     }
 
     /*
@@ -447,7 +460,7 @@ final class MessagesController {
             1. keyPresser.command1
             2. open and get compose cell
             3. open target thread
-            4. triggerThreadCellAction(threadCell: composeCell, actionName: LocalizedStrings.delete) // scrolls to wanted thread
+            4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
     */
     private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
         #if DEBUG
@@ -659,18 +672,18 @@ final class MessagesController {
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }
-            let actionName = read ? LocalizedStrings.markAsRead : LocalizedStrings.markAsUnread
+            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
-                try triggerThreadCellAction(threadID: threadID, actionName: actionName)
+                try triggerThreadCellAction(threadID: threadID, action: action)
             } else if let count = Defaults.pinnedThreadsCount(), count < 9 {
-                try triggerThreadCellAction(threadID: threadID, actionName: LocalizedStrings.pin)
+                try triggerThreadCellAction(threadID: threadID, action: .pin)
                 defer {
-                    try? triggerThreadCellAction(threadID: threadID, actionName: LocalizedStrings.unpin)
+                    try? triggerThreadCellAction(threadID: threadID, action: .unpin)
                 }
                 // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
                 // openThread ensures scroll logic isn't executed
                 try openThread(threadID)
-                try triggerThreadCellAction(threadID: threadID, actionName: actionName)
+                try triggerThreadCellAction(threadID: threadID, action: action)
             } else {
                 try markAsReadWithPressHack(threadID: threadID)
             }
@@ -693,8 +706,8 @@ final class MessagesController {
             try ensureSelectedThread(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
             // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
-            let actionName = muted || Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.showAlerts
-            try triggerThreadCellAction(threadID: threadID, actionName: actionName)
+            let action = muted || Defaults.isSelectedThreadCellPinned() ? ThreadAction.hideAlerts : ThreadAction.showAlerts
+            try triggerThreadCellAction(threadID: threadID, action: action)
         }
     }
 
@@ -712,7 +725,7 @@ final class MessagesController {
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
-            try triggerThreadCellAction(threadID: threadID, actionName: LocalizedStrings.delete)
+            try triggerThreadCellAction(threadID: threadID, action: .delete)
             try elements.alertSheetDeleteButton.press()
         }
     }
