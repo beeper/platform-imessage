@@ -5,7 +5,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions, SerializedSession } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
@@ -151,7 +151,10 @@ export default class AppleiMessage implements PlatformAPI {
     return enabled
   }).catch(console.error)
 
-  init = async (_: undefined, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
+  private session: SerializedSession
+
+  init = async (session: SerializedSession, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
+    this.session = session || {}
     this.accountID = accountID
     const userDataDirPath = path.dirname(dataDirPath)
     if (swiftServer) {
@@ -164,7 +167,13 @@ export default class AppleiMessage implements PlatformAPI {
       this.getMessagesController()
     }
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
+    if (IS_VENTURA_OR_UP && session.migrationVersion === 0) {
+      fs.unlink(path.join(userDataDirPath, 'imessage.json')).catch(() => {})
+      this.session.migrationVersion = 1
+    }
   }
+
+  serializeSession = () => this.session
 
   dispose = async () => {
     swiftServer?.stopSysPrefsOnboarding?.()
