@@ -224,7 +224,7 @@ final class MessagesAppElements {
         }
     }
 
-    var iOSContentGroup: Accessibility.Element {
+    var iOSContentGroup: Accessibility.Element { // className=UINSSceneView
         get throws {
             #if DEBUG
             let startTime = Date()
@@ -235,6 +235,28 @@ final class MessagesAppElements {
         }
     }
 
+    var iOSContentGroupFirstChild: Accessibility.Element { // className= CKUIWindow_60754894 or CKPresentationControllerWindow (when reactions are open)
+        get throws {
+            #if DEBUG
+            let startTime = Date()
+            defer { Logger.log("iOSContentGroupFirstChild took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            #endif
+            return try (try? iOSContentGroup.children.value(at: 0))
+                .orThrow(ErrorMessage("iOSContentGroupFirstChild not found"))
+        }
+    }
+
+    var splitter: Accessibility.Element {
+        get throws {
+            #if DEBUG
+            let startTime = Date()
+            defer { Logger.log("splitter took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            #endif
+            return try iOSContentGroupFirstChild.children().first(where: { (try? $0.role()) == AXRole.splitter })
+                .orThrow(ErrorMessage("splitter not found"))
+        }
+    }
+
     var reactionsView: Accessibility.Element {
         get throws {
             #if DEBUG
@@ -242,8 +264,8 @@ final class MessagesAppElements {
             defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
             #endif
             return try retry(withTimeout: 1.5, interval: 0.1) {
-                guard let view = try? iOSContentGroup.children.value(at: 0),
-                    (try? view.children.count()) ?? 0 > 0 else {
+                let view = try iOSContentGroupFirstChild
+                guard (try? view.children.count()) ?? 0 > 0 else {
                     throw ErrorMessage("reactionsView not found")
                 }
                 return view

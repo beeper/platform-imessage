@@ -1,11 +1,10 @@
 import AppKit
 
 struct ErrorMessage: Error, CustomStringConvertible {
-    let message: String
-    init(_ message: String) {
-        self.message = message
+    let description: String
+    init(_ description: String) {
+        self.description = description
     }
-    var description: String { message }
 }
 
 public enum Dock {

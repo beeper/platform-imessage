@@ -1,12 +1,11 @@
 import Foundation
 
 struct ErrorMessage: Error, CustomStringConvertible {
-    let message: String
-    init(_ message: String) {
-        Logger.log(message)
-        self.message = message
+    let description: String
+    init(_ description: String) {
+        Logger.log(description)
+        self.description = description
     }
-    var description: String { message }
 }
 
 extension Optional {

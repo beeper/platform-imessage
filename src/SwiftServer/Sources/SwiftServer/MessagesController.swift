@@ -263,6 +263,14 @@ final class MessagesController {
         try window.setFrame(frame)
     }
 
+    // without expanding splitter, thread cells will not have custom ax actions (on monterey at least)
+    func expandSplitter() throws {
+        let splitter = try elements.splitter
+        if let val = (try splitter.value() as? Double), val < 37 {
+            try splitter.value(assign: 37) // 37 is the minimum value of the splitter where labels show up (not just avatars) and thread actions are present
+        }
+    }
+
     private static func terminateApp(_ app: NSRunningApplication) throws {
         app.terminate()
         try retry(withTimeout: 2, interval: 0.1) {
@@ -403,6 +411,7 @@ final class MessagesController {
             dispose() // since deinit isn't called when init throws
             throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
+        try? expandSplitter()
     }
 
     var isValid: Bool {
