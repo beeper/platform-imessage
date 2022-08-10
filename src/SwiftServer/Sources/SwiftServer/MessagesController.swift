@@ -265,9 +265,8 @@ final class MessagesController {
 
     // without expanding splitter, thread cells will not have custom ax actions (on monterey at least)
     func expandSplitter() throws {
-        let splitter = try elements.splitter
-        if let val = (try splitter.value() as? Double), val < 37 {
-            try splitter.value(assign: 37) // 37 is the minimum value of the splitter where labels show up (not just avatars) and thread actions are present
+        if try elements.conversationsList.size().width < 99 { // width is 94 when in compact mode
+            try elements.splitter.increment()
         }
     }
 
