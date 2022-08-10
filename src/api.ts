@@ -549,14 +549,15 @@ export default class AppleiMessage implements PlatformAPI {
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
   sendReadReceipt = async (threadID: string, messageID: string) => {
-    texts.log('sendReadReceipt', threadID, 'marking message as read for guid', messageID)
-    this.threadReadStore?.markThreadRead(threadID, messageID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
         await this.toggleThreadRead(true)(threadID, messageID)
         if (!IS_VENTURA_OR_UP) {
-          await bluebird.delay(100)
-          if (!await this.dbAPI.isThreadRead(threadID)) throw new Error('toggleThreadRead failed')
+          await bluebird.delay(50)
+          if (!await this.dbAPI.isThreadRead(threadID)) {
+            this.threadReadStore?.markThreadRead(threadID, messageID)
+            throw new Error('toggleThreadRead failed')
+          }
         }
       }, {
         onFailedAttempt: error => {
@@ -564,6 +565,8 @@ export default class AppleiMessage implements PlatformAPI {
         },
         retries: 1,
       })
+    } else {
+      this.threadReadStore?.markThreadRead(threadID, messageID)
     }
   }
 
