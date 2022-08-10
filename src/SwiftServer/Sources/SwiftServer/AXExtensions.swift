@@ -23,9 +23,8 @@ extension Accessibility.Names {
     // https://stackoverflow.com/questions/45590888/how-to-get-the-objective-c-class-name-corresponding-to-an-axuielement
     var className: AttributeName<String> { "AXClassName" }
 
-    var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
-    var maxValue: AttributeName<Any> { .init(kAXMaxValueAttribute) }
     var value: MutableAttributeName<Any> { .init(kAXValueAttribute) }
+    var placeholderValue: AttributeName<String> { .init(kAXPlaceholderValueAttribute) }
 
     var position: MutableAttributeName<CGPoint> { .init(kAXPositionAttribute) }
     var size: MutableAttributeName<CGSize> { .init(kAXSizeAttribute) }
@@ -50,10 +49,14 @@ extension Accessibility.Names {
     var cancel: ActionName { .init(kAXCancelAction) }
     var scrollToVisible: ActionName { "AXScrollToVisible" }
 
-    #if DEBUG
-    var showMenu: ActionName { .init(kAXShowMenuAction) }
     var increment: ActionName { .init(kAXIncrementAction) }
+
+    #if DEBUG
     var decrement: ActionName { .init(kAXDecrementAction) }
+
+    var showMenu: ActionName { .init(kAXShowMenuAction) }
+    var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
+    var maxValue: AttributeName<Any> { .init(kAXMaxValueAttribute) }
     #endif
 
     // App-specific

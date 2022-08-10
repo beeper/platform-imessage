@@ -41,6 +41,9 @@ enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
 
+    static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
+    static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")
+
     static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
     static let markAsUnread = chatKitFramework.localizedString(forKey: "MARK_AS_UNREAD", value: nil, table: "ChatKit")
     static let delete = chatKitFramework.localizedString(forKey: "DELETE", value: nil, table: "ChatKit")
@@ -802,11 +805,20 @@ final class MessagesController {
         }
     }
 
-    private func closeReplyTranscriptView() {
+    private func closeReplyTranscriptView() throws {
         guard let rtv = try? elements.replyTranscriptView else { return }
         debugLog("calling replyTranscriptView.cancel()")
-        try? rtv.cancel()
-        Thread.sleep(forTimeInterval: 0.3) // wait for animation, todo use better logic
+        try rtv.cancel()
+        func waitForReplyTranscriptsClose() throws {
+            try retry(withTimeout: 1.2, interval: 0.1) {
+                guard let pValue = try? elements.messagesField.placeholderValue(),
+                    pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                    throw ErrorMessage("replyTranscriptView visible")
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.4) // wait for animation still
+        }
+        try waitForReplyTranscriptsClose()
     }
 
     private func waitUntilReplyTranscriptVisible() throws {
@@ -863,7 +875,7 @@ final class MessagesController {
             return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
         }
 
-        if quotedMessage == nil { self.closeReplyTranscriptView() } // needed even when opening deep link
+        if quotedMessage == nil { try? self.closeReplyTranscriptView() } // needed even when opening deep link
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if let threadID = threadID { try ensureSelectedThread(threadID: threadID) }
