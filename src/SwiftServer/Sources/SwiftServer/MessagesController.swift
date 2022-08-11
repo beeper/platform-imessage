@@ -432,18 +432,6 @@ final class MessagesController {
         return action
     }
 
-    @discardableResult
-    private func waitUntilSelectedThreadCell(isCompose: Bool, timeout: TimeInterval = 1, interval: TimeInterval = 0.01) -> Accessibility.Element? {
-        try? retry(withTimeout: timeout, interval: interval) { () throws -> Accessibility.Element in
-            let selectedCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
-            // could also use
-            // let isActuallyCompose = Defaults.isSelectedThreadCellCompose()
-            let isActuallyCompose = MessagesAppElements.isThreadCellCompose(selectedCell)
-            guard isCompose == isActuallyCompose else { throw ErrorMessage("isCompose != isActuallyCompose") }
-            return selectedCell
-        }
-    }
-
     private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
         let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }).orThrow(ErrorMessage("ThreadAction.\(action) not found"))
         try action()
@@ -452,6 +440,15 @@ final class MessagesController {
     private func triggerThreadCellAction(threadID: String, action: ThreadAction) throws {
         let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
         try triggerThreadCellAction(threadCell: threadCell, action: action)
+    }
+
+    private func selectNextThreadAndScroll() throws {
+        let threadID = Defaults.getSelectedThreadID()
+        // ctrlTab() acts differently, has no effect?
+        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
+        try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
+            guard Defaults.getSelectedThreadID() != threadID else { throw ErrorMessage("diff thread not selected") }
+        }
     }
 
     /*
@@ -478,11 +475,17 @@ final class MessagesController {
         let startTime = Date()
         defer { Logger.log("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
-        if let cell = waitUntilSelectedThreadCell(isCompose: false) { return cell }
-        // ctrlTab() acts differently, has no effect?
-        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
+
+        // we assume thread is already selected
+
+        let selectedCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
+        if selectedCell.isInViewport { return selectedCell }
+
+        try selectNextThreadAndScroll()
         try openThread(threadID)
-        if let cell = waitUntilSelectedThreadCell(isCompose: false) { return cell }
+
+        let selectedCellAfterScroll = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
+        if selectedCellAfterScroll.isInViewport { return selectedCellAfterScroll }
         throw ErrorMessage("threadCell not found")
     }
 
@@ -651,14 +654,11 @@ final class MessagesController {
         try openThread(threadID)
         let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
         // select any another cell and then come back
-        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
-        try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
-            guard Defaults.getSelectedThreadID() != threadID else { throw ErrorMessage("diff thread not selected") }
-        }
+        try selectNextThreadAndScroll()
         // scrollToVisible is needed since sometimes the thread cell can be behind the search input field causing .press() to focus the input field instead
         try threadCell.scrollToVisible()
         try threadCell.press()
-        waitUntilSelectedThreadCell(isCompose: false)
+        try? ensureSelectedThread(threadID: threadID)
     }
 
     /*
