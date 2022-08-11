@@ -823,9 +823,10 @@ final class MessagesController {
 
     private func waitUntilReplyTranscriptVisible() throws {
         debugLog("waitUntilReplyTranscriptVisible")
-        try retry(withTimeout: 1.5, interval: 0.1) {
-            if (try? elements.replyTranscriptView.isInViewport) != true {
-                throw ErrorMessage("Could not find replyTranscriptView")
+        try retry(withTimeout: 1.2, interval: 0.1) {
+            guard let pValue = try? elements.messagesField.placeholderValue(),
+                pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
+                throw ErrorMessage("replyTranscriptView not visible")
             }
         }
     }
