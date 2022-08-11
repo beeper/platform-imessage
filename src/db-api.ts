@@ -296,7 +296,7 @@ export default class DatabaseAPI {
             7 = Mirror horizontal and rotate 90 CW
             8 = Rotate 270 CW
           */
-          a.size = [6, 8].includes(orientation) ? { width: height, height: width } : { width, height }
+          a.size = [5, 6, 7, 8].includes(orientation) ? { width: height, height: width } : { width, height }
         } catch (err) { texts.error(err) }
       }
       return a
