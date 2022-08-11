@@ -5,7 +5,7 @@ import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
 import childProcess from 'child_process'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions, SerializedSession } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions, SerializedSession, ThreadFolderName } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
@@ -273,19 +273,18 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getUser = async (ids: { phoneNumber?: PhoneNumber } | { email?: string }): Promise<User> => {
+  getUser = async (ids: { userID?: string } | { username?: string } | { phoneNumber?: string } | { email?: string }): Promise<User> => {
     // todo find if actually registered on imessage
     if ('phoneNumber' in ids) return { id: ids.phoneNumber, phoneNumber: ids.phoneNumber }
     if ('email' in ids) return { id: ids.email, email: ids.email }
   }
 
-  getThreads = async (inboxName: InboxName, pagination: PaginationArg): Promise<Paginated<Thread>> => {
+  getThreads = async (folderName: ThreadFolderName, pagination: PaginationArg): Promise<Paginated<Thread>> => {
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
-    if (inboxName !== InboxName.NORMAL) {
+    if (folderName !== InboxName.NORMAL) {
       return {
         items: [],
         hasMore: false,
-        oldestCursor: null,
       }
     }
     const { cursor, direction } = pagination || { cursor: null, direction: null }

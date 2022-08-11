@@ -340,7 +340,7 @@ export default class DatabaseAPI {
     const unhiddenMessages = messages.items.filter(m => !m.isHidden)
     // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
     const find = direction === 'before' ? findLastIndex : findIndex
-    const mIndex = find(unhiddenMessages, isSelectable)
+    const mIndex = find(unhiddenMessages as MessageWithExtra[], isSelectable)
     if (mIndex > -1) {
       const m = unhiddenMessages[mIndex]
       return { messageGUID: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1, cellID: msgRow.balloon_bundle_id, cellRole: null }

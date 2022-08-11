@@ -40,7 +40,7 @@ type NMP = Promisified<typeof import('node-mac-permissions')>
 
 type CallProxiedFn = <ReturnType>(fnName: keyof PAPI['proxiedAuthFns']) => Promise<ReturnType>
 type Props = AuthProps & {
-  nmp: NMP
+  nmp?: NMP
   canAccessMessagesDir: () => Promise<boolean>
   callProxiedFn: CallProxiedFn
   open?: boolean
@@ -368,7 +368,7 @@ const ChecklistPage: React.FC<Props> = props => {
   )
 }
 
-const AppleiMessageAuth: React.FC<AuthProps & { nmp: NMP }> = props => {
+const AppleiMessageAuth: React.FC<AuthProps & { nmp?: NMP }> = props => {
   const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset(null, 'proxied', fnName) as string), [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
