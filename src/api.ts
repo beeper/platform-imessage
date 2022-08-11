@@ -167,7 +167,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.getMessagesController()
     }
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
-    if (IS_VENTURA_OR_UP && session.migrationVersion === 0) {
+    if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
       fs.unlink(path.join(userDataDirPath, 'imessage.json')).catch(() => {})
       this.session.migrationVersion = 1
     }
