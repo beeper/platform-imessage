@@ -58,15 +58,24 @@ final class MessagesAppElements {
         }
     }
 
+    private static func getSectionObjects(window: Accessibility.Element) throws -> LazyMapCollection<LazyFilterSequence<LazyMapSequence<LazySequence<[[String: CFTypeRef]]>.Elements, Accessibility.Element?>>, Accessibility.Element> {
+        try window.sections().lazy.compactMap { $0["SectionObject"].flatMap { Accessibility.Element(erased: $0) } }
+    }
+
+    private static func getConversationList(window: Accessibility.Element) -> Accessibility.Element? {
+        try? getSectionObjects(window: window).first { (try? $0.identifier()) == "ConversationList" }
+    }
+
+    private static func getCKConversationListCollectionView(window: Accessibility.Element) -> Accessibility.Element? {
+        window.recursivelyFindChild(withID: "CKConversationListCollectionView")
+    }
+
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
-        #if DEBUG
         let startTime = Date()
         defer { Logger.log("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
         return allWindows.first(where: {
             // note: don't detect presence of AXSplitter here, it's unreliable
-            $0.recursivelyFindChild(withID: "ConversationList") != nil ||
-                $0.recursivelyFindChild(withID: "CKConversationListCollectionView") != nil
+            Self.getConversationList(window: $0) != nil || Self.getCKConversationListCollectionView(window: $0) != nil
         })
     }
 
@@ -112,13 +121,10 @@ final class MessagesAppElements {
             // if let cached = cachedConversationsList {
             //     return cached
             // }
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             let cl = try retry(withTimeout: 1, interval: 0.1) {
-                try mainWindow.recursivelyFindChild(withID: "ConversationList")
-                    .orThrow(ErrorMessage("ConversationList not found"))
+                try Self.getConversationList(window: mainWindow).orThrow(ErrorMessage("ConversationList not found"))
             } onError: { _, _ in
                 let searchField = try self.searchField
                 debugLog("fetching ConversationList errored, calling searchField.cancel")
@@ -133,7 +139,7 @@ final class MessagesAppElements {
     // this return type was copied from compiler error
     var mainWindowSections: LazyMapCollection<LazyFilterSequence<LazyMapSequence<LazySequence<[[String: CFTypeRef]]>.Elements, Accessibility.Element?>>, Accessibility.Element> {
         get throws {
-            try mainWindow.sections().lazy.compactMap { $0["SectionObject"].flatMap { Accessibility.Element(erased: $0) } }
+            try Self.getSectionObjects(window: mainWindow)
         }
     }
 
@@ -150,10 +156,8 @@ final class MessagesAppElements {
     }
 
     private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
-        #if DEBUG
         let startTime = Date()
         defer { Logger.log("getTranscriptView(replyTranscript: \(replyTranscript)) took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
 
         func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
             // alternative: (localizedDescription == "Messages" when main transcript)
@@ -198,12 +202,10 @@ final class MessagesAppElements {
 
     var messagesField: Accessibility.Element {
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("messagesField took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             return try retry(withTimeout: 1.5, interval: 0.1) {
-                try mainWindow.recursivelyFindChild(withID: "messageBodyField")
+                try mainWindowSections.first { (try? $0.identifier()) == "messageBodyField" }
                     .orThrow(ErrorMessage("messageBodyField not found"))
             }
         }
@@ -211,12 +213,10 @@ final class MessagesAppElements {
 
     var searchField: Accessibility.Element {
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             return try retry(withTimeout: 1.5, interval: 0.1) {
-                let CKConversationListCollectionView = try mainWindow.recursivelyFindChild(withID: "CKConversationListCollectionView")
+                let CKConversationListCollectionView = try Self.getCKConversationListCollectionView(window: mainWindow)
                     .orThrow(ErrorMessage("CKConversationListCollectionView not found"))
                 return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
                     .orThrow(ErrorMessage("searchField not found"))
@@ -226,10 +226,8 @@ final class MessagesAppElements {
 
     var iOSContentGroup: Accessibility.Element { // className=UINSSceneView
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("iOSContentGroup took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             return try mainWindow.children().first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == AXRole.group })
                 .orThrow(ErrorMessage("iOSContentGroup not found"))
         }
@@ -237,10 +235,8 @@ final class MessagesAppElements {
 
     var iOSContentGroupFirstChild: Accessibility.Element { // className= CKUIWindow_60754894 or CKPresentationControllerWindow (when reactions are open)
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("iOSContentGroupFirstChild took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             return try (try? iOSContentGroup.children.value(at: 0))
                 .orThrow(ErrorMessage("iOSContentGroupFirstChild not found"))
         }
@@ -248,10 +244,8 @@ final class MessagesAppElements {
 
     var splitter: Accessibility.Element {
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("splitter took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             return try iOSContentGroupFirstChild.children().first(where: { (try? $0.role()) == AXRole.splitter })
                 .orThrow(ErrorMessage("splitter not found"))
         }
@@ -259,10 +253,8 @@ final class MessagesAppElements {
 
     var reactionsView: Accessibility.Element {
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             return try retry(withTimeout: 1.5, interval: 0.1) {
                 let view = try iOSContentGroupFirstChild
                 guard (try? view.children.count()) ?? 0 > 0 else {
@@ -275,10 +267,8 @@ final class MessagesAppElements {
 
     var reactButtons: [Accessibility.Element] {
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("reactButtons took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             /*
             8 `AXButton`s
             Heart
@@ -311,10 +301,8 @@ final class MessagesAppElements {
 
     var notifyAnywayButton: Accessibility.Element {
         get throws {
-            #if DEBUG
             let startTime = Date()
             defer { Logger.log("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            #endif
             let tv = try transcriptView
             let count = try tv.children.count()
             return try transcriptView.children(range: (count - 2)..<count).first(where: {
