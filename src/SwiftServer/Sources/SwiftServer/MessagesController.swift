@@ -760,7 +760,7 @@ final class MessagesController {
 
             try ensureSelectedThread(threadID: threadID)
 
-            try elements.messagesField.value(assign: "")
+            try elements.messageBodyField.value(assign: "")
         }
     }
 
@@ -811,7 +811,7 @@ final class MessagesController {
         try rtv.cancel()
         func waitForReplyTranscriptsClose() throws {
             try retry(withTimeout: 1.2, interval: 0.1) {
-                guard let pValue = try? elements.messagesField.placeholderValue(),
+                guard let pValue = try? elements.messageBodyField.placeholderValue(),
                     pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
                     throw ErrorMessage("replyTranscriptView visible")
                 }
@@ -824,7 +824,7 @@ final class MessagesController {
     private func waitUntilReplyTranscriptVisible() throws {
         debugLog("waitUntilReplyTranscriptVisible")
         try retry(withTimeout: 1.2, interval: 0.1) {
-            guard let pValue = try? elements.messagesField.placeholderValue(),
+            guard let pValue = try? elements.messageBodyField.placeholderValue(),
                 pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
                 throw ErrorMessage("replyTranscriptView not visible")
             }
@@ -835,7 +835,7 @@ final class MessagesController {
         try withMessageCell(threadID: threadID, messageCell: quotedMessage) {
             let replyAction = try messageAction(messageCell: $0, action: .reply)
             try replyAction()
-            let messageField = try elements.messagesField
+            let messageField = try elements.messageBodyField
             if let text = text {
                 try assignToMessageField(messageField, text: text)
             } else if let filePath = filePath {
@@ -890,7 +890,7 @@ final class MessagesController {
                 Thread.sleep(forTimeInterval: 1.5)
             }
 
-            let messageField = try elements.messagesField
+            let messageField = try elements.messageBodyField
             if let text = text {
                 if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
                     try assignToMessageField(messageField, text: text)
@@ -925,7 +925,7 @@ final class MessagesController {
         let mas = NSMutableAttributedString()
         mas.append(myAttrString)
 
-        let messageField = try elements.messagesField
+        let messageField = try elements.messageBodyField
         try messageField.value(assign: url) // no op
         try messageField.value(assign: mas) // illegalArgument
         try messageField.value(assign: data) // cannotComplete

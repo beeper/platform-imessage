@@ -200,13 +200,17 @@ final class MessagesAppElements {
         }
     }
 
-    var messagesField: Accessibility.Element {
+    var messageBodyField: Accessibility.Element {
         get throws {
             let startTime = Date()
-            defer { Logger.log("messagesField took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { Logger.log("messageBodyField took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            var alternate = false
             return try retry(withTimeout: 1.5, interval: 0.1) {
-                try mainWindowSections.first { (try? $0.identifier()) == "messageBodyField" }
-                    .orThrow(ErrorMessage("messageBodyField not found"))
+                alternate
+                    ? try mainWindow.recursivelyFindChild(withID: "messageBodyField").orThrow(ErrorMessage("messageBodyField not found"))
+                    : try mainWindowSections.first { (try? $0.identifier()) == "messageBodyField" }.orThrow(ErrorMessage("messageBodyField not found")) // not present when compose cell is selected
+            } onError: { attempt, _ in
+                alternate = attempt % 2 == 0
             }
         }
     }
