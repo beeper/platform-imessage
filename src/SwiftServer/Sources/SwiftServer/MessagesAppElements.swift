@@ -63,7 +63,9 @@ final class MessagesAppElements {
     }
 
     private static func getConversationList(window: Accessibility.Element) -> Accessibility.Element? {
-        try? getSectionObjects(window: window).first { (try? $0.identifier()) == "ConversationList" }
+        if let cl = try? getSectionObjects(window: window).first(where: { (try? $0.identifier()) == "ConversationList" }) { return cl }
+        if let cl = window.recursivelyFindChild(withID: "ConversationList") { return cl }
+        return nil
     }
 
     private static func getCKConversationListCollectionView(window: Accessibility.Element) -> Accessibility.Element? {
@@ -172,10 +174,10 @@ final class MessagesAppElements {
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
         // takes ~8ms
-        return try mainWindowSections.first(where: predicate)
+        if let tv = try? mainWindowSections.first(where: predicate) { return tv }
         // takes ~19ms
-        // return try mainWindow.recursiveChildren().lazy.first(where: predicate)
-            .orThrow(ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found"))
+        if let tv = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return tv }
+        throw ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found")
     }
 
     var transcriptView: Accessibility.Element {
