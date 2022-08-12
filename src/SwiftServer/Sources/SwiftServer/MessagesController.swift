@@ -764,10 +764,11 @@ final class MessagesController {
         }
     }
 
-    private func focusMessageField(_ messageField: Accessibility.Element) throws {
-        try retry(withTimeout: 1, interval: 0.2) {
+    private func focusMessageField(_ messageField: Accessibility.Element) {
+        try? retry(withTimeout: 0.8, interval: 0.1) {
             // this doesn't ever focus in compose thread for some reason
             try messageField.isFocused(assign: true)
+            if Defaults.isSelectedThreadCellCompose() { return }
             guard try messageField.isFocused() else {
                 throw ErrorMessage("Could not focus message field")
             }
@@ -791,7 +792,7 @@ final class MessagesController {
     }
 
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
-        try focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
+        focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return()
         try retry(withTimeout: 1.5, interval: 0.2) {
             if let message = try? messageFieldValue(messageField), !message.isEmpty {
@@ -938,7 +939,7 @@ final class MessagesController {
     func pasteFileInBodyField(_ messageField: Accessibility.Element, filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
         try? messageField.value(assign: "")
-        try focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
+        focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
