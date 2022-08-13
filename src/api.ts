@@ -378,7 +378,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private axSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
     this.axSendQueue.add(async () => {
-      const retries = quotedMessageID ? 3 : 1
+      const retries = quotedMessageID ? 2 : 1
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
         const controller = await this.getMessagesController()
@@ -392,11 +392,9 @@ export default class AppleiMessage implements PlatformAPI {
         } as MessageCell) : undefined)
       }, {
         onFailedAttempt: error => {
+          texts.Sentry.captureException(error)
           texts.log('sendMessage failed', { quotedMessageID }, error)
-          if (error.attemptNumber === (retries - 1)) {
-            texts.log('second retry; force-invalidating MessagesController')
-            this.forceInvalidate = true
-          }
+          if (error.attemptNumber === 1) this.forceInvalidate = true
         },
         retries,
       })
@@ -530,13 +528,11 @@ export default class AppleiMessage implements PlatformAPI {
       await controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on)
     }, {
       onFailedAttempt: error => {
+        texts.Sentry.captureException(error)
         texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)
-        if (error.attemptNumber === 2) {
-          texts.log('second retry; force-invalidating MessagesController')
-          this.forceInvalidate = true
-        }
+        if (error.attemptNumber === 1) this.forceInvalidate = true
       },
-      retries: 3,
+      retries: 2,
     })
   }
 
@@ -569,6 +565,7 @@ export default class AppleiMessage implements PlatformAPI {
         }
       }, {
         onFailedAttempt: error => {
+          texts.Sentry.captureException(error)
           texts.log(`sendReadReceipt failed. Retries left: ${error.retriesLeft}`)
         },
         retries: 1,
