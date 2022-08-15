@@ -57,7 +57,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
   const parsedURL = richLinkMetadata.originalURL?.['NS.relative'] // this is the URL that link preview service was redirected to
   const ogURL = richLinkMetadata.URL?.['NS.relative'] // this is the URL user entered
   const url = parsedURL || ogURL
-  if (url?.startsWith('https://twitter.com') || url?.startsWith('http://twitter.com')) {
+  if (url?.includes('://twitter.com/') || url?.includes('://mobile.twitter.com/')) {
     const { tweetID, username } = parseTweetURL(ogURL) || {}
     if (username) {
       const tweet = {
