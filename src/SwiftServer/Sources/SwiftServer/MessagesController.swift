@@ -409,7 +409,7 @@ final class MessagesController {
         thread.start()
         self.loopThread = thread
 
-        guard self.isValid else {
+        guard isValid else {
             dispose() // since deinit isn't called when init throws
             throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
@@ -801,7 +801,7 @@ final class MessagesController {
             }
         } onError: { attempt, _  in
             if attempt == 5 { // penultimate attempt
-                // try? self.sendReturnPress()
+                // try? sendReturnPress()
             }
         }
     }
@@ -840,7 +840,7 @@ final class MessagesController {
             if let text = text {
                 try assignToMessageField(messageField, text: text)
             } else if let filePath = filePath {
-                try self.pasteFileInBodyField(messageField, filePath: filePath)
+                try pasteFileInBodyField(messageField, filePath: filePath)
             }
             try sendMessageInField(messageField)
         }
@@ -877,7 +877,7 @@ final class MessagesController {
             return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
         }
 
-        if quotedMessage == nil { try? self.closeReplyTranscriptView() } // needed even when opening deep link
+        if quotedMessage == nil { try? closeReplyTranscriptView() } // needed even when opening deep link
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if let threadID = threadID { try ensureSelectedThread(threadID: threadID) }
@@ -898,7 +898,7 @@ final class MessagesController {
                 }
                 try sendMessageInField(messageField)
             } else if let filePath = filePath {
-                try self.pasteFileInBodyField(messageField, filePath: filePath)
+                try pasteFileInBodyField(messageField, filePath: filePath)
                 try sendMessageInField(messageField)
             }
         }
@@ -948,7 +948,7 @@ final class MessagesController {
                 // 2 for <OBJ_REPLACEMENT_CHAR> and \n
                 let charCountResult = Result { try messageField.noOfChars() }
                 guard case let .success(charCount) = charCountResult, charCount == 2 else {
-                    throw ErrorMessage("file was not pasted. \(charCountResult)")
+                    throw ErrorMessage("file was not pasted. \(charCountResult) \(messageField.isInViewport)")
                 }
             }
         }
@@ -1065,7 +1065,7 @@ final class MessagesController {
 
         debugLog("pollActivityStatus")
 
-        guard self.isValid else {
+        guard isValid else {
             debugLog("pollActivityStatus: invalid MessagesController")
             return
         }
