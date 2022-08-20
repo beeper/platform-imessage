@@ -555,6 +555,8 @@ export default class AppleiMessage implements PlatformAPI {
   sendReadReceipt = async (threadID: string, messageID: string) => {
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
+        const isRead = await this.dbAPI.isThreadRead(threadID)
+        if (isRead) return
         await this.toggleThreadRead(true)(threadID, messageID)
         if (!IS_VENTURA_OR_UP) {
           await bluebird.delay(50)

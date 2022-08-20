@@ -426,14 +426,14 @@ final class MessagesController {
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
         let allActions = try messageCell.supportedActions()
-        guard let action = allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }) else {
-            throw ErrorMessage("MessageAction.\(action) not found")
-        }
+        let action = try allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
+            .orThrow(ErrorMessage("MessageAction.\(action) not found"))
         return action
     }
 
     private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
-        let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") }).orThrow(ErrorMessage("ThreadAction.\(action) not found"))
+        let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
+            .orThrow(ErrorMessage("ThreadAction.\(action) not found"))
         try action()
     }
 
