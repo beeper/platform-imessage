@@ -689,7 +689,9 @@ final class MessagesController {
             } else if let count = Defaults.pinnedThreadsCount(), count < 9 {
                 try triggerThreadCellAction(threadID: threadID, action: .pin)
                 defer {
-                    try? triggerThreadCellAction(threadID: threadID, action: .unpin)
+                    try? retry(withTimeout: 0.2, interval: 0.05) {
+                        try triggerThreadCellAction(threadID: threadID, action: .unpin)
+                    }
                 }
                 // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
                 // openThread ensures scroll logic isn't executed
