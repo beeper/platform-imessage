@@ -84,8 +84,8 @@ final class MessagesControllerWrapper: NodeClass {
         try returnAsync { self.controller.isValid }
     }
 
-    func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.toggleThreadRead(threadID: threadID, messageGUID: messageGUID, read: read) }
+    func toggleThreadRead(threadID: String, read: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.toggleThreadRead(threadID: threadID, read: read) }
     }
 
     func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {

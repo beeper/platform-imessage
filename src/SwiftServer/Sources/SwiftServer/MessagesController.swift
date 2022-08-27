@@ -609,12 +609,12 @@ final class MessagesController {
     #if DEBUG
     // this is unusable because showing menu makes it first responder
     // keep this code as documentation
-    func markAsReadWithMenu(threadID: String, messageGUID: String) throws {
+    func markAsReadWithMenu(threadID: String) throws {
         whm.hide()
         activityLock.lock()
         defer { activityLock.unlock() }
 
-        let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
 
@@ -668,11 +668,11 @@ final class MessagesController {
         3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
         4. threadCell.press() action hack                                       (unreliable)
     */
-    func toggleThreadRead(threadID: String, messageGUID: String, read: Bool) throws {
+    func toggleThreadRead(threadID: String, read: Bool) throws {
         let startTime = Date()
         defer { Logger.log("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        let url = try MessagesDeepLink.message(guid: messageGUID, overlay: false).url()
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         whm.hide()
         activityLock.lock()
@@ -686,17 +686,22 @@ final class MessagesController {
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
                 try triggerThreadCellAction(threadID: threadID, action: action)
-            } else if let count = Defaults.pinnedThreadsCount(), count < 9 {
-                try triggerThreadCellAction(threadID: threadID, action: .pin)
+            } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
                 defer {
-                    try? retry(withTimeout: 0.2, interval: 0.05) {
-                        try triggerThreadCellAction(threadID: threadID, action: .unpin)
+                    if Defaults.pinnedThreadsCount() != pinnedCount {
+                        try? retry(withTimeout: 0.2, interval: 0.05) {
+                            Logger.log("retrying unpin")
+                            try triggerThreadCellAction(threadID: threadID, action: .unpin)
+                        }
                     }
                 }
+                try triggerThreadCellAction(threadID: threadID, action: .pin)
                 // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
                 // openThread ensures scroll logic isn't executed
                 try openThread(threadID)
-                try triggerThreadCellAction(threadID: threadID, action: action)
+                let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+                try triggerThreadCellAction(threadCell: threadCell, action: action)
+                try triggerThreadCellAction(threadCell: threadCell, action: .unpin)
             } else {
                 try markAsReadWithPressHack(threadID: threadID)
             }

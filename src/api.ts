@@ -544,10 +544,9 @@ export default class AppleiMessage implements PlatformAPI {
 
   // deleteMessage = async (threadID: string, messageID: string) => false
 
-  private toggleThreadRead = (read: boolean) => async (threadID: string, messageID: string) => {
+  private toggleThreadRead = (read: boolean) => async (threadID: string) => {
     const controller = await this.getMessagesController()
-    const messageGUID = messageID.split('_', 1)[0]
-    await controller.toggleThreadRead(threadID, messageGUID, read)
+    await controller.toggleThreadRead(threadID, read)
   }
 
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
@@ -557,7 +556,7 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         const isRead = await this.dbAPI.isThreadRead(threadID)
         if (isRead) return
-        await this.toggleThreadRead(true)(threadID, messageID)
+        await this.toggleThreadRead(true)(threadID)
         if (!IS_VENTURA_OR_UP) {
           await bluebird.delay(50)
           if (!await this.dbAPI.isThreadRead(threadID)) {
