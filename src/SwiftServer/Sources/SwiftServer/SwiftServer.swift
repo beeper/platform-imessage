@@ -14,6 +14,7 @@ final class MessagesControllerWrapper: NodeClass {
         "setReaction": NodeMethod(setReaction),
         "sendMessage": NodeMethod(sendMessage),
         "notifyAnyway": NodeMethod(notifyAnyway),
+        "isSameContact": NodeMethod(isSameContact),
         "dispose": NodeMethod(dispose)
     ]
 
@@ -168,6 +169,10 @@ final class MessagesControllerWrapper: NodeClass {
     func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
         let quotedMessage = try quotedMessageCellJSON?.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }
         return try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage) }
+    }
+
+    func isSameContact(_ a: String?, _ b: String?) -> Bool {
+        return self.controller.isSameContact(a, b)
     }
 
     func dispose() throws -> NodeValueConvertible {

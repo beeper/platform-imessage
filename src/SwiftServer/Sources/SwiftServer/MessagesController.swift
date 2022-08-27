@@ -295,7 +295,7 @@ final class MessagesController {
         )
     }
 
-    private func isSameContact(_ a: String?, _ b: String?) -> Bool {
+    func isSameContact(_ a: String?, _ b: String?) -> Bool {
         guard let contacts = contacts, let a = a, let b = b else { return false }
         return contacts.fetchID(for: a) == contacts.fetchID(for: b)
     }
@@ -807,9 +807,12 @@ final class MessagesController {
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
         } onError: { attempt, _  in
-            if attempt == 5 { // penultimate attempt
-                // try? sendReturnPress()
+            if attempt == 1 {
+                self.focusMessageField(messageField)
             }
+            // if attempt == 5 { // penultimate attempt
+            //     // try? sendReturnPress()
+            // }
         }
     }
 

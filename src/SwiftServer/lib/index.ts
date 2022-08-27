@@ -52,6 +52,8 @@ export declare class MessagesController {
 
   setReaction: (threadID: ThreadID, messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
 
+  isSameContact: (addressA: string, addressB: string) => boolean
+
   dispose: () => void
 }
 

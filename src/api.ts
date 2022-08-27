@@ -4,7 +4,6 @@ import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
-import childProcess from 'child_process'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions, SerializedSession, ThreadFolderName } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
@@ -18,7 +17,7 @@ import ThreadReadStore from './thread-read-store'
 import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import { pathExists, waitForFileToExist, shellExec } from './util'
+import { pathExists, waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus, MessageCell, MessagesController } from './SwiftServer/lib'
 import DNDState from './DNDState'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
@@ -33,7 +32,6 @@ function canAccessMessagesDir() {
     return true
   } catch (err) { return false }
 }
-
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
@@ -132,13 +130,6 @@ export default class AppleiMessage implements PlatformAPI {
       })
     }
     return this.messagesControllerFetchPromise
-  }
-
-  private static singleParticipantForThread(threadID: string | null): string | null {
-    if (!threadID?.startsWith('iMessage;-;')) {
-      return null
-    }
-    return threadID.split(';', 3).pop()
   }
 
   private sipEnabled = csrStatus().then(status => {
@@ -400,7 +391,7 @@ export default class AppleiMessage implements PlatformAPI {
       })
     })
 
-  private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000) => {
+  private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
     const count = await this.dbAPI.getThreadMessagesCount(threadID)
     await callback()
     let newCount = 0
@@ -413,12 +404,38 @@ export default class AppleiMessage implements PlatformAPI {
     return true
   }
 
-  private sendTextMessageWithAS = (threadID: string, text: string) =>
-    this.waitForThreadMessageCountIncrease(threadID, () =>
+  private waitForMessageSend = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
+    if (!IS_BIG_SUR_OR_UP) { // no swift code otherwise
+      return this.waitForThreadMessageCountIncrease(threadID, callback, timeoutMs)
+    }
+    const lastRowID = await this.dbAPI.getLastMessageRowID()
+    await callback()
+    let newMessageRowIDs: number[]
+    const startTime = Date.now()
+    while (!newMessageRowIDs?.length) {
+      newMessageRowIDs = await this.dbAPI.getSentMessageRowIDsSince(lastRowID)
+      if ((Date.now() - startTime) > timeoutMs) return false
+      await bluebird.delay(25)
+    }
+    // messages ending with links will be split into 2
+    if (newMessageRowIDs.length > 2) {
+      // shouldn't happen
+      texts.Sentry.captureMessage(`imessage: more than two sent messages: ${newMessageRowIDs.length}`)
+      return true
+    }
+    const sentThreadIDs = await Promise.all(newMessageRowIDs.map(rowID => this.dbAPI.getThreadIDForMessageRowID(rowID)))
+    const mc = await this.getMessagesController()
+    const address = threadIDToAddress(threadID)
+    return sentThreadIDs.every(sentThreadID =>
+      mc.isSameContact(address, threadIDToAddress(sentThreadID)))
+  }
+
+  private sendTextMessageWithAS = (threadID: string, text: string): Promise<boolean | Message[]> =>
+    this.waitForMessageSend(threadID, () =>
       this.asAPI.sendTextMessage(threadID, text))
 
-  private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string) =>
-    this.waitForThreadMessageCountIncrease(threadID, () => (
+  private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string): Promise<boolean | Message[]> =>
+    this.waitForMessageSend(threadID, () => (
       // send all with AX to increase reliability
       IS_MONTEREY_OR_UP // && quotedMessageID
       // quotedMessageID
@@ -426,7 +443,7 @@ export default class AppleiMessage implements PlatformAPI {
         ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
         : this.asAPI.sendFile(threadID, filePath)))
 
-  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string) => {
+  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
     await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
     const tmpFilePath = path.join(TMP_ATTACHMENT_DIR_PATH, fileName || crypto.randomUUID())
     await fs.writeFile(tmpFilePath, fileBuffer)
@@ -435,7 +452,7 @@ export default class AppleiMessage implements PlatformAPI {
     return result
   }
 
-  sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions) => {
+  sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions): Promise<boolean | Message[]> => {
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, options.quotedMessageID)
     }
@@ -445,16 +462,14 @@ export default class AppleiMessage implements PlatformAPI {
     if (IS_BIG_SUR_OR_UP) {
       if (options?.quotedMessageID) {
         this.elideStopTyping = true
-        await this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID)
-        return true
+        return this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID))
       }
 
       // has a mention or link
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
           this.elideStopTyping = true
-          await this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID)
-          return true
+          return await this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID))
         } catch (err) {
           texts.error('could not send rich text iMessage; falling back to plaintext', err)
           texts.Sentry.captureException(err)
@@ -468,8 +483,7 @@ export default class AppleiMessage implements PlatformAPI {
     } catch (err) {
       if (IS_BIG_SUR_OR_UP) {
         if (Object.values(OSAError).some(no => err.message.includes(`OSAScriptErrorNumberKey = "${no}"`))) {
-          await this.axSendWithRetry(threadID, content.text)
-          return true
+          return this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text))
         }
       }
       throw err
@@ -495,7 +509,7 @@ export default class AppleiMessage implements PlatformAPI {
   sendActivityIndicator = async (type: ActivityType, threadID: string) => {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
-    const participantID = AppleiMessage.singleParticipantForThread(threadID)
+    const participantID = getSingleParticipantAddress(threadID)
     // only 1-to-1 conversations are supported
     if (!participantID) return
     const isTyping = type === ActivityType.TYPING
@@ -590,7 +604,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!messagesController) return
 
     // ignore groups and sms threads
-    const participantID = AppleiMessage.singleParticipantForThread(threadID)
+    const participantID = getSingleParticipantAddress(threadID)
     if (!participantID) {
       return messagesController.watchThreadActivity(null)
     }

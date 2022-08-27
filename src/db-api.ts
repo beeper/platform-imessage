@@ -324,6 +324,19 @@ export default class DatabaseAPI {
   getThreadMessagesCount = (chatGUID: string): Promise<number> =>
     this.db.pluck_get<string[], number>(SQLS.getMsgCount, chatGUID)
 
+  getLastMessageRowID = (): Promise<number> =>
+    this.db.pluck_get("select seq from sqlite_sequence where name = 'message'")
+
+  getSentMessageRowIDsSince = (rowID: number): Promise<number[]> =>
+    this.db.pluck_all<number[], number>('select ROWID from message where is_from_me = 1 and ROWID > ?', rowID)
+
+  getThreadIDForMessageRowID = (rowID: number): Promise<string> =>
+    this.db.pluck_get(`SELECT t.guid
+FROM message AS m
+LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+WHERE m.ROWID = ?`, rowID)
+
   private getMappedMessagesWithoutExtraRows = async (chatGUID: string, cursor: string, direction: 'before' | 'after') => {
     const msgRows = await this.getMessages(chatGUID, cursor, direction)
     if (direction !== 'after') msgRows.reverse()
