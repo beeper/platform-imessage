@@ -426,8 +426,7 @@ export default class AppleiMessage implements PlatformAPI {
     const sentThreadIDs = await Promise.all(newMessageRowIDs.map(rowID => this.dbAPI.getThreadIDForMessageRowID(rowID)))
     const mc = await this.getMessagesController()
     const address = threadIDToAddress(threadID)
-    return sentThreadIDs.every(sentThreadID =>
-      mc.isSameContact(address, threadIDToAddress(sentThreadID)))
+    return sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc.isSameContact(address, threadIDToAddress(sentThreadID)))
   }
 
   private sendTextMessageWithAS = (threadID: string, text: string): Promise<boolean | Message[]> =>
