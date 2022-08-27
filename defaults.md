@@ -51,3 +51,5 @@ $ defaults read com.apple.messages.pinning # cat ~/Library/Preferences/com.apple
     };
 }
 ```
+
+Changing `pD` will work only when `pD.pT` is also changed and Messages.app is relaunched.

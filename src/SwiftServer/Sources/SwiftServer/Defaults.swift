@@ -26,6 +26,18 @@ enum Defaults {
         main?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
     }
 
+    #if DEBUG
+    static func pinnedData() -> [String: Any]? {
+        Defaults.pinning?.dictionary(forKey: "pD")
+    }
+
+    static func changePinnedData(_ val: [String: Any]) {
+        var modval = val
+        modval["pT"] = NSDate()
+        Defaults.pinning?.setValue(modval, forKey: "pD")
+    }
+    #endif
+
     static func pinnedThreads() -> [String]? {
         Defaults.pinning?.dictionary(forKey: "pD")?["pP"] as? [String]
     }
