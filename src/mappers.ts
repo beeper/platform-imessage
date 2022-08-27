@@ -262,11 +262,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   const partialHeader: Pick<Message, 'textHeading' | 'linkedMessageID'> = {}
-  const partialFooter: Pick<Message, 'textFooter'> = {
-    textFooter: msgRow.expressive_send_style_id
-      ? `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)`
-      : undefined,
-  }
+  const partialFooter: Pick<Message, 'textFooter'> = msgRow.expressive_send_style_id
+    ? { textFooter: `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)` }
+    : {}
 
   const payloadData = getPayloadData(msgRow)
   Object.assign(partialMessage, getPayloadProps(payloadData, attachments, msgRow.balloon_bundle_id))

@@ -8,6 +8,7 @@ import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread,
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
+import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from './mappers'
@@ -220,7 +221,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private catalinaCreateThread = async (userIDs: string[]) => {
     const threadID = await this.asAPI.createThread(userIDs)
-    await bluebird.delay(10)
+    await setTimeoutAsync(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
     if (!chatRow) return
     const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
@@ -369,6 +370,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private axSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
     this.axSendQueue.add(async () => {
+      this.elideStopTyping = true
       const retries = quotedMessageID ? 2 : 1
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
@@ -397,7 +399,7 @@ export default class AppleiMessage implements PlatformAPI {
     let newCount = 0
     const startTime = Date.now()
     while (newCount === 0) {
-      await bluebird.delay(25)
+      await setTimeoutAsync(25)
       newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
       if ((Date.now() - startTime) > timeoutMs) return false
     }
@@ -410,23 +412,31 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const lastRowID = await this.dbAPI.getLastMessageRowID()
     await callback()
-    let newMessageRowIDs: number[]
+    let sentMessageIDs: [number, string][]
     const startTime = Date.now()
-    while (!newMessageRowIDs?.length) {
-      newMessageRowIDs = await this.dbAPI.getSentMessageRowIDsSince(lastRowID)
+    while (!sentMessageIDs?.length) {
+      sentMessageIDs = await this.dbAPI.getSentMessageIDsSince(lastRowID)
       if ((Date.now() - startTime) > timeoutMs) return false
-      await bluebird.delay(25)
+      await setTimeoutAsync(25)
     }
     // messages ending with links will be split into 2
-    if (newMessageRowIDs.length > 2) {
+    if (sentMessageIDs.length > 2) {
       // shouldn't happen
-      texts.Sentry.captureMessage(`imessage: more than two sent messages: ${newMessageRowIDs.length}`)
+      texts.Sentry.captureMessage(`imessage: more than two sent messages: ${sentMessageIDs.length}`)
       return true
     }
-    const sentThreadIDs = await Promise.all(newMessageRowIDs.map(rowID => this.dbAPI.getThreadIDForMessageRowID(rowID)))
+    const getSentThreadIDs = () => Promise.all(sentMessageIDs.map(([rowID]) => this.dbAPI.getThreadIDForMessageRowID(rowID)))
+    let sentThreadIDs = await getSentThreadIDs()
+    if (sentThreadIDs.some(t => !t)) {
+      await setTimeoutAsync(25)
+      sentThreadIDs = await getSentThreadIDs()
+    }
     const mc = await this.getMessagesController()
     const address = threadIDToAddress(threadID)
-    return sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc.isSameContact(address, threadIDToAddress(sentThreadID)))
+    if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc.isSameContact(address, threadIDToAddress(sentThreadID)))) {
+      throw Error('potentially sent messages to invalid thread')
+    }
+    return Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))
   }
 
   private sendTextMessageWithAS = (threadID: string, text: string): Promise<boolean | Message[]> =>
@@ -451,24 +461,24 @@ export default class AppleiMessage implements PlatformAPI {
     return result
   }
 
-  sendMessage = async (threadID: string, content: MessageContent, options?: MessageSendOptions): Promise<boolean | Message[]> => {
+  sendMessage = async (threadID: string, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+    const { quotedMessageID } = options
     if (content.fileBuffer) {
-      return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, options.quotedMessageID)
+      return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, quotedMessageID)
     }
     if (content.filePath) {
-      return this.sendFileFromFilePath(threadID, content.filePath, options.quotedMessageID)
+      return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
     }
     if (IS_BIG_SUR_OR_UP) {
-      if (options?.quotedMessageID) {
-        this.elideStopTyping = true
-        return this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID))
+      if (quotedMessageID) {
+        return this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
       }
 
       // has a mention or link
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
-          this.elideStopTyping = true
-          return await this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, options.quotedMessageID))
+          const result = await this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
+          return result
         } catch (err) {
           texts.error('could not send rich text iMessage; falling back to plaintext', err)
           texts.Sentry.captureException(err)
@@ -514,7 +524,7 @@ export default class AppleiMessage implements PlatformAPI {
     const isTyping = type === ActivityType.TYPING
     if (!isTyping) {
       this.elideStopTyping = false
-      await bluebird.delay(100)
+      await setTimeoutAsync(100)
       if (this.elideStopTyping) {
         texts.log('Stop typing elided')
         this.elideStopTyping = false
@@ -571,7 +581,7 @@ export default class AppleiMessage implements PlatformAPI {
         if (isRead) return
         await this.toggleThreadRead(true)(threadID)
         if (!IS_VENTURA_OR_UP) {
-          await bluebird.delay(50)
+          await setTimeoutAsync(50)
           if (!await this.dbAPI.isThreadRead(threadID)) {
             this.threadReadStore?.markThreadRead(threadID, messageID)
             throw new Error('toggleThreadRead failed')
@@ -690,7 +700,7 @@ export default class AppleiMessage implements PlatformAPI {
         while (attemptsRemaining--) {
           const fileName = fileNames.find(fn => fn.startsWith(`hw_${uuid}_`))
           if (!fileName) {
-            await bluebird.delay(100)
+            await setTimeoutAsync(100)
             continue
           }
           const hwPath = path.join(TMP_MOBILE_SMS_PATH, fileName)

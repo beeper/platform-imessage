@@ -4,6 +4,7 @@ import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
 // import { parentPort } from 'worker_threads'
 import imageSizeCallback from 'image-size'
 import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
+import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { CHAT_DB_PATH } from './constants'
 import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
@@ -58,7 +59,7 @@ WHERE t.guid = ?`,
 FROM message AS m
 LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
 LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
-WHERE m.ROWID IN (${msgIDs.map(_ => '?').join(', ')})`,
+WHERE m.ROWID IN (${new Array(msgIDs.length).fill('?').join(', ')})`,
   getMessageReactions: (msgGUIDs: string[]) => `SELECT is_from_me, handle_id, associated_message_type, associated_message_guid, h.id AS participantID
 FROM message AS m
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
@@ -133,7 +134,7 @@ async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxA
   let rows: T[] = []
   while (attempt++ < maxAttempt && rows.length < minRowCount) {
     rows = await queryFn()
-    await bluebird.delay(50)
+    await setTimeoutAsync(50)
   }
   return rows
 }
@@ -183,7 +184,7 @@ export default class DatabaseAPI {
     if (this.calledRustServerSetOnce) return
     this.calledRustServerSetOnce = true
     while (!this.rustServer) {
-      await bluebird.delay(10)
+      await setTimeoutAsync(10)
     }
     this.rustServer!.startPoller(BigInt(maxRowID), BigInt(maxDateRead))
   }
@@ -327,8 +328,8 @@ export default class DatabaseAPI {
   getLastMessageRowID = (): Promise<number> =>
     this.db.pluck_get("select seq from sqlite_sequence where name = 'message'")
 
-  getSentMessageRowIDsSince = (rowID: number): Promise<number[]> =>
-    this.db.pluck_all<number[], number>('select ROWID from message where is_from_me = 1 and ROWID > ?', rowID)
+  getSentMessageIDsSince = (rowID: number): Promise<[number, string][]> =>
+    this.db.raw_all<number[], [number, string]>('select ROWID, guid from message where is_from_me = 1 and ROWID > ?', rowID)
 
   getThreadIDForMessageRowID = (rowID: number): Promise<string> =>
     this.db.pluck_get(`SELECT t.guid

@@ -1,6 +1,6 @@
 import childProcess from 'child_process'
 import pRetry from 'p-retry'
-import bluebird from 'bluebird'
+import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { IS_BIG_SUR_OR_UP, MESSAGES_APP_BUNDLE_ID } from './constants'
 import spawnASServer from './as-server'
@@ -92,7 +92,7 @@ function createAPIServer() {
     spawnedMessagesApp = true
     console.log('opening Messages.app')
     childProcess.spawn('/usr/bin/open', ['-gjb', MESSAGES_APP_BUNDLE_ID])
-    await bluebird.delay(200)
+    await setTimeoutAsync(200)
   }
 
   const dispose = () => {

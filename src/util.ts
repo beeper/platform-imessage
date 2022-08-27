@@ -1,7 +1,7 @@
 import os from 'os'
 import fs from 'fs/promises'
 import childProcess from 'child_process'
-import bluebird from 'bluebird'
+import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 const DATE_OFFSET = 978307200000
 
@@ -66,7 +66,7 @@ export async function waitForFileToExist(filePath: string, maxWaitMs: number) {
   const stopAt = Date.now() + maxWaitMs
   while (!await pathExists(filePath)) {
     if (Date.now() > stopAt) return false
-    await bluebird.delay(20)
+    await setTimeoutAsync(20)
   }
   return true
 }
