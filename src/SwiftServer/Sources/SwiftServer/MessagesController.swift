@@ -307,7 +307,10 @@ final class MessagesController {
             let selectedAddress = try Defaults.getSelectedThreadID().flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
             guard selectedAddress == addressToMatch ||
                 (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
-            else { throw ErrorMessage("thread not selected") }
+            else {
+                debugLog("thread not selected: \(selectedAddress) \(addressToMatch)")
+                throw ErrorMessage("thread not selected")
+            }
         }
     }
 

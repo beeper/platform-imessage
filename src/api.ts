@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import bluebird from 'bluebird'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, Awaitable, GetAssetOptions, SerializedSession, ThreadFolderName } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
@@ -265,7 +265,7 @@ export default class AppleiMessage implements PlatformAPI {
     return true
   }
 
-  getUser = async (ids: { userID?: string } | { username?: string } | { phoneNumber?: string } | { email?: string }): Promise<User> => {
+  getUser = async (ids: { userID?: string } | { username?: string } | { phoneNumber?: PhoneNumber } | { email?: string }): Promise<User> => {
     // todo find if actually registered on imessage
     if ('phoneNumber' in ids) return { id: ids.phoneNumber, phoneNumber: ids.phoneNumber }
     if ('email' in ids) return { id: ids.email, email: ids.email }
@@ -406,7 +406,7 @@ export default class AppleiMessage implements PlatformAPI {
     return true
   }
 
-  private waitForMessageSend = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
+  private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
     if (!IS_BIG_SUR_OR_UP) { // no swift code otherwise
       return this.waitForThreadMessageCountIncrease(threadID, callback, timeoutMs)
     }
@@ -436,15 +436,24 @@ export default class AppleiMessage implements PlatformAPI {
     if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc.isSameContact(address, threadIDToAddress(sentThreadID)))) {
       throw Error('potentially sent messages to invalid thread')
     }
-    return Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))
+    const messages = await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))
+    for (const message of messages) {
+      const intended = quotedMessageID ?? undefined
+      const actual = message.linkedMessageID ?? undefined
+      if (intended !== actual) {
+        console.log('imessage sent message with incorrect quoted message id', { intended, actual })
+        texts.Sentry.captureMessage(`imessage sent message with incorrect quoted message id, intended=${!!intended} actual=${!!actual}`)
+      }
+    }
+    return messages
   }
 
   private sendTextMessageWithAS = (threadID: string, text: string): Promise<boolean | Message[]> =>
-    this.waitForMessageSend(threadID, () =>
+    this.waitForMessageSend(threadID, undefined, () =>
       this.asAPI.sendTextMessage(threadID, text))
 
   private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string): Promise<boolean | Message[]> =>
-    this.waitForMessageSend(threadID, () => (
+    this.waitForMessageSend(threadID, quotedMessageID, () => (
       // send all with AX to increase reliability
       IS_MONTEREY_OR_UP // && quotedMessageID
       // quotedMessageID
@@ -471,13 +480,13 @@ export default class AppleiMessage implements PlatformAPI {
     }
     if (IS_BIG_SUR_OR_UP) {
       if (quotedMessageID) {
-        return this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
+        return this.waitForMessageSend(threadID, quotedMessageID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
       }
 
       // has a mention or link
       if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
         try {
-          const result = await this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
+          const result = await this.waitForMessageSend(threadID, quotedMessageID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
           return result
         } catch (err) {
           texts.error('could not send rich text iMessage; falling back to plaintext', err)
@@ -492,7 +501,7 @@ export default class AppleiMessage implements PlatformAPI {
     } catch (err) {
       if (IS_BIG_SUR_OR_UP) {
         if (Object.values(OSAError).some(no => err.message.includes(`OSAScriptErrorNumberKey = "${no}"`))) {
-          return this.waitForMessageSend(threadID, () => this.axSendWithRetry(threadID, content.text))
+          return this.waitForMessageSend(threadID, quotedMessageID, () => this.axSendWithRetry(threadID, content.text))
         }
       }
       throw err
