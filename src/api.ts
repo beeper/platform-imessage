@@ -393,7 +393,7 @@ export default class AppleiMessage implements PlatformAPI {
       })
     })
 
-  private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
+  private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 45_000): Promise<boolean | Message[]> => {
     const lastRowID = await this.dbAPI.getLastMessageRowID()
     await callback()
     let sentMessageIDs: [number, string][]
@@ -541,7 +541,13 @@ export default class AppleiMessage implements PlatformAPI {
         ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
         : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
       const controller = await this.getMessagesController()
-      await controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on)
+      const result = await this.waitForMessageSend(
+        threadID,
+        messageID,
+        () => controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on),
+        5_000,
+      )
+      if (!result) throw Error('setReaction unknown error')
     }, {
       onFailedAttempt: error => {
         texts.Sentry.captureException(error)
