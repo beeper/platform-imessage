@@ -393,23 +393,7 @@ export default class AppleiMessage implements PlatformAPI {
       })
     })
 
-  private waitForThreadMessageCountIncrease = async (threadID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
-    const count = await this.dbAPI.getThreadMessagesCount(threadID)
-    await callback()
-    let newCount = 0
-    const startTime = Date.now()
-    while (newCount === 0) {
-      await setTimeoutAsync(25)
-      newCount = await this.dbAPI.getThreadMessagesCount(threadID) - count
-      if ((Date.now() - startTime) > timeoutMs) return false
-    }
-    return true
-  }
-
   private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 60_000): Promise<boolean | Message[]> => {
-    if (!IS_BIG_SUR_OR_UP) { // no swift code otherwise
-      return this.waitForThreadMessageCountIncrease(threadID, callback, timeoutMs)
-    }
     const lastRowID = await this.dbAPI.getLastMessageRowID()
     await callback()
     let sentMessageIDs: [number, string][]
@@ -433,7 +417,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const mc = await this.getMessagesController()
     const address = threadIDToAddress(threadID)
-    if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc.isSameContact(address, threadIDToAddress(sentThreadID)))) {
+    if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc?.isSameContact(address, threadIDToAddress(sentThreadID)))) {
       throw Error('potentially sent messages to invalid thread')
     }
     const messages = await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))
@@ -441,8 +425,8 @@ export default class AppleiMessage implements PlatformAPI {
       const intended = quotedMessageID ?? undefined
       const actual = message.linkedMessageID ?? undefined
       if (intended !== actual) {
-        console.log('imessage sent message with incorrect quoted message id', { intended, actual })
-        texts.Sentry.captureMessage(`imessage sent message with incorrect quoted message id, intended=${!!intended} actual=${!!actual}`)
+        console.log('imessage sent message with incorrect quoted message', { intended, actual })
+        texts.Sentry.captureMessage(`imessage sent message with incorrect quoted message, intended=${!!intended} actual=${!!actual}`)
       }
     }
     return messages
@@ -543,7 +527,7 @@ export default class AppleiMessage implements PlatformAPI {
     return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
   }
 
-  setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
+  private setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
     await pRetry(async () => {
       const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', messageID])
@@ -553,10 +537,10 @@ export default class AppleiMessage implements PlatformAPI {
       const message = messages[messageID.split('_', 2)[1] || 0]
       // use overlay mode only when the message is not in a thread
       const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
-      const controller = await this.getMessagesController()
       const closestMessage: AXMessageSelection = overlay
         ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
         : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
+      const controller = await this.getMessagesController()
       await controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on)
     }, {
       onFailedAttempt: error => {
