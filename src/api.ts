@@ -411,13 +411,15 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const getSentThreadIDs = () => Promise.all(sentMessageIDs.map(([rowID]) => this.dbAPI.getThreadIDForMessageRowID(rowID)))
     let sentThreadIDs = await getSentThreadIDs()
-    if (sentThreadIDs.some(t => !t)) {
+    const start = Date.now()
+    while (sentThreadIDs.some(t => !t)) {
       await setTimeoutAsync(25)
       sentThreadIDs = await getSentThreadIDs()
+      if ((Date.now() - start) > 10_000) break
     }
     const mc = await this.getMessagesController()
     const address = threadIDToAddress(threadID)
-    if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || mc?.isSameContact(address, threadIDToAddress(sentThreadID)))) {
+    if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || (sentThreadID && mc?.isSameContact(address, threadIDToAddress(sentThreadID))))) {
       throw Error('potentially sent messages to invalid thread')
     }
     const messages = await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))
