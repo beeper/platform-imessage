@@ -304,7 +304,11 @@ final class MessagesController {
     private func ensureSelectedThread(threadID: String) throws {
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
         try retry(withTimeout: 1.2, interval: 0.05) {
-            let selectedAddress = try Defaults.getSelectedThreadID().flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
+            let selectedAddressOptional = Defaults.getSelectedThreadID()
+            if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {
+                throw ErrorMessage("compose thread selected")
+            }
+            let selectedAddress = try selectedAddressOptional.flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
             guard selectedAddress == addressToMatch ||
                 (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
             else {
