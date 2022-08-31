@@ -274,9 +274,9 @@ export default class DatabaseAPI {
 
   private imageSizeMemoized = memoize(imageSizeAsync)
 
-  getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
-    const attachments = this.db.all<number[], MappedAttachmentRow>(SQLS.getAttachments(msgRowIDs), ...msgRowIDs)
-    return bluebird.map(attachments, async a => {
+  async getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
+    const attachments = await this.db.all<number[], MappedAttachmentRow>(SQLS.getAttachments(msgRowIDs), ...msgRowIDs)
+    return Promise.all(attachments.map(async a => {
       const filePath = replaceTilde(a.filename)
       const { base, ext: _ext } = filePath ? path.parse(filePath) : { base: a.transfer_name, ext: '' }
       const ext = _ext.slice(1).toLowerCase()
@@ -301,7 +301,7 @@ export default class DatabaseAPI {
         } catch (err) { texts.error(err) }
       }
       return a
-    })
+    }))
   }
 
   getMessageReactions(msgGUIDs: string[], chatGUID: string, chatRowID: number = this.chatGUIDRowIDMap.get(chatGUID)): Promise<MappedReactionMessageRow[]> {

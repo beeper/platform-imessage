@@ -1,6 +1,5 @@
 import path from 'path'
 import url from 'url'
-import bluebird from 'bluebird'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet'
 import cn from 'clsx'
@@ -10,6 +9,8 @@ import type PAPI from '../api'
 
 import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
 import useAsync from './use-async'
+
+const sleep = (ms: number) => new Promise(resolve => { setTimeout(resolve, ms) })
 
 const staticPrefix = window.location.protocol === 'file:'
   ? url.pathToFileURL(BINARIES_DIR_PATH).href
@@ -338,7 +339,7 @@ const ChecklistPage: React.FC<Props> = props => {
     const uncompletedItems = checklistItems.filter(i => !i.completed)
     for (const item of uncompletedItems) {
       await item.action()
-      await bluebird.delay(50)
+      await sleep(50)
     }
   }
 

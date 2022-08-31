@@ -3,7 +3,6 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import bluebird from 'bluebird'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
@@ -289,14 +288,14 @@ export default class AppleiMessage implements PlatformAPI {
     const allMsgRows: MappedMessageRow[] = []
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
     const [, , groupImagesRows, unreadChatRowIDs, dndState] = await Promise.all([
-      bluebird.map(chatRows, async chat => {
+      Promise.all(chatRows.map(async chat => {
         const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
         mapMessageArgsMap[chat.guid] = [msgRows, attachmentRows, reactionRows]
-      }),
-      bluebird.map(chatRows, async chat => {
+      })),
+      Promise.all(chatRows.map(async chat => {
         handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
-      }),
+      })),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
       this.dbAPI.getUnreadChatRowIDs(),
       this.dndState.get(),
