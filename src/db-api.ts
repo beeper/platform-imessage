@@ -1,5 +1,5 @@
 import path from 'path'
-import bluebird, { promisify } from 'bluebird'
+import { promisify } from 'util'
 import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
 // import { parentPort } from 'worker_threads'
 import imageSizeCallback from 'image-size'
