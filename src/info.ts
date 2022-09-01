@@ -1,4 +1,4 @@
-import { PlatformInfo, MessageDeletionMode, Attribute, texts } from '@textshq/platform-sdk'
+import { PlatformInfo, MessageDeletionMode, Attribute } from '@textshq/platform-sdk'
 import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import type { MessageWithExtra } from './mappers'
@@ -74,7 +74,6 @@ const info: PlatformInfo = {
     requiresContactsAccess: true,
     canQuoteOriginalMessageOnly: true,
   },
-  auth: texts.React?.lazy(() => import('./auth')),
   getUserProfileLink: ({ email, phoneNumber }) =>
     `imessage://${email || phoneNumber}`,
 }
