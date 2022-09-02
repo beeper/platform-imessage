@@ -144,13 +144,16 @@ export default class AppleiMessage implements PlatformAPI {
 
   private session: SerializedSession
 
+  private experiments: string
+
   init = async (session: SerializedSession, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
     this.session = session || {}
     this.accountID = accountID
     const userDataDirPath = path.dirname(dataDirPath)
+    this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
       swiftServer.isPHTEnabled = prefs.hide_messages_app
-      swiftServer.enabledExperiments = await pathExists(path.join(userDataDirPath, 'imessage-enabled-experiments')) ? 'true' : ''
+      swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
     await this.dbAPI.init()
@@ -193,8 +196,6 @@ export default class AppleiMessage implements PlatformAPI {
     })
     this.onEvent = onEvent
   }
-
-  searchUsers = (typed: string): User[] => []
 
   getThread = async (threadID: string) => {
     const chatRow = await this.dbAPI.getThread(threadID)
@@ -607,6 +608,7 @@ export default class AppleiMessage implements PlatformAPI {
   private dndSet = new Set<string>()
 
   onThreadSelected = async (threadID: string) => {
+    if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
     // fired for messagesController
     const messagesController = await this.getMessagesController()
