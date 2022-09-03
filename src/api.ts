@@ -17,7 +17,7 @@ import ThreadReadStore from './thread-read-store'
 import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
-import { pathExists, waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
+import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus, MessageCell, MessagesController } from './SwiftServer/lib'
 import DNDState from './DNDState'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
@@ -393,14 +393,14 @@ export default class AppleiMessage implements PlatformAPI {
       })
     })
 
-  private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 45_000): Promise<boolean | Message[]> => {
+  private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
     const lastRowID = await this.dbAPI.getLastMessageRowID()
     await callback()
     let sentMessageIDs: [number, string][]
     const startTime = Date.now()
     while (!sentMessageIDs?.length) {
       sentMessageIDs = await this.dbAPI.getSentMessageIDsSince(lastRowID)
-      if ((Date.now() - startTime) > timeoutMs) return false
+      if ((Date.now() - startTime) > timeoutMs) throw Error('timed out waiting for sent messages')
       await setTimeoutAsync(25)
     }
     // messages ending with links will be split into 2
