@@ -696,10 +696,13 @@ final class MessagesController {
             } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
                 defer {
                     if Defaults.pinnedThreadsCount() != pinnedCount {
-                        try? retry(withTimeout: 0.2, interval: 0.05) {
+                        try? retry(withTimeout: 0.3, interval: 0.05) {
                             Logger.log("retrying unpin")
                             try triggerThreadCellAction(threadID: threadID, action: .unpin)
                         }
+                    }
+                    if Defaults.pinnedThreadsCount() != pinnedCount {
+                        Logger.log("couldn't restore pins \(Defaults.pinnedThreadsCount()) != \(pinnedCount)")
                     }
                 }
                 try triggerThreadCellAction(threadID: threadID, action: .pin)
@@ -971,10 +974,12 @@ final class MessagesController {
         }
     }
 
+    var lastActivate: Date?
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
     private func activateMessages() {
         do {
+            lastActivate = Date()
             debugLog("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
@@ -986,6 +991,7 @@ final class MessagesController {
 
     private func deactivateMessages() {
         do {
+            lastActivate.map { Logger.log("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
             debugLog("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             try whm.appDeactivated(window: elements.getMainWindow())
