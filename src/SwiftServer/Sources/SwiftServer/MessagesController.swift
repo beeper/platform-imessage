@@ -541,7 +541,10 @@ final class MessagesController {
             // }
             if messageCell.overlay { try waitUntilReplyTranscriptVisible() }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
-                guard let cell = try messageCell.overlay ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView) : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
+                guard let cell = try messageCell.overlay
+                    ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
+                    : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
+                else {
                     throw ErrorMessage("message cell nil")
                 }
                 guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
@@ -1086,12 +1089,17 @@ final class MessagesController {
         guard activityLock.try() else { return }
         defer { activityLock.unlock() }
 
-        debugLog("pollActivityStatus")
+        guard !NSApp.isHidden else {
+            debugLog("pollActivityStatus: skipping since app hidden")
+            return
+        }
 
         guard isValid else {
             debugLog("pollActivityStatus: invalid MessagesController")
             return
         }
+
+        debugLog("pollActivityStatus")
 
         let selectedThread = Defaults.getSelectedThreadID().flatMap(splitThreadID)
         let observerAddress = threadIDToAddress(observer.threadID)

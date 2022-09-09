@@ -14,7 +14,7 @@ export interface Fragment {
   attributes: { [key: string]: string }
 }
 
-export enum ActivityStatus {
+export const enum ActivityStatus {
   DND = 'DND',
   DNDCanNotify = 'DND_CAN_NOTIFY',
   Typing = 'TYPING',
