@@ -267,10 +267,15 @@ final class MessagesController {
     }
 
     // without expanding splitter, thread cells will not have custom ax actions (on monterey at least)
-    func expandSplitter() throws {
+    private func expandSplitter() throws {
         if try elements.conversationsList.size().width < 99 { // width is 94 when in compact mode
             try elements.splitter.increment()
         }
+    }
+
+    private func resetWindow() {
+        try? elements.searchField.cancel()
+        try? expandSplitter()
     }
 
     private static func terminateApp(_ app: NSRunningApplication) throws {
@@ -420,7 +425,7 @@ final class MessagesController {
             dispose() // since deinit isn't called when init throws
             throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
         }
-        try? expandSplitter()
+        resetWindow()
     }
 
     var isValid: Bool {
@@ -1003,7 +1008,7 @@ final class MessagesController {
             let window = elements.getMainWindow()
             try whm.appDeactivated(window: window)
             if window != nil {
-                try? elements.searchField.cancel()
+                resetWindow()
             }
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")
