@@ -1,6 +1,7 @@
 import childProcess from 'child_process'
 import pRetry from 'p-retry'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
+import { texts } from '@textshq/platform-sdk'
 
 import { IS_BIG_SUR_OR_UP, MESSAGES_APP_BUNDLE_ID } from './constants'
 import spawnASServer from './as-server'
@@ -21,7 +22,11 @@ enum ScriptName {
 const RETRY_OPTIONS: pRetry.Options = {
   retries: 1,
   minTimeout: 10,
-  onFailedAttempt: error => console.error(error),
+  maxRetryTime: 10_000,
+  onFailedAttempt: error => {
+    texts.Sentry.captureException(error)
+    console.error(error)
+  },
 }
 
 export const OSAError = {
