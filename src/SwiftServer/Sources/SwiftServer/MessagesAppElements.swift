@@ -33,17 +33,17 @@ final class MessagesAppElements {
     let app: Accessibility.Element
 
     // private var cachedConversationsList: Accessibility.Element?
-    // private var cachedTranscriptView: Accessibility.Element?
     // private var cachedReplyTranscriptView: Accessibility.Element?
+    var cachedTranscriptView: Accessibility.Element?
     private var cachedMainWindow: Accessibility.Element?
 
-    // private func clearCachedElements() {
-    //     // these are manually cleared because we aren't checking for validity on each property access
-    //     // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
-    //     cachedConversationsList = nil
-    //     cachedTranscriptView = nil
-    //     cachedReplyTranscriptView = nil
-    // }
+    func clearCachedElements() {
+        // these are manually cleared because we aren't checking for validity on each property access
+        // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
+        // cachedConversationsList = nil
+        // cachedReplyTranscriptView = nil
+        cachedTranscriptView = nil
+    }
 
     init(runningApp: NSRunningApplication, whm: WindowHidingManager) {
         self.runningApp = runningApp
@@ -186,7 +186,7 @@ final class MessagesAppElements {
             //     return cached
             // }
             let tcv = try getTranscriptView(replyTranscript: false)
-            // cachedTranscriptView = tcv
+            cachedTranscriptView = tcv
             return tcv
         }
     }

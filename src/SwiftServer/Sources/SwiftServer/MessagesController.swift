@@ -427,6 +427,16 @@ final class MessagesController {
         !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && whm.isValid
     }
 
+    @inlinable func startedAutomation() {
+        elements.clearCachedElements()
+        whm.hide()
+        activityLock.lock()
+    }
+
+    @inlinable func finishedAutomation() {
+        activityLock.unlock()
+    }
+
     private func messageAction(messageCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
         // [press, AXScrollToVisible, show menu, Escape, scroll left by a page, scroll right by a page, React, Reply, Copy]
         // ["AXPress", "AXScrollToVisible", "AXShowMenu", "AXCancel", "AXScrollLeftByPage", "AXScrollRightByPage", "Name:React\nTarget:0x0\nSelector:(null)", "Name:Reply\nTarget:0x0\nSelector:(null)", "Name:Copy\nTarget:0x0\nSelector:(null)"]
@@ -589,9 +599,8 @@ final class MessagesController {
         let startTime = Date()
         defer { Logger.log("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         let idx = reaction.index
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
@@ -620,9 +629,8 @@ final class MessagesController {
     // this is unusable because showing menu makes it first responder
     // keep this code as documentation
     func markAsReadWithMenu(threadID: String) throws {
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -684,9 +692,8 @@ final class MessagesController {
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
@@ -729,9 +736,8 @@ final class MessagesController {
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
@@ -750,9 +756,8 @@ final class MessagesController {
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
@@ -771,9 +776,8 @@ final class MessagesController {
         // shows up client-side as a ghost message.
         let url = try MessagesDeepLink(threadID: threadID, body: isTyping ? " " : nil).url()
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if isTyping { return } // no further action required
@@ -885,9 +889,8 @@ final class MessagesController {
             throw ErrorMessage("not implemented")
         }
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         // this isn't reliable so we use pasteFileInBodyField:
         // if let filePath = filePath {
@@ -1008,7 +1011,13 @@ final class MessagesController {
         let startTime = Date()
         defer { Logger.log("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
-        guard let transcript = try? elements.transcriptView,
+        func getTV() -> Accessibility.Element? {
+            if let cached = elements.cachedTranscriptView, cached.isInViewport {
+                return cached
+            }
+            return try? elements.transcriptView
+        }
+        guard let transcript = getTV(),
               let count = try? transcript.children.count() else {
             return [.unknown]
         }
@@ -1022,8 +1031,9 @@ final class MessagesController {
             }
             cellsToCheck = [elt]
         default:
-            // todo review if 2 : 1 is enough
-            let lastN = isMontereyOrUp ? 3 : 2
+            // pre-monterey, there can only be one <typing cell>
+            // post-monterey, there can be <typing cell>, "...has notifications silenced", "Notify Anyway"
+            let lastN = isMontereyOrUp ? 3 : 1
             guard let elts = try? transcript.children(range: (count - lastN)..<count), elts.count == lastN else {
                 return [.unknown]
             }
@@ -1057,9 +1067,8 @@ final class MessagesController {
     func notifyAnyway(threadID: String) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
@@ -1131,9 +1140,8 @@ final class MessagesController {
     func observe(threadID: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        whm.hide()
-        activityLock.lock()
-        defer { activityLock.unlock() }
+        startedAutomation()
+        defer { finishedAutomation() }
 
         // we remove the previous observer first, so that if
         // this method fails we don't keep sending notifs to the old
