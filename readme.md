@@ -14,3 +14,5 @@ SwiftServer exposes Swift functions to JS via NAPI/[node-swift](https://github.c
 * `MessagesController.pasteFileInBodyField`: On Big Sur, using `pasteboard.setString(fileURL.relativeString, forType: .fileURL)` doesn't paste the file itself but a link. Monterey has intended behavior.
 
 * `elements.selectedThreadCell` is nil after pin/unpin because no cells are selected. `imessage://open?message-guid=` will not select the thread in sidebar (`elements.selectedThreadCell == nil`) if it's already open but `imessage://open?address=` will.
+
+* After `elements.searchField` was clicked: `elements.conversationsList` will be nil, selected item in sidebar will not always be reflective of the messages list, calling a deep link will not update sidebar but only the messages list, `CKLastSelectedItemIdentifier` won't be updated.

@@ -221,7 +221,7 @@ final class MessagesAppElements {
         get throws {
             let startTime = Date()
             defer { Logger.log("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            return try retry(withTimeout: 1.5, interval: 0.1) {
+            return try retry(withTimeout: 1, interval: 0.1) {
                 let CKConversationListCollectionView = try Self.getCKConversationListCollectionView(window: mainWindow)
                     .orThrow(ErrorMessage("CKConversationListCollectionView not found"))
                 return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }

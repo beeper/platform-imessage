@@ -1000,7 +1000,11 @@ final class MessagesController {
             lastActivate.map { Logger.log("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
             debugLog("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            try whm.appDeactivated(window: elements.getMainWindow())
+            let window = elements.getMainWindow()
+            try whm.appDeactivated(window: window)
+            if window != nil {
+                try? elements.searchField.cancel()
+            }
         } catch {
             debugLog("warning: Could not hide Messages window: \(error)")
         }
