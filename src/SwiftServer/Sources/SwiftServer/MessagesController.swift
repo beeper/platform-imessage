@@ -582,7 +582,7 @@ final class MessagesController {
                 guard containerCells.indices.contains(target) else {
                     throw ErrorMessage("Desired index out of bounds")
                 }
-                targetCell = try containerCells[target].children.value(at: 0)
+                targetCell = try containerCells[target].children[0]
             }
             if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
                 guard role == cellRole else {
@@ -1035,7 +1035,7 @@ final class MessagesController {
         case 0:
             return [.unknown]
         case 1:
-            guard let elt = try? transcript.children.value(at: 0) else {
+            guard let elt = try? transcript.children[0] else {
                 return [.unknown]
             }
             cellsToCheck = [elt]
@@ -1053,7 +1053,7 @@ final class MessagesController {
         let dndFlag: ActivityStatus? = {
             guard isMontereyOrUp else { return nil }
             for elt in cellsToCheck.reversed() {
-                guard let child = try? elt.children.value(at: 0) else { continue }
+                guard let child = try? elt.children[0] else { continue }
                 if (try? child.role()) == AXRole.button,
                    (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify

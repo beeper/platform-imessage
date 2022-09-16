@@ -10,7 +10,7 @@ final class MessagesAppElements {
 
     static func isMessageContainerCell(_ el: Accessibility.Element) -> Bool {
         (try? el.localizedDescription())?.isEmpty == false &&
-            (try? el.children.value(at: 0).supportedActions().contains(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)") })) == true
+            (try? el.children[0].supportedActions().contains(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)") })) == true
     }
 
     static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
@@ -18,13 +18,13 @@ final class MessagesAppElements {
     }
 
     static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
-        try tv.children().first(where: Self.isMessageContainerCell)?.children.value(at: 0)
+        try tv.children().first(where: Self.isMessageContainerCell)?.children[0]
     }
 
     static func firstSelectedMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
         // selectedChildren wont work here
-        // tv.children().first { (try? $0.selectedChildren.value(at: 0)) != nil }?.children.value(at: 0)
-        try tv.children().first { (try? $0.children.value(at: 0).isSelected()) == true }?.children.value(at: 0)
+        // tv.children().first { (try? $0.selectedChildren[0]) != nil }?.children[0]
+        try tv.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
     }
 
     private let whm: WindowHidingManager
@@ -153,7 +153,7 @@ final class MessagesAppElements {
 
     var selectedThreadCell: Accessibility.Element? {
         get {
-            try? conversationsList.selectedChildren.value(at: 0)
+            try? conversationsList.selectedChildren[0]
         }
     }
 
@@ -243,7 +243,7 @@ final class MessagesAppElements {
         get throws {
             let startTime = Date()
             defer { Logger.log("iOSContentGroupFirstChild took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            return try (try? iOSContentGroup.children.value(at: 0))
+            return try (try? iOSContentGroup.children[0])
                 .orThrow(ErrorMessage("iOSContentGroupFirstChild not found"))
         }
     }
@@ -312,7 +312,7 @@ final class MessagesAppElements {
             let tv = try transcriptView
             let count = try tv.children.count()
             return try transcriptView.children(range: (count - 2)..<count).first(where: {
-                let child = try $0.children.value(at: 0)
+                let child = try $0.children[0]
                 return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == AXRole.button
             }).orThrow(ErrorMessage("notifyAnywayButton not found"))
         }

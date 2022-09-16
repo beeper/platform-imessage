@@ -78,7 +78,7 @@ enum PromptAutomation {
             let tableView = try scrollView.children().first(where: { (try? $0.role()) == AXRole.table }).orThrow(ErrorMessage("tableView not found"))
             let targetRow = try tableView.children().first(where: {
                 (try? $0.role()) == AXRole.row &&
-                    (try? $0.children.value(at: 0).titleUIElement().value() as? String) == appName
+                    (try? $0.children[0].titleUIElement().value() as? String) == appName
             }).orThrow(ErrorMessage("targetRow not found"))
 
             try targetRow.isSelected(assign: true)

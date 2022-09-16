@@ -120,8 +120,6 @@ extension AttributeProtocol where Value: RandomAccessCollection {
         return count
     }
 
-    // TODO: Add throwing subscript variants with Swift 5.5+
-
     public func callAsFunction(range: Range<Int>, file: StaticString = #fileID, line: UInt = #line) throws -> [Value.Element] {
         var values: CFArray?
         try Accessibility.check(
@@ -132,8 +130,10 @@ extension AttributeProtocol where Value: RandomAccessCollection {
             .orThrow(AccessibilityError(.failure, file: file, line: line))
     }
 
-    public func value(at index: Int, file: StaticString = #fileID, line: UInt = #line) throws -> Value.Element {
-        try self(range: index..<(index + 1)).first
-            .orThrow(AccessibilityError(.noValue, file: file, line: line))
+    public subscript(index: Int) -> Value.Element {
+        get throws {
+            try self(range: index..<(index + 1)).first
+                .orThrow(AccessibilityError(.noValue))
+        }
     }
 }
