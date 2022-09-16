@@ -612,7 +612,7 @@ final class MessagesController {
             let reactAction = try messageAction(messageCell: $0, action: .react)
             try reactAction() // performing this 2x will close reaction view
             let buttons = try elements.reactButtons
-            guard buttons.count >= idx else {
+            guard buttons.count > idx else {
                 throw ErrorMessage("reactButtons count=\(buttons.count)")
             }
 
