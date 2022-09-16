@@ -47,6 +47,14 @@ export const OSAError = {
   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
   // }
   // {
+  //   NSLocalizedDescription = "Error: Error: Connection is invalid."
+  //   NSLocalizedFailureReason = "Error: Error: Connection is invalid."
+  //   OSAScriptErrorBriefMessageKey = "Error: Error: Connection is invalid."
+  //   OSAScriptErrorMessageKey = "Error: Error: Connection is invalid."
+  //   OSAScriptErrorNumberKey = "-609"
+  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
+  // }
+  // {
   //   NSLocalizedDescription = "Error: Error: AppleEvent timed out.";
   //   NSLocalizedFailureReason = "Error: Error: AppleEvent timed out.";
   //   OSAScriptErrorBriefMessageKey = "Error: Error: AppleEvent timed out.";
@@ -64,6 +72,7 @@ export const OSAError = {
   // }
   CantSendMessageToChatYouReNotMemberOf: 1,
   AppIsntRunning: -600,
+  ConnectionInvalid: -609,
   AppleEventTimedOut: -1712,
   CantGetObject: -1728,
   AnErrorOccurred: -1743,
