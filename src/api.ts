@@ -3,7 +3,7 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions } from '@textshq/platform-sdk'
 import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
@@ -348,10 +348,12 @@ export default class AppleiMessage implements PlatformAPI {
     return items.find(i => i.id === messageID)
   }
 
-  searchMessages = async (typed: string, pagination: PaginationArg, threadID?: string): Promise<Paginated<Message>> => {
+  searchMessages = async (typed: string, pagination: PaginationArg, options: SearchMessageOptions): Promise<Paginated<Message>> => {
     this.ensureDB()
+    const { threadID, mediaType } = options
     const { cursor, direction } = pagination || { cursor: null, direction: null }
-    const msgRows = await this.dbAPI.searchMessages(typed, threadID, cursor, direction)
+    const mediaOnly = !!mediaType
+    const msgRows = await this.dbAPI.searchMessages(typed, threadID, mediaOnly, cursor, direction)
     const msgRowIDs = msgRows.map(m => m.ROWID)
     const msgGUIDs = msgRows.map(m => m.guid)
     const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([

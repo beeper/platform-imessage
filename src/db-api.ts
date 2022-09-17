@@ -96,13 +96,14 @@ WHERE cmj.chat_id = ?
 AND m.item_type == 0
 AND m.is_read == 0
 AND m.is_from_me == 0`,
-  searchMessages: (cursorDirection: string, chatGUID?: string) => `SELECT
+  searchMessages: (cursorDirection: string, chatGUID: string | undefined, mediaOnly: boolean) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
 ${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
 ${chatGUID ? 'AND t.guid = ?' : ''}
+${mediaOnly ? 'AND cache_has_attachments = 1' : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
@@ -309,13 +310,13 @@ export default class DatabaseAPI {
     return this.db.all<typeof bindings, MappedReactionMessageRow>(SQLS.getMessageReactions(msgGUIDs), ...bindings)
   }
 
-  async searchMessages(typed: string, chatGUID: string, cursor: string, direction: string): Promise<MappedMessageRow[]> {
+  async searchMessages(typed: string, chatGUID: string, mediaOnly: boolean, cursor: string, direction: string): Promise<MappedMessageRow[]> {
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
     const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]
     if (chatGUID) bindings.push(chatGUID)
     const msgRows = await this.db.all<typeof bindings, MappedMessageRow>(
-      SQLS.searchMessages(cursorDirection, chatGUID),
+      SQLS.searchMessages(cursorDirection, chatGUID, mediaOnly),
       ...bindings,
     )
     msgRows.reverse()
