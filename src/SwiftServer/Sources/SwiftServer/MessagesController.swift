@@ -814,7 +814,15 @@ final class MessagesController {
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
         try retry(withTimeout: 1, interval: 0.2) {
             try messageField.value(assign: text)
-            guard (try? messageFieldValue(messageField)) == text else {
+            // we don't test if messageFieldValue() == text here because a few ms later, messageFieldValue will likely change if text has @mentions
+            let charCountResult = Result { try messageField.noOfChars() }
+            let atCount = text.filter { $0 == "@" }.count
+            debugLog("assignToMessageField: \(charCountResult) \(atCount) \(text.count)")
+            guard case let .success(charCount) = charCountResult,
+                charCount > 0,
+                // the assigned value could have X fewer characters than `text`, where X = the number of occurrences of "@"
+                (text.count - charCount) <= atCount
+            else {
                 throw ErrorMessage("Could not assign value to message field")
             }
         }
