@@ -62,6 +62,7 @@ export type SwiftServer = {
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
   enabledExperiments: string
+  isMessagesAppInDock: string
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   messagesControllerClass: typeof MessagesController

@@ -216,6 +216,10 @@ enum Preferences {
                 UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
             },
 
+            "isMessagesAppInDock": NodeComputedProperty { _ in
+                Defaults.isAppInDock(bundleID: messagesBundleID)
+            },
+
             "enabledExperiments": NodeComputedProperty { _ in
                 Preferences.enabledExperiments
             } set: { args in

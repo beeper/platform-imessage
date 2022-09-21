@@ -3,6 +3,7 @@ import Foundation
 enum Defaults {
     private static let main = UserDefaults(suiteName: messagesBundleID)
     private static let pinning = UserDefaults(suiteName: "com.apple.messages.pinning")
+    private static let dock = UserDefaults(suiteName: "com.apple.dock")
 
     static func resetPrompts() {
         // main?.set(true, forKey: "kHasSetupHashtagImages") // unknown
@@ -44,5 +45,19 @@ enum Defaults {
 
     static func pinnedThreadsCount() -> Int? {
         pinnedThreads()?.count
+    }
+
+    static func isAppInDock(bundleID: String) -> Bool {
+        guard let persistentApps = dock?.array(forKey: "persistent-apps") as? [[String: Any]] else {
+            return false
+        }
+        for app in persistentApps {
+            if let td = app["tile-data"] as? [String: Any],
+            let bi = td["bundle-identifier"] as? String,
+            bundleID == bi {
+                return true
+            }
+        }
+        return false
     }
 }
