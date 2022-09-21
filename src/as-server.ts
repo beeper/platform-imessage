@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import path from 'path'
 import childProcess from 'child_process'
 import { EventEmitter } from 'events'
@@ -37,11 +38,16 @@ function spawnASServer() {
   })
   const run = <T>(scriptName: string, args: string[] = []) => (
     new Promise<T>((resolve, reject) => {
-      if (IS_DEV_ENVIRON) console.log('[imsg] running', scriptName, args)
-      const tag = Date.now().toString(36) + Math.random().toString(36)
+      const startTime = IS_DEV_ENVIRON ? Date.now() : undefined
+      if (IS_DEV_ENVIRON) console.log('[imsg.as2] ↑', scriptName, args)
+      const tag = crypto.randomUUID()
       const input = { tag, scriptName, args }
+      const timeout = setTimeout(() => {
+        reject(Error('as2 timed out'))
+      }, 10_000) // should resolve in <100 ms so 10s is a lot
       ev.once(tag, json => {
-        if (IS_DEV_ENVIRON) console.log('[imsg] response', scriptName, json)
+        clearTimeout(timeout)
+        if (IS_DEV_ENVIRON) console.log('[imsg.as2] ↓', scriptName, json, Date.now() - startTime, 'ms')
         if (json.error) reject(new Error(json.error))
         else resolve(json.output)
       })
