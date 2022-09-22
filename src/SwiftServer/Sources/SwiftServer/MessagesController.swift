@@ -3,6 +3,7 @@ import Contacts
 import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
+import NodeAPI
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -908,7 +909,9 @@ final class MessagesController {
                 }
             } catch {
                 debugLog("\(error)")
-                // todo: report error with sentry
+                Task { @NodeActor in
+                    try? Node.run(script: "texts.Sentry.captureMessage(JSON.parse(\(jsonStringify("osa err: \(error)"))))")
+                }
                 // fall back to regular send
             }
         }

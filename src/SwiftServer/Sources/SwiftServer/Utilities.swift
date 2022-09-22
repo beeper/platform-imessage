@@ -92,3 +92,9 @@ func containsLink(_ text: String) -> Bool {
     let matches = detector?.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
     return matches?.count ?? 0 > 0
 }
+
+func jsonStringify<T: Encodable>(_ input: T) throws -> String {
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(input)
+    return String(data: data, encoding: .utf8)!
+}

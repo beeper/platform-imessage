@@ -1,11 +1,5 @@
 import OSAKit
 
-func jsonStringify(_ input: [String]) throws -> String {
-    let encoder = JSONEncoder()
-    let data = try encoder.encode(input)
-    return String(data: data, encoding: .utf8)!
-}
-
 enum OSA {
     private static func run(_ source: String, language: OSALanguage? = .init(forName: "JavaScript")) throws {
         let script = OSAScript(source: source, language: language)
