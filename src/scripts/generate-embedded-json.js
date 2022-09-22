@@ -37,4 +37,4 @@ var out  = fn.apply(null, args)` : source,
   console.log(`NSString *embeddedBase64JSON${bigSur ? 'BigSur' : ''} = @"${b64}";`)
 }
 echo(false)
-echo(true)
+// echo(true)

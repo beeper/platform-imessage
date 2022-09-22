@@ -2478,7 +2478,6 @@ __metadata:
     react-helmet: ^6.1.0
     ts-jest: ^28.0.7
     typescript: ^4.7.4
-    url-regex: ^5.0.0
     zlib: ^1.0.5
   languageName: unknown
   linkType: soft
@@ -5657,13 +5656,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ip-regex@npm:^4.1.0":
-  version: 4.3.0
-  resolution: "ip-regex@npm:4.3.0"
-  checksum: 7ff904b891221b1847f3fdf3dbb3e6a8660dc39bc283f79eb7ed88f5338e1a3d1104b779bc83759159be266249c59c2160e779ee39446d79d4ed0890dfd06f08
-  languageName: node
-  linkType: hard
-
 "ip@npm:^1.1.5":
   version: 1.1.5
   resolution: "ip@npm:1.1.5"
@@ -8630,15 +8622,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tlds@npm:^1.203.0":
-  version: 1.226.0
-  resolution: "tlds@npm:1.226.0"
-  bin:
-    tlds: bin.js
-  checksum: 39a58099ff2c08763f92d56051522650a1497b33c727ee868dc67ae9571f043f23d53303aa996981028a8ef8dbf69b18b29020fe7d7e0d37dffe0a2c53f26716
-  languageName: node
-  linkType: hard
-
 "tmpl@npm:1.0.5":
   version: 1.0.5
   resolution: "tmpl@npm:1.0.5"
@@ -8926,16 +8909,6 @@ __metadata:
   dependencies:
     punycode: ^2.1.0
   checksum: 7167432de6817fe8e9e0c9684f1d2de2bb688c94388f7569f7dbdb1587c9f4ca2a77962f134ec90be0cc4d004c939ff0d05acc9f34a0db39a3c797dada262633
-  languageName: node
-  linkType: hard
-
-"url-regex@npm:^5.0.0":
-  version: 5.0.0
-  resolution: "url-regex@npm:5.0.0"
-  dependencies:
-    ip-regex: ^4.1.0
-    tlds: ^1.203.0
-  checksum: 94f63ddd39bbc935fa3ee34ab496e1a62b2b6826982e5f7515b8b52acd6439e489d78fc2e202ab4585e0a5cc9cceca15993206153213affa928c41ce819e055c
   languageName: node
   linkType: hard
 

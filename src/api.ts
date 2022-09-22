@@ -4,14 +4,13 @@ import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions } from '@textshq/platform-sdk'
-import urlRegex from 'url-regex'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from './mappers'
-import ASAPI, { OSAError } from './as2'
+import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
 import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './constants'
@@ -178,7 +177,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.messagesControllerCreatePromise && (await this.getMessagesController()).dispose(),
       fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
       this.dbAPI.dispose(),
-      this.asAPI.dispose(),
+      this.asAPI?.dispose(),
     ])
   }
 
@@ -229,7 +228,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private catalinaCreateThread = async (userIDs: string[]) => {
-    const threadID = await this.asAPI.createThread(userIDs)
+    const threadID = await this.asAPI!.createThread(userIDs)
     await setTimeoutAsync(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
     if (!chatRow) return
@@ -379,7 +378,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private axSendQueue = new PQueue({ concurrency: 1, timeout: 60_000 })
 
-  private axSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
+  private swiftSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
     this.axSendQueue.add(async () => {
       this.elideStopTyping = true
       const retries = quotedMessageID ? 2 : 1
@@ -445,18 +444,11 @@ export default class AppleiMessage implements PlatformAPI {
     return messages
   }
 
-  private sendTextMessageWithAS = (threadID: string, text: string): Promise<boolean | Message[]> =>
-    this.waitForMessageSend(threadID, undefined, () =>
-      this.asAPI.sendTextMessage(threadID, text))
-
   private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string): Promise<boolean | Message[]> =>
     this.waitForMessageSend(threadID, quotedMessageID, () => (
-      // send all with AX to increase reliability
-      IS_MONTEREY_OR_UP // && quotedMessageID
-      // quotedMessageID
-        // TODO fix on Big Sur this would send attachments without quoting
-        ? this.axSendWithRetry(threadID, undefined, filePath, quotedMessageID)
-        : this.asAPI.sendFile(threadID, filePath)))
+      this.asAPI
+        ? this.asAPI!.sendFile(threadID, filePath)
+        : this.swiftSendWithRetry(threadID, undefined, filePath, quotedMessageID)))
 
   private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
     await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
@@ -476,33 +468,10 @@ export default class AppleiMessage implements PlatformAPI {
       return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
     }
     if (IS_BIG_SUR_OR_UP) {
-      if (quotedMessageID) {
-        return this.waitForMessageSend(threadID, quotedMessageID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
-      }
-
-      // has a mention or link
-      if (content.text?.includes('@') || content.text?.match(urlRegex({ strict: false }))) {
-        try {
-          const result = await this.waitForMessageSend(threadID, quotedMessageID, () => this.axSendWithRetry(threadID, content.text, undefined, quotedMessageID))
-          return result
-        } catch (err) {
-          texts.error('could not send rich text iMessage; falling back to plaintext', err)
-          texts.Sentry.captureException(err)
-          // fall back to sendTextMessage
-        }
-      }
+      return this.waitForMessageSend(threadID, quotedMessageID, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
     }
-    try {
-      // eslint-disable-next-line @typescript-eslint/return-await
-      return await this.sendTextMessageWithAS(threadID, content.text)
-    } catch (err) {
-      if (IS_BIG_SUR_OR_UP) {
-        if (Object.values(OSAError).some(no => err.message.includes(`OSAScriptErrorNumberKey = "${no}"`))) {
-          return this.waitForMessageSend(threadID, quotedMessageID, () => this.axSendWithRetry(threadID, content.text))
-        }
-      }
-      throw err
-    }
+    return this.waitForMessageSend(threadID, undefined, () =>
+      this.asAPI!.sendTextMessage(threadID, content.text))
   }
 
   updateThread = async (threadID: string, updates: Partial<Thread>) => {
@@ -689,7 +658,7 @@ export default class AppleiMessage implements PlatformAPI {
       return !await this.dbAPI?.isEmpty()
     },
     canAccessMessagesDir,
-    askForAutomationAccess: () => this.asAPI.askForAutomationAccess(),
+    askForAutomationAccess: () => (this.asAPI ? this.asAPI!.askForAutomationAccess() : swiftServer.askForAutomationAccess().then(() => true)),
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
     confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
     disableMessagesNotifications: () => swiftServer.disableNotificationsForApp('Messages'),

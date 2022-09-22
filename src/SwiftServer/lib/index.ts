@@ -67,6 +67,7 @@ export type SwiftServer = {
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
+  askForAutomationAccess: () => Promise<void>
 
   startSysPrefsOnboarding?: () => Promise<void>
   stopSysPrefsOnboarding?: () => void

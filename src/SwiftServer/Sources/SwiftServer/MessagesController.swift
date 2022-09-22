@@ -891,6 +891,28 @@ final class MessagesController {
         let startTime = Date()
         defer { Logger.log("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
+        if let threadID = threadID, quotedMessage == nil { // fast path using OSA
+            do {
+                if let text = text {
+                    if !text.contains("@"), !containsLink(text) { // no mentions and no links
+                        try OSA.send(threadID: threadID, text: text)
+                        return
+                    }
+                } else if let filePath = filePath {
+                    // we don't always use OSA for files bc send file is randomly unreliable
+                    if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                        try OSA.send(threadID: threadID, filePath: filePath)
+                        return
+                    }
+                }
+            } catch {
+                debugLog("\(error)")
+                // todo: report error with sentry
+                // fall back to regular send
+            }
+        }
+
+
         let url: URL
         if let quotedMessage = quotedMessage {
             url = try MessagesDeepLink.message(guid: quotedMessage.messageGUID, overlay: quotedMessage.overlay).url()

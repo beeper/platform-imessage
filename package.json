@@ -33,7 +33,6 @@
     "p-retry": "^4.4.0",
     "react": "https://github.com/TextsHQ/react-global-shim",
     "react-helmet": "^6.1.0",
-    "url-regex": "^5.0.0",
     "zlib": "^1.0.5"
   },
   "devDependencies": {

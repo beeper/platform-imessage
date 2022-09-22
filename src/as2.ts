@@ -1,3 +1,4 @@
+// this only runs on catalina or lower
 import childProcess from 'child_process'
 import pRetry from 'p-retry'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
@@ -29,56 +30,58 @@ const RETRY_OPTIONS: pRetry.Options = {
   },
 }
 
-export const OSAError = {
-  // {
-  //   NSLocalizedDescription = "Error: Error: Can not send message to a chat you are not a member of!";
-  //   NSLocalizedFailureReason = "Error: Error: Can not send message to a chat you are not a member of!";
-  //   OSAScriptErrorBriefMessageKey = "Error: Error: Can not send message to a chat you are not a member of!";
-  //   OSAScriptErrorMessageKey = "Error: Error: Can not send message to a chat you are not a member of!";
-  //   OSAScriptErrorNumberKey = 1;
-  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
-  // }
-  // {
-  //   NSLocalizedDescription = "Error: Error: Application isn't running.";
-  //   NSLocalizedFailureReason = "Error: Error: Application isn't running.";
-  //   OSAScriptErrorBriefMessageKey = "Error: Error: Application isn't running.";
-  //   OSAScriptErrorMessageKey = "Error: Error: Application isn't running.";
-  //   OSAScriptErrorNumberKey = "-600";
-  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
-  // }
-  // {
-  //   NSLocalizedDescription = "Error: Error: Connection is invalid."
-  //   NSLocalizedFailureReason = "Error: Error: Connection is invalid."
-  //   OSAScriptErrorBriefMessageKey = "Error: Error: Connection is invalid."
-  //   OSAScriptErrorMessageKey = "Error: Error: Connection is invalid."
-  //   OSAScriptErrorNumberKey = "-609"
-  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
-  // }
-  // {
-  //   NSLocalizedDescription = "Error: Error: AppleEvent timed out.";
-  //   NSLocalizedFailureReason = "Error: Error: AppleEvent timed out.";
-  //   OSAScriptErrorBriefMessageKey = "Error: Error: AppleEvent timed out.";
-  //   OSAScriptErrorMessageKey = "Error: Error: AppleEvent timed out.";
-  //   OSAScriptErrorNumberKey = "-1712";
-  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
-  // }
-  // {
-  //   NSLocalizedDescription = "Error: Error: An error occurred."
-  //   NSLocalizedFailureReason = "Error: Error: An error occurred."
-  //   OSAScriptErrorBriefMessageKey = "Error: Error: An error occurred."
-  //   OSAScriptErrorMessageKey = "Error: Error: An error occurred."
-  //   OSAScriptErrorNumberKey = "-1743"
-  //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
-  // }
-  CantSendMessageToChatYouReNotMemberOf: 1,
-  AppIsntRunning: -600,
-  ConnectionInvalid: -609,
-  AppleEventTimedOut: -1712,
-  CantGetObject: -1728,
-  AnErrorOccurred: -1743,
-}
+// export const OSAError = {
+//   // {
+//   //   NSLocalizedDescription = "Error: Error: Can not send message to a chat you are not a member of!";
+//   //   NSLocalizedFailureReason = "Error: Error: Can not send message to a chat you are not a member of!";
+//   //   OSAScriptErrorBriefMessageKey = "Error: Error: Can not send message to a chat you are not a member of!";
+//   //   OSAScriptErrorMessageKey = "Error: Error: Can not send message to a chat you are not a member of!";
+//   //   OSAScriptErrorNumberKey = 1;
+//   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+//   // }
+//   // {
+//   //   NSLocalizedDescription = "Error: Error: Application isn't running.";
+//   //   NSLocalizedFailureReason = "Error: Error: Application isn't running.";
+//   //   OSAScriptErrorBriefMessageKey = "Error: Error: Application isn't running.";
+//   //   OSAScriptErrorMessageKey = "Error: Error: Application isn't running.";
+//   //   OSAScriptErrorNumberKey = "-600";
+//   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+//   // }
+//   // {
+//   //   NSLocalizedDescription = "Error: Error: Connection is invalid."
+//   //   NSLocalizedFailureReason = "Error: Error: Connection is invalid."
+//   //   OSAScriptErrorBriefMessageKey = "Error: Error: Connection is invalid."
+//   //   OSAScriptErrorMessageKey = "Error: Error: Connection is invalid."
+//   //   OSAScriptErrorNumberKey = "-609"
+//   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
+//   // }
+//   // {
+//   //   NSLocalizedDescription = "Error: Error: AppleEvent timed out.";
+//   //   NSLocalizedFailureReason = "Error: Error: AppleEvent timed out.";
+//   //   OSAScriptErrorBriefMessageKey = "Error: Error: AppleEvent timed out.";
+//   //   OSAScriptErrorMessageKey = "Error: Error: AppleEvent timed out.";
+//   //   OSAScriptErrorNumberKey = "-1712";
+//   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}";
+//   // }
+//   // {
+//   //   NSLocalizedDescription = "Error: Error: An error occurred."
+//   //   NSLocalizedFailureReason = "Error: Error: An error occurred."
+//   //   OSAScriptErrorBriefMessageKey = "Error: Error: An error occurred."
+//   //   OSAScriptErrorMessageKey = "Error: Error: An error occurred."
+//   //   OSAScriptErrorNumberKey = "-1743"
+//   //   OSAScriptErrorRangeKey = "NSRange: {0, 0}"
+//   // }
+//   CantSendMessageToChatYouReNotMemberOf: 1,
+//   AppIsntRunning: -600,
+//   ConnectionInvalid: -609,
+//   AppleEventTimedOut: -1712,
+//   CantGetObject: -1728,
+//   AnErrorOccurred: -1743,
+// }
 
 function createAPIServer() {
+  if (IS_BIG_SUR_OR_UP) return undefined
+
   const { run, exit } = spawnASServer()
 
   const isMessagesRunning = () =>
@@ -133,7 +136,6 @@ function createAPIServer() {
   }
 
   async function wrapHideIfNotVisible(cb: Function) {
-    if (IS_BIG_SUR_OR_UP) return cb()
     const isVisible = await isMessagesVisible()
     hideMessagesBehindTexts()
     const result = await cb()
@@ -145,7 +147,7 @@ function createAPIServer() {
     async askForAutomationAccess() {
       try {
         await run(ScriptName.ASK_FOR_AUTOMATION)
-        if (!IS_BIG_SUR_OR_UP) await run(ScriptName.IS_MESSAGES_VISIBLE)
+        await run(ScriptName.IS_MESSAGES_VISIBLE)
         return true
       } catch {
         return false

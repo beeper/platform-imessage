@@ -253,6 +253,21 @@ enum Preferences {
                 }
             },
 
+            "askForAutomationAccess": NodeFunction {
+                let queue = try NodeAsyncQueue(label: "automation-access-callback")
+                return try NodePromise { deferred in
+                    DispatchQueue.main.async {
+                        let result = Result<NodeValueConvertible, Error> {
+                            try OSA.promptAutomationAccess()
+                            return undefined
+                        }
+                        try? queue.run {
+                            try deferred(result)
+                        }
+                    }
+                }
+            },
+
             "decodeAttributedString": NodeFunction { (data: Data) in
                 guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
                     return undefined

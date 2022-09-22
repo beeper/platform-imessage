@@ -86,3 +86,9 @@ func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -
     guard components.count == 3 else { return nil }
     return (components[0], components[1], String(components[2]))
 }
+
+func containsLink(_ text: String) -> Bool {
+    let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    let matches = detector?.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+    return matches?.count ?? 0 > 0
+}
