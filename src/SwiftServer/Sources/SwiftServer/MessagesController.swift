@@ -181,6 +181,7 @@ private class KeyPresser {
 }
 
 // external API is thread safe
+@available(macOS 11, *)
 final class MessagesController {
     enum Reaction: String {
         case heart

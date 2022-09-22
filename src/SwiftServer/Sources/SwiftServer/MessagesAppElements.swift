@@ -1,6 +1,7 @@
 import AppKit
 import AccessibilityControl
 
+@available(macOS 11, *)
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
 /// aim to reduce side effects (like calling actions) here
 final class MessagesAppElements {

@@ -1,6 +1,7 @@
 import NodeAPI
 import Foundation
 
+@available(macOS 11, *)
 final class MessagesControllerWrapper: NodeClass {
     static let properties: NodeClassPropertyList = [
         "create": NodeMethod(attributes: .static, create),
@@ -282,8 +283,6 @@ enum Preferences {
                 }
             },
 
-            "MessagesController": MessagesControllerWrapper.constructor(),
-
             "confirmUNCPrompt": NodeFunction {
                 let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
                 return try NodePromise { deferred in
@@ -326,6 +325,9 @@ enum Preferences {
                 SysPrefsOnboarding.stop()
                 return undefined
             }
+        }
+        if #available(macOS 11, *) {
+            dict["MessagesController"] = try MessagesControllerWrapper.constructor()
         }
 
         exports = dict
