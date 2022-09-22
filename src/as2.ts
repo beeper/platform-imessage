@@ -7,7 +7,7 @@ import { IS_BIG_SUR_OR_UP, MESSAGES_APP_BUNDLE_ID } from './constants'
 import spawnASServer from './as-server'
 import IS_DEV_ENVIRON from './is-dev-environ'
 
-enum ScriptName {
+const enum ScriptName {
   IS_MESSAGES_VISIBLE = 'is-messages-visible',
   IS_MESSAGES_RUNNING = 'is-messages-running',
   HIDE_MESSAGES = 'hide-messages',

@@ -57,7 +57,7 @@ export const EXPRESSIVE_MSGS = {
   'com.apple.MobileSMS.expressivesend.invisibleink': 'Invisible Ink text',
 }
 
-export enum AttachmentTransferState {
+export const enum AttachmentTransferState {
   NOT_DOWNLOADED = 0,
   UNKNOWN_1 = 1,
   DOWNLOADING = 3,
