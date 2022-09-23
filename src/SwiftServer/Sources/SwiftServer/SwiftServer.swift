@@ -55,7 +55,12 @@ final class MessagesControllerWrapper: NodeClass {
     static func create(_ args: NodeArguments) throws -> NodeValueConvertible {
         let q = try NodeAsyncQueue(label: "create-messages-controller")
         return try returnAsync(on: q) {
-            let controller = try MessagesController()
+            let controller = try MessagesController(reportToSentry: { txt in
+                Logger.log(txt)
+                try? q.run {
+                    try Node.texts.Sentry.captureMessage(txt)
+                }
+            })
             return NodeDeferredValue {
                 try MessagesControllerWrapper(controller: controller).wrapped()
             }

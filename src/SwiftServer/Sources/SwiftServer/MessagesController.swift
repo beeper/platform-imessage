@@ -3,7 +3,6 @@ import Contacts
 import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
-import NodeAPI
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -181,14 +180,6 @@ private class KeyPresser {
     }
 }
 
-@available(macOS 10.15, *)
-func reportToSentry(_ txt: String) {
-    Logger.log(txt)
-    Task { @NodeActor in
-        try? Node.run(script: "texts.Sentry.captureMessage(JSON.parse(\(jsonStringify(txt))))")
-    }
-}
-
 // external API is thread safe
 @available(macOS 11, *)
 final class MessagesController {
@@ -267,6 +258,7 @@ final class MessagesController {
     private let whm: WindowHidingManager
     private let keyPresser: KeyPresser
     private let contacts = Contacts()
+    private var reportToSentry: ((_ txt: String) -> Void)?
 
     // this increases the viewport height so that mark as read works more reliably
     static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
@@ -342,7 +334,8 @@ final class MessagesController {
         NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     }
 
-    init() throws {
+    init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
+        self.reportToSentry = reportToSentry
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Texts does not have Accessibility permissions")
         }
@@ -727,7 +720,7 @@ final class MessagesController {
                         }
                     }
                     if Defaults.pinnedThreadsCount() != pinnedCount {
-                        reportToSentry("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
+                        reportToSentry?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                     }
                 }
                 try triggerThreadCellAction(threadID: threadID, action: .pin)
@@ -916,7 +909,7 @@ final class MessagesController {
                     }
                 }
             } catch {
-                reportToSentry("osa err: \(error)")
+                reportToSentry?("osa err: \(error)")
                 // fall back to regular send
             }
         }
