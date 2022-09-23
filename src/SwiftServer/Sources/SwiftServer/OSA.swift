@@ -7,7 +7,7 @@ enum OSA {
         script.compileAndReturnError(&compileError)
         if let compileError = compileError { throw ErrorMessage(String(describing: compileError)) }
         var scriptError: NSDictionary?
-        let result = script.executeAndReturnError(&scriptError)
+        let _ = script.executeAndReturnError(&scriptError)
         if let scriptError = scriptError { throw ErrorMessage(String(describing: scriptError)) }
     }
 
