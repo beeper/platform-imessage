@@ -727,8 +727,8 @@ final class MessagesController {
                 // openThread ensures scroll logic isn't executed
                 try openThread(threadID)
                 let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+                defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
                 try triggerThreadCellAction(threadCell: threadCell, action: action)
-                try triggerThreadCellAction(threadCell: threadCell, action: .unpin)
             } else {
                 try markAsReadWithPressHack(threadID: threadID)
             }
