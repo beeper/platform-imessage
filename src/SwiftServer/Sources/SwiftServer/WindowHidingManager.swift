@@ -97,7 +97,7 @@ final class SpacesWindowHidingManager: WHMBase {
             }
             return false
         }.first
-        if let existing = existing { debugLog("reusing existing space \(existing.raw)") }
+        if let existing { debugLog("reusing existing space \(existing.raw)") }
         return try existing ?? Space(newSpaceOfKind: kind)
     }
 

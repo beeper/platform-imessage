@@ -19,7 +19,7 @@ extension NSPasteboard {
         defer {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
                 self.prepareForNewContents()
-                if let backup = backup { self.writeObjects(backup) }
+                if let backup { self.writeObjects(backup) }
             }
         }
         self.prepareForNewContents(with: .currentHostOnly) // currentHostOnly disables universal clipboard

@@ -5,10 +5,10 @@ enum OSA {
         let script = OSAScript(source: source, language: language)
         var compileError: NSDictionary?
         script.compileAndReturnError(&compileError)
-        if let compileError = compileError { throw ErrorMessage(String(describing: compileError)) }
+        if let compileError { throw ErrorMessage(String(describing: compileError)) }
         var scriptError: NSDictionary?
         let _ = script.executeAndReturnError(&scriptError)
-        if let scriptError = scriptError { throw ErrorMessage(String(describing: scriptError)) }
+        if let scriptError { throw ErrorMessage(String(describing: scriptError)) }
     }
 
     static func send(threadID: String, text: String) throws {

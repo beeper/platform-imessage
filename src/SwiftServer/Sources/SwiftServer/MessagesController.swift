@@ -111,7 +111,7 @@ private class KeyPresser {
             debugLog("sendKey(key: \(key)) \(keyDown ? "down" : "up")")
             let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
                 .orThrow(ErrorMessage("key \(key) event empty"))
-            if let flags = flags { ev.flags = flags }
+            if let flags { ev.flags = flags }
             ev.postToPid(self.pid)
         }
     }
@@ -518,13 +518,13 @@ final class MessagesController {
         openBefore: URL?, openAfter: URL?,
         perform: () throws -> Void
     ) throws {
-        if let openBefore = openBefore {
+        if let openBefore {
             try Self.openDeepLink(openBefore)
         }
 
         try perform()
 
-        if let openAfter = openAfter {
+        if let openAfter {
             if openAfter == openBefore {
                 // debugLog("withActivation: skipping, openAfter == openBefore")
             } else {
@@ -879,9 +879,9 @@ final class MessagesController {
             let replyAction = try messageAction(messageCell: $0, action: .reply)
             try replyAction()
             let messageField = try elements.messageBodyField
-            if let text = text {
+            if let text {
                 try assignToMessageField(messageField, text: text)
-            } else if let filePath = filePath {
+            } else if let filePath {
                 try pasteFileInBodyField(messageField, filePath: filePath)
             }
             try sendMessageInField(messageField)
@@ -893,14 +893,14 @@ final class MessagesController {
         let startTime = Date()
         defer { Logger.log("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        if let threadID = threadID, quotedMessage == nil { // fast path using OSA
+        if let threadID, quotedMessage == nil { // fast path using OSA
             do {
-                if let text = text {
+                if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links
                         try OSA.send(threadID: threadID, text: text)
                         return
                     }
-                } else if let filePath = filePath {
+                } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
                     if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
                         try OSA.send(threadID: threadID, filePath: filePath)
@@ -918,11 +918,11 @@ final class MessagesController {
 
 
         let url: URL
-        if let quotedMessage = quotedMessage {
+        if let quotedMessage {
             url = try MessagesDeepLink.message(guid: quotedMessage.messageGUID, overlay: quotedMessage.overlay).url()
-        } else if let threadID = threadID {
+        } else if let threadID {
             url = try MessagesDeepLink(threadID: threadID, body: text).url()
-        } else if let addresses = addresses {
+        } else if let addresses {
             url = try MessagesDeepLink.addresses(addresses, body: text).url()
         } else {
             throw ErrorMessage("not implemented")
@@ -932,20 +932,20 @@ final class MessagesController {
         defer { finishedAutomation() }
 
         // this isn't reliable so we use pasteFileInBodyField:
-        // if let filePath = filePath {
+        // if let filePath {
         //     guard let address = threadIDToAddress(threadID) else { throw ErrorMessage("invalid threadID") }
         //     try withAllWindowsClosed {
         //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
         //     }
         // }
-        if let quotedMessage = quotedMessage, !quotedMessage.overlay, let threadID = threadID {
+        if let quotedMessage, !quotedMessage.overlay, let threadID = threadID {
             return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
         }
 
         if quotedMessage == nil { try? closeReplyTranscriptView() } // needed even when opening deep link
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
-            if let threadID = threadID { try ensureSelectedThread(threadID: threadID) }
+            if let threadID { try ensureSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
@@ -957,12 +957,12 @@ final class MessagesController {
             }
 
             let messageField = try elements.messageBodyField
-            if let text = text {
+            if let text {
                 if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
                     try assignToMessageField(messageField, text: text)
                 }
                 try sendMessageInField(messageField)
-            } else if let filePath = filePath {
+            } else if let filePath {
                 try pasteFileInBodyField(messageField, filePath: filePath)
                 try sendMessageInField(messageField)
             }

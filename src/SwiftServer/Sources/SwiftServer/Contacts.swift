@@ -30,7 +30,7 @@ final class Contacts {
             matching: predicate,
             keysToFetch: [CNContactIdentifierKey, isEmail ? CNContactEmailAddressesKey : CNContactPhoneNumbersKey] as [CNKeyDescriptor]
         )
-        if let contacts = contacts, contacts.count > 1 {
+        if let contacts, contacts.count > 1 {
             debugLog("fetchContactID: found more than one contact for \(emailOrPhoneNumber)")
         }
         let identifier = contacts?.first?.identifier
