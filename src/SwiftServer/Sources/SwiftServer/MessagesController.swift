@@ -181,6 +181,14 @@ private class KeyPresser {
     }
 }
 
+@available(macOS 10.15, *)
+func reportToSentry(_ txt: String) {
+    Logger.log(txt)
+    Task { @NodeActor in
+        try? Node.run(script: "texts.Sentry.captureMessage(JSON.parse(\(jsonStringify(txt))))")
+    }
+}
+
 // external API is thread safe
 @available(macOS 11, *)
 final class MessagesController {
@@ -719,7 +727,7 @@ final class MessagesController {
                         }
                     }
                     if Defaults.pinnedThreadsCount() != pinnedCount {
-                        Logger.log("couldn't restore pins \(Defaults.pinnedThreadsCount()) != \(pinnedCount)")
+                        reportToSentry("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                     }
                 }
                 try triggerThreadCellAction(threadID: threadID, action: .pin)
@@ -908,10 +916,7 @@ final class MessagesController {
                     }
                 }
             } catch {
-                debugLog("\(error)")
-                Task { @NodeActor in
-                    try? Node.run(script: "texts.Sentry.captureMessage(JSON.parse(\(jsonStringify("osa err: \(error)"))))")
-                }
+                reportToSentry("osa err: \(error)")
                 // fall back to regular send
             }
         }
