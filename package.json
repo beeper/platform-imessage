@@ -18,11 +18,8 @@
     "build-binaries": "yarn build-as-server; yarn build-rust-server; yarn build-swift-server",
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
-  "husky": {
-    "hooks": {}
-  },
   "dependencies": {
-    "@textshq/platform-sdk": "link:../platform-sdk",
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#main",
     "clsx": "^1.2.1",
     "conf": "^8.0.0",
     "crc": "^4.1.1",
@@ -46,16 +43,15 @@
     "@types/react-helmet": "^6.1.5",
     "esbuild": "^0.14.51",
     "esbuild-runner": "^2.2.1",
-    "eslint": "^8.20.0",
-    "husky": "^4.3.8",
+    "eslint": "^8.23.1",
     "jest": "^28.1.3",
     "node-sass": "^7.0.1",
     "node-swift": "https://github.com/kabiroberai/node-swift#d4d1973d9d87ebb068347da5a64409a4c3887065",
     "ts-jest": "^28.0.7",
-    "typescript": "^4.7.4"
+    "typescript": "^4.8.3"
   },
   "os": [
     "darwin"
   ],
-  "packageManager": "yarn@3.2.1"
+  "packageManager": "yarn@3.2.3"
 }
