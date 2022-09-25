@@ -376,11 +376,10 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private axSendQueue = new PQueue({ concurrency: 1, timeout: 60_000 })
+  private swiftSendQueue = new PQueue({ concurrency: 1, timeout: 60_000 })
 
   private swiftSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
-    this.axSendQueue.add(async () => {
-      this.elideStopTyping = true
+    this.swiftSendQueue.add(async () => {
       const retries = quotedMessageID ? 2 : 1
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
@@ -488,8 +487,6 @@ export default class AppleiMessage implements PlatformAPI {
     await mc.deleteThread(threadID)
   }
 
-  private elideStopTyping = false
-
   sendActivityIndicator = async (type: ActivityType, threadID: string) => {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
@@ -497,15 +494,6 @@ export default class AppleiMessage implements PlatformAPI {
     // only 1-to-1 conversations are supported
     if (!participantID) return
     const isTyping = type === ActivityType.TYPING
-    if (!isTyping) {
-      this.elideStopTyping = false
-      await setTimeoutAsync(100)
-      if (this.elideStopTyping) {
-        texts.log('Stop typing elided')
-        this.elideStopTyping = false
-        return
-      }
-    }
     return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
   }
 

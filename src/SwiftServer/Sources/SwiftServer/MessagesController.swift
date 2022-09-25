@@ -774,8 +774,8 @@ final class MessagesController {
         }
     }
 
-    func sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        debugLog("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
+    func _sendTypingStatus(threadID: String, isTyping: Bool) throws {
+        debugLog("_sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
 
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
@@ -794,6 +794,25 @@ final class MessagesController {
 
             try elements.messageBodyField.value(assign: "")
         }
+    }
+
+    func sendTypingStatus(threadID: String, isTyping: Bool) throws {
+        debugLog("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
+
+        if !isTyping {
+            elideStopTyping = false
+            Task {
+                try await Task.sleep(nanoseconds: 100 * 1_000_000)
+                if self.elideStopTyping {
+                    debugLog("Stop typing elided")
+                    self.elideStopTyping = false
+                    return
+                }
+                try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
+            }
+            return
+        }
+        try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) {
@@ -889,6 +908,8 @@ final class MessagesController {
         }
     }
 
+    var elideStopTyping = false
+
     // this method has a lot of combinations, test carefully
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         let startTime = Date()
@@ -914,6 +935,7 @@ final class MessagesController {
             }
         }
 
+        elideStopTyping = true
 
         let url: URL
         if let quotedMessage {
