@@ -376,7 +376,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private swiftSendQueue = new PQueue({ concurrency: 1, timeout: 60_000 })
+  private swiftSendQueue = new PQueue({ concurrency: 1, timeout: 45_000 })
 
   private swiftSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
     this.swiftSendQueue.add(async () => {
