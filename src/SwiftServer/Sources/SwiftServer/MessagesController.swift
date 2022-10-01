@@ -278,6 +278,7 @@ final class MessagesController {
     private func resetWindow() {
         try? elements.searchField.cancel()
         try? expandSplitter()
+        try? closeReplyTranscriptView(wait: false)
     }
 
     private static func terminateApp(_ app: NSRunningApplication) throws {
@@ -436,6 +437,7 @@ final class MessagesController {
     }
 
     @inlinable func startedAutomation() {
+        afterAutomationTask?.cancel()
         elements.clearCachedElements()
         whm.hide()
         activityLock.lock()
@@ -443,6 +445,17 @@ final class MessagesController {
 
     @inlinable func finishedAutomation() {
         activityLock.unlock()
+        // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
+        scheduleCancelReplyTranscriptView()
+    }
+
+    private var afterAutomationTask: DispatchWorkItem?
+
+    private func scheduleCancelReplyTranscriptView() {
+        afterAutomationTask = DispatchWorkItem {
+            try? self.closeReplyTranscriptView(wait: false)
+        }
+        afterAutomationTask.map { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: $0) }
     }
 
     private func messageAction(messageCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
@@ -541,9 +554,8 @@ final class MessagesController {
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
 
         // without closing reply transcript, non-overlay deep link won't select the message
-        if !messageCell.overlay, let rtv = try? elements.replyTranscriptView {
-            debugLog("calling replyTranscriptView.cancel()")
-            try? rtv.cancel()
+        if !messageCell.overlay {
+            try? closeReplyTranscriptView(wait: false)
         }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -553,8 +565,7 @@ final class MessagesController {
             // defer {
             //     if messageCell.overlay {
             //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
-            //         Thread.sleep(forTimeInterval: 0.1)
-            //         try? elements.replyTranscriptView.cancel()
+            //         closeReplyTranscriptView(wait: true)
             //     }
             // }
             if messageCell.overlay { try waitUntilReplyTranscriptVisible() }
@@ -868,7 +879,7 @@ final class MessagesController {
         }
     }
 
-    private func closeReplyTranscriptView() throws {
+    private func closeReplyTranscriptView(wait: Bool) throws {
         guard let rtv = try? elements.replyTranscriptView else { return }
         debugLog("calling replyTranscriptView.cancel()")
         try rtv.cancel()
@@ -881,7 +892,7 @@ final class MessagesController {
             }
             Thread.sleep(forTimeInterval: 0.4) // wait for animation still
         }
-        try waitForReplyTranscriptsClose()
+        if wait { try waitForReplyTranscriptsClose() }
     }
 
     private func waitUntilReplyTranscriptVisible() throws {
@@ -962,7 +973,7 @@ final class MessagesController {
             return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
         }
 
-        if quotedMessage == nil { try? closeReplyTranscriptView() } // needed even when opening deep link
+        if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             if let threadID { try ensureSelectedThread(threadID: threadID) }
