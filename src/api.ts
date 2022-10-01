@@ -9,7 +9,7 @@ import PQueue from 'p-queue'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage, MessageWithExtra } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
@@ -433,11 +433,13 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))).filter(Boolean)
     for (const message of messages) {
-      const intended = quotedMessageID ?? undefined
-      const actual = message.linkedMessageID ?? undefined
-      if (intended !== actual) {
-        console.log('imessage sent message with incorrect quoted message', { intended, actual })
-        texts.Sentry.captureMessage(`imessage sent message with incorrect quoted message, intended=${!!intended} actual=${!!actual}`)
+      if (!message.isHidden) {
+        const intended = quotedMessageID ?? undefined
+        const actual = message.linkedMessageID ?? undefined
+        if (intended !== actual) {
+          console.log('imessage sent message with incorrect quoted message', { intended, actual })
+          texts.Sentry.captureMessage(`imessage sent message with incorrect quoted message, intended=${!!intended} actual=${!!actual}`)
+        }
       }
     }
     return messages
@@ -500,13 +502,16 @@ export default class AppleiMessage implements PlatformAPI {
   private setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
     await pRetry(async () => {
-      const [msgID, part] = messageID.split('_', 2)
-      const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
-      if (!ogMessageJSON) throw Error('og message not found')
-      const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
-      const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
-      const message = messages[part || 0]
+      // ogMessageJSON is
+      // const [msgID, part] = messageID.split('_', 2)
+      // const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
+      // if (!ogMessageJSON) throw Error('og message not found')
+      // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
+      // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
+      // const message = messages[part || 0]
+      const message = await this.getMessage(threadID, messageID) as MessageWithExtra
       if (!message) throw Error("couldn't find message")
+      const [msgRow] = JSON.parse(message._original)
       // use overlay mode only when the message is not in a thread
       const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
       const closestMessage: AXMessageSelection = overlay
