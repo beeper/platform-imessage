@@ -597,12 +597,6 @@ export default class AppleiMessage implements PlatformAPI {
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
     return messagesController.watchThreadActivity(threadID, statuses => {
-      if (!Array.isArray(statuses)) {
-        // should never happen
-        texts.Sentry.captureMessage('imessage.watchThreadActivity statuses is not array', { tags: { statuses } })
-        return
-      }
-      texts.log('watchThreadActivity', threadID, statuses)
       const events: ServerEvent[] = [{
         type: ServerEventType.USER_ACTIVITY,
         activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,
