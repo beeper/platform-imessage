@@ -260,6 +260,27 @@ final class MessagesController {
     private let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
 
+    private let om = OcclusionMonitor()
+
+    private class OcclusionMonitor {
+        var visible: Bool = false
+
+        private var ncToken: NSObjectProtocol?
+
+        init() {
+            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
+                debugLog("didChangeOcclusionStateNotification \(notif)")
+                // texts currently only has a single window so we don't need to check for the proper window
+                guard let window = notif.object as? NSWindow else { return }
+                self.visible = window.occlusionState.contains(.visible)
+            }
+        }
+
+        deinit {
+            ncToken.map { NotificationCenter.default.removeObserver($0) }
+        }
+    }
+
     // this increases the viewport height so that mark as read works more reliably
     static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
         var frame = try window.frame()
@@ -1172,8 +1193,8 @@ final class MessagesController {
         guard activityLock.try() else { return }
         defer { activityLock.unlock() }
 
-        guard !NSApp.isHidden else {
-            debugLog("pollActivityStatus: skipping since app hidden")
+        guard om.visible else {
+            debugLog("pollActivityStatus: skipping since window occluded")
             return
         }
 

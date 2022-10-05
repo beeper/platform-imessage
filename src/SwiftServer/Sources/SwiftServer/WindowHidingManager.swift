@@ -132,14 +132,12 @@ final class SpacesWindowHidingManager: WHMBase {
         //     debugLog("ncDidChangeScreenParameters")
         //     self?.debouncedOnDidChangeScreenParams()
         // }
-        // if the hidden space is actually visible, activating messages app would cause the active space to change 
+        // if the hidden space is actually visible, activating messages app would cause the active space to change
         ncToken = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
             debugLog("ncActiveSpaceDidChangeNotification")
-            self?.lastActivate.map {
-                if $0.timeIntervalSinceNow > -1 {
-                    debugLog("hiding (unhiding) window because space changed after app activate \($0.timeIntervalSinceNow)")
-                    self?.hide()
-                }
+            if let lastActivate = self?.lastActivate, lastActivate.timeIntervalSinceNow > -1 {
+                debugLog("hiding (unhiding) window because space changed after app activate \(lastActivate.timeIntervalSinceNow)")
+                self?.hide()
             }
         }
     }
