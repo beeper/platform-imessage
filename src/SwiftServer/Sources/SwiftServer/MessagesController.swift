@@ -270,8 +270,9 @@ final class MessagesController {
         init() {
             ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
                 debugLog("didChangeOcclusionStateNotification \(notif)")
-                // texts currently only has a single window so we don't need to check for the proper window
                 guard let window = notif.object as? NSWindow else { return }
+                let className = NSStringFromClass(type(of: window))
+                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
                 self.visible = window.occlusionState.contains(.visible)
             }
         }
