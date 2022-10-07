@@ -37,7 +37,7 @@ const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 export default class AppleiMessage implements PlatformAPI {
   currentUserID: string
 
-  private accountID: string
+  // private accountID: string
 
   private threadReadStore: ThreadReadStore | undefined
 
@@ -145,9 +145,9 @@ export default class AppleiMessage implements PlatformAPI {
 
   private experiments: string
 
-  init = async (session: SerializedSession, { dataDirPath, accountID }: AccountInfo, prefs: Record<string, any>) => {
+  init = async (session: SerializedSession, { dataDirPath }: AccountInfo, prefs: Record<string, any>) => {
     this.session = session || {}
-    this.accountID = accountID
+    // this.accountID = accountID
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
