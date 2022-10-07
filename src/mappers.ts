@@ -1,6 +1,6 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Thread, Message, Participant, MessageAttachment, MessageAttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, MessageAttachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP, IS_VENTURA_OR_UP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
@@ -33,15 +33,15 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Messag
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
-    return { ...common, type: MessageAttachmentType.IMG, size }
+    return { ...common, type: AttachmentType.IMG, size }
   }
   if (VIDEO_EXTS.includes(ext)) {
-    return { ...common, type: MessageAttachmentType.VIDEO }
+    return { ...common, type: AttachmentType.VIDEO }
   }
   if (AUDIO_EXTS.includes(ext)) {
-    return { ...common, isVoiceNote: msgRow.is_audio_message === 1, type: MessageAttachmentType.AUDIO }
+    return { ...common, isVoiceNote: msgRow.is_audio_message === 1, type: AttachmentType.AUDIO }
   }
-  return { ...common, type: MessageAttachmentType.UNKNOWN }
+  return { ...common, type: AttachmentType.UNKNOWN }
 }
 
 const serializeMessageRow = (msgRow: MappedMessageRow) =>
@@ -277,7 +277,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         if (UUID_REGEX.test(uuid)) {
           partialMessage.attachments = [{
             id: uuid,
-            type: MessageAttachmentType.VIDEO,
+            type: AttachmentType.VIDEO,
             isGif: true,
             // file:// will mostly work fine but we use asset:// since it can take a few seconds before the file is written to disk by messages.app
             srcURL: `asset://$accountID/dt/${uuid}.mov`,
@@ -295,7 +295,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         if (UUID_REGEX.test(uuid)) {
           partialMessage.attachments = [{
             id: uuid,
-            type: MessageAttachmentType.IMG,
+            type: AttachmentType.IMG,
             isGif: true,
             // todo: since we don't know w & h, we use asset://
             // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)).href,

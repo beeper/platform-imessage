@@ -1,6 +1,6 @@
 // import os from 'os'
 import { trimStart, trimEnd } from 'lodash'
-import { Message, MessageAttachment, Size, MessageAttachmentType, MessageLink } from '@textshq/platform-sdk'
+import { Message, MessageAttachment, Size, AttachmentType, MessageLink } from '@textshq/platform-sdk'
 
 import { parseTweetURL } from './util'
 import safeBplistParse from './safe-bplist-parse'
@@ -34,7 +34,7 @@ function getExternalVideos(videos: any): MessageAttachment[] {
     if (video.type === 'text/html') return null
     return {
       id: srcURL,
-      type: MessageAttachmentType.VIDEO,
+      type: AttachmentType.VIDEO,
       srcURL,
       size: parseSize(video.size),
     }
