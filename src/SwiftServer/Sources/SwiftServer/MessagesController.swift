@@ -474,8 +474,10 @@ final class MessagesController {
     private var afterAutomationTask: DispatchWorkItem?
 
     private func scheduleCancelReplyTranscriptView() {
-        afterAutomationTask = DispatchWorkItem {
-            try? self.closeReplyTranscriptView(wait: false)
+        afterAutomationTask = DispatchWorkItem { [self] in
+            activityLock.lock()
+            defer { activityLock.unlock() }
+            try? closeReplyTranscriptView(wait: false)
         }
         afterAutomationTask.map { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: $0) }
     }
