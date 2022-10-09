@@ -887,19 +887,20 @@ final class MessagesController {
 
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        try keyPresser.return()
+        try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         try retry(withTimeout: 1.5, interval: 0.2) {
             if let message = try? messageFieldValue(messageField), !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
         } onError: { attempt, _  in
-            if attempt == 1 {
+            if attempt == 2 {
                 self.focusMessageField(messageField)
+                try? self.keyPresser.return()
+            } else if attempt == 4 {
+                try? messageField.press()
+                try? self.keyPresser.return()
             }
-            // if attempt == 5 { // penultimate attempt
-            //     // try? sendReturnPress()
-            // }
         }
     }
 
