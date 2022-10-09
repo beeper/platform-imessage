@@ -263,7 +263,7 @@ final class MessagesController {
     private let om = OcclusionMonitor()
 
     private class OcclusionMonitor {
-        var visible: Bool = false
+        var visible: Bool = true
 
         private var ncToken: NSObjectProtocol?
 
