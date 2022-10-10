@@ -80,7 +80,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   // here be dragons
-  private getMessagesController = async (attempt = 0): Promise<MessagesController> => {
+  private _getMessagesController = async (attempt = 0): Promise<MessagesController> => {
     if (!IS_BIG_SUR_OR_UP) return
 
     // we want to reuse existing instances of the fetch promise while any one is
@@ -125,10 +125,24 @@ export default class AppleiMessage implements PlatformAPI {
           throw err
         }
         texts.log('retrying...')
-        return this.getMessagesController(attempt + 1)
+        return this._getMessagesController(attempt + 1)
       })
     }
     return this.messagesControllerFetchPromise
+  }
+
+  private getMessagesController = async () => {
+    const startTime = Date.now()
+    const mcPromise = this._getMessagesController()
+    const timeout = setTimeout(() => {
+      texts.Sentry.captureMessage('imessage.getMC took >10s')
+    }, 10_000)
+    const mc = await mcPromise
+    clearTimeout(timeout)
+    const ms = Date.now() - startTime
+    texts.log('[imsg] fetched mc in', ms, 'ms')
+    if (ms > 20_000) texts.Sentry.captureMessage(`imessage.getMC took ${ms / 1000}s`)
+    return mc
   }
 
   private sipEnabled = csrStatus().then(status => {
