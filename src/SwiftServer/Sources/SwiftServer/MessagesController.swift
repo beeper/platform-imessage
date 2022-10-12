@@ -104,11 +104,14 @@ private class KeyPresser {
         self.pid = pid
     }
 
+    static let src = CGEventSource(stateID: .hidSystemState)
+
     private func press(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
         debugLog("sendKey(key: \(key))")
         for keyDown in [true, false] {
             debugLog("sendKey(key: \(key)) \(keyDown ? "down" : "up")")
-            let ev = try CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: keyDown)
+            // all events will not be posted for _some_ users if `keyboardEventSource` is nil
+            let ev = try CGEvent(keyboardEventSource: Self.src, virtualKey: key, keyDown: keyDown)
                 .orThrow(ErrorMessage("key \(key) event empty"))
             if let flags { ev.flags = flags }
             ev.postToPid(self.pid)
