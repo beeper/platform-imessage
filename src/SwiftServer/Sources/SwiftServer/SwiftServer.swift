@@ -21,7 +21,7 @@ final class MessagesControllerWrapper: NodeClass {
 
     static let name = "MessagesController"
 
-    private static let queue = DispatchQueue(label: "messages-controller-queue")
+    private static let queue = DispatchQueue(label: "messages-controller-wrapper-queue")
 
     private static func returnAsync(
         on jsQueue: NodeAsyncQueue,
