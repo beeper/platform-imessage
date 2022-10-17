@@ -1,6 +1,8 @@
 import NodeAPI
 import Foundation
 
+let mcQueue = DispatchQueue(label: "messages-controller-queue")
+
 @available(macOS 11, *)
 final class MessagesControllerWrapper: NodeClass {
     static let properties: NodeClassPropertyList = [
@@ -21,14 +23,12 @@ final class MessagesControllerWrapper: NodeClass {
 
     static let name = "MessagesController"
 
-    private static let queue = DispatchQueue(label: "messages-controller-queue")
-
     private static func returnAsync(
         on jsQueue: NodeAsyncQueue,
         _ action: @escaping () throws -> NodeValueConvertible
     ) throws -> NodePromise {
         try NodePromise { deferred in
-            queue.async {
+            mcQueue.async {
                 let result = Result { try action() }
                 try? jsQueue.run {
                     try deferred(result)
@@ -182,7 +182,7 @@ final class MessagesControllerWrapper: NodeClass {
     }
 
     func dispose() throws -> NodeValueConvertible {
-        Self.queue.sync { controller.dispose() }
+        mcQueue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
         return undefined
     }
