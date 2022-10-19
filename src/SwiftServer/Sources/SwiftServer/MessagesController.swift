@@ -1180,7 +1180,7 @@ final class MessagesController {
         }
     }
 
-    /* TODO: Switch to os_unfair_lock if we drop old OSes, or maybe determine the lock we use dynamically.
+    /*
         activityLock.lock() called by:
         MessagesController.observe()
         MessagesController.removeObserver()
@@ -1192,7 +1192,7 @@ final class MessagesController {
         MessagesController.muteThread()
         MessagesController.deleteThread()
     */
-    private let activityLock = NSLock()
+    private let activityLock = UnfairLock()
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
@@ -1205,7 +1205,7 @@ final class MessagesController {
 
         // if someone else (observe/removeObserver) holds the lock,
         // silently skip this polling attempt
-        guard activityLock.try() else { return }
+        guard activityLock.tryLock() else { return }
         defer { activityLock.unlock() }
 
         guard isValid else {
@@ -1237,9 +1237,9 @@ final class MessagesController {
     }
 
     func removeObserver() throws {
-        activityLock.lock()
-        defer { activityLock.unlock() }
-        try _removeObserver()
+        try activityLock.lock {
+            try _removeObserver()
+        }
     }
 
     func observe(threadID: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
