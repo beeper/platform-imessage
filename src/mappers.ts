@@ -65,7 +65,7 @@ function assignReactions(message: Message, _reactionRows: MappedReactionMessageR
       if (actionType === 'reacted') {
         reactions.push({
           id: participantID,
-          reactionKey: supportedReactions[actionKey]?.render,
+          reactionKey: actionKey,
           participantID,
         })
       } else if (actionType === 'unreacted') {
