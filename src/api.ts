@@ -443,7 +443,8 @@ export default class AppleiMessage implements PlatformAPI {
     const mc = await this.getMessagesController()
     const address = threadIDToAddress(threadID)
     if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || (sentThreadID && mc?.isSameContact(address, threadIDToAddress(sentThreadID))))) {
-      throw Error('potentially sent messages to invalid thread')
+      console.log('imessage potentially sent messages to invalid thread')
+      return true
     }
     const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))).filter(Boolean)
     for (const message of messages) {
