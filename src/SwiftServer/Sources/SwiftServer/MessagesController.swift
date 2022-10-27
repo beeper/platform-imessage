@@ -484,7 +484,7 @@ final class MessagesController {
             defer { activityLock.unlock() }
             try? closeReplyTranscriptView(wait: false)
         }
-        afterAutomationTask.map { Self.queue.asyncAfter(deadline: .now() + 2, execute: $0) }
+        afterAutomationTask.map { Self.queue.asyncAfter(deadline: .now() + 1.5, execute: $0) }
     }
 
     private func messageAction(messageCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
