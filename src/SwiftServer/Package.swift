@@ -38,8 +38,13 @@ let package = Package(
                 "WindowControl",
                 "ExceptionCatcher",
                 .product(name: "NodeAPI", package: "node-swift"),
-                .product(name: "PHTClient", package: "PHTCommon")
+                .product(name: "PHTClient", package: "PHTCommon"),
+                "CUnfairLock"
             ]
         ),
+        .target(
+            name: "CUnfairLock",
+            dependencies: []
+        )
     ]
 )

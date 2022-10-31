@@ -1,5 +1,6 @@
 import os
 import Foundation
+import CUnfairLock
 
 // http://www.russbishop.net/the-law
 final class UnfairLock: NSLocking {
@@ -20,7 +21,11 @@ final class UnfairLock: NSLocking {
     }
 
     func lock() {
-        os_unfair_lock_lock(_lock)
+        // based on https://hacks.mozilla.org/2022/10/improving-firefox-responsiveness-on-macos/
+        os_unfair_lock_lock_with_options(
+            _lock,
+            OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION | OS_UNFAIR_LOCK_ADAPTIVE_SPIN
+        )
     }
 
     func unlock() {
