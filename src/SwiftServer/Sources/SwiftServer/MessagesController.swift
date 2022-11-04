@@ -942,10 +942,10 @@ final class MessagesController {
             let messageField = try elements.messageBodyField
             if let text {
                 try assignToMessageField(messageField, text: text)
+                try sendMessageInField(messageField)
             } else if let filePath {
-                try pasteFileInBodyField(messageField, filePath: filePath)
+                try pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
             }
-            try sendMessageInField(messageField)
         }
     }
 
@@ -992,7 +992,7 @@ final class MessagesController {
         startedAutomation()
         defer { finishedAutomation() }
 
-        // this isn't reliable so we use pasteFileInBodyField:
+        // this isn't reliable so we use pasteFileInBodyFieldAndSend:
         // if let filePath {
         //     guard let address = threadIDToAddress(threadID) else { throw ErrorMessage("invalid threadID") }
         //     try withAllWindowsClosed {
@@ -1024,8 +1024,7 @@ final class MessagesController {
                 }
                 try sendMessageInField(messageField)
             } else if let filePath {
-                try pasteFileInBodyField(messageField, filePath: filePath)
-                try sendMessageInField(messageField)
+                try pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
             }
         }
     }
@@ -1062,7 +1061,7 @@ final class MessagesController {
     }
     #endif
 
-    func pasteFileInBodyField(_ messageField: Accessibility.Element, filePath: String) throws {
+    func pasteFileInBodyFieldAndSend(_ messageField: Accessibility.Element, filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
         try? messageField.value(assign: "")
         focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
@@ -1077,6 +1076,7 @@ final class MessagesController {
                     throw ErrorMessage("file was not pasted. \(charCountResult) \(messageField.isInViewport)")
                 }
             }
+            try sendMessageInField(messageField)
         }
     }
 
