@@ -606,9 +606,9 @@ export default class AppleiMessage implements PlatformAPI {
 
     // ignore groups and sms threads
     const participantID = getSingleParticipantAddress(threadID)
-    if (!participantID) {
-      return messagesController.watchThreadActivity(null)
-    }
+    // if (!participantID) {
+    //   return messagesController.watchThreadActivity(null)
+    // }
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
     return messagesController.watchThreadActivity(threadID, statuses => {

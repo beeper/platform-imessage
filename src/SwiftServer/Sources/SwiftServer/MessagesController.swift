@@ -1255,6 +1255,8 @@ final class MessagesController {
         try _removeObserver()
 
         try Self.openDeepLink(url)
+
+        guard threadID.hasPrefix("iMessage;-;") else { return }
         activityObserver = .init(threadID: threadID, url: url, callback: callback)
     }
 
