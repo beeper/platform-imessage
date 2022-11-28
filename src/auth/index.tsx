@@ -7,10 +7,12 @@ import { AuthProps, texts } from '@textshq/platform-sdk'
 import type { AuthType } from 'node-mac-permissions'
 import type PAPI from '../api'
 
-import { IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, BINARIES_DIR_PATH, IS_MONTEREY_OR_UP } from '../constants'
+import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from '../constants'
 import useAsync from './use-async'
 
 const sleep = (ms: number) => new Promise(resolve => { setTimeout(resolve, ms) })
+
+const sysPrefsAppName = IS_VENTURA_OR_UP ? 'System Settings' : 'System Preferences'
 
 const staticPrefix = window.location.protocol === 'file:'
   ? url.pathToFileURL(BINARIES_DIR_PATH).href
@@ -189,7 +191,7 @@ const NotificationsSection: React.FC<Props> = ({ open, callProxiedFn, nmp }) => 
         <br />
 
         {!canDisableNotifs && (
-          <img src={notificationsMessagesImg} alt="System Preferences – Notifications" width={400} onClick={() => openNotificationsSystemPrefs()} />
+          <img src={notificationsMessagesImg} alt={`${sysPrefsAppName} – Notifications`} width={400} onClick={() => openNotificationsSystemPrefs()} />
         )}
 
         <div className="buttons">
@@ -270,7 +272,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const authorizeAX = () => {
     openAXPrefs()
-    if (!axAuthorized) callProxiedFn('startSysPrefsOnboarding')
+    if (!axAuthorized && !IS_VENTURA_OR_UP) callProxiedFn('startSysPrefsOnboarding')
   }
 
   // const revokeAll = () => {
@@ -292,7 +294,7 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: contactsAuthorized,
       action: authorizeContacts,
       info: 'Contacts access allows Texts to show names instead of phone numbers.',
-      more: <div onClick={openContactsPrefs}>Try: open System Preferences and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
+      more: <div onClick={openContactsPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
       showMore,
     },
     IS_MOJAVE_OR_UP && {
@@ -300,7 +302,7 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: messageDirAuthorized,
       action: authorizeMessagesDir,
       info: 'Messages data access allows Texts to show threads and messages. Your data never touches our servers.',
-      more: <div onClick={() => nmp.askForFullDiskAccess()}>Try: give <strong>Texts.app</strong> Full Disk Access in System Preferences &rarr;</div>,
+      more: <div onClick={() => nmp.askForFullDiskAccess()}>Try: give <strong>Texts.app</strong> Full Disk Access in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
     IS_MOJAVE_OR_UP && {
@@ -308,7 +310,7 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: automationAuthorized,
       action: authorizeAutomation,
       info: 'Automation access allows Texts to send iMessages.',
-      more: <div onClick={openAutomationPrefs}>Try: open System Preferences and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
+      more: <div onClick={openAutomationPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
       showMore,
     },
   ].filter(Boolean)
