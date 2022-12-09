@@ -6,8 +6,8 @@
         "repositoryURL": "https://github.com/sindresorhus/ExceptionCatcher",
         "state": {
           "branch": null,
-          "revision": "9d99a736e17f67ab3aa333c0dad7ed2ee9d6b2b9",
-          "version": "2.0.0"
+          "revision": "a7acaf40f8bd67a1f3a05a14de5b6a861ac3d1ac",
+          "version": "2.0.1"
         }
       },
       {
@@ -15,7 +15,7 @@
         "repositoryURL": "https://github.com/TextsHQ/PHTCommon.git",
         "state": {
           "branch": "main",
-          "revision": "a9752c32cccc967df5929cd8cc68cd5e122c431e",
+          "revision": "0afa63b65eb9b438d6f8ee92a0213f76fdefdd69",
           "version": null
         }
       }
