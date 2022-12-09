@@ -9,7 +9,7 @@ import PQueue from 'p-queue'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin, mapMessage, MessageWithExtra } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin, MessageWithExtra } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
@@ -165,7 +165,7 @@ export default class AppleiMessage implements PlatformAPI {
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
-      swiftServer.isPHTEnabled = prefs.hide_messages_app && !IS_VENTURA_OR_UP
+      swiftServer.isPHTEnabled = prefs.hide_messages_app
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
