@@ -275,8 +275,6 @@ CREATE INDEX message_idx_isRead_isFromMe_itemType ON message(is_read, is_from_me
 
 CREATE INDEX message_idx_failed ON message(is_finished, is_from_me, error);
 
-CREATE INDEX message_idx_date_read ON message (date_read);
-
 CREATE TRIGGER after_delete_on_chat_message_join
 AFTER
   DELETE ON chat_message_join BEGIN

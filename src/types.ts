@@ -99,6 +99,8 @@ type MessageRow = {
   date_edited: number
   was_detonated: NumberBool
   part_count: number
+  // added in ventura 13.1:
+  is_stewie: NumberBool
 }
 
 // taken from chat.db on big sur
@@ -133,6 +135,8 @@ export type ChatRow = {
   // added in monterey:
   syndication_date: number
   syndication_type: number
+  // added in ventura:
+  is_recovered: NumberBool
 }
 
 // db-api.ts -> SQLS

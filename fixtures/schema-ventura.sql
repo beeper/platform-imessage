@@ -646,5 +646,3 @@ VALUES
   ('lastFailedMessageRowID', NEW.rowID);
 
 END;
-
-CREATE INDEX message_idx_date_read ON message (date_read);
