@@ -342,7 +342,7 @@ WHERE m.ROWID = ?`, rowID)
   private getMappedMessagesWithoutExtraRows = async (chatGUID: string, cursor: string, direction: 'before' | 'after') => {
     const msgRows = await this.getMessages(chatGUID, cursor, direction)
     if (direction !== 'after') msgRows.reverse()
-    const items = mapMessages(msgRows, [], [], this.papi.currentUserID)
+    const items = mapMessages(msgRows, [], [], this.papi.currentUser.id)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,
@@ -368,7 +368,7 @@ WHERE m.ROWID = ?`, rowID)
     texts.log('[imessage] findClosestTextMessage', messageGUID, part)
     // const message = await this.db.get('SELECT m.ROWID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', messageGUID)
     // if (!message) throw Error('message not found')
-    // const [mapped] = mapMessage(message, [], [], this.papi.currentUserID) // todo optimize mapping not needed
+    // const [mapped] = mapMessage(message, [], [], this.papi.currentUser.id) // todo optimize mapping not needed
     if (isSelectable(mapped)) return { messageGUID: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
     // todo loop over more pages if not found
     const [before, after] = await Promise.all([

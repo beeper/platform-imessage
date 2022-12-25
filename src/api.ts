@@ -35,7 +35,7 @@ function canAccessMessagesDir() {
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
 export default class AppleiMessage implements PlatformAPI {
-  currentUserID: string
+  currentUser: CurrentUser
 
   // private accountID: string
 
@@ -59,22 +59,31 @@ export default class AppleiMessage implements PlatformAPI {
 
   private forceInvalidate = false
 
-  getCurrentUser = async (): Promise<CurrentUser> => {
+  private async initDB() {
+    await this.dbAPI.init()
+    if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
+      this.storeCurrentUser()
+      this.getMessagesController()
+    }
+  }
+
+  private storeCurrentUser = async () => {
     this.ensureDB()
     const logins = await this.dbAPI.getAccountLogins()
     const accounts = logins.map(mapAccountLogin).filter(Boolean)
     const [firstAccount] = accounts || []
-    this.currentUserID = firstAccount || 'default'
-    return {
-      id: this.currentUserID,
+    this.currentUser = {
+      id: firstAccount || 'default',
       displayText: accounts.join(', '),
       // phone #s will likely not be present in account_login
       ...(firstAccount && (firstAccount.includes('@') ? { email: firstAccount } : { phoneNumber: firstAccount })),
     }
   }
 
+  getCurrentUser = (): CurrentUser => this.currentUser
+
   login = async (): Promise<LoginResult> => {
-    await this.dbAPI.init()
+    await this.initDB()
     if (this.dbAPI.connected) return { type: 'success' }
     return { type: 'error', errorMessage: 'Please grant access to Messages Data and try again.' }
   }
@@ -169,10 +178,7 @@ export default class AppleiMessage implements PlatformAPI {
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
-    await this.dbAPI.init()
-    if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
-      this.getMessagesController()
-    }
+    await this.initDB()
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
     if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
       fs.unlink(path.join(userDataDirPath, 'imessage.json')).catch(() => {})
@@ -232,7 +238,7 @@ export default class AppleiMessage implements PlatformAPI {
       chatRow,
       {
         handleRowsMap: { [chatRow.guid]: handleRows },
-        currentUserID: this.currentUserID,
+        currentUserID: this.currentUser.id,
         threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
         unreadChatRowIDs,
@@ -257,7 +263,7 @@ export default class AppleiMessage implements PlatformAPI {
       chatRow,
       {
         handleRowsMap: { [chatRow.guid]: handleRows },
-        currentUserID: this.currentUserID,
+        currentUserID: this.currentUser.id,
         threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
         unreadChatRowIDs,
@@ -329,7 +335,7 @@ export default class AppleiMessage implements PlatformAPI {
       groupImagesMap[attachmentID] = fileName
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
-    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, unreadChatRowIDs, currentUserID: this.currentUserID, threadReadStore: this.threadReadStore })
+    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, unreadChatRowIDs, currentUserID: this.currentUser.id, threadReadStore: this.threadReadStore })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
@@ -351,7 +357,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getAttachments(msgRowIDs),
       this.dbAPI.getMessageReactions(msgGUIDs, threadID),
     ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUserID)
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser.id)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,
@@ -366,7 +372,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getAttachments([msgRow.ROWID]),
       this.dbAPI.getMessageReactions([msgRow.guid], threadID),
     ])
-    const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUserID)
+    const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser.id)
     return items.find(i => i.id === messageID)
   }
 
@@ -382,7 +388,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getAttachments(msgRowIDs),
       this.dbAPI.getMessageReactions(msgGUIDs, threadID),
     ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUserID, true)
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser.id, true)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,
