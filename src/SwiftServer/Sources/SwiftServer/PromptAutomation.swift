@@ -72,26 +72,74 @@ enum PromptAutomation {
             let appElement = Accessibility.Element(pid: app.processIdentifier)
             let windows = try appElement.appWindows()
             let window = try windows.first.orThrow(ErrorMessage("window not found"))
-            let tabView = try window.children().first(where: { (try? $0.role()) == AXRole.tabGroup }).orThrow(ErrorMessage("tabView not found"))
-            let scrollView = try tabView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
-            let paneView = try tabView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("paneView not found"))
-            let tableView = try scrollView.children().first(where: { (try? $0.role()) == AXRole.table }).orThrow(ErrorMessage("tableView not found"))
-            let targetRow = try tableView.children().first(where: {
-                (try? $0.role()) == AXRole.row &&
-                    (try? $0.children[0].titleUIElement().value() as? String) == appName
-            }).orThrow(ErrorMessage("targetRow not found"))
+            if #available(macOS 13, *) {
+                let settingsView = try window.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsView not found"))
+                let settingsSplitGroupView = try settingsView.children().first(where: { (try? $0.role()) == AXRole.splitGroup }).orThrow(ErrorMessage("settingsSplitGroupView not found"))
+                // right side pane is last
+                let settingsPaneView = try settingsSplitGroupView.children().last(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsPaneView not found"))
+                let settingsPaneGroupView = try settingsPaneView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsPaneGroupView not found"))
+                let scrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
 
-            try targetRow.isSelected(assign: true)
-            guard try targetRow.isSelected() == true else { throw ErrorMessage("targetRow not selected") }
+                // check if in notification center settings
+                if (try? scrollView.children().first?.localizedDescription() as? String) == "Notification Center" {
+                    try Self.openNotificationSettingsForApp(appName: appName, scrollView: scrollView)
+                }
 
-            let notificationsSwitch = try paneView.children().first(where: { (try? $0.subrole()) == AXSubrole.switch }).orThrow(ErrorMessage("switch not found"))
-            if (try? notificationsSwitch.value() as? String) == "on" { // unknown if on is localized
-                // .decrement() will turn it off as well but only the switch UI changes, the value remains unchanged
-                try notificationsSwitch.press()
+                // Need to reassign this if ever another app is open and we navigate back to the main notification center settings
+                var notificationsScrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("notificationsScrollView not found"))
+                var allowNotificationsView = try notificationsScrollView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("allowNotificationsView not found"))
+
+                if (try? allowNotificationsView.children().last(where: { (try? $0.role()) == AXRole.staticText })?.value() as? String) != appName {
+                    // Go back to main notification center settings
+                    let toolbarView = try window.children().first(where: { (try? $0.role()) == AXRole.toolbar }).orThrow(ErrorMessage("toolbarView not found"))
+                    let toolbarButton = try toolbarView.children().first(where: { (try? $0.role()) == AXRole.button }).orThrow(ErrorMessage("toolbarButton not found"))
+                    try toolbarButton.press()
+
+                    try Self.openNotificationSettingsForApp(appName: appName, scrollView: scrollView)
+
+                    notificationsScrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("notificationsScrollView not found"))
+                    allowNotificationsView = try notificationsScrollView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("allowNotificationsView not found"))
+                }
+
+                let notificationsSwitch = try allowNotificationsView.children().first(where: { (try? $0.subrole()) == AXSubrole.switch }).orThrow(ErrorMessage("switch not found"))
+                if (try? notificationsSwitch.value() as? Bool) == true {
+                    try notificationsSwitch.press()
+                }
+            } else {
+                let tabView = try window.children().first(where: { (try? $0.role()) == AXRole.tabGroup }).orThrow(ErrorMessage("tabView not found"))
+                let scrollView = try tabView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
+                let paneView = try tabView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("paneView not found"))
+                let tableView = try scrollView.children().first(where: { (try? $0.role()) == AXRole.table }).orThrow(ErrorMessage("tableView not found"))
+                let targetRow = try tableView.children().first(where: {
+                    (try? $0.role()) == AXRole.row &&
+                        (try? $0.children[0].titleUIElement().value() as? String) == appName
+                }).orThrow(ErrorMessage("targetRow not found"))
+
+                try targetRow.isSelected(assign: true)
+                guard try targetRow.isSelected() == true else { throw ErrorMessage("targetRow not selected") }
+
+                let notificationsSwitch = try paneView.children().first(where: { (try? $0.subrole()) == AXSubrole.switch }).orThrow(ErrorMessage("switch not found"))
+                if (try? notificationsSwitch.value() as? String) == "on" { // unknown if on is localized
+                    // .decrement() will turn it off as well but only the switch UI changes, the value remains unchanged
+                    try notificationsSwitch.press()
+                }
             }
 
             try? window.windowCloseButton().press()
             return true
         }
+    }
+
+    private static func openNotificationSettingsForApp(appName: String, scrollView: Accessibility.Element) throws {
+        // App list is always last
+        let appsListView = try scrollView.children().last(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("appsListView not found"))
+
+        let targetButton = try appsListView.children().first(where: {
+            (try? $0.role()) == AXRole.button &&
+                (try? $0.localizedDescription().hasPrefix("\(appName), ")) == true
+        }).orThrow(ErrorMessage("targetButton not found"))
+
+        // Open Messages Notification Settings
+        try targetButton.press()
     }
 }
