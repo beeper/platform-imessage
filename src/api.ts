@@ -62,7 +62,7 @@ export default class AppleiMessage implements PlatformAPI {
   private async initDB() {
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
-      this.storeCurrentUser()
+      await this.storeCurrentUser()
       this.getMessagesController()
     }
   }
