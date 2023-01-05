@@ -68,29 +68,32 @@ enum PromptAutomation {
             configuration: [:]
         )
         try app.waitForLaunch()
-        return try retry(withTimeout: 2, interval: 0.1) {
+        return try retry(withTimeout: 3, interval: 0.1) {
             let appElement = Accessibility.Element(pid: app.processIdentifier)
             let windows = try appElement.appWindows()
             let window = try windows.first.orThrow(ErrorMessage("window not found"))
+
             if #available(macOS 13, *) {
                 let settingsView = try window.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsView not found"))
                 let settingsSplitGroupView = try settingsView.children().first(where: { (try? $0.role()) == AXRole.splitGroup }).orThrow(ErrorMessage("settingsSplitGroupView not found"))
+
                 // right side pane is last
                 let settingsPaneView = try settingsSplitGroupView.children().last(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsPaneView not found"))
                 let settingsPaneGroupView = try settingsPaneView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsPaneGroupView not found"))
                 let scrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
 
-                // check if in notification center settings
-                if (try? scrollView.children().first?.localizedDescription() as? String) == "Notification Center" {
-                    try Self.openNotificationSettingsForApp(appName: appName, scrollView: scrollView)
+                if (try? scrollView.children().first?.localizedDescription() as? String) != "Notification Center" {
+                    throw ErrorMessage("Not in Notification Center settings")
                 }
+
+                try Self.openNotificationSettingsForApp(appName: appName, scrollView: scrollView)
 
                 // Need to reassign this if ever another app is open and we navigate back to the main notification center settings
                 var notificationsScrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("notificationsScrollView not found"))
                 var allowNotificationsView = try notificationsScrollView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("allowNotificationsView not found"))
 
                 if (try? allowNotificationsView.children().last(where: { (try? $0.role()) == AXRole.staticText })?.value() as? String) != appName {
-                    // Go back to main notification center settings
+                    debugLog("Not in \(appName) settings, going back to main notification center settings. Current appName:\((try? allowNotificationsView.children().last(where: { (try? $0.role()) == AXRole.staticText })?.value() as? String) ?? "nil")")
                     let toolbarView = try window.children().first(where: { (try? $0.role()) == AXRole.toolbar }).orThrow(ErrorMessage("toolbarView not found"))
                     let toolbarButton = try toolbarView.children().first(where: { (try? $0.role()) == AXRole.button }).orThrow(ErrorMessage("toolbarButton not found"))
                     try toolbarButton.press()
@@ -102,8 +105,12 @@ enum PromptAutomation {
                 }
 
                 let notificationsSwitch = try allowNotificationsView.children().first(where: { (try? $0.subrole()) == AXSubrole.switch }).orThrow(ErrorMessage("switch not found"))
+                debugLog("notificationsSwitch: \((try? notificationsSwitch.value() as? Bool) ?? false)")
                 if (try? notificationsSwitch.value() as? Bool) == true {
+                    debugLog("notifications are enabled, disabling")
                     try notificationsSwitch.press()
+                    // Closing too soon causes the value to not change
+                    sleep(1)
                 }
             } else {
                 let tabView = try window.children().first(where: { (try? $0.role()) == AXRole.tabGroup }).orThrow(ErrorMessage("tabView not found"))

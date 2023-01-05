@@ -12,6 +12,7 @@ extension Accessibility.Notification {
 // https://developer.apple.com/documentation/applicationservices/axattributeconstants_h/miscellaneous_defines
 // https://github.com/tmandry/AXSwift/blob/main/Sources/Constants.swift
 extension Accessibility.Names {
+    var rows: AttributeName<[Accessibility.Element]> { .init(kAXRowsAttribute) }
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
     var linkedElements: AttributeName<[Accessibility.Element]> { .init(kAXLinkedUIElementsAttribute) }

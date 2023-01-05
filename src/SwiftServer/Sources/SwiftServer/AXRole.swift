@@ -51,6 +51,7 @@ enum AXRole {
     static let helpTag = kAXHelpTagRole
     static let matte = kAXMatteRole
     static let dockItem = kAXDockItemRole
+    static let cell = kAXCellRole
 }
 
 enum AXSubrole {
