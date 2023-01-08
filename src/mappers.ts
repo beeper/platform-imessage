@@ -1,6 +1,6 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Thread, Message, Participant, MessageAttachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP, IS_VENTURA_OR_UP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
@@ -18,7 +18,7 @@ const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 
-function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): MessageAttachment {
+function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attachment {
   if (a.transfer_state == null) return
   const { ext, fileName, filePath } = a
   const common = {
@@ -517,10 +517,7 @@ export function mapMessages(messages: MappedMessageRow[], attachmentRows: Mapped
     .filter(Boolean)
 }
 
-export function mapThread(
-  chat: MappedChatRow,
-  context: Context,
-): Thread {
+export function mapThread(chat: MappedChatRow, context: Context): Thread {
   const { currentUserID, threadReadStore } = context
   const handleRows = context.handleRowsMap[chat.guid]
   const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]

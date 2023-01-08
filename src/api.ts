@@ -3,7 +3,7 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
@@ -398,15 +398,16 @@ export default class AppleiMessage implements PlatformAPI {
 
   private swiftSendQueue = new PQueue({ concurrency: 1, timeout: 45_000 })
 
-  private swiftSendWithRetry = (threadID: string, text: string, filePath?: string, quotedMessageID?: string) =>
+  private swiftSendWithRetry = (threadID: ThreadID, text: string, filePath?: string, quotedMessageID?: string) =>
     this.swiftSendQueue.add(async () => {
       const retries = quotedMessageID ? 2 : 1
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
         const controller = await this.getMessagesController()
+        const [messageGUID, offset] = quotedMessageID ? quotedMessageID.split('_') : []
         await controller.sendMessage(threadID, text, filePath, quotedMessageID ? JSON.stringify({
-          messageGUID: quotedMessageID,
-          offset: 0,
+          messageGUID,
+          offset: +offset || 0,
           // TODO: specify id/role
           cellID: null,
           cellRole: null,
@@ -422,7 +423,7 @@ export default class AppleiMessage implements PlatformAPI {
       })
     })
 
-  private waitForMessageSend = async (threadID: string, quotedMessageID: string, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
+  private waitForMessageSend = async (threadID: ThreadID, quotedMessageID: MessageID, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
     const lastRowID = await this.dbAPI.getLastMessageRowID()
     await callback()
     let sentMessageIDs: [number, string][]

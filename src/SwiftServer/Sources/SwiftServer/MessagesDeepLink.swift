@@ -47,6 +47,7 @@ enum MessagesDeepLink {
             ]
             return try components.url.orThrow(ErrorMessage("Invalid iMessage chat: \(chatID)"))
         case let .message(guid, overlay):
+            guard !guid.contains("_") else { throw ErrorMessage("Invalid message GUID, contains _: \(guid)") }
             components.queryItems = [
                 URLQueryItem(name: "message-guid", value: guid)
             ]
