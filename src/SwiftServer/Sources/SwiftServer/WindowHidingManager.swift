@@ -105,7 +105,8 @@ final class SpacesWindowHidingManager: WHMBase {
     private var _hiddenSpace: Space
     private var hiddenSpace: Space {
         get throws {
-            if Self.canUseUnknownSpace || !_hiddenSpace.isVisibleInMissionControl { return _hiddenSpace }
+            if Self.canUseUnknownSpace { return _hiddenSpace }
+            // if Self.canUseUnknownSpace || !_hiddenSpace.isVisibleInMissionControl { return _hiddenSpace }
             _hiddenSpace = try Self.createOrGetInvisibleUserSpace()
             return _hiddenSpace
         }
