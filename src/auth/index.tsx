@@ -215,7 +215,7 @@ const NotificationsSection: React.FC<Props> = ({ open, callProxiedFn, nmp }) => 
   )
 }
 
-const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { buttonDisabled: boolean }> = ({ buttonDisabled, login, isReauthing }) => (
+const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { buttonDisabled?: boolean }> = ({ buttonDisabled, login, isReauthing }) => (
   <div className="imessage-auth-well" style={{ borderRadius: 8 }}>
     <div className="buttons">
       <button type="button" className="primary" disabled={buttonDisabled} onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
@@ -232,7 +232,7 @@ const knownIssues = [
   })(),
 ].map((issue, i) => <li key={issue}>{i + 1}. {issue}</li>)
 
-const KnownIssuesSection: React.FC<{ open: boolean }> = ({ open }) => (
+const KnownIssuesSection: React.FC<{ open?: boolean }> = ({ open }) => (
   <details open={open} className="known-issues-section">
     <summary><h4>Known Issues</h4></summary>
     <div className="imessage-auth-well">
@@ -364,9 +364,13 @@ const ChecklistPage: React.FC<Props> = props => {
           {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
         </div>
       </details>
-      <KnownIssuesSection open={!allAuthorized} />
-      <NotificationsSection open={allAuthorized} {...props} />
-      <AddAccountSection {...props} buttonDisabled={!messageDirAuthorized} />
+      {allAuthorized && (
+        <>
+          <KnownIssuesSection open />
+          <NotificationsSection open {...props} />
+        </>
+      )}
+      {axAuthorized && messageDirAuthorized && <AddAccountSection {...props} />}
     </div>
   )
 }
