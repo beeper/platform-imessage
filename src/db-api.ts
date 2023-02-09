@@ -86,8 +86,7 @@ LIMIT ${limit}`,
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
-WHERE t.guid = ?
-AND m.guid = ?`,
+WHERE m.guid = ?`,
   threadUnreadCount: `SELECT COUNT(m.ROWID)
 FROM message AS m
 INDEXED BY message_idx_isRead_isFromMe_itemType
@@ -270,8 +269,8 @@ export default class DatabaseAPI {
     return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(cursorDirection), ...bindings)
   }
 
-  getMessage = (chatGUID: string, messageGUID: string): Promise<MappedMessageRow> =>
-    this.db.get<string[], MappedMessageRow>(SQLS.getMessage, chatGUID, messageGUID)
+  getMessage = (messageGUID: string): Promise<MappedMessageRow> =>
+    this.db.get<string[], MappedMessageRow>(SQLS.getMessage, messageGUID)
 
   private imageSizeMemoized = memoize(imageSizeAsync)
 

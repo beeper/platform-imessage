@@ -366,7 +366,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   getMessage = async (threadID: string, messageID: string): Promise<Message> => {
     this.ensureDB()
-    const msgRow = await this.dbAPI.getMessage(threadID, messageID)
+    const [messageGUID] = messageID.split('_')
+    const msgRow = await this.dbAPI.getMessage(messageGUID)
     if (!msgRow) return
     const [attachmentRows, reactionRows] = await Promise.all([
       this.dbAPI.getAttachments([msgRow.ROWID]),
