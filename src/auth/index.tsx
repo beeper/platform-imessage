@@ -223,24 +223,6 @@ const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { butto
   </div>
 )
 
-const knownIssues = [
-  'Messages.app will be open in the background but Texts can keep it hidden.',
-  ...(() => {
-    if (IS_MONTEREY_OR_UP) return ["Reacting/replying to some types of messages isn't supported."]
-    if (IS_BIG_SUR_OR_UP) return ["On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."]
-    return ["On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."]
-  })(),
-].map((issue, i) => <li key={issue}>{i + 1}. {issue}</li>)
-
-const KnownIssuesSection: React.FC<{ open?: boolean }> = ({ open }) => (
-  <details open={open} className="known-issues-section">
-    <summary><h4>Known Issues</h4></summary>
-    <div className="imessage-auth-well">
-      <ul>{knownIssues}</ul>
-    </div>
-  </details>
-)
-
 const ChecklistPage: React.FC<Props> = props => {
   const { nmp, callProxiedFn, canAccessMessagesDir, login } = props
   const { execute: refreshMessageDirAuthorization, value: messageDirAuthorized } = useAsync(canAccessMessagesDir)
@@ -365,10 +347,7 @@ const ChecklistPage: React.FC<Props> = props => {
         </div>
       </details>
       {allAuthorized && (
-        <>
-          <KnownIssuesSection open />
-          <NotificationsSection open {...props} />
-        </>
+        <NotificationsSection open {...props} />
       )}
       {axAuthorized && messageDirAuthorized && <AddAccountSection {...props} />}
     </div>

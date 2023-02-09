@@ -73,6 +73,14 @@ const info: PlatformInfo = {
     requiresAccessibilityAccess: IS_BIG_SUR_OR_UP,
     requiresContactsAccess: true,
     canQuoteOriginalMessageOnly: true,
+    knownIssues: [
+      'Messages.app will be open in the background but Texts can keep it hidden.',
+      ...[(() => {
+        if (IS_MONTEREY_OR_UP) return "Reacting/replying to some types of messages isn't supported."
+        if (IS_BIG_SUR_OR_UP) return "On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."
+        return "On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."
+      })()],
+    ],
   },
   getUserProfileLink: ({ email, phoneNumber }) =>
     `imessage://${email || phoneNumber}`,
