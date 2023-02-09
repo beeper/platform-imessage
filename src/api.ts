@@ -225,7 +225,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getThread = async (threadID: string) => {
+  getThread = async (threadID: ThreadID) => {
     const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
     const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
@@ -346,7 +346,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getMessages = async (threadID: string, pagination: PaginationArg): Promise<Paginated<Message>> => {
+  getMessages = async (threadID: ThreadID, pagination: PaginationArg): Promise<Paginated<Message>> => {
     this.ensureDB()
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
@@ -364,7 +364,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getMessage = async (threadID: string, messageID: string): Promise<Message> => {
+  getMessage = async (threadID: ThreadID, messageID: MessageID): Promise<Message> => {
     this.ensureDB()
     const [messageGUID] = messageID.split('_')
     const msgRow = await this.dbAPI.getMessage(messageGUID)
@@ -468,13 +468,13 @@ export default class AppleiMessage implements PlatformAPI {
     return messages
   }
 
-  private sendFileFromFilePath = async (threadID: string, filePath: string, quotedMessageID: string): Promise<boolean | Message[]> =>
+  private sendFileFromFilePath = async (threadID: ThreadID, filePath: string, quotedMessageID: MessageID): Promise<boolean | Message[]> =>
     this.waitForMessageSend(threadID, quotedMessageID, () => (
       this.asAPI
         ? this.asAPI!.sendFile(threadID, filePath)
         : this.swiftSendWithRetry(threadID, undefined, filePath, quotedMessageID)))
 
-  private sendFileFromBuffer = async (threadID: string, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
+  private sendFileFromBuffer = async (threadID: ThreadID, fileBuffer: Buffer, mimeType: string, fileName: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
     await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
     const tmpFilePath = path.join(TMP_ATTACHMENT_DIR_PATH, fileName || crypto.randomUUID())
     await fs.writeFile(tmpFilePath, fileBuffer)
@@ -483,7 +483,7 @@ export default class AppleiMessage implements PlatformAPI {
     return result
   }
 
-  sendMessage = async (threadID: string, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+  sendMessage = async (threadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
     const { quotedMessageID } = options
     if (content.fileBuffer) {
       return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, quotedMessageID)
@@ -498,7 +498,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.asAPI!.sendTextMessage(threadID, content.text))
   }
 
-  updateThread = async (threadID: string, updates: Partial<Thread>) => {
+  updateThread = async (threadID: ThreadID, updates: Partial<Thread>) => {
     if (!IS_BIG_SUR_OR_UP) return
     if ('mutedUntil' in updates) {
       const mc = await this.getMessagesController()
@@ -506,13 +506,13 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  deleteThread = async (threadID: string) => {
+  deleteThread = async (threadID: ThreadID) => {
     if (!IS_BIG_SUR_OR_UP) return
     const mc = await this.getMessagesController()
     await mc.deleteThread(threadID)
   }
 
-  sendActivityIndicator = async (type: ActivityType, threadID: string) => {
+  sendActivityIndicator = async (type: ActivityType, threadID: ThreadID) => {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
     const participantID = getSingleParticipantAddress(threadID)
@@ -522,7 +522,7 @@ export default class AppleiMessage implements PlatformAPI {
     return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
   }
 
-  private setReaction = async (threadID: string, messageID: string, reactionKey: string, on: boolean) => {
+  private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
     await pRetry(async () => {
       // ogMessageJSON is
@@ -558,22 +558,22 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  addReaction = (threadID: string, messageID: string, reactionKey: string) =>
+  addReaction = (threadID: ThreadID, messageID: MessageID, reactionKey: string) =>
     this.setReaction(threadID, messageID, reactionKey, true)
 
-  removeReaction = (threadID: string, messageID: string, reactionKey: string) =>
+  removeReaction = (threadID: ThreadID, messageID: MessageID, reactionKey: string) =>
     this.setReaction(threadID, messageID, reactionKey, false)
 
-  // deleteMessage = async (threadID: string, messageID: string) => false
+  // deleteMessage = async (threadID: ThreadID, messageID: MessageID) => false
 
-  private toggleThreadRead = (read: boolean) => async (threadID: string) => {
+  private toggleThreadRead = (read: boolean) => async (threadID: ThreadID) => {
     const controller = await this.getMessagesController()
     await controller.toggleThreadRead(threadID, read)
   }
 
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
-  sendReadReceipt = async (threadID: string, messageID: string) => {
+  sendReadReceipt = async (threadID: ThreadID, messageID: MessageID) => {
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
         const isRead = await this.dbAPI.isThreadRead(threadID)
@@ -598,14 +598,14 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  notifyAnyway = async (threadID: string) => {
+  notifyAnyway = async (threadID: ThreadID) => {
     const controller = await this.getMessagesController()
     await controller.notifyAnyway(threadID)
   }
 
   private dndSet = new Set<string>()
 
-  onThreadSelected = async (threadID: string) => {
+  onThreadSelected = async (threadID: ThreadID) => {
     if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
     // fired for messagesController
@@ -652,7 +652,7 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  //   private getThreadMessagesChecksum = async (threadID: string, afterCursor: string) => {
+  //   private getThreadMessagesChecksum = async (threadID: ThreadID, afterCursor: string) => {
   //     const x = await this.dbAPI.db.get(`SELECT count(*) as c
   // FROM message as m
   // ${COMMON_JOINS}
