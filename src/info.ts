@@ -1,4 +1,4 @@
-import { PlatformInfo, MessageDeletionMode, Attribute } from '@textshq/platform-sdk'
+import { PlatformInfo, MessageDeletionMode, Attribute, Participant } from '@textshq/platform-sdk'
 import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import type { MessageWithExtra } from './mappers'
@@ -81,6 +81,11 @@ const info: PlatformInfo = {
         return "On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."
       })()],
     ],
+    getUnknownParticipant(participantID: string): Participant | undefined {
+      if (!participantID) return
+      if (participantID.includes('@')) return { id: participantID, email: participantID }
+      return { id: participantID, phoneNumber: participantID }
+    },
   },
   getUserProfileLink: ({ email, phoneNumber }) =>
     `imessage://${email || phoneNumber}`,
