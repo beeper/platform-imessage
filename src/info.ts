@@ -68,6 +68,7 @@ const info: PlatformInfo = {
     },
   } : {},
   extra: {
+    e2ee: 'full',
     canQuote,
     canReact,
     requiresAccessibilityAccess: IS_BIG_SUR_OR_UP,
