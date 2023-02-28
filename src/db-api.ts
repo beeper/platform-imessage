@@ -386,7 +386,7 @@ WHERE m.ROWID = ?`, rowID)
     this.db.pluck_get<string[], number>(SQLS.isMessageRead, messageGUID)
 
   isNotEmpty = async (): Promise<boolean> =>
-    (await this.db.pluck_get<void[], number>('SELECT (SELECT count(*) FROM kvtable) > 0')) === 1
+    (await this.db.pluck_get<void[], number>('SELECT (SELECT count(*) FROM message) > 0')) === 1
 
   // async markMessageRead(messageID: string) {
   //   await this.db.run(SQLS.updateReadTimestamp, messageID)
