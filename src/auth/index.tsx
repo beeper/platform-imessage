@@ -158,21 +158,14 @@ const ChecklistItem = ({
         position="top"
         tip={false}
         maxWidth={420}
-        content={<span>{info}</span>}
+        content={info}
+        className="info-icon-container"
       >
         <span className="info-icon">{InfoIcon}</span>
       </Tooltip>
     </div>
     {showMore && <div className="more">{more}</div>}
   </article>
-)
-
-const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { buttonDisabled?: boolean }> = ({ buttonDisabled, login, isReauthing }) => (
-  <div className="imessage-auth-well" style={{ borderRadius: 8 }}>
-    <div className="buttons">
-      <button type="button" className="primary" disabled={buttonDisabled} onClick={() => login()}>{isReauthing ? 'Reauthenticate' : 'Add'} iMessage account</button>
-    </div>
-  </div>
 )
 
 const ChecklistPage: React.FC<Props> = props => {
@@ -219,7 +212,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Accessibility',
       completed: axAuthorized,
       action: authorizeAX,
-      info: 'Accessibility access allows Texts to power many iMessage features.',
+      info: 'Required to power most iMessage functionality.',
       more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
       showMore,
     },
@@ -227,7 +220,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Contacts',
       completed: contactsAuthorized,
       action: authorizeContacts,
-      info: 'Contacts access allows Texts to show names instead of phone numbers.',
+      info: 'Required to show names instead of phone numbers.',
       more: <div onClick={openContactsPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
       showMore,
     },
@@ -235,7 +228,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Messages Data',
       completed: messageDirAuthorized,
       action: authorizeMessagesDir,
-      info: 'Messages data access allows Texts to show threads and messages. Your data never touches our servers.',
+      info: 'Required to fetch and display threads and messages.',
       more: <div onClick={() => nmp.askForFullDiskAccess()}>Try: give <strong>Texts.app</strong> Full Disk Access in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
@@ -243,21 +236,20 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Automation',
       completed: automationAuthorized,
       action: authorizeAutomation,
-      info: 'Automation access allows Texts to send iMessages.',
+      info: 'Required to send messages.',
       more: <div onClick={openAutomationPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
       showMore,
     },
   ].filter(Boolean)
 
   const allAuthorized = checklistItems.every(i => i.completed)
+  const nextUncompletedItem = checklistItems.find(i => !i.completed)
 
   useEffect(() => {
     if (axAuthorized) {
       callProxiedFn('stopSysPrefsOnboarding')
     }
   }, [axAuthorized])
-
-  const nextUncompletedItem = checklistItems.find(i => !i.completed)
 
   useEffect(() => {
     const onKeyDown = (ev: KeyboardEvent) => {
@@ -271,6 +263,12 @@ const ChecklistPage: React.FC<Props> = props => {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [nextUncompletedItem])
 
+  useEffect(() => {
+    if (allAuthorized) {
+      login()
+    }
+  }, [allAuthorized])
+
   const authorizeAll = async () => {
     const uncompletedItems = checklistItems.filter(i => !i.completed)
     for (const item of uncompletedItems) {
@@ -278,27 +276,27 @@ const ChecklistPage: React.FC<Props> = props => {
       await sleep(50)
     }
   }
+  const permissionsSection = () => (
+    <div className="fake-details permissions-section">
+      <div className="fake-summary"><h4>Permissions</h4></div>
+      <div className="imessage-auth-well">
+        {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
+        {nextUncompletedItem && (
+          <div>
+            <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
+          </div>
+        )}
+        {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
+        {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
+      </div>
+    </div>
+  )
 
   return (
     <div>
       <RevokeFDASection {...{ nmp, callProxiedFn }} />
       {messageDirAuthorized && <SetupMessagesSection {...{ callProxiedFn }} />}
-      <details open={!allAuthorized} className="permissions-section">
-        <summary><h4>Permissions{allAuthorized ? ' (Authorized)' : ''}</h4></summary>
-        <div className="imessage-auth-well">
-          {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
-          {nextUncompletedItem && (
-            <div>
-              {axAuthorized
-                ? <button className="primary" onClick={authorizeAll}>Authorize All</button>
-                : <button className="primary" onClick={() => nextUncompletedItem.action()}>Authorize {nextUncompletedItem.title}</button>}
-            </div>
-          )}
-          {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
-          {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
-        </div>
-      </details>
-      {axAuthorized && messageDirAuthorized && <AddAccountSection {...props} />}
+      {allAuthorized ? 'Adding...' : permissionsSection()}
     </div>
   )
 }

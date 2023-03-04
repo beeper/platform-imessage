@@ -3,13 +3,6 @@
   flex-direction: column;
   max-width: 500px;
 
-  details {
-    margin: 1em 0;
-  }
-  details[open] {
-    margin-bottom: 2em;
-  }
-
   h4 {
     margin-top: 0;
     margin-bottom: 10px;
@@ -17,22 +10,37 @@
     font-weight: 500;
   }
 
+  .fake-details,
+  details {
+    margin: 1em 0;
+  }
+
+  .fake-details,
+  details[open] {
+    margin-bottom: 2em;
+  }
+
+  .fake-summary,
   summary {
     background: rgba(var(--color-fg-rgb), 0.1);
     border-radius: 8px;
     padding: 8px 14px;
   }
 
+  .fake-summary,
   details[open] summary {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
   }
 
-  details h4 {
-    margin-top: 0;
-    margin-bottom: 0;
-    display: inline-block;
-    font-weight: 500;
+  details,
+  .fake-details {
+    h4 {
+      margin-top: 0;
+      margin-bottom: 0;
+      display: inline-block;
+      font-weight: 500;
+    }
   }
 
   .imessage-auth-well {
@@ -51,6 +59,7 @@
   ul {
     padding: 0;
     list-style: none;
+
     li {
       margin-bottom: 8px;
     }
@@ -66,15 +75,17 @@
     line-height: 1.25em;
     cursor: default;
 
-    article > div:first-child {
+    article>div:first-child {
       font-size: 14px;
       display: flex;
       align-items: center;
       margin-bottom: 12px;
     }
+
     .more {
       margin-bottom: 1em;
     }
+
     .check {
       display: flex;
       align-items: center;
@@ -84,17 +95,26 @@
       border-radius: 60px;
       border: 2px solid var(--color-primary);
       margin-right: 8px;
+
       svg {
         font-size: 10px;
       }
+
       &.completed {
         background-color: var(--color-primary);
       }
     }
   }
 
+  button.primary {
+    width: 100%;
+  }
+
+  .info-icon-container {
+    margin-left: auto
+  }
+
   .info-icon {
-    margin-left: 6px;
     margin-top: 2px;
   }
 }
