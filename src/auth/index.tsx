@@ -17,14 +17,10 @@ const sysPrefsAppName = IS_VENTURA_OR_UP ? 'System Settings' : 'System Preferenc
 const staticPrefix = window.location.protocol === 'file:'
   ? url.pathToFileURL(BINARIES_DIR_PATH).href
   : './platform-imessage'
-const notificationsMessagesImg = path.join(staticPrefix, 'notifications-messages.png')
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
 const openSecuritySystemPrefs = (prefPath: string) =>
   window.open('x-apple.systempreferences:com.apple.preference.security?' + prefPath)
-
-const openNotificationsSystemPrefs = () =>
-  window.open('x-apple.systempreferences:com.apple.preference.notifications')
 
 const openContactsPrefs = () => openSecuritySystemPrefs('Privacy_Contacts')
 
@@ -171,50 +167,6 @@ const ChecklistItem = ({
   </article>
 )
 
-const NotificationsSection: React.FC<Props> = ({ open, callProxiedFn, nmp }) => {
-  const { authorized: axAuthorized } = useNMP(nmp, 'accessibility')
-  const [done, setDone] = useState(false)
-
-  const canDisableNotifs = IS_BIG_SUR_OR_UP && axAuthorized
-  const text = canDisableNotifs
-    ? "Both Texts and Messages will notify you for new messages. Texts can disable notifications for Messages.app so you don't get duplicate notifications."
-    : 'Both Texts and Messages will notify you for new messages. You can optionally disable notifications for Messages.app to not get duplicate notifications.'
-
-  return (
-    <details open={open} className="notifications-section">
-      <summary><h4>Double Notifications</h4></summary>
-      <div className="imessage-auth-well">
-        <div>
-          {text}
-        </div>
-
-        <br />
-
-        {!canDisableNotifs && (
-          <img src={notificationsMessagesImg} alt={`${sysPrefsAppName} – Notifications`} width={400} onClick={() => openNotificationsSystemPrefs()} />
-        )}
-
-        <div className="buttons">
-          {canDisableNotifs ? (
-            <button
-              className="primary"
-              onClick={() => {
-                callProxiedFn('disableMessagesNotifications')
-                setDone(true)
-              }}
-              disabled={done}
-            >
-              Disable{done ? 'd' : ''} Messages.app Notifications
-            </button>
-          ) : (
-            <button type="button" onClick={() => openNotificationsSystemPrefs()}>Open Notification Preferences</button>
-          )}
-        </div>
-      </div>
-    </details>
-  )
-}
-
 const AddAccountSection: React.FC<Pick<Props, 'login' | 'isReauthing'> & { buttonDisabled?: boolean }> = ({ buttonDisabled, login, isReauthing }) => (
   <div className="imessage-auth-well" style={{ borderRadius: 8 }}>
     <div className="buttons">
@@ -346,9 +298,6 @@ const ChecklistPage: React.FC<Props> = props => {
           {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
         </div>
       </details>
-      {allAuthorized && (
-        <NotificationsSection open {...props} />
-      )}
       {axAuthorized && messageDirAuthorized && <AddAccountSection {...props} />}
     </div>
   )
