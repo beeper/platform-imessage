@@ -50,12 +50,6 @@
     border-bottom-right-radius: 8px;
   }
 
-  .known-issues-section ul {
-    margin: 0;
-    opacity: 0.8;
-    line-height: 1.25em;
-  }
-
   ul {
     padding: 0;
     list-style: none;
@@ -66,7 +60,13 @@
   }
 
   .show-more-button {
-    margin: 0.5em 0;
+    font-size: 90%;
+    opacity: .9;
+  }
+
+  .more {
+    margin-bottom: 1em;
+    line-height: 1.6;
   }
 
   .permissions-section {
@@ -75,15 +75,22 @@
     line-height: 1.25em;
     cursor: default;
 
+    .fake-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      svg {
+        margin-left: 4px;
+        margin-right: 10px;
+        margin-bottom: -2px;
+      }
+    }
+
     article>div:first-child {
       font-size: 14px;
       display: flex;
       align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .more {
-      margin-bottom: 1em;
+      margin-bottom: 18px;
     }
 
     .check {
@@ -106,9 +113,10 @@
     }
 
     svg.icon {
-      font-size: 20px;
+      font-size: 18px;
       vertical-align: middle;
       margin-right: 8px;
+      margin-bottom: 1px;
       fill: currentColor;
     }
   }
