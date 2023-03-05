@@ -137,11 +137,13 @@ type ChecklistItemProps = {
   info: string
   completed: boolean
   action: () => void | Promise<void>
+  icon: React.ReactNode
   more: React.ReactNode
   showMore?: boolean
 }
 
 const ChecklistItem = ({
+  icon,
   title,
   completed,
   info,
@@ -152,17 +154,19 @@ const ChecklistItem = ({
 }: ChecklistItemProps & { Tooltip: React.FC<any> }) => (
   <article>
     <div onClick={() => action()}>
-      <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
-      <span>{title}</span>
+      <span>
+        {icon}
+        {title}
+      </span>
       <Tooltip
         position="top"
         tip={false}
         maxWidth={420}
         content={info}
-        className="info-icon-container"
       >
         <span className="info-icon">{InfoIcon}</span>
       </Tooltip>
+      <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
     </div>
     {showMore && <div className="more">{more}</div>}
   </article>
@@ -209,6 +213,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const checklistItems: ChecklistItemProps[] = [
     IS_BIG_SUR_OR_UP && {
+      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M8 4.143A1.071 1.071 0 1 0 8 2a1.071 1.071 0 0 0 0 2.143Zm-4.668 1.47 3.24.316v2.5l-.323 4.585A.383.383 0 0 0 7 13.14l.826-4.017c.045-.18.301-.18.346 0L9 13.139a.383.383 0 0 0 .752-.125L9.43 8.43v-2.5l3.239-.316a.38.38 0 0 0-.047-.756H3.379a.38.38 0 0 0-.047.756Z" /><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8Z" /></svg>,
       title: 'Accessibility',
       completed: axAuthorized,
       action: authorizeAX,
@@ -217,6 +222,7 @@ const ChecklistPage: React.FC<Props> = props => {
       showMore,
     },
     {
+      icon: <svg className="icon" viewBox="0 0 496 512" height="1em" width="1em"><path d="M248 104c-53 0-96 43-96 96s43 96 96 96 96-43 96-96-43-96-96-96zm0 144c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm0-240C111 8 0 119 0 256s111 248 248 248 248-111 248-248S385 8 248 8zm0 448c-49.7 0-95.1-18.3-130.1-48.4 14.9-23 40.4-38.6 69.6-39.5 20.8 6.4 40.6 9.6 60.5 9.6s39.7-3.1 60.5-9.6c29.2 1 54.7 16.5 69.6 39.5-35 30.1-80.4 48.4-130.1 48.4zm162.7-84.1c-24.4-31.4-62.1-51.9-105.1-51.9-10.2 0-26 9.6-57.6 9.6-31.5 0-47.4-9.6-57.6-9.6-42.9 0-80.6 20.5-105.1 51.9C61.9 339.2 48 299.2 48 256c0-110.3 89.7-200 200-200s200 89.7 200 200c0 43.2-13.9 83.2-37.3 115.9z" /></svg>,
       title: 'Contacts',
       completed: contactsAuthorized,
       action: authorizeContacts,
@@ -225,6 +231,7 @@ const ChecklistPage: React.FC<Props> = props => {
       showMore,
     },
     IS_MOJAVE_OR_UP && {
+      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M3.904 1.777C4.978 1.289 6.427 1 8 1s3.022.289 4.096.777C13.125 2.245 14 2.993 14 4s-.875 1.755-1.904 2.223C11.022 6.711 9.573 7 8 7s-3.022-.289-4.096-.777C2.875 5.755 2 5.007 2 4s.875-1.755 1.904-2.223Z" /><path d="M2 6.161V7c0 1.007.875 1.755 1.904 2.223C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777C13.125 8.755 14 8.007 14 7v-.839c-.457.432-1.004.751-1.49.972C11.278 7.693 9.682 8 8 8s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 9.161V10c0 1.007.875 1.755 1.904 2.223C4.978 12.711 6.427 13 8 13s3.022-.289 4.096-.777C13.125 11.755 14 11.007 14 10v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 12.161V13c0 1.007.875 1.755 1.904 2.223C4.978 15.711 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /></svg>,
       title: 'Messages Data',
       completed: messageDirAuthorized,
       action: authorizeMessagesDir,
@@ -233,6 +240,7 @@ const ChecklistPage: React.FC<Props> = props => {
       showMore,
     },
     IS_MOJAVE_OR_UP && {
+      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" /></svg>,
       title: 'Automation',
       completed: automationAuthorized,
       action: authorizeAutomation,
@@ -286,7 +294,7 @@ const ChecklistPage: React.FC<Props> = props => {
             <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
           </div>
         )}
-        {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Having issues?</div>}
+        {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
         {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
       </div>
     </div>

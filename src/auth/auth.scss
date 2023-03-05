@@ -94,7 +94,7 @@
       height: 20px;
       border-radius: 60px;
       border: 2px solid var(--color-primary);
-      margin-right: 8px;
+      margin-left: auto;
 
       svg {
         font-size: 10px;
@@ -104,17 +104,21 @@
         background-color: var(--color-primary);
       }
     }
+
+    svg.icon {
+      font-size: 20px;
+      vertical-align: middle;
+      margin-right: 8px;
+      fill: currentColor;
+    }
   }
 
   button.primary {
     width: 100%;
   }
 
-  .info-icon-container {
-    margin-left: auto
-  }
-
   .info-icon {
+    margin-left: 4px;
     margin-top: 2px;
   }
 }
