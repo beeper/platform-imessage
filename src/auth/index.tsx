@@ -7,7 +7,7 @@ import { AuthProps, texts } from '@textshq/platform-sdk'
 import type { AuthType } from 'node-mac-permissions'
 import type PAPI from '../api'
 
-import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from '../constants'
+import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, IS_VENTURA_OR_UP } from '../constants'
 import useAsync from './use-async'
 
 const sleep = (ms: number) => new Promise(resolve => { setTimeout(resolve, ms) })
@@ -203,7 +203,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const authorizeAX = () => {
     openAXPrefs()
-    if (!axAuthorized && !IS_VENTURA_OR_UP) callProxiedFn('startSysPrefsOnboarding')
+    if (!axAuthorized && IS_BIG_SUR_OR_UP) callProxiedFn('startSysPrefsOnboarding')
   }
 
   // const revokeAll = () => {

@@ -73,15 +73,21 @@ struct MessageBubble: View {
 struct OnboardingView: View {
     var body: some View {
         HStack(spacing: 0) {
-            MessageBubble(text: "1. Click the lock icon", tl: 16, tr: 16, bl: 8, br: 16)
-                .padding(.bottom, 64)
-                .padding(.leading, 42)
+            if #available(macOS 13.0, *) {
+                MessageBubble(text: "Turn on Texts.app in the list", tl: 16, tr: 16, bl: 8, br: 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding()
+            } else {
+                MessageBubble(text: "1. Click the lock icon", tl: 16, tr: 16, bl: 8, br: 16)
+                    .padding(.bottom, 64)
+                    .padding(.leading, 42)
 
-            Spacer()
+                Spacer()
 
-            MessageBubble(text: "2. Check Texts.app in the list", tl: 8, tr: 16, bl: 16, br: 16)
-                .padding(.bottom, 195)
-                .padding(.trailing, 60)
+                MessageBubble(text: "2. Check Texts.app in the list", tl: 8, tr: 16, bl: 16, br: 16)
+                    .padding(.bottom, 195)
+                    .padding(.trailing, 60)
+            }
         }
     }
 }
