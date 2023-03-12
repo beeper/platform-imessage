@@ -4,6 +4,7 @@ enum Defaults {
     private static let main = UserDefaults(suiteName: messagesBundleID)
     private static let pinning = UserDefaults(suiteName: "com.apple.messages.pinning")
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
+    private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
 
     static func resetPrompts() {
         // main?.set(true, forKey: "kHasSetupHashtagImages") // unknown
@@ -59,5 +60,22 @@ enum Defaults {
             }
         }
         return false
+    }
+
+    static func isNotificationsEnabledForApp(bundleID: String) -> Bool {
+        guard let apps = ncPrefs?.array(forKey: "apps") as? [[String: Any]] else {
+            return false
+        }
+
+        guard let app = apps.first(where: {$0["bundle-id"] as? String) == bundleID }) else {
+            return false
+        }
+
+        guard let flags = app["flags"] as? Int else {
+            return false
+        }
+
+        // 25th bit is the notifications enabled bit
+        return (flags >> 25) & 1 == 1
     }
 }

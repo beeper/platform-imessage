@@ -226,6 +226,10 @@ enum Preferences {
                 Defaults.isAppInDock(bundleID: messagesBundleID)
             },
 
+            "isNotificationsEnabledForMessages": NodeComputedProperty { _ in
+                Defaults.isNotificationsEnabledForApp(bundleID: messagesBundleID)
+            },
+
             "enabledExperiments": NodeComputedProperty { _ in
                 Preferences.enabledExperiments
             } set: { args in
@@ -318,7 +322,7 @@ enum Preferences {
                         }
                     }
                 }
-            }
+            },
         ]
 
         if #available(macOS 10.15, *) {
