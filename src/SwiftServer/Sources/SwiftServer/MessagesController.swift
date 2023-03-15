@@ -40,6 +40,7 @@ let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSy
 enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
+    private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
 
     static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
     static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")
@@ -60,6 +61,8 @@ enum LocalizedStrings {
 
     static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
+
+    static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 }
 
 private enum MessageAction {

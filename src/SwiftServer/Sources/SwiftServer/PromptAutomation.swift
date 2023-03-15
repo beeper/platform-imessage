@@ -82,7 +82,7 @@ enum PromptAutomation {
                 let settingsPaneGroupView = try settingsPaneView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsPaneGroupView not found"))
                 let scrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
 
-                if (try? scrollView.children().first?.localizedDescription() as? String) != "Notification Center" {
+                if (try? scrollView.children().first?.localizedDescription() as? String) != LocalizedStrings.notificationCenter {
                     throw ErrorMessage("Not in Notification Center settings")
                 }
 
