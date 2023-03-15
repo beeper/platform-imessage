@@ -82,11 +82,9 @@ enum PromptAutomation {
                 let settingsPaneGroupView = try settingsPaneView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("settingsPaneGroupView not found"))
                 let scrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("scrollView not found"))
 
-                if (try? scrollView.children().first?.localizedDescription() as? String) != LocalizedStrings.notificationCenter {
-                    throw ErrorMessage("Not in Notification Center settings")
+                if (try? scrollView.children().first?.localizedDescription() as? String) == LocalizedStrings.notificationCenter {
+                    try Self.openNotificationSettingsForApp(appName: appName, scrollView: scrollView)
                 }
-
-                try Self.openNotificationSettingsForApp(appName: appName, scrollView: scrollView)
 
                 // Need to reassign this if ever another app is open and we navigate back to the main notification center settings
                 var notificationsScrollView = try settingsPaneGroupView.children().first(where: { (try? $0.role()) == AXRole.scrollArea }).orThrow(ErrorMessage("notificationsScrollView not found"))
