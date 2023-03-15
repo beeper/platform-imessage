@@ -63,7 +63,7 @@ export type SwiftServer = {
   isPHTEnabled: boolean
   enabledExperiments: string
   isMessagesAppInDock: string
-  isNotificationsEnabledForMessages: string
+  isNotificationsEnabledForMessages: boolean
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   messagesControllerClass: typeof MessagesController

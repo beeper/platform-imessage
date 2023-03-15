@@ -683,6 +683,7 @@ export default class AppleiMessage implements PlatformAPI {
       await shellExec('/usr/bin/tccutil', 'reset', 'All', 'com.googlecode.iterm2')
       return true
     },
+    isNotificationsEnabledForMessages: () => swiftServer.isNotificationsEnabledForMessages,
   }
 
   getAsset = async (_: GetAssetOptions, pathHex: string, methodName: string) => {
