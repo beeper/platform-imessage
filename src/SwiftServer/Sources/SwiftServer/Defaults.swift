@@ -67,7 +67,7 @@ enum Defaults {
             return false
         }
 
-        guard let app = apps.first(where: {$0["bundle-id"] as? String) == bundleID }) else {
+        guard let app = apps.first(where: { ($0["bundle-id"] as? String) == bundleID }) else {
             return false
         }
 
