@@ -455,13 +455,23 @@ final class MessagesController {
 
         guard isValid else {
             dispose() // since deinit isn't called when init throws
-            throw ErrorMessage("Initialized MessagesController in an invalid state: appTerminated=\(app.isTerminated), mwFrameValid=\(Result { try elements.mainWindow.isFrameValid }), whmValid=\(whm.isValid)")
+            throw ErrorMessage("""
+Initialized MessagesController in an invalid state:
+appTerminated=\(app.isTerminated)
+mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+whmValid=\(whm.isValid)
+isMessagesAppResponsive=\(isMessagesAppResponsive)
+""")
         }
         resetWindow()
     }
 
+    var isMessagesAppResponsive: Bool {
+        (try? Process.isUnresponsive(app.processIdentifier)) == false
+    }
+
     var isValid: Bool {
-        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && whm.isValid
+        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && whm.isValid && isMessagesAppResponsive
     }
 
     @inlinable func startedAutomation() {
