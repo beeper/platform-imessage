@@ -1080,7 +1080,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
-            pasteboard.setString(fileURL.relativeString, forType: .fileURL)
+            pasteboard.setString(fileURL.relativeString.removingPercentEncoding ?? fileURL.relativeString, forType: .fileURL)
             try keyPresser.commandV()
             try retry(withTimeout: 2, interval: 0.1) {
                 // 2 for <OBJ_REPLACEMENT_CHAR> and \n
