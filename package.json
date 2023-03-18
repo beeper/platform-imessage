@@ -48,7 +48,7 @@
     "node-sass": "^7.0.1",
     "node-swift": "https://github.com/TextsHQ/node-swift#d4d1973d9d87ebb068347da5a64409a4c3887065",
     "ts-jest": "^28.0.7",
-    "typescript": "^4.9.4"
+    "typescript": "^5.0.2"
   },
   "os": [
     "darwin"
