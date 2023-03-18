@@ -49,7 +49,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!this.dbAPI.connected) throw new ReAuthError('Unable to connect to iMessage database')
   }
 
-  private asAPI = ASAPI()
+  private asAPI = IS_BIG_SUR_OR_UP ? undefined : ASAPI()
 
   private messagesControllerFetchPromise: Promise<MessagesController>
 

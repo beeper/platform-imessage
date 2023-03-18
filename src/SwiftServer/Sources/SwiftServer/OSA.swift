@@ -2,6 +2,7 @@ import OSAKit
 
 enum OSA {
     private static func run(_ source: String, language: OSALanguage? = .init(forName: "JavaScript")) throws {
+        debugLog(source)
         let script = OSAScript(source: source, language: language)
         var scriptError: NSDictionary?
         let _ = script.executeAndReturnError(&scriptError)

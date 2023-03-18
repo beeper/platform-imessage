@@ -4,7 +4,7 @@ import pRetry from 'p-retry'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 import { texts } from '@textshq/platform-sdk'
 
-import { IS_BIG_SUR_OR_UP, MESSAGES_APP_BUNDLE_ID } from './constants'
+import { MESSAGES_APP_BUNDLE_ID } from './constants'
 import spawnASServer from './as-server'
 import IS_DEV_ENVIRON from './is-dev-environ'
 
@@ -80,8 +80,6 @@ const RETRY_OPTIONS: pRetry.Options = {
 // }
 
 function createAPIServer() {
-  if (IS_BIG_SUR_OR_UP) return undefined
-
   const { run, exit } = spawnASServer()
 
   const isMessagesRunning = () =>
