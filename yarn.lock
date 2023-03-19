@@ -2459,7 +2459,7 @@ __metadata:
   dependencies:
     "@jxa/global-type": ^1.3.5
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main"
-    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#0b043854854f5810f856136a4a753e7a1d5dca03"
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#b5168dae5f43c525bde522b9f80a54b132bc2de9"
     "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main"
     "@types/eslint": ^8.4.10
     "@types/jest": ^28.1.6
@@ -2488,13 +2488,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#0b043854854f5810f856136a4a753e7a1d5dca03":
+"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#b5168dae5f43c525bde522b9f80a54b132bc2de9":
   version: 0.4.4
-  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=0b043854854f5810f856136a4a753e7a1d5dca03"
+  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=b5168dae5f43c525bde522b9f80a54b132bc2de9"
   dependencies:
     emoji-regex: ^10.1.0
     qrcode.react: ^3.1.0
-  checksum: 0234beb9a9b075d32322ae2a8b918af7505fd65bf867b593e954c7e90e87aa6472420d0fdf07378d9e7b86d11476ea10a4643e10fab15a8888b96f4bd0c119d9
+  checksum: 32fdf0fa4c9bc201dcaf51f8afbd74f0f29363a997235cad47d819b78807250d489cb545f0312e6f95550e7d7e1586a930c946f8b7e3b24c7bfe9ebd4a9cb967
   languageName: node
   linkType: hard
 

@@ -1,5 +1,5 @@
 {
-  "extends": "@textshq/platform-sdk/tsconfig.json",
+  "extends": "@textshq/platform-sdk/tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
