@@ -63,8 +63,8 @@ final class MessagesAppElements {
         try window.sections().lazy.compactMap { $0["SectionObject"].flatMap { Accessibility.Element(erased: $0) } }
     }
 
-    private static func getConversationList(window: Accessibility.Element) -> Accessibility.Element? {
-        if let cl = try? getSectionObjects(window: window).first(where: { (try? $0.identifier()) == "ConversationList" }) { return cl }
+    private static func getConversationList(window: Accessibility.Element, useFastPath: Bool) -> Accessibility.Element? {
+        if useFastPath, let cl = try? getSectionObjects(window: window).first(where: { (try? $0.identifier()) == "ConversationList" }) { return cl }
         if let cl = window.recursivelyFindChild(withID: "ConversationList") { return cl }
         return nil
     }
@@ -73,13 +73,17 @@ final class MessagesAppElements {
         window.recursivelyFindChild(withID: "CKConversationListCollectionView")
     }
 
+    func isMainWindow(window: Accessibility.Element) -> Bool {
+        // note: doing these are unreliable
+        // 1. detecting presence of AXSplitter
+        // 2. using getConversationList with useFastPath=true
+        Self.getConversationList(window: window, useFastPath: false) != nil || Self.getCKConversationListCollectionView(window: window) != nil
+    }
+
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
         let startTime = Date()
         defer { Logger.log("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        return allWindows.first(where: {
-            // note: don't detect presence of AXSplitter here, it's unreliable
-            Self.getConversationList(window: $0) != nil || Self.getCKConversationListCollectionView(window: $0) != nil
-        })
+        return allWindows.first(where: isMainWindow)
     }
 
     private func isPromptVisibleInMessagesApp() -> Bool {
@@ -127,7 +131,7 @@ final class MessagesAppElements {
             let startTime = Date()
             defer { Logger.log("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
             let cl = try retry(withTimeout: 1, interval: 0.1) {
-                try Self.getConversationList(window: mainWindow).orThrow(ErrorMessage("ConversationList not found"))
+                try Self.getConversationList(window: mainWindow, useFastPath: true).orThrow(ErrorMessage("ConversationList not found"))
             } onError: { _, _ in
                 let searchField = try self.searchField
                 debugLog("fetching ConversationList errored, calling searchField.cancel")

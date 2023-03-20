@@ -1042,6 +1042,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
+    func closeAllNonMainWindows() throws {
+        try elements.app.appWindows().forEach { window in
+            if !elements.isMainWindow(window: window) {
+                try window.closeWindow()
+            }
+        }
+    }
+
     #if DEBUG
     func closeAllWindows() throws {
         try elements.mainWindow.closeWindow()
@@ -1115,6 +1123,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             try whm.appDeactivated(window: window)
+            try? closeAllNonMainWindows()
             if window != nil {
                 resetWindow()
             }
