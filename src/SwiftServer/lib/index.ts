@@ -75,6 +75,9 @@ export type SwiftServer = {
 
   confirmUNCPrompt: () => Promise<void>
   disableNotificationsForApp: (appName: string) => Promise<void>
+
+  removeMessagesFromDock: () => Promise<void>
+  killDock: () => Promise<void>
 }
 
 const hasSwiftLibs = IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift')

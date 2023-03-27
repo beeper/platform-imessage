@@ -215,13 +215,7 @@ export default class AppleiMessage implements PlatformAPI {
     })
     this.onEvent = onEvent
     if (swiftServer?.isMessagesAppInDock && swiftServer?.isPHTEnabled) {
-      onEvent([{
-        type: ServerEventType.TOAST,
-        toast: {
-          text: '"Hide Messages.app in Dock" is enabled while Messages.app is kept in dock. To fix: right-click the dock icon → Options → Remove from Dock',
-          timeoutMs: -1,
-        },
-      }])
+      this.removeMessagesAppInDock()
     }
   }
 
@@ -728,5 +722,10 @@ export default class AppleiMessage implements PlatformAPI {
         }
       }
     }
+  }
+
+  private removeMessagesAppInDock = async () => {
+    await swiftServer.removeMessagesFromDock()
+    await swiftServer.killDock()
   }
 }

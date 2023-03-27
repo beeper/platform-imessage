@@ -62,6 +62,31 @@ enum Defaults {
         return false
     }
 
+    static func removeAppInDock(bundleID: String) {
+        guard var persistentApps = dock?.array(forKey: "persistent-apps") as? [[String: Any]] else {
+            return
+        }
+
+        let appIndex = persistentApps.firstIndex { app in
+            guard let tileData = app["tile-data"] as? [String: Any] else {
+                return false
+            }
+
+            guard let bundleIdentifier = tileData["bundle-identifier"] as? String else {
+                return false
+            }
+
+            return bundleIdentifier == bundleID
+        }
+
+        guard let appIndex else {
+            return
+        }
+
+        persistentApps.remove(at: appIndex)
+        dock?.set(persistentApps, forKey: "persistent-apps")
+    }
+
     static func isNotificationsEnabledForApp(bundleID: String) -> Bool {
         guard let apps = ncPrefs?.array(forKey: "apps") as? [[String: Any]] else {
             return false

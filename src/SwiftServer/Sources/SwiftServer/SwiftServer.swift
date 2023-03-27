@@ -1,5 +1,6 @@
 import NodeAPI
 import Foundation
+import WindowControl
 
 @available(macOS 11, *)
 final class MessagesControllerWrapper: NodeClass {
@@ -322,6 +323,16 @@ enum Preferences {
                         }
                     }
                 }
+            },
+
+            "removeMessagesFromDock": NodeFunction {
+                Defaults.removeAppInDock(bundleID: messagesBundleID)
+                return undefined
+            },
+
+            "killDock": NodeFunction {
+                Dock.getApp()?.terminate()
+                return undefined
             },
         ]
 
