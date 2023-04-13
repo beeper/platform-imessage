@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SwiftServer",
-    platforms: [.macOS(.v10_14)],
+    platforms: [.macOS(.v10_15)],
     products: [
         .library(
             name: "SwiftServer",
