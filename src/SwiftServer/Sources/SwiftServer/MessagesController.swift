@@ -54,6 +54,8 @@ enum LocalizedStrings {
     static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
     static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
 
+    static let buddyTyping = chatKitFrameworkAxBundle.localizedString(forKey: "contact.typing.message", value: nil, table: "Accessibility")
+
     static let replyTranscript = chatKitFrameworkAxBundle.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility")
 
     static let showAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "show.alerts.collection.view.cell", value: nil, table: "Accessibility")
@@ -1182,9 +1184,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             return nil
         }()
         let isTyping = cellsToCheck.contains { elt in
-            // children can briefly be 0 for newly sent messages as well, so
-            // that by itself isn't a good enough heuristic
-            (try? elt.children.count()) == 0 && (try? elt.roleDescription().isEmpty) != false
+            let childCount = try? elt.children.count()
+            // kabir: children can briefly be 0 for newly sent messages as well, so that by itself isn't a good enough heuristic
+            if childCount != 0 { return false }
+            if (try? elt.localizedDescription()) == LocalizedStrings.buddyTyping { return true }
+            // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
+            return (try? elt.roleDescription().isEmpty) != false
         }
         let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? [])
         return flags
