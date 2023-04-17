@@ -62,7 +62,7 @@ const info: PlatformInfo = {
   prefs: IS_BIG_SUR_OR_UP ? {
     hide_messages_app: {
       label: 'Hide Messages.app in Dock',
-      description: 'This will require the installation of a helper tool.',
+      description: 'This will prompt the installation of a helper tool.',
       type: 'checkbox',
       default: false,
     },
