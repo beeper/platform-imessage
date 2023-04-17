@@ -477,19 +477,26 @@ export default class AppleiMessage implements PlatformAPI {
     return result
   }
 
+  private sendingMessagesCount = 0
+
   sendMessage = async (threadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
-    const { quotedMessageID } = options
-    if (content.fileBuffer) {
-      return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, quotedMessageID)
+    try {
+      this.sendingMessagesCount++
+      const { quotedMessageID } = options
+      if (content.fileBuffer) {
+        return this.sendFileFromBuffer(threadID, content.fileBuffer, content.mimeType, content.fileName, quotedMessageID)
+      }
+      if (content.filePath) {
+        return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
+      }
+      if (IS_BIG_SUR_OR_UP) {
+        return this.waitForMessageSend(threadID, quotedMessageID, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
+      }
+      return this.waitForMessageSend(threadID, undefined, () =>
+        this.asAPI!.sendTextMessage(threadID, content.text))
+    } finally {
+      this.sendingMessagesCount--
     }
-    if (content.filePath) {
-      return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
-    }
-    if (IS_BIG_SUR_OR_UP) {
-      return this.waitForMessageSend(threadID, quotedMessageID, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
-    }
-    return this.waitForMessageSend(threadID, undefined, () =>
-      this.asAPI!.sendTextMessage(threadID, content.text))
   }
 
   updateThread = async (threadID: ThreadID, updates: Partial<Thread>) => {
@@ -509,6 +516,7 @@ export default class AppleiMessage implements PlatformAPI {
   sendActivityIndicator = async (type: ActivityType, threadID: ThreadID) => {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
+    if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
     const participantID = getSingleParticipantAddress(threadID)
     // only 1-to-1 conversations are supported
     if (!participantID) return
