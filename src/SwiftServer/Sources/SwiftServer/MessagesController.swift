@@ -351,7 +351,8 @@ final class MessagesController {
                 (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
             else {
                 debugLog("thread not selected: \(selectedAddress) \(addressToMatch)")
-                throw ErrorMessage("thread not selected")
+                let dropAddress: (String) -> String = { $0.split(separator: ";", maxSplits: 2).dropLast().joined(separator: ";") }
+                throw ErrorMessage("thread not selected: \(dropAddress(selectedAddress)) \(dropAddress(threadID)) ")
             }
         }
     }
