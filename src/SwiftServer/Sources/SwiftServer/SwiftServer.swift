@@ -283,14 +283,12 @@ enum Preferences {
                 guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
                     return undefined
                 }
-                return try decoded.map { frag in
-                    try NodeObject([
-                        "from": Double(frag.scalarRange.lowerBound),
-                        "to": Double(frag.scalarRange.upperBound),
-                        "text": "\(frag.text)",
-                        "attributes": frag.attributes.mapValues { "\($0)" }
-                    ])
-                }
+                return decoded.map { [
+                    "from": Double($0.scalarRange.lowerBound),
+                    "to": Double($0.scalarRange.upperBound),
+                    "text": "\($0.text)",
+                    "attributes": $0.attributes.mapValues { "\($0)" }
+                ] }
             },
 
             "confirmUNCPrompt": NodeFunction {
