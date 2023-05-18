@@ -98,23 +98,19 @@ const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: CallProxiedFn }> = (
   )
 }
 
-const SetupMessagesSection: React.FC<{ callProxiedFn: CallProxiedFn }> = ({ callProxiedFn }) => {
-  const isMessagesAppSetup = useCallback(() => callProxiedFn('isMessagesAppSetup'), [])
-  const { value: isSetup, pending } = useAsync(isMessagesAppSetup)
-  if (pending || isSetup) return null
-  return (
-    <details open>
-      <summary><h4>Setup Messages.app</h4></summary>
-      <div className="imessage-auth-well">
-        <div>Messages.app isn't setup. Texts requires Messages.app to be setup first to connect iMessage.</div>
-        <br />
-        <div>
-          <button className="primary" onClick={() => window.open('imessage://')}>Open Messages.app</button>
-        </div>
+const SetupMessagesSection: React.FC<{}> = () => (
+  <details open>
+    <summary><h4>Setup Messages.app</h4></summary>
+    <div className="imessage-auth-well">
+      <div>Messages.app isn't setup. Texts requires Messages.app to be setup first to connect iMessage.</div>
+      <br />
+      <div>
+        <button className="primary" onClick={() => window.open('imessage://')}>Open Messages.app</button>
       </div>
-    </details>
-  )
-}
+    </div>
+  </details>
+)
+
 // const NotificationsIcon = (
 //   <svg width="46" height="43" viewBox="0 0 46 43" fill="none">
 //     <path d="M13.163 42.731C14.168 42.731 14.865 42.198 16.116 41.091L23.191 34.795H36.3571C42.4681 34.795 45.75 31.411 45.75 25.402V9.69299C45.75 3.68499 42.4681 0.300995 36.3571 0.300995H9.94299C3.83199 0.300995 0.549988 3.66399 0.549988 9.69299V25.403C0.549988 31.432 3.83199 34.795 9.94299 34.795H10.927V40.127C10.927 41.707 11.727 42.731 13.163 42.731V42.731ZM14.003 38.979V33.031C14.003 31.924 13.573 31.493 12.465 31.493H9.94299C5.79999 31.493 3.85303 29.381 3.85303 25.382V9.69299C3.85303 5.69399 5.79999 3.603 9.94299 3.603H36.3571C40.4791 3.603 42.447 5.69399 42.447 9.69299V25.382C42.447 29.381 40.4791 31.493 36.3571 31.493H23.068C21.92 31.493 21.345 31.657 20.566 32.457L14.004 38.979H14.003ZM23.15 21.239C24.134 21.239 24.709 20.686 24.73 19.619L25.016 8.791C25.036 7.766 24.216 6.966 23.129 6.966C22.022 6.966 21.243 7.746 21.263 8.771L21.53 19.619C21.55 20.665 22.125 21.239 23.15 21.239V21.239ZM23.15 27.904C24.34 27.904 25.365 26.981 25.365 25.771C25.365 24.582 24.36 23.659 23.15 23.659C21.94 23.659 20.935 24.603 20.935 25.771C20.935 26.961 21.961 27.904 23.15 27.904Z" fill="#EBA04F" />
@@ -181,16 +177,19 @@ const ChecklistPage: React.FC<Props> = props => {
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  const isMessagesAppSetupFn = useCallback(async () => messageDirAuthorized && callProxiedFn<boolean>('isMessagesAppSetup'), [messageDirAuthorized])
+  const { value: isMessagesAppSetupValue, pending: isMessagesAppSetupValuePending } = useAsync(isMessagesAppSetupFn)
+  const isMessagesAppSetup = isMessagesAppSetupValuePending || isMessagesAppSetupValue
 
   const authorizeContacts = async () => {
     if (askedContacts.current) return openContactsPrefs()
-    if (axAuthorized) setTimeout(() => callProxiedFn('confirmUNCPrompt'), 1)
+    if (axAuthorized) setTimeout(() => callProxiedFn<void>('confirmUNCPrompt'), 1)
     await nmp.askForContactsAccess()
     askedContacts.current = true
   }
 
   const authorizeMessagesDir = async () => {
-    await callProxiedFn('askForMessagesDirAccess')
+    await callProxiedFn<void>('askForMessagesDirAccess')
     await refreshMessageDirAuthorization()
   }
 
@@ -250,7 +249,7 @@ const ChecklistPage: React.FC<Props> = props => {
     },
   ].filter(Boolean)
 
-  const allAuthorized = checklistItems.every(i => i.completed)
+  const allAuthorized = isMessagesAppSetup && checklistItems.every(i => i.completed)
   const nextUncompletedItem = checklistItems.find(i => !i.completed)
 
   useEffect(() => {
@@ -308,7 +307,7 @@ const ChecklistPage: React.FC<Props> = props => {
   return (
     <div>
       <RevokeFDASection {...{ nmp, callProxiedFn }} />
-      {messageDirAuthorized && <SetupMessagesSection {...{ callProxiedFn }} />}
+      {messageDirAuthorized && !isMessagesAppSetup && <SetupMessagesSection />}
       {allAuthorized ? 'Adding...' : permissionsSection()}
     </div>
   )
