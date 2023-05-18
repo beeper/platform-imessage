@@ -196,8 +196,15 @@ const ChecklistPage: React.FC<Props> = props => {
   const authorizeAutomation = async () => {
     if (calledAutomationOnce) return openAutomationPrefs()
     if (axAuthorized) callProxiedFn('confirmUNCPrompt')
-    setAutomationAuthorized(await callProxiedFn('askForAutomationAccess'))
-    setCalledAutomationOnce(true)
+    try {
+      const allowed = await callProxiedFn<boolean>('askForAutomationAccess')
+      setAutomationAuthorized(allowed)
+      setCalledAutomationOnce(true)
+    } catch (err) {
+      console.error(err)
+      texts.Sentry.captureException(err)
+      alert('Something went wrong:\n\n' + err.toString())
+    }
   }
 
   const authorizeAX = () => {
