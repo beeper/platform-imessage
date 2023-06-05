@@ -17,12 +17,12 @@ import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
-import swiftServer, { ActivityStatus, MessageCell, MessagesController } from './SwiftServer/lib'
+import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import DNDState from './DNDState'
+import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
-const messagesControllerClass = swiftServer?.messagesControllerClass
 
 function canAccessMessagesDir() {
   try {
@@ -51,19 +51,13 @@ export default class AppleiMessage implements PlatformAPI {
 
   private asAPI = IS_BIG_SUR_OR_UP ? undefined : ASAPI()
 
-  private messagesControllerFetchPromise: Promise<MessagesController>
-
-  private messagesControllerCreatePromise: Promise<MessagesController>
-
   private onEvent: OnServerEventCallback
-
-  private forceInvalidate = false
 
   private async initDB() {
     await this.dbAPI.init()
     if (this.dbAPI.connected) { // we can read the db which likely means user went through auth flow
       await this.storeCurrentUser()
-      this.getMessagesController()
+      MessagesControllerWrapper.get()
     }
   }
 
@@ -86,72 +80,6 @@ export default class AppleiMessage implements PlatformAPI {
     await this.initDB()
     if (this.dbAPI.connected) return { type: 'success' }
     return { type: 'error', errorMessage: 'Please grant access to Messages Data and try again.' }
-  }
-
-  // here be dragons
-  private _getMessagesController = async (attempt = 0): Promise<MessagesController> => {
-    if (!IS_BIG_SUR_OR_UP) return
-
-    // we want to reuse existing instances of the fetch promise while any one is
-    // running, but once it's done the next call to getMessagesController should
-    // start up a new invocation (so that isValid() is checked again)
-    //
-    // the create promise, meanwhile, should be recreated sparingly: only if a previous
-    // create() call failed, or inside the fetch promise when isValid is false (in either
-    // case, the main fetchPromsie closure will throw and be caught by the catch)
-    if (!this.messagesControllerFetchPromise) {
-      this.messagesControllerFetchPromise = (async () => {
-        if (!this.messagesControllerCreatePromise) {
-          texts.log('creating MessagesController...')
-          this.messagesControllerCreatePromise = messagesControllerClass.create()
-        }
-        const controller = await this.messagesControllerCreatePromise
-        if (!(await controller.isValid()) || this.forceInvalidate) {
-          texts.trackPlatformEvent({
-            platform: 'imessage',
-            message: 'disposing MessagesController',
-            forceInvalidate: this.forceInvalidate,
-          })
-          this.forceInvalidate = false
-          controller.dispose()
-          throw new Error('MessagesController is invalid')
-        }
-        return controller
-      })().finally(() => {
-        // this `finally` must run *before* the catch since the catch recurses
-        // getMessagesController, and when that happens the fetch promise should
-        // already be undefined
-        this.messagesControllerFetchPromise = undefined
-      }).catch(err => {
-        // we always unset createPromise here, but only auto-retry up to twice.
-        // This means that a single call to getMessagesController() will spawn
-        // at most three create() calls, but if all three fail then a future call
-        // to getMessagesController() can spawn up to three more again
-        this.messagesControllerCreatePromise = undefined
-        texts.error('[imessage] getMessagesController', err)
-        if (attempt > 2) {
-          texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-          throw err
-        }
-        texts.log('retrying...')
-        return this._getMessagesController(attempt + 1)
-      })
-    }
-    return this.messagesControllerFetchPromise
-  }
-
-  private getMessagesController = async () => {
-    const startTime = Date.now()
-    const mcPromise = this._getMessagesController()
-    const timeout = setTimeout(() => {
-      texts.Sentry.captureMessage('imessage.getMC took >10s')
-    }, 10_000)
-    const mc = await mcPromise
-    clearTimeout(timeout)
-    const ms = Date.now() - startTime
-    texts.log('[imsg] fetched mc in', ms, 'ms')
-    if (ms > 20_000) texts.Sentry.captureMessage(`imessage.getMC took ${ms / 1000}s`)
-    return mc
   }
 
   private sipEnabled = csrStatus().then(status => {
@@ -194,7 +122,7 @@ export default class AppleiMessage implements PlatformAPI {
     // and so getMessagesController() would re-initialize it. We only really care
     // about disposing any existing handle.
     await Promise.all([
-      this.messagesControllerCreatePromise && (await this.getMessagesController()).dispose(),
+      MessagesControllerWrapper.dispose(),
       fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
       this.dbAPI.dispose(),
       this.asAPI?.dispose(),
@@ -283,7 +211,7 @@ export default class AppleiMessage implements PlatformAPI {
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
     }
-    await (await this.getMessagesController()).createThread(userIDs, message)
+    await (await MessagesControllerWrapper.get()).createThread(userIDs, message)
     return true
   }
 
@@ -398,7 +326,7 @@ export default class AppleiMessage implements PlatformAPI {
       const retries = quotedMessageID ? 2 : 1
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
-        const controller = await this.getMessagesController()
+        const controller = await MessagesControllerWrapper.get()
         const [messageGUID, offset] = quotedMessageID ? quotedMessageID.split('_') : []
         await controller.sendMessage(threadID, text, filePath, quotedMessageID ? JSON.stringify({
           messageGUID,
@@ -412,7 +340,7 @@ export default class AppleiMessage implements PlatformAPI {
         onFailedAttempt: error => {
           texts.Sentry.captureException(error)
           texts.log('sendMessage failed', { quotedMessageID }, error)
-          if (error.attemptNumber === 1) this.forceInvalidate = true
+          if (error.attemptNumber === 1) MessagesControllerWrapper.forceInvalidate = true
         },
         retries,
       })
@@ -442,7 +370,7 @@ export default class AppleiMessage implements PlatformAPI {
       sentThreadIDs = await getSentThreadIDs()
       if ((Date.now() - start) > 10_000) break
     }
-    const mc = await this.getMessagesController()
+    const mc = await MessagesControllerWrapper.get()
     const address = threadIDToAddress(threadID)
     if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || (sentThreadID && mc?.isSameContact(address, threadIDToAddress(sentThreadID))))) {
       console.log('imessage potentially sent messages to invalid thread')
@@ -502,14 +430,14 @@ export default class AppleiMessage implements PlatformAPI {
   updateThread = async (threadID: ThreadID, updates: Partial<Thread>) => {
     if (!IS_BIG_SUR_OR_UP) return
     if ('mutedUntil' in updates) {
-      const mc = await this.getMessagesController()
+      const mc = await MessagesControllerWrapper.get()
       await mc.muteThread(threadID, updates.mutedUntil === 'forever')
     }
   }
 
   deleteThread = async (threadID: ThreadID) => {
     if (!IS_BIG_SUR_OR_UP) return
-    const mc = await this.getMessagesController()
+    const mc = await MessagesControllerWrapper.get()
     await mc.deleteThread(threadID)
   }
 
@@ -521,7 +449,7 @@ export default class AppleiMessage implements PlatformAPI {
     // only 1-to-1 conversations are supported
     if (!participantID) return
     const isTyping = type === ActivityType.TYPING
-    return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
+    return (await MessagesControllerWrapper.get()).sendTypingStatus(threadID, isTyping)
   }
 
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
@@ -542,7 +470,7 @@ export default class AppleiMessage implements PlatformAPI {
       const closestMessage: AXMessageSelection = overlay
         ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
         : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
-      const controller = await this.getMessagesController()
+      const controller = await MessagesControllerWrapper.get()
       const result = await this.waitForMessageSend(
         threadID,
         messageID,
@@ -554,7 +482,7 @@ export default class AppleiMessage implements PlatformAPI {
       onFailedAttempt: error => {
         texts.Sentry.captureException(error)
         texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)
-        if (error.attemptNumber === 1) this.forceInvalidate = true
+        if (error.attemptNumber === 1) MessagesControllerWrapper.forceInvalidate = true
       },
       retries: 2,
     })
@@ -569,7 +497,7 @@ export default class AppleiMessage implements PlatformAPI {
   // deleteMessage = async (threadID: ThreadID, messageID: MessageID) => false
 
   private toggleThreadRead = (read: boolean) => async (threadID: ThreadID) => {
-    const controller = await this.getMessagesController()
+    const controller = await MessagesControllerWrapper.get()
     await controller.toggleThreadRead(threadID, read)
   }
 
@@ -601,7 +529,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   notifyAnyway = async (threadID: ThreadID) => {
-    const controller = await this.getMessagesController()
+    const controller = await MessagesControllerWrapper.get()
     await controller.notifyAnyway(threadID)
   }
 
@@ -611,7 +539,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
     // fired for messagesController
-    const messagesController = await this.getMessagesController()
+    const messagesController = await MessagesControllerWrapper.get()
     if (!messagesController) return
 
     // ignore groups and sms threads
