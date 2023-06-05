@@ -36,48 +36,52 @@ export default class MessagesControllerWrapper {
     // the create promise, meanwhile, should be recreated sparingly: only if a previous
     // create() call failed, or inside the fetch promise when isValid is false (in either
     // case, the main fetchPromsie closure will throw and be caught by the catch)
-    if (!MessagesControllerWrapper.fetchPromise) {
-      MessagesControllerWrapper.fetchPromise = (async () => {
-        if (!MessagesControllerWrapper.createPromise) {
-          texts.log('creating MessagesController...')
-          MessagesControllerWrapper.createPromise = messagesControllerClass.create()
-        }
-        const controller = await MessagesControllerWrapper.createPromise
-        if (!(await controller.isValid()) || MessagesControllerWrapper.forceInvalidate) {
-          texts.trackPlatformEvent({
-            platform: 'imessage',
-            message: 'disposing MessagesController',
-            forceInvalidate: MessagesControllerWrapper.forceInvalidate,
-          })
-          MessagesControllerWrapper.forceInvalidate = false
-          controller.dispose()
-          throw new Error('MessagesController is invalid')
-        }
-        return controller
-      })().finally(() => {
-        // this `finally` must run *before* the catch since the catch recurses
-        // getMessagesController, and when that happens the fetch promise should
-        // already be undefined
-        MessagesControllerWrapper.fetchPromise = undefined
-      }).catch(err => {
-        // we always unset createPromise here, but only auto-retry up to twice.
-        // This means that a single call to getMessagesController() will spawn
-        // at most three create() calls, but if all three fail then a future call
-        // to getMessagesController() can spawn up to three more again
-        MessagesControllerWrapper.createPromise = undefined
-        texts.error('[imessage] getMessagesController', err)
-        if (attempt > 2) {
-          texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-          throw err
-        }
-        texts.log('retrying...')
-        return MessagesControllerWrapper._getMessagesController(attempt + 1)
-      })
-    }
+    if (MessagesControllerWrapper.fetchPromise) return MessagesControllerWrapper.fetchPromise
+
+    MessagesControllerWrapper.fetchPromise = (async () => {
+      if (!MessagesControllerWrapper.createPromise) {
+        texts.log('creating MessagesController...')
+        MessagesControllerWrapper.createPromise = messagesControllerClass.create()
+      }
+      const controller = await MessagesControllerWrapper.createPromise
+      if (!(await controller.isValid()) || MessagesControllerWrapper.forceInvalidate) {
+        texts.trackPlatformEvent({
+          platform: 'imessage',
+          message: 'disposing MessagesController',
+          forceInvalidate: MessagesControllerWrapper.forceInvalidate,
+        })
+        MessagesControllerWrapper.forceInvalidate = false
+        controller.dispose()
+        throw new Error('MessagesController is invalid')
+      }
+      return controller
+    })().finally(() => {
+      // this `finally` must run *before* the catch since the catch recurses
+      // getMessagesController, and when that happens the fetch promise should
+      // already be undefined
+      MessagesControllerWrapper.fetchPromise = undefined
+    }).catch(err => {
+      // we always unset createPromise here, but only auto-retry up to twice.
+      // This means that a single call to getMessagesController() will spawn
+      // at most three create() calls, but if all three fail then a future call
+      // to getMessagesController() can spawn up to three more again
+      MessagesControllerWrapper.createPromise = undefined
+      texts.error('[imessage] getMessagesController', err)
+      if (attempt > 2) {
+        texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
+        throw err
+      }
+      texts.log('retrying...')
+      return MessagesControllerWrapper._getMessagesController(attempt + 1)
+    })
+
     return MessagesControllerWrapper.fetchPromise
   }
 
   static async dispose() {
-    if (MessagesControllerWrapper.createPromise) (await MessagesControllerWrapper.get()).dispose()
+    if (MessagesControllerWrapper.createPromise) {
+      (await MessagesControllerWrapper.get()).dispose()
+      MessagesControllerWrapper.createPromise = undefined
+    }
   }
 }

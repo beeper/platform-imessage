@@ -53,17 +53,27 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
+    private static var messagesControllerWrapper: NodeObject? = nil
+
     static func create(_ args: NodeArguments) throws -> NodeValueConvertible {
         let q = try NodeAsyncQueue(label: "create-messages-controller")
         return try returnAsync(on: q) {
-            let controller = try MessagesController(reportToSentry: { txt in
-                Logger.log(txt)
-                try? q.run {
-                    try Node.texts.Sentry.captureMessage(txt)
+
+            if let wrapper = Self.messagesControllerWrapper {
+                return NodeDeferredValue { wrapper }
+            } else {
+                let messagesController = try MessagesController(reportToSentry: { txt in
+                    Logger.log(txt)
+                    try? q.run {
+                        try Node.texts.Sentry.captureMessage(txt)
+                    }
+                })
+
+                return NodeDeferredValue {
+                    let messagesControllerWrapper = try MessagesControllerWrapper(controller: messagesController).wrapped()
+                    Self.messagesControllerWrapper = messagesControllerWrapper
+                    return messagesControllerWrapper
                 }
-            })
-            return NodeDeferredValue {
-                try MessagesControllerWrapper(controller: controller).wrapped()
             }
         }
     }
@@ -183,6 +193,7 @@ final class MessagesControllerWrapper: NodeClass {
     }
 
     func dispose() throws -> NodeValueConvertible {
+        Self.messagesControllerWrapper = nil
         Self.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
         return undefined

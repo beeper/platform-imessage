@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::ThreadSafeCallContext;
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction};
