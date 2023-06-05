@@ -169,7 +169,8 @@ const ChecklistItem = ({
 )
 
 const ChecklistPage: React.FC<Props> = props => {
-  const { nmp, callProxiedFn, canAccessMessagesDir, login } = props
+  const { nmp, callProxiedFn, canAccessMessagesDir } = props
+  const [loggingIn, setLoggingIn] = useState(false)
   const { execute: refreshMessageDirAuthorization, value: messageDirAuthorized } = useAsync(canAccessMessagesDir)
   const askedContacts = useRef(false)
   const { authorized: contactsAuthorized, refreshAuthorization: refreshContactsAuthorization } = useNMP(nmp, 'contacts')
@@ -269,18 +270,20 @@ const ChecklistPage: React.FC<Props> = props => {
     const onKeyDown = (ev: KeyboardEvent) => {
       if (['Enter', ' ', 'ArrowRight'].includes(ev.key)) {
         ev.preventDefault()
-        if (nextUncompletedItem) nextUncompletedItem.action()
-        else login()
+        nextUncompletedItem?.action()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [nextUncompletedItem])
 
+  const login = () => {
+    setLoggingIn(true)
+    if (!loggingIn) props.login()
+  }
+
   useEffect(() => {
-    if (allAuthorized) {
-      login()
-    }
+    if (allAuthorized) login()
   }, [allAuthorized])
 
   const authorizeAll = async () => {
@@ -315,7 +318,9 @@ const ChecklistPage: React.FC<Props> = props => {
     <div>
       <RevokeFDASection {...{ nmp, callProxiedFn }} />
       {messageDirAuthorized && !isMessagesAppSetup && <SetupMessagesSection />}
-      {allAuthorized ? 'Adding...' : permissionsSection()}
+      {allAuthorized
+        ? (loggingIn ? 'Adding...' : <button className="primary" onClick={login}>Add iMessage</button>)
+        : permissionsSection()}
     </div>
   )
 }
