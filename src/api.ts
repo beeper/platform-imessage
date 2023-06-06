@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
+import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { convertCGBI } from './async-cgbi-to-png'
@@ -346,21 +347,22 @@ export default class AppleiMessage implements PlatformAPI {
       })
     })
 
-  private waitForMessageSend = async (threadID: ThreadID, quotedMessageID: MessageID, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
+  private waitForMessageSend = async (threadID: ThreadID, quotedMessageID: MessageID, text: string, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
     const lastRowID = await this.dbAPI.getLastMessageRowID()
     await callback()
     let sentMessageIDs: [number, string][]
     const startTime = Date.now()
-    while (!sentMessageIDs?.length) {
+    // messages ending with links will sometimes be split with each link as a separate message (for link preview)
+    const expectedNewMessageIDCount = text
+      ? text.match(urlRegex())?.length || 1
+      : 1
+    const waitForLinksTimeout = 1_500
+    while (sentMessageIDs?.length !== expectedNewMessageIDCount) {
       sentMessageIDs = await this.dbAPI.getSentMessageIDsSince(lastRowID)
+      // at least one message sent, but not `expectedNewMessageIDCount`
+      if (text && sentMessageIDs.length > 0 && (Date.now() - startTime) > waitForLinksTimeout) break
       if ((Date.now() - startTime) > timeoutMs) throw Error('timed out waiting for sent messages')
       await setTimeoutAsync(25)
-    }
-    // messages ending with links will be split into 2
-    if (sentMessageIDs.length > 2) {
-      // shouldn't happen
-      texts.Sentry.captureMessage(`imessage: more than two sent messages: ${sentMessageIDs.length}`)
-      return true
     }
     const getSentThreadIDs = () => Promise.all(sentMessageIDs.map(([rowID]) => this.dbAPI.getThreadIDForMessageRowID(rowID)))
     let sentThreadIDs = await getSentThreadIDs()
@@ -391,7 +393,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private sendFileFromFilePath = async (threadID: ThreadID, filePath: string, quotedMessageID: MessageID): Promise<boolean | Message[]> =>
-    this.waitForMessageSend(threadID, quotedMessageID, () => (
+    this.waitForMessageSend(threadID, quotedMessageID, undefined, () => (
       this.asAPI
         ? this.asAPI!.sendFile(threadID, filePath)
         : this.swiftSendWithRetry(threadID, undefined, filePath, quotedMessageID)))
@@ -418,9 +420,9 @@ export default class AppleiMessage implements PlatformAPI {
         return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
       }
       if (IS_BIG_SUR_OR_UP) {
-        return this.waitForMessageSend(threadID, quotedMessageID, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
+        return this.waitForMessageSend(threadID, quotedMessageID, content.text, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
       }
-      return this.waitForMessageSend(threadID, undefined, () =>
+      return this.waitForMessageSend(threadID, undefined, content.text, () =>
         this.asAPI!.sendTextMessage(threadID, content.text))
     } finally {
       this.sendingMessagesCount--
@@ -474,6 +476,7 @@ export default class AppleiMessage implements PlatformAPI {
       const result = await this.waitForMessageSend(
         threadID,
         messageID,
+        undefined,
         () => controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on),
         5_000,
       )
