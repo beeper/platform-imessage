@@ -852,20 +852,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func sendTypingStatus(threadID: String, isTyping: Bool) throws {
+    func sendTypingStatus(threadID: String, isTyping: Bool) async throws {
         debugLog("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
 
         if !isTyping {
             elideStopTyping = false
-            Task {
-                try await Task.sleep(nanoseconds: 100 * 1_000_000)
-                if self.elideStopTyping {
-                    debugLog("Stop typing elided")
-                    self.elideStopTyping = false
-                    return
-                }
-                try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
+            try await Task.sleep(nanoseconds: 100 * 1_000_000)
+            if self.elideStopTyping {
+                debugLog("Stop typing elided")
+                self.elideStopTyping = false
+                return
             }
+            try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
             return
         }
         try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
