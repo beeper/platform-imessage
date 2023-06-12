@@ -48,58 +48,46 @@ enum Defaults {
         pinnedThreads()?.count
     }
 
+    // sync w desktop
     static func isAppInDock(bundleID: String) -> Bool {
-        guard let persistentApps = dock?.array(forKey: "persistent-apps") as? [[String: Any]] else {
+        guard let dock, let persistentApps = dock.array(forKey: "persistent-apps") as? [[String: Any]] else {
             return false
         }
         for app in persistentApps {
             if let td = app["tile-data"] as? [String: Any],
-            let bi = td["bundle-identifier"] as? String,
-            bundleID == bi {
+                let bi = td["bundle-identifier"] as? String,
+                bundleID == bi {
                 return true
             }
         }
         return false
     }
 
-    static func removeAppInDock(bundleID: String) {
-        guard var persistentApps = dock?.array(forKey: "persistent-apps") as? [[String: Any]] else {
+    // sync w desktop
+    static func removeAppFromDock(bundleID: String) {
+        guard let dock, var persistentApps = dock.array(forKey: "persistent-apps") as? [[String: Any]] else {
             return
         }
-
         let appIndex = persistentApps.firstIndex { app in
-            guard let tileData = app["tile-data"] as? [String: Any] else {
+            guard let tileData = app["tile-data"] as? [String: Any],
+                let bundleIdentifier = tileData["bundle-identifier"] as? String else {
                 return false
             }
-
-            guard let bundleIdentifier = tileData["bundle-identifier"] as? String else {
-                return false
-            }
-
             return bundleIdentifier == bundleID
         }
-
         guard let appIndex else {
             return
         }
-
         persistentApps.remove(at: appIndex)
-        dock?.set(persistentApps, forKey: "persistent-apps")
+        dock.set(persistentApps, forKey: "persistent-apps")
     }
 
     static func isNotificationsEnabledForApp(bundleID: String) -> Bool {
-        guard let apps = ncPrefs?.array(forKey: "apps") as? [[String: Any]] else {
+        guard let apps = ncPrefs?.array(forKey: "apps") as? [[String: Any]],
+            let app = apps.first(where: { ($0["bundle-id"] as? String) == bundleID }),
+            let flags = app["flags"] as? Int else {
             return false
         }
-
-        guard let app = apps.first(where: { ($0["bundle-id"] as? String) == bundleID }) else {
-            return false
-        }
-
-        guard let flags = app["flags"] as? Int else {
-            return false
-        }
-
         // 25th bit is the notifications enabled bit
         return (flags >> 25) & 1 == 1
     }

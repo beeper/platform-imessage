@@ -340,7 +340,7 @@ enum Preferences {
             },
 
             "removeMessagesFromDock": NodeFunction {
-                Defaults.removeAppInDock(bundleID: messagesBundleID)
+                Defaults.removeAppFromDock(bundleID: messagesBundleID)
                 return undefined
             },
 
