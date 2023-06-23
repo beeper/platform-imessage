@@ -1085,17 +1085,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     func pasteFileInBodyFieldAndSend(_ messageField: Accessibility.Element, filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
+        var messageField = messageField
         try? messageField.value(assign: "")
         focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
             try keyPresser.commandV()
-            try retry(withTimeout: 2, interval: 0.1) {
-                // 2 for <OBJ_REPLACEMENT_CHAR> and \n
+            try retry(withTimeout: 2, interval: 0.05) {
                 let charCountResult = Result { try messageField.noOfChars() }
-                guard case let .success(charCount) = charCountResult, charCount == 2 else {
-                    throw ErrorMessage("file was not pasted. \(charCountResult) \(messageField.isInViewport)")
+                guard case let .success(charCount) = charCountResult else {
+                    messageField = try elements.messageBodyField
+                    throw ErrorMessage("cannot get char count: \(charCountResult)")
+                }
+                // 2 for <OBJ_REPLACEMENT_CHAR> and \n
+                guard charCount == 2 else {
+                    messageField = try elements.messageBodyField
+                    throw ErrorMessage("file was not pasted: \(charCountResult)")
                 }
             }
             try sendMessageInField(messageField)
