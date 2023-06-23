@@ -9,9 +9,7 @@ import AppKit
 // }
 
 enum DraftsManager {
-    static let libraryDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-    static let draftsDir = libraryDir?
-        .appendingPathComponent("Messages", isDirectory: true)
+    static let draftsDir = messagesDir?
         .appendingPathComponent("Drafts", isDirectory: true)
 
     static let objReplacementChar = "\u{fffc}"
@@ -19,7 +17,7 @@ enum DraftsManager {
     static let CKCompositionFileURL = NSAttributedString.Key(rawValue: "CKCompositionFileURL")
 
     static func saveDraft(address: String, filePath: String) throws {
-        let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir not found"))
+        let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir nil"))
 
         let ogFileURL = URL(fileURLWithPath: filePath)
         let addressDir = draftsDir.appendingPathComponent(address, isDirectory: true)

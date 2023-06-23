@@ -2,6 +2,9 @@ import NodeAPI
 import Foundation
 import WindowControl
 
+let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+    .appendingPathComponent("Messages", isDirectory: true)
+
 @available(macOS 11, *)
 final class MessagesControllerWrapper: NodeClass {
     static let properties: NodeClassPropertyList = [

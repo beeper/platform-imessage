@@ -36,8 +36,6 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
     }
 
     func requestAccess() throws {
-        let library = try FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-        let messagesDir = library.appendingPathComponent("Messages", isDirectory: true)
         expectedURL = messagesDir
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
