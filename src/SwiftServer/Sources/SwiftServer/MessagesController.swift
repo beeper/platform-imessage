@@ -1027,8 +1027,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             if Defaults.isSelectedThreadCellCompose() {
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-                debugLog("waiting 1.5s for address to resolve")
-                Thread.sleep(forTimeInterval: 1.5)
+                debugLog("waiting 3s for address to resolve")
+                Thread.sleep(forTimeInterval: 3)
             }
 
             let messageField = try elements.messageBodyField
