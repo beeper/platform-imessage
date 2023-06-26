@@ -14,7 +14,7 @@ let package = Package(
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
         .package(url: "https://github.com/sindresorhus/ExceptionCatcher", from: "2.0.1"),
-        .package(url: "https://github.com/TextsHQ/PHTCommon.git", .revision("0afa63b65eb9b438d6f8ee92a0213f76fdefdd69"))
+        .package(url: "https://github.com/TextsHQ/PHTCommon.git", .revision("c37b857c81d9e49ebc827431d38432f07d4511fa"))
     ],
     targets: [
         .target(
