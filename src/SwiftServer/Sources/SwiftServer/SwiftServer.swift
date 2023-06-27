@@ -101,33 +101,28 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func isValid() async throws -> NodeValueConvertible {
-        self.controller.isValid
+    func isValid() throws -> NodeValueConvertible {
+        try returnAsync { self.controller.isValid }
     }
 
-    func toggleThreadRead(threadID: String, read: Bool) async throws -> NodeValueConvertible {
-        try self.controller.toggleThreadRead(threadID: threadID, read: read)
-        return undefined
+    func toggleThreadRead(threadID: String, read: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.toggleThreadRead(threadID: threadID, read: read) }
     }
 
-    func muteThread(threadID: String, muted: Bool) async throws -> NodeValueConvertible {
-        try self.controller.muteThread(threadID: threadID, muted: muted)
-        return undefined
+    func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.muteThread(threadID: threadID, muted: muted) }
     }
 
-    func deleteThread(threadID: String) async throws -> NodeValueConvertible {
-        try self.controller.deleteThread(threadID: threadID)
-        return undefined
+    func deleteThread(threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.deleteThread(threadID: threadID) }
     }
 
-    func sendTypingStatus(threadID: String, isTyping: Bool) async throws -> NodeValueConvertible {
-        try await self.controller.sendTypingStatus(threadID: threadID, isTyping: isTyping)
-        return undefined
+    func sendTypingStatus(threadID: String, isTyping: Bool) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.sendTypingStatus(threadID: threadID, isTyping: isTyping) }
     }
 
-    func notifyAnyway(threadID: String) async throws -> NodeValueConvertible {
-        try self.controller.notifyAnyway(threadID: threadID)
-        return undefined
+    func notifyAnyway(threadID: String) throws -> NodeValueConvertible {
+        try performAsync { try self.controller.notifyAnyway(threadID: threadID) }
     }
 
     func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
@@ -168,15 +163,16 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) async throws -> NodeValueConvertible {
+    func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
         guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
             throw ErrorMessage("Invalid reaction: \(reactionName)")
         }
-        try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
-        return undefined
+        return try performAsync { [self] in
+            try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
+        }
     }
 
     func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
@@ -190,10 +186,9 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) async throws -> NodeValueConvertible {
+    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
         let quotedMessage = try quotedMessageCellJSON?.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }
-        try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
-        return undefined
+        return try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage) }
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
