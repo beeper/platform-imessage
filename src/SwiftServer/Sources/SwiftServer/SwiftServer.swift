@@ -346,6 +346,11 @@ enum Preferences {
                 Dock.getApp()?.terminate()
                 return undefined
             },
+
+            "disableSoundEffects": NodeFunction {
+                Defaults.playSoundEffects = false
+                return undefined
+            },
         ]
 
         if #available(macOS 10.15, *) {

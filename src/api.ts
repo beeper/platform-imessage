@@ -601,10 +601,15 @@ export default class AppleiMessage implements PlatformAPI {
       return this.dbAPI!.isNotEmpty()
     },
     canAccessMessagesDir,
-    askForAutomationAccess: () => (this.asAPI ? this.asAPI!.askForAutomationAccess() : swiftServer.askForAutomationAccess().then(() => true)),
+    askForAutomationAccess: () => (this.asAPI
+      ? this.asAPI!.askForAutomationAccess()
+      : swiftServer.askForAutomationAccess().then(() => true)),
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
     confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
-    disableMessagesNotifications: () => swiftServer.disableNotificationsForApp('Messages'),
+    disableMessagesNotifications: () => {
+      swiftServer.disableNotificationsForApp('Messages')
+      swiftServer.disableSoundEffects()
+    },
     startSysPrefsOnboarding: () => swiftServer.startSysPrefsOnboarding?.(),
     stopSysPrefsOnboarding: () => swiftServer.stopSysPrefsOnboarding?.(),
     isSIPEnabled: () => this.sipEnabled,

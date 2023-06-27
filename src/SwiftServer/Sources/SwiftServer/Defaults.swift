@@ -28,6 +28,15 @@ enum Defaults {
         main?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
     }
 
+    static var playSoundEffects: Bool {
+        get {
+            main?.bool(forKey: "PlaySoundsKey") ?? false
+        }
+        set {
+            main?.set(newValue, forKey: "PlaySoundsKey")
+        }
+    }
+
     #if DEBUG
     static func pinnedData() -> [String: Any]? {
         Defaults.pinning?.dictionary(forKey: "pD")

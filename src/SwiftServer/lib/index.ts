@@ -76,8 +76,10 @@ export type SwiftServer = {
   confirmUNCPrompt: () => Promise<void>
   disableNotificationsForApp: (appName: string) => Promise<void>
 
-  removeMessagesFromDock: () => Promise<void>
-  killDock: () => Promise<void>
+  removeMessagesFromDock: () => void
+  killDock: () => void
+
+  disableSoundEffects: () => void
 }
 
 const canLoadDylib = IS_CATALINA_OR_UP && (IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift'))
