@@ -101,6 +101,8 @@ type MessageRow = {
   part_count: number
   // added in ventura 13.1:
   is_stewie: NumberBool
+  // added in ventura 13.2 – 13.4.1:
+  is_kt_verified: NumberBool
 }
 
 // taken from chat.db on big sur
