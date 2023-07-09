@@ -303,7 +303,7 @@ const ChecklistPage: React.FC<Props> = props => {
         {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
       </div>
       <div className="imessage-auth-well">
-        {checklistItems.map(i => <ChecklistItem {...i} Tooltip={props.Tooltip} />)}
+        {checklistItems.map(i => <ChecklistItem key={i.title} {...i} Tooltip={props.Tooltip} />)}
         {nextUncompletedItem && (
           <div>
             <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
