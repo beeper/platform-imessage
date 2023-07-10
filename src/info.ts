@@ -18,7 +18,7 @@ const info: PlatformInfo = {
 </svg>
   `,
   loginMode: 'custom',
-  deletionMode: MessageDeletionMode.UNSUPPORTED,
+  deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,
   // typingDurationMs: 3000,
   attributes: new Set([
     Attribute.CAN_MESSAGE_PHONE_NUMBER,

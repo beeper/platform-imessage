@@ -430,7 +430,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   updateThread = async (threadID: ThreadID, updates: Partial<Thread>) => {
-    if (!IS_BIG_SUR_OR_UP) return
+    if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     if ('mutedUntil' in updates) {
       const mc = await MessagesControllerWrapper.get()
       await mc.muteThread(threadID, updates.mutedUntil === 'forever')
@@ -438,14 +438,14 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   deleteThread = async (threadID: ThreadID) => {
-    if (!IS_BIG_SUR_OR_UP) return
+    if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     const mc = await MessagesControllerWrapper.get()
     await mc.deleteThread(threadID)
   }
 
   sendActivityIndicator = async (type: ActivityType, threadID: ThreadID) => {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
-    if (!IS_BIG_SUR_OR_UP) throw Error('not supported on catalina or lower')
+    if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
     const participantID = getSingleParticipantAddress(threadID)
     // only 1-to-1 conversations are supported
@@ -454,30 +454,35 @@ export default class AppleiMessage implements PlatformAPI {
     return (await MessagesControllerWrapper.get()).sendTypingStatus(threadID, isTyping)
   }
 
+  private getMessageCell = async (threadID: ThreadID, messageID: MessageID): Promise<MessageCell> => {
+    // ogMessageJSON is
+    // const [msgID, part] = messageID.split('_', 2)
+    // const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
+    // if (!ogMessageJSON) throw Error('og message not found')
+    // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
+    // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
+    // const message = messages[part || 0]
+    const message = await this.getMessage(threadID, messageID) as MessageWithExtra
+    if (!message) throw Error("couldn't find message")
+    const [msgRow] = JSON.parse(message._original)
+    // use overlay mode only when the message is not in a thread
+    const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
+    const closestMessage: AXMessageSelection = overlay
+      ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
+      : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
+    return { ...closestMessage, overlay } as MessageCell
+  }
+
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
-    if (!IS_BIG_SUR_OR_UP) throw Error('Not supported on catalina or lower')
+    if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     await pRetry(async () => {
-      // ogMessageJSON is
-      // const [msgID, part] = messageID.split('_', 2)
-      // const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
-      // if (!ogMessageJSON) throw Error('og message not found')
-      // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
-      // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
-      // const message = messages[part || 0]
-      const message = await this.getMessage(threadID, messageID) as MessageWithExtra
-      if (!message) throw Error("couldn't find message")
-      const [msgRow] = JSON.parse(message._original)
-      // use overlay mode only when the message is not in a thread
-      const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
-      const closestMessage: AXMessageSelection = overlay
-        ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
-        : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
+      const messageCell = await this.getMessageCell(threadID, messageID)
       const controller = await MessagesControllerWrapper.get()
       const result = await this.waitForMessageSend(
         threadID,
         messageID,
         undefined,
-        () => controller.setReaction(threadID, JSON.stringify({ ...closestMessage, overlay } as MessageCell), reactionKey, on),
+        () => controller.setReaction(threadID, JSON.stringify(messageCell), reactionKey, on),
         5_000,
       )
       if (!result) throw Error('setReaction unknown error')
@@ -497,7 +502,12 @@ export default class AppleiMessage implements PlatformAPI {
   removeReaction = (threadID: ThreadID, messageID: MessageID, reactionKey: string) =>
     this.setReaction(threadID, messageID, reactionKey, false)
 
-  // deleteMessage = async (threadID: ThreadID, messageID: MessageID) => false
+  deleteMessage = async (threadID: ThreadID, messageID: MessageID) => {
+    if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
+    const messageCell = await this.getMessageCell(threadID, messageID)
+    const controller = await MessagesControllerWrapper.get()
+    await controller.undoSend(threadID, JSON.stringify(messageCell))
+  }
 
   private toggleThreadRead = (read: boolean) => async (threadID: ThreadID) => {
     const controller = await MessagesControllerWrapper.get()

@@ -63,17 +63,19 @@ enum LocalizedStrings {
 
     static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
+    static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 }
 
 private enum MessageAction {
-    case react, reply
+    case react, reply, undoSend
 
     var localized: String {
         switch self {
             case .react: return LocalizedStrings.react
             case .reply: return LocalizedStrings.reply
+            case .undoSend: return LocalizedStrings.undoSend
         }
     }
 }
@@ -686,6 +688,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 }
             }
+        }
+    }
+
+    // @available(macOS 13, *)
+    func undoSend(threadID: String, messageCell: MessageCell) throws {
+        let startTime = Date()
+        defer { Logger.log("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
+        startedAutomation()
+        defer { finishedAutomation() }
+
+        try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            let undoSendAction = try messageAction(messageCell: $0, action: .undoSend)
+            try undoSendAction()
         }
     }
 
