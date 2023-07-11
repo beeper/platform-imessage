@@ -47,6 +47,7 @@ extension Accessibility.Names {
 
     // https://developer.apple.com/documentation/applicationservices/axactionconstants_h/miscellaneous_defines
     var press: ActionName { .init(kAXPressAction) }
+    var showMenu: ActionName { .init(kAXShowMenuAction) }
     var cancel: ActionName { .init(kAXCancelAction) }
     var scrollToVisible: ActionName { "AXScrollToVisible" }
 
@@ -55,7 +56,6 @@ extension Accessibility.Names {
     #if DEBUG
     var decrement: ActionName { .init(kAXDecrementAction) }
 
-    var showMenu: ActionName { .init(kAXShowMenuAction) }
     var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
     var maxValue: AttributeName<Any> { .init(kAXMaxValueAttribute) }
     #endif
