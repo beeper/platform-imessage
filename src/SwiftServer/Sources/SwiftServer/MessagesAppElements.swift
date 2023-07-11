@@ -345,7 +345,7 @@ final class MessagesAppElements {
 
     var menuEditItem: Accessibility.Element {
         get throws {
-            try retry(withTimeout: 0.5, interval: 0.1) {
+            try retry(withTimeout: 1, interval: 0.05) {
                 try menu.children().first(where: { (try? $0.identifier()) == "edit" })
                     .orThrow(ErrorMessage("menuEditItem not found"))
             }

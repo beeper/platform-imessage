@@ -432,7 +432,7 @@ export default class AppleiMessage implements PlatformAPI {
   editMessage = async (threadID: ThreadID, messageID: MessageID, content: MessageContent) => {
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
     const { text } = content
-    const messageCell = await this.getMessageCell(threadID, messageID)
+    const messageCell = await this.getMessageCell(threadID, messageID, false)
     const controller = await MessagesControllerWrapper.get()
     await controller.editMessage(threadID, JSON.stringify(messageCell), text)
     return true
@@ -463,7 +463,7 @@ export default class AppleiMessage implements PlatformAPI {
     return (await MessagesControllerWrapper.get()).sendTypingStatus(threadID, isTyping)
   }
 
-  private getMessageCell = async (threadID: ThreadID, messageID: MessageID): Promise<MessageCell> => {
+  private getMessageCell = async (threadID: ThreadID, messageID: MessageID, useOverlay = true): Promise<MessageCell> => {
     // ogMessageJSON is
     // const [msgID, part] = messageID.split('_', 2)
     // const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
@@ -475,7 +475,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!message) throw Error("couldn't find message")
     const [msgRow] = JSON.parse(message._original)
     // use overlay mode only when the message is not in a thread
-    const overlay = IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
+    const overlay = useOverlay && IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
     const closestMessage: AXMessageSelection = overlay
       ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
       : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed

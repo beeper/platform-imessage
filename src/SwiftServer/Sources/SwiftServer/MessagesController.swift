@@ -739,9 +739,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
             try $0.showMenu()
 
-            try elements.menuEditItem.press()
-
             try retry(withTimeout: 1.2, interval: 0.1) {
+                try elements.menuEditItem.press()
                 let editableMessageField = try elements.editableMessageField
                 try assignToMessageField(editableMessageField, text: newText)
                 focusMessageField(editableMessageField)
