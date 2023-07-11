@@ -19,6 +19,7 @@ const info: PlatformInfo = {
   `,
   loginMode: 'custom',
   deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,
+  editMessageTimeLimit: 15 * 60,
   // typingDurationMs: 3000,
   attributes: new Set([
     Attribute.CAN_MESSAGE_PHONE_NUMBER,

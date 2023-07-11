@@ -1,4 +1,4 @@
-import { texts, Platform } from '@textshq/platform-sdk'
+import { textsRenderer, Platform } from '@textshq/platform-sdk'
 
 export default {
   get info() {
@@ -8,6 +8,6 @@ export default {
     return require('./api').default
   },
   get auth() {
-    return texts.React?.lazy(() => import('./auth'))
+    return textsRenderer.React?.lazy(() => import('./auth'))
   },
 } as Platform

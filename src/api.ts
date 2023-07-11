@@ -3,7 +3,7 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, AccountInfo, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
@@ -97,7 +97,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private experiments: string
 
-  init = async (session: SerializedSession, { dataDirPath }: AccountInfo, prefs: Record<string, any>) => {
+  init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs: Record<string, any>) => {
     this.session = session || {}
     // this.accountID = accountID
     const userDataDirPath = path.dirname(dataDirPath)
