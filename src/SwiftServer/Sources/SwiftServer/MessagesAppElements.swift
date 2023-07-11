@@ -322,4 +322,33 @@ final class MessagesAppElements {
             }).orThrow(ErrorMessage("notifyAnywayButton not found"))
         }
     }
+
+    var editableMessageField: Accessibility.Element {
+        get throws {
+            let editingConfirmButton = try iOSContentGroup.recursiveChildren().lazy.first(where: {
+                (try? $0.localizedDescription()) == LocalizedStrings.editingConfirm
+            }).orThrow(ErrorMessage("editingConfirmButton not found"))
+            return try editingConfirmButton.parent().recursiveChildren().lazy.first(where: {
+                (try? $0.role()) == AXRole.textField
+            }).orThrow(ErrorMessage("editableMessageField not found"))
+        }
+    }
+
+    var menu: Accessibility.Element {
+        get throws {
+            try retry(withTimeout: 2, interval: 0.1) {
+                try iOSContentGroup.children().first { try $0.role() == AXRole.menu }
+                    .orThrow(ErrorMessage("menu not found"))
+            }
+        }
+    }
+
+    var menuEditItem: Accessibility.Element {
+        get throws {
+            try retry(withTimeout: 0.5, interval: 0.1) {
+                try menu.children().first(where: { (try? $0.identifier()) == "edit" })
+                    .orThrow(ErrorMessage("menuEditItem not found"))
+            }
+        }
+    }
 }

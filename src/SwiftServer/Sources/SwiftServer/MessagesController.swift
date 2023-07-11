@@ -65,6 +65,9 @@ enum LocalizedStrings {
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
     static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
 
+    static let editingConfirm = chatKitFrameworkAxBundle.localizedString(forKey: "editing.confirm.button", value: nil, table: "Accessibility")
+    static let editingReject = chatKitFrameworkAxBundle.localizedString(forKey: "editing.reject.button", value: nil, table: "Accessibility")
+
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 }
 
@@ -154,6 +157,16 @@ private class KeyPresser {
             try press(key: CGKeyCode(keyCode), flags: .maskCommand)
         }
     }
+
+    #if DEBUG
+    /// edits selected message
+    func commandE() throws {
+        try runOnMainThread {
+            guard let keyCode = KeyMap.shared["e"] else { return }
+            try press(key: CGKeyCode(keyCode), flags: .maskCommand)
+        }
+    }
+    #endif
 
     /// selects prev thread, both keys aren't the same in practice
     func commandLeftBracket() throws {
@@ -693,6 +706,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // @available(macOS 13, *)
     func undoSend(threadID: String, messageCell: MessageCell) throws {
+        guard isVenturaOrUp else {
+            throw ErrorMessage("!isVenturaOrUp")
+        }
+
         let startTime = Date()
         defer { Logger.log("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
@@ -702,6 +719,34 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
             let undoSendAction = try messageAction(messageCell: $0, action: .undoSend)
             try undoSendAction()
+        }
+    }
+
+    // @available(macOS 13, *)
+    func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
+        guard isVenturaOrUp else {
+            throw ErrorMessage("!isVenturaOrUp")
+        }
+
+        let startTime = Date()
+        defer { Logger.log("editMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
+        startedAutomation()
+        defer { finishedAutomation() }
+
+        try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            // this doesn't work reliably:
+            // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
+            try $0.showMenu()
+
+            try elements.menuEditItem.press()
+
+            try retry(withTimeout: 1.2, interval: 0.1) {
+                let editableMessageField = try elements.editableMessageField
+                try assignToMessageField(editableMessageField, text: newText)
+                focusMessageField(editableMessageField)
+                try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
+            }
         }
     }
 
@@ -719,9 +764,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             try threadCell.showMenu()
 
-            guard let menu = (try retry(withTimeout: 2, interval: 0.1) { try elements.iOSContentGroup.children().first(where: { try $0.role() == AXRole.menu }) }) else {
-                throw ErrorMessage("menu not found")
-            }
+            let menu = try elements.menu
             /*
              AXMenuItem unpin
              AXMenuItem open_conversation_in_separate_window

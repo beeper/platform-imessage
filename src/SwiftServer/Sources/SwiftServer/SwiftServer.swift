@@ -15,6 +15,7 @@ final class MessagesControllerWrapper: NodeClass {
         "muteThread": NodeMethod(muteThread),
         "deleteThread": NodeMethod(deleteThread),
         "undoSend": NodeMethod(undoSend),
+        "editMessage": NodeMethod(editMessage),
         "sendTypingStatus": NodeMethod(sendTypingStatus),
         "watchThreadActivity": NodeMethod(watchThreadActivity),
         "setReaction": NodeMethod(setReaction),
@@ -183,6 +184,15 @@ final class MessagesControllerWrapper: NodeClass {
         }
         return try performAsync { [self] in
             try controller.undoSend(threadID: threadID, messageCell: messageCell)
+        }
+    }
+
+    func editMessage(threadID: String, messageCellJSON: String, newText: String) throws -> NodeValueConvertible {
+        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
+            throw ErrorMessage("Invalid messageCellJSON arg")
+        }
+        return try performAsync { [self] in
+            try controller.editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
         }
     }
 

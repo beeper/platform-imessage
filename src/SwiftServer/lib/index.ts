@@ -44,6 +44,8 @@ export declare class MessagesController {
 
   undoSend: (threadID: ThreadID, messageCellJSON: string) => Promise<void>
 
+  editMessage: (threadID: ThreadID, messageCellJSON: string, newText: string) => Promise<void>
+
   notifyAnyway: (threadID: ThreadID) => Promise<void>
 
   sendTypingStatus: (threadID: ThreadID, isTyping: boolean) => Promise<void>

@@ -429,6 +429,15 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  editMessage = async (threadID: ThreadID, messageID: MessageID, content: MessageContent) => {
+    if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
+    const { text } = content
+    const messageCell = await this.getMessageCell(threadID, messageID)
+    const controller = await MessagesControllerWrapper.get()
+    await controller.editMessage(threadID, JSON.stringify(messageCell), text)
+    return true
+  }
+
   updateThread = async (threadID: ThreadID, updates: Partial<Thread>) => {
     if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     if ('mutedUntil' in updates) {

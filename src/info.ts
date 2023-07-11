@@ -44,7 +44,7 @@ const info: PlatformInfo = {
     ...(IS_VENTURA_OR_UP
       ? [
         Attribute.SUPPORTS_MARK_AS_UNREAD,
-        // Attribute.SUPPORTS_EDIT_MESSAGE,
+        Attribute.SUPPORTS_EDIT_MESSAGE,
       ] : []
     ),
   ]),
