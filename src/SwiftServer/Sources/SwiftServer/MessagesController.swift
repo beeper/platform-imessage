@@ -948,7 +948,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
-        try retry(withTimeout: 1, interval: 0.2) {
+        try retry(withTimeout: 1, interval: 0.1) {
             try messageField.value(assign: text)
             // we don't test if messageFieldValue() == text here because a few ms later, messageFieldValue will likely change if text has @mentions
             let charCountResult = Result { try messageField.noOfChars() }
@@ -967,8 +967,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
-        try retry(withTimeout: 1.5, interval: 0.2) {
-            if let message = try? messageFieldValue(messageField), !message.isEmpty {
+        try retry(withTimeout: 1.5, interval: 0.1) {
+            if let message = try messageFieldValue(messageField), !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
