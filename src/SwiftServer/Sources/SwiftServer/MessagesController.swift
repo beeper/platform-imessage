@@ -803,7 +803,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /*
         uses four methods:
-        1. for ventura: hotkey                                                  (reliable)
+        1. for ventura and up: hotkey                                           (reliable)
         2. for pinned threads: mark-read action                                 (reliable)
         3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
         4. threadCell.press() action hack                                       (unreliable)
@@ -940,11 +940,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String? {
-        if isVenturaOrUp {
-            return (try messageField.value() as? NSAttributedString).flatMap { $0.string }
+    private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String {
+        do {
+            if isVenturaOrUp {
+                let value = try (messageField.value() as? NSAttributedString)
+                    .orThrow(ErrorMessage("Could not cast to NSAttributedString"))
+                return value.string
+            }
+            return try (messageField.value() as? String)
+                .orThrow(ErrorMessage("Could not cast to String"))
+        } catch {
+            if error is AccessibilityError, let axError = error as? AccessibilityError, axError.code == .noValue { return "" }
+            throw error
         }
-        return try messageField.value() as? String
     }
 
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
@@ -968,7 +976,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         try retry(withTimeout: 1.5, interval: 0.1) {
-            if let message = try messageFieldValue(messageField), !message.isEmpty {
+            let message = try messageFieldValue(messageField)
+            if !message.isEmpty {
                 let hasNewline = message.hasSuffix("\n")
                 throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
             }
@@ -976,7 +985,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if attempt == 2 {
                 self.focusMessageField(messageField)
                 try? self.keyPresser.return()
-            } else if attempt == 4 {
+            } else if attempt == 6 {
                 try? messageField.press()
                 try? self.keyPresser.return()
             }
