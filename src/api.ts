@@ -35,6 +35,8 @@ function canAccessMessagesDir() {
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
+const linkRegex = urlRegex()
+
 export default class AppleiMessage implements PlatformAPI {
   currentUser: CurrentUser
 
@@ -353,9 +355,8 @@ export default class AppleiMessage implements PlatformAPI {
     let sentMessageIDs: [number, string][]
     const startTime = Date.now()
     // messages ending with links will sometimes be split with each link as a separate message (for link preview)
-    const expectedNewMessageIDCount = text
-      ? text.match(urlRegex())?.length || 1
-      : 1
+    const links = text?.match(linkRegex)
+    const expectedNewMessageIDCount = links?.length || 1
     const waitForLinksTimeout = 1_500
     while (sentMessageIDs?.length !== expectedNewMessageIDCount) {
       sentMessageIDs = await this.dbAPI.getSentMessageIDsSince(lastRowID)
