@@ -346,9 +346,16 @@ final class MessagesAppElements {
     var menuEditItem: Accessibility.Element {
         get throws {
             try retry(withTimeout: 1, interval: 0.05) {
-                try menu.children().first(where: { (try? $0.identifier()) == "edit" })
+                try menu.children().first { (try? $0.identifier()) == "edit" }
                     .orThrow(ErrorMessage("menuEditItem not found"))
             }
+        }
+    }
+
+    var toFieldPopupButton: Accessibility.Element {
+        get throws {
+            try iOSContentGroup.children[0].children().first { try $0.role() == AXRole.popUpButton }
+                .orThrow(ErrorMessage("toFieldPopupButton not found"))
         }
     }
 }

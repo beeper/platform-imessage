@@ -357,17 +357,28 @@ final class MessagesController {
     private func ensureSelectedThread(threadID: String) throws {
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
         try retry(withTimeout: 1.2, interval: 0.05) {
-            let selectedAddressOptional = Defaults.getSelectedThreadID()
-            if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {
-                throw ErrorMessage("compose thread selected")
-            }
-            let selectedAddress = try selectedAddressOptional.flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
-            guard selectedAddress == addressToMatch ||
-                (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
-            else {
-                debugLog("thread not selected: \(selectedAddress) \(addressToMatch)")
-                let dropAddress: (String) -> String = { $0.split(separator: ";", maxSplits: 2).dropLast().joined(separator: ";") }
-                throw ErrorMessage("thread not selected: \(dropAddress(selectedAddress)) \(dropAddress(threadID)) ")
+            do {
+                let selectedAddressOptional = Defaults.getSelectedThreadID()
+                if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {
+                    throw ErrorMessage("compose thread selected")
+                }
+                let selectedAddress = try selectedAddressOptional.flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
+                guard selectedAddress == addressToMatch ||
+                    (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
+                else {
+                    debugLog("thread not selected: \(selectedAddress) \(addressToMatch)")
+                    let dropAddress: (String) -> String = { $0.split(separator: ";", maxSplits: 2).dropLast().joined(separator: ";") }
+                    throw ErrorMessage("thread not selected: \(dropAddress(selectedAddress)) \(dropAddress(threadID)) ")
+                }
+            } catch {
+                let desc = try? elements.toFieldPopupButton.localizedDescription()
+                // unknown if other locales also use , as a separator
+                if let elements = desc?.split(separator: ",").reversed(),
+                    elements.contains(where: { isSameContact(String($0).trimmingCharacters(in: .whitespaces), addressToMatch) }) {
+                    debugLog("ensureSelectedThread: used fallback")
+                    return
+                }
+                throw error
             }
         }
     }
