@@ -22,8 +22,8 @@ SwiftServer exposes Swift functions to JS via NAPI/[node-swift](https://github.c
 ```sh
 # for debugging:
 rm binaries/*/libNodeAPI.dylib # needed only when you get ENOENT
-bun run build-swift-server --debug --watch
+bun run build-swift --debug --watch
 
 # for shipping to prod:
-bun run build-swift-server
+bun run build-swift
 ```

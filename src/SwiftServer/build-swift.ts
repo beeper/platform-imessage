@@ -46,7 +46,7 @@ async function main() {
 
     const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${arch}`)
     fsp.mkdir(outdir, { recursive: true })
-    const dest = `${outdir}/swift-server.node`
+    const dest = `${outdir}/swift.node`
     if (config === 'release') {
       await shellExec('strip', '-ur', binaryPath, '-o', dest)
     } else {
