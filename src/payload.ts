@@ -1,6 +1,6 @@
 // import os from 'os'
 import { trimStart, trimEnd } from 'lodash'
-import { Message, MessageAttachment, Size, AttachmentType, MessageLink } from '@textshq/platform-sdk'
+import { Message, Attachment, Size, AttachmentType, MessageLink } from '@textshq/platform-sdk'
 
 import { parseTweetURL } from './util'
 import safeBplistParse from './safe-bplist-parse'
@@ -27,7 +27,7 @@ function parseSize(size: string): Size {
   if (width && height) return { width, height }
 }
 
-function getExternalVideos(videos: any): MessageAttachment[] {
+function getExternalVideos(videos: any): Attachment[] {
   if (!videos) return []
   return (videos['NS.objects'] as any[]).map((video: any) => {
     const srcURL = video.URL['NS.relative']
@@ -44,7 +44,7 @@ function getExternalVideos(videos: any): MessageAttachment[] {
 const unquote = (str: string) =>
   ((str[0] === '“' && str[str.length - 1] === '”') ? str.slice(1, -1) : str)
 
-function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[]): Partial<Message> {
+function getURLBalloonProps(payloadData: any, msgAttachments: Attachment[]): Partial<Message> {
   const { richLinkMetadata } = payloadData
   if (!richLinkMetadata) return {}
   const { summary, title, image, icon, alternateImages, video, videos } = richLinkMetadata
@@ -54,10 +54,10 @@ function getURLBalloonProps(payloadData: any, msgAttachments: MessageAttachment[
     ...getExternalVideos(videos),
     ...alternates,
   ] : alternates
-  const parsedURL = richLinkMetadata.originalURL?.['NS.relative'] // this is the URL that link preview service was redirected to
-  const ogURL = richLinkMetadata.URL?.['NS.relative'] // this is the URL user entered
+  const parsedURL = richLinkMetadata.URL?.['NS.relative'] // this is the URL that link preview service was redirected to
+  const ogURL = richLinkMetadata.originalURL?.['NS.relative'] // this is the URL user entered
   const url = parsedURL || ogURL
-  if (url?.includes('://twitter.com/') || url?.includes('://mobile.twitter.com/')) {
+  if (url?.includes('://twitter.com/')) {
     const { tweetID, username } = parseTweetURL(ogURL) || {}
     if (username) {
       const tweet = {
@@ -105,7 +105,7 @@ function getApplePayProps(payloadData: any) {
   }
 }
 
-function getYouTubeProps(payloadData: any, msgAttachments: MessageAttachment[]): Partial<Message> {
+function getYouTubeProps(payloadData: any, msgAttachments: Attachment[]): Partial<Message> {
   const unwrapped = unwrapDictionary(payloadData)
   const img = msgAttachments[0]
   return {
@@ -119,7 +119,7 @@ function getYouTubeProps(payloadData: any, msgAttachments: MessageAttachment[]):
   }
 }
 
-export function getPayloadProps(payloadData: any, msgAttachments: MessageAttachment[], balloon_bundle_id: string): Partial<Message> {
+export function getPayloadProps(payloadData: any, msgAttachments: Attachment[], balloon_bundle_id: string): Partial<Message> {
   if (!payloadData) return {}
   switch (balloon_bundle_id) {
     case BalloonBundleID.URL: return getURLBalloonProps(payloadData, msgAttachments)
