@@ -356,7 +356,9 @@ final class MessagesController {
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     private func ensureSelectedThread(threadID: String) throws {
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
+        var attempt = 0
         try retry(withTimeout: 1.2, interval: 0.05) {
+            attempt += 1
             do {
                 let selectedAddressOptional = Defaults.getSelectedThreadID()
                 if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {
@@ -371,12 +373,14 @@ final class MessagesController {
                     throw ErrorMessage("thread not selected: \(dropAddress(selectedAddress)) \(dropAddress(threadID)) ")
                 }
             } catch {
-                let desc = try? elements.toFieldPopupButton.localizedDescription()
-                // unknown if other locales also use , as a separator
-                if let elements = desc?.split(separator: ",").reversed(),
-                    elements.contains(where: { isSameContact(String($0).trimmingCharacters(in: .whitespaces), addressToMatch) }) {
-                    debugLog("ensureSelectedThread: used fallback")
-                    return
+                if attempt > 5 { // 250ms
+                    let desc = try? elements.toFieldPopupButton.localizedDescription()
+                    // unknown if other locales also use , as a separator
+                    if let elements = desc?.split(separator: ",").reversed(),
+                        elements.contains(where: { isSameContact(String($0).trimmingCharacters(in: .whitespaces), addressToMatch) }) {
+                        debugLog("ensureSelectedThread: used fallback")
+                        return
+                    }
                 }
                 throw error
             }
