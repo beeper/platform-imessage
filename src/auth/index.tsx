@@ -14,9 +14,7 @@ const sleep = (ms: number) => new Promise(resolve => { setTimeout(resolve, ms) }
 
 const sysPrefsAppName = IS_VENTURA_OR_UP ? 'System Settings' : 'System Preferences'
 
-const staticPrefix = window.location.protocol === 'file:'
-  ? url.pathToFileURL(BINARIES_DIR_PATH).href
-  : './platform-imessage'
+const staticPrefix = url.pathToFileURL(BINARIES_DIR_PATH).href
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
 const openSecuritySystemPrefs = (prefPath: string) =>
@@ -147,9 +145,10 @@ const ChecklistItem = ({
   more,
   showMore,
   Tooltip,
-}: ChecklistItemProps & { Tooltip: React.FC<any> }) => (
+  children,
+}: ChecklistItemProps & { Tooltip: React.FC<any>, children: React.ReactNode }) => (
   <article>
-    <div onClick={() => action()}>
+    <div onClick={() => action()} className="main">
       <span>
         {icon}
         {title}
@@ -165,6 +164,7 @@ const ChecklistItem = ({
       <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
     </div>
     {showMore && <div className="more">{more}</div>}
+    {children}
   </article>
 )
 
@@ -303,12 +303,17 @@ const ChecklistPage: React.FC<Props> = props => {
         {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
       </div>
       <div className="imessage-auth-well">
-        {checklistItems.map(i => <ChecklistItem key={i.title} {...i} Tooltip={props.Tooltip} />)}
-        {nextUncompletedItem && (
-          <div>
-            <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
-          </div>
-        )}
+        {checklistItems.map(i => (
+          <>
+            <ChecklistItem key={i.title} {...i} Tooltip={props.Tooltip}>
+              {nextUncompletedItem === i && (
+                <div className="authorize">
+                  <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
+                </div>
+              )}
+            </ChecklistItem>
+          </>
+        ))}
         {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
       </div>
     </div>

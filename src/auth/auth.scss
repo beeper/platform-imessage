@@ -86,11 +86,19 @@
       }
     }
 
-    article>div:first-child {
+    article {
       font-size: 14px;
+      margin-bottom: 16px;
+      .main {
+        margin-bottom: 10px;
+      }
+    }
+    article:last-child {
+      margin-bottom: 0;
+    }
+    article>div {
       display: flex;
       align-items: center;
-      margin-bottom: 18px;
     }
 
     .check {
