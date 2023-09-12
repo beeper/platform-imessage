@@ -44,6 +44,10 @@ function getExternalVideos(videos: any): Attachment[] {
 const unquote = (str: string) =>
   ((str[0] === '“' && str[str.length - 1] === '”') ? str.slice(1, -1) : str)
 
+const X_HOSTS = [
+  'twitter.com',
+  'x.com',
+]
 function getURLBalloonProps(payloadData: any, msgAttachments: Attachment[]): Partial<Message> {
   const { richLinkMetadata } = payloadData
   if (!richLinkMetadata) return {}
@@ -57,7 +61,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: Attachment[]): Par
   const parsedURL = richLinkMetadata.URL?.['NS.relative'] // this is the URL that link preview service was redirected to
   const ogURL = richLinkMetadata.originalURL?.['NS.relative'] // this is the URL user entered
   const url = ogURL || parsedURL
-  if ((parsedURL || ogURL)?.includes('://twitter.com/')) {
+  if ((url && X_HOSTS.includes(new URL(url).host)) || (ogURL && X_HOSTS.includes(new URL(ogURL).host))) {
     const { tweetID, username } = parseTweetURL(ogURL) || {}
     if (username) {
       const tweet = {
