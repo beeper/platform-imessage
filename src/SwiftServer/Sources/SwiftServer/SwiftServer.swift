@@ -285,17 +285,9 @@ enum Preferences {
             },
 
             "askForMessagesDirAccess": NodeFunction {
-                let queue = try NodeAsyncQueue(label: "messages-dir-callback")
-                return try NodePromise { deferred in
-                    DispatchQueue.main.async {
-                        let result = Result<NodeValueConvertible, Error> {
-                            try accessManager.requestAccess()
-                            return undefined
-                        }
-                        try? queue.run {
-                            try deferred(result)
-                        }
-                    }
+                try NodePromise {
+                    try await accessManager.requestAccess()
+                    return undefined
                 }
             },
 

@@ -35,7 +35,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         isExpectedURL(url)
     }
 
-    func requestAccess() throws {
+    @MainActor func requestAccess() async throws {
         expectedURL = messagesDir
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
@@ -48,12 +48,11 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
         openPanel.directoryURL = messagesDir
         if Accessibility.isTrusted() {
-            // DispatchQueue.main won't work here because runModal is blocking
             DispatchQueue.global(qos: .background).async {
                 try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)
             }
         }
-        let response = openPanel.runModal()
+        let response = await openPanel.begin()
         defer {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
                 UserDefaults.standard.removeObject(forKey: "NSNavLastRootDirectory") // to make sure future NSOpenPanels don't show the Messages directory
