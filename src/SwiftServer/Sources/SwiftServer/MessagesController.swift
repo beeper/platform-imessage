@@ -36,6 +36,7 @@ private final class RunLoopThread: Thread {
 let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
+let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
 
 enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
@@ -353,12 +354,25 @@ final class MessagesController {
         return contacts.fetchID(for: a) == contacts.fetchID(for: b)
     }
 
+    private func getToFieldAddresses() -> LazyMapSequence<ReversedCollection<LazySequence<[Substring]>>, String>? {
+        let desc = try? elements.toFieldPopupButton.localizedDescription()
+        // unknown if other locales also use , as a separator
+        let elements = desc?.split(separator: ",").lazy.reversed().map { String($0).trimmingCharacters(in: .whitespaces) }
+        return elements
+    }
+
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     private func ensureSelectedThread(threadID: String) throws {
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
         var attempt = 0
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
+            if isSonomaOrUp {
+                if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
+                    throw ErrorMessage("thread not selected")
+                }
+                return
+            }
             do {
                 let selectedAddressOptional = Defaults.getSelectedThreadID()
                 if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {
@@ -374,10 +388,7 @@ final class MessagesController {
                 }
             } catch {
                 if attempt > 5 { // 250ms
-                    let desc = try? elements.toFieldPopupButton.localizedDescription()
-                    // unknown if other locales also use , as a separator
-                    if let elements = desc?.split(separator: ",").reversed(),
-                        elements.contains(where: { isSameContact(String($0).trimmingCharacters(in: .whitespaces), addressToMatch) }) {
+                    if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
                         debugLog("ensureSelectedThread: used fallback")
                         return
                     }
@@ -759,7 +770,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 let editableMessageField = try elements.editableMessageField
                 try assignToMessageField(editableMessageField, text: newText)
                 focusMessageField(editableMessageField)
+                Thread.sleep(forTimeInterval: 0.1)
                 try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
+                // todo: wait for it to disappear
             }
         }
     }
@@ -1331,12 +1344,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         debugLog("pollActivityStatus")
 
-        let selectedThread = Defaults.getSelectedThreadID().flatMap(splitThreadID)
-        let observerAddress = threadIDToAddress(observer.threadID)
-        guard let (_, type, selectedAddress) = selectedThread,
-              (selectedAddress == observerAddress ||
-              (type == singleThreadType && isSameContact(selectedAddress, observerAddress))) else {
-            debugLog("pollActivityStatus: selected thread changed, not polling \(observer.threadID)")
+        do {
+            try ensureSelectedThread(threadID: observer.threadID)
+        } catch {
+            debugLog("pollActivityStatus: selected thread changed, not polling \(observer.threadID) \(error)")
             observer.send([.unknown])
             return
         }
