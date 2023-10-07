@@ -367,12 +367,6 @@ final class MessagesController {
         var attempt = 0
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
-            if isSonomaOrUp {
-                if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
-                    throw ErrorMessage("thread not selected")
-                }
-                return
-            }
             do {
                 let selectedAddressOptional = Defaults.getSelectedThreadID()
                 if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {

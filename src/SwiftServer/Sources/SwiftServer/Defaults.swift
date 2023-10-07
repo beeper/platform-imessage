@@ -1,10 +1,14 @@
 import Foundation
 
+// this will likely get patched soon
+func fixForSonoma(_ str: String) -> String {
+    isSonomaOrUp ? str.uppercased() : str
+}
 enum Defaults {
-    private static let main = UserDefaults(suiteName: messagesBundleID)
-    private static let pinning = UserDefaults(suiteName: "com.apple.messages.pinning")
-    private static let dock = UserDefaults(suiteName: "com.apple.dock")
-    private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
+    private static let main = UserDefaults(suiteName: fixForSonoma(messagesBundleID))
+    private static let pinning = UserDefaults(suiteName: fixForSonoma("com.apple.messages.pinning"))
+    private static let dock = UserDefaults(suiteName: fixForSonoma("com.apple.dock"))
+    private static let ncPrefs = UserDefaults(suiteName: fixForSonoma("com.apple.ncprefs"))
 
     static func resetPrompts() {
         // main?.set(true, forKey: "kHasSetupHashtagImages") // unknown
