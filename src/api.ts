@@ -19,7 +19,6 @@ import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
-import DNDState from './DNDState'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 
@@ -37,14 +36,17 @@ const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
 const linkRegex = urlRegex()
 
+function getDNDState() {
+  if (!IS_BIG_SUR_OR_UP) return new Set<string>()
+  const arr = swiftServer.getDNDList()
+  return new Set(arr)
+}
 export default class AppleiMessage implements PlatformAPI {
   currentUser: CurrentUser
 
   // private accountID: string
 
   private threadReadStore: ThreadReadStore | undefined
-
-  private dndState = new DNDState()
 
   private dbAPI = new DatabaseAPI(this)
 
@@ -157,7 +159,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getThreadParticipants(chatRow.ROWID),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
       this.dbAPI.getUnreadChatRowIDs(),
-      this.dndState.get(),
+      getDNDState(),
     ])
     return mapThread(
       chatRow,
@@ -181,7 +183,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
       this.dbAPI.getUnreadChatRowIDs(),
-      this.dndState.get(),
+      getDNDState(),
     ])
     if (handleRows.length < 1) return
     const thread = mapThread(
@@ -252,7 +254,7 @@ export default class AppleiMessage implements PlatformAPI {
       })),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
       this.dbAPI.getUnreadChatRowIDs(),
-      this.dndState.get(),
+      getDNDState(),
     ])
     if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
     const groupImagesMap: { [attachmentID: string]: string } = {}

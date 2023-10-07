@@ -364,6 +364,14 @@ enum Preferences {
                 Defaults.playSoundEffects = false
                 return undefined
             },
+
+            "getDNDList": NodeFunction {
+                guard let dict = Defaults.getDNDList() else {
+                    return undefined
+                }
+                let list = dict.compactMap { $0.value == Int(Date.distantFuture.timeIntervalSince1970) ? $0.key : nil }
+                return list as [NodeValueConvertible]
+            }
         ]
 
         if #available(macOS 10.15, *) {

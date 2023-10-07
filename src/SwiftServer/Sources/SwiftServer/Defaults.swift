@@ -9,6 +9,7 @@ enum Defaults {
     private static let pinning = UserDefaults(suiteName: fixForSonoma("com.apple.messages.pinning"))
     private static let dock = UserDefaults(suiteName: fixForSonoma("com.apple.dock"))
     private static let ncPrefs = UserDefaults(suiteName: fixForSonoma("com.apple.ncprefs"))
+    private static let ckDND = UserDefaults(suiteName: fixForSonoma("com.apple.MobileSMS.CKDNDList"))
 
     static func resetPrompts() {
         // main?.set(true, forKey: "kHasSetupHashtagImages") // unknown
@@ -103,5 +104,24 @@ enum Defaults {
         }
         // 25th bit is the notifications enabled bit
         return (flags >> 25) & 1 == 1
+    }
+
+    static func getDNDList() -> [String: Int]? {
+        /*
+            {
+            CatalystDNDMigrationVersion: 2,
+            CKDNDMigrationKey: 2,
+            CKDNDListKey: {
+                'hi@kishan.info': 64092211200,
+                // chat.group_id
+                '2B4EFF7E-3F26-4251-8902-F7062096CCCC: 64092211200,
+                '+15551231234': 64092211200
+            }
+            }
+        */
+        guard let dict = ckDND?.dictionary(forKey: "CKDNDListKey") else {
+            return nil
+        }
+        return dict as? [String: Int]
     }
 }
