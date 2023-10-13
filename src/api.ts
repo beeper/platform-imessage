@@ -14,7 +14,7 @@ import { mapThreads, mapMessages, mapThread, mapAccountLogin, MessageWithExtra }
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 // import { trackTime } from '../../common/analytics'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SONOMA_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
@@ -480,7 +480,7 @@ export default class AppleiMessage implements PlatformAPI {
     // use overlay mode only when the message is not in a thread
     const overlay = useOverlay && IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
     const closestMessage: AXMessageSelection = overlay
-      ? { messageGUID: messageID, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
+      ? { messageGUID: messageID, offset: 0, cellID: IS_SONOMA_OR_UP ? null : msgRow.balloon_bundle_id, cellRole: null }
       : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
     return { ...closestMessage, overlay } as MessageCell
   }
