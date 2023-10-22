@@ -496,7 +496,7 @@ function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, 
   return participant
 }
 
-export const mapAccountLogin = (al: string) => al?.replace(/^E:/, '')
+export const mapAccountLogin = (al: string) => al?.replace(/^(E|P):/, '')
 
 type Context = {
   currentUserID: string
