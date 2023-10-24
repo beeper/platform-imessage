@@ -73,8 +73,8 @@ export default class AppleiMessage implements PlatformAPI {
     this.currentUser = {
       id: unprefixed[0] || 'default',
       displayText: unprefixed.join(', '),
-      email: logins.find(a => a.startsWith('E:'))?.split(':')?.[1] || undefined,
-      phoneNumber: logins.find(a => a.startsWith('P:'))?.split(':')?.[1] || undefined,
+      email: logins.find(a => a?.startsWith('E:'))?.split(':')?.[1] || undefined,
+      phoneNumber: logins.find(a => a?.startsWith('P:'))?.split(':')?.[1] || undefined,
     }
   }
 
