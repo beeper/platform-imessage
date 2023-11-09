@@ -380,7 +380,7 @@ final class MessagesController {
                     throw ErrorMessage("thread not selected")
                 }
             } catch {
-                if attempt > 2 { // ~100ms
+                if attempt > 5 { // 250ms
                     if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
                         debugLog("ensureSelectedThread: used fallback")
                         return
