@@ -2,14 +2,23 @@ import Foundation
 
 // this will likely get patched soon
 func fixForSonoma(_ str: String) -> String {
-    isSonomaOrUp ? str.uppercased() : str
+    if #available(macOS 14, *) {
+        str.uppercased()
+    } else {
+        str
+    }
 }
+
+let pinningBundleID = "com.apple.messages.pinning"
+let dndBundleID = "com.apple.MobileSMS.CKDNDList"
+
 enum Defaults {
     private static let main = UserDefaults(suiteName: fixForSonoma(messagesBundleID))
-    private static let pinning = UserDefaults(suiteName: fixForSonoma("com.apple.messages.pinning"))
-    private static let dock = UserDefaults(suiteName: fixForSonoma("com.apple.dock"))
-    private static let ncPrefs = UserDefaults(suiteName: fixForSonoma("com.apple.ncprefs"))
-    private static let ckDND = UserDefaults(suiteName: fixForSonoma("com.apple.MobileSMS.CKDNDList"))
+    private static let pinning = UserDefaults(suiteName: fixForSonoma(pinningBundleID))
+    private static let ckDND = UserDefaults(suiteName: fixForSonoma(dndBundleID))
+
+    private static let dock = UserDefaults(suiteName: "com.apple.dock")
+    private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
 
     static func resetPrompts() {
         // main?.set(true, forKey: "kHasSetupHashtagImages") // unknown
@@ -18,24 +27,34 @@ enum Defaults {
         main?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
     }
 
+    static func syncBundle(bundleID: String) {
+        if #available(macOS 14, *) {
+            CFPreferencesAppSynchronize(fixForSonoma(messagesBundleID) as CFString)
+        }
+    }
+
     static func getSelectedThreadID() -> String? {
+        syncBundle(bundleID: messagesBundleID)
         // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
         // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
         // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
-        main?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
+        return main?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
     }
 
     static func isSelectedThreadCellPinned() -> Bool {
-        main?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
+        syncBundle(bundleID: messagesBundleID)
+        return main?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
     }
 
     static func isSelectedThreadCellCompose() -> Bool {
-        main?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
+        syncBundle(bundleID: messagesBundleID)
+        return main?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
     }
 
     static var playSoundEffects: Bool {
         get {
-            main?.bool(forKey: "PlaySoundsKey") ?? false
+            syncBundle(bundleID: messagesBundleID)
+            return main?.bool(forKey: "PlaySoundsKey") ?? false
         }
         set {
             main?.set(newValue, forKey: "PlaySoundsKey")
@@ -44,18 +63,20 @@ enum Defaults {
 
     #if DEBUG
     static func pinnedData() -> [String: Any]? {
-        Defaults.pinning?.dictionary(forKey: "pD")
+        syncBundle(bundleID: pinningBundleID)
+        return pinning?.dictionary(forKey: "pD")
     }
 
     static func changePinnedData(_ val: [String: Any]) {
         var modval = val
         modval["pT"] = NSDate()
-        Defaults.pinning?.setValue(modval, forKey: "pD")
+        pinning?.setValue(modval, forKey: "pD")
     }
     #endif
 
     static func pinnedThreads() -> [String]? {
-        Defaults.pinning?.dictionary(forKey: "pD")?["pP"] as? [String]
+        syncBundle(bundleID: pinningBundleID)
+        return pinning?.dictionary(forKey: "pD")?["pP"] as? [String]
     }
 
     static func pinnedThreadsCount() -> Int? {
@@ -119,6 +140,7 @@ enum Defaults {
             }
             }
         */
+        syncBundle(bundleID: dndBundleID)
         guard let dict = ckDND?.dictionary(forKey: "CKDNDListKey") else {
             return nil
         }
