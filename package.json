@@ -53,5 +53,5 @@
   "os": [
     "darwin"
   ],
-  "packageManager": "yarn@3.5.0"
+  "packageManager": "yarn@4.0.1"
 }
