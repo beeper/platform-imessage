@@ -8,6 +8,13 @@ let package = Package(
     products: [
         .library(
             name: "SwiftServer",
+            type: .dynamic,
+            targets: ["SwiftServer"]
+        ),
+        // The dynamic target will cause linker errors in Xcode.
+        // This target can be selected in Xcode for development.
+        .library(
+            name: "SwiftServer-Auto",
             targets: ["SwiftServer"]
         ),
     ],
@@ -38,6 +45,7 @@ let package = Package(
                 "WindowControl",
                 "ExceptionCatcher",
                 .product(name: "NodeAPI", package: "node-swift"),
+                .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "CUnfairLock"
             ]

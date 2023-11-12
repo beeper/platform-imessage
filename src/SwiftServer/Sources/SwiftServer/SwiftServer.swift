@@ -6,25 +6,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     .appendingPathComponent("Messages", isDirectory: true)
 
 @available(macOS 11, *)
-final class MessagesControllerWrapper: NodeClass {
-    static let properties: NodeClassPropertyList = [
-        "create": NodeMethod(attributes: .static, create),
-        "isValid": NodeMethod(isValid),
-        "createThread": NodeMethod(createThread),
-        "toggleThreadRead": NodeMethod(toggleThreadRead),
-        "muteThread": NodeMethod(muteThread),
-        "deleteThread": NodeMethod(deleteThread),
-        "undoSend": NodeMethod(undoSend),
-        "editMessage": NodeMethod(editMessage),
-        "sendTypingStatus": NodeMethod(sendTypingStatus),
-        "watchThreadActivity": NodeMethod(watchThreadActivity),
-        "setReaction": NodeMethod(setReaction),
-        "sendMessage": NodeMethod(sendMessage),
-        "notifyAnyway": NodeMethod(notifyAnyway),
-        "isSameContact": NodeMethod(isSameContact),
-        "dispose": NodeMethod(dispose)
-    ]
-
+@NodeActor @NodeClass final class MessagesControllerWrapper {
     static let name = "MessagesController"
 
     private static let queue = DispatchQueue(label: "messages-controller-wrapper-queue")
@@ -60,7 +42,7 @@ final class MessagesControllerWrapper: NodeClass {
 
     private static var messagesControllerWrapper: NodeObject? = nil
 
-    static func create(_ args: NodeArguments) throws -> NodeValueConvertible {
+    @NodeMethod static func create() throws -> NodeValueConvertible {
         let q = try NodeAsyncQueue(label: "create-messages-controller")
         return try returnAsync(on: q) {
 
@@ -103,31 +85,31 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func isValid() throws -> NodeValueConvertible {
+    @NodeMethod func isValid() throws -> NodeValueConvertible {
         try returnAsync { self.controller.isValid }
     }
 
-    func toggleThreadRead(threadID: String, read: Bool) throws -> NodeValueConvertible {
+    @NodeMethod func toggleThreadRead(threadID: String, read: Bool) throws -> NodeValueConvertible {
         try performAsync { try self.controller.toggleThreadRead(threadID: threadID, read: read) }
     }
 
-    func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {
+    @NodeMethod func muteThread(threadID: String, muted: Bool) throws -> NodeValueConvertible {
         try performAsync { try self.controller.muteThread(threadID: threadID, muted: muted) }
     }
 
-    func deleteThread(threadID: String) throws -> NodeValueConvertible {
+    @NodeMethod func deleteThread(threadID: String) throws -> NodeValueConvertible {
         try performAsync { try self.controller.deleteThread(threadID: threadID) }
     }
 
-    func sendTypingStatus(threadID: String, isTyping: Bool) throws -> NodeValueConvertible {
+    @NodeMethod func sendTypingStatus(threadID: String, isTyping: Bool) throws -> NodeValueConvertible {
         try performAsync { try self.controller.sendTypingStatus(threadID: threadID, isTyping: isTyping) }
     }
 
-    func notifyAnyway(threadID: String) throws -> NodeValueConvertible {
+    @NodeMethod func notifyAnyway(threadID: String) throws -> NodeValueConvertible {
         try performAsync { try self.controller.notifyAnyway(threadID: threadID) }
     }
 
-    func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
+    @NodeMethod func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
         let controllerArgs: (String, ([MessagesController.ActivityStatus]) -> Void)?
         if try args.count == 1 && args[0].as(NodeNull.self) != nil {
             controllerArgs = nil
@@ -165,7 +147,7 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    @NodeMethod func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
@@ -178,7 +160,7 @@ final class MessagesControllerWrapper: NodeClass {
     }
 
     // @available(macOS 13, *)
-    func undoSend(threadID: String, messageCellJSON: String) throws -> NodeValueConvertible {
+    @NodeMethod func undoSend(threadID: String, messageCellJSON: String) throws -> NodeValueConvertible {
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
@@ -187,7 +169,7 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func editMessage(threadID: String, messageCellJSON: String, newText: String) throws -> NodeValueConvertible {
+    @NodeMethod func editMessage(threadID: String, messageCellJSON: String, newText: String) throws -> NodeValueConvertible {
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
@@ -196,7 +178,7 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
+    @NodeMethod func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
         guard args.count == 2,
               let addresses = try args[0].as([String].self),
               let message = try args[1].as(String.self) else {
@@ -207,20 +189,19 @@ final class MessagesControllerWrapper: NodeClass {
         }
     }
 
-    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
+    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
         let quotedMessage = try quotedMessageCellJSON?.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }
         return try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage) }
     }
 
-    func isSameContact(_ a: String?, _ b: String?) -> Bool {
+    @NodeMethod func isSameContact(_ a: String?, _ b: String?) -> Bool {
         return self.controller.isSameContact(a, b)
     }
 
-    func dispose() throws -> NodeValueConvertible {
+    @NodeMethod func dispose() throws {
         Self.messagesControllerWrapper = nil
         Self.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
-        return undefined
     }
 }
 
@@ -247,147 +228,135 @@ enum Preferences {
     static var enabledExperiments = ""
 }
 
-@main struct SwiftServer: NodeModule {
-    let exports: NodeValueConvertible
+#NodeModule {
+    // strongly retained by askForMessagesDirAccess, deinit called on exit
+    let accessManager = MessagesAccessManager()
+    var dict: [String: NodePropertyConvertible] = try [
+        "appleInterfaceStyle": NodeProperty { _ in
+            UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
+        },
 
-    init() throws {
-        // strongly retained by askForMessagesDirAccess, deinit called on exit
-        let accessManager = MessagesAccessManager()
-        var dict: [String: NodePropertyConvertible] = try [
-            "appleInterfaceStyle": NodeComputedProperty { _ in
-                UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
-            },
+        "isMessagesAppInDock": NodeProperty { _ in
+            Defaults.isAppInDock(bundleID: messagesBundleID)
+        },
 
-            "isMessagesAppInDock": NodeComputedProperty { _ in
-                Defaults.isAppInDock(bundleID: messagesBundleID)
-            },
+        "isNotificationsEnabledForMessages": NodeProperty { _ in
+            Defaults.isNotificationsEnabledForApp(bundleID: messagesBundleID)
+        },
 
-            "isNotificationsEnabledForMessages": NodeComputedProperty { _ in
-                Defaults.isNotificationsEnabledForApp(bundleID: messagesBundleID)
-            },
+        "enabledExperiments": NodeProperty { _ in
+            Preferences.enabledExperiments
+        } set: { args in
+            Preferences.enabledExperiments = try args.first?.as(String.self) ?? ""
+        },
 
-            "enabledExperiments": NodeComputedProperty { _ in
-                Preferences.enabledExperiments
-            } set: { args in
-                Preferences.enabledExperiments = try args.first?.as(String.self) ?? ""
-            },
+        "isLoggingEnabled": NodeProperty { _ in
+            Preferences.isLoggingEnabled
+        } set: { args in
+            Preferences.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
+        },
 
-            "isLoggingEnabled": NodeComputedProperty { _ in
-                Preferences.isLoggingEnabled
-            } set: { args in
-                Preferences.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
-            },
+        "isPHTEnabled": NodeProperty { _ in
+            Preferences.isPHTEnabled
+        } set: { args in
+            Preferences.isPHTEnabled = try args.first?.as(Bool.self) ?? false
+        },
 
-            "isPHTEnabled": NodeComputedProperty { _ in
-                Preferences.isPHTEnabled
-            } set: { args in
-                Preferences.isPHTEnabled = try args.first?.as(Bool.self) ?? false
-            },
+        "askForMessagesDirAccess": NodeFunction {
+            try await accessManager.requestAccess()
+        },
 
-            "askForMessagesDirAccess": NodeFunction {
-                try NodePromise {
-                    try await accessManager.requestAccess()
-                    return undefined
-                }
-            },
-
-            "askForAutomationAccess": NodeFunction {
-                let queue = try NodeAsyncQueue(label: "automation-access-callback")
-                return try NodePromise { deferred in
-                    DispatchQueue.main.async {
-                        let result = Result<NodeValueConvertible, Error> {
-                            try OSA.promptAutomationAccess()
-                            return undefined
-                        }
-                        try? queue.run {
-                            try deferred(result)
-                        }
+        "askForAutomationAccess": NodeFunction {
+            let queue = try NodeAsyncQueue(label: "automation-access-callback")
+            return try NodePromise { deferred in
+                DispatchQueue.main.async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        try OSA.promptAutomationAccess()
+                        return undefined
+                    }
+                    try? queue.run {
+                        try deferred(result)
                     }
                 }
-            },
+            }
+        },
 
-            "decodeAttributedString": NodeFunction { (data: Data) in
-                guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
-                    return undefined
-                }
-                return decoded.map { [
-                    "from": Double($0.scalarRange.lowerBound),
-                    "to": Double($0.scalarRange.upperBound),
-                    "text": "\($0.text)",
-                    "attributes": $0.attributes.mapValues { "\($0)" }
-                ] }
-            },
+        "decodeAttributedString": NodeFunction { (data: Data) in
+            guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
+                return undefined
+            }
+            return decoded.map { [
+                "from": Double($0.scalarRange.lowerBound),
+                "to": Double($0.scalarRange.upperBound),
+                "text": "\($0.text)",
+                "attributes": $0.attributes.mapValues { "\($0)" }
+            ] }
+        },
 
-            "confirmUNCPrompt": NodeFunction {
-                let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
-                return try NodePromise { deferred in
-                    // we don't use DispatchQueue.main to prevent freezing the UI
-                    DispatchQueue.global(qos: .background).async {
-                        let result = Result<NodeValueConvertible, Error> {
-                            try PromptAutomation.confirmUNCPrompt()
-                            return undefined
-                        }
-                        try? queue.run {
-                            try deferred(result)
-                        }
+        "confirmUNCPrompt": NodeFunction {
+            let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
+            return try NodePromise { deferred in
+                // we don't use DispatchQueue.main to prevent freezing the UI
+                DispatchQueue.global(qos: .background).async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        try PromptAutomation.confirmUNCPrompt()
+                        return undefined
+                    }
+                    try? queue.run {
+                        try deferred(result)
                     }
                 }
-            },
+            }
+        },
 
-            "disableNotificationsForApp": NodeFunction { (appName: String) in
-                let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
-                return try NodePromise { deferred in
-                    // we don't use DispatchQueue.main to prevent freezing the UI
-                    DispatchQueue.global(qos: .background).async {
-                        let result = Result<NodeValueConvertible, Error> {
-                            try PromptAutomation.disableNotificationsForApp(named: appName)
-                        }
+        "disableNotificationsForApp": NodeFunction { (appName: String) in
+            let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
+            return try NodePromise { deferred in
+                // we don't use DispatchQueue.main to prevent freezing the UI
+                DispatchQueue.global(qos: .background).async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        try PromptAutomation.disableNotificationsForApp(named: appName)
+                    }
 
-                        try? queue.run {
-                            try deferred(result)
-                        }
+                    try? queue.run {
+                        try deferred(result)
                     }
                 }
-            },
-
-            "removeMessagesFromDock": NodeFunction {
-                Defaults.removeAppFromDock(bundleID: messagesBundleID)
-                return undefined
-            },
-
-            "killDock": NodeFunction {
-                Dock.getApp()?.terminate()
-                return undefined
-            },
-
-            "disableSoundEffects": NodeFunction {
-                Defaults.playSoundEffects = false
-                return undefined
-            },
-
-            "getDNDList": NodeFunction {
-                guard let dict = Defaults.getDNDList() else {
-                    return undefined
-                }
-                let list = dict.compactMap { $0.value == Int(Date.distantFuture.timeIntervalSince1970) ? $0.key : nil }
-                return list as [NodeValueConvertible]
             }
-        ]
+        },
 
-        if #available(macOS 10.15, *) {
-            dict["startSysPrefsOnboarding"] = try NodeFunction {
-                SysPrefsOnboarding.start()
+        "removeMessagesFromDock": NodeFunction {
+            Defaults.removeAppFromDock(bundleID: messagesBundleID)
+        },
+
+        "killDock": NodeFunction {
+            Dock.getApp()?.terminate()
+        },
+
+        "disableSoundEffects": NodeFunction {
+            Defaults.playSoundEffects = false
+        },
+
+        "getDNDList": NodeFunction {
+            guard let dict = Defaults.getDNDList() else {
                 return undefined
             }
-            dict["stopSysPrefsOnboarding"] = try NodeFunction {
-                SysPrefsOnboarding.stop()
-                return undefined
-            }
+            let list = dict.compactMap { $0.value == Int(Date.distantFuture.timeIntervalSince1970) ? $0.key : nil }
+            return list as [NodeValueConvertible]
         }
-        if #available(macOS 11, *) {
-            dict["MessagesController"] = try MessagesControllerWrapper.constructor()
-        }
+    ]
 
-        exports = dict
+    if #available(macOS 10.15, *) {
+        dict["startSysPrefsOnboarding"] = try NodeFunction {
+            SysPrefsOnboarding.start()
+        }
+        dict["stopSysPrefsOnboarding"] = try NodeFunction {
+            SysPrefsOnboarding.stop()
+        }
     }
+    if #available(macOS 11, *) {
+        dict["MessagesController"] = try MessagesControllerWrapper.constructor()
+    }
+
+    return dict
 }

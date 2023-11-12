@@ -14,9 +14,18 @@
         "package": "PHTCommon",
         "repositoryURL": "https://github.com/TextsHQ/PHTCommon.git",
         "state": {
-          "branch": "main",
-          "revision": "0afa63b65eb9b438d6f8ee92a0213f76fdefdd69",
+          "branch": null,
+          "revision": "c37b857c81d9e49ebc827431d38432f07d4511fa",
           "version": null
+        }
+      },
+      {
+        "package": "swift-syntax",
+        "repositoryURL": "https://github.com/apple/swift-syntax.git",
+        "state": {
+          "branch": null,
+          "revision": "6ad4ea24b01559dde0773e3d091f1b9e36175036",
+          "version": "509.0.2"
         }
       }
     ]
