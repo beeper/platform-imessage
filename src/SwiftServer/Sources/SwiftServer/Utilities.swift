@@ -77,7 +77,7 @@ func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -
 
 // iMessage;-;hi@kishan.info → hi@kishan.info
 @inlinable func threadIDToAddress(_ threadID: String) -> String? {
-    splitThreadID(threadID).flatMap { String($0.2) }
+    splitThreadID(threadID)?.2
 }
 
 // iMessage;-;hi@kishan.info → ("iMessage", "-", "hi@kishan.info")
@@ -94,7 +94,8 @@ func containsLink(_ text: String) -> Bool {
 }
 
 func jsonStringify<T: Encodable>(_ input: T) throws -> String {
-    let encoder = JSONEncoder()
     let data = try encoder.encode(input)
-    return String(data: data, encoding: .utf8)!
+    return String(decoding: data, as: UTF8.self)
 }
+
+private let encoder = JSONEncoder()
