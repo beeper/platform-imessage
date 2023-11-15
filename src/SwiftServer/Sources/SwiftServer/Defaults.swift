@@ -13,7 +13,10 @@ let pinningBundleID = "com.apple.messages.pinning"
 let dndBundleID = "com.apple.MobileSMS.CKDNDList"
 
 enum Defaults {
-    private static let main = UserDefaults(suiteName: fixForSonoma(messagesBundleID))
+    // main, pinning, ckDND are read protected on sonoma
+    private static let main: UserDefaultsProtocol? = isSonomaOrUp
+        ? UserDefaultsShim(suiteName: messagesBundleID.uppercased())
+        : UserDefaults(suiteName: messagesBundleID)
     private static let pinning = UserDefaults(suiteName: fixForSonoma(pinningBundleID))
     private static let ckDND = UserDefaults(suiteName: fixForSonoma(dndBundleID))
 
@@ -29,7 +32,11 @@ enum Defaults {
 
     static func syncBundle(bundleID: String) {
         if #available(macOS 14, *) {
-            CFPreferencesAppSynchronize(fixForSonoma(messagesBundleID) as CFString)
+            // these are prob non-deterministic no-ops
+            for id in [bundleID, bundleID.uppercased()] {
+                UserDefaults(suiteName: id)?.synchronize()
+                CFPreferencesAppSynchronize(id as CFString)
+            }
         }
     }
 
