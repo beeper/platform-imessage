@@ -34,6 +34,7 @@ const xcArchMap = {
 
 const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
 const NO_SPACES = process.argv.includes('--no-spaces')
+const USE_SWIFT_PM = process.argv.includes('--use-swiftpm') || process.argv.includes('--use-spm')
 
 async function main() {
   async function buildForArch(arch?: string) {
@@ -54,7 +55,7 @@ async function main() {
 
     const binaryPath = await build(config, {
       ...buildOptions,
-      builder: {
+      builder: USE_SWIFT_PM ? {} : {
         type: 'xcode',
         destinations: arch ? [`platform=macOS,arch=${xcArchMap[arch]}`] : undefined,
         settings: arch ? ['ONLY_ACTIVE_ARCH=YES'] : undefined,
