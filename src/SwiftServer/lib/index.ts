@@ -89,7 +89,7 @@ export type SwiftServer = {
 }
 
 const canLoadDylib = IS_CATALINA_OR_UP && (IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift'))
-const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'swift.node')
+const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
 
 let _swiftServer: SwiftServer | undefined
 if (canLoadDylib) {
