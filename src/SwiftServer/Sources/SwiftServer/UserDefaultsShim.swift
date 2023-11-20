@@ -4,7 +4,7 @@ protocol UserDefaultsProtocol {
     // func object(forKey key: String) -> Any?
     // func url(forKey key: String) -> URL?
     // func array(forKey key: String) -> [Any]?
-    // func dictionary(forKey key: String) -> [String: Any]?
+    func dictionary(forKey key: String) -> [String: Any]?
     func string(forKey key: String) -> String?
     // func stringArray(forKey key: String) -> [String]?
     // func data(forKey key: String) -> Data?
@@ -48,6 +48,10 @@ final class UserDefaultsShim: UserDefaultsProtocol {
 
     func set(_ value: Bool, forKey key: String) {
         set(value ? "true" : "false", type: "bool", forKey: key)
+    }
+
+    func dictionary(forKey key: String) -> [String: Any]? {
+        return nil
     }
 
     private func read(key: String) -> String? {

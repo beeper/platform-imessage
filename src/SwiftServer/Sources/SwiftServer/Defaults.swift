@@ -1,89 +1,82 @@
 import Foundation
 
-// this will likely get patched soon
-func fixForSonoma(_ str: String) -> String {
-    if #available(macOS 14, *) {
-        str.uppercased()
-    } else {
-        str
+// main, pinning, ckDND are read protected on sonoma
+private let pinningBundleID = "com.apple.messages.pinning"
+private let dndBundleID = "com.apple.MobileSMS.CKDNDList"
+
+private func randomCase(_ input: String) -> String {
+    var result = ""
+    for character in input {
+        result += Bool.random()
+            ? String(character).uppercased()
+            : String(character)
     }
+    if result == input { return randomCase(input) }
+    return result
 }
 
-let pinningBundleID = "com.apple.messages.pinning"
-let dndBundleID = "com.apple.MobileSMS.CKDNDList"
-
 enum Defaults {
-    // main, pinning, ckDND are read protected on sonoma
-    private static let main: UserDefaultsProtocol? = isSonomaOrUp
-        ? UserDefaultsShim(suiteName: messagesBundleID.uppercased())
-        : UserDefaults(suiteName: messagesBundleID)
-    private static let pinning = UserDefaults(suiteName: fixForSonoma(pinningBundleID))
-    private static let ckDND = UserDefaults(suiteName: fixForSonoma(dndBundleID))
-
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
     private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
 
     static func resetPrompts() {
-        // main?.set(true, forKey: "kHasSetupHashtagImages") // unknown
-        main?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
-        main?.set(true, forKey: "ReadReceiptSettingsConfirmed") // shown to confirm read receipts settings
-        main?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
+        // getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "kHasSetupHashtagImages") // unknown
+        getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "SMSRelaySettingsConfirmed") // unknown
+        getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "ReadReceiptSettingsConfirmed") // shown to confirm read receipts settings
+        getUserDefaults(bundleID: messagesBundleID)?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
     }
 
-    static func syncBundle(bundleID: String) {
+    private static func getUserDefaults(bundleID: String) -> UserDefaultsProtocol? {
         if #available(macOS 14, *) {
+            let randomCasedBundleID = randomCase(bundleID)
             // these are prob non-deterministic no-ops
-            for id in [bundleID, bundleID.uppercased()] {
+            for id in [bundleID, randomCasedBundleID] {
                 UserDefaults(suiteName: id)?.synchronize()
                 CFPreferencesAppSynchronize(id as CFString)
             }
+            return UserDefaults(suiteName: randomCasedBundleID)
         }
+        return UserDefaults(suiteName: bundleID)
     }
 
     static func getSelectedThreadID() -> String? {
-        syncBundle(bundleID: messagesBundleID)
         // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
         // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
         // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
-        return main?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
+        getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
     }
 
     static func isSelectedThreadCellPinned() -> Bool {
-        syncBundle(bundleID: messagesBundleID)
-        return main?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
+        getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
     }
 
     static func isSelectedThreadCellCompose() -> Bool {
-        syncBundle(bundleID: messagesBundleID)
-        return main?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
+        getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
     }
 
     static var playSoundEffects: Bool {
         get {
-            syncBundle(bundleID: messagesBundleID)
-            return main?.bool(forKey: "PlaySoundsKey") ?? false
+            getUserDefaults(bundleID: messagesBundleID)?.bool(forKey: "PlaySoundsKey") ?? false
         }
         set {
-            main?.set(newValue, forKey: "PlaySoundsKey")
+            getUserDefaults(bundleID: messagesBundleID)?.set(newValue, forKey: "PlaySoundsKey")
         }
     }
 
     #if DEBUG
     static func pinnedData() -> [String: Any]? {
-        syncBundle(bundleID: pinningBundleID)
-        return pinning?.dictionary(forKey: "pD")
+        getUserDefaults(bundleID: pinningBundleID)?.dictionary(forKey: "pD")
     }
 
     static func changePinnedData(_ val: [String: Any]) {
         var modval = val
         modval["pT"] = NSDate()
-        pinning?.setValue(modval, forKey: "pD")
+        UserDefaults(suiteName: pinningBundleID)?.setValue(modval, forKey: "pD")
     }
     #endif
 
     static func pinnedThreads() -> [String]? {
-        syncBundle(bundleID: pinningBundleID)
-        return pinning?.dictionary(forKey: "pD")?["pP"] as? [String]
+        getUserDefaults(bundleID: pinningBundleID)?.dictionary(forKey: "pD")?["pP"] as? [String]
     }
 
     static func pinnedThreadsCount() -> Int? {
@@ -147,8 +140,7 @@ enum Defaults {
             }
             }
         */
-        syncBundle(bundleID: dndBundleID)
-        guard let dict = ckDND?.dictionary(forKey: "CKDNDListKey") else {
+        guard let dict = getUserDefaults(bundleID: dndBundleID)?.dictionary(forKey: "CKDNDListKey") else {
             return nil
         }
         return dict as? [String: Int]
