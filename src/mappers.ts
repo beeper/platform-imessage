@@ -26,14 +26,14 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attach
     fileName,
     srcURL: filePath,
     loading: a.transfer_state !== AttachmentTransferState.DOWNLOADED,
-  }
+  } satisfies Partial<Attachment>
   if (filePath) common.srcURL = url.pathToFileURL(filePath).href
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    const size: Size = a.is_sticker ? { height: 80, width: undefined } : a.size
+    const size: Size = a.is_sticker ? { height: 100, width: undefined } : a.size
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
-    return { ...common, type: AttachmentType.IMG, size }
+    return { ...common, type: AttachmentType.IMG, size, isSticker: a.is_sticker === 1 }
   }
   if (VIDEO_EXTS.includes(ext)) {
     return { ...common, type: AttachmentType.VIDEO }
