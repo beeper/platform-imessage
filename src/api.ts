@@ -3,7 +3,7 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, ReAuthError, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
@@ -225,12 +225,13 @@ export default class AppleiMessage implements PlatformAPI {
     if ('email' in ids) return { id: ids.email, email: ids.email }
   }
 
-  getThreads = async (folderName: ThreadFolderName, pagination: PaginationArg): Promise<Paginated<Thread>> => {
+  getThreads = async (folderName: ThreadFolderName, pagination: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     if (folderName !== InboxName.NORMAL) {
       return {
         items: [],
         hasMore: false,
+        oldestCursor: null,
       }
     }
     const { cursor, direction } = pagination || { cursor: null, direction: null }
@@ -303,7 +304,7 @@ export default class AppleiMessage implements PlatformAPI {
     return items.find(i => i.id === messageID)
   }
 
-  searchMessages = async (typed: string, pagination: PaginationArg, options: SearchMessageOptions): Promise<Paginated<Message>> => {
+  searchMessages = async (typed: string, pagination: PaginationArg, options: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     this.ensureDB()
     const { threadID, mediaType, sender } = options
     const { cursor, direction } = pagination || { cursor: null, direction: null }
