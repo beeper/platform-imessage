@@ -19,7 +19,7 @@
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
   "dependencies": {
-    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#8a625558055baa77d6e5ce5f4f2c3d02312fac2a",
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053",
     "clsx": "^1.2.1",
     "conf": "^8.0.0",
     "crc": "^4.1.1",
