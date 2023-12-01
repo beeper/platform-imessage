@@ -413,6 +413,7 @@ export default class AppleiMessage implements PlatformAPI {
   private sendingMessagesCount = 0
 
   sendMessage = async (threadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+    if (threadID.startsWith('SMS;-;') && threadID.includes('@')) throw Error('Cannot send message to email address over SMS')
     try {
       this.sendingMessagesCount++
       const { quotedMessageID } = options
