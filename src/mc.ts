@@ -1,5 +1,4 @@
 import { texts } from '@textshq/platform-sdk'
-import pRetry from 'p-retry'
 import swiftServer, { MessagesController } from './SwiftServer/lib'
 import { IS_BIG_SUR_OR_UP } from './common-constants'
 
@@ -8,7 +7,7 @@ const messagesControllerClass = swiftServer?.messagesControllerClass
 export default class MessagesControllerWrapper {
   private static fetchPromise: Promise<MessagesController>
 
-  private static controller?: MessagesController
+  private static createPromise: Promise<MessagesController>
 
   static forceInvalidate = false
 
@@ -26,32 +25,25 @@ export default class MessagesControllerWrapper {
     return mc
   }
 
-  // serialized: if there's an existing get request running, it's reused
-  private static _getMessagesController = async (): Promise<MessagesController> => {
+  // here be dragons
+  private static _getMessagesController = async (attempt = 0): Promise<MessagesController> => {
     if (!IS_BIG_SUR_OR_UP) return
 
     // we want to reuse existing instances of the fetch promise while any one is
     // running, but once it's done the next call to getMessagesController should
     // start up a new invocation (so that isValid() is checked again)
+    //
+    // the create promise, meanwhile, should be recreated sparingly: only if a previous
+    // create() call failed, or inside the fetch promise when isValid is false (in either
+    // case, the main fetchPromsie closure will throw and be caught by the catch)
     if (MessagesControllerWrapper.fetchPromise) return MessagesControllerWrapper.fetchPromise
 
-    MessagesControllerWrapper.fetchPromise = this.__getMessagesController()
-      .finally(() => {
-        MessagesControllerWrapper.fetchPromise = undefined
-      })
-
-    return MessagesControllerWrapper.fetchPromise
-  }
-
-  // unserialized: should be serialized by the caller
-  private static __getMessagesController = async (): Promise<MessagesController> =>
-    pRetry(async () => {
-      let { controller } = MessagesControllerWrapper
-      if (!controller) {
+    MessagesControllerWrapper.fetchPromise = (async () => {
+      if (!MessagesControllerWrapper.createPromise) {
         texts.log('creating MessagesController...')
-        controller = await messagesControllerClass.create() // can throw
-        MessagesControllerWrapper.controller = controller
+        MessagesControllerWrapper.createPromise = messagesControllerClass.create()
       }
+      const controller = await MessagesControllerWrapper.createPromise
       if (!(await controller.isValid()) || MessagesControllerWrapper.forceInvalidate) {
         texts.trackPlatformEvent({
           platform: 'imessage',
@@ -59,25 +51,37 @@ export default class MessagesControllerWrapper {
           forceInvalidate: MessagesControllerWrapper.forceInvalidate,
         })
         MessagesControllerWrapper.forceInvalidate = false
-        MessagesControllerWrapper.controller = undefined
         controller.dispose()
         throw new Error('MessagesController is invalid')
       }
       return controller
-    }, {
-      retries: 3,
-      onFailedAttempt: err => {
-        texts.error('[imessage] getMessagesController', err)
-        texts.log('retrying...')
-        if (err.retriesLeft === 0) {
-          texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-        }
-      },
+    })().finally(() => {
+      // this `finally` must run *before* the catch since the catch recurses
+      // getMessagesController, and when that happens the fetch promise should
+      // already be undefined
+      MessagesControllerWrapper.fetchPromise = undefined
+    }).catch(err => {
+      // we always unset createPromise here, but only auto-retry up to twice.
+      // This means that a single call to getMessagesController() will spawn
+      // at most three create() calls, but if all three fail then a future call
+      // to getMessagesController() can spawn up to three more again
+      MessagesControllerWrapper.createPromise = undefined
+      texts.error('[imessage] getMessagesController', err)
+      if (attempt > 2) {
+        texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
+        throw err
+      }
+      texts.log('retrying...')
+      return MessagesControllerWrapper._getMessagesController(attempt + 1)
     })
 
+    return MessagesControllerWrapper.fetchPromise
+  }
+
   static async dispose() {
-    const controller = (await MessagesControllerWrapper.fetchPromise) || MessagesControllerWrapper.controller
-    controller?.dispose()
-    MessagesControllerWrapper.controller = undefined
+    if (MessagesControllerWrapper.createPromise) {
+      (await MessagesControllerWrapper.get()).dispose()
+      MessagesControllerWrapper.createPromise = undefined
+    }
   }
 }
