@@ -81,9 +81,7 @@ export default class MessagesControllerWrapper {
       onFailedAttempt: err => {
         texts.error('[imessage] getMessagesController', err)
         texts.log('retrying...')
-        if (err.retriesLeft === 0) {
-          texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
-        }
+        texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
       },
     })
 
