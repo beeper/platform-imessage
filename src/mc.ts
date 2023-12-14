@@ -1,9 +1,21 @@
 import { texts } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
+import { setTimeout as setTimeoutAsync } from 'timers/promises'
 import swiftServer, { MessagesController } from './SwiftServer/lib'
 import { IS_BIG_SUR_OR_UP } from './common-constants'
 
 const messagesControllerClass = swiftServer?.messagesControllerClass
+
+const timeoutSymbol = Symbol('timeout')
+
+const timeoutAndReport = async <T>(promise: Promise<T>, ms = 120_000): Promise<T> => {
+  const result = await Promise.race([
+    promise,
+    setTimeoutAsync(ms, timeoutSymbol),
+  ])
+  if (result === timeoutSymbol) throw Error('promise timed out')
+  return result
+}
 
 export default class MessagesControllerWrapper {
   private static fetchPromise: Promise<MessagesController>
@@ -49,7 +61,7 @@ export default class MessagesControllerWrapper {
       let { controller } = MessagesControllerWrapper
       if (!controller) {
         texts.log('creating MessagesController...')
-        controller = await messagesControllerClass.create() // can throw
+        controller = await timeoutAndReport(messagesControllerClass.create()) // can throw
         MessagesControllerWrapper.controller = controller
       }
       if (!(await controller.isValid()) || MessagesControllerWrapper.forceInvalidate) {
