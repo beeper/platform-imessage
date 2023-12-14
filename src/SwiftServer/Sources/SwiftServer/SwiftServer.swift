@@ -40,27 +40,17 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
         }
     }
 
-    private static var messagesControllerWrapper: NodeObject? = nil
-
     @NodeMethod static func create() throws -> NodeValueConvertible {
         let q = try NodeAsyncQueue(label: "create-messages-controller")
         return try returnAsync(on: q) {
-
-            if let wrapper = Self.messagesControllerWrapper {
-                return NodeDeferredValue { wrapper }
-            } else {
-                let messagesController = try MessagesController(reportToSentry: { txt in
-                    Logger.log(txt)
-                    try? q.run {
-                        try Node.texts.Sentry.captureMessage(txt)
-                    }
-                })
-
-                return NodeDeferredValue {
-                    let messagesControllerWrapper = try MessagesControllerWrapper(controller: messagesController).wrapped()
-                    Self.messagesControllerWrapper = messagesControllerWrapper
-                    return messagesControllerWrapper
+            let controller = try MessagesController(reportToSentry: { txt in
+                Logger.log(txt)
+                try? q.run {
+                    try Node.texts.Sentry.captureMessage(txt)
                 }
+            })
+            return NodeDeferredValue {
+                try MessagesControllerWrapper(controller: controller).wrapped()
             }
         }
     }
@@ -199,7 +189,6 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     }
 
     @NodeMethod func dispose() throws {
-        Self.messagesControllerWrapper = nil
         Self.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
     }
