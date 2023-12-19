@@ -61,7 +61,6 @@ export default class MessagesControllerWrapper {
       let { controller } = MessagesControllerWrapper
       if (!controller) {
         texts.log('creating MessagesController...')
-        if (!messagesControllerClass) texts.error('messagesControllerClass is nil')
         controller = await timeoutAndReport(messagesControllerClass.create()) // can throw
         MessagesControllerWrapper.controller = controller
       }
