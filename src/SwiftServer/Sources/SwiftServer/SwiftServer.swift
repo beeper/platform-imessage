@@ -13,12 +13,15 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
 
     private static func returnAsync(
         on jsQueue: NodeAsyncQueue,
+        function: StaticString = #function,
         _ action: @escaping () throws -> NodeValueConvertible
     ) throws -> NodePromise {
-        try NodePromise { deferred in
+        addBreadcrumb("Calling returnAsync from \(function)")
+        return try NodePromise { deferred in
             queue.async {
                 let result = Result { try action() }
                 try? jsQueue.run {
+                    addBreadcrumb("Resolving returnAsync from \(function)")
                     try deferred(result)
                 }
             }
@@ -26,22 +29,26 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     }
 
     private func returnAsync(
+        function: StaticString = #function,
         _ action: @escaping () throws -> NodeValueConvertible
     ) throws -> NodePromise {
-        try Self.returnAsync(on: swiftJSQueue, action)
+        try Self.returnAsync(on: swiftJSQueue, function: function, action)
     }
 
     private func performAsync(
+        function: StaticString = #function,
         _ action: @escaping () throws -> Void
     ) throws -> NodePromise {
-        try returnAsync {
+        try returnAsync(function: function) {
             try action()
             return undefined
         }
     }
 
     @NodeMethod static func create() throws -> NodeValueConvertible {
+        addBreadcrumb("Creating async queue")
         let q = try NodeAsyncQueue(label: "create-messages-controller")
+        addBreadcrumb("Opening async context")
         return try returnAsync(on: q) {
             let controller = try MessagesController(reportToSentry: { txt in
                 Logger.log(txt)
@@ -50,9 +57,19 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
                 }
             })
             return NodeDeferredValue {
-                try MessagesControllerWrapper(controller: controller).wrapped()
+                addBreadcrumb("NodeDeferred.init")
+                return try MessagesControllerWrapper(controller: controller).wrapped()
             }
         }
+    }
+
+    private static func addBreadcrumb(_ message: String) {
+        _ = try? Node.texts.Sentry.addBreadcrumb([
+            "category": "swiftserver",
+            "level": "info",
+            "message": message
+        ])
+        print("[Breadcrumb] \(message)")
     }
 
     private var threadObserveRequestToken: UUID?
