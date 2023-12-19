@@ -69,7 +69,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
             "level": "info",
             "message": message
         ])
-        print("[Breadcrumb] \(message)")
+        debugLog("[Breadcrumb] \(message)")
     }
 
     private var threadObserveRequestToken: UUID?
