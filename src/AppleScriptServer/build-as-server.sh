@@ -2,7 +2,7 @@
 
 cd src/AppleScriptServer
 
-xcodebuild -scheme AppleScriptServer -configuration Release SYMROOT='./' CODE_SIGN_IDENTITY="" build
+xcodebuild -scheme AppleScriptServer -configuration Release SYMROOT='./' build
 
 ls -lah Release/AppleScriptServer
 strip Release/AppleScriptServer
