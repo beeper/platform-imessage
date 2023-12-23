@@ -11,7 +11,7 @@ import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo, OTRValue } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -80,6 +80,7 @@ function assignReactions(message: Message, _reactionRows: MappedReactionMessageR
 const enum MessagePartKind {
   TEXT,
   ATTACHMENT,
+  UNSENT,
 }
 interface MessagePartText {
   kind: MessagePartKind.TEXT
@@ -94,13 +95,47 @@ interface MessagePartAttachment {
   end: number
   attachmentID: string
 }
+interface MessagePartUnsent {
+  kind: MessagePartKind.UNSENT
+  index: number
+  end: number
+}
 
-type MessagePart = MessagePartText | MessagePartAttachment
+type MessagePart = MessagePartText | MessagePartAttachment | MessagePartUnsent
 
-function decodeMessageParts(fragments: Fragment[]): MessagePart[] {
+function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageSummaryInfo): MessagePart[] {
   const parts: MessagePart[] = []
-  // eslint-disable-next-line no-restricted-syntax
+  const handledDeletedFragments: number[] = []
+
+  const sortedOriginalRuns: (OTRValue & { index: number })[] = messageSummaryInfo?.otr != null
+    ? Object.entries(messageSummaryInfo.otr)
+      // Don't depend on the Apple sorting these numerical string keys for us.
+      .sort((first, second) => parseInt(first[0], 10) - parseInt(second[0], 10))
+      .map(([, value], index) => ({ ...value, ...{ index } }))
+    : null
+
   for (const frag of fragments) {
+    if (messageSummaryInfo?.rp != null && messageSummaryInfo.otr != null) {
+      // In our traversal of the new message, locate any unsent parts of the original
+      // message that we would have since crossed.
+      //
+      // (This only applies to messages that are partially unsent).
+      const crossedDeletedFragments = sortedOriginalRuns.filter(
+        (otr, index) => otr.lo < frag.to
+          && messageSummaryInfo.rp.includes(index)
+          && !handledDeletedFragments.includes(index),
+      )
+
+      for (const crossed of crossedDeletedFragments) {
+        parts.push({
+          kind: MessagePartKind.UNSENT,
+          index: parts.length,
+          end: 0,
+        })
+        handledDeletedFragments.push(crossed.index)
+      }
+    }
+
     const attachmentID = frag.attributes.__kIMFileTransferGUIDAttributeName
     if (typeof attachmentID === 'string') {
       parts.push({
@@ -186,12 +221,20 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     partialMessage.behavior = MessageBehavior.KEEP_READ
   }
 
+  const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined
+
+  const entirelyUnsent = msi?.otr != null
+    && Object.keys(msi.otr).length === 1
+    && msi?.rp != null
+    && msi.rp[0] === 0
+
   if (msgRow.item_type !== 0) {
     const m: MessageWithExtra = {
       ...partialMessage,
       isAction: true,
       parseTemplate: true,
     }
+
     let didFail = false
     switch (msgRow.item_type) {
       case 1:
@@ -313,7 +356,6 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     default:
   }
 
-  const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined
   if (msgRow.message_summary_info) {
     if (msi?.amsa === 'com.apple.siri') {
       partialFooter.textFooter = 'Sent with Siri'
@@ -340,19 +382,23 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   if (swiftServer && msgRow.attributedBody) {
     const attributes = swiftServer.decodeAttributedString(msgRow.attributedBody)
     if (attributes) {
-      messageParts = decodeMessageParts(attributes)
+      messageParts = decodeMessageParts(attributes, msi)
     }
   }
   if (messageParts.length === 0) {
-    messageParts = [{
-      kind: MessagePartKind.TEXT,
-      index: 0,
-      text: removeObjReplacementChar(msgRow.text || '').replaceAll(IMSG_EXTENSION_CHAR, ''),
-    } as MessagePart].concat(...(attachments.map((a, i) => ({
-      kind: MessagePartKind.ATTACHMENT,
-      attachmentID: a.id,
-      index: i + 1,
-    })) as MessagePartAttachment[]))
+    if (msgRow.attributedBody == null && msi?.rp != null && msi?.otr != null) {
+      messageParts = [{ kind: MessagePartKind.UNSENT, index: 0, end: 0 }]
+    } else {
+      messageParts = [{
+        kind: MessagePartKind.TEXT,
+        index: 0,
+        text: removeObjReplacementChar(msgRow.text || '').replaceAll(IMSG_EXTENSION_CHAR, ''),
+      } as MessagePart].concat(...(attachments.map((a, i) => ({
+        kind: MessagePartKind.ATTACHMENT,
+        attachmentID: a.id,
+        index: i + 1,
+      })) as MessagePartAttachment[]))
+    }
   }
 
   const addSubjectInline = msgRow.subject && messageParts[0].kind === MessagePartKind.TEXT && messageParts[0].text.length
@@ -375,6 +421,14 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // messageParts will always be non-empty
   const messages = messageParts.map<MessageWithExtra>((part, partIdx) => {
     const message = { ...partialMessage }
+    if (msi?.otr != null && msi?.rp != null) {
+      // When a message is partially unsent, the edited timestamp reflects when
+      // the (most recent, ostensibly) unsent occurred. Don't expose this, for
+      // now, so we don't mislead the user. (Unsending part of a message can be
+      // argued to count as a kind of "edit", but yeah.)
+      message.editedTimestamp = null
+    }
+
     if (messageParts.length > 1) {
       // we have to copy message.extra, otherwise it shares the object
       // among different message parts
@@ -389,13 +443,26 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     if (partIdx === 0) Object.assign(message, partialHeader)
     if (partIdx === messageParts.length - 1) Object.assign(message, partialFooter)
     if (part.index !== 0) message.id = `${message.id}_${part.index}`
-    if (part.kind === MessagePartKind.TEXT) {
-      message.text = part.text
-      message.textAttributes = part.attributes
-    } else if (part.kind === MessagePartKind.ATTACHMENT) {
-      // TODO: make this faster if necessary
-      const att = attachments.find(a => a.id === part.attachmentID)
-      if (att) message.attachments = [att]
+    switch (part.kind) {
+      case MessagePartKind.TEXT: {
+        message.text = part.text
+        message.textAttributes = part.attributes
+        break
+      }
+      case MessagePartKind.ATTACHMENT: {
+        // TODO: make this faster if necessary
+        const att = attachments.find(a => a.id === part.attachmentID)
+        if (att) message.attachments = [att]
+        break
+      }
+      case MessagePartKind.UNSENT: {
+        message.isAction = true
+        message.parseTemplate = true
+        message.editedTimestamp = null
+        message.text = '{{sender}} unsent a message'
+        break
+      }
+      default:
     }
     return message
   }).filter(m => m.attachments?.length || m.text || m.textHeading)

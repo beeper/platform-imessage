@@ -179,6 +179,14 @@ export type MappedAttachmentRow = {
   filePath: string
 }
 
+export interface OTRValue {
+  /** The zero-based index pointing to the beginning of this part of the original message. */
+  lo: number
+
+  /** The length of this part of the original message. */
+  le: number
+}
+
 // db-api.ts -> SQLS
 export type MappedHandleRow = {
   participantID: string
@@ -190,6 +198,24 @@ export interface MessageSummaryInfo {
   ust?: number // 1
   amsa?: string // "com.apple.siri"
   ams?: string // "Quick brown fox..."
+
+  /**
+    * The indexes in {@linkcode otr} that have been unsent.
+    */
+  rp?: number[]
+
+  /**
+    * An ordered record representing the structure of the original message
+    * body, present on unsent messages. It's important to note that the
+    * `attributedBody` of the message at this point completely lacks the unsent
+    * portions; therefore, this data can be used to discern where to interleave
+    * UI that indicates that parts of a message message was unsent.
+    *
+    * The properties are ascending numerical strings, with the values describing
+    * the starting indexes and lengths of discrete parts of the original message body.
+    */
+  // NOTE: Not sure why this isn't just an array. Maybe there can be other keys?
+  otr?: Record<`${number}`, OTRValue>
 }
 
 // custom
