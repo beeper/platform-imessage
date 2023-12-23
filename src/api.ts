@@ -204,17 +204,17 @@ export default class AppleiMessage implements PlatformAPI {
     if (userIDs.length === 0) return null
     this.ensureDB()
     if (!IS_BIG_SUR_OR_UP) return this.catalinaCreateThread(userIDs)
-    if (!message) throw Error('no message')
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
       if (existingThread) {
-        this.sendMessage(existingThread.id, { text: message })
+        if (message) this.sendMessage(existingThread.id, { text: message })
         return existingThread
       }
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
     }
+    if (!message) throw Error('no message')
     await (await MessagesControllerWrapper.get()).createThread(userIDs, message)
     return true
   }
