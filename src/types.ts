@@ -200,19 +200,43 @@ export interface MessageSummaryInfo {
   ams?: string // "Quick brown fox..."
 
   /**
+    * The message edit history, present for messages that have been partially
+    * edited.
+    *
+    * (TODO: Check if this is present for edited _non-partial_ messages.)
+    *
+    * The index corresponds to {@linkcode otr}.
+    */
+  ec?: Record<`${number}`, Array<{
+    // TODO: Investigate. Likely an attributed string.
+    t: Buffer
+
+    // TODO: Investigate. Likely a timestamp of when this part of the message
+    // was edited.
+    d: number
+  }>>
+
+  /**
     * The indexes in {@linkcode otr} that have been unsent.
     */
   rp?: number[]
 
   /**
+    * The indexes in {@linkcode otr} that have been edited.
+    */
+  ep?: number[]
+
+  /**
     * An ordered record representing the structure of the original message
-    * body, present on unsent messages. It's important to note that the
-    * `attributedBody` of the message at this point completely lacks the unsent
-    * portions; therefore, this data can be used to discern where to interleave
-    * UI that indicates that parts of a message message was unsent.
+    * body, present on partially unsent/edited messages. It's important to note
+    * that the `attributedBody` of the message at this point only reflects the
+    * message in its latest state, and completely lacks the unsent portions;
+    * therefore, this data can be used to determine where to interleave UI that
+    * indicates that parts of a message was unsent.
     *
-    * The properties are ascending numerical strings, with the values describing
-    * the starting indexes and lengths of discrete parts of the original message body.
+    * The properties are ascending numerical strings, with the values
+    * describing the starting indexes and lengths of each part of the original
+    * message body.
     */
   // NOTE: Not sure why this isn't just an array. Maybe there can be other keys?
   otr?: Record<`${number}`, OTRValue>

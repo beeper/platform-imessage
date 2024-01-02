@@ -105,66 +105,90 @@ type MessagePart = MessagePartText | MessagePartAttachment | MessagePartUnsent
 
 function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageSummaryInfo): MessagePart[] {
   const parts: MessagePart[] = []
-  const handledDeletedFragments: number[] = []
 
-  const sortedOriginalRuns: (OTRValue & { index: number })[] = messageSummaryInfo?.otr != null
-    ? Object.entries(messageSummaryInfo.otr)
-      // Don't depend on the Apple sorting these numerical string keys for us.
-      .sort((first, second) => parseInt(first[0], 10) - parseInt(second[0], 10))
-      .map(([, value], index) => ({ ...value, ...{ index } }))
-    : null
+  const handledDeletedParts: number[] = []
+  let lastSeenPart: number | null = null
+
+  const deletedParts = messageSummaryInfo?.rp
 
   for (const frag of fragments) {
-    if (messageSummaryInfo?.rp != null && messageSummaryInfo.otr != null) {
-      // In our traversal of the new message, locate any unsent parts of the original
-      // message that we would have since crossed.
-      //
-      // (This only applies to messages that are partially unsent).
-      const crossedDeletedFragments = sortedOriginalRuns.filter(
-        (otr, index) => otr.lo < frag.to
-          && messageSummaryInfo.rp.includes(index)
-          && !handledDeletedFragments.includes(index),
-      )
+    const attachmentID = frag.attributes.__kIMFileTransferGUIDAttributeName
 
-      for (const crossed of crossedDeletedFragments) {
-        parts.push({
-          kind: MessagePartKind.UNSENT,
-          index: parts.length,
-          end: 0,
-        })
-        handledDeletedFragments.push(crossed.index)
+    const part: string | null = frag.attributes.__kIMMessagePartAttributeName
+    const partNumber: number | null = part != null ? parseInt(part, 10) : null
+
+    if (partNumber != null) {
+      // Check for any unsent parts before this one by detecting jumps in the
+      // part number relative to the last, and checking if it's present in
+      // "rp".
+      if (partNumber !== lastSeenPart + 1 && deletedParts?.includes(partNumber - 1)) {
+        // Calculate how many unsent parts come before this one. If we haven't
+        // seen any parts yet, then that means the very first part(s) of the
+        // message were deleted. Adjust our math accordingly so we always
+        // insert enough unsent parts.
+        const unsentParts = partNumber - (lastSeenPart ?? -1) - 1
+
+        // Because we're finding unsent parts that come before this fragment,
+        // adjust our starting index (of the first "sent", i.e. not unsent,
+        // part).
+        const startingIndexOfSent = frag.from + unsentParts
+
+        for (let unsentIndex = startingIndexOfSent - unsentParts; unsentIndex < startingIndexOfSent; unsentIndex++) {
+          parts.push({
+            kind: MessagePartKind.UNSENT,
+            index: parts.length,
+            end: unsentIndex + 1,
+          })
+
+          // Insert the would-be part index of the deleted part. This value is
+          // unused at the moment, but might come in handy in the future.
+          const unsentPart = partNumber - (startingIndexOfSent - unsentIndex)
+          handledDeletedParts.push(unsentPart)
+        }
       }
+
+      lastSeenPart = partNumber
     }
 
-    const attachmentID = frag.attributes.__kIMFileTransferGUIDAttributeName
+    // By inserting deleted parts into the message, we must update our indexes
+    // to account for them.
+    const from = frag.from + handledDeletedParts.length
+    const end = frag.to + handledDeletedParts.length
+
     if (typeof attachmentID === 'string') {
       parts.push({
         kind: MessagePartKind.ATTACHMENT,
         index: parts.length,
-        end: frag.to,
+        end,
         attachmentID,
       })
     } else {
-      const partStr = frag.attributes.__kIMMessagePartAttributeName
-      if (typeof partStr === 'undefined' || +partStr !== parts.length - 1) {
+      // The rest of this block (barring the `if` below) continuously updates
+      // the last part. Insert a new text part if there's no part attribute,
+      // we're on the first part, or the last part wasn't a text one (which
+      // means that we can't just update it).
+      if (typeof part === 'undefined' || parts.length === 0 || parts[parts.length - 1]?.kind !== MessagePartKind.TEXT) {
         parts.push({
           kind: MessagePartKind.TEXT,
           index: parts.length,
-          end: 0,
+          end: 0, // Continuously updated by the code below.
           text: '',
         })
       }
+
       const textPart = parts[parts.length - 1] as MessagePartText
-      textPart.end = frag.to
-      textPart.text += frag.text.replace(IMSG_EXTENSION_CHAR, '')
+      textPart.end = end
+      if (frag.text != null) {
+        textPart.text += frag.text.replace(IMSG_EXTENSION_CHAR, '')
+      }
       const mention = frag.attributes.__kIMMentionConfirmedMention
       if (typeof mention === 'string') {
         textPart.attributes = {
           entities: [
             ...(textPart.attributes?.entities || []),
             {
-              from: frag.from,
-              to: frag.to,
+              from,
+              to: end,
               mentionedUser: { id: mention },
             },
           ],
@@ -172,6 +196,21 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
       }
     }
   }
+
+  // Because the code above only handles unsent parts that come _before_ each
+  // fragment, we never get the ones at the end (because there's no fragment
+  // that goes after them). Add them here.
+  if (messageSummaryInfo?.rp != null) {
+    const trailingUnsentParts = messageSummaryInfo.rp.length - handledDeletedParts.length
+    for (let i = 0; i < trailingUnsentParts; i++) {
+      parts.push({
+        kind: MessagePartKind.UNSENT,
+        index: parts.length,
+        end: parts.length + 1,
+      })
+    }
+  }
+
   for (let i = 1; i < parts.length; i++) {
     const part = parts[i]
     if (part.kind !== MessagePartKind.TEXT) continue
@@ -213,7 +252,6 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     extra: {},
   }
 
-  if (msgRow.date_edited) partialMessage.editedTimestamp = fromAppleTime(msgRow.date_edited)
   if (msgRow.date_retracted || msgRow.was_detonated) partialMessage.isDeleted = true
   if (isSMS) partialMessage.extra.isSMS = true
   if (addThreadIDs) partialMessage.threadID = msgRow.threadID
@@ -223,10 +261,18 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined
 
-  const entirelyUnsent = msi?.otr != null
+  const unsendDataPresent = msi?.otr != null && msi?.rp != null
+  const entirelyUnsent = unsendDataPresent
     && Object.keys(msi.otr).length === 1
-    && msi?.rp != null
     && msi.rp[0] === 0
+
+  // When a message is partially unsent, the edited timestamp reflects when the
+  // (ostensibly most recent) unsend occurred. If this is the case, don't show
+  // the last unsend timestamp to the user as a last edited timestamp, as that's
+  // somewhat misleading.
+  if (!unsendDataPresent && msgRow.date_edited) {
+    partialMessage.editedTimestamp = fromAppleTime(msgRow.date_edited)
+  }
 
   if (msgRow.item_type !== 0) {
     const m: MessageWithExtra = {
@@ -234,7 +280,6 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       isAction: true,
       parseTemplate: true,
     }
-
     let didFail = false
     switch (msgRow.item_type) {
       case 1:
@@ -421,14 +466,6 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // messageParts will always be non-empty
   const messages = messageParts.map<MessageWithExtra>((part, partIdx) => {
     const message = { ...partialMessage }
-    if (msi?.otr != null && msi?.rp != null) {
-      // When a message is partially unsent, the edited timestamp reflects when
-      // the (most recent, ostensibly) unsent occurred. Don't expose this, for
-      // now, so we don't mislead the user. (Unsending part of a message can be
-      // argued to count as a kind of "edit", but yeah.)
-      message.editedTimestamp = null
-    }
-
     if (messageParts.length > 1) {
       // we have to copy message.extra, otherwise it shares the object
       // among different message parts
