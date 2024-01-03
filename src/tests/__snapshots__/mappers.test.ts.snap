@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`multi part messages 0 1`] = `
+exports[`multi part messages fixture1.json 1`] = `
 Array [
   Object {
     "attachments": Array [
@@ -117,7 +117,7 @@ Array [
 ]
 `;
 
-exports[`multi part messages 1 1`] = `
+exports[`multi part messages fixture2.json 1`] = `
 Array [
   Object {
     "behavior": "keep_read",
@@ -236,6 +236,193 @@ Array [
     "text": "part 4",
     "textAttributes": undefined,
     "timestamp": 2021-10-29T13:57:27.322Z,
+  },
+]
+`;
+
+exports[`partially unsending messages partial_leading_unsends.json 1`] = `
+Array [
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725011655145000000",
+    "editedTimestamp": null,
+    "extra": Object {
+      "part": 0,
+    },
+    "id": "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0",
+    "isAction": true,
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "parseTemplate": true,
+    "seen": 2023-12-23T08:07:37.335Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "{{sender}} unsent a message",
+    "timestamp": 2023-12-23T08:07:35.144Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725011655145000000",
+    "editedTimestamp": null,
+    "extra": Object {
+      "part": 1,
+    },
+    "id": "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0_1",
+    "isAction": true,
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "parseTemplate": true,
+    "seen": 2023-12-23T08:07:37.335Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "{{sender}} unsent a message",
+    "timestamp": 2023-12-23T08:07:35.144Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725011655145000000",
+    "extra": Object {
+      "part": 2,
+    },
+    "id": "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0_2",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "seen": 2023-12-23T08:07:37.335Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "a",
+    "textAttributes": undefined,
+    "timestamp": 2023-12-23T08:07:35.144Z,
+  },
+]
+`;
+
+exports[`partially unsending messages partial_multiple_middle_adjacent_unsend.json 1`] = `
+Array [
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725506281967999900",
+    "extra": Object {
+      "part": 0,
+    },
+    "id": "3BC3F988-3263-4200-9863-8EBD537FE7EB",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "seen": 2023-12-29T01:31:24.222Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "begin middle multiple adjacent unsend",
+    "textAttributes": undefined,
+    "timestamp": 2023-12-29T01:31:21.967Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725506281967999900",
+    "editedTimestamp": null,
+    "extra": Object {
+      "part": 1,
+    },
+    "id": "3BC3F988-3263-4200-9863-8EBD537FE7EB_1",
+    "isAction": true,
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "parseTemplate": true,
+    "seen": 2023-12-29T01:31:24.222Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "{{sender}} unsent a message",
+    "timestamp": 2023-12-29T01:31:21.967Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725506281967999900",
+    "editedTimestamp": null,
+    "extra": Object {
+      "part": 2,
+    },
+    "id": "3BC3F988-3263-4200-9863-8EBD537FE7EB_2",
+    "isAction": true,
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "parseTemplate": true,
+    "seen": 2023-12-29T01:31:24.222Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "{{sender}} unsent a message",
+    "timestamp": 2023-12-29T01:31:21.967Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725506281967999900",
+    "extra": Object {
+      "part": 3,
+    },
+    "id": "3BC3F988-3263-4200-9863-8EBD537FE7EB_3",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "seen": 2023-12-29T01:31:24.222Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "end middle multiple adjacent unsend",
+    "textAttributes": undefined,
+    "timestamp": 2023-12-29T01:31:21.967Z,
+  },
+]
+`;
+
+exports[`partially unsending messages partial_trailing_unsends.json 1`] = `
+Array [
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725505911336000000",
+    "extra": Object {
+      "part": 0,
+    },
+    "id": "FE617A4A-D6C3-42F8-8006-DACEF68FDEF1",
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "seen": 2023-12-29T01:25:13.592Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "a",
+    "textAttributes": undefined,
+    "timestamp": 2023-12-29T01:25:11.336Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725505911336000000",
+    "editedTimestamp": null,
+    "extra": Object {
+      "part": 1,
+    },
+    "id": "FE617A4A-D6C3-42F8-8006-DACEF68FDEF1_1",
+    "isAction": true,
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "parseTemplate": true,
+    "seen": 2023-12-29T01:25:13.592Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "{{sender}} unsent a message",
+    "timestamp": 2023-12-29T01:25:11.336Z,
+  },
+  Object {
+    "behavior": "keep_read",
+    "cursor": "725505911336000000",
+    "editedTimestamp": null,
+    "extra": Object {
+      "part": 2,
+    },
+    "id": "FE617A4A-D6C3-42F8-8006-DACEF68FDEF1_2",
+    "isAction": true,
+    "isDelivered": true,
+    "isErrored": false,
+    "isSender": true,
+    "parseTemplate": true,
+    "seen": 2023-12-29T01:25:13.592Z,
+    "senderID": "tinyslices@gmail.com",
+    "text": "{{sender}} unsent a message",
+    "timestamp": 2023-12-29T01:25:11.336Z,
   },
 ]
 `;
