@@ -52,7 +52,11 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
                 try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)
             }
         }
-        let response = await openPanel.begin()
+        let response = if let mw = NSApp.mainWindow {
+            await openPanel.beginSheetModal(for: mw)
+        } else {
+            await openPanel.begin()
+        }
         defer {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
                 UserDefaults.standard.removeObject(forKey: "NSNavLastRootDirectory") // to make sure future NSOpenPanels don't show the Messages directory
