@@ -1,4 +1,8 @@
 import Contacts
+import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "contacts")
 
 final class Contacts {
     private let store = CNContactStore()
@@ -7,7 +11,7 @@ final class Contacts {
 
     init?() {
         guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
-            Logger.log("contacts access not authorized")
+            log.notice("contacts access not authorized")
             return nil
         }
         NotificationCenter.default.addObserver(self, selector: #selector(self.contactStoreDidChange), name: .CNContactStoreDidChange, object: nil)
@@ -17,10 +21,8 @@ final class Contacts {
         if let identifier = cache[emailOrPhoneNumber] {
             return identifier
         }
-        #if DEBUG
         let startTime = Date()
-        defer { Logger.log("fetchContactID took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        #endif
+        defer { log.debug("fetchContactID took \(startTime.timeIntervalSinceNow * -1000)ms") }
         let isEmail = emailOrPhoneNumber.contains("@")
         let predicate = isEmail
             ? CNContact.predicateForContacts(matchingEmailAddress: emailOrPhoneNumber)
@@ -31,7 +33,7 @@ final class Contacts {
             keysToFetch: [CNContactIdentifierKey, isEmail ? CNContactEmailAddressesKey : CNContactPhoneNumbersKey] as [CNKeyDescriptor]
         )
         if let contacts, contacts.count > 1 {
-            debugLog("fetchContactID: found more than one contact for \(emailOrPhoneNumber)")
+            log.notice("fetchContactID: found more than one contact for \(emailOrPhoneNumber)")
         }
         let identifier = contacts?.first?.identifier
         cache[emailOrPhoneNumber] = identifier

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftServerFoundation
 
 protocol UserDefaultsProtocol {
     // func object(forKey key: String) -> Any?
@@ -73,7 +74,7 @@ final class UserDefaultsShim: UserDefaultsProtocol {
         do {
             try process.run()
         } catch {
-            debugLog("UserDefaults shim failed to run process: \(error)")
+            Log.default.error("UserDefaults shim failed to run process: \(error)")
             return nil
         }
         process.waitUntilExit()

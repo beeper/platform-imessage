@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import CWindowControl
+import SwiftServerFoundation
 
 extension UUID {
     public init(cfUUID: CFUUID) {

@@ -1,11 +1,8 @@
 import AppKit
+import SwiftServerFoundation
+import Logging
 
-struct ErrorMessage: Error, CustomStringConvertible {
-    let description: String
-    init(_ description: String) {
-        self.description = description
-    }
-}
+private let log = Logger(windowControlLabel: "dock")
 
 public enum Dock {
     static let bundleID = "com.apple.dock"
@@ -27,7 +24,7 @@ public enum Dock {
         }
 
         private func onDockTerminate() {
-            debugLog("dock terminated")
+            log.notice("dock terminated")
             try? retry(withTimeout: 5, interval: 0.1) {
                 guard Dock.getApp() != nil else { throw ErrorMessage("Dock not running") } // we wait for a max of 5s for dock to relaunch
                 self.onExit()
@@ -38,7 +35,7 @@ public enum Dock {
         private func observe() throws {
             try retry(withTimeout: 5, interval: 0.1) {
                 guard Dock.getApp() != nil, let pid = Dock.pid else { throw ErrorMessage("Dock not running") }
-                debugLog("observing dock exit with pid=\(pid)")
+                log.debug("observing dock exit with pid=\(pid)")
                 try Process.monitorExit(pid: pid, self.onDockTerminate)
             }
         }

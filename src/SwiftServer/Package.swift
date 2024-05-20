@@ -21,7 +21,8 @@ let package = Package(
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
         .package(url: "https://github.com/sindresorhus/ExceptionCatcher", from: "2.0.1"),
-        .package(url: "https://github.com/TextsHQ/PHTCommon.git", .revision("c37b857c81d9e49ebc827431d38432f07d4511fa"))
+        .package(url: "https://github.com/TextsHQ/PHTCommon.git", .revision("c37b857c81d9e49ebc827431d38432f07d4511fa")),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0")
     ],
     targets: [
         .target(
@@ -29,14 +30,14 @@ let package = Package(
         ),
         .target(
             name: "WindowControl",
-            dependencies: ["CWindowControl"]
+            dependencies: ["CWindowControl", "SwiftServerFoundation"]
         ),
         .target(
             name: "CAccessibilityControl"
         ),
         .target(
             name: "AccessibilityControl",
-            dependencies: ["CAccessibilityControl", "WindowControl"]
+            dependencies: ["CAccessibilityControl", "WindowControl", "SwiftServerFoundation"]
         ),
         .target(
             name: "SwiftServer",
@@ -44,6 +45,7 @@ let package = Package(
                 "AccessibilityControl",
                 "WindowControl",
                 "ExceptionCatcher",
+                "SwiftServerFoundation",
                 .product(name: "NodeAPI", package: "node-swift"),
                 .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
@@ -53,6 +55,12 @@ let package = Package(
         .target(
             name: "CUnfairLock",
             dependencies: []
+        ),
+        .target(
+            name: "SwiftServerFoundation",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+            ]
         )
     ]
 )

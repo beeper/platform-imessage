@@ -1,5 +1,9 @@
 import AppKit
 import AccessibilityControl
+import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "app-elements")
 
 @available(macOS 11, *)
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
@@ -82,7 +86,7 @@ final class MessagesAppElements {
 
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
         let startTime = Date()
-        defer { Logger.log("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
         return allWindows.first(where: isMainWindow)
     }
 
@@ -99,16 +103,16 @@ final class MessagesAppElements {
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
             } onError: { attempt, _ in
                 if attempt == 0 {
-                    debugLog("Opening compose deep link to get main window")
+                    log.notice("mainWindow: using compose deep link to try to get main window")
                     try MessagesController.openDeepLink(MessagesDeepLink.compose.url())
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
-                        Logger.log("Prompts visible, resetting prompts")
+                        log.notice("mainWindow: some prompts are visible, attempting to reset")
                         Defaults.resetPrompts()
                     }
                 } else if attempt == 2 {
                     if self.isPromptVisibleInMessagesApp() {
-                        Logger.log("Prompts visible still, force terminating")
+                        log.error("mainWindow: some prompts are still visible, force terminating")
                         // regular terminate wont work since all window close buttons are disabled
                         self.runningApp.forceTerminate()
                         // this should invalidate the MessagesController
@@ -129,12 +133,12 @@ final class MessagesAppElements {
             //     return cached
             // }
             let startTime = Date()
-            defer { Logger.log("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
             let cl = try retry(withTimeout: 1, interval: 0.1) {
                 try Self.getConversationList(window: mainWindow, useFastPath: true).orThrow(ErrorMessage("ConversationList not found"))
             } onError: { _, _ in
                 let searchField = try self.searchField
-                debugLog("fetching ConversationList errored, calling searchField.cancel")
+                log.error("fetching ConversationList errored, calling searchField.cancel")
                 // this will close the search results if active
                 try searchField.cancel()
             }
@@ -164,7 +168,7 @@ final class MessagesAppElements {
 
     private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
         let startTime = Date()
-        defer { Logger.log("getTranscriptView(replyTranscript: \(replyTranscript)) took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("getTranscriptView(replyTranscript: \(replyTranscript)) took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
             // alternative: (localizedDescription == "Messages" when main transcript)
@@ -210,7 +214,7 @@ final class MessagesAppElements {
     var messageBodyField: Accessibility.Element {
         get throws {
             let startTime = Date()
-            defer { Logger.log("messageBodyField took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("messageBodyField took \(startTime.timeIntervalSinceNow * -1000)ms") }
             var alternate = false
             return try retry(withTimeout: 1.5, interval: 0.1) {
                 alternate
@@ -225,7 +229,7 @@ final class MessagesAppElements {
     var searchField: Accessibility.Element {
         get throws {
             let startTime = Date()
-            defer { Logger.log("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
             return try retry(withTimeout: 1, interval: 0.1) {
                 let CKConversationListCollectionView = try Self.getCKConversationListCollectionView(window: mainWindow)
                     .orThrow(ErrorMessage("CKConversationListCollectionView not found"))
@@ -238,7 +242,7 @@ final class MessagesAppElements {
     var iOSContentGroup: Accessibility.Element { // className=UINSSceneView
         get throws {
             let startTime = Date()
-            defer { Logger.log("iOSContentGroup took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("iOSContentGroup took \(startTime.timeIntervalSinceNow * -1000)ms") }
             return try mainWindow.children().first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == AXRole.group })
                 .orThrow(ErrorMessage("iOSContentGroup not found"))
         }
@@ -247,7 +251,7 @@ final class MessagesAppElements {
     var iOSContentGroupFirstChild: Accessibility.Element { // className= CKUIWindow_60754894 or CKPresentationControllerWindow (when reactions are open)
         get throws {
             let startTime = Date()
-            defer { Logger.log("iOSContentGroupFirstChild took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("iOSContentGroupFirstChild took \(startTime.timeIntervalSinceNow * -1000)ms") }
             return try (try? iOSContentGroup.children[0])
                 .orThrow(ErrorMessage("iOSContentGroupFirstChild not found"))
         }
@@ -256,7 +260,7 @@ final class MessagesAppElements {
     var splitter: Accessibility.Element {
         get throws {
             let startTime = Date()
-            defer { Logger.log("splitter took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("splitter took \(startTime.timeIntervalSinceNow * -1000)ms") }
             return try iOSContentGroupFirstChild.children().first(where: { (try? $0.role()) == AXRole.splitter })
                 .orThrow(ErrorMessage("splitter not found"))
         }
@@ -265,7 +269,7 @@ final class MessagesAppElements {
     var reactionsView: Accessibility.Element {
         get throws {
             let startTime = Date()
-            defer { Logger.log("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
             return try retry(withTimeout: 1.5, interval: 0.1) {
                 let view = try iOSContentGroupFirstChild
                 guard (try? view.children.count()) ?? 0 > 0 else {
@@ -279,7 +283,7 @@ final class MessagesAppElements {
     var reactButtons: [Accessibility.Element] {
         get throws {
             let startTime = Date()
-            defer { Logger.log("reactButtons took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("reactButtons took \(startTime.timeIntervalSinceNow * -1000)ms") }
             /*
             8 `AXButton`s
             Heart
@@ -313,7 +317,7 @@ final class MessagesAppElements {
     var notifyAnywayButton: Accessibility.Element {
         get throws {
             let startTime = Date()
-            defer { Logger.log("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
             let tv = try transcriptView
             let count = try tv.children.count()
             return try transcriptView.children(range: (count - 2)..<count).first(where: {

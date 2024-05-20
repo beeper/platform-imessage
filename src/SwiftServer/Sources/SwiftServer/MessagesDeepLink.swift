@@ -1,4 +1,5 @@
 import Foundation
+import SwiftServerFoundation
 
 let singleThreadType = "-"
 let groupThreadType = "+"

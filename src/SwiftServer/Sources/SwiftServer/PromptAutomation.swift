@@ -1,5 +1,7 @@
 import AccessibilityControl
 import AppKit
+import SwiftServerFoundation
+import Logging
 
 // func sendMouseClick(at point: CGPoint, to pid: pid_t) throws {
 //     for mouseType in [CGEventType.leftMouseDown, CGEventType.leftMouseUp] {
@@ -9,11 +11,13 @@ import AppKit
 //     }
 // }
 
+private let log = Logger(swiftServerLabel: "prompt-automation")
+
 enum PromptAutomation {
     static func confirmUNCPrompt() throws {
-        debugLog("confirmUNCPrompt")
+        log.debug("confirmUNCPrompt")
         try retry(withTimeout: 2.5, interval: 0.05) { () throws -> Void in
-            debugLog("confirmUNCPrompt attempt")
+            log.debug("confirmUNCPrompt attempt")
             guard let uncApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.UserNotificationCenter").first else {
                 throw ErrorMessage("unc app not found")
             }
@@ -38,14 +42,14 @@ enum PromptAutomation {
             }
 
             try lastButton.press()
-            debugLog("last button pressed")
+            log.debug("last button pressed")
         }
     }
 
     static func confirmDirectoryAccess(buttonTitle: String) throws {
-        debugLog("confirmDirectoryAccess")
+        log.debug("confirmDirectoryAccess")
         try retry(withTimeout: 2.5, interval: 0.05) { () throws -> Void in
-            debugLog("confirmDirectoryAccess attempt")
+            log.debug("confirmDirectoryAccess attempt")
             let appElement = Accessibility.Element(pid: NSRunningApplication.current.processIdentifier)
             let windows = try appElement.appWindows()
             guard windows.count > 0 else { throw ErrorMessage("no windows found") }
@@ -57,7 +61,7 @@ enum PromptAutomation {
 
             guard let grantButton = try window.children().last(where: isGrantButton) else { throw ErrorMessage("grant button not found") }
             try grantButton.press()
-            debugLog("grant button pressed")
+            log.debug("grant button pressed")
         }
     }
 
@@ -91,7 +95,7 @@ enum PromptAutomation {
                 var allowNotificationsView = try notificationsScrollView.children().first(where: { (try? $0.role()) == AXRole.group }).orThrow(ErrorMessage("allowNotificationsView not found"))
 
                 if (try? allowNotificationsView.children().last(where: { (try? $0.role()) == AXRole.staticText })?.value() as? String) != appName {
-                    debugLog("Not in \(appName) settings, going back to main notification center settings. Current appName:\((try? allowNotificationsView.children().last(where: { (try? $0.role()) == AXRole.staticText })?.value() as? String) ?? "nil")")
+                    log.debug("Not in \(appName) settings, going back to main notification center settings. Current appName:\((try? allowNotificationsView.children().last(where: { (try? $0.role()) == AXRole.staticText })?.value() as? String) ?? "nil")")
                     let toolbarView = try window.children().first(where: { (try? $0.role()) == AXRole.toolbar }).orThrow(ErrorMessage("toolbarView not found"))
                     let toolbarButton = try toolbarView.children().first(where: { (try? $0.role()) == AXRole.button }).orThrow(ErrorMessage("toolbarButton not found"))
                     try toolbarButton.press()
@@ -103,9 +107,9 @@ enum PromptAutomation {
                 }
 
                 let notificationsSwitch = try allowNotificationsView.children().first(where: { (try? $0.subrole()) == AXSubrole.switch }).orThrow(ErrorMessage("switch not found"))
-                debugLog("notificationsSwitch: \((try? notificationsSwitch.value() as? Bool) ?? false)")
+                log.debug("notificationsSwitch: \((try? notificationsSwitch.value() as? Bool) ?? false)")
                 if (try? notificationsSwitch.value() as? Bool) == true {
-                    debugLog("notifications are enabled, disabling")
+                    log.debug("notifications are enabled, disabling")
                     try notificationsSwitch.press()
                     // Closing too soon causes the value to not change
                     sleep(1)

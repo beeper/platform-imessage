@@ -1,5 +1,6 @@
 import Foundation
 import ExceptionCatcher
+import SwiftServerFoundation
 
 enum AttributedStringDecoder {
     struct Fragment {

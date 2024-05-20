@@ -3,6 +3,10 @@ import Contacts
 import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
+import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "messages-controller")
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -118,9 +122,9 @@ private class KeyPresser {
     static let src = CGEventSource(stateID: .hidSystemState)
 
     private func press(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
-        debugLog("sendKey(key: \(key))")
+        log.debug("sending simulated keypress (code=\(key))")
         for keyDown in [true, false] {
-            debugLog("sendKey(key: \(key)) \(keyDown ? "down" : "up")")
+            log.debug("simulated keypress phase (code=\(key), down=\(keyDown))")
             // all events will not be posted for _some_ users if `keyboardEventSource` is nil
             let ev = try CGEvent(keyboardEventSource: Self.src, virtualKey: key, keyDown: keyDown)
                 .orThrow(ErrorMessage("key \(key) event empty"))
@@ -293,7 +297,7 @@ final class MessagesController {
 
         init() {
             ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
-                debugLog("didChangeOcclusionStateNotification \(notif)")
+                log.trace("didChangeOcclusionStateNotification \(notif)")
                 guard let window = notif.object as? NSWindow else { return }
                 let className = NSStringFromClass(type(of: window))
                 guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
@@ -333,7 +337,7 @@ final class MessagesController {
             guard app.isTerminated else { throw ErrorMessage("App couldn't be terminated") }
         } onError: { attempt, _ in
             if attempt == 19 {
-                debugLog("Force terminating app")
+                log.debug("Force terminating app")
                 app.forceTerminate()
             }
         }
@@ -341,7 +345,7 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(_ url: URL, withoutActivation: Bool = true) throws -> NSRunningApplication {
-        debugLog("openDeepLink: \(url)")
+        log.debug("openDeepLink: \(url)")
         return try NSWorkspace.shared.open(
             url,
             options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
@@ -376,13 +380,13 @@ final class MessagesController {
                 guard selectedAddress == addressToMatch ||
                     (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
                 else {
-                    debugLog("thread not selected: \(selectedAddress) \(addressToMatch)")
+                    log.error("ensureSelectedThread: failed to select thread (selectedAddress=\(selectedAddress), addressToMatch=\(addressToMatch))")
                     throw ErrorMessage("thread not selected")
                 }
             } catch {
                 if attempt > 5 { // 250ms
                     if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
-                        debugLog("ensureSelectedThread: used fallback")
+                        log.error("ensureSelectedThread: resorted to fallback in order to select")
                         return
                     }
                 }
@@ -410,22 +414,22 @@ final class MessagesController {
 
         let launchMessages = { [whm] (withoutActivation: Bool) throws -> NSRunningApplication in
             if !whm.canReuseApp { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            debugLog("Launching Messages...")
+            log.info("launching messages... (without activation? \(withoutActivation))")
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
         }
 
         var messagesApps = Self.getRunningMessagesApps()
         if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-            debugLog("\(messagesApps.count) messages.app instances, terminating all")
+            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
             messagesApps.forEach { try? Self.terminateApp($0) }
             messagesApps.removeAll()
         }
         if let existingApp = messagesApps.first {
             if whm.canReuseApp {
-                debugLog("Reusing existing Messages...")
+                log.info("reusing existing messages...")
                 app = existingApp
             } else {
-                debugLog("Terminating Messages...")
+                log.info("terminating messages...")
                 try Self.terminateApp(existingApp)
                 // this is for markAsReadWithPressHack (monterey or lower)
                 // launch with activation because the hack doesn't work until the app is activated at least once
@@ -441,6 +445,7 @@ final class MessagesController {
         keyPresser = KeyPresser(pid: app.processIdentifier)
         whm.setApp(app)
         whm.setAfterHide {
+            log.info("our afterHide: resizing to max height")
             self.elements.getMainWindow().map { try? Self.resizeWindowToMaxHeight($0) }
         }
 
@@ -481,7 +486,7 @@ final class MessagesController {
             }
             #if DEBUG
             self.layoutChangedToken = try? self.elements.app.observe(.layoutChanged) { _ in // [weak self] _ in
-                debugLog("layoutChanged")
+                log.trace("layoutChanged")
                 // self?.pollActivityStatus()
             }
             #endif
@@ -513,12 +518,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     @inlinable func startedAutomation() {
         afterAutomationTask?.cancel()
+        log.info("startedAutomation: hiding messages.app")
         elements.clearCachedElements()
         whm.hide()
         activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
+        log.info("finishedAutomation")
         activityLock.unlock()
         // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
         scheduleCancelReplyTranscriptView()
@@ -590,7 +597,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
         #if DEBUG
         let startTime = Date()
-        defer { Logger.log("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
         // we assume thread is already selected
@@ -628,7 +635,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
-        debugLog("withMessageCell \(messageCell)")
+        log.debug("withMessageCell (messageCell=\(messageCell))")
 
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
 
@@ -671,7 +678,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     throw ErrorMessage("Could not find target message cell")
                 }
                 let target = idx - messageCell.offset
-                debugLog("Index: \(idx) - \(messageCell.offset) = \(target)")
+                log.debug("Index: \(idx) - \(messageCell.offset) = \(target)")
                 guard containerCells.indices.contains(target) else {
                     throw ErrorMessage("Desired index out of bounds")
                 }
@@ -679,13 +686,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
                 guard role == cellRole else {
-                    debugLog("Expected cell role \(cellRole), got \(role)")
+                    log.debug("Expected cell role \(cellRole), got \(role)")
                     throw ErrorMessage("Cell role mismatch")
                 }
             }
             if let cellID = messageCell.cellID, let id = try? targetCell.identifier() {
                 guard id == cellID else {
-                    debugLog("Expected cell id \(cellID), got \(id)")
+                    log.debug("Expected cell id \(cellID), got \(id)")
                     throw ErrorMessage("Cell id mismatch")
                 }
             }
@@ -695,7 +702,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
         let startTime = Date()
-        defer { Logger.log("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         startedAutomation()
         defer { finishedAutomation() }
@@ -714,7 +721,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 let isSelected = try btn.isSelected()
                 if isSelected != on {
                     try btn.press()
-                    debugLog("Reaction: \(Result { try btn.localizedDescription() }) \(Result { try btn.isSelected() })")
+                    log.debug("Reaction: \(Result { try btn.localizedDescription() }) \(Result { try btn.isSelected() })")
                     guard try btn.isSelected() == on else {
                         throw ErrorMessage("Could not react")
                     }
@@ -730,7 +737,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         let startTime = Date()
-        defer { Logger.log("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         startedAutomation()
         defer { finishedAutomation() }
@@ -748,7 +755,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         let startTime = Date()
-        defer { Logger.log("editMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("editMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         startedAutomation()
         defer { finishedAutomation() }
@@ -809,7 +816,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func markAsReadWithPressHack(threadID: String) throws {
         #if DEBUG
         let startTime = Date()
-        defer { Logger.log("markAsReadWithPressHack took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("markAsReadWithPressHack took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
         try openThread(threadID)
@@ -831,7 +838,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     */
     func toggleThreadRead(threadID: String, read: Bool) throws {
         let startTime = Date()
-        defer { Logger.log("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
@@ -850,7 +857,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 defer {
                     if Defaults.pinnedThreadsCount() != pinnedCount {
                         try? retry(withTimeout: 0.3, interval: 0.05) {
-                            Logger.log("retrying unpin")
+                            log.debug("retrying unpin")
                             try triggerThreadCellAction(threadID: threadID, action: .unpin)
                         }
                     }
@@ -874,7 +881,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func muteThread(threadID: String, muted: Bool) throws {
         #if DEBUG
         let startTime = Date()
-        defer { Logger.log("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
@@ -894,7 +901,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func deleteThread(threadID: String) throws {
         #if DEBUG
         let startTime = Date()
-        defer { Logger.log("deleteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("deleteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
@@ -910,7 +917,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func _sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        debugLog("_sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
+        log.debug("_sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
 
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
@@ -932,14 +939,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        debugLog("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
+        log.debug("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
 
         if !isTyping {
             elideStopTyping = false
             Task {
                 try await Task.sleep(nanoseconds: 100 * 1_000_000)
                 if self.elideStopTyping {
-                    debugLog("Stop typing elided")
+                    log.debug("Stop typing elided")
                     self.elideStopTyping = false
                     return
                 }
@@ -982,7 +989,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // we don't test if messageFieldValue() == text here because a few ms later, messageFieldValue will likely change if text has @mentions
             let charCountResult = Result { try messageField.noOfChars() }
             let atCount = text.filter { $0 == "@" }.count
-            debugLog("assignToMessageField: \(charCountResult) \(atCount) \(text.count)")
+            log.debug("assignToMessageField: \(charCountResult) \(atCount) \(text.count)")
             guard case let .success(charCount) = charCountResult,
                 charCount > 0,
                 // the assigned value could have X fewer characters than `text`, where X = the number of occurrences of "@"
@@ -1015,7 +1022,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func closeReplyTranscriptView(wait: Bool) throws {
         guard let rtv = try? elements.replyTranscriptView else { return }
-        debugLog("calling replyTranscriptView.cancel()")
+        log.debug("calling replyTranscriptView.cancel()")
         try rtv.cancel()
         func waitForReplyTranscriptsClose() throws {
             try retry(withTimeout: 1.2, interval: 0.1) {
@@ -1030,7 +1037,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func waitUntilReplyTranscriptVisible() throws {
-        debugLog("waitUntilReplyTranscriptVisible")
+        log.debug("waitUntilReplyTranscriptVisible")
         try retry(withTimeout: 1.2, interval: 0.1) {
             guard let pValue = try? elements.messageBodyField.placeholderValue(),
                 pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
@@ -1058,7 +1065,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // this method has a lot of combinations, test carefully
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         let startTime = Date()
-        defer { Logger.log("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         if let threadID, quotedMessage == nil { // fast path using OSA
             do {
@@ -1117,7 +1124,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             if Defaults.isSelectedThreadCellCompose() {
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-                debugLog("waiting 3s for address to resolve")
+                log.debug("waiting 3s for address to resolve")
                 Thread.sleep(forTimeInterval: 3)
             }
 
@@ -1204,19 +1211,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func activateMessages() {
         do {
             lastActivate = Date()
-            debugLog("activateMessages")
+            log.debug("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             try whm.appActivated(window: window)
         } catch {
-            debugLog("warning: Could not show Messages window: \(error)")
+            log.error("couldn't unhide messages window caused by user activation: \(error)")
         }
     }
 
     private func deactivateMessages() {
         do {
-            lastActivate.map { Logger.log("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
-            debugLog("deactivateMessages")
+            lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
+            log.debug("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             try whm.appDeactivated(window: window)
@@ -1225,14 +1232,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 resetWindow()
             }
         } catch {
-            debugLog("warning: Could not hide Messages window: \(error)")
+            log.error("couldn't hide messages window caused by user activation: \(error)")
         }
     }
 
     private func activityStatus() -> [ActivityStatus] {
         #if DEBUG
         let startTime = Date()
-        defer { Logger.log("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
         func getTV() -> Accessibility.Element? {
             if let cached = elements.cachedTranscriptView, cached.isInViewport {
@@ -1321,7 +1328,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard let observer = activityObserver else { return }
 
         guard om.visible else {
-            debugLog("pollActivityStatus: skipping since window occluded")
+            log.trace("pollActivityStatus: skipping since window occluded")
             return
         }
 
@@ -1331,16 +1338,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { activityLock.unlock() }
 
         guard isValid else {
-            debugLog("pollActivityStatus: invalid MessagesController")
+            log.trace("pollActivityStatus: invalid MessagesController")
             return
         }
 
-        debugLog("pollActivityStatus")
+        log.trace("pollActivityStatus")
 
         do {
             try ensureSelectedThread(threadID: observer.threadID)
         } catch {
-            debugLog("pollActivityStatus: selected thread changed, not polling \(observer.threadID) \(error)")
+            log.trace("pollActivityStatus: selected thread changed, not polling \(observer.threadID) \(error)")
             observer.send([.unknown])
             return
         }
@@ -1383,7 +1390,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private var isDisposed = false
 
     func dispose() {
-        debugLog("Disposing MessagesController...")
+        log.info("disposing MessagesController")
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
@@ -1394,7 +1401,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     deinit {
-        debugLog("deinit")
+        log.info("MessagesController deinit")
         dispose()
     }
 }

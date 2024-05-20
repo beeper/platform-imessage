@@ -1,5 +1,6 @@
 import Foundation
 import ApplicationServices
+import SwiftServerFoundation
 
 public protocol AccessibilityConvertible {
     init?(axRaw: AnyObject)

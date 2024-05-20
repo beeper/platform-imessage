@@ -1,6 +1,10 @@
 import NodeAPI
 import Foundation
 import WindowControl
+import SwiftServerFoundation
+import Logging
+
+private let sentryLog = Logger(swiftServerLabel: "sentry")
 
 let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
     .appendingPathComponent("Messages", isDirectory: true)
@@ -51,7 +55,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
         addBreadcrumb("Opening async context")
         return try returnAsync(on: q) {
             let controller = try MessagesController(reportToSentry: { txt in
-                Logger.log(txt)
+                sentryLog.error("<!> report to sentry: \(txt)")
                 try? q.run {
                     try Node.texts.Sentry.captureMessage(txt)
                 }
@@ -69,7 +73,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
             "level": "info",
             "message": message
         ])
-        debugLog("[Breadcrumb] \(message)")
+        sentryLog.info("[breadcrumb] \(message)")
     }
 
     private var threadObserveRequestToken: UUID?
@@ -86,7 +90,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
         self.swiftJSQueue = try NodeAsyncQueue(label: "messages-controller-async")
         self.watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
         hook = try NodeEnvironment.current.addCleanupHook { completion in
-            debugLog("[MessagesControllerWrapper] running dispose inside cleanup hook")
+            Log.default.notice("[MessagesControllerWrapper] running dispose inside cleanup hook")
             controller.dispose()
             completion()
         }
@@ -235,6 +239,13 @@ enum Preferences {
 }
 
 #NodeModule {
+    // this needs to be bootstrapped as early as possible, because it needs to
+    // be ready by the first `debugLog` call, or else subsequent calls to that
+    // function are dropped
+    LoggingSystem.bootstrap({ identifier in
+        SwiftServerLogHandler(identifier: identifier)
+    })
+
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
     var dict: [String: NodePropertyConvertible] = try [

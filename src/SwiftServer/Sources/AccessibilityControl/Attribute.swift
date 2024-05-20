@@ -1,5 +1,6 @@
 import Foundation
 import ApplicationServices
+import SwiftServerFoundation
 
 public protocol AttributeProtocol: CustomStringConvertible {
     associatedtype Name: AccessibilityPhantomName

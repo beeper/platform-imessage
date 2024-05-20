@@ -1,5 +1,6 @@
 import Carbon.HIToolbox.Events
 import AccessibilityControl
+import SwiftServerFoundation
 
 extension Accessibility.Notification {
     static let layoutChanged = Self(kAXLayoutChangedNotification)

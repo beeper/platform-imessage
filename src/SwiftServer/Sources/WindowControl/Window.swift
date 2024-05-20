@@ -1,7 +1,11 @@
 import Foundation
 import CoreGraphics
 import CWindowControl
+import SwiftServerFoundation
+import Logging
 // import SkyLight
+
+private let log = Logger(windowControlLabel: nil)
 
 public struct Window: Hashable {
     public enum Error: Swift.Error {
@@ -177,9 +181,9 @@ public struct Window: Hashable {
 
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
         let curr = try currentSpaces(.allSpaces, for: connection)
-        debugLog("Move window \(raw) from \(curr.map(\.raw)) to \(space.raw)")
+        log.info("window move requested (window id=\(raw), current spaces=\(curr.map(\.raw)), to space=\(space.raw))")
         guard curr.count != 1 || curr.first != space else {
-            debugLog("Move window skipped")
+            log.notice("skipping theoretically unnecessary window move")
             return
         } // no-op
         if space.isUnknownKind == true {
@@ -191,13 +195,12 @@ public struct Window: Hashable {
             CGSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw)
             // SLSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw) // alias
         }
-        #if DEBUG
+
         let newCurr = try currentSpaces(.allSpaces, for: connection)
-        debugLog("\(curr.map { $0.raw }) → \(newCurr.map { $0.raw })")
+        log.info("current spaces changed (from=\(curr.map(\.raw)), to=\(newCurr.map(\.raw)))")
         if newCurr.count != 1 || newCurr.first != space {
-            debugLog("!!! moveToSpace failed \(newCurr.map { $0.raw })")
+            log.error("failed to move to space (resultant spaces=\(newCurr.map(\.raw))")
         }
-        #endif
     }
 
     public func describe() throws -> Description {

@@ -1,5 +1,9 @@
 import Foundation
 import CWindowControl
+import SwiftServerFoundation
+import Logging
+
+private let log = Logger(windowControlLabel: "space")
 
 public class Space: Hashable {
     public enum Error: Swift.Error {
@@ -114,10 +118,8 @@ public class Space: Hashable {
             values as CFDictionary
         )
         self.destroyWhenDone = destroyWhenDone
-        #if DEBUG
-        debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone) kind=\(kind) (\(kind.raw.rawValue))")
+        log.notice("created space (id=\(raw), destroyWhenDone=\(destroyWhenDone), kind=\(kind) (\(kind.raw.rawValue)))")
         self.printAttributes()
-        #endif
     }
 
     public func values(for connection: GraphicsConnection = .main) throws -> CFDictionary {
@@ -175,8 +177,10 @@ public class Space: Hashable {
 
     deinit {
         if destroyWhenDone {
-            debugLog("[spaces] destroying space id=\(raw)")
+            log.debug("space \(raw) deinit, destroying")
             destroy()
+        } else {
+            log.debug("space \(raw) deinit, but !notDestroyWhenDone, so not destroying")
         }
     }
 
@@ -194,11 +198,14 @@ public class Space: Hashable {
     }
 
     public func printAttributes() {
-        debugLog("[space \(raw)] Name: \((try? name()) as Any)")
-        debugLog("[space \(raw)] Kind: \((try? kind()) as Any)")
-        debugLog("[space \(raw)] Owners: \((try? owners()) ?? [])")
-        debugLog("[space \(raw)] Level: \(level())")
-        debugLog("[space \(raw)] Compat ID: \(compatID())")
-        debugLog("[space \(raw)] Values: \((try? values()) as Any)")
+        log.debug("""
+        space \(raw) attributes:
+            name: \(String(describing: try? name()))
+            kind: \(String(describing: try? kind()))
+            owners: \(String(describing: try? owners()))
+            level: \(level())
+            compat id: \(String(describing: compatID()))
+            values: \(String(describing: try? values()))
+        """)
     }
 }

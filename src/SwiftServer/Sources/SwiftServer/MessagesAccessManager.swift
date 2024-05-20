@@ -1,5 +1,9 @@
 import AppKit
 import AccessibilityControl
+import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "messages-access-manager")
 
 final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
     enum AccessError: Error {
@@ -21,10 +25,8 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
                 url = nil
             }
         }
-        // we're too early in the launch process to use isLoggingEnabled/debugLog
-        #if DEBUG
-        print("MessagesAccessManager has initial URL: \(url != nil)")
-        #endif
+
+        log.debug("do we have an initial url? \(url != nil)")
     }
 
     private func isExpectedURL(_ url: URL) -> Bool {
@@ -79,7 +81,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
     }
 
     deinit {
-        debugLog("MessagesAccessManager calling stopAccessingSecurityScopedResource")
+        log.debug("MessagesAccessManager calling stopAccessingSecurityScopedResource")
         url?.stopAccessingSecurityScopedResource()
     }
 }

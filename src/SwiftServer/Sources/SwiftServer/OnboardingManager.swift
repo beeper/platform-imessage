@@ -1,5 +1,9 @@
 import SwiftUI
 import AppKit
+import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "onboarding-manager")
 
 @available(macOS 10.15, *)
 final class OnboardingManager {
@@ -32,7 +36,7 @@ final class OnboardingManager {
 
         let authPromptShown = initialWidth ?? bounds.width > bounds.width
         if onboardingWindow == nil {
-            debugLog("OnboardingManager: creating window")
+            log.info("OnboardingManager: creating window")
             onboardingWindow = NSWindow(
                 contentRect: rect,
                 styleMask: [.fullSizeContentView],
@@ -51,7 +55,7 @@ final class OnboardingManager {
 
             initialWidth = onboardingWindow?.frame.width
         } else {
-            debugLog("OnboardingManager: setting window frame")
+            log.debug("OnboardingManager: setting window frame")
             onboardingWindow?.setFrame(rect, display: true, animate: !authPromptShown)
         }
         onboardingWindow?.setIsVisible(Self.isPrefsFocused() && !authPromptShown)
@@ -71,7 +75,7 @@ final class OnboardingManager {
     }
 
     func closeWindow() {
-        debugLog("OnboardingManager: closing window")
+        log.info("OnboardingManager: closing window")
         self.onboardingWindow?.close()
         self.onboardingWindow = nil
         self.initialWidth = nil
@@ -79,7 +83,7 @@ final class OnboardingManager {
     }
 
     deinit {
-        debugLog("OnboardingManager: deinit")
+        log.debug("OnboardingManager: deinit")
         self.closeWindow()
     }
 }
