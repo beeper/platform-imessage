@@ -6,7 +6,7 @@ import imageSizeCallback from 'image-size'
 import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
-import { CHAT_DB_PATH } from './constants'
+import { CHAT_DB_PATH, IS_MONTEREY_OR_UP, IS_SEQUOIA_OR_UP } from './constants'
 import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
@@ -60,7 +60,7 @@ FROM message AS m
 LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
 LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
 WHERE m.ROWID IN (${new Array(msgIDs.length).fill('?').join(', ')})`,
-  getMessageReactions: (msgGUIDs: string[]) => `SELECT is_from_me, handle_id, associated_message_type, associated_message_guid, h.id AS participantID
+  getMessageReactions: (msgGUIDs: string[]) => `SELECT is_from_me, handle_id, associated_message_type, associated_message_guid, ${IS_SEQUOIA_OR_UP ? 'associated_message_emoji,' : ''} h.id AS participantID
 FROM message AS m
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID

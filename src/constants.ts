@@ -16,6 +16,7 @@ export const ASSOC_MSG_TYPE = {
   2003: 'reacted_laugh',
   2004: 'reacted_emphasize',
   2005: 'reacted_question',
+  2006: 'reacted_emoji',
 
   3000: 'unreacted_heart',
   3001: 'unreacted_like',
@@ -23,6 +24,7 @@ export const ASSOC_MSG_TYPE = {
   3003: 'unreacted_laugh',
   3004: 'unreacted_emphasize',
   3005: 'unreacted_question',
+  3006: 'unreacted_emoji',
 }
 
 export const REACTION_VERB_MAP = {
@@ -32,6 +34,7 @@ export const REACTION_VERB_MAP = {
   reacted_laugh: 'laughed at',
   reacted_emphasize: 'emphasized',
   reacted_question: 'questioned',
+  reacted_emoji: 'reacted to',
 
   unreacted_heart: 'removed a heart from',
   unreacted_like: 'removed a like from',
@@ -39,6 +42,7 @@ export const REACTION_VERB_MAP = {
   unreacted_laugh: 'removed a laugh from',
   unreacted_emphasize: 'removed an exclamation from',
   unreacted_question: 'removed a question mark from',
+  unreacted_emoji: 'unreacted from',
 }
 
 export const EXPRESSIVE_MSGS = {

@@ -65,7 +65,7 @@ function assignReactions(message: Message, _reactionRows: MappedReactionMessageR
       if (actionType === 'reacted') {
         reactions.push({
           id: participantID,
-          reactionKey: actionKey,
+          reactionKey: actionKey === 'emoji' ? reaction.associated_message_emoji : actionKey,
           participantID,
         })
       } else if (actionType === 'unreacted') {
@@ -565,9 +565,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           type: reactionType,
           messageID: m.linkedMessageID,
           participantID: m.senderID,
-          reactionKey: actionKey,
+          reactionKey: actionKey === 'emoji' ? msgRow.associated_message_emoji : actionKey,
         }
-        if (supportedReactions[actionKey]) {
+        if (actionKey === 'emoji' || supportedReactions[actionKey]) {
           m.parseTemplate = true
           m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} ${msi?.ams ? `"${msi?.ams}"` : 'a message'}`
           m.isHidden = true

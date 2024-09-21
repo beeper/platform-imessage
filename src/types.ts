@@ -103,6 +103,8 @@ type MessageRow = {
   is_stewie: NumberBool
   // added in ventura 13.2 – 13.4.1:
   is_kt_verified: NumberBool
+  // added in sequoia
+  associated_message_emoji: string
 }
 
 // taken from chat.db on big sur
@@ -156,6 +158,7 @@ MappedMessageRow,
 'handle_id' |
 'associated_message_type' |
 'associated_message_guid' |
+'associated_message_emoji' |
 'participantID'
 >
 
