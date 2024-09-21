@@ -27,3 +27,10 @@ bun run build-swift --debug --watch
 # for shipping to prod:
 bun run build-swift
 ```
+
+### Testing
+
+```sh
+node src/SwiftServer/test-script.js
+electron src/SwiftServer/test-script.js
+```
