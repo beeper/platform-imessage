@@ -41,6 +41,7 @@ let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
+let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
 
 enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
@@ -830,11 +831,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        uses four methods:
-        1. for ventura and up: hotkey                                           (reliable)
-        2. for pinned threads: mark-read action                                 (reliable)
-        3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
-        4. threadCell.press() action hack                                       (unreliable)
+        uses 5 methods:
+        1. for sequoia and up: mark-read/unread action                          (reliable)
+        2. for ventura and up: hotkey                                           (reliable)
+        lower than ventura:
+        3. for pinned threads: mark-read action                                 (reliable)
+        4. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
+        5. threadCell.press() action hack                                       (unreliable)
     */
     func toggleThreadRead(threadID: String, read: Bool) throws {
         let startTime = Date()
@@ -847,10 +850,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
             try ensureSelectedThread(threadID: threadID)
+            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
+            if isSequoiaOrUp {
+                let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+                return try triggerThreadCellAction(threadCell: threadCell, action: action)
+            }
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }
-            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
                 try triggerThreadCellAction(threadID: threadID, action: action)
             } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
