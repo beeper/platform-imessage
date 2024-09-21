@@ -230,6 +230,18 @@ final class MessagesController {
             case .question: return 5
             }
         }
+
+        // sequoia and up
+        var id: String {
+            switch self {
+            case .heart: return "heart"
+            case .like: return "thumbsUp"
+            case .dislike: return "thumbsDown"
+            case .laugh: return "ha"
+            case .emphasize: return "exclamation"
+            case .question: return "questionMark"
+            }
+        }
     }
 
     enum ActivityStatus: String {
@@ -712,12 +724,25 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
             let reactAction = try messageAction(messageCell: $0, action: .react)
             try reactAction() // performing this 2x will close reaction view
-            let buttons = try elements.reactButtons
-            guard buttons.count > idx else {
-                throw ErrorMessage("reactButtons count=\(buttons.count)")
+
+            if isSequoiaOrUp { // wait for animation
+                Thread.sleep(forTimeInterval: 0.5)
             }
 
-            let btn = buttons[idx]
+            let btn = try {
+                if isSequoiaOrUp {
+                    return try elements.tapbackPickerCollectionView.children().first { (try? $0.identifier()) == reaction.id }
+                        .orThrow(ErrorMessage("Could not find react button"))
+                }
+
+                let buttons = try elements.reactButtons
+                guard buttons.count > idx else {
+                    throw ErrorMessage("reactButtons count=\(buttons.count)")
+                }
+
+                return buttons[idx]
+            }()
+
             try retry(withTimeout: 1.2, interval: 0.1) {
                 let isSelected = try btn.isSelected()
                 if isSelected != on {

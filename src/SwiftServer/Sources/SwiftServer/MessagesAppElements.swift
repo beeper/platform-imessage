@@ -302,6 +302,17 @@ final class MessagesAppElements {
         }
     }
 
+    var tapbackPickerCollectionView: Accessibility.Element {
+        get throws {
+            let startTime = Date()
+            defer { log.debug("tapbackPickerCollectionView took \(startTime.timeIntervalSinceNow * -1000)ms") }
+            guard let element = try? reactionsView.children().first(where: { (try? $0.identifier()) == "TapbackPickerCollectionView" }) else {
+                throw ErrorMessage("tapbackPickerCollectionView not found")
+            }
+            return element
+        }
+    }
+
     var alertSheet: Accessibility.Element {
         get throws {
             try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }).orThrow(ErrorMessage("alertSheet not found"))
