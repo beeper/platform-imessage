@@ -2646,7 +2646,7 @@ __metadata:
     jest: "npm:^28.1.3"
     lodash: "npm:^4.17.21"
     node-mac-permissions: "npm:^2.2.1"
-    node-swift: "https://github.com/kabiroberai/node-swift#1.1.3"
+    node-swift: "https://github.com/kabiroberai/node-swift#main"
     p-queue: "npm:^6.6.2"
     p-retry: "npm:^4.4.0"
     react: "https://github.com/TextsHQ/react-global-shim"
@@ -6776,14 +6776,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-swift@https://github.com/kabiroberai/node-swift#1.1.3":
+"node-swift@https://github.com/kabiroberai/node-swift#main":
   version: 1.0.0
-  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=be772a18e1994e7969d17626148b3c83875d4345"
+  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=e9f00ef30fc77d73695e3de77b8ef94ab966e051"
   dependencies:
     import-cwd: "npm:^3.0.0"
   bin:
     node-swift: ./lib/cli.js
-  checksum: 10/ee3f6c60ede8c82390c4f04646d200ef46373bdf09382dfeda1e123fedb1993a10debc9faa9c5777178002ca89efa1bcd6bedb47b0195b09d097028cd9a90290
+  checksum: 10/59925c279fca164e5c8552fbb3081135101da6df91c3cfed33eb59112d1ee992f84f9ac11a71af624bcad8177225c38ea53557b6538f3782e7ef16ec3617d012
   languageName: node
   linkType: hard
 
