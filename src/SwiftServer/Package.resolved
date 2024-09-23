@@ -2,6 +2,15 @@
   "object": {
     "pins": [
       {
+        "package": "BetterSwiftAX",
+        "repositoryURL": "https://github.com/TextsHQ/BetterSwiftAX",
+        "state": {
+          "branch": "main",
+          "revision": "931f30c707de92b0f53064efc3bba55a3db4c0c8",
+          "version": null
+        }
+      },
+      {
         "package": "ExceptionCatcher",
         "repositoryURL": "https://github.com/sindresorhus/ExceptionCatcher",
         "state": {

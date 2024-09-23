@@ -22,28 +22,14 @@ let package = Package(
         .package(path: "../../node_modules/node-swift"),
         .package(url: "https://github.com/sindresorhus/ExceptionCatcher", from: "2.0.1"),
         .package(url: "https://github.com/TextsHQ/PHTCommon.git", .revision("c37b857c81d9e49ebc827431d38432f07d4511fa")),
+        .package(url: "https://github.com/TextsHQ/BetterSwiftAX", .branch("main")),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0")
     ],
     targets: [
         .target(
-            name: "CWindowControl"
-        ),
-        .target(
-            name: "WindowControl",
-            dependencies: ["CWindowControl", "SwiftServerFoundation"]
-        ),
-        .target(
-            name: "CAccessibilityControl"
-        ),
-        .target(
-            name: "AccessibilityControl",
-            dependencies: ["CAccessibilityControl", "WindowControl", "SwiftServerFoundation"]
-        ),
-        .target(
             name: "SwiftServer",
             dependencies: [
-                "AccessibilityControl",
-                "WindowControl",
+                "BetterSwiftAX",
                 "ExceptionCatcher",
                 "SwiftServerFoundation",
                 .product(name: "NodeAPI", package: "node-swift"),
