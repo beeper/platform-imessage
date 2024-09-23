@@ -1,6 +1,6 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP, IS_VENTURA_OR_UP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
@@ -103,6 +103,16 @@ interface MessagePartUnsent {
 
 type MessagePart = MessagePartText | MessagePartAttachment | MessagePartUnsent
 
+function mapTextEntity(attr: Record<string, string>): Omit<TextEntity, 'from' | 'to'> {
+  const entity: Omit<TextEntity, 'from' | 'to'> = {}
+  if (attr.__kIMTextBoldAttributeName === '1') entity.bold = true
+  if (attr.__kIMTextItalicAttributeName === '1') entity.italic = true
+  if (attr.__kIMTextUnderlineAttributeName === '1') entity.underline = true
+  if (attr.__kIMTextStrikethroughAttributeName === '1') entity.strikethrough = true
+  if (attr.__kIMLinkAttributeName) entity.link = attr.__kIMLinkAttributeName
+  if (typeof attr.__kIMMentionConfirmedMention === 'string') entity.mentionedUser = { id: attr.__kIMMentionConfirmedMention }
+  return entity
+}
 function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageSummaryInfo): MessagePart[] {
   const parts: MessagePart[] = []
 
@@ -167,7 +177,7 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
       // the last part. Insert a new text part if there's no part attribute,
       // we're on the first part, or the last part wasn't a text one (which
       // means that we can't just update it).
-      if (typeof part === 'undefined' || parts.length === 0 || parts[parts.length - 1]?.kind !== MessagePartKind.TEXT) {
+      if (typeof part === 'undefined' || parts.length === 0 || parts.at(-1)?.kind !== MessagePartKind.TEXT) {
         parts.push({
           kind: MessagePartKind.TEXT,
           index: parts.length,
@@ -176,21 +186,17 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
         })
       }
 
-      const textPart = parts[parts.length - 1] as MessagePartText
+      const textPart = parts.at(-1) as MessagePartText
       textPart.end = end
       if (frag.text != null) {
         textPart.text += frag.text.replace(IMSG_EXTENSION_CHAR, '')
       }
-      const mention = frag.attributes.__kIMMentionConfirmedMention
-      if (typeof mention === 'string') {
+      const entity = mapTextEntity(frag.attributes)
+      if (Object.keys(entity).length > 0) {
         textPart.attributes = {
           entities: [
             ...(textPart.attributes?.entities || []),
-            {
-              from,
-              to: end,
-              mentionedUser: { id: mention },
-            },
+            { from, to: end, ...entity },
           ],
         }
       }
