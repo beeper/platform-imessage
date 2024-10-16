@@ -629,7 +629,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try reactAction() // performing this 2x will close reaction view
 
             if isSequoiaOrUp { // wait for animation
-                Thread.sleep(forTimeInterval: 0.5)
+                Thread.sleep(forTimeInterval: 0.75)
             }
 
             let btn = try {
