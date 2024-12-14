@@ -28,5 +28,7 @@ jobs:
         run: yarn build
 
       - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm publish
 
