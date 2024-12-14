@@ -12,6 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject access tokens
+        shell: bash
+        env:
+          BEEPER_DEPS_TOKEN: ${{ secrets.BEEPER_DEPS_TOKEN }}
+        run: |
+          git config --global url."https://oauth2:$BEEPER_DEPS_TOKEN@github.com/beeper/".insteadOf "https://github.com/beeper/"
+
+
       - name: Rust setup
         run: |
           rustup toolchain install stable --profile minimal
