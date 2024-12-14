@@ -6,7 +6,7 @@
         "repositoryURL": "https://github.com/TextsHQ/BetterSwiftAX",
         "state": {
           "branch": "main",
-          "revision": "931f30c707de92b0f53064efc3bba55a3db4c0c8",
+          "revision": "56ea5b447ab5f3469cc95b0c8f64afbd3cf14551",
           "version": null
         }
       },
@@ -21,10 +21,10 @@
       },
       {
         "package": "PHTCommon",
-        "repositoryURL": "https://github.com/TextsHQ/PHTCommon.git",
+        "repositoryURL": "https://github.com/beeper/PHTCommon.git",
         "state": {
           "branch": null,
-          "revision": "c37b857c81d9e49ebc827431d38432f07d4511fa",
+          "revision": "e45a24a6febb560578581c88b60b048bdb9649ea",
           "version": null
         }
       },
