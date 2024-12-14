@@ -26,5 +26,5 @@ jobs:
         run: yarn build
 
       - name: Publish
-        run: npm publish --dry-run
+        run: npm publish
 
