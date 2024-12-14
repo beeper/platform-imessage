@@ -1,0 +1,30 @@
+name: Make New Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust setup
+        run: rustup toolchain install stable --profile minimal
+
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'yarn'
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
+
+      - name: Publish
+        run: npm publish --dry-run
+
