@@ -1,5 +1,5 @@
 {
-  "name": "@textshq/platform-imessage",
+  "name": "@beeper/platform-imessage",
   "version": "0.1.0",
   "main": "dist/index.js",
   "files": [
