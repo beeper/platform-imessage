@@ -16,25 +16,24 @@ jobs:
         shell: bash
         run: |
           git config --global url."https://oauth2:${{ secrets.BEEPER_DEPS_TOKEN }}@github.com/beeper/".insteadOf "https://github.com/beeper/"
-          git clone https://github.com/beeper/PHTCommon.git
 
-          #- name: Rust setup
-          #  run: |
-          #    rustup toolchain install stable --profile minimal
-          #    rustup target add x86_64-apple-darwin
+      - name: Rust setup
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add x86_64-apple-darwin
 
-          #- uses: actions/setup-node@v4
-          #  with:
-          #    cache: 'yarn'
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'yarn'
 
-          #- name: Install
-          #  run: yarn install --frozen-lockfile
+      - name: Install
+        run: yarn install --frozen-lockfile
 
-          #- name: Build
-          #  run: yarn build
+      - name: Build
+        run: yarn build
 
-          #- name: Publish
-          #  env:
-          #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          #  run: npm publish
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish
 
