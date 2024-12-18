@@ -1,6 +1,7 @@
 // this only runs on catalina or lower
 import childProcess from 'child_process'
 import pRetry from 'p-retry'
+import type { Options as pRetryOptions } from 'p-retry'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 import { texts } from '@textshq/platform-sdk'
 
@@ -20,7 +21,7 @@ const enum ScriptName {
   SELECT_FIRST_N_THREADS = 'select-first-n-threads',
 }
 
-const RETRY_OPTIONS: pRetry.Options = {
+const RETRY_OPTIONS: pRetryOptions = {
   retries: 1,
   minTimeout: 10,
   maxRetryTime: 10_000,

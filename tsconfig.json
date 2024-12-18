@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": false, // remove
+    "strict": false, // remove,
+    "module": "Preserve"
   },
   "include": ["src"]
 }
