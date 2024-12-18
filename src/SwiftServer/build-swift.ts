@@ -3,7 +3,9 @@
 import { clean, build, Config } from 'node-swift'
 import fs, { promises as fsp } from 'fs'
 import path from 'path'
-import { shellExec } from '../util'
+import { fileURLToPath } from 'url'
+// eslint-disable-next-line import/extensions -- NOTE(skip): this file is true esm
+import { shellExec } from '../../dist/util.js'
 
 async function isRosetta(): Promise<boolean> {
   return (await shellExec('sysctl', '-in', 'sysctl.proc_translated')) === '1\n'
@@ -23,7 +25,8 @@ const dropboxIgnoreDir = (dirPath: string) =>
 const strip = (src: string, dest?: string) =>
   shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
 
-const ROOT_DIR_PATH = path.join(__dirname, '../..')
+const dirname = path.dirname(fileURLToPath(import.meta.url))
+const ROOT_DIR_PATH = path.join(dirname, '../..')
 const BUILD_DIR_PATH = path.join(ROOT_DIR_PATH, 'build')
 const PACKAGE_DIR_PATH = path.join(ROOT_DIR_PATH, 'src/SwiftServer')
 

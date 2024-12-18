@@ -6,5 +6,12 @@
     "strict": false, // remove,
     "module": "Preserve"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "ts-node": {
+    "experimentalSpecifierResolution": "node",
+    "transpileOnly": true,
+    "esm": true
+  }
 }
