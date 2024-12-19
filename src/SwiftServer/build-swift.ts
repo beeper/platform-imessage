@@ -3,6 +3,7 @@
 import { clean, build, Config } from 'node-swift'
 import fs, { promises as fsp } from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { shellExec } from '../util'
 
 async function isRosetta(): Promise<boolean> {
@@ -23,7 +24,8 @@ const dropboxIgnoreDir = (dirPath: string) =>
 const strip = (src: string, dest?: string) =>
   shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
 
-const ROOT_DIR_PATH = path.join(__dirname, '../..')
+const dirname = path.dirname(fileURLToPath(import.meta.url))
+const ROOT_DIR_PATH = path.join(dirname, '../..')
 const BUILD_DIR_PATH = path.join(ROOT_DIR_PATH, 'build')
 const PACKAGE_DIR_PATH = path.join(ROOT_DIR_PATH, 'src/SwiftServer')
 

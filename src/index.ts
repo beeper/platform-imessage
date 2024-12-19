@@ -1,11 +1,13 @@
-import { textsRenderer, Platform } from '@textshq/platform-sdk'
+import { textsRenderer, Platform, PlatformAPI } from '@textshq/platform-sdk'
+import info from './info'
+import AppleiMessage from './api'
 
 export default {
   get info() {
-    return require('./info').default
+    return info
   },
   get api() {
-    return require('./api').default
+    return AppleiMessage as unknown as PlatformAPI
   },
   get auth() {
     return textsRenderer.React?.lazy(() => import('./auth'))

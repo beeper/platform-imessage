@@ -8,6 +8,7 @@ _*
 
 *.node
 libNodeAPI.dylib
+/binaries/darwin-*/AppleScriptServer
 
 .DS_Store
 node_modules
