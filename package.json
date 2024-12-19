@@ -15,7 +15,7 @@
   "scripts": {
     "prepack": "yarn build",
     "transpile-scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
-    "build": "yarn transpile-scss; yarn tsc; yarn build-binaries",
+    "build": "yarn transpile-scss && yarn tsc && yarn build-binaries",
     "swiftlint": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
     "build-swift": "node --loader ts-node/esm src/SwiftServer/build-swift.ts",
