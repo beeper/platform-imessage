@@ -4,7 +4,6 @@ import { clean, build, Config } from 'node-swift'
 import fs, { promises as fsp } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-// eslint-disable-next-line import/extensions -- NOTE(skip): this file is true esm
 import { shellExec } from '../util'
 
 async function isRosetta(): Promise<boolean> {
