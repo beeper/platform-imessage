@@ -29,7 +29,7 @@ enum PromptAutomation {
             #if DEBUG
             let checkString = "iTerm"
             #else
-            let checkString = "Texts requires access to"
+            let checkString = "Beeper requires access to"
             #endif
             guard let window = windows.first(where: { window in
                 (try? window.children().contains(where: { child in

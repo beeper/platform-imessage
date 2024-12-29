@@ -86,7 +86,7 @@ const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: CallProxiedFn }> = (
     <details open>
       <summary><h4>Revoke Full Disk Access</h4></summary>
       <div className="imessage-auth-well">
-        <div>Texts has Full Disk Access. It's no longer required and you're recommended to revoke it.</div>
+        <div>Beeper has Full Disk Access. It's no longer required and you're recommended to revoke it.</div>
         <br />
         <div>
           <button className="primary" onClick={onClick}>Revoke Full Disk Access</button>
@@ -100,7 +100,7 @@ const SetupMessagesSection: React.FC<{}> = () => (
   <details open>
     <summary><h4>Setup Messages.app</h4></summary>
     <div className="imessage-auth-well">
-      <div>Messages.app isn't setup. Texts requires Messages.app to be setup first to connect iMessage.</div>
+      <div>Messages.app isn't setup. Beeper requires Messages.app to be setup first to connect iMessage.</div>
       <br />
       <div>
         <button className="primary" onClick={() => window.open('imessage://')}>Open Messages.app</button>

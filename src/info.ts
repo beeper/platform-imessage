@@ -83,12 +83,13 @@ const info: PlatformInfo = {
     requiresContactsAccess: true,
     canQuoteOriginalMessageOnly: true,
     knownIssues: [
-      'Messages.app will be open in the background but Texts can keep it hidden.',
+      'Messages.app will be open in the background but Beeper can keep it hidden.',
       ...[(() => {
         if (IS_MONTEREY_OR_UP) return "Reacting/replying to some types of messages isn't supported."
         if (IS_BIG_SUR_OR_UP) return "On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."
         return "On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."
       })()],
+      'Your iMessage chats won\'t be synced to your other devices.',
     ],
     getUnknownParticipant(participantID: string): Participant | undefined {
       if (!participantID) return

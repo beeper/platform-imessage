@@ -323,7 +323,7 @@ final class MessagesController {
     init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
         self.reportToSentry = reportToSentry
         guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Texts does not have Accessibility permissions")
+            throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
 
         whm = try getBestWHM()

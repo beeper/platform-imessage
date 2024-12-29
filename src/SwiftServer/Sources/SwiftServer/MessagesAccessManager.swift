@@ -69,7 +69,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
             throw AccessError.userCancelled
         }
         guard let url = openPanel.url, isExpectedURL(url) else {
-            throw ErrorMessage("Please give Texts access to the Messages directory")
+            throw ErrorMessage("Please give Beeper access to the Messages directory")
         }
         guard url.startAccessingSecurityScopedResource() else {
             throw ErrorMessage("Could not authorize access to the Messages directory")
