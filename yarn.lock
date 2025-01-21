@@ -1985,7 +1985,6 @@ __metadata:
     "@types/jest": "npm:^28.1.6"
     "@types/lodash": "npm:^4.14.182"
     "@types/react": "npm:^17.0.38"
-    "@types/react-helmet": "npm:^6.1.5"
     clsx: "npm:^1.2.1"
     conf: "npm:^8.0.0"
     crc: "npm:^4.1.1"
@@ -2000,7 +1999,6 @@ __metadata:
     p-queue: "npm:^8"
     p-retry: "npm:^6"
     react: "npm:^18"
-    react-helmet: "npm:^6.1.0"
     sass: "npm:^1.76.0"
     ts-jest: "npm:^28.0.7"
     ts-node: "npm:^10.9.2"
@@ -2927,26 +2925,6 @@ __metadata:
   version: 15.7.4
   resolution: "@types/prop-types@npm:15.7.4"
   checksum: 10/ef6e1899e59b876c273811b1bd845022fc66d5a3d11cb38a25b6c566b30514ae38fe20a40f67622f362a4f4f7f9224e22d8da101cff3d6e97e11d7b4c307cfc1
-  languageName: node
-  linkType: hard
-
-"@types/react-helmet@npm:^6.1.5":
-  version: 6.1.5
-  resolution: "@types/react-helmet@npm:6.1.5"
-  dependencies:
-    "@types/react": "npm:*"
-  checksum: 10/d059cc084d3b3071cce3421bb1170dd42819cf39b81afe60d4fbd66c5ef9ffeaadf1802df80efd9553258f621678f69ceb5a21d73df0d8539d40ae9a0f995485
-  languageName: node
-  linkType: hard
-
-"@types/react@npm:*":
-  version: 17.0.40
-  resolution: "@types/react@npm:17.0.40"
-  dependencies:
-    "@types/prop-types": "npm:*"
-    "@types/scheduler": "npm:*"
-    csstype: "npm:^3.0.2"
-  checksum: 10/9b0e040cb3c3a78d494d35bd2a450ead44da8a45d3c28b65d2b5b465c1743d159c566c9a2e47ba48f7b0dc26bce80ef95acf9ab2a44c1fd715cd169f88292d8b
   languageName: node
   linkType: hard
 
@@ -7359,27 +7337,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"react-fast-compare@npm:^3.1.1":
-  version: 3.2.0
-  resolution: "react-fast-compare@npm:3.2.0"
-  checksum: 10/26ed35d425f197f04c85d572eac943d901a2713335b79483d4f3f94ee5caf97f20678f89bedd385ace9b1637890c88fc5442d732bad0871135643d9703312cd7
-  languageName: node
-  linkType: hard
-
-"react-helmet@npm:^6.1.0":
-  version: 6.1.0
-  resolution: "react-helmet@npm:6.1.0"
-  dependencies:
-    object-assign: "npm:^4.1.1"
-    prop-types: "npm:^15.7.2"
-    react-fast-compare: "npm:^3.1.1"
-    react-side-effect: "npm:^2.1.0"
-  peerDependencies:
-    react: ">=16.3.0"
-  checksum: 10/eff25231384bb0a229870a0552839953a59af17f0ff5e8bca1b8c8fdf19a329e4c00c7fa2fcedc8be5d73f5c7bebb30cf9a32ea58efc7c8f726a10dba51f48a2
-  languageName: node
-  linkType: hard
-
 "react-is@npm:^16.8.1":
   version: 16.13.1
   resolution: "react-is@npm:16.13.1"
@@ -7391,15 +7348,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   version: 18.2.0
   resolution: "react-is@npm:18.2.0"
   checksum: 10/200cd65bf2e0be7ba6055f647091b725a45dd2a6abef03bf2380ce701fd5edccee40b49b9d15edab7ac08a762bf83cb4081e31ec2673a5bfb549a36ba21570df
-  languageName: node
-  linkType: hard
-
-"react-side-effect@npm:^2.1.0":
-  version: 2.1.1
-  resolution: "react-side-effect@npm:2.1.1"
-  peerDependencies:
-    react: ^16.3.0 || ^17.0.0
-  checksum: 10/8db82e6d6fc8807bf2c7deb729936e580c9b069e81fba6f4d2090bd86639dab6b2f9512ccde0cf38f7fc59085de943e81fc4c9cdda13d250d1fcaee204ad4f49
   languageName: node
   linkType: hard
 
