@@ -1,7 +1,6 @@
 import path from 'path'
 import url from 'url'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Helmet } from 'react-helmet'
 import cn from 'clsx'
 import { AuthProps, texts } from '@textshq/platform-sdk'
 import type { AuthType } from 'node-mac-permissions'
@@ -336,9 +335,7 @@ const AppleiMessageAuth: React.FC<AuthProps & { nmp?: NMP }> = props => {
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
   return (
     <div className="auth imessage-auth styled-inputs">
-      <Helmet>
-        <link rel="stylesheet" href={cssPath} />
-      </Helmet>
+      <link rel="stylesheet" href={cssPath} />
       <ChecklistPage {...{ ...props, canAccessMessagesDir, callProxiedFn }} />
     </div>
   )
