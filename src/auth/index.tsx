@@ -148,10 +148,8 @@ const ChecklistItem = ({
 }: ChecklistItemProps & { Tooltip: React.FC<any>, children: React.ReactNode }) => (
   <article>
     <div onClick={() => action()} className="main">
-      <span>
-        {icon}
-        {title}
-      </span>
+      {icon}
+      {title}
       <Tooltip
         position="top"
         tip={false}
