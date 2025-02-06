@@ -27,6 +27,8 @@ To develop inside `beeper-desktop-new`, [link the package](https://github.com/be
 "@beeper/platform-imessage": "link:../platform-imessage",
 ```
 
+**Note:** When adding an iMessage account and it asks for permissions, grant them to your terminal program (e.g. iTerm), not Electron / Beeper / etc.
+
 Watch for Swift / CSS / JS changes with:
 
 ```sh
