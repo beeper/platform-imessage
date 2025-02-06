@@ -1986,6 +1986,7 @@ __metadata:
     "@types/lodash": "npm:^4.14.182"
     "@types/react": "npm:^17.0.38"
     clsx: "npm:^1.2.1"
+    concurrently: "npm:^9.1.2"
     conf: "npm:^8.0.0"
     crc: "npm:^4.1.1"
     esbuild: "npm:^0.19.2"
@@ -3776,7 +3777,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chalk@npm:^4.0.0":
+"chalk@npm:^4.0.0, chalk@npm:^4.1.2":
   version: 4.1.2
   resolution: "chalk@npm:4.1.2"
   dependencies:
@@ -3851,6 +3852,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cliui@npm:^8.0.1":
+  version: 8.0.1
+  resolution: "cliui@npm:8.0.1"
+  dependencies:
+    string-width: "npm:^4.2.0"
+    strip-ansi: "npm:^6.0.1"
+    wrap-ansi: "npm:^7.0.0"
+  checksum: 10/eaa5561aeb3135c2cddf7a3b3f562fc4238ff3b3fc666869ef2adf264be0f372136702f16add9299087fb1907c2e4ec5dbfe83bd24bce815c70a80c6c1a2e950
+  languageName: node
+  linkType: hard
+
 "clone-response@npm:^1.0.2":
   version: 1.0.2
   resolution: "clone-response@npm:1.0.2"
@@ -3917,6 +3929,24 @@ __metadata:
   version: 0.0.1
   resolution: "concat-map@npm:0.0.1"
   checksum: 10/9680699c8e2b3af0ae22592cb764acaf973f292a7b71b8a06720233011853a58e256c89216a10cbe889727532fd77f8bcd49a760cedfde271b8e006c20e079f2
+  languageName: node
+  linkType: hard
+
+"concurrently@npm:^9.1.2":
+  version: 9.1.2
+  resolution: "concurrently@npm:9.1.2"
+  dependencies:
+    chalk: "npm:^4.1.2"
+    lodash: "npm:^4.17.21"
+    rxjs: "npm:^7.8.1"
+    shell-quote: "npm:^1.8.1"
+    supports-color: "npm:^8.1.1"
+    tree-kill: "npm:^1.2.2"
+    yargs: "npm:^17.7.2"
+  bin:
+    conc: dist/bin/concurrently.js
+    concurrently: dist/bin/concurrently.js
+  checksum: 10/52f20653db53e25950e84026d153177af976d6d0e139b95fc5983c684221cc20ef5548ad5dc8885f146fff2c87bc7f7beb18f5fa54eee3bb62b5e795234d6cbc
   languageName: node
   linkType: hard
 
@@ -7617,6 +7647,15 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
+"rxjs@npm:^7.8.1":
+  version: 7.8.1
+  resolution: "rxjs@npm:7.8.1"
+  dependencies:
+    tslib: "npm:^2.1.0"
+  checksum: 10/b10cac1a5258f885e9dd1b70d23c34daeb21b61222ee735d2ec40a8685bdca40429000703a44f0e638c27a684ac139e1c37e835d2a0dc16f6fc061a138ae3abb
+  languageName: node
+  linkType: hard
+
 "safe-buffer@npm:~5.1.1":
   version: 5.1.2
   resolution: "safe-buffer@npm:5.1.2"
@@ -7686,6 +7725,13 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   version: 3.0.0
   resolution: "shebang-regex@npm:3.0.0"
   checksum: 10/1a2bcae50de99034fcd92ad4212d8e01eedf52c7ec7830eedcf886622804fe36884278f2be8be0ea5fde3fd1c23911643a4e0f726c8685b61871c8908af01222
+  languageName: node
+  linkType: hard
+
+"shell-quote@npm:^1.8.1":
+  version: 1.8.2
+  resolution: "shell-quote@npm:1.8.2"
+  checksum: 10/3ae4804fd80a12ba07650d0262804ae3b479a62a6b6971a6dc5fa12995507aa63d3de3e6a8b7a8d18f4ce6eb118b7d75db7fcb2c0acbf016f210f746b10cfe02
   languageName: node
   linkType: hard
 
@@ -7965,7 +8011,7 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"supports-color@npm:^8.0.0":
+"supports-color@npm:^8.0.0, supports-color@npm:^8.1.1":
   version: 8.1.1
   resolution: "supports-color@npm:8.1.1"
   dependencies:
@@ -8079,6 +8125,15 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
+"tree-kill@npm:^1.2.2":
+  version: 1.2.2
+  resolution: "tree-kill@npm:1.2.2"
+  bin:
+    tree-kill: cli.js
+  checksum: 10/49117f5f410d19c84b0464d29afb9642c863bc5ba40fcb9a245d474c6d5cc64d1b177a6e6713129eb346b40aebb9d4631d967517f9fbe8251c35b21b13cd96c7
+  languageName: node
+  linkType: hard
+
 "ts-jest@npm:^28.0.7":
   version: 28.0.7
   resolution: "ts-jest@npm:28.0.7"
@@ -8166,6 +8221,13 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   version: 1.14.1
   resolution: "tslib@npm:1.14.1"
   checksum: 10/7dbf34e6f55c6492637adb81b555af5e3b4f9cc6b998fb440dac82d3b42bdc91560a35a5fb75e20e24a076c651438234da6743d139e4feabf0783f3cdfe1dddb
+  languageName: node
+  linkType: hard
+
+"tslib@npm:^2.1.0":
+  version: 2.8.1
+  resolution: "tslib@npm:2.8.1"
+  checksum: 10/3e2e043d5c2316461cb54e5c7fe02c30ef6dccb3384717ca22ae5c6b5bc95232a6241df19c622d9c73b809bea33b187f6dbc73030963e29950c2141bc32a79f7
   languageName: node
   linkType: hard
 
@@ -8482,6 +8544,13 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
+"yargs-parser@npm:^21.1.1":
+  version: 21.1.1
+  resolution: "yargs-parser@npm:21.1.1"
+  checksum: 10/9dc2c217ea3bf8d858041252d43e074f7166b53f3d010a8c711275e09cd3d62a002969a39858b92bbda2a6a63a585c7127014534a560b9c69ed2d923d113406e
+  languageName: node
+  linkType: hard
+
 "yargs@npm:^17.3.1":
   version: 17.5.1
   resolution: "yargs@npm:17.5.1"
@@ -8494,6 +8563,21 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
     y18n: "npm:^5.0.5"
     yargs-parser: "npm:^21.0.0"
   checksum: 10/2453d52e3403ca86ca9c4279a90da3cbc351b50c7a13cc259bebf2d396530800e53261d9d9c7e2d4b7c049aa16c770f2553bdb04d52c2dbb37271d6cecbdcf2a
+  languageName: node
+  linkType: hard
+
+"yargs@npm:^17.7.2":
+  version: 17.7.2
+  resolution: "yargs@npm:17.7.2"
+  dependencies:
+    cliui: "npm:^8.0.1"
+    escalade: "npm:^3.1.1"
+    get-caller-file: "npm:^2.0.5"
+    require-directory: "npm:^2.1.1"
+    string-width: "npm:^4.2.3"
+    y18n: "npm:^5.0.5"
+    yargs-parser: "npm:^21.1.1"
+  checksum: 10/abb3e37678d6e38ea85485ed86ebe0d1e3464c640d7d9069805ea0da12f69d5a32df8e5625e370f9c96dd1c2dc088ab2d0a4dd32af18222ef3c4224a19471576
   languageName: node
   linkType: hard
 
