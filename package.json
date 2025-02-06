@@ -13,7 +13,7 @@
     "binaries/**/*"
   ],
   "scripts": {
-    "dev": "concurrently 'yarn transpile-css --watch' 'yarn tsc --watch' 'yarn build-swift --debug --watch'",
+    "dev": "concurrently 'yarn transpile-scss --watch' 'yarn tsc --watch' 'yarn build-swift --debug --watch'",
     "prepack": "yarn build",
     "transpile-scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
     "build": "yarn transpile-scss && yarn tsc && yarn build-binaries",

@@ -35,6 +35,12 @@ Watch for Swift / CSS / JS changes with:
 bun dev
 ```
 
+CSS changes will also require you to re-copy platform binaries from `beeper-desktop-new`:
+
+```
+yarn copy:platform-binaries
+```
+
 ### Building
 
 ```sh
