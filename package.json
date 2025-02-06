@@ -13,6 +13,7 @@
     "binaries/**/*"
   ],
   "scripts": {
+    "dev": "concurrently 'yarn transpile-css --watch' 'yarn tsc --watch' 'yarn build-swift --debug --watch'",
     "prepack": "yarn build",
     "transpile-scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
     "build": "yarn transpile-scss && yarn tsc && yarn build-binaries",
@@ -27,6 +28,7 @@
   "dependencies": {
     "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053",
     "clsx": "^1.2.1",
+    "concurrently": "^9.1.2",
     "conf": "^8.0.0",
     "crc": "^4.1.1",
     "image-size": "^1.1.1",

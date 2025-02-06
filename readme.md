@@ -17,6 +17,22 @@ SwiftServer exposes Swift functions to JS via NAPI/[node-swift](https://github.c
 
 * After `elements.searchField` was clicked: `elements.conversationsList` will be nil, selected item in sidebar will not always be reflective of the messages list, calling a deep link will not update sidebar but only the messages list, `CKLastSelectedItemIdentifier` won't be updated.
 
+### Development
+
+Make sure you have [Xcode](https://apps.apple.com/us/app/xcode/id497799835) installed.
+
+To develop inside `beeper-desktop-new`, [link the package](https://github.com/beeper/beeper-desktop-new/blob/fbf7032274632ae0264db7852afdd8fec0f49561/package.json#L238) to the local `platform-imessage` (don't forget to `yarn` after):
+
+```json
+"@beeper/platform-imessage": "link:../platform-imessage",
+```
+
+Watch for Swift / CSS / JS changes with:
+
+```sh
+bun dev
+```
+
 ### Building
 
 ```sh
