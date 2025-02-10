@@ -4,30 +4,49 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 
 ## SwiftServer
 
-SwiftServer exposes Swift functions to JS via NAPI/[node-swift](https://github.com/kabiroberai/node-swift) and handles all invocation of native Apple methods.
+SwiftServer exposes Swift functions to JS via
+NAPI/[node-swift](https://github.com/kabiroberai/node-swift) and handles all
+invocation of native Apple methods.
 
 ### Quirks
 
-* Transparent thread merging: iMessage has separate threads for each address/sender ID (email or phone #) but transparently merges threads belonging to the same contact in the UI. Texts app shows separate threads and performs no merging. Imagine if we had two threads, stevejobs@apple.com and sjobs@apple.com. When calling a deep link to select either thread, sometimes it'll select the thread in the sidebar, other times it'd create a new compose cell. The logic is unknown.
-![Compose cell](images/compose-cell.png)
+- Transparent thread merging: iMessage has separate threads for each
+  address/sender ID (email or phone #) but transparently merges threads
+  belonging to the same contact in the UI. Texts app shows separate threads and
+  performs no merging. Imagine if we had two threads, stevejobs@apple.com and
+  sjobs@apple.com. When calling a deep link to select either thread, sometimes
+  it'll select the thread in the sidebar, other times it'd create a new compose
+  cell. The logic is unknown. ![Compose cell](images/compose-cell.png)
 
-* `MessagesController.pasteFileInBodyField`: On Big Sur, using `pasteboard.setString(fileURL.relativeString, forType: .fileURL)` doesn't paste the file itself but a link. Monterey has intended behavior.
+- `MessagesController.pasteFileInBodyField`: On Big Sur, using
+  `pasteboard.setString(fileURL.relativeString, forType: .fileURL)` doesn't
+  paste the file itself but a link. Monterey has intended behavior.
 
-* `elements.selectedThreadCell` is nil after pin/unpin because no cells are selected. `imessage://open?message-guid=` will not select the thread in sidebar (`elements.selectedThreadCell == nil`) if it's already open but `imessage://open?address=` will.
+- `elements.selectedThreadCell` is nil after pin/unpin because no cells are
+  selected. `imessage://open?message-guid=` will not select the thread in
+  sidebar (`elements.selectedThreadCell == nil`) if it's already open but
+  `imessage://open?address=` will.
 
-* After `elements.searchField` was clicked: `elements.conversationsList` will be nil, selected item in sidebar will not always be reflective of the messages list, calling a deep link will not update sidebar but only the messages list, `CKLastSelectedItemIdentifier` won't be updated.
+- After `elements.searchField` was clicked: `elements.conversationsList` will be
+  nil, selected item in sidebar will not always be reflective of the messages
+  list, calling a deep link will not update sidebar but only the messages list,
+  `CKLastSelectedItemIdentifier` won't be updated.
 
 ### Development
 
-Make sure you have [Xcode](https://apps.apple.com/us/app/xcode/id497799835) installed.
+Make sure you have [Xcode](https://apps.apple.com/us/app/xcode/id497799835)
+installed.
 
-To develop inside `beeper-desktop-new`, [link the package](https://github.com/beeper/beeper-desktop-new/blob/fbf7032274632ae0264db7852afdd8fec0f49561/package.json#L238) to the local `platform-imessage` (don't forget to `yarn` after):
+To develop inside `beeper-desktop-new`,
+[link the package](https://github.com/beeper/beeper-desktop-new/blob/fbf7032274632ae0264db7852afdd8fec0f49561/package.json#L238)
+to the local `platform-imessage` (don't forget to `yarn` after):
 
 ```json
 "@beeper/platform-imessage": "link:../platform-imessage",
 ```
 
-**Note:** When adding an iMessage account and it asks for permissions, grant them to your terminal program (e.g. iTerm), not Electron / Beeper / etc.
+**Note:** When adding an iMessage account and it asks for permissions, grant
+them to your terminal program (e.g. iTerm), not Electron / Beeper / etc.
 
 Watch for Swift / CSS / JS changes with:
 
@@ -35,7 +54,8 @@ Watch for Swift / CSS / JS changes with:
 bun dev
 ```
 
-CSS changes will also require you to re-copy platform binaries from `beeper-desktop-new`:
+CSS changes will also require you to re-copy platform binaries from
+`beeper-desktop-new`:
 
 ```
 yarn copy:platform-binaries
