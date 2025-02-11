@@ -257,6 +257,26 @@ final class MessagesAppElements {
         }
     }
 
+    var addCustomEmojiReactionButton: Accessibility.Element {
+        get throws {
+            // identifiers of the _children of_ iOSContentGroupFirstChild as of 15.3:
+            // ([String?]) 5 values {
+            //   [0] = "TapbackPickerCollectionView"
+            //   [1] = "Sticker"
+            //   [2] = "Sticker"
+            //   [3] = "Sticker"
+            //   [4] = nil <-- this is the add custom emoji reaction button
+            // }
+
+            // find element with class name `ChatKit.TapbackPickerEmojiTailView`
+            // its localizedDescription is "Add custom emoji reaction", but it's likely different for non-en_US locales
+            let elem = try (try? iOSContentGroupFirstChild)?.children().first {
+                (try? $0.identifier()) == nil && (try? $0.role()) == "AXButton"
+            }
+            return try elem.orThrow(ErrorMessage("couldn't find button to add custom emoji reaction"))
+        }
+    }
+
     var splitter: Accessibility.Element {
         get throws {
             let startTime = Date()
