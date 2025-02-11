@@ -36,6 +36,12 @@ class KeyPresser {
         }
     }
 
+    func tab() throws {
+        try runOnMainThread {
+            try press(key: CGKeyCode(kVK_Tab))
+        }
+    }
+
     func commandV() throws {
         try runOnMainThread {
             // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place

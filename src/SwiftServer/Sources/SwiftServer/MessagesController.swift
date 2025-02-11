@@ -115,39 +115,43 @@ struct MessageCell: Codable {
 // external API is thread safe
 @available(macOS 11, *)
 final class MessagesController {
-    enum Reaction: String {
+    enum Reaction {
         case heart
         case like
         case dislike
         case laugh
         case emphasize
         case question
+        case custom(emoji: Character)
         // TODO: support arbitrary reactions
 
-        var index: Int {
+        /// returns nil for custom emojis
+        var index: Int? {
             switch self {
-            case .heart: return 0
-            case .like: return 1
-            case .dislike: return 2
-            case .laugh: return 3
-            case .emphasize: return 4
-            case .question: return 5
+            case .heart: 0
+            case .like: 1
+            case .dislike: 2
+            case .laugh: 3
+            case .emphasize: 4
+            case .question: 5
+            default: nil
             }
         }
 
-        // sequoia and up
-        var id: String {
+        /// (sequoia and up) returns nil for custom emojis
+        var id: String? {
             switch self {
-            case .heart: return "heart"
-            case .like: return "thumbsUp"
-            case .dislike: return "thumbsDown"
-            case .laugh: return "ha"
-            case .emphasize: return "exclamation"
-            case .question: return "questionMark"
+            case .heart: "heart"
+            case .like: "thumbsUp"
+            case .dislike: "thumbsDown"
+            case .laugh: "ha"
+            case .emphasize: "exclamation"
+            case .question: "questionMark"
+            default: nil
             }
         }
 
-        init?(emoji: String) {
+        init(emoji: Character) {
             // for robustness, accept emojified codepoints even without U+FE0F
             switch emoji {
             case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
@@ -156,7 +160,7 @@ final class MessagesController {
             case "\u{1f602}": self = .laugh
             case "\u{203c}", "\u{203c}\u{fe0f}": self = .emphasize
             case "\u{2753}": self = .question
-            default: return nil
+            default: self = .custom(emoji: emoji)
             }
         }
     }
@@ -637,7 +641,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         startedAutomation()
         defer { finishedAutomation() }
 
-        let idx = reaction.index
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
             let reactAction = try messageAction(messageCell: $0, action: .react)
             try reactAction() // performing this 2x will close reaction view
@@ -646,12 +649,26 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 Thread.sleep(forTimeInterval: 0.75)
             }
 
+            if case let .custom(emoji) = reaction {
+                guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                try elements.addCustomEmojiReactionButton.press()
+                Thread.sleep(forTimeInterval: 0.75) // wait for animation
+                guard let emojiName = appleEmojiName(for: emoji) else { throw ErrorMessage("Custom emoji \"\(emoji)\" lacks a corresponding known Apple name, can't react") }
+                try elements.searchFieldWithinPopover.value(assign: emojiName)
+                Thread.sleep(forTimeInterval: 0.75) // wait for search
+                try keyPresser.tab()
+                Thread.sleep(forTimeInterval: 0.2) // wait for selection
+                try keyPresser.return()
+                return
+            }
+
             let btn = try {
                 if isSequoiaOrUp {
                     return try elements.tapbackPickerCollectionView.children().first { (try? $0.identifier()) == reaction.id }
                         .orThrow(ErrorMessage("Could not find react button"))
                 }
 
+                let idx = reaction.index!
                 let buttons = try elements.reactButtons
                 guard buttons.count > idx else {
                     throw ErrorMessage("reactButtons count=\(buttons.count)")

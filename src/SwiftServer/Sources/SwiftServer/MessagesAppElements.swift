@@ -277,6 +277,34 @@ final class MessagesAppElements {
         }
     }
 
+    // unused - we just simulate pressing <tab> <return> to select the first result, but leaving in case it's useful
+#if false
+    var customEmojiPopoverCharacters: [Accessibility.Element] {
+        get throws {
+            let popover = try popover
+            // the CPKCharactersTableView within NSScrollView (within _NSPopoverWindow)
+            let table = try popover.recursiveChildren().lazy.first(where: { (try? $0.subrole() == "table") ?? false })
+                .orThrow(ErrorMessage("couldn't find table view containing emoji results"))
+        }
+    }
+#endif
+
+    /// the first popover in the main window
+    var popover: Accessibility.Element {
+        get throws {
+            try mainWindow.recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "popover") ?? false })
+                .orThrow(ErrorMessage("couldn't find a popover in the main window"))
+        }
+    }
+
+    /// the first search field within the first popover in the main window
+    var searchFieldWithinPopover: Accessibility.Element {
+        get throws {
+            try popover.recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "search text field") ?? false })
+                .orThrow(ErrorMessage("couldn't find search field within the first popover"))
+        }
+    }
+
     var splitter: Accessibility.Element {
         get throws {
             let startTime = Date()
