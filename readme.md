@@ -27,9 +27,10 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
    `brew install rustup`. If you already have Rustup installed, you can run
    `rustup update` to make sure your toolchain is up-to-date.
 
-2. **In `beeper-desktop-new`,** re-point [the `@beeper/platform-imessage`
-   entry][bdn-imsg-dependency] in `optionalDependencies` to link to your local
-   clone of this repository (don't forget to `yarn` after):
+2. **In `beeper-desktop-new`'s `package.json`,** re-point [the
+   `@beeper/platform-imessage` entry][bdn-imsg-dependency] in
+   `optionalDependencies` to link to your local clone of this repository (don't
+   forget to `yarn` after):
 
    ```json
    "@beeper/platform-imessage": "link:../platform-imessage",
@@ -52,10 +53,52 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
    (`bun _ copy-platform-binaries`, alternatively spelled
    `bun copy:platform-binaries`, copies instead of symlinking.)
 
-4. **If you're only interested in running from source, then: in this
-   repository,** perform a one-shot build of everything ([RustServer],
-   [AppleScriptServer], [SwiftServer], [the TypeScript
-   code][platformapi-subclass], and the SCSS):
+### Building and Using
+
+<!-- prettier-ignore-->
+> [!IMPORTANT]
+> Adding the account might crash at first
+> ([DESK-5684](https://linear.app/beeper/issue/DESK-5684/mattwondra-app-crashed-while-adding-local-imessage)).
+> However, subsequent attempts should succeed.
+
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> When adding a local iMessage account to Beeper, you'll be prompted for
+> several permissions. One of them is "Accessibility", which is done in a
+> System Settings window that the app opens for you. **In development, grant
+> this permission to your terminal program, text editor, or wherever you're
+> running `yarn dev` from instead of Beeper or Electron.**
+
+<!-- prettier-ignore-->
+> [!TIP]
+> If you're having trouble granting permissions to the app, try running:
+>
+> ```
+> tccutil reset All com.github.Electron
+> ```
+>
+> This completely wipes away the permission state of the app with that bundle
+> identifier in the "Privacy & Security" section of System Settings, which gives
+> you a clean slate to work with. If that still doesn't work:
+>
+> * Try passing the bundle ID of your terminal emulator, text editor, or
+>   whatever you run `yarn dev` in to `tccutil` instead of
+>   `com.github.Electron`. Example bundle identifiers:
+>    * [iTerm2]: `com.googlecode.iterm2`
+>    * [Ghostty]: `com.mitchellh.ghostty`
+>    * VS Code: `com.microsoft.VSCode`
+>    * Cursor: `com.todesktop.230313mzl4w4u92` (yes, actually)
+> * Try running any relevant `tccutil` commands, completely quitting and
+>   restarting all apps involved, and trying again.
+> * Try rebooting. <sub>ol' reliable</sub>
+
+[iterm2]: https://iterm2.com/
+[ghostty]: https://ghostty.org/
+
+4. **If you're only interested in running from source,** perform a one-shot
+   build of everything ([RustServer], [AppleScriptServer], [SwiftServer], [the
+   TypeScript code][platformapi-subclass], and the SCSS) **(in this
+   repository)**:
 
    ```
    bun build-binaries
@@ -97,46 +140,6 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 6. At this point, you should be able to `bun dev` in
    [`beeper-desktop-new`][beeper-desktop-new] and add a local iMessage account
    to your development instance of Beeper Desktop.
-
-<!-- prettier-ignore-->
-> [!IMPORTANT]
-> Adding the account might crash at first
-> ([DESK-5684](https://linear.app/beeper/issue/DESK-5684/mattwondra-app-crashed-while-adding-local-imessage)).
-> However, subsequent attempts should succeed.
-
-<!-- prettier-ignore -->
-> [!IMPORTANT]
-> When adding a local iMessage account to Beeper, you'll be prompted for
-> several permissions. One of them is "Accessibility", which is done in a
-> System Settings window that the app opens for you. **In development, grant
-> this permission to your terminal program, text editor, or wherever you're
-> running `yarn dev` from instead of Beeper or Electron.**
-
-<!-- prettier-ignore-->
-> [!TIP]
-> If you're having trouble granting permissions to the app, try running:
->
-> ```
-> tccutil reset All com.github.Electron
-> ```
->
-> This completely wipes away the permission state of the app with that bundle
-> identifier in the "Privacy & Security" section of System Settings, which gives
-> you a clean slate to work with. If that still doesn't work:
->
-> * Try passing the bundle ID of your terminal emulator, text editor, or
->   whatever you run `yarn dev` in to `tccutil` instead of
->   `com.github.Electron`. Example bundle identifiers:
->    * [iTerm2]: `com.googlecode.iterm2`
->    * [Ghostty]: `com.mitchellh.ghostty`
->    * VS Code: `com.microsoft.VSCode`
->    * Cursor: `com.todesktop.230313mzl4w4u92` (yes, actually)
-> * Try running any relevant `tccutil` commands, completely quitting and
->   restarting all apps involved, and trying again.
-> * Try rebooting. <sub>ol' reliable</sub>
-
-[iterm2]: https://iterm2.com/
-[ghostty]: https://ghostty.org/
 
 ---
 
