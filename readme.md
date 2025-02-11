@@ -113,8 +113,7 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
    ```
 
    This command watches for changes in Swift, CSS, or JS files, continuously
-   rebuilding as necessary. If you have an instance of `yarn dev`/`bun dev`
-   already running for desktop, you'll have to interrupt the command and re-run.
+   rebuilding as necessary.
 
    `--debug` is automatically passed to `yarn build-swift`. This disables
    compiler optimizations, symbol stripping, and it only builds for your current
@@ -136,9 +135,12 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
    yarn copy:platform-binaries
    ```
 
-6. At this point, you should be able to `bun dev` in
-   [`beeper-desktop-new`][beeper-desktop-new] and add a local iMessage account
-   to your development instance of Beeper Desktop.
+6. At this point, you should be able to simultaneously run `yarn dev`/`bun dev`
+   in [`beeper-desktop-new`][beeper-desktop-new] and add a local iMessage
+   account to your development instance of Beeper Desktop.
+
+   If you have an instance of `yarn dev`/`bun dev` already running for desktop,
+   you'll have to interrupt the command and re-run.
 
 ---
 
