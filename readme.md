@@ -84,16 +84,13 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 > * Try passing the bundle ID of your terminal emulator, text editor, or
 >   whatever you run `yarn dev` in to `tccutil` instead of
 >   `com.github.Electron`. Example bundle identifiers:
->    * [iTerm2]: `com.googlecode.iterm2`
->    * [Ghostty]: `com.mitchellh.ghostty`
+>    * iTerm2: `com.googlecode.iterm2`
+>    * Ghostty: `com.mitchellh.ghostty`
 >    * VS Code: `com.microsoft.VSCode`
 >    * Cursor: `com.todesktop.230313mzl4w4u92` (yes, actually)
 > * Try running any relevant `tccutil` commands, completely quitting and
 >   restarting all apps involved, and trying again.
-> * Try rebooting. <sub>ol' reliable</sub>
-
-[iterm2]: https://iterm2.com/
-[ghostty]: https://ghostty.org/
+> * Try rebooting. <sup>ol' reliable</sup>
 
 4. **If you're only interested in running from source,** perform a one-shot
    build of everything ([RustServer], [AppleScriptServer], [SwiftServer], [the
