@@ -90,7 +90,7 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 >    * Cursor: `com.todesktop.230313mzl4w4u92` (yes, actually)
 > * Try running any relevant `tccutil` commands, completely quitting and
 >   restarting all apps involved, and trying again.
-> * Try rebooting. <sup>ol' reliable</sup>
+> * Try rebooting. <sub>(ol' reliable)</sub>
 
 4. **If you're only interested in running from source,** perform a one-shot
    build of everything ([RustServer], [AppleScriptServer], [SwiftServer], [the
@@ -113,7 +113,8 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
    ```
 
    This command watches for changes in Swift, CSS, or JS files, continuously
-   rebuilding as necessary.
+   rebuilding as necessary. If you have an instance of `yarn dev`/`bun dev`
+   already running for desktop, you'll have to interrupt the command and re-run.
 
    `--debug` is automatically passed to `yarn build-swift`. This disables
    compiler optimizations, symbol stripping, and it only builds for your current
@@ -121,9 +122,10 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
    therefore `dev`):
 
    - `--no-spaces` defines the `NO_SPACES` compilation condition
-     (`#if NO_SPACES`) for the Swift code, which disables the behaviors involved
-     in attempting to hide the Messages app in an invalid Mission Control space.
-     Useful for testing and debugging as it keeps the Messages app visible.
+     (`#if NO_SPACES`) for the Swift code, which disables
+     [the behaviors involved in attempting to hide the Messages app](https://github.com/beeper/platform-imessage/blob/c670583e642d7a4df45f9a9d499720768d454370/src/SwiftServer/Sources/SwiftServer/SpacesWindowHidingManager.swift#L108)
+     in an invalid Mission Control space. This is useful for testing and
+     debugging as it keeps the Messages app visible.
    - `--clean` will purge build artifacts before building.
    - `--all-archs` forces the building of all architectures (`arm64` and `x64`).
 
