@@ -2,7 +2,7 @@
 
 This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 
-### Development
+## Getting Started
 
 [beeper-desktop-new]: https://github.com/beeper/beeper-desktop-new/
 [bdn-imsg-dependency]: https://github.com/beeper/beeper-desktop-new/
