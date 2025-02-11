@@ -162,7 +162,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
-        guard let reaction = MessagesController.Reaction(rawValue: reactionName) else {
+        guard let reaction = MessagesController.Reaction(rawValue: reactionName) ?? MessagesController.Reaction(emoji: reactionName) else {
             throw ErrorMessage("Invalid reaction: \(reactionName)")
         }
         return try performAsync { [self] in
