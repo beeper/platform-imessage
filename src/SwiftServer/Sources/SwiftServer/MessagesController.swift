@@ -122,6 +122,7 @@ final class MessagesController {
         case laugh
         case emphasize
         case question
+        // TODO: support arbitrary reactions
 
         var index: Int {
             switch self {
@@ -143,6 +144,19 @@ final class MessagesController {
             case .laugh: return "ha"
             case .emphasize: return "exclamation"
             case .question: return "questionMark"
+            }
+        }
+
+        init?(emoji: String) {
+            // for robustness, accept emojified codepoints even without U+FE0F
+            switch emoji {
+            case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
+            case "\u{1f44d}": self = .like
+            case "\u{1f44e}": self = .dislike
+            case "\u{1f602}": self = .laugh
+            case "\u{203c}", "\u{203c}\u{fe0f}": self = .emphasize
+            case "\u{2753}": self = .question
+            default: return nil
             }
         }
     }
