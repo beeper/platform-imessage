@@ -150,9 +150,8 @@ Logs are persisted to:
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
-> This is the path **even in development** because platform-imessage doesn't have
-> access to `__DEV__` like the TypeScript code in [`beeper-desktop-new`][beeper-desktop-new]
-> does.
+> This path respects `BEEPER_PROFILE`, so the directory name is `BeeperTexts-dev`
+> instead of `BeeperTexts` in development, and so on.
 
 Keep in mind that the previous logging location was:
 
