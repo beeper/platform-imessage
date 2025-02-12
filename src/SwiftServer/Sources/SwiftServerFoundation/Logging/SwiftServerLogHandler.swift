@@ -11,7 +11,7 @@ private var dateFormatter: DateFormatter {
 
 public typealias SwiftLogger = Logging.Logger
 
-private let osLog = os.OSLog(subsystem: "com.kishanbagaria.jack", category: "swift-server")
+private let osLog = os.OSLog(subsystem: "com.automattic.beeper.desktop", category: "swift-server")
 
 public struct SwiftServerLogHandler: LogHandler {
     var identifier: String
