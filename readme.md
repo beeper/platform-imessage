@@ -150,7 +150,7 @@ Logs are persisted to:
 
 Keep in mind that the previous logging location was:
 
-- `~/Library/Application Support/jack/logs/platform-imessage.log`
+- `~/Library/Application Support/jack/platform-imessage.log`
 
 It's worth checking this path if you can't locate a log at the aforementioned
 path in `BeeperTexts`, because for a short period of time, this path was being
