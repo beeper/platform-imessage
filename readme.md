@@ -148,9 +148,14 @@ Logs are persisted to:
 
 - `~/Library/Application Support/BeeperTexts/logs/platform-imessage.log`
 
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> This is the path **even in development** because platform-imessage doesn't have
+> access to `__DEV__` like the TypeScript code in [`beeper-desktop-new`] does.
+
 Keep in mind that the previous logging location was:
 
-- `~/Library/Application Support/jack/platform-imessage.log`
+- `~/Library/Application Support/jack/logs/platform-imessage.log`
 
 It's worth checking this path if you can't locate a log at the aforementioned
 path in `BeeperTexts`, because for a short period of time, this path was being
