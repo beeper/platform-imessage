@@ -30,7 +30,11 @@ public enum Log {
 
     public static var file: URL? = {
         let applicationSupport = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-        return applicationSupport?.appendingPathComponent("jack", isDirectory: true).appendingPathComponent("platform-imessage.log")
+        let profile = ProcessInfo.processInfo.environment["BEEPER_PROFILE"]
+        let appDirectoryName = profile.map { "BeeperTexts-\($0)" } ?? "BeeperTexts"
+        return applicationSupport?.appendingPathComponent(appDirectoryName, isDirectory: true)
+            .appendingPathComponent("logs", isDirectory: true)
+            .appendingPathComponent("platform-imessage.log")
     }()
 }
 
