@@ -32,7 +32,6 @@ final class MessagesAppElements {
         try tv.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
     }
 
-    private let whm: WindowHidingManager
     private let runningApp: NSRunningApplication
 
     let app: Accessibility.Element
@@ -50,9 +49,8 @@ final class MessagesAppElements {
         cachedTranscriptView = nil
     }
 
-    init(runningApp: NSRunningApplication, whm: WindowHidingManager) {
+    init(runningApp: NSRunningApplication) {
         self.runningApp = runningApp
-        self.whm = whm
         app = Accessibility.Element(pid: runningApp.processIdentifier)
     }
 
@@ -119,8 +117,7 @@ final class MessagesAppElements {
                     }
                 }
             }
-            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
-            try? whm.mainWindowChanged(mainWindow)
+//            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
             // clearCachedElements()
             cachedMainWindow = mainWindow
             return mainWindow

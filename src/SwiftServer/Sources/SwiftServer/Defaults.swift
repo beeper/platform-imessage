@@ -16,8 +16,27 @@ private func randomCase(_ input: String) -> String {
 }
 
 enum Defaults {
+    public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
     private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
+
+    static func registerDefaults() {
+        swiftServer.register(defaults: [
+            "BEEPWindowCoordination": true,
+
+            "BEEPEclipsingWidth": 660.0,
+            "BEEPEclipsingHeight": 320.0,
+            "BEEPEclipsingWindowClassNamePrefix": "Electron",
+            "BEEPEclipsingUsesLargestWindow": true,
+            "BEEPOnlyEclipseIfEncompasses": true,
+            "BEEPEclipsingOffsetX": 0.0,
+            // positive values nudge the Messages window downwards
+            // if set to 0.0, doesn't seem to be flush? are we targeting the right thing?
+            "BEEPEclipsingOffsetY": 200.0,
+
+            "BEEPHidingCoordinatorDebounce": 0.75,
+        ])
+    }
 
     static func resetPrompts() {
         // getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "kHasSetupHashtagImages") // unknown
