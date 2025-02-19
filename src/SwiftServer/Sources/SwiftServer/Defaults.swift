@@ -15,6 +15,18 @@ private func randomCase(_ input: String) -> String {
     return result
 }
 
+enum DefaultsKeys {
+    static let windowCoordination = "BEEPWindowCoordination"
+    static let eclipsingWidth = "BEEPEclipsingWidth"
+    static let eclipsingHeight = "BEEPEclipsingHeight"
+    static let eclipsingWindowClassNamePrefix = "BEEPEclipsingWindowClassNamePrefix"
+    static let eclipsingUsesLargestWindow = "BEEPEclipsingUsesLargestWindow"
+    static let onlyEclipseIfEncompasses = "BEEPOnlyEclipseIfEncompasses"
+    static let eclipsingOffsetX = "BEEPEclipsingOffsetX"
+    static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
+    static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
+}
+
 enum Defaults {
     public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
@@ -22,19 +34,20 @@ enum Defaults {
 
     static func registerDefaults() {
         swiftServer.register(defaults: [
-            "BEEPWindowCoordination": true,
+            DefaultsKeys.windowCoordination: true,
 
-            "BEEPEclipsingWidth": 660.0,
-            "BEEPEclipsingHeight": 320.0,
-            "BEEPEclipsingWindowClassNamePrefix": "Electron",
-            "BEEPEclipsingUsesLargestWindow": true,
-            "BEEPOnlyEclipseIfEncompasses": true,
-            "BEEPEclipsingOffsetX": 0.0,
+            // Messages.app minimum size when resizing with mouse
+            DefaultsKeys.eclipsingWidth: 660.0,
+            DefaultsKeys.eclipsingHeight: 320.0,
+            DefaultsKeys.eclipsingWindowClassNamePrefix: "Electron",
+            DefaultsKeys.eclipsingUsesLargestWindow: true,
+            DefaultsKeys.onlyEclipseIfEncompasses: true,
+            DefaultsKeys.eclipsingOffsetX: 0.0,
             // positive values nudge the Messages window downwards
             // if set to 0.0, doesn't seem to be flush? are we targeting the right thing?
-            "BEEPEclipsingOffsetY": 200.0,
+            DefaultsKeys.eclipsingOffsetY: 200.0,
 
-            "BEEPHidingCoordinatorDebounce": 0.75,
+            DefaultsKeys.hidingCoordinatorDebounce: 0.75,
         ])
     }
 

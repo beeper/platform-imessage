@@ -97,16 +97,16 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
 }
 
 private extension EclipsingWindowCoordinator {
-    private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.swiftServer.double(forKey: "BEEPHidingCoordinatorDebounce")) }
-    private static var shouldCoordinate: Bool { Defaults.swiftServer.bool(forKey: "BEEPWindowCoordination") }
-    private static var shouldOnlyEclipseIfEncompasses: Bool { Defaults.swiftServer.bool(forKey: "BEEPOnlyEclipseIfEncompasses") }
-    private static var eclipsingOffsetX: CGFloat { Defaults.swiftServer.double(forKey: "BEEPEclipsingOffsetX") }
-    private static var eclipsingOffsetY: CGFloat { Defaults.swiftServer.double(forKey: "BEEPEclipsingOffsetY") }
+    private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.swiftServer.double(forKey: DefaultsKeys.hidingCoordinatorDebounce)) }
+    private static var shouldCoordinate: Bool { Defaults.swiftServer.bool(forKey: DefaultsKeys.windowCoordination) }
+    private static var shouldOnlyEclipseIfEncompasses: Bool { Defaults.swiftServer.bool(forKey: DefaultsKeys.onlyEclipseIfEncompasses) }
+    private static var eclipsingOffsetX: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetX) }
+    private static var eclipsingOffsetY: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetY) }
 
     private static var minimumMessagesAppSize: NSSize {
         NSSize(
-            width: Defaults.swiftServer.double(forKey: "BEEPEclipsingWidth"),
-            height: Defaults.swiftServer.double(forKey: "BEEPEclipsingHeight")
+            width: Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingWidth),
+            height: Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingHeight)
         )
     }
 }
