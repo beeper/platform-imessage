@@ -16,17 +16,22 @@ private func randomCase(_ input: String) -> String {
 }
 
 enum DefaultsKeys {
+    /** controls whether window coordination happens at all, respected on the fly */
     static let windowCoordination = "BEEPWindowCoordination"
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
+    // dimensions to resize the messages app widow to
     static let eclipsingWidth = "BEEPEclipsingWidth"
     static let eclipsingHeight = "BEEPEclipsingHeight"
+    /** class name prefix of the window that we base the eclipsing position of (the window that should be "in front") */
     static let eclipsingWindowClassNamePrefix = "BEEPEclipsingWindowClassNamePrefix"
     static let eclipsingUsesLargestWindow = "BEEPEclipsingUsesLargestWindow"
+    /** only run eclipsing behavior if the "in front" window is large enough to accomodate the entirety of the window being hidden */
     static let onlyEclipseIfEncompasses = "BEEPOnlyEclipseIfEncompasses"
     static let eclipsingOffsetX = "BEEPEclipsingOffsetX"
     static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
+    /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 
     /** always use `.unknown` space instead of `.user` */
