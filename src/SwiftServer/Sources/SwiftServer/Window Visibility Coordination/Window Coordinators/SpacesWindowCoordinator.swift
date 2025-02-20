@@ -30,7 +30,7 @@ final class SpacesWindowCoordinator {
     init() throws {
         log.debug(Self.canUseUnknownSpace ? "can use known spaces" : "can't use unknown spaces")
 
-        if Self.canUseUnknownSpace {
+        if Self.canUseUnknownSpace || Defaults.swiftServer.bool(forKey: DefaultsKeys.spacesAlwaysUseUnknownSpace) {
             unknownSpace = try Space(newSpaceOfKind: .unknown)
         } else {
             // have to use a .user space, which behaves differently. observe various things on the system to improve ux
@@ -48,7 +48,9 @@ final class SpacesWindowCoordinator {
 
     deinit {
         do {
-            try hiddenSpace.destroy()
+            if Defaults.swiftServer.bool(forKey: DefaultsKeys.spacesDestroySpaceOnDeinit) {
+                try hiddenSpace.destroy()
+            }
             notificationCenterObserver.map { NSWorkspace.shared.notificationCenter.removeObserver($0) }
             // closing window better than moving back to regular space
             try lastKnownWindow?.closeWindow()
@@ -155,29 +157,33 @@ private extension SpacesWindowCoordinator {
     // if we can't use an .unknown space, then we need to use a .user space, which the user can more easily inadvertently switch to, and it can
     // be made visible if the dock is restarted/display config is changed. listen to some events to smooth the experience
     func beginObservationsForUserSpace() {
-        // hiddenSpace will become visible when dock is restarted or display config is changed, so create another hidden space and move the window
-        dockObserver = Dock.Observer { [weak self] in
-            do {
-                try self?.moveLastKnownWindowToHiddenSpace()
-            } catch {
-                log.error("failed to hide last known window in response to dock observation: \(String(reflecting: error))")
+        if Defaults.swiftServer.bool(forKey: DefaultsKeys.spacesObserveDock) {
+            // hiddenSpace will become visible when dock is restarted or display config is changed, so create another hidden space and move the window
+            dockObserver = Dock.Observer { [weak self] in
+                do {
+                    try self?.moveLastKnownWindowToHiddenSpace()
+                } catch {
+                    log.error("failed to hide last known window in response to dock observation: \(String(reflecting: error))")
+                }
             }
         }
 
-        // if we're notified that the current space has changed and the messages app was recently activated, then the user likely
-        // jumped to the (no longer) "hidden" space. move the window to the hidden space to make sure ensure it's visible for the user
-        notificationCenterObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
-            guard let self, let lastManualActivation else { return }
+        if Defaults.swiftServer.bool(forKey: DefaultsKeys.spacesObserveCurrentSpaceChanges) {
+            // if we're notified that the current space has changed and the messages app was recently activated, then the user likely
+            // jumped to the (no longer) "hidden" space. move the window to the hidden space to make sure ensure it's visible for the user
+            notificationCenterObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
+                guard let self, let lastManualActivation else { return }
 
-            log.debug("receive active space changed notification")
+                log.debug("receive active space changed notification")
 
-            let timeSinceLastActivation = lastManualActivation.timeIntervalSinceNow
-            guard timeSinceLastActivation > -1 else { return }
+                let timeSinceLastActivation = lastManualActivation.timeIntervalSinceNow
+                guard timeSinceLastActivation > -1 else { return }
 
-            do {
-                try moveLastKnownWindowToHiddenSpace()
-            } catch {
-                log.error("failed to move window to hidden space in response to notification center observation: \(String(reflecting: error))")
+                do {
+                    try moveLastKnownWindowToHiddenSpace()
+                } catch {
+                    log.error("failed to move window to hidden space in response to notification center observation: \(String(reflecting: error))")
+                }
             }
         }
     }

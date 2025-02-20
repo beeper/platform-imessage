@@ -25,6 +25,17 @@ enum DefaultsKeys {
     static let eclipsingOffsetX = "BEEPEclipsingOffsetX"
     static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
+
+    /** always use `.unknown` space instead of `.user` */
+    static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
+    /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */
+    static let spacesDestroySpaceOnDeinit = "BEEPSpacesDestroySpaceOnDeinit"
+    /** always create a space of type .user */
+    static let spacesAlwaysUseUserSpace = "BEEPSpacesAlwaysUseUserSpace"
+    /** when a `.user` space is at play, recreate the hidden space when the dock relaunches */
+    static let spacesObserveDock = "BEEPSpacesObserveDock"
+    /** when a `.user` space is at play, move the window to the hidden space when the app is activated shortly after the space changes (our heuristic for the app being manually activated) */
+    static let spacesObserveCurrentSpaceChanges = "BEEPSpacesObserveCurrentSpaceChanges"
 }
 
 // TODO: cleanup
@@ -49,6 +60,10 @@ enum Defaults {
             DefaultsKeys.eclipsingOffsetY: 200.0,
 
             DefaultsKeys.hidingCoordinatorDebounce: 0.75,
+
+            DefaultsKeys.spacesDestroySpaceOnDeinit: true,
+            DefaultsKeys.spacesObserveDock: true,
+            DefaultsKeys.spacesObserveCurrentSpaceChanges: true,
         ])
     }
 
