@@ -23,17 +23,17 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
                 log.info("no longer coordinating")
             }
 
-            hidingCoordinator.app = app
+            hideDebouncer.app = app
         }
     }
 
     private var windowFramePreEclipse: NSRect?
-    private var hidingCoordinator: HidingCoordinator
+    private var hideDebouncer: HideDebouncer
 
     var canReuseExtantInstance: Bool { true }
 
     init() {
-        hidingCoordinator = HidingCoordinator(debouncingFor: Self.debouncingPeriod)
+        hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
     }
 
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
@@ -52,7 +52,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
 
         log.notice("eclipsing")
-        hidingCoordinator.immediatelyUnhide()
+        hideDebouncer.immediatelyUnhide()
         try messagesWindow.size(assign: targetSize)
         var electronOrigin = largestElectronWindow.frame.origin
         electronOrigin.x += Self.eclipsingOffsetX
@@ -61,11 +61,11 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
-        hidingCoordinator.requestHide()
+        hideDebouncer.requestHide()
     }
 
     func reset(_ window: Accessibility.Element) throws {
-        hidingCoordinator.immediatelyUnhide()
+        hideDebouncer.immediatelyUnhide()
 
         guard let originalFrame = windowFramePreEclipse else {
             log.warning("no last known frame, not setting a frame back")
@@ -82,11 +82,11 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func userManuallyActivated(_ app: NSRunningApplication) throws {
-        hidingCoordinator.immediatelyUnhide()
+        hideDebouncer.immediatelyUnhide()
     }
 
     func userManuallyDeactivated(_ app: NSRunningApplication) throws {
-        hidingCoordinator.requestHide()
+        hideDebouncer.requestHide()
     }
 }
 

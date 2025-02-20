@@ -8,7 +8,7 @@ private let log = Logger(swiftServerLabel: "hiding-coordinator")
  * Coordinates requests to hide an application in order to combat it being
  * rapidly hidden and unhidden, causing unwanted flickering.
  */
-final class HidingCoordinator {
+final class HideDebouncer {
     private var stream = CurrentValueSubject<Request, Never>(.noop)
     var app: NSRunningApplication?
     private var requestHandler: AnyCancellable?
@@ -30,7 +30,7 @@ final class HidingCoordinator {
     }
 }
 
-extension HidingCoordinator {
+extension HideDebouncer {
     /**
      * Requests that the app be hidden.
      *
@@ -68,7 +68,7 @@ extension HidingCoordinator {
     }
 }
 
-extension HidingCoordinator {
+extension HideDebouncer {
     private func beginHandlingRequests() {
         requestHandler = stream
             .debounce(for: debouncingDelay, scheduler: RunLoop.main)
