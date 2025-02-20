@@ -37,8 +37,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
-        guard Self.shouldCoordinate else { return }
-
         let largestElectronWindow = try NSApp.largestElectronWindow.orThrow(WindowCoordinatorError.generic(message: "Couldn't find Electron window"))
 
         if windowFramePreEclipse == nil {
@@ -63,14 +61,10 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
-        guard Self.shouldCoordinate else { return }
-
         hidingCoordinator.requestHide()
     }
 
     func reset(_ window: Accessibility.Element) throws {
-        guard Self.shouldCoordinate else { return }
-
         hidingCoordinator.immediatelyUnhide()
 
         guard let originalFrame = windowFramePreEclipse else {

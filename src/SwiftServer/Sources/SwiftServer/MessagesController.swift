@@ -344,7 +344,10 @@ final class MessagesController {
         windowCoordinator = try getBestWindowCoordinator()
 
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
-            if !windowCoordinator.canReuseExtantInstance { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
+            // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
+            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
             log.info("launching messages... (without activation? \(withoutActivation))")
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
         }
@@ -356,7 +359,8 @@ final class MessagesController {
             messagesApps.removeAll()
         }
         if let existingApp = messagesApps.first {
-            if windowCoordinator.canReuseExtantInstance {
+            // if coordination is disabled, avoid unnecessarily terminating the app
+            if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
                 log.info("reusing existing messages...")
                 app = existingApp
             } else {
@@ -448,7 +452,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         afterAutomationTask?.cancel()
         elements.clearCachedElements()
         log.debug("prepareForAutomation: making the app automatable")
-        try windowCoordinator.makeAutomatable(try elements.mainWindow)
+        if Defaults.shouldCoordinateWindow {
+            try windowCoordinator.makeAutomatable(try elements.mainWindow)
+        }
         activityLock.lock()
     }
 
@@ -1161,7 +1167,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             lastActivate = Date()
             log.debug("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            if let window = elements.getMainWindow() {
+            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)
                 try windowCoordinator.userManuallyActivated(app)
             }
@@ -1176,7 +1182,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             log.debug("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
-            try windowCoordinator.userManuallyDeactivated(app)
+            if Defaults.shouldCoordinateWindow {
+                try windowCoordinator.userManuallyDeactivated(app)
+            }
             try? closeAllNonMainWindows()
             if window != nil {
                 resetWindow()

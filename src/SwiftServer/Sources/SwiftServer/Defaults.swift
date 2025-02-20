@@ -27,6 +27,7 @@ enum DefaultsKeys {
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 }
 
+// TODO: cleanup
 enum Defaults {
     public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
@@ -50,6 +51,8 @@ enum Defaults {
             DefaultsKeys.hidingCoordinatorDebounce: 0.75,
         ])
     }
+
+    static var shouldCoordinateWindow: Bool { Self.swiftServer.bool(forKey: DefaultsKeys.windowCoordination) }
 
     static func resetPrompts() {
         // getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "kHasSetupHashtagImages") // unknown

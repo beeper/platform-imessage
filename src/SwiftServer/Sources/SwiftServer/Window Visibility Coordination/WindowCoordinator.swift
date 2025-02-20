@@ -41,8 +41,6 @@ extension WindowCoordinator {
 }
 
 extension WindowCoordinator {
-    static var shouldCoordinate: Bool { Defaults.swiftServer.bool(forKey: DefaultsKeys.windowCoordination) }
-
     func automate<T>(window: Accessibility.Element, _ automation: () throws -> T) throws -> T {
         try makeAutomatable(window)
         defer {
