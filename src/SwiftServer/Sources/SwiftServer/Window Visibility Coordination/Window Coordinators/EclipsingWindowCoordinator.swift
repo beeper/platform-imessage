@@ -124,12 +124,12 @@ private extension NSSize {
 
 private extension NSApplication {
     var largestElectronWindow: NSWindow? {
-        let prefix = Defaults.swiftServer.string(forKey: "BEEPEclipsingWindowClassNamePrefix") ?? "Electron"
+        let prefix = Defaults.swiftServer.string(forKey: DefaultsKeys.eclipsingWindowClassNamePrefix) ?? "Electron"
         // XXX: It's likely possible for this read to race with Electron's main thread, or whatever actually owns the window.
         let electronWindows = windows.filter { NSStringFromClass(type(of: $0)).starts(with: prefix) }
         log.debug("found \(electronWindows.count) electron window(s)")
 
-        if Defaults.swiftServer.bool(forKey: "BEEPEclipsingUsesLargestWindow") {
+        if Defaults.swiftServer.bool(forKey: DefaultsKeys.eclipsingUsesLargestWindow) {
             let largest = electronWindows.max(by: { $0.frame.area < $1.frame.area })
             if let largest {
                 log.debug("biggest has frame of \(largest.frame) (area: \(largest.frame.area))")
