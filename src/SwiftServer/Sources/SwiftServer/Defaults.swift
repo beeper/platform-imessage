@@ -21,7 +21,7 @@ enum DefaultsKeys {
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
-    // dimensions to resize the messages app widow to
+    // dimensions to resize the messages app window to
     static let eclipsingWidth = "BEEPEclipsingWidth"
     static let eclipsingHeight = "BEEPEclipsingHeight"
     /** class name prefix of the window that we base the eclipsing position of (the window that should be "in front") */
