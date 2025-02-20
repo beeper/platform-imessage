@@ -98,7 +98,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
 
 private extension EclipsingWindowCoordinator {
     private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.swiftServer.double(forKey: DefaultsKeys.hidingCoordinatorDebounce)) }
-    private static var shouldCoordinate: Bool { Defaults.swiftServer.bool(forKey: DefaultsKeys.windowCoordination) }
     private static var shouldOnlyEclipseIfEncompasses: Bool { Defaults.swiftServer.bool(forKey: DefaultsKeys.onlyEclipseIfEncompasses) }
     private static var eclipsingOffsetX: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetX) }
     private static var eclipsingOffsetY: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetY) }
