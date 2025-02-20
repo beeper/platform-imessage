@@ -17,6 +17,9 @@ private func randomCase(_ input: String) -> String {
 
 enum DefaultsKeys {
     static let windowCoordination = "BEEPWindowCoordination"
+    /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
+    static let coordinator = "BEEPWindowCoordinator"
+
     static let eclipsingWidth = "BEEPEclipsingWidth"
     static let eclipsingHeight = "BEEPEclipsingHeight"
     static let eclipsingWindowClassNamePrefix = "BEEPEclipsingWindowClassNamePrefix"
