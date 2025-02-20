@@ -341,7 +341,7 @@ final class MessagesController {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
 
-        windowCoordinator = getBestWindowCoordinator()
+        windowCoordinator = try getBestWindowCoordinator()
 
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
             if !windowCoordinator.canReuseExtantInstance { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
