@@ -462,10 +462,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("finishedAutomation")
         activityLock.unlock()
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
-        do {
-            try windowCoordinator.automationDidComplete(elements.mainWindow)
-        } catch {
-            log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
+        if Defaults.shouldCoordinateWindow {
+            do {
+                try windowCoordinator.automationDidComplete(elements.mainWindow)
+            } catch {
+                log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
+            }
         }
         // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
         scheduleCancelReplyTranscriptView()
