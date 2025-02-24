@@ -15,9 +15,67 @@ private func randomCase(_ input: String) -> String {
     return result
 }
 
+enum DefaultsKeys {
+    /** controls whether window coordination happens at all, respected on the fly */
+    static let windowCoordination = "BEEPWindowCoordination"
+    /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
+    static let coordinator = "BEEPWindowCoordinator"
+
+    // dimensions to resize the messages app window to
+    static let eclipsingWidth = "BEEPEclipsingWidth"
+    static let eclipsingHeight = "BEEPEclipsingHeight"
+    /** class name prefix of the window that we base the eclipsing position of (the window that should be "in front") */
+    static let eclipsingWindowClassNamePrefix = "BEEPEclipsingWindowClassNamePrefix"
+    static let eclipsingUsesLargestWindow = "BEEPEclipsingUsesLargestWindow"
+    /** only run eclipsing behavior if the "in front" window is large enough to accomodate the entirety of the window being hidden */
+    static let onlyEclipseIfEncompasses = "BEEPOnlyEclipseIfEncompasses"
+    static let eclipsingOffsetX = "BEEPEclipsingOffsetX"
+    static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
+    /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
+    static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
+
+    /** always use `.unknown` space instead of `.user` */
+    static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
+    /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */
+    static let spacesDestroySpaceOnDeinit = "BEEPSpacesDestroySpaceOnDeinit"
+    /** always create a space of type .user */
+    static let spacesAlwaysUseUserSpace = "BEEPSpacesAlwaysUseUserSpace"
+    /** when a `.user` space is at play, recreate the hidden space when the dock relaunches */
+    static let spacesObserveDock = "BEEPSpacesObserveDock"
+    /** when a `.user` space is at play, move the window to the hidden space when the app is activated shortly after the space changes (our heuristic for the app being manually activated) */
+    static let spacesObserveCurrentSpaceChanges = "BEEPSpacesObserveCurrentSpaceChanges"
+}
+
+// TODO: cleanup
 enum Defaults {
+    public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
     private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
+
+    static func registerDefaults() {
+        swiftServer.register(defaults: [
+            DefaultsKeys.windowCoordination: true,
+
+            // Messages.app minimum size when resizing with mouse
+            DefaultsKeys.eclipsingWidth: 660.0,
+            DefaultsKeys.eclipsingHeight: 320.0,
+            DefaultsKeys.eclipsingWindowClassNamePrefix: "Electron",
+            DefaultsKeys.eclipsingUsesLargestWindow: true,
+            DefaultsKeys.onlyEclipseIfEncompasses: true,
+            DefaultsKeys.eclipsingOffsetX: 0.0,
+            // positive values nudge the Messages window downwards
+            // if set to 0.0, doesn't seem to be flush? are we targeting the right thing?
+            DefaultsKeys.eclipsingOffsetY: 200.0,
+
+            DefaultsKeys.hidingCoordinatorDebounce: 0.75,
+
+            DefaultsKeys.spacesDestroySpaceOnDeinit: true,
+            DefaultsKeys.spacesObserveDock: true,
+            DefaultsKeys.spacesObserveCurrentSpaceChanges: true,
+        ])
+    }
+
+    static var shouldCoordinateWindow: Bool { Self.swiftServer.bool(forKey: DefaultsKeys.windowCoordination) }
 
     static func resetPrompts() {
         // getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "kHasSetupHashtagImages") // unknown

@@ -1,10 +1,12 @@
 import AppKit
 import Contacts
+import PHTClient
 import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
 import SwiftServerFoundation
 import Logging
+import Combine
 
 private let log = Logger(swiftServerLabel: "messages-controller")
 
@@ -213,7 +215,8 @@ final class MessagesController {
 
     private var activityObserver: ActivityObserver?
 
-    private let whm: WindowHidingManager
+    private var windowCoordinator: WindowCoordinator
+    private var phtConnection: PHTConnection?
     private let keyPresser: KeyPresser
     private let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
@@ -339,10 +342,21 @@ final class MessagesController {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
 
-        whm = try getBestWHM()
+        windowCoordinator = try getBestWindowCoordinator()
 
-        let launchMessages = { [whm] (withoutActivation: Bool) throws -> NSRunningApplication in
-            if !whm.canReuseApp { Thread.sleep(forTimeInterval: 0.1) } // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
+        if Preferences.isPHTEnabled {
+            do {
+                phtConnection = try PHTConnection.create(allowInstall: true)
+            } catch {
+                log.error("failed to create PHT connection: \(String(reflecting: error))")
+            }
+        }
+
+        let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
+            // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
+            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
             log.info("launching messages... (without activation? \(withoutActivation))")
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
         }
@@ -354,7 +368,8 @@ final class MessagesController {
             messagesApps.removeAll()
         }
         if let existingApp = messagesApps.first {
-            if whm.canReuseApp {
+            // if coordination is disabled, avoid unnecessarily terminating the app
+            if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
                 log.info("reusing existing messages...")
                 app = existingApp
             } else {
@@ -368,15 +383,12 @@ final class MessagesController {
             app = try launchMessages(false)
         }
 
+        windowCoordinator.app = app
+
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
-        elements = MessagesAppElements(runningApp: app, whm: whm)
+        elements = MessagesAppElements(runningApp: app)
         keyPresser = KeyPresser(pid: app.processIdentifier)
-        whm.setApp(app)
-        whm.setAfterHide {
-            log.info("our afterHide: resizing to max height")
-            self.elements.getMainWindow().map { try? Self.resizeWindowToMaxHeight($0) }
-        }
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -430,7 +442,6 @@ final class MessagesController {
 Initialized MessagesController in an invalid state:
 appTerminated=\(app.isTerminated)
 mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
-whmValid=\(whm.isValid)
 isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
         }
@@ -442,20 +453,36 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     var isValid: Bool {
-        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && whm.isValid && isMessagesAppResponsive
+        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
 
-    @inlinable func startedAutomation() {
+    @inlinable func prepareForAutomation() throws {
+        log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
-        log.info("startedAutomation: hiding messages.app")
         elements.clearCachedElements()
-        whm.hide()
+        log.debug("prepareForAutomation: making the app automatable")
+        do {
+            try phtConnection?.setMessagesHidden(true)
+        } catch {
+            log.error("failed to hide messages app via pht: \(error)")
+        }
+        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
+            try windowCoordinator.makeAutomatable(mainWindow)
+        }
         activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
         log.info("finishedAutomation")
         activityLock.unlock()
+        // this isn't propagated to make finishedAutomation callable inside of defer { … }
+        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
+            do {
+                try windowCoordinator.automationDidComplete(mainWindow)
+            } catch {
+                log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
+            }
+        }
         // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
         scheduleCancelReplyTranscriptView()
     }
@@ -633,7 +660,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         let idx = reaction.index
@@ -681,7 +708,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
@@ -699,7 +726,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("editMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
@@ -723,7 +750,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // this is unusable because showing menu makes it first responder
     // keep this code as documentation
     func markAsReadWithMenu(threadID: String) throws {
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
@@ -785,7 +812,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -829,7 +856,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -849,7 +876,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -867,7 +894,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // shows up client-side as a ghost message.
         let url = try MessagesDeepLink(threadID: threadID, body: isTyping ? " " : nil).url()
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -1039,7 +1066,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             throw ErrorMessage("not implemented")
         }
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         // this isn't reliable so we use pasteFileInBodyFieldAndSend:
@@ -1152,10 +1179,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             lastActivate = Date()
             log.debug("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            let window = elements.getMainWindow()
-            try whm.appActivated(window: window)
+            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
+                try windowCoordinator.reset(window)
+                try windowCoordinator.userManuallyActivated(app)
+            }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
+        }
+        do {
+            try phtConnection?.setMessagesHidden(false)
+        } catch {
+            log.error("failed to show messages app via pht: \(error)")
         }
     }
 
@@ -1165,7 +1199,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             log.debug("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
-            try whm.appDeactivated(window: window)
+            if Defaults.shouldCoordinateWindow {
+                try windowCoordinator.userManuallyDeactivated(app)
+            }
             try? closeAllNonMainWindows()
             if window != nil {
                 resetWindow()
@@ -1239,7 +1275,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func notifyAnyway(threadID: String) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url, openAfter: activityObserver?.url) {
@@ -1311,7 +1347,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func observe(threadID: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        startedAutomation()
+        try prepareForAutomation()
         defer { finishedAutomation() }
 
         // we remove the previous observer first, so that if
@@ -1336,7 +1372,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         timer?.invalidate()
         loopThread?.cancel()
         app.terminate()
-        whm.dispose()
     }
 
     deinit {
