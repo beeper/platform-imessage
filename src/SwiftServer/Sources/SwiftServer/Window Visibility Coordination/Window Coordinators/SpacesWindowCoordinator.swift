@@ -67,13 +67,11 @@ extension SpacesWindowCoordinator: WindowCoordinator {
 
     func makeAutomatable(_ window: Accessibility.Element) throws {
         guard app?.isActive == false else { return }
-//        try? phtConn?.setMessagesHidden(true)
         lastKnownWindow = window
         try moveLastKnownWindowToHiddenSpace()
     }
 
     func reset(_ window: Accessibility.Element) throws {
-//        try? phtConn?.setMessagesHidden(false)
         guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), let lastKnownWindow else {
             log.debug("can't reset, the last known window or current space was missing")
             return

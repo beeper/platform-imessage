@@ -1,5 +1,6 @@
 import AppKit
 import Contacts
+import PHTClient
 import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
@@ -215,6 +216,7 @@ final class MessagesController {
     private var activityObserver: ActivityObserver?
 
     private var windowCoordinator: WindowCoordinator
+    private var phtConnection: PHTConnection?
     private let keyPresser: KeyPresser
     private let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
@@ -343,6 +345,14 @@ final class MessagesController {
 
         windowCoordinator = try getBestWindowCoordinator()
 
+        if Preferences.isPHTEnabled {
+            do {
+                phtConnection = try PHTConnection.create(allowInstall: true)
+            } catch {
+                log.error("failed to create PHT connection: \(String(reflecting: error))")
+            }
+        }
+
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
             // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
             if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
@@ -452,6 +462,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         afterAutomationTask?.cancel()
         elements.clearCachedElements()
         log.debug("prepareForAutomation: making the app automatable")
+        do {
+            try phtConnection?.setMessagesHidden(true)
+        } catch {
+            log.error("failed to hide messages app via pht: \(error)")
+        }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
@@ -1175,6 +1190,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
+        }
+        do {
+            try phtConnection?.setMessagesHidden(false)
+        } catch {
+            log.error("failed to show messages app via pht: \(error)")
         }
     }
 
