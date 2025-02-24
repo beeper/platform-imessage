@@ -452,7 +452,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         afterAutomationTask?.cancel()
         elements.clearCachedElements()
         log.debug("prepareForAutomation: making the app automatable")
-        if Defaults.shouldCoordinateWindow, let mainWindow = try elements.getMainWindow() {
+        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
         activityLock.lock()
@@ -462,7 +462,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("finishedAutomation")
         activityLock.unlock()
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
-        if Defaults.shouldCoordinateWindow, let mainWindow = try elements.getMainWindow() {
+        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             do {
                 try windowCoordinator.automationDidComplete(mainWindow)
             } catch {
