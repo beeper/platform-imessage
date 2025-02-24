@@ -16,6 +16,9 @@ private func randomCase(_ input: String) -> String {
 }
 
 enum DefaultsKeys {
+    static let phtAllowInstallation = "BEEPPHTAllowInstallation"
+    static let phtAllowConnection = "BEEPPHTAllowConnection"
+
     /** controls whether window coordination happens at all, respected on the fly */
     static let windowCoordination = "BEEPWindowCoordination"
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
@@ -54,6 +57,9 @@ enum Defaults {
 
     static func registerDefaults() {
         swiftServer.register(defaults: [
+            DefaultsKeys.phtAllowConnection: true,
+            DefaultsKeys.phtAllowInstallation: true,
+
             DefaultsKeys.windowCoordination: true,
 
             // Messages.app minimum size when resizing with mouse

@@ -344,9 +344,10 @@ final class MessagesController {
 
         windowCoordinator = try getBestWindowCoordinator()
 
-        if Preferences.isPHTEnabled {
+        if Preferences.isPHTEnabled, Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowConnection) {
             do {
-                phtConnection = try PHTConnection.create(allowInstall: true)
+                let allowInstall = Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowInstallation)
+                phtConnection = try PHTConnection.create(allowInstall: allowInstall)
             } catch {
                 log.error("failed to create PHT connection: \(String(reflecting: error))")
             }
