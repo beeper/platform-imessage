@@ -278,7 +278,6 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(_ url: URL, withoutActivation: Bool = true) throws -> NSRunningApplication {
-        log.debug("openDeepLink: \(url)")
         return try NSWorkspace.shared.open(
             url,
             options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
@@ -313,7 +312,7 @@ final class MessagesController {
                 guard selectedAddress == addressToMatch ||
                     (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
                 else {
-                    log.error("ensureSelectedThread: failed to select thread (selectedAddress=\(selectedAddress), addressToMatch=\(addressToMatch))")
+                    log.error("ensureSelectedThread: failed to select thread")
                     throw ErrorMessage("thread not selected")
                 }
             } catch {
@@ -888,8 +887,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func _sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        log.debug("_sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
-
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
         // (since Messages special-cases space-only messages). The NUL byte
@@ -910,8 +907,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        log.debug("sendTypingStatus threadID=\(threadID) isTyping=\(isTyping)")
-
         if !isTyping {
             elideStopTyping = false
             Task {
