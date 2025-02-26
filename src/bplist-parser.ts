@@ -225,6 +225,7 @@ export function parseBuffer(buffer: Buffer) {
       if (length < maxObjectSize) {
         let plistString = Buffer.from(buffer.slice(offset + stroffset, offset + stroffset + length))
         if (isUtf16) {
+          // @ts-expect-error
           plistString = swapBytes(plistString)
           enc = 'ucs2'
         }
