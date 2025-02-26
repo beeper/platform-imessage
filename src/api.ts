@@ -542,7 +542,8 @@ export default class AppleiMessage implements PlatformAPI {
     await controller.undoSend(threadID, JSON.stringify(messageCell))
   }
 
-  private toggleThreadRead = (read: boolean) => async (threadID: ThreadID) => {
+  private toggleThreadRead = (read: boolean) => async (hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     const controller = await MessagesControllerWrapper.get()
     await controller.toggleThreadRead(threadID, read)
   }
