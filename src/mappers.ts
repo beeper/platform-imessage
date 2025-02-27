@@ -12,6 +12,7 @@ import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo, OTRValue } from './types'
+import globalThreadIDHasher from './hashing'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -255,6 +256,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     isSender: msgRow.is_from_me === 1,
     isErrored: msgRow.error !== 0,
     isDelivered: msgRow.is_delivered === 1,
+    // NOTE(skip): if this is ever implemented for groups (read receipts are
+    // possible there when replying), be sure to hash participants
     seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
     extra: {},
   }

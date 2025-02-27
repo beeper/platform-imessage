@@ -6,7 +6,6 @@ private let log = Logger(swiftServerLabel: "osa")
 
 enum OSA {
     private static func run(_ source: String, language: OSALanguage? = .init(forName: "JavaScript")) throws {
-        log.debug("executing: \(source)")
         let script = OSAScript(source: source, language: language)
         var scriptError: NSDictionary?
         let _ = script.executeAndReturnError(&scriptError)

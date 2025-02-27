@@ -246,6 +246,8 @@ enum Preferences {
         SwiftServerLogHandler(identifier: identifier)
     })
 
+    Defaults.registerDefaults()
+
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
     var dict: [String: NodePropertyConvertible] = try [

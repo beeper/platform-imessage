@@ -21,6 +21,7 @@ import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantA
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import globalThreadIDHasher, { globalParticipantIDHasher, hashMessage, hashThread } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -78,7 +79,10 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getCurrentUser = (): CurrentUser => this.currentUser
+  getCurrentUser = (): CurrentUser => ({
+    ...this.currentUser,
+    id: globalParticipantIDHasher.hashAndRemember(this.currentUser.id),
+  })
 
   login = async (): Promise<LoginResult> => {
     await this.initDB()
@@ -151,7 +155,8 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  getThread = async (threadID: ThreadID) => {
+  getThread = async (hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
     const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
@@ -160,7 +165,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getUnreadChatRowIDs(),
       getDNDState(),
     ])
-    return mapThread(
+    return hashThread(mapThread(
       chatRow,
       {
         handleRowsMap: { [chatRow.guid]: handleRows },
@@ -170,7 +175,7 @@ export default class AppleiMessage implements PlatformAPI {
         unreadChatRowIDs,
         dndState,
       },
-    )
+    ))
   }
 
   private catalinaCreateThread = async (userIDs: string[]) => {
@@ -200,8 +205,9 @@ export default class AppleiMessage implements PlatformAPI {
     return thread
   }
 
-  createThread = async (userIDs: string[], title?: string, message?: string) => {
-    if (userIDs.length === 0) return null
+  createThread = async (hashedUserIDs: string[], title?: string, message?: string) => {
+    if (hashedUserIDs.length === 0) return null
+    const userIDs = hashedUserIDs.map(hashedUserID => globalParticipantIDHasher.originalFromHash(hashedUserID))
     this.ensureDB()
     if (!IS_BIG_SUR_OR_UP) return this.catalinaCreateThread(userIDs)
     if (userIDs.length === 1) {
@@ -267,13 +273,14 @@ export default class AppleiMessage implements PlatformAPI {
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
-      items,
+      items: items.map(hashThread),
       hasMore: chatRows.length === THREADS_LIMIT,
       oldestCursor: chatRows[chatRows.length - 1]?.msgDate?.toString(),
     }
   }
 
-  getMessages = async (threadID: ThreadID, pagination: PaginationArg): Promise<Paginated<Message>> => {
+  getMessages = async (hashedThreadID: ThreadID, pagination: PaginationArg): Promise<Paginated<Message>> => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     this.ensureDB()
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const msgRows = await this.dbAPI.getMessages(threadID, cursor, direction)
@@ -286,12 +293,13 @@ export default class AppleiMessage implements PlatformAPI {
     ])
     const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser.id)
     return {
-      items,
+      items: items.map(hashMessage),
       hasMore: msgRows.length === MESSAGES_LIMIT,
     }
   }
 
-  getMessage = async (threadID: ThreadID, messageID: MessageID): Promise<Message> => {
+  getMessage = async (hashedThreadID: ThreadID, messageID: MessageID): Promise<Message> => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     this.ensureDB()
     const [messageGUID] = messageID.split('_')
     const msgRow = await this.dbAPI.getMessage(messageGUID)
@@ -301,12 +309,13 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getMessageReactions([msgRow.guid], threadID),
     ])
     const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser.id)
-    return items.find(i => i.id === messageID)
+    return hashMessage(items.find(i => i.id === messageID))
   }
 
   searchMessages = async (typed: string, pagination: PaginationArg, options: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     this.ensureDB()
-    const { threadID, mediaType, sender } = options
+    const { threadID: hashedThreadID, mediaType, sender } = options
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const mediaOnly = !!mediaType
     const msgRows = await this.dbAPI.searchMessages(typed, threadID, mediaOnly, cursor, direction, sender)
@@ -318,7 +327,7 @@ export default class AppleiMessage implements PlatformAPI {
     ])
     const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser.id, true)
     return {
-      items,
+      items: items.map(hashMessage),
       hasMore: msgRows.length === MESSAGES_LIMIT,
       oldestCursor: msgRows[0]?.date?.toString(),
     }
@@ -381,7 +390,8 @@ export default class AppleiMessage implements PlatformAPI {
       console.log('imessage potentially sent messages to invalid thread')
       return true
     }
-    const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))).filter(Boolean)
+    const hashedThreadID = globalThreadIDHasher.hashAndRemember(threadID)
+    const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(hashedThreadID, guid)))).filter(Boolean)
     for (const message of messages) {
       if (!message.isHidden) {
         const intended = quotedMessageID ?? undefined
@@ -412,7 +422,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendingMessagesCount = 0
 
-  sendMessage = async (threadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+  sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (threadID.startsWith('SMS;-;') && threadID.includes('@')) throw Error('Cannot send message to email address over SMS')
     try {
       this.sendingMessagesCount++
@@ -433,7 +444,8 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  editMessage = async (threadID: ThreadID, messageID: MessageID, content: MessageContent) => {
+  editMessage = async (hashedThreadID: ThreadID, messageID: MessageID, content: MessageContent) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
     const { text } = content
     const messageCell = await this.getMessageCell(threadID, messageID, false)
@@ -442,7 +454,8 @@ export default class AppleiMessage implements PlatformAPI {
     return true
   }
 
-  updateThread = async (threadID: ThreadID, updates: Partial<Thread>) => {
+  updateThread = async (hashedThreadID: ThreadID, updates: Partial<Thread>) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     if ('mutedUntil' in updates) {
       const mc = await MessagesControllerWrapper.get()
@@ -450,13 +463,15 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  deleteThread = async (threadID: ThreadID) => {
+  deleteThread = async (hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     const mc = await MessagesControllerWrapper.get()
     await mc.deleteThread(threadID)
   }
 
-  sendActivityIndicator = async (type: ActivityType, threadID: ThreadID) => {
+  sendActivityIndicator = async (type: ActivityType, hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
     if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
@@ -475,7 +490,7 @@ export default class AppleiMessage implements PlatformAPI {
     // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
     // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
     // const message = messages[part || 0]
-    const message = await this.getMessage(threadID, messageID) as MessageWithExtra
+    const message = await this.getMessage(globalThreadIDHasher.hashAndRemember(threadID), messageID) as MessageWithExtra
     if (!message) throw Error("couldn't find message")
     const [msgRow] = JSON.parse(message._original)
     // use overlay mode only when the message is not in a thread
@@ -509,27 +524,34 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  addReaction = (threadID: ThreadID, messageID: MessageID, reactionKey: string) =>
+  addReaction = (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     this.setReaction(threadID, messageID, reactionKey, true)
+  }
 
-  removeReaction = (threadID: ThreadID, messageID: MessageID, reactionKey: string) =>
+  removeReaction = (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     this.setReaction(threadID, messageID, reactionKey, false)
+  }
 
-  deleteMessage = async (threadID: ThreadID, messageID: MessageID) => {
+  deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
     const messageCell = await this.getMessageCell(threadID, messageID)
     const controller = await MessagesControllerWrapper.get()
     await controller.undoSend(threadID, JSON.stringify(messageCell))
   }
 
-  private toggleThreadRead = (read: boolean) => async (threadID: ThreadID) => {
+  private toggleThreadRead = (read: boolean) => async (hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     const controller = await MessagesControllerWrapper.get()
     await controller.toggleThreadRead(threadID, read)
   }
 
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
-  sendReadReceipt = async (threadID: ThreadID, messageID: MessageID) => {
+  sendReadReceipt = async (hashedThreadID: ThreadID, messageID: MessageID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
         const isRead = await this.dbAPI.isThreadRead(threadID)
@@ -554,14 +576,16 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  notifyAnyway = async (threadID: ThreadID) => {
+  notifyAnyway = async (hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     const controller = await MessagesControllerWrapper.get()
     await controller.notifyAnyway(threadID)
   }
 
   private dndSet = new Set<string>()
 
-  onThreadSelected = async (threadID: ThreadID) => {
+  onThreadSelected = async (hashedThreadID: ThreadID) => {
+    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
     // fired for messagesController
