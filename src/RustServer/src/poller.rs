@@ -246,7 +246,7 @@ impl PollerInner {
         let events: Vec<ServerEvent> = thread_ids
             .into_iter()
             .map(|thread_id| {
-                let hashed_thread_id = &*THREAD_ID_HASHER.hash_and_remember(thread_id);
+                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
                 ServerEvent::B(ThreadMessagesRefreshEvent::new(hashed_thread_id.to_owned()))
             })
             .collect();
@@ -342,7 +342,7 @@ impl PollerInner {
         let events: Vec<ServerEvent> = updates
             .into_iter()
             .map(|(thread_id, is_unread)| {
-                let hashed_thread_id = &*THREAD_ID_HASHER.hash_and_remember(thread_id);
+                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
                 ServerEvent::C(UpdateStateSyncEvent::new(
                     hashed_thread_id.to_owned(),
                     is_unread,
