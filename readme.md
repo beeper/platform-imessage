@@ -4,6 +4,10 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 
 ## Getting Started
 
+Please see
+[the instructions in the desktop repo's README](https://github.com/beeper/beeper-desktop-new#platform-imessage).
+Old instructions kept here for posterity:
+
 [beeper-desktop-new]: https://github.com/beeper/beeper-desktop-new/
 [bdn-imsg-dependency]: https://github.com/beeper/beeper-desktop-new/
 [xcode-mas]: https://apps.apple.com/us/app/xcode/id497799835
@@ -14,6 +18,9 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 [rustserver]: ./src/RustServer/
 [applescriptserver]: ./src/AppleScriptServer/
 [swiftserver]: ./src/SwiftServer/
+
+<details>
+  <summary>Old Instructions</summary>
 
 <!-- prettier-ignore-->
 > [!TIP]
@@ -141,6 +148,8 @@ This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
 
    If you have an instance of `yarn dev`/`bun dev` already running for desktop,
    you'll have to interrupt the command and re-run.
+
+</details>
 
 ## Logs
 
