@@ -15,8 +15,9 @@ pub use globals::{PARTICIPANT_ID_HASHER, THREAD_ID_HASHER};
 // NOTE(skip): not a secret; merely used so that we aren't just hashing the PII standalone
 const HASH_FLAVOR: &str = "50884d99c97714e59ad1a8147a145b5ef5528e40cba846de595af3f043327904";
 
+// `Clone` and `Copy` impls come from napi derive macro
 #[napi]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum HasherKind {
     ThreadID,
     ParticipantID,
