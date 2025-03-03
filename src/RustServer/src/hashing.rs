@@ -9,7 +9,8 @@ use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha512};
 
 pub use error::HasherError;
-pub use globals::{PARTICIPANT_HASHER, THREAD_HASHER};
+#[allow(unused_imports)]
+pub use globals::{PARTICIPANT_ID_HASHER, THREAD_ID_HASHER};
 
 // NOTE(skip): not a secret; merely used so that we aren't just hashing the PII standalone
 const HASH_FLAVOR: &str = "50884d99c97714e59ad1a8147a145b5ef5528e40cba846de595af3f043327904";
@@ -17,21 +18,21 @@ const HASH_FLAVOR: &str = "50884d99c97714e59ad1a8147a145b5ef5528e40cba846de595af
 #[napi]
 #[derive(Debug)]
 pub enum HasherKind {
-    Thread,
-    Participant,
+    ThreadID,
+    ParticipantID,
 }
 
 impl Display for HasherKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HasherKind::Thread => write!(f, "thread"),
-            HasherKind::Participant => write!(f, "thread"),
+            HasherKind::ThreadID => write!(f, "thread"),
+            HasherKind::ParticipantID => write!(f, "thread"),
         }
     }
 }
 
 /// a string encompassing an opaque identifier of a certain type
-/// looks like `imsg##<type>:0123456789abcdef`
+/// looks like: `imsg##<kind>:0123456789abcdef`
 pub type Token = String;
 
 /// "personally identifiable information"
@@ -96,17 +97,18 @@ impl Hasher {
         let inner = Arc::clone(&self.inner);
         let mut lock = inner.lock().expect("mutex poisoned");
 
-        if let Some(cached_digest) = lock.cache.get(pii) {
-            // we've already hashed this
-            return self.wrap_hex(&digest_bytes_to_hex(cached_digest));
-        }
+        let digest_bytes: DigestBytes = if let Some(cached_digest) = lock.cache.get(pii) {
+            *cached_digest
+        } else {
+            lock.hasher.update(self.hash_text(pii));
+            let digest: DigestBytes = lock.hasher.finalize_reset().into();
 
-        lock.hasher.update(self.hash_text(pii));
-        let output: DigestBytes = lock.hasher.finalize_reset().into();
+            lock.cache.insert(pii.to_owned(), digest);
+            lock.originals.insert(digest, pii.to_owned());
+            digest
+        };
 
-        lock.cache.insert(pii.to_owned(), output);
-        lock.originals.insert(output, pii.to_owned());
-        self.wrap_hex(&digest_bytes_to_hex(&output))
+        self.wrap_hex(&digest_bytes_to_hex(&digest_bytes))
     }
 }
 

@@ -11,7 +11,7 @@ use dirs::home_dir;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::error::{ServerError, ServerResult};
-use crate::hashing::THREAD_HASHER;
+use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
 
@@ -246,7 +246,7 @@ impl PollerInner {
         let events: Vec<ServerEvent> = thread_ids
             .into_iter()
             .map(|thread_id| {
-                let hashed_thread_id = &*THREAD_HASHER.hash_and_remember(thread_id);
+                let hashed_thread_id = &*THREAD_ID_HASHER.hash_and_remember(thread_id);
                 ServerEvent::B(ThreadMessagesRefreshEvent::new(hashed_thread_id.to_owned()))
             })
             .collect();
@@ -342,7 +342,7 @@ impl PollerInner {
         let events: Vec<ServerEvent> = updates
             .into_iter()
             .map(|(thread_id, is_unread)| {
-                let hashed_thread_id = &*THREAD_HASHER.hash_and_remember(thread_id);
+                let hashed_thread_id = &*THREAD_ID_HASHER.hash_and_remember(thread_id);
                 ServerEvent::C(UpdateStateSyncEvent::new(
                     hashed_thread_id.to_owned(),
                     is_unread,
