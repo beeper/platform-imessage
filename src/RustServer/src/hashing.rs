@@ -15,6 +15,11 @@ pub use globals::{PARTICIPANT_ID_HASHER, THREAD_ID_HASHER};
 // NOTE(skip): not a secret; merely used so that we aren't just hashing the PII standalone
 const HASH_FLAVOR: &str = "50884d99c97714e59ad1a8147a145b5ef5528e40cba846de595af3f043327904";
 
+// DESK-6988: hex strings of the digests are naturally 128 chars long, which is a bit long.
+// trimming this would increase the likelihood of collision but our main motivator for hashing
+// is preventing PII leaks while retaining a stable identifier
+const HASH_TRIMMED_SIZE_BYTES: usize = 24;
+
 // `Clone` and `Copy` impls come from napi derive macro
 #[napi]
 #[derive(Debug, PartialEq, Eq)]
@@ -40,7 +45,7 @@ pub type Token = String;
 pub type Pii = String;
 
 /// sha-512 hash output
-pub type DigestBytes = [u8; 64];
+pub type DigestBytes = [u8; HASH_TRIMMED_SIZE_BYTES];
 
 fn digest_bytes_to_hex(b: &DigestBytes) -> String {
     base16ct::lower::encode_string(b)
@@ -73,7 +78,7 @@ impl Hasher {
         format!("{kind}_{HASH_FLAVOR}_{input}", kind = self.kind)
     }
 
-    fn wrap_hex(&self, hex: &str) -> Token {
+    fn form_token(&self, hex: &str) -> Token {
         format!("imsg##{kind}:{hex}", kind = self.kind)
     }
 
@@ -102,14 +107,17 @@ impl Hasher {
             *cached_digest
         } else {
             lock.hasher.update(self.hash_text(pii));
-            let digest: DigestBytes = lock.hasher.finalize_reset().into();
+            let full_digest: [u8; 64] = lock.hasher.finalize_reset().into();
+            let trimmed: DigestBytes = full_digest[..HASH_TRIMMED_SIZE_BYTES]
+                .try_into()
+                .expect("digest wasn't long enough"); // shouldn't be impossible
 
-            lock.cache.insert(pii.to_owned(), digest);
-            lock.originals.insert(digest, pii.to_owned());
-            digest
+            lock.cache.insert(pii.to_owned(), trimmed);
+            lock.originals.insert(trimmed, pii.to_owned());
+            trimmed
         };
 
-        self.wrap_hex(&digest_bytes_to_hex(&digest_bytes))
+        self.form_token(&digest_bytes_to_hex(&digest_bytes))
     }
 }
 
