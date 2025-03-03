@@ -46,8 +46,8 @@ fn digest_bytes_to_hex(b: &DigestBytes) -> String {
 }
 
 fn hex_to_bytes(hex: &str) -> Result<DigestBytes, HasherError> {
-    let v = base16ct::lower::decode_vec(hex).map_err(HasherError::DecodingHex)?;
-    v.try_into().map_err(|_| HasherError::IncorrectSize)
+    let byte_vec = base16ct::lower::decode_vec(hex).map_err(HasherError::DecodingHex)?;
+    byte_vec.try_into().map_err(|_| HasherError::IncorrectSize)
 }
 
 #[napi]
