@@ -13,6 +13,7 @@ pub struct PollerServer {
     // For future usage
     #[allow(dead_code)]
     callback: EventCallback,
+
     poller: Poller,
 }
 

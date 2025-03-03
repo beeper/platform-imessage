@@ -16,7 +16,7 @@ use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStat
 use crate::server::EventCallback;
 
 pub struct Poller {
-    pub inner: Arc<Mutex<PollerInner>>,
+    inner: Arc<Mutex<PollerInner>>,
 
     should_stop: Arc<AtomicBool>,
 }
