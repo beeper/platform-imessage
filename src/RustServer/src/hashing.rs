@@ -26,7 +26,7 @@ impl Display for HasherKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             HasherKind::ThreadID => write!(f, "thread"),
-            HasherKind::ParticipantID => write!(f, "thread"),
+            HasherKind::ParticipantID => write!(f, "participant"),
         }
     }
 }
