@@ -21,7 +21,8 @@ import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantA
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
-import globalThreadIDHasher, { globalParticipantIDHasher, hashMessage, hashThread } from './hashing'
+import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
+import { hashMessage, hashThread } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 

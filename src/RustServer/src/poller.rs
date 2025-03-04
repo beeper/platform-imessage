@@ -11,6 +11,7 @@ use dirs::home_dir;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::error::{ServerError, ServerResult};
+use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
 
@@ -147,7 +148,11 @@ impl Poller {
     }
 
     pub fn is_chat_rowid_unread(&self, chat_rowid: u64) -> bool {
-        self.inner.lock().unwrap().unread_chat_set.contains(&chat_rowid)
+        self.inner
+            .lock()
+            .unwrap()
+            .unread_chat_set
+            .contains(&chat_rowid)
     }
 }
 
@@ -240,7 +245,10 @@ impl PollerInner {
 
         let events: Vec<ServerEvent> = thread_ids
             .into_iter()
-            .map(|v| ServerEvent::B(ThreadMessagesRefreshEvent::new(v)))
+            .map(|thread_id| {
+                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
+                ServerEvent::B(ThreadMessagesRefreshEvent::new(hashed_thread_id.to_owned()))
+            })
             .collect();
 
         self.callback
@@ -333,7 +341,13 @@ impl PollerInner {
 
         let events: Vec<ServerEvent> = updates
             .into_iter()
-            .map(|v| ServerEvent::C(UpdateStateSyncEvent::new(v.0, v.1)))
+            .map(|(thread_id, is_unread)| {
+                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
+                ServerEvent::C(UpdateStateSyncEvent::new(
+                    hashed_thread_id.to_owned(),
+                    is_unread,
+                ))
+            })
             .collect();
 
         if !events.is_empty() {
