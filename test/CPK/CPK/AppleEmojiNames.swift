@@ -1,3 +1,4 @@
+// duplicated from SwiftServer
 import Foundation
 
 enum AppleEmojiNames {

@@ -1,17 +1,19 @@
 func printOverrides() {
     let searchEngine = EMFEmojiSearchEngine(locale: .current)!
     let map = searchEngine.overrideList.value(forKey: "_overrideMap") as! [String: [String: Any]]
-    // 0 = raw string exact match, 1 = raw string prefix match, 2 = exact match, 3 = prefix match
-    for (overrideName, overri) in map.sorted(by: { $0.key < $1.key }) {
-        let ov = EMFQueryResultOverride(
-            overridesArray: overri["results"] as? [Any],
-            searchType: overri["searchType"],
-            behavior: overri["overrideBehaviorType"]
+    for (name, metadata) in map.sorted(by: { $0.key < $1.key }) {
+        // there's a real `init` for this but i can't be bothered
+        let override = EMFQueryResultOverride(
+            overridesArray: metadata["results"] as? [Any],
+            // 0 = raw string exact match, 1 = raw string prefix match, 2 = exact match, 3 = prefix match
+            // (these constants could be `overrideBehaviorType` instead of `searchType`, didn't check very hard)
+            searchType: metadata["searchType"],
+            behavior: metadata["overrideBehaviorType"]
         )
-        let out = if let rs = ov?.results {
-            String(reflecting: rs)
+        let stringRepresentation = if let results = override?.results {
+            String(reflecting: results)
         } else { "…" }
-        print("\(overrideName): \(out)")
+        print("\(name) \(stringRepresentation)")
     }
 }
 
@@ -27,6 +29,7 @@ func calculateMappings() async throws {
                     name,
                     name.replacing("flag of ", with: ""),
                     name.hasPrefix("family with") ? "family" : "",
+                    // first word
                     name.split(separator: " ").first.map(String.init),
                 ].compactMap { $0 }
 
@@ -52,6 +55,7 @@ func calculateMappings() async throws {
 
 // don't attempt casts to real types, it won't compile
 CPKAttemptQueryingCPSearchManager("dog", { results in
-    print("\(results)")
+    print("\(String(reflecting: results))")
 })
+// let async callback get invoked
 dispatchMain()
