@@ -679,6 +679,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             if case let .custom(emoji) = reaction {
                 guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                // TODO: support removal?
+                // TODO: support being able to pick a skin tone
                 try elements.addCustomEmojiReactionButton.press()
                 Thread.sleep(forTimeInterval: 1.0) // wait for animation
                 let search: CharacterPickerSearch
@@ -695,8 +697,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     try keyPresser.rightArrow()
                     Thread.sleep(forTimeInterval: 0.05)
                 }
-                Thread.sleep(forTimeInterval: 0.3) // wait for selection
+                Thread.sleep(forTimeInterval: 0.2) // wait for selection
                 try keyPresser.return()
+                if EMFEmojiToken(character: emoji)?.supportsSkinToneVariants == true {
+                    Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
+                    try keyPresser.return()
+                }
                 return
             }
 
