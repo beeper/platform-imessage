@@ -154,6 +154,13 @@ final class MessagesController {
             }
         }
 
+        var idOrEmoji: String {
+            switch self {
+            case let .custom(emoji): String(emoji)
+            default: id!
+            }
+        }
+
         init(emoji: Character) {
             // for robustness, accept emojified codepoints even without U+FE0F
             switch emoji {
@@ -677,9 +684,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 Thread.sleep(forTimeInterval: 0.75)
             }
 
-            if case let .custom(emoji) = reaction {
+            if case let .custom(emoji) = reaction, on {
                 guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
-                // TODO: support removal?
+                // to react with a custom emoji, find the smile button and wrangle the character picker popover
                 // TODO: support being able to pick a skin tone
                 try elements.addCustomEmojiReactionButton.press()
                 Thread.sleep(forTimeInterval: 1.0) // wait for animation
@@ -709,8 +716,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             let btn = try {
                 if isSequoiaOrUp {
-                    return try elements.tapbackPickerCollectionView.children().first { (try? $0.identifier()) == reaction.id }
-                        .orThrow(ErrorMessage("Could not find react button"))
+                    return try elements.tapbackPickerCollectionView.children()
+                        .first {
+                            // standard: "ha", "thumbsUp", etc. custom: emoji string
+                            let identifier = try? $0.identifier()
+                            return identifier == reaction.idOrEmoji
+                        }
+                        .orThrow(ErrorMessage("Could not find \(on ? "react" : "unreact") button"))
                 }
 
                 let idx = reaction.index!
