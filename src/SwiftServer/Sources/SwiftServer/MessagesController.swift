@@ -686,12 +686,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if case let .custom(emoji) = reaction {
                 guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
                 try elements.addCustomEmojiReactionButton.press()
-                Thread.sleep(forTimeInterval: 0.75) // wait for animation
-                guard let emojiName = appleEmojiName(for: emoji) else { throw ErrorMessage("Custom emoji \"\(emoji)\" lacks a corresponding known Apple name, can't react") }
-                try elements.searchFieldWithinPopover.value(assign: emojiName)
+                Thread.sleep(forTimeInterval: 1.0) // wait for animation
+                let search: CharacterPickerSearch
+                do {
+                    search = try CharacterPickerSearch(finding: emoji)
+                } catch {
+                    throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
+                }
+                try elements.searchFieldWithinPopover.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
-                try keyPresser.tab()
-                Thread.sleep(forTimeInterval: 0.2) // wait for selection
+                try keyPresser.downArrow()
+                // press -> enough times to navigate to the emoji
+                for _ in 0..<search.position {
+                    try keyPresser.rightArrow()
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+                Thread.sleep(forTimeInterval: 0.3) // wait for selection
                 try keyPresser.return()
                 return
             }
