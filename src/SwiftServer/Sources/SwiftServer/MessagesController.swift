@@ -4,6 +4,7 @@ import PHTClient
 import Carbon.HIToolbox.Events
 import AccessibilityControl
 import WindowControl
+import EmojiSPI
 import SwiftServerFoundation
 import Logging
 import Combine
@@ -678,14 +679,31 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             if case let .custom(emoji) = reaction {
                 guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                // TODO: support removal?
+                // TODO: support being able to pick a skin tone
                 try elements.addCustomEmojiReactionButton.press()
-                Thread.sleep(forTimeInterval: 0.75) // wait for animation
-                guard let emojiName = appleEmojiName(for: emoji) else { throw ErrorMessage("Custom emoji \"\(emoji)\" lacks a corresponding known Apple name, can't react") }
-                try elements.searchFieldWithinPopover.value(assign: emojiName)
+                Thread.sleep(forTimeInterval: 1.0) // wait for animation
+                let search: CharacterPickerSearch
+                do {
+                    search = try CharacterPickerSearch(finding: emoji)
+                } catch {
+                    throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
+                }
+                try elements.searchFieldWithinPopover.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
-                try keyPresser.tab()
-                Thread.sleep(forTimeInterval: 0.2) // wait for selection
-                try keyPresser.return()
+                // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
+                try keyPresser.downArrow()
+                // 6 columns in the character picker matrix
+                let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
+                // navigate to the emoji
+                for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                Thread.sleep(forTimeInterval: 0.1) // wait for selection
+                try keyPresser.return() // select
+                if EMFEmojiToken(character: emoji)?.supportsSkinToneVariants == true {
+                    Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
+                    try keyPresser.return() // always select default skin tone
+                }
                 return
             }
 
