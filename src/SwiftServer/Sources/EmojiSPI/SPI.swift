@@ -6,9 +6,10 @@ import Foundation
 public final class CPKDefaultDataSource {
     public static func localizedName(for character: String) -> String? {
         Bundle(path: "/System/Library/PrivateFrameworks/CharacterPicker.framework")?.load()
-        guard let clazz = NSClassFromString("CPKDefaultDataSource") as? NSObject? else { return nil }
-        guard let string = clazz?.perform(Selector(("localizedCharacterName:")), with: character as NSString) as? Unmanaged<NSString>? else { return nil }
-        guard let name = string?.takeUnretainedValue() as? String else { return nil }
+        guard let clazz = NSClassFromString("CPKDefaultDataSource") as? NSObject.Type,
+              let unmanagedString = clazz.perform(Selector(("localizedCharacterName:")), with: character as NSString),
+              let name = unmanagedString.takeUnretainedValue() as? String
+        else { return nil }
         return name
     }
 }
@@ -19,10 +20,12 @@ public final class EMFEmojiSearchEngine {
 
     public init?(locale: Locale) {
         Bundle(path: "/System/Library/PrivateFrameworks/EmojiFoundation.framework")?.load()
-        guard let clazz = NSClassFromString("EMFEmojiSearchEngine") else { return nil }
-        let uninitialized = clazz.alloc()
-        guard let instance = uninitialized.perform(Selector(("initWithLocale:")), with: locale) else { return nil }
-        underlying = instance.takeUnretainedValue() as! NSObject
+        guard let clazz = NSClassFromString("EMFEmojiSearchEngine"),
+              case let uninitialized = clazz.alloc(),
+              let unmanaged = uninitialized.perform(Selector(("initWithLocale:")), with: locale),
+              let engine = unmanaged.takeUnretainedValue() as? NSObject
+        else { return nil }
+        underlying = engine
     }
 
     public func query(_ query: String) -> [String] {
