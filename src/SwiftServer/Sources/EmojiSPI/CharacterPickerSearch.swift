@@ -7,9 +7,12 @@ public struct CharacterPickerSearch {
     /// zero-indexed
     public var position: Int
 
-    public init(finding emoji: Character) throws(Error) {
-        guard let localizedName = CPKDefaultDataSource.localizedName(for: String(emoji)) else { throw .noLocalizedName }
-        guard let searchEngine = EMFEmojiSearchEngine(locale: .current) else { throw .noEmojiSearchEngine }
+    public init(finding emoji: Character) throws {
+        guard let localizedName = try CPKDefaultDataSource.localizedName(for: String(emoji)) else {
+            throw Error.noLocalizedName
+        }
+
+        let searchEngine = try EMFEmojiSearchEngine()
 
         let queriesToAttempt = [
             localizedName,
@@ -33,14 +36,14 @@ public struct CharacterPickerSearch {
 
         guard let firstSuceedingQuery else {
             // exhausted all queries, couldn't find where the emoji is in the picker
-            throw .noSucceedingQuery
+            throw Error.noSucceedingQuery
         }
 
         self.emoji = emoji
         (query, position) = firstSuceedingQuery
     }
 
-    public enum Error: Swift.Error, CaseIterable, Hashable {
+    public enum Error: Swift.Error, Hashable {
         case noLocalizedName
         case noEmojiSearchEngine
         case noSucceedingQuery

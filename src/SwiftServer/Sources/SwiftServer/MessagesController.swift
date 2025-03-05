@@ -700,7 +700,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
                 Thread.sleep(forTimeInterval: 0.1) // wait for selection
                 try keyPresser.return() // select
-                if EMFEmojiToken(character: emoji)?.supportsSkinToneVariants == true {
+                if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
                     Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
                     try keyPresser.return() // always select default skin tone
                 }
