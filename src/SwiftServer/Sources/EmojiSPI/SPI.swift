@@ -28,11 +28,23 @@ public final class EMFEmojiToken {
     }
 
     public var supportsSkinToneVariants: Bool? {
-        typealias Getter = @convention(c) (NSObject) -> Bool
         // can't use perform because it doesn't return an object
-        guard let method = class_getInstanceMethod(type(of: underlying), Selector(("supportsSkinToneVariants"))) else { return nil }
-        let imp = unsafeBitCast(method_getImplementation(method), to: Getter.self)
-        return imp(underlying)
+        let supportsSkinToneVariantsSelector = Selector(("supportsSkinToneVariants"))
+        guard let method = class_getInstanceMethod(type(of: underlying), supportsSkinToneVariantsSelector) else { return nil }
+
+        // verify that the method has the type we expect
+        // FIXME: use `method_getReturnType`, `method_getArgumentType` instead?
+        guard let encoding = method_getTypeEncoding(method).map(String.init(cString:)) else { return nil }
+        // types are followed by their (absolute) offsets
+        // in method type encodings, the return type comes before params
+        //
+        // "B16" -> bool is returned
+        // "@0"  -> first IMP param is ObjC object
+        // ":8"  -> second IMP param is ObjC selector
+        guard encoding == "B16@0:8" else { return nil }
+
+        typealias GetterIMP = @convention(c) (Any, Selector) -> Bool
+        return unsafeBitCast(method_getImplementation(method), to: GetterIMP.self)(underlying, supportsSkinToneVariantsSelector)
     }
 }
 
