@@ -691,17 +691,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
                 try elements.searchFieldWithinPopover.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
+                // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
                 try keyPresser.downArrow()
-                // press -> enough times to navigate to the emoji
-                for _ in 0..<search.position {
-                    try keyPresser.rightArrow()
-                    Thread.sleep(forTimeInterval: 0.05)
-                }
-                Thread.sleep(forTimeInterval: 0.2) // wait for selection
-                try keyPresser.return()
+                // 6 columns in the character picker matrix
+                let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
+                // navigate to the emoji
+                for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                Thread.sleep(forTimeInterval: 0.1) // wait for selection
+                try keyPresser.return() // select
                 if EMFEmojiToken(character: emoji)?.supportsSkinToneVariants == true {
                     Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
-                    try keyPresser.return()
+                    try keyPresser.return() // always select default skin tone
                 }
                 return
             }
