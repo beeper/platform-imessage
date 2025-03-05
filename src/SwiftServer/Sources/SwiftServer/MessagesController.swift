@@ -342,12 +342,6 @@ final class MessagesController {
     }
 
     init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
-        if #available(macOS 15, *) {
-            let engine = EMFEmojiSearchEngine(locale: .current)
-            guard let engine else { fatalError("no engine") }
-            let results = engine.query("smile")
-            print("RESULTS: \(results)")
-        }
         self.reportToSentry = reportToSentry
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
