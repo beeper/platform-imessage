@@ -274,7 +274,7 @@ final class MessagesAppElements {
         }
     }
 
-    // unused - we just simulate pressing <tab> <return> to select the first result, but leaving in case it's useful
+    // TODO: leverage to implement sticker avoidance (DESK-7141)
 #if false
     var customEmojiPopoverCharacters: [Accessibility.Element] {
         get throws {

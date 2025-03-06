@@ -4,6 +4,9 @@ import { threadHasher as globalThreadIDHasher, participantHasher as globalPartic
 export function hashReaction(reaction: MessageReaction): MessageReaction {
   return {
     ...reaction,
+    // imessage doesn't support `allowsMultipleReactionsToSingleMessage`, so we
+    // can just straightforwardly hash the id (participant id) here
+    id: globalParticipantIDHasher.hashAndRemember(reaction.id),
     participantID: globalParticipantIDHasher.hashAndRemember(reaction.participantID),
   }
 }

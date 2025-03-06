@@ -36,6 +36,18 @@ class KeyPresser {
         }
     }
 
+    func downArrow() throws {
+        try runOnMainThread {
+            try press(key: CGKeyCode(kVK_DownArrow))
+        }
+    }
+
+    func rightArrow() throws {
+        try runOnMainThread {
+            try press(key: CGKeyCode(kVK_RightArrow))
+        }
+    }
+
     func tab() throws {
         try runOnMainThread {
             try press(key: CGKeyCode(kVK_Tab))

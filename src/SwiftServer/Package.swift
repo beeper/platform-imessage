@@ -35,9 +35,12 @@ let package = Package(
                 .product(name: "NodeAPI", package: "node-swift"),
                 .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
-                "CUnfairLock"
+                "CUnfairLock",
+                "EmojiSPI",
             ]
         ),
+        .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
+        .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
         .target(
             name: "CUnfairLock",
             dependencies: []
