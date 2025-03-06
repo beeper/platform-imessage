@@ -39,7 +39,7 @@ let package = Package(
                 "EmojiSPI",
             ]
         ),
-        .target(name: "EmojiSPI"),
+        .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
         .target(
             name: "CUnfairLock",
