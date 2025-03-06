@@ -120,8 +120,11 @@ public final class EMFEmojiSearchEngine {
         underlying = engine
     }
 
-    public func query(_ query: String) -> [String] {
-        guard let results = underlying.perform(Selector(("performStringQuery:")), with: query) else { return [] }
+    public func query(_ query: String) throws(SPIError) -> [String] {
+        let methodName = "performStringQuery:"
+        guard let results = underlying.perform(Selector(methodName), with: query) else {
+            throw .nilResponse(method: methodName)
+        }
         return results.takeUnretainedValue() as? [String] ?? []
     }
 }

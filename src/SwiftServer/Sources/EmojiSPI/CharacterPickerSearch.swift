@@ -23,10 +23,10 @@ public struct CharacterPickerSearch {
             "flag",
         ].compactMap { $0 }
 
-        let firstSuceedingQuery = queriesToAttempt
+        let firstSuceedingQuery = try queriesToAttempt
             .lazy
             .compactMap { query -> (String, Int)? in
-                let results = searchEngine.query(query)
+                let results = try searchEngine.query(query)
                 guard !results.isEmpty,
                       let position = results.firstIndex(where: { $0.first?.withoutVariantSelectors == emoji.withoutVariantSelectors })
                 else { return nil }
