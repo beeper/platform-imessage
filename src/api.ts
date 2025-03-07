@@ -557,7 +557,7 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         const isRead = await this.dbAPI.isThreadRead(threadID)
         if (isRead) return
-        await this.toggleThreadRead(true)(threadID)
+        await this.toggleThreadRead(true)(hashedThreadID)
         if (!IS_VENTURA_OR_UP) {
           await setTimeoutAsync(50)
           if (!await this.dbAPI.isThreadRead(threadID)) {
