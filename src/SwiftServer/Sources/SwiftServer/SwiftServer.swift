@@ -213,7 +213,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
 
     @NodeMethod func dispose() throws {
         guard !hasBeenDisposed else {
-            // NOTE(skip): Guard against `dispose` being called more than once, which triggers a UAF. DESK-7237
+            // NOTE(skip): Guard against `dispose` being called more than once, which triggers a UAF via napi_remove_env_cleanup_hook. (DESK-7237)
             Log.default.warning("[MessagesControllerWrapper] dispose called when already disposed, ignoring")
             return
         }
