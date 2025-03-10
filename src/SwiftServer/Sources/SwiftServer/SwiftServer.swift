@@ -86,6 +86,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     let hook: AsyncCleanupHook
     // must be called on JS queue
     init(controller: MessagesController) throws {
+        Log.default.notice("[MessagesControllerWrapper] init")
         self.controller = controller
         self.swiftJSQueue = try NodeAsyncQueue(label: "messages-controller-async")
         self.watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
@@ -210,6 +211,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     }
 
     @NodeMethod func dispose() throws {
+        Log.default.notice("[MessagesControllerWrapper] disposing")
         Self.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
     }
