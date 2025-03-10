@@ -77,6 +77,7 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     }
 
     private var threadObserveRequestToken: UUID?
+    private var hasBeenDisposed = false
     private let threadObserveRequestTokenLock = UnfairLock()
 
     private let swiftJSQueue: NodeAsyncQueue
@@ -211,6 +212,13 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     }
 
     @NodeMethod func dispose() throws {
+        guard !hasBeenDisposed else {
+            // NOTE(skip): Guard against `dispose` being called more than once, which triggers a UAF. DESK-7237
+            Log.default.warning("[MessagesControllerWrapper] dispose called when already disposed, ignoring")
+            return
+        }
+        hasBeenDisposed = true
+
         Log.default.notice("[MessagesControllerWrapper] disposing")
         Self.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
