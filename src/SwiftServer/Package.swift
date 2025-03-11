@@ -21,7 +21,7 @@ let package = Package(
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
         .package(url: "https://github.com/sindresorhus/ExceptionCatcher", from: "2.0.1"),
-        .package(url: "https://github.com/beeper/PHTCommon.git", .revision("e45a24a6febb560578581c88b60b048bdb9649ea")),
+        .package(url: "https://github.com/beeper/PHTCommon.git", .revision("cbbf93dfa5e084776f3ff0eaf9bb8dff9f2830bf")),
         .package(url: "https://github.com/TextsHQ/BetterSwiftAX", .branch("main")),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0")
     ],
