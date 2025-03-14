@@ -19,7 +19,7 @@ const info: PlatformInfo = {
   // @ts-expect-error - `brand` is valid, but we cannot update `platform-sdk`. See PLT-1246
   brand: {
     iconBackground: '#19BA3B',
-    iconName: 'iMessage',
+    iconName: 'imessage',
   },
   loginMode: 'custom',
   deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,
