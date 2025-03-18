@@ -258,7 +258,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     // NOTE(skip): if this is ever implemented for groups (read receipts are
     // possible there when replying), be sure to hash participants
     seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
-    extra: {},
+    // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
+    // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
+    // not track an unread count.
+    extra: { countsAsUnread: true } as any,
   }
 
   if (msgRow.date_retracted || msgRow.was_detonated) partialMessage.isDeleted = true
