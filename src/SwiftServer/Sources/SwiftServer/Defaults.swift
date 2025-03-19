@@ -34,6 +34,7 @@ enum DefaultsKeys {
     static let onlyEclipseIfEncompasses = "BEEPOnlyEclipseIfEncompasses"
     static let eclipsingOffsetX = "BEEPEclipsingOffsetX"
     static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
+    static let eclipsingAlignment = "BEEPEclipsingAlignment"
     /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 
@@ -68,6 +69,7 @@ enum Defaults {
             DefaultsKeys.eclipsingWindowClassNamePrefix: "Electron",
             DefaultsKeys.eclipsingUsesLargestWindow: true,
             DefaultsKeys.onlyEclipseIfEncompasses: true,
+            DefaultsKeys.eclipsingAlignment: "right",
             DefaultsKeys.eclipsingOffsetX: 0.0,
             // positive values nudge the Messages window downwards
             // if set to 0.0, doesn't seem to be flush? are we targeting the right thing?

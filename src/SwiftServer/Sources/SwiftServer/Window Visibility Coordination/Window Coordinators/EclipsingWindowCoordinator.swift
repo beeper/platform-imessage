@@ -54,10 +54,22 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         log.notice("eclipsing")
         hideDebouncer.immediatelyUnhide()
         try messagesWindow.size(assign: targetSize)
-        var electronOrigin = largestElectronWindow.frame.origin
-        electronOrigin.x += Self.eclipsingOffsetX
-        electronOrigin.y += Self.eclipsingOffsetY
-        try messagesWindow.position(assign: electronOrigin)
+
+        // NOTE: The origin rests at the top left corner. (This is generally true for AppKit and Core Graphics on macOS in general.)
+        var newPosition = largestElectronWindow.frame.origin
+
+        if Self.eclipsingAlignment == "right" {
+            // Make the right edge of the Messages window hug the right edge of the Beeper window.
+            // This is useful to avoid the window showing through a material in the Beeper window.
+            newPosition.x = largestElectronWindow.frame.maxX - targetSize.width
+        } else {
+            // `electronOrigin` is "left-aligned" by default.
+        }
+
+        newPosition.x += Self.eclipsingOffsetX
+        newPosition.y += Self.eclipsingOffsetY
+
+        try messagesWindow.position(assign: newPosition)
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
@@ -95,6 +107,7 @@ private extension EclipsingWindowCoordinator {
     private static var shouldOnlyEclipseIfEncompasses: Bool { Defaults.swiftServer.bool(forKey: DefaultsKeys.onlyEclipseIfEncompasses) }
     private static var eclipsingOffsetX: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetX) }
     private static var eclipsingOffsetY: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetY) }
+    private static var eclipsingAlignment: String? { Defaults.swiftServer.string(forKey: DefaultsKeys.eclipsingAlignment) }
 
     private static var minimumMessagesAppSize: NSSize {
         NSSize(
