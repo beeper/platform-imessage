@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["RustServer"]
+members = ["RustServer", "hashing"]
+
+[workspace.dependencies]
+thiserror = "1"
+napi = { version = "2", features = ["napi8"] }
+napi-derive = "2.0.6"
+napi-build = "1.2.1"
 
 [profile.release]
 lto = true

@@ -2,28 +2,21 @@
 name = "rust_server"
 version = "0.5.0"
 edition = "2021"
+publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 dirs = "3"
-thiserror = "1"
-napi-derive = "2.0.6"
-rustc-hash = "2.1.1"
-sha2 = "0.10.8"
-
-[dependencies.base16ct]
-version = "0.2.0"
-features = ["alloc"]
+hashing = { path = "../hashing", features = ["napi"] }
+napi.workspace = true
+napi-derive.workspace = true
+thiserror.workspace = true
 
 [dependencies.rusqlite]
 version = "0.25"
 features = ["bundled"]
 
-[dependencies.napi]
-version = "2"
-features = ["napi8"]
-
 [build-dependencies]
-napi-build = "1.2.1"
+napi-build.workspace = true

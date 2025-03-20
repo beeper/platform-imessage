@@ -1,0 +1,20 @@
+[package]
+name = "hashing"
+version = "0.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+rustc-hash = "2.1.1"
+sha2 = "0.10.8"
+base16ct = { version = "0.2.0", features = ["alloc"] }
+thiserror.workspace = true
+napi = { optional = true, workspace = true }
+
+[features]
+napi = ["dep:napi"]
+
+[build-dependencies]
+napi-build.workspace = true

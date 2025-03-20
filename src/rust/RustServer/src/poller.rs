@@ -11,9 +11,9 @@ use dirs::home_dir;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::error::{ServerError, ServerResult};
-use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
+use hashing::THREAD_ID_HASHER;
 
 pub struct Poller {
     inner: Arc<Mutex<PollerInner>>,

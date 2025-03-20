@@ -1,5 +1,4 @@
-use crate::hashing::DigestBytes;
-use napi::bindgen_prelude::Error as NapiError;
+use crate::DigestBytes;
 
 #[derive(thiserror::Error, Debug)]
 pub enum HasherError {
@@ -13,8 +12,9 @@ pub enum HasherError {
     MalformedInput(String),
 }
 
-impl From<HasherError> for NapiError {
+#[cfg(feature = "napi")]
+impl From<HasherError> for napi::bindgen_prelude::Error {
     fn from(error: HasherError) -> Self {
-        NapiError::from_reason(format!("{}", error)).into()
+        napi::bindgen_prelude::Error::from_reason(format!("{}", error))
     }
 }

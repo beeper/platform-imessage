@@ -1,144 +1,21 @@
-mod error;
-mod globals;
+use hashing::{PARTICIPANT_ID_HASHER, THREAD_ID_HASHER};
 
-use napi::bindgen_prelude::ToNapiValue;
-use std::fmt::Display;
-use std::sync::{Arc, Mutex};
-
-use rustc_hash::FxHashMap;
-use sha2::{Digest, Sha512};
-
-pub use error::HasherError;
-#[allow(unused_imports)]
-pub use globals::{PARTICIPANT_ID_HASHER, THREAD_ID_HASHER};
-
-// NOTE(skip): not a secret; merely used so that we aren't just hashing the PII standalone
-const HASH_FLAVOR: &str = "50884d99c97714e59ad1a8147a145b5ef5528e40cba846de595af3f043327904";
-
-// DESK-6988: hex strings of the digests are naturally 128 chars long, which is a bit long.
-// trimming this would increase the likelihood of collision but our main motivator for hashing
-// is preventing PII leaks while retaining a stable identifier
-const HASH_TRIMMED_SIZE_BYTES: usize = 24;
-
-// `Clone` and `Copy` impls come from napi derive macro
 #[napi]
-#[derive(Debug, PartialEq, Eq)]
-pub enum HasherKind {
-    ThreadID,
-    ParticipantID,
-}
-
-impl Display for HasherKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HasherKind::ThreadID => write!(f, "thread"),
-            HasherKind::ParticipantID => write!(f, "participant"),
-        }
-    }
-}
-
-/// a string encompassing an opaque identifier of a certain type
-/// looks like: `imsg##<kind>:0123456789abcdef`
-pub type Token = String;
-
-/// "personally identifiable information"
-pub type Pii = String;
-
-/// sha-512 hash output
-pub type DigestBytes = [u8; HASH_TRIMMED_SIZE_BYTES];
-
-fn digest_bytes_to_hex(b: &DigestBytes) -> String {
-    base16ct::lower::encode_string(b)
-}
-
-fn hex_to_bytes(hex: &str) -> Result<DigestBytes, HasherError> {
-    let byte_vec = base16ct::lower::decode_vec(hex).map_err(HasherError::DecodingHex)?;
-    byte_vec.try_into().map_err(|_| HasherError::IncorrectSize)
+fn hash_thread_id(thread_id: String) -> String {
+    THREAD_ID_HASHER.hash_and_remember(thread_id)
 }
 
 #[napi]
-#[derive(Clone)]
-pub struct Hasher {
-    kind: HasherKind,
-    // interior mutability for convenient access from JS and Rust
-    inner: Arc<Mutex<HasherInner>>,
+fn hash_participant_id(participant_id: String) -> String {
+    PARTICIPANT_ID_HASHER.hash_and_remember(participant_id)
 }
 
 #[napi]
-impl Hasher {
-    #[napi(constructor)]
-    pub fn new(kind: HasherKind) -> Self {
-        Self {
-            kind,
-            inner: Arc::new(Mutex::new(HasherInner::default())),
-        }
-    }
-
-    fn hash_text(&self, input: &str) -> String {
-        format!("{kind}_{HASH_FLAVOR}_{input}", kind = self.kind)
-    }
-
-    fn form_token(&self, hex: &str) -> Token {
-        format!("imsg##{kind}:{hex}", kind = self.kind)
-    }
-
-    pub fn original(&self, token: Token) -> Result<Pii, HasherError> {
-        let Some((_, hex)) = token.split_once(':') else {
-            return Err(HasherError::MalformedInput(token));
-        };
-
-        let inner = Arc::clone(&self.inner);
-        let lock = inner.lock().expect("mutex poisoned");
-
-        let digest_bytes = hex_to_bytes(&hex)?;
-        let Some(pii) = lock.originals.get(&digest_bytes) else {
-            return Err(HasherError::OriginalNotFound(digest_bytes));
-        };
-        Ok(pii.clone())
-    }
-
-    pub fn hash_and_remember(&self, pii: impl AsRef<str>) -> Token {
-        let pii = pii.as_ref();
-
-        let inner = Arc::clone(&self.inner);
-        let mut lock = inner.lock().expect("mutex poisoned");
-
-        let digest_bytes: DigestBytes = if let Some(cached_digest) = lock.cache.get(pii) {
-            *cached_digest
-        } else {
-            lock.hasher.update(self.hash_text(pii));
-            let full_digest: [u8; 64] = lock.hasher.finalize_reset().into();
-            let trimmed: DigestBytes = full_digest[..HASH_TRIMMED_SIZE_BYTES]
-                .try_into()
-                .expect("digest wasn't long enough"); // shouldn't be impossible
-
-            lock.cache.insert(pii.to_owned(), trimmed);
-            lock.originals.insert(trimmed, pii.to_owned());
-            trimmed
-        };
-
-        self.form_token(&digest_bytes_to_hex(&digest_bytes))
-    }
+fn original_thread_id(hashed: String) -> napi::Result<String> {
+    Ok(THREAD_ID_HASHER.original(hashed)?)
 }
 
-struct HasherInner {
-    pub(crate) originals: FxHashMap<DigestBytes, Pii>,
-    pub(crate) cache: FxHashMap<Token, DigestBytes>,
-    pub(crate) hasher: Sha512,
-}
-
-impl HasherInner {
-    fn new() -> Self {
-        Self {
-            originals: FxHashMap::default(),
-            cache: FxHashMap::default(),
-            hasher: Sha512::default(),
-        }
-    }
-}
-
-impl Default for HasherInner {
-    fn default() -> Self {
-        Self::new()
-    }
+#[napi]
+fn original_participant_id(hashed: String) -> napi::Result<String> {
+    Ok(PARTICIPANT_ID_HASHER.original(hashed)?)
 }
