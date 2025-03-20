@@ -1,0 +1,5 @@
+language = "C"
+
+[export.rename]
+"CToken" = "rs_token_t"
+"CTokenMut" = "rs_token_mut_t"

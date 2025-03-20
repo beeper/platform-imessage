@@ -10,8 +10,8 @@ crate-type = ["cdylib"]
 [dependencies]
 dirs = "3"
 hashing = { path = "../hashing", features = ["napi"] }
-napi.workspace = true
 napi-derive.workspace = true
+napi.workspace = true
 thiserror.workspace = true
 
 [dependencies.rusqlite]

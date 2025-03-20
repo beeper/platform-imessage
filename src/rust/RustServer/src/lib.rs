@@ -6,3 +6,5 @@ mod hashing;
 mod poller;
 mod sdk;
 mod server;
+
+pub mod capi;
