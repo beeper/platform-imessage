@@ -27,8 +27,3 @@ features = ["napi8"]
 
 [build-dependencies]
 napi-build = "1.2.1"
-
-[profile.release]
-lto = true
-codegen-units = 1
-strip = true
