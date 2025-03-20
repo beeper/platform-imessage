@@ -46,7 +46,7 @@ impl Hasher {
         let inner = Arc::clone(&self.inner);
         let lock = inner.lock().expect("mutex poisoned");
 
-        let digest_bytes = hex_to_bytes(&hex)?;
+        let digest_bytes = hex_to_bytes(hex)?;
         let Some(pii) = lock.originals.get(&digest_bytes) else {
             return Err(HasherError::OriginalNotFound(digest_bytes));
         };

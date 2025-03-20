@@ -276,11 +276,7 @@ impl PollerInner {
             res
         };
 
-        let thread_ids: Vec<String> = rows
-            .iter()
-            .filter(|r| r.thread_guid.is_some())
-            .map(|r| r.thread_guid.clone().unwrap())
-            .collect();
+        let thread_ids: Vec<String> = rows.iter().filter_map(|r| r.thread_guid.clone()).collect();
 
         self.send_thread_messages_refresh_event(thread_ids);
 
