@@ -21,7 +21,7 @@
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
     "build-swift": "node --loader ts-node/esm src/SwiftServer/build-swift.ts",
     "build-as-server": "src/AppleScriptServer/build-as-server.sh",
-    "build-rust-server": "src/RustServer/build-rust-server.sh",
+    "build-rust-server": "src/rust/build-rust-server.sh",
     "build-binaries": "yarn build-as-server && yarn build-rust-server && yarn build-swift",
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
