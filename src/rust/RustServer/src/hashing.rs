@@ -1,4 +1,11 @@
+#![allow(dead_code)]
+
 use hashing::{PARTICIPANT_ID_HASHER, THREAD_ID_HASHER};
+
+// Hashing entrypoints for N-API.
+//
+// These are consolidated here (instead of in `hashing`) in order to relieve that crate of having
+// to care too much about FFI details.
 
 #[napi]
 fn hash_thread_id(thread_id: String) -> String {
