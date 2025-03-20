@@ -19,10 +19,10 @@ fn hash_participant_id(participant_id: String) -> String {
 
 #[napi]
 fn original_thread_id(hashed: String) -> napi::Result<String> {
-    Ok(THREAD_ID_HASHER.original(hashed)?)
+    Ok(THREAD_ID_HASHER.original(&hashed)?)
 }
 
 #[napi]
 fn original_participant_id(hashed: String) -> napi::Result<String> {
-    Ok(PARTICIPANT_ID_HASHER.original(hashed)?)
+    Ok(PARTICIPANT_ID_HASHER.original(&hashed)?)
 }

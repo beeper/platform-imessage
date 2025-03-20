@@ -38,9 +38,9 @@ impl Hasher {
         format!("imsg##{kind}:{hex}", kind = self.kind)
     }
 
-    pub fn original(&self, token: Token) -> Result<Pii, HasherError> {
+    pub fn original(&self, token: &str) -> Result<Pii, HasherError> {
         let Some((_, hex)) = token.split_once(':') else {
-            return Err(HasherError::MalformedInput(token));
+            return Err(HasherError::MalformedInput(token.to_owned()));
         };
 
         let inner = Arc::clone(&self.inner);
