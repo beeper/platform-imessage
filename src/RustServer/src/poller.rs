@@ -256,6 +256,10 @@ impl PollerInner {
     }
 
     fn poll_message_updates(&mut self) -> ServerResult<()> {
+    // Discovers all new messages according to the last known message `ROWID` and `date_read`,
+    // returning a `Vec` of thread GUIDs that changed.
+    //
+    // The cursors (last known message `ROWID` and `date_read`) are updated.
         // Scoped block drops immutable borrow of conn.
         let rows: Vec<PollMessageResultRow> = {
             let mut stmt = self.conn.prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)?;
@@ -323,6 +327,8 @@ impl PollerInner {
     }
 
     fn poll_chat_updates(&mut self) -> ServerResult<()> {
+    // Queries for all chats that are unread, compares them to the currently known set of unread
+    // chats, and sends `STATE_SYNC` events to the renderer accordingly.
         let unread_chat_ids = self.query_unread_chats()?;
         let mut updates: Vec<(String, bool)> = Vec::new();
 
