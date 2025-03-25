@@ -586,6 +586,11 @@ export default class AppleiMessage implements PlatformAPI {
   private dndSet = new Set<string>()
 
   onThreadSelected = async (hashedThreadID: ThreadID) => {
+    // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored
+    // fork of platform-sdk that lets the thread ID be null. We currently don't
+    // use that fork, but we ought to.
+    if (!hashedThreadID) return
+
     const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
