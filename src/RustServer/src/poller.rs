@@ -227,8 +227,14 @@ impl PollerInner {
     }
 
     fn run_subtasks(&mut self) {
-        self.poll_message_updates().ok();
-        self.poll_chat_updates().ok();
+        let thread_guids_with_new_messages = self.poll_message_updates().unwrap_or_default();
+        // Don't emit state syncs for threads becoming unread due to new messages. See the comment
+        // in `poll_chat_updates` for more details.
+        //
+        // Note how threads that are merely manually marked as unread will still cause a
+        // corresponding state sync, because no new messages were received (and therefore not
+        // returned out of `poll_message_updates`).
+        self.poll_chat_updates(&thread_guids_with_new_messages).ok();
         self.poll_last_failed_message();
     }
 
@@ -238,7 +244,7 @@ impl PollerInner {
         }
     }
 
-    fn send_thread_messages_refresh_event(&mut self, thread_ids: Vec<String>) {
+    fn send_thread_messages_refresh_event(&mut self, thread_ids: &[String]) {
         if thread_ids.is_empty() {
             return;
         }
@@ -255,7 +261,11 @@ impl PollerInner {
             .call(events, ThreadsafeFunctionCallMode::NonBlocking);
     }
 
-    fn poll_message_updates(&mut self) -> ServerResult<()> {
+    // Discovers all new messages according to the last known message `ROWID` and `date_read`,
+    // returning a `Vec` of thread GUIDs that changed.
+    //
+    // The cursors (last known message `ROWID` and `date_read`) are updated.
+    fn poll_message_updates(&mut self) -> ServerResult<Vec<String>> {
         // Scoped block drops immutable borrow of conn.
         let rows: Vec<PollMessageResultRow> = {
             let mut stmt = self.conn.prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)?;
@@ -282,11 +292,11 @@ impl PollerInner {
             .map(|r| r.thread_guid.clone().unwrap())
             .collect();
 
-        self.send_thread_messages_refresh_event(thread_ids);
+        self.send_thread_messages_refresh_event(&thread_ids);
 
         self.update_cursors(rows);
 
-        Ok(())
+        Ok(thread_ids)
     }
 
     fn query_unread_chats(&mut self) -> ServerResult<HashSet<u64>> {
@@ -322,7 +332,9 @@ impl PollerInner {
         rows.next()?.ok()?
     }
 
-    fn poll_chat_updates(&mut self) -> ServerResult<()> {
+    // Queries for all chats that are unread, compares them to the currently known set of unread
+    // chats, and sends `STATE_SYNC` events to the renderer accordingly.
+    fn poll_chat_updates(&mut self, chat_ids_with_new_messages: &[String]) -> ServerResult<()> {
         let unread_chat_ids = self.query_unread_chats()?;
         let mut updates: Vec<(String, bool)> = Vec::new();
 
@@ -333,7 +345,15 @@ impl PollerInner {
         }
         for chat_id in unread_chat_ids.difference(&self.unread_chat_set) {
             if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
-                updates.push((chat_guid, true));
+                // Avoid sending a state sync indicating unread for threads that have new messages,
+                // because those messages, when synced, will themselves mark the thread as unread
+                // and increment the unread count. This behavior only occurs with Beeper Desktop;
+                // it recognizes the `countsAsUnread` field within messages' extra data. If we were
+                // to send the thread update too, then the unread count would begin at two instead
+                // of one.
+                if !chat_ids_with_new_messages.contains(&chat_guid) {
+                    updates.push((chat_guid, true));
+                }
             }
         }
 
@@ -364,7 +384,7 @@ impl PollerInner {
             self.last_failed_message_rowid = last_failed_message_rowid;
             if let Some(rowid) = last_failed_message_rowid {
                 if let Some(chat_guid) = self.get_chat_guid_from_msg_rowid(&rowid) {
-                    self.send_thread_messages_refresh_event(vec![chat_guid]);
+                    self.send_thread_messages_refresh_event(&[chat_guid]);
                 }
             }
         }
