@@ -3,6 +3,7 @@ extern crate napi_derive;
 
 mod error;
 mod hashing;
+mod log;
 mod poller;
 mod sdk;
 mod server;
