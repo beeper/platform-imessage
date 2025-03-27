@@ -15,6 +15,10 @@ sha2 = "0.10.8"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 
+[dependencies.tracing-subscriber]
+version = "0.3.19"
+features = ["env-filter", "fmt", "tracing-log", "std", "json"]
+
 [dependencies.base16ct]
 version = "0.2.0"
 features = ["alloc"]
