@@ -117,15 +117,26 @@ impl Poller {
         let inner = self.inner.clone();
         let should_stop = self.should_stop.clone();
 
+        tracing::info!(?last_row_id, ?last_date_read, "starting poller");
+
         std::thread::spawn(move || {
             let mut lock = inner.lock().unwrap();
 
             if let Err(e) = lock.init(last_row_id, last_date_read) {
+                tracing::error!(
+                    ?last_row_id,
+                    ?last_date_read,
+                    "couldn't initialize inner: {e}"
+                );
                 lock.emit_error(&e);
             }
 
             loop {
+                tracing::trace!("beginning run");
+
                 if let Err(e) = lock.run() {
+                    tracing::error!("run failed: {e}, resetting timestamp");
+
                     lock.emit_error(&e);
 
                     // Run has failed, reset timestamp so it can pick it up next time.
@@ -142,6 +153,7 @@ impl Poller {
     }
 
     pub fn stop(&self) {
+        tracing::info!("stopping");
         let should_stop = self.should_stop.clone();
 
         should_stop.store(true, Ordering::Relaxed);
@@ -189,8 +201,10 @@ impl PollerInner {
     where
         E: std::error::Error + ?Sized,
     {
+        let error = error.to_string();
+        tracing::error!(message = %error, "emitting error server event");
         self.callback.call(
-            vec![ServerEvent::A(ToastEvent::new(error.to_string()))],
+            vec![ServerEvent::A(ToastEvent::new(error))],
             ThreadsafeFunctionCallMode::NonBlocking,
         );
     }
@@ -213,6 +227,7 @@ impl PollerInner {
             if modified != *last_modified {
                 // eprintln!("{:?} was modified, breaking", &path);
 
+                tracing::trace!(current = ?modified, last = ?last_modified, ?path, "detected modification");
                 *last_modified = modified;
                 is_modified = true;
                 break 'inner;
@@ -227,14 +242,26 @@ impl PollerInner {
     }
 
     fn run_subtasks(&mut self) {
-        let thread_guids_with_new_messages = self.poll_message_updates().unwrap_or_default();
+        tracing::trace!("running subtasks");
+
+        let chat_guids_with_new_messages = match self.poll_message_updates() {
+            Ok(guids) => {
+                tracing::debug!(chat_guids_with_new_messages = ?guids, "polled message updates");
+                guids
+            }
+            Err(err) => {
+                tracing::error!("failed to poll message updates: {err}");
+                Vec::default()
+            }
+        };
+
         // Don't emit state syncs for threads becoming unread due to new messages. See the comment
         // in `poll_chat_updates` for more details.
         //
         // Note how threads that are merely manually marked as unread will still cause a
         // corresponding state sync, because no new messages were received (and therefore not
         // returned out of `poll_message_updates`).
-        self.poll_chat_updates(&thread_guids_with_new_messages).ok();
+        self.poll_chat_updates(&chat_guids_with_new_messages).ok();
         self.poll_last_failed_message();
     }
 
@@ -340,6 +367,7 @@ impl PollerInner {
 
         for chat_id in self.unread_chat_set.difference(&unread_chat_ids) {
             if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
+                tracing::debug!(?chat_id, ?chat_guid, "chat became read");
                 updates.push((chat_guid, false));
             }
         }
@@ -351,7 +379,10 @@ impl PollerInner {
                 // it recognizes the `countsAsUnread` field within messages' extra data. If we were
                 // to send the thread update too, then the unread count would begin at two instead
                 // of one.
-                if !chat_ids_with_new_messages.contains(&chat_guid) {
+                if chat_ids_with_new_messages.contains(&chat_guid) {
+                    tracing::debug!(?chat_id, ?chat_guid, "chat became unread but has a new message, NOT sending a thread update state sync");
+                } else {
+                    tracing::debug!(?chat_id, ?chat_guid, "chat became unread");
                     updates.push((chat_guid, true));
                 }
             }
@@ -371,6 +402,7 @@ impl PollerInner {
             .collect();
 
         if !events.is_empty() {
+            tracing::debug!(len = %events.len(), "sending state sync events");
             self.callback
                 .call(events, ThreadsafeFunctionCallMode::NonBlocking);
         }
