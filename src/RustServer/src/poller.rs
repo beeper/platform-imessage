@@ -11,9 +11,9 @@ use dirs::home_dir;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::error::{ServerError, ServerResult};
-use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
+use crate::ChatGuid;
 
 pub struct Poller {
     inner: Arc<Mutex<PollerInner>>,
@@ -41,7 +41,7 @@ struct PollerInner {
 struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
-    thread_guid: Option<String>,
+    thread_guid: Option<ChatGuid>,
     // max_msg_date: u64,
 }
 
@@ -271,17 +271,14 @@ impl PollerInner {
         }
     }
 
-    fn send_thread_messages_refresh_event(&mut self, thread_ids: &[String]) {
-        if thread_ids.is_empty() {
+    fn send_thread_messages_refresh_event(&mut self, chat_guids: &[ChatGuid]) {
+        if chat_guids.is_empty() {
             return;
         }
 
-        let events: Vec<ServerEvent> = thread_ids
+        let events: Vec<ServerEvent> = chat_guids
             .into_iter()
-            .map(|thread_id| {
-                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
-                ServerEvent::B(ThreadMessagesRefreshEvent::new(hashed_thread_id.to_owned()))
-            })
+            .map(|chat_guids| ServerEvent::B(ThreadMessagesRefreshEvent::new(chat_guids.token())))
             .collect();
 
         self.callback
@@ -292,7 +289,7 @@ impl PollerInner {
     // returning a `Vec` of thread GUIDs that changed.
     //
     // The cursors (last known message `ROWID` and `date_read`) are updated.
-    fn poll_message_updates(&mut self) -> ServerResult<Vec<String>> {
+    fn poll_message_updates(&mut self) -> ServerResult<Vec<ChatGuid>> {
         // Scoped block drops immutable borrow of conn.
         let rows: Vec<PollMessageResultRow> = {
             let mut stmt = self.conn.prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)?;
@@ -313,10 +310,9 @@ impl PollerInner {
             res
         };
 
-        let thread_ids: Vec<String> = rows
+        let thread_ids: Vec<ChatGuid> = rows
             .iter()
-            .filter(|r| r.thread_guid.is_some())
-            .map(|r| r.thread_guid.clone().unwrap())
+            .filter_map(|row| row.thread_guid.clone())
             .collect();
 
         self.send_thread_messages_refresh_event(&thread_ids);
@@ -344,13 +340,13 @@ impl PollerInner {
         self.last_failed_message_rowid = self.get_last_failed_message();
     }
 
-    fn get_chat_guid_from_chat_rowid(&self, chat_rowid: &u64) -> Option<String> {
+    fn get_chat_guid_from_chat_rowid(&self, chat_rowid: &u64) -> Option<ChatGuid> {
         let mut stmt = self.conn.prepare_cached(GET_CHAT_GUID_QUERY).ok()?;
         let mut rows = stmt.query_map([chat_rowid], |row| row.get(0)).ok()?;
         rows.next()?.ok()?
     }
 
-    fn get_chat_guid_from_msg_rowid(&self, msg_rowid: &u64) -> Option<String> {
+    fn get_chat_guid_from_msg_rowid(&self, msg_rowid: &u64) -> Option<ChatGuid> {
         let mut stmt = self
             .conn
             .prepare_cached(GET_CHAT_GUID_FROM_MESSAGE_ROWID_QUERY)
@@ -361,9 +357,10 @@ impl PollerInner {
 
     // Queries for all chats that are unread, compares them to the currently known set of unread
     // chats, and sends `STATE_SYNC` events to the renderer accordingly.
-    fn poll_chat_updates(&mut self, chat_ids_with_new_messages: &[String]) -> ServerResult<()> {
+    fn poll_chat_updates(&mut self, chat_ids_with_new_messages: &[ChatGuid]) -> ServerResult<()> {
         let unread_chat_ids = self.query_unread_chats()?;
-        let mut updates: Vec<(String, bool)> = Vec::new();
+        tracing::trace!(new = ?unread_chat_ids, old = ?self.unread_chat_set, "queried unread chat set when polling for chat updates");
+        let mut updates: Vec<(ChatGuid, bool)> = Vec::new();
 
         for chat_id in self.unread_chat_set.difference(&unread_chat_ids) {
             if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
@@ -393,15 +390,13 @@ impl PollerInner {
         let events: Vec<ServerEvent> = updates
             .into_iter()
             .map(|(thread_id, is_unread)| {
-                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
-                ServerEvent::C(UpdateStateSyncEvent::new(
-                    hashed_thread_id.to_owned(),
-                    is_unread,
-                ))
+                ServerEvent::C(UpdateStateSyncEvent::new(thread_id.token(), is_unread))
             })
             .collect();
 
-        if !events.is_empty() {
+        if events.is_empty() {
+            tracing::trace!("no chat update state sync events (unread chat set didn't change)");
+        } else {
             tracing::debug!(len = %events.len(), "sending state sync events");
             self.callback
                 .call(events, ThreadsafeFunctionCallMode::NonBlocking);
