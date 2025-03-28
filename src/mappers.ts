@@ -672,6 +672,8 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     type: isGroup ? 'group' : 'single',
     // @ts-expect-error - FIXME(skip): update to beeper desktop's platform-sdk
     unreadCount,
+    // FIXME(skip): DESK-8155: this (and `sortKey`) can easily be outside of safe integer representation range
+    lastReadMessageSortKey: chat.last_read_message_timestamp,
     messages: {
       hasMore: true,
       items: messages,
