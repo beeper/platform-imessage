@@ -107,11 +107,11 @@ ${fromMe ? 'AND is_from_me = 1' : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
-  getUnreadChatRowIDs: `SELECT
-  cm.chat_id
+  getUnreadCounts: `SELECT
+  cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
 FROM
   message m
-  INNER JOIN chat_message_join cm ON m.ROWiD = cm.message_id
+  INNER JOIN chat_message_join cm ON m.ROWID = cm.message_id
 WHERE
   m.item_type == 0
   AND m.is_read == 0
@@ -171,9 +171,9 @@ export default class DatabaseAPI {
   }
 
   // this should ideally be fetched from rust server
-  async getUnreadChatRowIDs() {
-    const rows = await this.db.pluck_all<void[], number>(SQLS.getUnreadChatRowIDs)
-    return new Set(rows)
+  async getUnreadCounts(): Promise<Map<number /* chat rowid */, number>> {
+    const rows = await this.db.all<[], { unread_count: number, chat_id: number }>(SQLS.getUnreadCounts)
+    return new Map(rows.map(row => [row.chat_id, row.unread_count]))
   }
 
   getAccountLogins = (): Promise<string[]> =>

@@ -619,7 +619,7 @@ type Context = {
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore | undefined
-  unreadChatRowIDs: Set<number>
+  unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   // todo this shouldnt be optional
   groupImagesMap?: { [attachmentID: string]: string }
@@ -659,7 +659,7 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     }
   */
   const props = chat.properties ? safeBplistParse(chat.properties) : null
-  const isUnreadInSqlite = context.unreadChatRowIDs.has(chat.ROWID)
+  const unreadCount = context.unreadCounts.get(chat.ROWID) ?? 0
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
@@ -673,6 +673,8 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
+    // @ts-expect-error - FIXME(skip): update to beeper desktop's platform-sdk
+    unreadCount,
     messages: {
       hasMore: true,
       items: messages,
