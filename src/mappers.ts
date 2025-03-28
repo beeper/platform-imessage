@@ -665,9 +665,6 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     id: chat.guid,
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
-    isUnread: IS_VENTURA_OR_UP
-      ? isUnreadInSqlite
-      : isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
