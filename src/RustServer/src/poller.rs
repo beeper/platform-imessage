@@ -77,25 +77,25 @@ WHERE
 	KEY = 'lastFailedMessageRowID'
 "#;
 
-static POLL_UNREAD_CHATS_QUERY: &str = r#"
+static POLL_UNREAD_STATES_QUERY: &str = r#"
 SELECT
-	cm.chat_id AS chat_id,
-    COUNT(cm.chat_id) AS unread_count,
+    c.ROWID AS chat_id,
+    COUNT(
+        CASE
+            WHEN m.is_read = 0 AND m.is_from_me = 0 AND m.item_type = 0
+            THEN 1
+            ELSE NULL
+        END
+    ) AS unread_count,
     c.last_read_message_timestamp
 FROM
-	message m
-INDEXED BY
-    message_idx_isRead_isFromMe_itemType
-INNER JOIN
-    chat_message_join cm ON m.ROWID = cm.message_id
-INNER JOIN
-    chat c ON c.ROWID = cm.chat_id
-WHERE
-	m.item_type == 0
-	AND m.is_read == 0
-	AND m.is_from_me == 0
+    chat c
+LEFT JOIN
+    chat_message_join cm ON c.ROWID = cm.chat_id
+LEFT JOIN
+    message m ON m.ROWID = cm.message_id
 GROUP BY
-	cm.chat_id
+    c.ROWID;
 "#;
 
 static GET_CHAT_GUID_QUERY: &str = r#"SELECT guid FROM chat WHERE ROWID = ?"#;
@@ -277,6 +277,8 @@ impl PollerInner {
             return;
         }
 
+        tracing::debug!(len = %chat_guids.len(), "sending state sync events for threads to refresh");
+
         let events: Vec<ServerEvent> = chat_guids
             .into_iter()
             .map(|chat_guids| ServerEvent::B(ThreadMessagesRefreshEvent::new(chat_guids.token())))
@@ -324,7 +326,7 @@ impl PollerInner {
     }
 
     fn get_unreads(&self) -> ServerResult<Unreads> {
-        let mut stmt = self.conn.prepare_cached(POLL_UNREAD_CHATS_QUERY)?;
+        let mut stmt = self.conn.prepare_cached(POLL_UNREAD_STATES_QUERY)?;
 
         let unreads: Unreads = stmt
             .query_map([], |row| -> rusqlite::Result<(u64, UnreadState)> {
@@ -375,7 +377,7 @@ impl PollerInner {
         let mut events: Vec<ServerEvent> = Vec::new();
 
         let changed_chat_rowids = self.unreads.diff_with_newer(&new_unreads);
-        tracing::debug!(new_len = ?changed_chat_rowids.len(), cur_len = ?self.unreads.len(), "grabbed fresh unread state");
+        tracing::debug!(changed_len = ?changed_chat_rowids.len(), new_len = ?new_unreads.len(), cur_len = ?self.unreads.len(), "grabbed fresh unread state");
 
         for &changed_chat_rowid in &changed_chat_rowids {
             let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(&changed_chat_rowid) else {
@@ -383,26 +385,24 @@ impl PollerInner {
                 continue;
             };
 
-            let Some(new_state) = self.unreads.get(changed_chat_rowid) else {
-                // if the changed chat is in the old object but not in the new one, then it became read
-                tracing::debug!(
+            let Some(new_state) = new_unreads.get(changed_chat_rowid) else {
+                // If the changed chat is in the old object but not in the new one, then it
+                // disappeared (got deleted, maybe)?
+                tracing::info!(
                     ?chat_guid,
-                    "didn't find chat in new unreads object, enqueueing state sync as read"
+                    "chat disappeared from unreads object, perhaps deleted?"
                 );
-
-                events.push(ServerEvent::C(UpdateStateSyncEvent::new(
-                    chat_guid.token(),
-                    0,
-                    // TODO(skip): This needs to be updated even if the chat didn't turn unread so
-                    // the renderer knows to not increment the unread count, even if it got a new
-                    // message.
-                    None,
-                )));
 
                 continue;
             };
 
-            tracing::debug!(new_unread_count = ?new_state.unread_count, new_last_read_message_timestamp = ?new_state.last_read_message_timestamp, "enqueueing state sync as unread");
+            tracing::debug!(
+                ?chat_guid,
+                chat_rowid = ?changed_chat_rowid,
+                new_unread_count = ?new_state.unread_count,
+                new_last_read_message_timestamp = ?new_state.last_read_message_timestamp,
+                "enqueueing state sync as unread"
+            );
 
             events.push(ServerEvent::C(UpdateStateSyncEvent::new(
                 chat_guid.token(),

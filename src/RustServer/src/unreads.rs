@@ -26,20 +26,23 @@ impl Unreads {
     }
 
     pub(crate) fn is_unread(&self, chat_rowid: u64) -> bool {
-        self.map.contains_key(&chat_rowid)
+        self.map
+            .get(&chat_rowid)
+            .map(|state| state.unread_count > 0)
+            .unwrap_or_default()
     }
 
     pub(crate) fn diff_with_newer(&self, newer: &Unreads) -> FxHashSet<u64> {
         let mut changed_chat_rowids: FxHashSet<u64> = FxHashSet::default();
 
-        // Check for current states that mismatch with the new map.
+        // For each state we have, verify its presence and equality in the other unread object.
         for (&chat_rowid, state) in &self.map {
             if newer.get(chat_rowid) != Some(*state) {
                 changed_chat_rowids.insert(chat_rowid);
             }
         }
 
-        // Vice versa.
+        // Vice versa of the above.
         for (&chat_rowid, state) in newer.all() {
             if self.get(chat_rowid) != Some(*state) {
                 changed_chat_rowids.insert(chat_rowid);
