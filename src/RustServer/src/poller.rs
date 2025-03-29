@@ -12,6 +12,7 @@ use rusqlite::{Connection, OpenFlags};
 use rustc_hash::FxHashMap;
 
 use crate::error::{ServerError, ServerResult};
+use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
 use crate::unreads::{UnreadState, Unreads};
@@ -381,7 +382,7 @@ impl PollerInner {
             };
 
             events.push(ServerEvent::C(UpdateStateSyncEvent::new(
-                THREAD_ID_HASHER.hash_and_remember(chat_guid),
+                chat_guid.token(),
                 new_state.unread_count,
                 new_state.last_read_message_timestamp,
             )));
