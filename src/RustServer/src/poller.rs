@@ -12,10 +12,10 @@ use rusqlite::{Connection, OpenFlags};
 use rustc_hash::FxHashMap;
 
 use crate::error::{ServerError, ServerResult};
-use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
 use crate::unreads::{UnreadState, Unreads};
+use crate::ChatGuid;
 
 pub struct Poller {
     inner: Arc<Mutex<PollerInner>>,
@@ -43,7 +43,7 @@ struct PollerInner {
 struct PollMessageResultRow {
     msg_row_id: u64,
     date_read: u64,
-    thread_guid: Option<String>,
+    thread_guid: Option<ChatGuid>,
     // max_msg_date: u64,
 }
 
@@ -126,15 +126,26 @@ impl Poller {
         let inner = self.inner.clone();
         let should_stop = self.should_stop.clone();
 
+        tracing::info!(?last_row_id, ?last_date_read, "starting poller");
+
         std::thread::spawn(move || {
             let mut lock = inner.lock().unwrap();
 
             if let Err(e) = lock.init(last_row_id, last_date_read) {
+                tracing::error!(
+                    ?last_row_id,
+                    ?last_date_read,
+                    "couldn't initialize inner: {e}"
+                );
                 lock.emit_error(&e);
             }
 
             loop {
+                tracing::trace!("beginning run");
+
                 if let Err(e) = lock.run() {
+                    tracing::error!("run failed: {e}, resetting timestamp");
+
                     lock.emit_error(&e);
 
                     // Run has failed, reset timestamp so it can pick it up next time.
@@ -151,6 +162,7 @@ impl Poller {
     }
 
     pub fn stop(&self) {
+        tracing::info!("stopping");
         let should_stop = self.should_stop.clone();
 
         should_stop.store(true, Ordering::Relaxed);
@@ -194,8 +206,10 @@ impl PollerInner {
     where
         E: std::error::Error + ?Sized,
     {
+        let error = error.to_string();
+        tracing::error!(message = %error, "emitting error server event");
         self.callback.call(
-            vec![ServerEvent::A(ToastEvent::new(error.to_string()))],
+            vec![ServerEvent::A(ToastEvent::new(error))],
             ThreadsafeFunctionCallMode::NonBlocking,
         );
     }
@@ -218,6 +232,7 @@ impl PollerInner {
             if modified != *last_modified {
                 // eprintln!("{:?} was modified, breaking", &path);
 
+                tracing::trace!(current = ?modified, last = ?last_modified, ?path, "detected modification");
                 *last_modified = modified;
                 is_modified = true;
                 break 'inner;
@@ -232,7 +247,17 @@ impl PollerInner {
     }
 
     fn run_subtasks(&mut self) {
-        self.poll_message_updates().ok();
+        tracing::trace!("running subtasks");
+
+        match self.poll_message_updates() {
+            Ok(guids) => {
+                tracing::debug!(chat_guids_with_new_messages = ?guids, "polled message updates");
+            }
+            Err(err) => {
+                tracing::error!("failed to poll message updates: {err}");
+            }
+        };
+
         self.poll_chat_updates().ok();
         self.poll_last_failed_message();
     }
@@ -243,17 +268,14 @@ impl PollerInner {
         }
     }
 
-    fn send_thread_messages_refresh_event(&mut self, thread_ids: &[String]) {
-        if thread_ids.is_empty() {
+    fn send_thread_messages_refresh_event(&mut self, chat_guids: &[ChatGuid]) {
+        if chat_guids.is_empty() {
             return;
         }
 
-        let events: Vec<ServerEvent> = thread_ids
+        let events: Vec<ServerEvent> = chat_guids
             .into_iter()
-            .map(|thread_id| {
-                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
-                ServerEvent::B(ThreadMessagesRefreshEvent::new(hashed_thread_id.to_owned()))
-            })
+            .map(|chat_guids| ServerEvent::B(ThreadMessagesRefreshEvent::new(chat_guids.token())))
             .collect();
 
         self.callback
@@ -264,7 +286,7 @@ impl PollerInner {
     // returning a `Vec` of thread GUIDs that changed.
     //
     // The cursors (last known message `ROWID` and `date_read`) are updated.
-    fn poll_message_updates(&mut self) -> ServerResult<Vec<String>> {
+    fn poll_message_updates(&mut self) -> ServerResult<Vec<ChatGuid>> {
         // Scoped block drops immutable borrow of conn.
         let rows: Vec<PollMessageResultRow> = {
             let mut stmt = self.conn.prepare_cached(POLL_MESSAGE_CREATE_UPDATE_QUERY)?;
@@ -285,10 +307,9 @@ impl PollerInner {
             res
         };
 
-        let thread_ids: Vec<String> = rows
+        let thread_ids: Vec<ChatGuid> = rows
             .iter()
-            .filter(|r| r.thread_guid.is_some())
-            .map(|r| r.thread_guid.clone().unwrap())
+            .filter_map(|row| row.thread_guid.clone())
             .collect();
 
         self.send_thread_messages_refresh_event(&thread_ids);
@@ -328,13 +349,13 @@ impl PollerInner {
         self.last_failed_message_rowid = self.get_last_failed_message();
     }
 
-    fn get_chat_guid_from_chat_rowid(&self, chat_rowid: &u64) -> Option<String> {
+    fn get_chat_guid_from_chat_rowid(&self, chat_rowid: &u64) -> Option<ChatGuid> {
         let mut stmt = self.conn.prepare_cached(GET_CHAT_GUID_QUERY).ok()?;
         let mut rows = stmt.query_map([chat_rowid], |row| row.get(0)).ok()?;
         rows.next()?.ok()?
     }
 
-    fn get_chat_guid_from_msg_rowid(&self, msg_rowid: &u64) -> Option<String> {
+    fn get_chat_guid_from_msg_rowid(&self, msg_rowid: &u64) -> Option<ChatGuid> {
         let mut stmt = self
             .conn
             .prepare_cached(GET_CHAT_GUID_FROM_MESSAGE_ROWID_QUERY)
@@ -368,7 +389,10 @@ impl PollerInner {
 
         self.unreads = new_unreads;
 
-        if !events.is_empty() {
+        if events.is_empty() {
+            tracing::trace!("no chat update state sync events (unread chat set didn't change)");
+        } else {
+            tracing::debug!(len = %events.len(), "sending state sync events");
             self.callback
                 .call(events, ThreadsafeFunctionCallMode::NonBlocking);
         }

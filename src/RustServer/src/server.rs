@@ -21,6 +21,10 @@ pub struct PollerServer {
 impl PollerServer {
     #[napi(constructor)]
     pub fn new(callback: JsFunction) -> Result<Self> {
+        crate::log::init_logging_once();
+
+        tracing::debug!("PollerServer being constructed");
+
         let tsfn: EventCallback = callback
             .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<Vec<ServerEvent>>| {
                 Ok(vec![ctx.value])
