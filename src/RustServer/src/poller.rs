@@ -10,6 +10,7 @@ use dirs::home_dir;
 
 use rusqlite::{Connection, OpenFlags};
 use rustc_hash::FxHashMap;
+use sha2::digest::Update;
 
 use crate::error::{ServerError, ServerResult};
 use crate::hashing::THREAD_ID_HASHER;
@@ -250,16 +251,18 @@ impl PollerInner {
     fn run_subtasks(&mut self) {
         tracing::trace!("running subtasks");
 
+        match self.poll_chat_updates() {
+            Ok(_) => tracing::debug!("finished polling chat updates"),
+            Err(err) => tracing::error!("failed to poll chat updates: {err}"),
+        }
+
         match self.poll_message_updates() {
             Ok(guids) => {
-                tracing::debug!(chat_guids_with_new_messages = ?guids, "polled message updates");
+                tracing::debug!(chat_guids_with_new_messages = ?guids, "finished polling message updates")
             }
-            Err(err) => {
-                tracing::error!("failed to poll message updates: {err}");
-            }
-        };
+            Err(err) => tracing::error!("failed to poll message updates: {err}"),
+        }
 
-        self.poll_chat_updates().ok();
         self.poll_last_failed_message();
     }
 
@@ -372,19 +375,39 @@ impl PollerInner {
         let mut events: Vec<ServerEvent> = Vec::new();
 
         let changed_chat_rowids = self.unreads.diff_with_newer(&new_unreads);
+        tracing::debug!(new_len = ?changed_chat_rowids.len(), cur_len = ?self.unreads.len(), "grabbed fresh unread state");
+
         for &changed_chat_rowid in &changed_chat_rowids {
-            let Some(new_state) = self.unreads.get(changed_chat_rowid) else {
+            let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(&changed_chat_rowid) else {
+                tracing::error!(chat_rowid = ?changed_chat_rowid, "couldn't get chat guid from chat rowid");
                 continue;
             };
 
-            let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(&changed_chat_rowid) else {
+            let Some(new_state) = self.unreads.get(changed_chat_rowid) else {
+                // if the changed chat is in the old object but not in the new one, then it became read
+                tracing::debug!(
+                    ?chat_guid,
+                    "didn't find chat in new unreads object, enqueueing state sync as read"
+                );
+
+                events.push(ServerEvent::C(UpdateStateSyncEvent::new(
+                    chat_guid.token(),
+                    0,
+                    // TODO(skip): This needs to be updated even if the chat didn't turn unread so
+                    // the renderer knows to not increment the unread count, even if it got a new
+                    // message.
+                    None,
+                )));
+
                 continue;
             };
+
+            tracing::debug!(new_unread_count = ?new_state.unread_count, new_last_read_message_timestamp = ?new_state.last_read_message_timestamp, "enqueueing state sync as unread");
 
             events.push(ServerEvent::C(UpdateStateSyncEvent::new(
                 chat_guid.token(),
                 new_state.unread_count,
-                new_state.last_read_message_timestamp,
+                Some(new_state.last_read_message_timestamp),
             )));
         }
 
@@ -393,7 +416,7 @@ impl PollerInner {
         if events.is_empty() {
             tracing::trace!("no chat update state sync events (unread chat set didn't change)");
         } else {
-            tracing::debug!(len = %events.len(), "sending state sync events");
+            tracing::debug!(len = %events.len(), "sending state sync events for unread states");
             self.callback
                 .call(events, ThreadsafeFunctionCallMode::NonBlocking);
         }

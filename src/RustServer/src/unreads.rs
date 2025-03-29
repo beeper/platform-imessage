@@ -21,6 +21,10 @@ impl Unreads {
         &self.map
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.map.len()
+    }
+
     pub(crate) fn is_unread(&self, chat_rowid: u64) -> bool {
         self.map.contains_key(&chat_rowid)
     }
