@@ -251,16 +251,16 @@ impl PollerInner {
     fn run_subtasks(&mut self) {
         tracing::trace!("running subtasks");
 
-        match self.poll_chat_updates() {
-            Ok(_) => tracing::debug!("finished polling chat updates"),
-            Err(err) => tracing::error!("failed to poll chat updates: {err}"),
-        }
-
         match self.poll_message_updates() {
             Ok(guids) => {
                 tracing::debug!(chat_guids_with_new_messages = ?guids, "finished polling message updates")
             }
             Err(err) => tracing::error!("failed to poll message updates: {err}"),
+        }
+
+        match self.poll_chat_updates() {
+            Ok(_) => tracing::debug!("finished polling chat updates"),
+            Err(err) => tracing::error!("failed to poll chat updates: {err}"),
         }
 
         self.poll_last_failed_message();
