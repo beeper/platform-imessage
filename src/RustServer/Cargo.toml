@@ -12,6 +12,12 @@ thiserror = "1"
 napi-derive = "2.0.6"
 rustc-hash = "2.1.1"
 sha2 = "0.10.8"
+tracing = "0.1.41"
+tracing-appender = "0.2.3"
+
+[dependencies.tracing-subscriber]
+version = "0.3.19"
+features = ["env-filter", "fmt", "tracing-log", "std", "json"]
 
 [dependencies.base16ct]
 version = "0.2.0"
