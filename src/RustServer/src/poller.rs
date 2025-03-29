@@ -9,11 +9,13 @@ use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use dirs::home_dir;
 
 use rusqlite::{Connection, OpenFlags};
+use rustc_hash::FxHashMap;
 
 use crate::error::{ServerError, ServerResult};
 use crate::hashing::THREAD_ID_HASHER;
 use crate::sdk::{ServerEvent, ThreadMessagesRefreshEvent, ToastEvent, UpdateStateSyncEvent};
 use crate::server::EventCallback;
+use crate::unreads::{UnreadState, Unreads};
 
 pub struct Poller {
     inner: Arc<Mutex<PollerInner>>,
@@ -32,7 +34,7 @@ struct PollerInner {
 
     database_paths: [(PathBuf, SystemTime); 2],
 
-    unread_chat_set: HashSet<u64>,
+    unreads: Unreads,
 
     callback: EventCallback,
 }
@@ -75,10 +77,17 @@ WHERE
 
 static POLL_UNREAD_CHATS_QUERY: &str = r#"
 SELECT
-	cm.chat_id
+	cm.chat_id AS chat_id,
+    COUNT(cm.chat_id) AS unread_count,
+    c.last_read_message_timestamp
 FROM
 	message m
-	INNER JOIN chat_message_join cm ON m.ROWiD = cm.message_id
+INDEXED BY
+    message_idx_isRead_isFromMe_itemType
+INNER JOIN
+    chat_message_join cm ON m.ROWID = cm.message_id
+INNER JOIN
+    chat c ON c.ROWID = cm.chat_id
 WHERE
 	m.item_type == 0
 	AND m.is_read == 0
@@ -148,11 +157,7 @@ impl Poller {
     }
 
     pub fn is_chat_rowid_unread(&self, chat_rowid: u64) -> bool {
-        self.inner
-            .lock()
-            .unwrap()
-            .unread_chat_set
-            .contains(&chat_rowid)
+        self.inner.lock().unwrap().unreads.is_unread(chat_rowid)
     }
 }
 
@@ -170,7 +175,7 @@ impl PollerInner {
                 (Self::format_path(&"chat.db")?, SystemTime::now()),
                 (Self::format_path(&"chat.db-wal")?, SystemTime::now()),
             ],
-            unread_chat_set: HashSet::new(),
+            unreads: Unreads::default(),
             callback,
         })
     }
@@ -179,7 +184,7 @@ impl PollerInner {
         self.last_row_id = last_row_id;
         self.last_date_read = last_date_read;
 
-        self.init_unread_chat_set()?;
+        self.init_unread_counts()?;
         self.init_last_failed_message_rowid();
 
         Ok(())
@@ -227,14 +232,8 @@ impl PollerInner {
     }
 
     fn run_subtasks(&mut self) {
-        let thread_guids_with_new_messages = self.poll_message_updates().unwrap_or_default();
-        // Don't emit state syncs for threads becoming unread due to new messages. See the comment
-        // in `poll_chat_updates` for more details.
-        //
-        // Note how threads that are merely manually marked as unread will still cause a
-        // corresponding state sync, because no new messages were received (and therefore not
-        // returned out of `poll_message_updates`).
-        self.poll_chat_updates(&thread_guids_with_new_messages).ok();
+        self.poll_message_updates().ok();
+        self.poll_chat_updates().ok();
         self.poll_last_failed_message();
     }
 
@@ -299,17 +298,29 @@ impl PollerInner {
         Ok(thread_ids)
     }
 
-    fn query_unread_chats(&mut self) -> ServerResult<HashSet<u64>> {
+    fn get_unreads(&self) -> ServerResult<Unreads> {
         let mut stmt = self.conn.prepare_cached(POLL_UNREAD_CHATS_QUERY)?;
-        let rows = stmt.query_map([], |row| row.get(0))?;
 
-        let set = rows.into_iter().flatten().collect();
+        let unreads: Unreads = stmt
+            .query_map([], |row| -> rusqlite::Result<(u64, UnreadState)> {
+                let (chat_id, unread_count, last_read_message_timestamp) = row.try_into()?;
+                Ok((
+                    chat_id,
+                    UnreadState {
+                        unread_count,
+                        last_read_message_timestamp,
+                    },
+                ))
+            })?
+            .into_iter()
+            .flatten()
+            .collect::<Unreads>();
 
-        Ok(set)
+        Ok(unreads)
     }
 
-    fn init_unread_chat_set(&mut self) -> ServerResult<()> {
-        self.unread_chat_set = self.query_unread_chats()?;
+    fn init_unread_counts(&mut self) -> ServerResult<()> {
+        self.unreads = self.get_unreads()?;
         Ok(())
     }
 
@@ -332,43 +343,30 @@ impl PollerInner {
         rows.next()?.ok()?
     }
 
-    // Queries for all chats that are unread, compares them to the currently known set of unread
-    // chats, and sends `STATE_SYNC` events to the renderer accordingly.
-    fn poll_chat_updates(&mut self, chat_ids_with_new_messages: &[String]) -> ServerResult<()> {
-        let unread_chat_ids = self.query_unread_chats()?;
-        let mut updates: Vec<(String, bool)> = Vec::new();
+    // Queries for all unread chats, compares them to the currently known set of unread chats, and
+    // sends `STATE_SYNC` events to the renderer accordingly.
+    fn poll_chat_updates(&mut self) -> ServerResult<()> {
+        let new_unreads = self.get_unreads()?;
+        let mut events: Vec<ServerEvent> = Vec::new();
 
-        for chat_id in self.unread_chat_set.difference(&unread_chat_ids) {
-            if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
-                updates.push((chat_guid, false));
-            }
-        }
-        for chat_id in unread_chat_ids.difference(&self.unread_chat_set) {
-            if let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(chat_id) {
-                // Avoid sending a state sync indicating unread for threads that have new messages,
-                // because those messages, when synced, will themselves mark the thread as unread
-                // and increment the unread count. This behavior only occurs with Beeper Desktop;
-                // it recognizes the `countsAsUnread` field within messages' extra data. If we were
-                // to send the thread update too, then the unread count would begin at two instead
-                // of one.
-                if !chat_ids_with_new_messages.contains(&chat_guid) {
-                    updates.push((chat_guid, true));
-                }
-            }
+        let changed_chat_rowids = self.unreads.diff_with_newer(&new_unreads);
+        for &changed_chat_rowid in &changed_chat_rowids {
+            let Some(new_state) = self.unreads.get(changed_chat_rowid) else {
+                continue;
+            };
+
+            let Some(chat_guid) = self.get_chat_guid_from_chat_rowid(&changed_chat_rowid) else {
+                continue;
+            };
+
+            events.push(ServerEvent::C(UpdateStateSyncEvent::new(
+                THREAD_ID_HASHER.hash_and_remember(chat_guid),
+                new_state.unread_count,
+                new_state.last_read_message_timestamp,
+            )));
         }
 
-        self.unread_chat_set = unread_chat_ids;
-
-        let events: Vec<ServerEvent> = updates
-            .into_iter()
-            .map(|(thread_id, is_unread)| {
-                let hashed_thread_id = THREAD_ID_HASHER.hash_and_remember(thread_id);
-                ServerEvent::C(UpdateStateSyncEvent::new(
-                    hashed_thread_id.to_owned(),
-                    is_unread,
-                ))
-            })
-            .collect();
+        self.unreads = new_unreads;
 
         if !events.is_empty() {
             self.callback
