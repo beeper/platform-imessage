@@ -619,7 +619,7 @@ type Context = {
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore | undefined
-  unreadChatRowIDs: Set<number>
+  unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   // todo this shouldnt be optional
   groupImagesMap?: { [attachmentID: string]: string }
@@ -659,20 +659,21 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     }
   */
   const props = chat.properties ? safeBplistParse(chat.properties) : null
-  const isUnreadInSqlite = context.unreadChatRowIDs.has(chat.ROWID)
+  const unreadCount = context.unreadCounts.get(chat.ROWID) ?? 0
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
-    isUnread: IS_VENTURA_OR_UP
-      ? isUnreadInSqlite
-      : isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
+    // @ts-expect-error - FIXME(skip): update to beeper desktop's platform-sdk
+    unreadCount,
+    // FIXME(skip): DESK-8155: this (and `sortKey`) can easily be outside of safe integer representation range
+    lastReadMessageSortKey: chat.last_read_message_timestamp,
     messages: {
       hasMore: true,
       items: messages,
