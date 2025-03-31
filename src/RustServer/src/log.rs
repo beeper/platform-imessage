@@ -16,7 +16,7 @@ fn app_data_dir() -> Option<PathBuf> {
     Some(home_dir)
 }
 
-const ROLLING_LOG_FILE_NAME_PREFIX: &str = "platform-imessage-poller.log";
+const LOG_FILE_NAME: &str = "platform-imessage-poller.log";
 
 pub(crate) fn init_logging_once() {
     INIT_LOGGING.call_once(|| {
@@ -24,18 +24,36 @@ pub(crate) fn init_logging_once() {
             eprintln!("platform-imessage: unable to resolve app data directory!");
             return;
         };
-        let log_dir = app_dir.join("logs").join("platform-imessage");
+        let logs_dir = app_dir.join("logs");
 
-        if let Err(err) = std::fs::create_dir_all(&log_dir) {
+        if let Err(err) = std::fs::create_dir_all(&logs_dir) {
             eprintln!(
-                "platform-imessage: failed to create log directory {log_dir:?} because: {err:?}"
+                "platform-imessage: failed to create log directory {logs_dir:?} because: {err:?}"
             );
             return;
         }
 
+        // Manually keep the log file under 10 MiB every launch. Not using `tracing_appender`'s
+        // built-in rolling functionality because Desktop's RollingLogger isn't familiar with its
+        // naming scheme (looks like `name.log.2025-03-31`; it'd only compare the day).
+        const TEN_MIB: u64 = 10 * 1_024 * 1_024;
+        let log_file_path = logs_dir.join(LOG_FILE_NAME);
+        if let Ok(stats) = std::fs::metadata(&log_file_path) {
+            if stats.len() > TEN_MIB {
+                match std::fs::remove_file(&log_file_path) {
+                    Ok(_) => eprintln!("platform-imessage: deleted big log file"),
+                    Err(_) => eprintln!("platform-imessage: couldn't delete big log file"),
+                }
+            } else {
+                // Log file is still under the threshold, so keep on appending to it.
+            }
+        } else {
+            eprintln!("platform-imessage: no log file yet");
+        }
+
         // Not using the non-blocking logger because it isn't uncommon for the app to crash and
         // suddenly exit, which can lose log entries.
-        let appender = tracing_appender::rolling::daily(log_dir, ROLLING_LOG_FILE_NAME_PREFIX);
+        let appender = tracing_appender::rolling::never(logs_dir, LOG_FILE_NAME);
 
         use tracing_subscriber::prelude::*;
 
