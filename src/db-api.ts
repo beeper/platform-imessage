@@ -49,13 +49,15 @@ CAST(m.date_retracted AS TEXT) AS dateRetractedString`
 const SQLS = {
   getThreads: (cursorDirection: string) => `SELECT *,
 (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
-CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString
+CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
+CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
 ${cursorDirection ? `WHERE msgDate ${cursorDirection} ?` : ''}
 ORDER BY msgDate DESC
 LIMIT ${THREADS_LIMIT}`,
   getThread: `SELECT *,
-CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString
+CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
+CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
 WHERE chat.guid = ?`,
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle

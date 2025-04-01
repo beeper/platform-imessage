@@ -679,7 +679,7 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     type: isGroup ? 'group' : 'single',
     // @ts-expect-error - FIXME(skip): update to beeper desktop's platform-sdk
     unreadCount,
-    lastReadMessageSortKey: String(chat.last_read_message_timestamp),
+    lastReadMessageSortKey: chat.dateLastMessageReadString,
     messages: {
       hasMore: true,
       items: messages,

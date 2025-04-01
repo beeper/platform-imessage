@@ -178,6 +178,8 @@ MappedMessageRow,
 // db-api.ts -> SQLS
 export type MappedChatRow = ChatRow & {
   msgDateString: string
+  /** `last_read_message_timestamp` but as a string to avoid precision loss */
+  dateLastMessageReadString: string
 }
 
 // db-api.ts -> SQLS
