@@ -20,6 +20,15 @@ jobs:
         run: |
           git config --global url."https://oauth2:${{ secrets.BEEPER_DEPS_TOKEN }}@github.com/beeper/".insteadOf "https://github.com/beeper/"
 
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/RustServer/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
       - name: Rust setup
         run: |
           rustup toolchain install stable --profile minimal
@@ -31,6 +40,18 @@ jobs:
 
       - name: Install
         run: yarn install --frozen-lockfile
+
+      - name: Cache Swift/Objective-C build
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/SwiftServer/.build
+            src/AppleScriptServer/Release
+            build/release-universal
+            /Users/runner/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-swift-${{ hashFiles('**/Package.resolved', '**/Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-swift-
 
       - name: Publish
         env:
