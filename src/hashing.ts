@@ -20,11 +20,19 @@ export function hashMessage(message: Message): Message {
   })
 }
 
+export function hashParticipantID(id: string): string {
+  return globalParticipantIDHasher.hashAndRemember(id)
+}
+
 export function hashParticipant(participant: Participant): Participant {
   return {
     ...participant,
     id: globalParticipantIDHasher.hashAndRemember(participant.id),
   }
+}
+
+export function hashThreadID(id: string): string {
+  return globalThreadIDHasher.hashAndRemember(id)
 }
 
 export function hashThread(thread: Thread): Thread {
