@@ -77,7 +77,7 @@ pub struct UpdateStateSyncEventEntry {
     pub id: String,
 
     pub unread_count: f64,
-    pub last_read_message_sort_key: Either<f64, Undefined>,
+    pub last_read_message_sort_key: Either<String, Undefined>,
 }
 
 impl UpdateStateSyncEvent {
@@ -96,11 +96,9 @@ impl UpdateStateSyncEvent {
             mutation_type: "update".to_string(),
             entries: vec![UpdateStateSyncEventEntry {
                 id: thread_id,
-                // FIXME(skip): DESK-8155
                 unread_count: unread_count as f64,
-                // FIXME(skip): DESK-8155
                 last_read_message_sort_key: last_read_message_sort_key
-                    .map(|sort_key| sort_key as f64)
+                    .map(|sort_key| format!("{sort_key}"))
                     .into(),
             }],
         }
