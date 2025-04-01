@@ -263,8 +263,12 @@ enum Preferences {
         SwiftServerLogHandler(identifier: identifier)
     })
 
-    let info = ProcessInfo()
-    log.info("howdy from SwiftServer! (running on macOS \(info.operatingSystemVersionString), \(info.activeProcessorCount) active cores)")
+    let greeting = "howdy from SwiftServer!"
+    if let system = System() {
+        log.info("\(greeting) (\(system.os) \(system.kernelVersion) \(system.architecture), \(system.osVersion))")
+    } else {
+        log.info("\(greeting)")
+    }
 
     Defaults.registerDefaults()
 
