@@ -6,7 +6,7 @@ import imageSizeCallback from 'image-size'
 import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
-import { CHAT_DB_PATH, IS_MONTEREY_OR_UP, IS_SEQUOIA_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_MONTEREY_OR_UP, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
@@ -30,15 +30,32 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID`
 
-const MAP_MESSAGES_COLS = 'm.*, t.guid AS threadID, t.room_name, h.id AS participantID, oh.id AS otherID'
+let MAP_MESSAGES_COLS = `
+m.*,
+t.guid AS threadID,
+t.room_name,
+h.id AS participantID,
+oh.id AS otherID,
+
+CAST(m.date AS TEXT) AS dateString,
+CAST(m.date_read AS TEXT) AS dateReadString,
+CAST(m.date_delivered AS TEXT) AS dateDeliveredString`
+if (IS_VENTURA_OR_UP) {
+  MAP_MESSAGES_COLS += `,
+CAST(m.date_edited AS TEXT) AS dateEditedString,
+CAST(m.date_retracted AS TEXT) AS dateRetractedString`
+}
 
 const SQLS = {
-  getThreads: (cursorDirection: string) => `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
+  getThreads: (cursorDirection: string) => `SELECT *,
+(SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
+CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString
 FROM chat
 ${cursorDirection ? `WHERE msgDate ${cursorDirection} ?` : ''}
 ORDER BY msgDate DESC
 LIMIT ${THREADS_LIMIT}`,
-  getThread: `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
+  getThread: `SELECT *,
+CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString
 FROM chat
 WHERE chat.guid = ?`,
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle

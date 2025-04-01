@@ -23,8 +23,11 @@ type MessageRow = {
   account_guid: string
   /** number representing error code, 0 is success */
   error: number
+  /** @deprecated values in this column will frequently lose precision */
   date: number
+  /** @deprecated values in this column will frequently lose precision */
   date_read: number
+  /** @deprecated values in this column will frequently lose precision */
   date_delivered: number
   is_delivered: number
   /** kb: 1 for all my messages */
@@ -53,6 +56,7 @@ type MessageRow = {
   was_deduplicated: number
   is_audio_message: NumberBool
   is_played: number
+  /** @deprecated values in this column will frequently lose precision */
   date_played: number
   item_type: number
   other_handle: number
@@ -95,7 +99,9 @@ type MessageRow = {
   was_delivered_quietly: number
   did_notify_recipient: number
   // added in ventura:
+  /** @deprecated values in this column will frequently lose precision */
   date_retracted: number
+  /** @deprecated values in this column will frequently lose precision */
   date_edited: number
   was_detonated: NumberBool
   part_count: number
@@ -149,6 +155,13 @@ export type MappedMessageRow = MessageRow & {
   room_name: string
   participantID: string
   otherID: string
+
+  dateString: string
+  dateReadString: string
+  dateDeliveredString: string
+  // ventura+
+  dateEditedString?: string
+  dateRetractedString?: string
 }
 
 // db-api.ts -> SQLS
@@ -164,7 +177,7 @@ MappedMessageRow,
 
 // db-api.ts -> SQLS
 export type MappedChatRow = ChatRow & {
-  msgDate: number
+  msgDateString: string
 }
 
 // db-api.ts -> SQLS
