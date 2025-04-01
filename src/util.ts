@@ -16,7 +16,13 @@ export const unpackTime = (ts: number) => {
 }
 
 export function fromAppleTime(timestampText: string): Date | undefined {
-  if (!timestampText) return
+  if (
+    !timestampText
+      // Apple frequently uses a date value of 0 to represent no value. When we
+      // cast these to text, they become truthy (in JS's eyes), so be sure to
+      // check for that.
+      || timestampText === '0'
+  ) return
   const milliseconds = BigInt(timestampText) / 1_000_000n
   // fall back to apple's epoch
   if (milliseconds === 0n) return new Date(DATE_OFFSET)
