@@ -276,7 +276,7 @@ export default class AppleiMessage implements PlatformAPI {
     return {
       items: items.map(hashThread),
       hasMore: chatRows.length === THREADS_LIMIT,
-      oldestCursor: chatRows[chatRows.length - 1]?.msgDate?.toString(),
+      oldestCursor: chatRows[chatRows.length - 1]?.msgDateString,
     }
   }
 
