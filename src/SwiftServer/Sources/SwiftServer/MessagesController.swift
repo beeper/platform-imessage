@@ -182,7 +182,11 @@ final class MessagesController {
         init?(emoji: Character) {
             guard #available(macOS 15, *) else { return nil }
 
-            // for robustness, accept emojified codepoints even without U+FE0F
+            // NOTE: This is mapping actual emoji characters into the traditional set of iMessage Tapbacks.
+            // This means it's impossible to react with an actual heart emoji character, because it gets mapped to the "iMessage heart".
+            // It's possible to choosen between either in actual iMessage.
+            //
+            // (For robustness, also accept emojified codepoints even without U+FE0F.)
             switch emoji {
             /* ❤️ */ case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
             /* 👍 */ case "\u{1f44d}": self = .like
