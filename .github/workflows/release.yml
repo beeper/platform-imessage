@@ -85,14 +85,14 @@ jobs:
             ${{ runner.os }}-swift-
 
       - name: Build without publishing
-        if: !github.event.inputs.publishing
+        if: ${{ !github.event.inputs.publishing }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           yarn build
 
       - name: Build and publish
-        if: github.event.inputs.publishing || true
+        if: ${{ github.event.inputs.publishing || true }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm publish
