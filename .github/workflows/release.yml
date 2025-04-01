@@ -83,14 +83,16 @@ jobs:
       - name: Cache Swift/Objective-C build
         uses: actions/cache@v4
         with:
+          # ~/.cache/org.swift.swiftpm is seemingly linked to ~/Library/Caches/org.swift.swiftpm
           path: |
             src/SwiftServer/.build
             src/AppleScriptServer/Release
-            build/release-universal
-            /Users/runner/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-swift-${{ hashFiles('**/Package.resolved', '**/Package.swift') }}
+            build
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-swift2-${{ hashFiles('**/Package.resolved', '**/Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-swift-
+            ${{ runner.os }}-swift2-
 
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
