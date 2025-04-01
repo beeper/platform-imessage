@@ -53,9 +53,14 @@ jobs:
         with:
           path: |
             src/RustServer/target
-          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+            ~/.cargo/git
+            ~/.cargo/registry
+            ~/.cargo/.global-cache
+          # "rust2" has a "version number" that's bumped when the above list of
+          # path changes (for immediate invalidation).
+          key: ${{ runner.os }}-rust2-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-rust-
+            ${{ runner.os }}-rust2-
 
       - name: Set up Rust toolchains
         run: |
