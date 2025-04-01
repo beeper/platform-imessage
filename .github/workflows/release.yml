@@ -66,7 +66,7 @@ jobs:
         with:
           cache: 'yarn'
 
-      - name: Install Node.js dependencis
+      - name: Install Node.js dependencies
         run: yarn install --frozen-lockfile
 
         # NOTE(skip): Hopefully helps with caching.
