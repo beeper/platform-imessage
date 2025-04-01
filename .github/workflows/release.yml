@@ -59,6 +59,12 @@ jobs:
       - name: Install
         run: yarn install --frozen-lockfile
 
+        # NOTE(skip): Hopefully helps with caching.
+        # See: https://michalzaborowski.medium.com/circleci-60-faster-builds-use-xcode-deriveddata-for-caching-96fb9a58930
+      - name: Make Xcode amenable to cached derived data
+        run: |
+          defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
+
       - name: Cache Swift/Objective-C build
         uses: actions/cache@v4
         with:
