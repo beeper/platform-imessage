@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      publishing:
+        description: 'Try to `npm publish` after building'
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   check-version:
@@ -77,8 +84,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-swift-
 
-      - name: Publish
+      - name: Build without publishing
+        if: !github.event.inputs.publishing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          yarn build
+
+      - name: Build and publish
+        if: github.event.inputs.publishing || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm publish
-
