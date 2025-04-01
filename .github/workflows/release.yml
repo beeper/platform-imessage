@@ -6,7 +6,25 @@ on:
       - main
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: check
+        run: |
+          git diff @^ @ --name-only | grep "package.json" && \
+          git diff @^ @ package.json | grep "\"version\":" && \
+          echo "changed=true" >> $GITHUB_OUTPUT || echo "changed=false" >> $GITHUB_OUTPUT
+
   build:
+    needs: check-version
+    if: ${{ needs.check-version.outputs.should_release == 'true' }}
     runs-on: macos-latest
 
     steps:
