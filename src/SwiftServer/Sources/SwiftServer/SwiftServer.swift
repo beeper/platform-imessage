@@ -263,6 +263,9 @@ enum Preferences {
         SwiftServerLogHandler(identifier: identifier)
     })
 
+    let info = ProcessInfo()
+    log.info("howdy from SwiftServer! (running on macOS \(info.operatingSystemVersionString), \(info.activeProcessorCount) active cores)")
+
     Defaults.registerDefaults()
 
     // strongly retained by askForMessagesDirAccess, deinit called on exit
