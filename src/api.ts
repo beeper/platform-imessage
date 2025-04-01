@@ -22,7 +22,7 @@ import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
-import { hashMessage, hashThread } from './hashing'
+import { hashMessage, hashParticipantID, hashThread, hashThreadID } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -603,14 +603,16 @@ export default class AppleiMessage implements PlatformAPI {
     // if (!participantID) {
     //   return messagesController.watchThreadActivity(null)
     // }
+    texts.log('imsg thread activity: watching', hashedThreadID)
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
     return messagesController.watchThreadActivity(threadID, statuses => {
+      texts.log('imsg thread activity: received', JSON.stringify(statuses))
       const events: ServerEvent[] = [{
         type: ServerEventType.USER_ACTIVITY,
         activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,
-        threadID,
-        participantID,
+        threadID: hashThreadID(threadID),
+        participantID: hashParticipantID(participantID),
         durationMs: 120_000,
       }]
       const userID = threadID.split(';', 3).pop()
@@ -620,7 +622,7 @@ export default class AppleiMessage implements PlatformAPI {
         events.push({
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
-            userID,
+            userID: hashParticipantID(userID),
             status: isDNDCanNotify ? 'dnd_can_notify' : 'dnd',
           },
         })
@@ -629,7 +631,7 @@ export default class AppleiMessage implements PlatformAPI {
         events.push({
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
-            userID,
+            userID: hashParticipantID(userID),
             status: undefined,
           },
         })
