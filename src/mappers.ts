@@ -256,7 +256,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     id: msgRow.guid,
     cursor: msgRow.dateString,
     timestamp: fromAppleTime(msgRow.dateString),
-    sortKey: String(msgRow.dateString),
+    sortKey: msgRow.dateString,
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
     // text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
     isSender: msgRow.is_from_me === 1,
