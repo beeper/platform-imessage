@@ -244,12 +244,19 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const isSMS = msgRow.service === 'SMS'
   const isGroup = !!msgRow.room_name
 
+  // `0` is frequently used to signify absence in a date column. if we were
+  // using numbers, then `!date` would suffice, but because they regularly
+  // exceed safe representation limits of javascript numbers, we have to
+  // compare with the textual equivalent
+  const dateStringIsFalsy = (date: string) => !date || date === '0'
+  const dateStringIsTruthy = (date: string) => !dateStringIsFalsy(date)
+
   const partialMessage: MessageWithExtra = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.guid,
-    cursor: msgRow.date.toString(),
-    timestamp: fromAppleTime(msgRow.date),
-    sortKey: msgRow.date,
+    cursor: msgRow.dateString,
+    timestamp: fromAppleTime(msgRow.dateString),
+    sortKey: msgRow.dateString,
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
     // text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
     isSender: msgRow.is_from_me === 1,
@@ -257,14 +264,14 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     isDelivered: msgRow.is_delivered === 1,
     // NOTE(skip): if this is ever implemented for groups (read receipts are
     // possible there when replying), be sure to hash participants
-    seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
+    seen: isGroup ? undefined : fromAppleTime(msgRow.dateReadString),
     // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
     // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
     // not track an unread count.
     extra: { countsAsUnread: true } as any,
   }
 
-  if (msgRow.date_retracted || msgRow.was_detonated) partialMessage.isDeleted = true
+  if (dateStringIsTruthy(msgRow.dateRetractedString) || msgRow.was_detonated) partialMessage.isDeleted = true
   if (isSMS) partialMessage.extra.isSMS = true
   if (addThreadIDs) partialMessage.threadID = msgRow.threadID
   if (msgRow.is_read) {
@@ -282,8 +289,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // (ostensibly most recent) unsend occurred. If this is the case, don't show
   // the last unsend timestamp to the user as a last edited timestamp, as that's
   // somewhat misleading.
-  if (!unsendDataPresent && msgRow.date_edited) {
-    partialMessage.editedTimestamp = fromAppleTime(msgRow.date_edited)
+  if (!unsendDataPresent && dateStringIsTruthy(msgRow.dateRetractedString)) {
+    partialMessage.editedTimestamp = fromAppleTime(msgRow.dateEditedString)
   }
 
   if (msgRow.item_type !== 0) {
@@ -619,7 +626,7 @@ type Context = {
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore | undefined
-  unreadChatRowIDs: Set<number>
+  unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   // todo this shouldnt be optional
   groupImagesMap?: { [attachmentID: string]: string }
@@ -659,20 +666,20 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     }
   */
   const props = chat.properties ? safeBplistParse(chat.properties) : null
-  const isUnreadInSqlite = context.unreadChatRowIDs.has(chat.ROWID)
+  const unreadCount = context.unreadCounts.get(chat.ROWID) ?? 0
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
     imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
-    isUnread: IS_VENTURA_OR_UP
-      ? isUnreadInSqlite
-      : isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
+    // @ts-expect-error - FIXME(skip): update to beeper desktop's platform-sdk
+    unreadCount,
+    lastReadMessageSortKey: chat.dateLastMessageReadString,
     messages: {
       hasMore: true,
       items: messages,
@@ -681,7 +688,7 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
       hasMore: false,
       items: participants,
     },
-    timestamp: fromAppleTime(chat.msgDate),
+    timestamp: fromAppleTime(chat.msgDateString),
   }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread

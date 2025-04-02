@@ -1,5 +1,5 @@
 /** types from platform-sdk */
-use napi::bindgen_prelude::*;
+use napi::{bindgen_prelude::*, JsUndefined};
 
 pub type ServerEvent = Either3<ToastEvent, ThreadMessagesRefreshEvent, UpdateStateSyncEvent>;
 
@@ -76,11 +76,16 @@ pub struct UpdateStateSyncEvent {
 pub struct UpdateStateSyncEventEntry {
     pub id: String,
 
-    pub is_unread: bool,
+    pub unread_count: f64,
+    pub last_read_message_sort_key: Either<String, Undefined>,
 }
 
 impl UpdateStateSyncEvent {
-    pub fn new(thread_id: String, is_unread: bool) -> Self {
+    pub fn new(
+        thread_id: String,
+        unread_count: u64,
+        last_read_message_sort_key: Option<u64>,
+    ) -> Self {
         UpdateStateSyncEvent {
             r#type: "state_sync".to_string(),
             object_ids: ObjectIDs {
@@ -91,7 +96,10 @@ impl UpdateStateSyncEvent {
             mutation_type: "update".to_string(),
             entries: vec![UpdateStateSyncEventEntry {
                 id: thread_id,
-                is_unread,
+                unread_count: unread_count as f64,
+                last_read_message_sort_key: last_read_message_sort_key
+                    .map(|sort_key| format!("{sort_key}"))
+                    .into(),
             }],
         }
     }

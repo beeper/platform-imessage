@@ -2,11 +2,39 @@ name: Make New Release
 
 on:
   push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      publishing:
+        description: 'Try to `npm publish` after building'
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for version change
+        id: check
+        # Check to see if the line containing `"version":` was touched between
+        # the current commit and the one before.
+        run: |
+          git diff @^ @ --name-only | grep "package.json" && \
+          git diff @^ @ package.json | grep "\"version\":" && \
+          echo "changed=true" >> $GITHUB_OUTPUT || echo "changed=false" >> $GITHUB_OUTPUT
+
   build:
+    needs: check-version
     runs-on: macos-latest
 
     steps:
@@ -20,7 +48,21 @@ jobs:
         run: |
           git config --global url."https://oauth2:${{ secrets.BEEPER_DEPS_TOKEN }}@github.com/beeper/".insteadOf "https://github.com/beeper/"
 
-      - name: Rust setup
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/RustServer/target
+            ~/.cargo/git
+            ~/.cargo/registry
+            ~/.cargo/.global-cache
+          # "rust2" has a "version number" that's bumped when the above list of
+          # path changes (for immediate invalidation).
+          key: ${{ runner.os }}-rust2-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-rust2-
+
+      - name: Set up Rust toolchains
         run: |
           rustup toolchain install stable --profile minimal
           rustup target add x86_64-apple-darwin
@@ -29,11 +71,41 @@ jobs:
         with:
           cache: 'yarn'
 
-      - name: Install
+      - name: Install Node.js dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Publish
+        # NOTE(skip): Hopefully helps with caching.
+        # See: https://michalzaborowski.medium.com/circleci-60-faster-builds-use-xcode-deriveddata-for-caching-96fb9a58930
+      - name: Make Xcode amenable to cached derived data
+        run: |
+          defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
+
+      - name: Cache Swift/Objective-C build
+        uses: actions/cache@v4
+        with:
+          # ~/.cache/org.swift.swiftpm is seemingly linked to ~/Library/Caches/org.swift.swiftpm
+          path: |
+            src/SwiftServer/.build
+            src/AppleScriptServer/Release
+            build
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-swift2-${{ hashFiles('**/Package.resolved', '**/Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-swift2-
+
+      - name: Build without publishing
+        # We only want to publish if we're on the `main` branch and the version changed.
+        # Otherwise, just build to provide diagnostics.
+        # NOTE: Doing == 'true' because GitHub Actions doesn't coerce 'false' to false.
+        if: ${{ !(github.ref_name == 'main' && needs.check-version.outputs.version_changed == 'true') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          yarn build
+
+      - name: Build and publish
+        if: ${{ github.ref_name == 'main' && needs.check-version.outputs.version_changed == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm publish
-

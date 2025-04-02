@@ -15,11 +15,19 @@ export const unpackTime = (ts: number) => {
   return nano !== 0 ? nano : ts
 }
 
-export function fromAppleTime(_ts: number) {
-  if (!_ts) return
-  const unpacked = nanoToMs(_ts)
-  const ts = unpacked !== 0 ? unpacked : _ts
-  return new Date(ts + DATE_OFFSET)
+export function fromAppleTime(timestampText: string): Date | undefined {
+  if (
+    !timestampText
+      // Apple frequently uses a date value of 0 to represent no value. When we
+      // cast these to text, they become truthy (in JS's eyes), so be sure to
+      // check for that.
+      || timestampText === '0'
+  ) return
+  const milliseconds = BigInt(timestampText) / 1_000_000n
+  // fall back to apple's epoch
+  if (milliseconds === 0n) return new Date(DATE_OFFSET)
+  // assume that milliseconds can fit into safe integer representations now
+  return new Date(Number(milliseconds) + DATE_OFFSET)
 }
 
 const HOMEDIR = os.homedir()

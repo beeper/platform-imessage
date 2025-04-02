@@ -5,6 +5,7 @@ import SwiftServerFoundation
 import Logging
 
 private let sentryLog = Logger(swiftServerLabel: "sentry")
+private let log = Logger(swiftServerLabel: "swift-server")
 
 let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
     .appendingPathComponent("Messages", isDirectory: true)
@@ -164,8 +165,14 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
         guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
-        guard let reaction = reactionName.first.map(MessagesController.Reaction.init(emoji:)) else {
-            throw ErrorMessage("Unknown reaction \"\(reactionName)\"")
+
+        // try the "legacy" reactions first (keyed by `supported` in platform info)
+        let reaction = MessagesController.Reaction(platformSDKReactionKey: reactionName)
+            ?? reactionName.first.flatMap(MessagesController.Reaction.init(emoji:))
+
+        guard let reaction else {
+            log.error("couldn't create reaction from provided name: \(reactionName)")
+            throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
         return try performAsync { [self] in
             try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
@@ -255,6 +262,13 @@ enum Preferences {
     LoggingSystem.bootstrap({ identifier in
         SwiftServerLogHandler(identifier: identifier)
     })
+
+    let greeting = "howdy from SwiftServer!"
+    if let system = System() {
+        log.info("\(greeting) (\(system.os) \(system.kernelVersion) \(system.architecture), \(system.osVersion))")
+    } else {
+        log.info("\(greeting)")
+    }
 
     Defaults.registerDefaults()
 

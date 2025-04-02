@@ -6,7 +6,7 @@ import imageSizeCallback from 'image-size'
 import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
-import { CHAT_DB_PATH, IS_MONTEREY_OR_UP, IS_SEQUOIA_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_MONTEREY_OR_UP, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
@@ -30,15 +30,34 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID`
 
-const MAP_MESSAGES_COLS = 'm.*, t.guid AS threadID, t.room_name, h.id AS participantID, oh.id AS otherID'
+let MAP_MESSAGES_COLS = `
+m.*,
+t.guid AS threadID,
+t.room_name,
+h.id AS participantID,
+oh.id AS otherID,
+
+CAST(m.date AS TEXT) AS dateString,
+CAST(m.date_read AS TEXT) AS dateReadString,
+CAST(m.date_delivered AS TEXT) AS dateDeliveredString`
+if (IS_VENTURA_OR_UP) {
+  MAP_MESSAGES_COLS += `,
+CAST(m.date_edited AS TEXT) AS dateEditedString,
+CAST(m.date_retracted AS TEXT) AS dateRetractedString`
+}
 
 const SQLS = {
-  getThreads: (cursorDirection: string) => `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
+  getThreads: (cursorDirection: string) => `SELECT *,
+(SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
+CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
+CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
 ${cursorDirection ? `WHERE msgDate ${cursorDirection} ?` : ''}
 ORDER BY msgDate DESC
 LIMIT ${THREADS_LIMIT}`,
-  getThread: `SELECT *, (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
+  getThread: `SELECT *,
+CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
+CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
 WHERE chat.guid = ?`,
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
@@ -107,11 +126,11 @@ ${fromMe ? 'AND is_from_me = 1' : ''}
 ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
-  getUnreadChatRowIDs: `SELECT
-  cm.chat_id
+  getUnreadCounts: `SELECT
+  cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
 FROM
   message m
-  INNER JOIN chat_message_join cm ON m.ROWiD = cm.message_id
+  INNER JOIN chat_message_join cm ON m.ROWID = cm.message_id
 WHERE
   m.item_type == 0
   AND m.is_read == 0
@@ -171,9 +190,9 @@ export default class DatabaseAPI {
   }
 
   // this should ideally be fetched from rust server
-  async getUnreadChatRowIDs() {
-    const rows = await this.db.pluck_all<void[], number>(SQLS.getUnreadChatRowIDs)
-    return new Set(rows)
+  async getUnreadCounts(): Promise<Map<number /* chat rowid */, number>> {
+    const rows = await this.db.all<[], { unread_count: number, chat_id: number }>(SQLS.getUnreadCounts)
+    return new Map(rows.map(row => [row.chat_id, row.unread_count]))
   }
 
   getAccountLogins = (): Promise<string[]> =>

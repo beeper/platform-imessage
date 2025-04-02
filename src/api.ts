@@ -22,7 +22,7 @@ import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
-import { hashMessage, hashThread } from './hashing'
+import { hashMessage, hashParticipantID, hashThread, hashThreadID } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -160,10 +160,10 @@ export default class AppleiMessage implements PlatformAPI {
     const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
-    const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
+    const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
       this.dbAPI.getThreadParticipants(chatRow.ROWID),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
-      this.dbAPI.getUnreadChatRowIDs(),
+      this.dbAPI.getUnreadCounts(),
       getDNDState(),
     ])
     return hashThread(mapThread(
@@ -173,7 +173,7 @@ export default class AppleiMessage implements PlatformAPI {
         currentUserID: this.currentUser.id,
         threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
-        unreadChatRowIDs,
+        unreadCounts,
         dndState,
       },
     ))
@@ -184,10 +184,10 @@ export default class AppleiMessage implements PlatformAPI {
     await setTimeoutAsync(10)
     const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
     if (!chatRow) return
-    const [handleRows, lastMessageRows, unreadChatRowIDs, dndState] = await Promise.all([
+    const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
       this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs),
       this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
-      this.dbAPI.getUnreadChatRowIDs(),
+      this.dbAPI.getUnreadCounts(),
       getDNDState(),
     ])
     if (handleRows.length < 1) return
@@ -198,7 +198,7 @@ export default class AppleiMessage implements PlatformAPI {
         currentUserID: this.currentUser.id,
         threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
-        unreadChatRowIDs,
+        unreadCounts,
         dndState,
       },
     )
@@ -250,7 +250,7 @@ export default class AppleiMessage implements PlatformAPI {
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
-    const [, , groupImagesRows, unreadChatRowIDs, dndState] = await Promise.all([
+    const [, , groupImagesRows, unreadCounts, dndState] = await Promise.all([
       Promise.all(chatRows.map(async chat => {
         const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
@@ -260,7 +260,7 @@ export default class AppleiMessage implements PlatformAPI {
         handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
       })),
       IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
-      this.dbAPI.getUnreadChatRowIDs(),
+      this.dbAPI.getUnreadCounts(),
       getDNDState(),
     ])
     if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
@@ -269,14 +269,14 @@ export default class AppleiMessage implements PlatformAPI {
       groupImagesMap[attachmentID] = fileName
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
-    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, unreadChatRowIDs, currentUserID: this.currentUser.id, threadReadStore: this.threadReadStore })
+    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, unreadCounts, currentUserID: this.currentUser.id, threadReadStore: this.threadReadStore })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
       items: items.map(hashThread),
       hasMore: chatRows.length === THREADS_LIMIT,
-      oldestCursor: chatRows[chatRows.length - 1]?.msgDate?.toString(),
+      oldestCursor: chatRows[chatRows.length - 1]?.msgDateString,
     }
   }
 
@@ -586,6 +586,11 @@ export default class AppleiMessage implements PlatformAPI {
   private dndSet = new Set<string>()
 
   onThreadSelected = async (hashedThreadID: ThreadID) => {
+    // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored
+    // fork of platform-sdk that lets the thread ID be null. We currently don't
+    // use that fork, but we ought to.
+    if (!hashedThreadID) return
+
     const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
     if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
@@ -598,14 +603,16 @@ export default class AppleiMessage implements PlatformAPI {
     // if (!participantID) {
     //   return messagesController.watchThreadActivity(null)
     // }
+    texts.log('imsg thread activity: watching', hashedThreadID)
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
     return messagesController.watchThreadActivity(threadID, statuses => {
+      texts.log('imsg thread activity: received', JSON.stringify(statuses))
       const events: ServerEvent[] = [{
         type: ServerEventType.USER_ACTIVITY,
         activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,
-        threadID,
-        participantID,
+        threadID: hashThreadID(threadID),
+        participantID: hashParticipantID(participantID),
         durationMs: 120_000,
       }]
       const userID = threadID.split(';', 3).pop()
@@ -615,7 +622,7 @@ export default class AppleiMessage implements PlatformAPI {
         events.push({
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
-            userID,
+            userID: hashParticipantID(userID),
             status: isDNDCanNotify ? 'dnd_can_notify' : 'dnd',
           },
         })
@@ -624,7 +631,7 @@ export default class AppleiMessage implements PlatformAPI {
         events.push({
           type: ServerEventType.USER_PRESENCE_UPDATED,
           presence: {
-            userID,
+            userID: hashParticipantID(userID),
             status: undefined,
           },
         })
