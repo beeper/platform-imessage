@@ -546,7 +546,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const firstTextPart = messages.find(msg => typeof msg.text === 'string')
   if (msgRow.associated_message_guid) {
     const m: MessageWithExtra = {
-      ...firstTextPart,
+      // fall back to `partialMessage` if no text part was found at all -
+      // important to avoid creating a bogus message object with invalid data
+      ...(firstTextPart ?? partialMessage),
       linkedMessageID: msgRow.associated_message_guid.replace(assocMsgGuidPrefix, ''),
     }
     // texts.log('found associated message. first text:', firstTextPart, ' - linked message - ', m.linkedMessageID)
