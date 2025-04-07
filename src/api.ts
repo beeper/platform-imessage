@@ -316,7 +316,7 @@ export default class AppleiMessage implements PlatformAPI {
   searchMessages = async (typed: string, pagination: PaginationArg, options: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     this.ensureDB()
     const { threadID: hashedThreadID, mediaType, sender } = options
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = hashedThreadID ? globalThreadIDHasher.originalFromHash(hashedThreadID) : hashedThreadID
     const { cursor, direction } = pagination || { cursor: null, direction: null }
     const mediaOnly = !!mediaType
     const msgRows = await this.dbAPI.searchMessages(typed, threadID, mediaOnly, cursor, direction, sender)
