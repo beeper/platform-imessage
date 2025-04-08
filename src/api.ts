@@ -82,7 +82,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   getCurrentUser = (): CurrentUser => ({
     ...this.currentUser,
-    id: globalParticipantIDHasher.hashAndRemember(this.currentUser.id),
+    id: this.currentUser.id ? globalParticipantIDHasher.hashAndRemember(this.currentUser.id) : this.currentUser.id,
   })
 
   login = async (): Promise<LoginResult> => {
