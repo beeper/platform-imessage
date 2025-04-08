@@ -634,7 +634,7 @@ type Context = {
   groupImagesMap?: { [attachmentID: string]: string }
 }
 
-export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
+export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
   return messages

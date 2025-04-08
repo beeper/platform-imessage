@@ -50,9 +50,9 @@ export declare class MessagesController {
 
   sendTypingStatus: (threadID: ThreadID, isTyping: boolean) => Promise<void>
 
-  watchThreadActivity: (threadID: ThreadID | null, onTyping?: (status: ActivityStatus[]) => void) => Promise<void>
+  watchThreadActivity: (threadID?: ThreadID, onTyping?: (status: ActivityStatus[]) => void) => Promise<void>
 
-  sendMessage: (threadID: ThreadID, text: string | null, filePath: string | null, quotedMessageCellJSON: string) => Promise<void>
+  sendMessage: (threadID: ThreadID, text?: string, filePath?: string, quotedMessageCellJSON?: string) => Promise<void>
 
   setReaction: (threadID: ThreadID, messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
 
@@ -88,14 +88,9 @@ export type SwiftServer = {
   getDNDList: () => string[]
 }
 
-const canLoadDylib = IS_CATALINA_OR_UP && (IS_BIG_SUR_OR_UP || fs.existsSync('/usr/lib/swift'))
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
 
-let _swiftServer: SwiftServer | undefined
-if (canLoadDylib) {
-  _swiftServer = actualRequire(swiftServerPath)
-  _swiftServer.messagesControllerClass = (_swiftServer as any).MessagesController
-}
+const swiftServer: SwiftServer = actualRequire(swiftServerPath)
+swiftServer.messagesControllerClass = (swiftServer as unknown as { MessagesController: typeof MessagesController }).MessagesController
 
-const swiftServer = _swiftServer
 export default swiftServer
