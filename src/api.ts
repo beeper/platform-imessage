@@ -751,8 +751,8 @@ export default class AppleiMessage implements PlatformAPI {
         const filePath = Buffer.from(pathHex, 'hex').toString()
         const buffer = await fs.readFile(filePath)
         try {
-          // eslint-disable-next-line @typescript-eslint/return-await
-          return await convertCGBI(buffer)
+          // TODO: `await import` here for laziness
+          return convertCGBI(buffer)
         } catch (err) {
           return url.pathToFileURL(filePath).href
         }
