@@ -47,7 +47,7 @@ function spawnASServer() {
       }, 10_000) // should resolve in <100 ms so 10s is a lot
       ev.once(tag, json => {
         clearTimeout(timeout)
-        if (IS_DEV_ENVIRON) console.log('[imsg.as2] ↓', scriptName, json, Date.now() - startTime, 'ms')
+        if (IS_DEV_ENVIRON && startTime) console.log('[imsg.as2] ↓', scriptName, json, Date.now() - startTime, 'ms')
         if (json.error) reject(new Error(json.error))
         else resolve(json.output)
       })
