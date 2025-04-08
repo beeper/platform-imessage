@@ -109,9 +109,8 @@ function getApplePayProps(payloadData: any) {
   }
 }
 
-function getYouTubeProps(payloadData: any, msgAttachments: Attachment[]): Partial<Message> {
+function getYouTubeProps(payloadData: any): Partial<Message> {
   const unwrapped = unwrapDictionary(payloadData)
-  const img = msgAttachments[0]
   return {
     attachments: [],
     links: [{

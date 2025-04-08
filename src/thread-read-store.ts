@@ -15,6 +15,7 @@ export default class ThreadReadStore {
   }
 
   isThreadUnread(threadID: string, lastMessageID: string) {
-    return this.store.store?.lastRead?.[normalizeThreadID(threadID)] !== lastMessageID
+    const lastRead = this.store.store?.lastRead as Record<string, any> | undefined
+    return lastRead?.[normalizeThreadID(threadID)] !== lastMessageID
   }
 }
