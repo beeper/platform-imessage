@@ -6,4 +6,5 @@ export const isSelectable = (message: MessageWithExtra) =>
     && !message.links?.length
     && !message.tweets?.length
     && typeof message.extra?.part === 'undefined'
+    && message.text
     && !isEmojiOrSpacesOnlyString(message.text))
