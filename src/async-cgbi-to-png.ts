@@ -106,7 +106,7 @@ export async function convertCGBI(cgbi: Buffer) {
           chsum,
         )
 
-        return (Buffer.concat(result))
+        return Buffer.concat(result)
       }
 
       case 'IHDR':
@@ -127,4 +127,6 @@ export async function convertCGBI(cgbi: Buffer) {
         break
     }
   }
+
+  throw new Error('didn\'t reach IEND chunk')
 }
