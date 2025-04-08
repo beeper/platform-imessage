@@ -167,11 +167,12 @@ const ChecklistItem = ({
 
 const ChecklistPage: React.FC<Props> = props => {
   const { nmp, callProxiedFn, canAccessMessagesDir } = props
+  // NOTE(skip): this prop is defined as optional in platform-sdk
   const [loggingIn, setLoggingIn] = useState(false)
   const { execute: refreshMessageDirAuthorization, value: messageDirAuthorized } = useAsync(canAccessMessagesDir)
   const askedContacts = useRef(false)
-  const { authorized: contactsAuthorized, refreshAuthorization: refreshContactsAuthorization } = useNMP(nmp, 'contacts')
-  const { authorized: axAuthorized, refreshAuthorization: refreshAXAuthorization } = useNMP(nmp, 'accessibility')
+  const { authorized: contactsAuthorized } = useNMP(nmp, 'contacts')
+  const { authorized: axAuthorized } = useNMP(nmp, 'accessibility')
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -201,7 +202,7 @@ const ChecklistPage: React.FC<Props> = props => {
     } catch (err) {
       console.error(err)
       texts.Sentry.captureException(err)
-      alert('Something went wrong:\n\n' + err.toString())
+      alert(`Something went wrong:\n\n${err}`)
     }
   }
 
@@ -252,7 +253,7 @@ const ChecklistPage: React.FC<Props> = props => {
       more: <div onClick={openAutomationPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
       showMore,
     },
-  ].filter(Boolean)
+  ].filter(item => item !== false)
 
   const allAuthorized = isMessagesAppSetup && checklistItems.every(i => i.completed)
   const nextUncompletedItem = checklistItems.find(i => !i.completed)
@@ -276,7 +277,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const login = () => {
     setLoggingIn(true)
-    if (!loggingIn) props.login()
+    if (!loggingIn) props.login?.()
   }
 
   useEffect(() => {
@@ -290,31 +291,37 @@ const ChecklistPage: React.FC<Props> = props => {
       await sleep(50)
     }
   }
-  const permissionsSection = () => (
-    <div className="fake-details permissions-section">
-      <div className="fake-summary">
-        <h4>
-          <svg fill="currentColor" viewBox="0 0 448 512" height="1em" width="1em"><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z" /></svg>
-          Permissions
-        </h4>
-        {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
+
+  const permissionsSection = () => {
+    const { Tooltip } = props
+    if (!Tooltip) throw new Error('Tooltip component required for ChecklistPage')
+
+    return (
+      <div className="fake-details permissions-section">
+        <div className="fake-summary">
+          <h4>
+            <svg fill="currentColor" viewBox="0 0 448 512" height="1em" width="1em"><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z" /></svg>
+            Permissions
+          </h4>
+          {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
+        </div>
+        <div className="imessage-auth-well">
+          {checklistItems.map(i => (
+            <>
+              <ChecklistItem key={i.title} {...i} Tooltip={Tooltip}>
+                {nextUncompletedItem === i && (
+                  <div className="authorize">
+                    <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
+                  </div>
+                )}
+              </ChecklistItem>
+            </>
+          ))}
+          {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
+        </div>
       </div>
-      <div className="imessage-auth-well">
-        {checklistItems.map(i => (
-          <>
-            <ChecklistItem key={i.title} {...i} Tooltip={props.Tooltip}>
-              {nextUncompletedItem === i && (
-                <div className="authorize">
-                  <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
-                </div>
-              )}
-            </ChecklistItem>
-          </>
-        ))}
-        {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div>
@@ -329,7 +336,10 @@ const ChecklistPage: React.FC<Props> = props => {
 
 const AppleiMessageAuth: React.FC<AuthProps & { nmp?: NMP }> = props => {
   const { api } = props
-  const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset(null, 'proxied', fnName) as string), [])
+  const callProxiedFn = useCallback(async (fnName: string) => {
+    if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)
+    return JSON.parse(await api.getAsset?.(undefined, 'proxied', fnName) as string)
+  }, [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
   return (
     <div className="auth imessage-auth styled-inputs">
