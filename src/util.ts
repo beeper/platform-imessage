@@ -31,6 +31,8 @@ export function fromAppleTime(timestampText: string): Date | undefined {
 }
 
 const HOMEDIR = os.homedir()
+export function replaceTilde(str: string): string
+export function replaceTilde(str: undefined): undefined
 export function replaceTilde(str?: string) {
   if (str?.[0] === '~') return HOMEDIR + str.slice(1)
   return str
