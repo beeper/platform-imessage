@@ -84,21 +84,21 @@ LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (${msgGUIDs.map(() => '?').join(',')})
 AND chat_id = ?`,
-  getMessagesWithChatRowID: (cursorDirection?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
+  getMessagesWithChatRowID: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE cmj.chat_id = ?
-${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
-ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
+${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
+ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
-  getMessages: (cursorDirection?: string, limit = MESSAGES_LIMIT) => `SELECT
+  getMessages: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE t.guid = ?
-${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
-ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
+${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
+ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
   getMessage: `SELECT
 ${MAP_MESSAGES_COLS}
@@ -113,16 +113,16 @@ WHERE cmj.chat_id = ?
 AND m.item_type == 0
 AND m.is_read == 0
 AND m.is_from_me == 0`,
-  searchMessages: (cursorDirection?: string, chatGUID?: string, mediaOnly?: boolean, fromMe?: boolean) => `SELECT
+  searchMessages: (dateComparisonOperator?: '<' | '>', chatGUID?: string, mediaOnly?: boolean, fromMe?: boolean) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
-${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
+${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
 ${chatGUID ? 'AND t.guid = ?' : ''}
 ${mediaOnly ? 'AND cache_has_attachments = 1' : ''}
 ${fromMe ? 'AND is_from_me = 1' : ''}
-ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
+ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
   getUnreadCounts: `SELECT
@@ -282,7 +282,7 @@ export default class DatabaseAPI {
   getMessages(chatGUID: string, pagination?: PaginationArg): Promise<MappedMessageRow[]> {
     // FIXME: this shouldn't be parsing to a number due to precision loss
     const bindings = pagination ? [chatGUID, Number.parseInt(pagination.cursor, 10)] : [chatGUID]
-    return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(pagination?.direction), ...bindings)
+    return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined), ...bindings)
   }
 
   getMessage = (messageGUID: string): Promise<MappedMessageRow> =>
