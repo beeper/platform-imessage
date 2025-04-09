@@ -1,12 +1,11 @@
 import path from 'path'
 import { promisify } from 'util'
 import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
-// import { parentPort } from 'worker_threads'
 import imageSizeCallback from 'image-size'
-import { Message, OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
+import { Message, OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
-import { CHAT_DB_PATH, IS_MONTEREY_OR_UP, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
@@ -20,7 +19,7 @@ const imageSizeAsync = promisify(imageSizeCallback)
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
   before: '<',
-}
+} as const
 
 export const THREADS_LIMIT = 25
 export const MESSAGES_LIMIT = 20
@@ -47,12 +46,12 @@ CAST(m.date_retracted AS TEXT) AS dateRetractedString`
 }
 
 const SQLS = {
-  getThreads: (cursorDirection: string) => `SELECT *,
+  getThreads: (dateComparisonOperator?: '<' | '>') => `SELECT *,
 (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
 CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
 CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
-${cursorDirection ? `WHERE msgDate ${cursorDirection} ?` : ''}
+${dateComparisonOperator ? `WHERE msgDate ${dateComparisonOperator} ?` : ''}
 ORDER BY msgDate DESC
 LIMIT ${THREADS_LIMIT}`,
   getThread: `SELECT *,
@@ -85,21 +84,21 @@ LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (${msgGUIDs.map(() => '?').join(',')})
 AND chat_id = ?`,
-  getMessagesWithChatRowID: (cursorDirection: string, limit = MESSAGES_LIMIT) => `SELECT
+  getMessagesWithChatRowID: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE cmj.chat_id = ?
-${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
-ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
+${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
+ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
-  getMessages: (cursorDirection: string, limit = MESSAGES_LIMIT) => `SELECT
+  getMessages: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE t.guid = ?
-${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
-ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
+${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
+ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
   getMessage: `SELECT
 ${MAP_MESSAGES_COLS}
@@ -114,16 +113,16 @@ WHERE cmj.chat_id = ?
 AND m.item_type == 0
 AND m.is_read == 0
 AND m.is_from_me == 0`,
-  searchMessages: (cursorDirection: string, chatGUID: string | undefined, mediaOnly: boolean, fromMe: boolean) => `SELECT
+  searchMessages: (dateComparisonOperator?: '<' | '>', chatGUID?: string, mediaOnly?: boolean, fromMe?: boolean) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
-${cursorDirection ? `AND m.date ${cursorDirection} ?` : ''}
+${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
 ${chatGUID ? 'AND t.guid = ?' : ''}
 ${mediaOnly ? 'AND cache_has_attachments = 1' : ''}
 ${fromMe ? 'AND is_from_me = 1' : ''}
-ORDER BY date ${cursorDirection === '>' ? 'ASC' : 'DESC'}
+ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
   getUnreadCounts: `SELECT
@@ -142,11 +141,9 @@ GROUP BY
 declare const AsyncSqlite: IAsyncSqlite
 
 async function getDB() {
-  try {
-    const instance = new AsyncSqlite()
-    await instance.init(CHAT_DB_PATH)
-    return instance
-  } catch (err) { console.error(err) }
+  const instance = new AsyncSqlite()
+  await instance.init(CHAT_DB_PATH)
+  return instance
 }
 
 async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxAttempt = 3) {
@@ -159,9 +156,9 @@ async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxA
   return rows
 }
 
-export default class DatabaseAPI {
-  private db: IAsyncSqlite
+export type ChatRef = { type: 'guid', guid: string } | { type: 'rowid', rowid: number }
 
+export default class DatabaseAPI {
   private lastRowID = 0
 
   private lastDateRead = 0
@@ -170,23 +167,21 @@ export default class DatabaseAPI {
 
   private rustServer: IRustServer | null = null
 
-  constructor(private readonly papi: InstanceType<typeof PAPI>) {}
+  constructor(private db: IAsyncSqlite, private readonly papi: InstanceType<typeof PAPI>) {}
 
-  async init() {
-    if (this.db) return
-    this.db = await getDB()
-    await this.db?.run(SQLS.createIndexes)
-  }
-
-  get connected() {
-    return !!this.db
+  static async make(papi: InstanceType<typeof PAPI>) {
+    texts.log('imsg: creating DatabaseAPI')
+    const db = await getDB()
+    texts.log('imsg: creating indexes')
+    await db.run(SQLS.createIndexes)
+    return new DatabaseAPI(db, papi)
   }
 
   dispose() {
     this.rustServer?.stopPoller()
     this.rustServer = null
 
-    return this.db?.dispose()
+    return this.db.dispose()
   }
 
   // this should ideally be fetched from rust server
@@ -196,7 +191,7 @@ export default class DatabaseAPI {
   }
 
   getAccountLogins = (): Promise<string[]> =>
-    this.db!.pluck_all<void[], string>(SQLS.getAccountLogins)
+    this.db.pluck_all<void[], string>(SQLS.getAccountLogins)
 
   private calledRustServerSetOnce = false
 
@@ -211,8 +206,8 @@ export default class DatabaseAPI {
 
   setLastCursor(allMsgRows: MappedMessageRow[]) {
     if (!allMsgRows.length) return
-    const maxDateRead = maxBy(allMsgRows, 'date_read')?.date_read
-    const maxRowID = maxBy(allMsgRows, 'ROWID')?.ROWID
+    const maxDateRead = maxBy(allMsgRows, 'date_read')!.date_read
+    const maxRowID = maxBy(allMsgRows, 'ROWID')!.ROWID
     if (maxRowID > this.lastRowID) {
       this.lastRowID = maxRowID
     }
@@ -243,7 +238,7 @@ export default class DatabaseAPI {
     if (!msgRow) return [[], [], []]
     const [attachmentRows, reactionRows] = await Promise.all([
       this.getAttachments([msgRow.ROWID]),
-      this.getMessageReactions([msgRow.guid], undefined, chatRowID),
+      this.getMessageReactions([msgRow.guid], { type: 'rowid', rowid: chatRowID }),
     ])
     return [[msgRow], attachmentRows, reactionRows]
   }
@@ -263,8 +258,9 @@ export default class DatabaseAPI {
   getThreadWithWait = (chatGUID: string) =>
     waitForRows(() => this.getThread(chatGUID).then(c => [c]), 1)
 
-  async getThreads(cursor: string, direction: 'after' | 'before'): Promise<MappedChatRow[]> {
-    const chats = await this.db.all<number[], MappedChatRow>(SQLS.getThreads(MAP_DIRECTION_TO_SQL_OP[direction]), ...(cursor ? [+cursor] : []))
+  async getThreads(pagination?: PaginationArg): Promise<MappedChatRow[]> {
+    // FIXME: this shouldn't be parsing to a number due to precision loss
+    const chats = await this.db.all<number[], MappedChatRow>(SQLS.getThreads(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined), ...(pagination ? [Number.parseInt(pagination.cursor, 10)] : []))
     chats.forEach(chat => {
       this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     })
@@ -283,10 +279,10 @@ export default class DatabaseAPI {
   //   )
   // }
 
-  getMessages(chatGUID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
-    const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
-    const bindings = cursor ? [chatGUID, +cursor] : [chatGUID]
-    return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(cursorDirection), ...bindings)
+  getMessages(chatGUID: string, pagination?: PaginationArg): Promise<MappedMessageRow[]> {
+    // FIXME: this shouldn't be parsing to a number due to precision loss
+    const bindings = pagination ? [chatGUID, Number.parseInt(pagination.cursor, 10)] : [chatGUID]
+    return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined), ...bindings)
   }
 
   getMessage = (messageGUID: string): Promise<MappedMessageRow> =>
@@ -304,7 +300,16 @@ export default class DatabaseAPI {
       Object.assign(a, { ext, fileName, filePath })
       if ((IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') && ext !== 'heic') { // heic isn't supported yet
         try {
-          const { width, height, orientation } = await this.imageSizeMemoized(filePath)
+          const imageSize = await this.imageSizeMemoized(filePath)
+          if (!imageSize) {
+            texts.error("couldn't determine image size")
+            return a
+          }
+          const { width, height, orientation } = imageSize
+          if (!width || !height) {
+            texts.error('image size had bogus dimensions')
+            return a
+          }
           /*
             orientation:
             https://exiftool.org/TagNames/EXIF.html#:~:text=0x0112,8%20=%20Rotate%20270%20CW
@@ -317,25 +322,34 @@ export default class DatabaseAPI {
             7 = Mirror horizontal and rotate 90 CW
             8 = Rotate 270 CW
           */
-          a.size = [5, 6, 7, 8].includes(orientation) ? { width: height, height: width } : { width, height }
+          a.size = orientation && [5, 6, 7, 8].includes(orientation) ? { width: height, height: width } : { width, height }
         } catch (err) { texts.error(err) }
       }
       return a
     }))
   }
 
-  getMessageReactions(msgGUIDs: string[], chatGUID: string, chatRowID: number = this.chatGUIDRowIDMap.get(chatGUID)): Promise<MappedReactionMessageRow[]> {
+  getMessageReactions(msgGUIDs: string[], chat: ChatRef): Promise<MappedReactionMessageRow[]> {
+    let chatRowID: number
+    if (chat.type === 'guid') {
+      const rowID = this.chatGUIDRowIDMap.get(chat.guid)
+      if (!rowID) throw new Error('while getting reactions: expected GUID to be in cache')
+      chatRowID = rowID
+    } else {
+      chatRowID = chat.rowid
+    }
+
     const bindings = [...msgGUIDs, chatRowID]
     return this.db.all<typeof bindings, MappedReactionMessageRow>(SQLS.getMessageReactions(msgGUIDs), ...bindings)
   }
 
-  async searchMessages(typed: string, chatGUID: string, mediaOnly: boolean, cursor: string, direction: string, sender: string | undefined): Promise<MappedMessageRow[]> {
+  async searchMessages(typed: string, chatGUID?: string, mediaOnly?: boolean, pagination?: PaginationArg, sender?: string): Promise<MappedMessageRow[]> {
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
-    const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
-    const bindings = cursor ? [typedEscaped, +cursor] : [typedEscaped]
+    // FIXME: this shouldn't be parsing to a number due to precision loss
+    const bindings = pagination ? [typedEscaped, Number.parseInt(pagination.cursor, 10)] : [typedEscaped]
     if (chatGUID) bindings.push(chatGUID)
     const msgRows = await this.db.all<typeof bindings, MappedMessageRow>(
-      SQLS.searchMessages(cursorDirection, chatGUID, mediaOnly, sender === 'me'),
+      SQLS.searchMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined, chatGUID, mediaOnly, sender === 'me'),
       ...bindings,
     )
     msgRows.reverse()
@@ -358,19 +372,20 @@ LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 WHERE m.ROWID = ?`, rowID)
 
-  private getMappedMessagesWithoutExtraRows = async (chatGUID: string, cursor: string, direction: 'before' | 'after') => {
-    const msgRows = await this.getMessages(chatGUID, cursor, direction)
-    if (direction !== 'after') msgRows.reverse()
-    const items = mapMessages(msgRows, [], [], this.papi.currentUser.id)
+  private getMappedMessagesWithoutExtraRows = async (chatGUID: string, pagination?: PaginationArg) => {
+    const msgRows = await this.getMessages(chatGUID, pagination)
+    if (pagination?.direction !== 'after') msgRows.reverse()
+    const items = mapMessages(msgRows, [], [], this.papi.currentUser!.id)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,
     }
   }
 
-  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, mapped: Message, msgRow: MappedMessageRow): Promise<AXMessageSelection> => {
+  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, mapped: Message, msgRow: MappedMessageRow): Promise<AXMessageSelection | undefined> => {
     texts.log('[imessage] searching for neighboring message', direction, threadID, mapped.id, mapped.cursor)
-    const messages = await this.getMappedMessagesWithoutExtraRows(threadID, mapped.cursor, direction) // todo handle message splitting, optimize
+    if (!mapped.cursor) throw new Error('while trying to find closest text: message has no cursor')
+    const messages = await this.getMappedMessagesWithoutExtraRows(threadID, { cursor: mapped.cursor, direction }) // todo handle message splitting, optimize
     const unhiddenMessages = messages.items.filter(m => !m.isHidden)
     // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
     const find = direction === 'before' ? findLastIndex : findIndex

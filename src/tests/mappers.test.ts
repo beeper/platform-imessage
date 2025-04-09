@@ -10,11 +10,16 @@ async function testMessageMapFixture(fixturePath: string) {
   test(path.basename(fixturePath), async () => {
     const parameters: Parameters<typeof mapMessage> = JSON.parse(await fs.readFile(pathRelativeToTests, 'utf8'))
 
-    const fixupDataUri = (key: string) => {
-      if (key in parameters[0]) {
-        // Slice off "data:;base64," present in test fixtures.
-        parameters[0][key] = Buffer.from(parameters[0][key].slice(13), 'base64')
-      }
+    type Row = typeof parameters[0]
+    type MessageRowBufferKeys = { [Key in keyof Row]: Row[Key] extends Buffer ? Key : never }[keyof Row]
+
+    // To represent `MessageRow`'s `Buffer` properties in JSON, interpret them
+    // from Base64-encoded strings.
+    const fixupDataUri = (key: MessageRowBufferKeys) => {
+      if (!key || !(key in parameters[0])) return
+
+      // Slice off "data:;base64,".
+      parameters[0][key] = Buffer.from((parameters[0][key] as unknown as string).slice(13), 'base64')
     }
 
     fixupDataUri('attributedBody')

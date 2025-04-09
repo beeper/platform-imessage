@@ -18,7 +18,7 @@ const timeoutAndReport = async <T>(promise: Promise<T>, ms = 120_000): Promise<T
 }
 
 export default class MessagesControllerWrapper {
-  private static fetchPromise: Promise<MessagesController>
+  private static fetchPromise?: Promise<MessagesController>
 
   private static controller?: MessagesController
 
@@ -40,7 +40,7 @@ export default class MessagesControllerWrapper {
 
   // serialized: if there's an existing get request running, it's reused
   private static _getMessagesController = async (): Promise<MessagesController> => {
-    if (!IS_BIG_SUR_OR_UP) return
+    if (!IS_BIG_SUR_OR_UP) throw new Error('MessagesController is only supported on macOS Big Sur and later')
 
     // we want to reuse existing instances of the fetch promise while any one is
     // running, but once it's done the next call to getMessagesController should

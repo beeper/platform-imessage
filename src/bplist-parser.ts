@@ -12,10 +12,53 @@ export const maxObjectCount = 32768
 // So we just hardcode the correct value.
 const EPOCH = 978307200000
 
-// UID object definition
-export function UID(id: number) {
-  this.UID = id
+export class UID {
+  public constructor(public readonly uid: number) {}
 }
+
+// we're just going to toss the high order bits because javascript doesn't have 64-bit ints
+function readUInt64BE(buffer: Buffer<ArrayBuffer>, start: number) {
+  const data = buffer.slice(start, start + 8)
+  return data.readUInt32BE(4)
+}
+
+function readUInt(buffer: Buffer, start = 0) {
+  let l = 0
+  for (let i = start; i < buffer.length; i++) {
+    l <<= 8
+    l |= buffer[i] & 0xFF
+  }
+  return l
+}
+
+function swapBytes(buffer: Buffer) {
+  const len = buffer.length
+  for (let i = 0; i < len; i += 2) {
+    const a = buffer[i]
+    buffer[i] = buffer[i + 1]
+    buffer[i + 1] = a
+  }
+  return buffer
+}
+
+function bufferToHexString(buffer: Buffer) {
+  let str = ''
+  let i
+  for (i = 0; i < buffer.length; i++) {
+    if (buffer[i] !== 0x00) {
+      break
+    }
+  }
+  for (; i < buffer.length; i++) {
+    const part = '00' + buffer[i].toString(16)
+    str += part.substr(part.length - 2)
+  }
+  return str
+}
+
+export type PlistPrimitive = null | boolean | string | number | UID | Date | Buffer<ArrayBuffer> | bigint | Plist[]
+export type PlistDictionary = { [key: string]: Plist }
+export type Plist = PlistPrimitive | PlistDictionary
 
 export function parseBuffer(buffer: Buffer) {
   // check header
@@ -53,7 +96,7 @@ export function parseBuffer(buffer: Buffer) {
   }
 
   // Handle offset table
-  const offsetTable = []
+  const offsetTable: number[] = []
 
   for (let i = 0; i < numObjects; i++) {
     const offsetBytes = buffer.slice(offsetTableOffset + i * offsetSize, offsetTableOffset + (i + 1) * offsetSize)
@@ -67,37 +110,13 @@ export function parseBuffer(buffer: Buffer) {
   // For the format specification check
   // <a href="https://www.opensource.apple.com/source/CF/CF-635/CFBinaryPList.c">
   // Apple's binary property list parser implementation</a>.
-  function parseObject(tableOffset) {
+  function parseObject(tableOffset: number): Plist {
     const offset = offsetTable[tableOffset]
     const type = buffer[offset]
     const objType = (type & 0xF0) >> 4 // First  4 bits
     const objInfo = (type & 0x0F) // Second 4 bits
-    switch (objType) {
-      case 0x0:
-        return parseSimple()
-      case 0x1:
-        return parseInteger()
-      case 0x8:
-        return parseUID()
-      case 0x2:
-        return parseReal()
-      case 0x3:
-        return parseDate()
-      case 0x4:
-        return parseData()
-      case 0x5: // ASCII
-        return parsePlistString()
-      case 0x6: // UTF-16
-        return parsePlistString(true)
-      case 0xA:
-        return parseArray()
-      case 0xD:
-        return parseDictionary()
-      default:
-        throw new Error('Unhandled type 0x' + objType.toString(16))
-    }
 
-    function parseSimple() {
+    function parseSimple(): boolean | null {
       // Simple
       switch (objInfo) {
         case 0x0: // null
@@ -113,22 +132,7 @@ export function parseBuffer(buffer: Buffer) {
       }
     }
 
-    function bufferToHexString(buffer: Buffer) {
-      let str = ''
-      let i
-      for (i = 0; i < buffer.length; i++) {
-        if (buffer[i] !== 0x00) {
-          break
-        }
-      }
-      for (; i < buffer.length; i++) {
-        const part = '00' + buffer[i].toString(16)
-        str += part.substr(part.length - 2)
-      }
-      return str
-    }
-
-    function parseInteger() {
+    function parseInteger(): bigint | number {
       const length = 2 ** objInfo
 
       if (objInfo === 0x4) {
@@ -145,7 +149,7 @@ export function parseBuffer(buffer: Buffer) {
       throw new Error('Too little heap space available! Wanted to read ' + length + ' bytes, but only ' + maxObjectSize + ' are available.')
     }
 
-    function parseUID() {
+    function parseUID(): UID {
       const length = objInfo + 1
       if (length < maxObjectSize) {
         return new UID(readUInt(buffer.slice(offset + 1, offset + 1 + length)))
@@ -153,7 +157,7 @@ export function parseBuffer(buffer: Buffer) {
       throw new Error('Too little heap space available! Wanted to read ' + length + ' bytes, but only ' + maxObjectSize + ' are available.')
     }
 
-    function parseReal() {
+    function parseReal(): number {
       const length = 2 ** objInfo
       if (length < maxObjectSize) {
         const realBuffer = buffer.slice(offset + 1, offset + 1 + length)
@@ -163,12 +167,13 @@ export function parseBuffer(buffer: Buffer) {
         if (length === 8) {
           return realBuffer.readDoubleBE(0)
         }
+        throw new Error(`Unknown real length: ${length}`)
       } else {
         throw new Error('Too little heap space available! Wanted to read ' + length + ' bytes, but only ' + maxObjectSize + ' are available.')
       }
     }
 
-    function parseDate() {
+    function parseDate(): Date {
       if (objInfo !== 0x3) {
         console.error('Unknown date type :' + objInfo + '. Parsing anyway...')
       }
@@ -176,7 +181,7 @@ export function parseBuffer(buffer: Buffer) {
       return new Date(EPOCH + (1000 * dateBuffer.readDoubleBE(0)))
     }
 
-    function parseData() {
+    function parseData(): Buffer<ArrayBuffer> {
       let dataoffset = 1
       let length = objInfo
       if (objInfo === 0xF) {
@@ -200,8 +205,7 @@ export function parseBuffer(buffer: Buffer) {
       throw new Error('Too little heap space available! Wanted to read ' + length + ' bytes, but only ' + maxObjectSize + ' are available.')
     }
 
-    function parsePlistString(isUtf16?) {
-      isUtf16 = isUtf16 || 0
+    function parsePlistString(isUtf16 = false): string {
       let enc: BufferEncoding = 'utf8'
       let length = objInfo
       let stroffset = 1
@@ -221,7 +225,7 @@ export function parseBuffer(buffer: Buffer) {
         }
       }
       // length is String length -> to get byte length multiply by 2, as 1 character takes 2 bytes in UTF-16
-      length *= (isUtf16 + 1)
+      if (isUtf16) length *= 2
       if (length < maxObjectSize) {
         let plistString = Buffer.from(buffer.slice(offset + stroffset, offset + stroffset + length))
         if (isUtf16) {
@@ -235,7 +239,7 @@ export function parseBuffer(buffer: Buffer) {
       throw new Error('Too little heap space available! Wanted to read ' + length + ' bytes, but only ' + maxObjectSize + ' are available.')
     }
 
-    function parseArray() {
+    function parseArray(): Plist[] {
       let length = objInfo
       let arrayoffset = 1
       if (objInfo === 0xF) {
@@ -264,7 +268,7 @@ export function parseBuffer(buffer: Buffer) {
       return array
     }
 
-    function parseDictionary() {
+    function parseDictionary(): PlistDictionary {
       let length = objInfo
       let dictoffset = 1
       if (objInfo === 0xF) {
@@ -288,7 +292,7 @@ export function parseBuffer(buffer: Buffer) {
       if (debug) {
         console.log('Parsing dictionary #' + tableOffset)
       }
-      const dict = {}
+      const dict: PlistDictionary = {}
       for (let i = 0; i < length; i++) {
         const keyRef = readUInt(buffer.slice(offset + dictoffset + i * objectRefSize, offset + dictoffset + (i + 1) * objectRefSize))
         const valRef = readUInt(buffer.slice(offset + dictoffset + (length * objectRefSize) + i * objectRefSize, offset + dictoffset + (length * objectRefSize) + (i + 1) * objectRefSize))
@@ -297,36 +301,39 @@ export function parseBuffer(buffer: Buffer) {
         if (debug) {
           console.log('  DICT #' + tableOffset + ': Mapped ' + key + ' to ' + val)
         }
+        if (!(typeof key === 'string')) {
+          throw new Error("Dictionary key isn't a string")
+        }
         dict[key] = val
       }
       return dict
     }
+
+    switch (objType) {
+      case 0x0:
+        return parseSimple()
+      case 0x1:
+        return parseInteger()
+      case 0x8:
+        return parseUID()
+      case 0x2:
+        return parseReal()
+      case 0x3:
+        return parseDate()
+      case 0x4:
+        return parseData()
+      case 0x5: // ASCII
+        return parsePlistString()
+      case 0x6: // UTF-16
+        return parsePlistString(true)
+      case 0xA:
+        return parseArray()
+      case 0xD:
+        return parseDictionary()
+      default:
+        throw new Error('Unhandled type 0x' + objType.toString(16))
+    }
   }
 
   return parseObject(topObject)
-}
-
-function readUInt(buffer: Buffer, start = 0) {
-  let l = 0
-  for (let i = start; i < buffer.length; i++) {
-    l <<= 8
-    l |= buffer[i] & 0xFF
-  }
-  return l
-}
-
-// we're just going to toss the high order bits because javascript doesn't have 64-bit ints
-function readUInt64BE(buffer, start: number) {
-  const data = buffer.slice(start, start + 8)
-  return data.readUInt32BE(4, 8)
-}
-
-function swapBytes(buffer: Buffer) {
-  const len = buffer.length
-  for (let i = 0; i < len; i += 2) {
-    const a = buffer[i]
-    buffer[i] = buffer[i + 1]
-    buffer[i + 1] = a
-  }
-  return buffer
 }

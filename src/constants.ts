@@ -25,7 +25,7 @@ export const ASSOC_MSG_TYPE = {
   3004: 'unreacted_emphasize',
   3005: 'unreacted_question',
   3006: 'unreacted_emoji',
-}
+} as const
 
 export const REACTION_VERB_MAP = {
   reacted_heart: 'loved',
@@ -43,7 +43,7 @@ export const REACTION_VERB_MAP = {
   unreacted_emphasize: 'removed an exclamation from',
   unreacted_question: 'removed a question mark from',
   unreacted_emoji: 'unreacted from',
-}
+} as const
 
 export const EXPRESSIVE_MSGS = {
   'com.apple.messages.effect.CKEchoEffect': 'Echo screen',
@@ -59,7 +59,7 @@ export const EXPRESSIVE_MSGS = {
   'com.apple.MobileSMS.expressivesend.loud': 'Loud text',
   'com.apple.MobileSMS.expressivesend.gentle': 'Gentle text',
   'com.apple.MobileSMS.expressivesend.invisibleink': 'Invisible Ink text',
-}
+} as const
 
 export const enum AttachmentTransferState {
   NOT_DOWNLOADED = 0,

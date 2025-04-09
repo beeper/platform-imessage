@@ -1,5 +1,3 @@
-// import os from 'os'
-import { trimStart, trimEnd } from 'lodash'
 import { Message, Attachment, Size, AttachmentType, MessageLink } from '@textshq/platform-sdk'
 
 import { parseTweetURL } from './util'
@@ -7,7 +5,7 @@ import safeBplistParse from './safe-bplist-parse'
 import unarchive, { unwrapDictionary } from './NSUnarchiver'
 import { BalloonBundleID } from './constants'
 
-export function getPayloadData({ payload_data: payload, msgID }: { payload_data: Uint8Array, msgID?: string }) {
+export function getPayloadData({ payload_data: payload }: { payload_data: Uint8Array, msgID?: string }) {
   if (!payload) return
   const payloadBuffer = Buffer.from(payload)
   const plist = safeBplistParse(payloadBuffer)
@@ -20,11 +18,11 @@ export function getPayloadData({ payload_data: payload, msgID }: { payload_data:
   return unarchived
 }
 
-function parseSize(size: string): Size {
+function parseSize(size: string): Size | null {
   const [, w, h] = /\{(\d+), (\d+)\}/.exec(size) || []
   const width = +w
   const height = +h
-  if (width && height) return { width, height }
+  return width && height ? { width, height } : null
 }
 
 function getExternalVideos(videos: any): Attachment[] {
@@ -32,13 +30,15 @@ function getExternalVideos(videos: any): Attachment[] {
   return (videos['NS.objects'] as any[]).map((video: any) => {
     const srcURL = video.URL['NS.relative']
     if (video.type === 'text/html') return null
+    const size = parseSize(video.size)
+    if (!size) return null
     return {
       id: srcURL,
       type: AttachmentType.VIDEO,
       srcURL,
-      size: parseSize(video.size),
+      size,
     }
-  }).filter(Boolean)
+  }).filter(item => item != null)
 }
 
 const unquote = (str: string) =>
@@ -52,7 +52,7 @@ function getURLBalloonProps(payloadData: any, msgAttachments: Attachment[]): Par
   const { richLinkMetadata } = payloadData
   if (!richLinkMetadata) return {}
   const { summary, title, image, icon, alternateImages, video, videos } = richLinkMetadata
-  const ppa = msgAttachments?.filter(a => a.srcURL && a.fileName.toLowerCase().endsWith('.pluginpayloadattachment')) || []
+  const ppa = msgAttachments?.filter(a => a.srcURL && a.fileName && a.fileName.toLowerCase().endsWith('.pluginpayloadattachment')) || []
   const alternates = (alternateImages?.['NS.objects'] as any[])?.map(o => ppa[o.richLinkImageAttachmentSubstituteIndex]) || []
   const attachments = videos ? [
     ...getExternalVideos(videos),
@@ -63,12 +63,13 @@ function getURLBalloonProps(payloadData: any, msgAttachments: Attachment[]): Par
   const url = ogURL || parsedURL
   if ((url && X_HOSTS.includes(new URL(url).host)) || (ogURL && X_HOSTS.includes(new URL(ogURL).host))) {
     const { tweetID, username } = parseTweetURL(ogURL) || {}
-    if (username) {
+    const imgURL = ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL
+    if (username && tweetID && imgURL) {
       const tweet = {
         id: tweetID,
         user: {
           username,
-          imgURL: ppa[icon?.richLinkImageAttachmentSubstituteIndex]?.srcURL,
+          imgURL,
           name: title?.split(' on ')?.shift(),
         },
         url,
@@ -109,9 +110,9 @@ function getApplePayProps(payloadData: any) {
   }
 }
 
-function getYouTubeProps(payloadData: any, msgAttachments: Attachment[]): Partial<Message> {
+function getYouTubeProps(payloadData: any): Partial<Message> {
   const unwrapped = unwrapDictionary(payloadData)
-  const img = msgAttachments[0]
+  // const img = msgAttachments[0]
   return {
     attachments: [],
     links: [{
@@ -128,7 +129,7 @@ export function getPayloadProps(payloadData: any, msgAttachments: Attachment[], 
   switch (balloon_bundle_id) {
     case BalloonBundleID.URL: return getURLBalloonProps(payloadData, msgAttachments)
     case BalloonBundleID.APPLE_PAY: return getApplePayProps(payloadData)
-    case BalloonBundleID.YOUTUBE: return getYouTubeProps(payloadData, msgAttachments)
+    case BalloonBundleID.YOUTUBE: return getYouTubeProps(payloadData)
     default:
   }
   console.log('[imessage] unknown balloon_bundle_id', balloon_bundle_id)

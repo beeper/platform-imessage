@@ -45,6 +45,7 @@ type Props = AuthProps & {
 const useNMP = (nmp: NMP, authType: AuthType) => {
   const isAuthorized = useCallback(() => nmp.getAuthStatus(authType).then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending, error } = useAsync(isAuthorized)
+  // eslint-disable-next-line @typescript-eslint/no-throw-literal
   if (error) throw error
   useEffect(() => {
     window.addEventListener('focus', refreshAuthorization)
@@ -167,11 +168,12 @@ const ChecklistItem = ({
 
 const ChecklistPage: React.FC<Props> = props => {
   const { nmp, callProxiedFn, canAccessMessagesDir } = props
+  // NOTE(skip): this prop is defined as optional in platform-sdk
   const [loggingIn, setLoggingIn] = useState(false)
   const { execute: refreshMessageDirAuthorization, value: messageDirAuthorized } = useAsync(canAccessMessagesDir)
   const askedContacts = useRef(false)
-  const { authorized: contactsAuthorized, refreshAuthorization: refreshContactsAuthorization } = useNMP(nmp, 'contacts')
-  const { authorized: axAuthorized, refreshAuthorization: refreshAXAuthorization } = useNMP(nmp, 'accessibility')
+  const { authorized: contactsAuthorized } = useNMP(nmp, 'contacts')
+  const { authorized: axAuthorized } = useNMP(nmp, 'accessibility')
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -201,7 +203,7 @@ const ChecklistPage: React.FC<Props> = props => {
     } catch (err) {
       console.error(err)
       texts.Sentry.captureException(err)
-      alert('Something went wrong:\n\n' + err.toString())
+      alert(`Something went wrong:\n\n${err}`)
     }
   }
 
@@ -219,7 +221,7 @@ const ChecklistPage: React.FC<Props> = props => {
     IS_BIG_SUR_OR_UP && {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M8 4.143A1.071 1.071 0 1 0 8 2a1.071 1.071 0 0 0 0 2.143Zm-4.668 1.47 3.24.316v2.5l-.323 4.585A.383.383 0 0 0 7 13.14l.826-4.017c.045-.18.301-.18.346 0L9 13.139a.383.383 0 0 0 .752-.125L9.43 8.43v-2.5l3.239-.316a.38.38 0 0 0-.047-.756H3.379a.38.38 0 0 0-.047.756Z" /><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8Z" /></svg>,
       title: 'Accessibility',
-      completed: axAuthorized,
+      completed: axAuthorized ?? false,
       action: authorizeAX,
       info: 'Required to power most iMessage functionality.',
       more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
@@ -228,7 +230,7 @@ const ChecklistPage: React.FC<Props> = props => {
     {
       icon: <svg className="icon" viewBox="0 0 496 512" height="1em" width="1em"><path d="M248 104c-53 0-96 43-96 96s43 96 96 96 96-43 96-96-43-96-96-96zm0 144c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm0-240C111 8 0 119 0 256s111 248 248 248 248-111 248-248S385 8 248 8zm0 448c-49.7 0-95.1-18.3-130.1-48.4 14.9-23 40.4-38.6 69.6-39.5 20.8 6.4 40.6 9.6 60.5 9.6s39.7-3.1 60.5-9.6c29.2 1 54.7 16.5 69.6 39.5-35 30.1-80.4 48.4-130.1 48.4zm162.7-84.1c-24.4-31.4-62.1-51.9-105.1-51.9-10.2 0-26 9.6-57.6 9.6-31.5 0-47.4-9.6-57.6-9.6-42.9 0-80.6 20.5-105.1 51.9C61.9 339.2 48 299.2 48 256c0-110.3 89.7-200 200-200s200 89.7 200 200c0 43.2-13.9 83.2-37.3 115.9z" /></svg>,
       title: 'Contacts',
-      completed: contactsAuthorized,
+      completed: contactsAuthorized ?? false,
       action: authorizeContacts,
       info: 'Required to show names instead of phone numbers.',
       more: <div onClick={openContactsPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
@@ -237,7 +239,7 @@ const ChecklistPage: React.FC<Props> = props => {
     IS_MOJAVE_OR_UP && {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M3.904 1.777C4.978 1.289 6.427 1 8 1s3.022.289 4.096.777C13.125 2.245 14 2.993 14 4s-.875 1.755-1.904 2.223C11.022 6.711 9.573 7 8 7s-3.022-.289-4.096-.777C2.875 5.755 2 5.007 2 4s.875-1.755 1.904-2.223Z" /><path d="M2 6.161V7c0 1.007.875 1.755 1.904 2.223C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777C13.125 8.755 14 8.007 14 7v-.839c-.457.432-1.004.751-1.49.972C11.278 7.693 9.682 8 8 8s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 9.161V10c0 1.007.875 1.755 1.904 2.223C4.978 12.711 6.427 13 8 13s3.022-.289 4.096-.777C13.125 11.755 14 11.007 14 10v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 12.161V13c0 1.007.875 1.755 1.904 2.223C4.978 15.711 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /></svg>,
       title: 'Messages Data',
-      completed: messageDirAuthorized,
+      completed: messageDirAuthorized ?? false,
       action: authorizeMessagesDir,
       info: 'Required to fetch and display threads and messages.',
       more: <div onClick={() => nmp.askForFullDiskAccess()}>Try: give <strong>Texts.app</strong> Full Disk Access in {sysPrefsAppName} &rarr;</div>,
@@ -252,7 +254,7 @@ const ChecklistPage: React.FC<Props> = props => {
       more: <div onClick={openAutomationPrefs}>Try: open {sysPrefsAppName} and manually check <strong>Texts.app</strong> in the list &rarr;</div>,
       showMore,
     },
-  ].filter(Boolean)
+  ].filter(item => item !== false)
 
   const allAuthorized = isMessagesAppSetup && checklistItems.every(i => i.completed)
   const nextUncompletedItem = checklistItems.find(i => !i.completed)
@@ -276,7 +278,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const login = () => {
     setLoggingIn(true)
-    if (!loggingIn) props.login()
+    if (!loggingIn) props.login?.()
   }
 
   useEffect(() => {
@@ -290,31 +292,37 @@ const ChecklistPage: React.FC<Props> = props => {
       await sleep(50)
     }
   }
-  const permissionsSection = () => (
-    <div className="fake-details permissions-section">
-      <div className="fake-summary">
-        <h4>
-          <svg fill="currentColor" viewBox="0 0 448 512" height="1em" width="1em"><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z" /></svg>
-          Permissions
-        </h4>
-        {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
+
+  const permissionsSection = () => {
+    const { Tooltip } = props
+    if (!Tooltip) throw new Error('Tooltip component required for ChecklistPage')
+
+    return (
+      <div className="fake-details permissions-section">
+        <div className="fake-summary">
+          <h4>
+            <svg fill="currentColor" viewBox="0 0 448 512" height="1em" width="1em"><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z" /></svg>
+            Permissions
+          </h4>
+          {!showMore && <div onClick={() => setShowMore(true)} className="show-more-button">Need help?</div>}
+        </div>
+        <div className="imessage-auth-well">
+          {checklistItems.map(i => (
+            <>
+              <ChecklistItem key={i.title} {...i} Tooltip={Tooltip}>
+                {nextUncompletedItem === i && (
+                  <div className="authorize">
+                    <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
+                  </div>
+                )}
+              </ChecklistItem>
+            </>
+          ))}
+          {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
+        </div>
       </div>
-      <div className="imessage-auth-well">
-        {checklistItems.map(i => (
-          <>
-            <ChecklistItem key={i.title} {...i} Tooltip={props.Tooltip}>
-              {nextUncompletedItem === i && (
-                <div className="authorize">
-                  <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
-                </div>
-              )}
-            </ChecklistItem>
-          </>
-        ))}
-        {/* {showMore && <div className="show-more-button"><button onClick={revokeAll}>Revoke all permissions</button></div>} */}
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div>
@@ -329,7 +337,10 @@ const ChecklistPage: React.FC<Props> = props => {
 
 const AppleiMessageAuth: React.FC<AuthProps & { nmp?: NMP }> = props => {
   const { api } = props
-  const callProxiedFn = useCallback(async (fnName: string) => JSON.parse(await api.getAsset(null, 'proxied', fnName) as string), [])
+  const callProxiedFn = useCallback(async (fnName: string) => {
+    if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)
+    return JSON.parse(await api.getAsset?.(undefined, 'proxied', fnName) as string)
+  }, [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
   return (
     <div className="auth imessage-auth styled-inputs">
