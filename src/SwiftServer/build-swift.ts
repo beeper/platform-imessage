@@ -33,13 +33,14 @@ const xcArchMap = {
   arm64: 'arm64',
   x64: 'x86_64',
 }
+const allArches = Object.keys(xcArchMap) as unknown as [keyof typeof xcArchMap]
 
 const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
 const NO_SPACES = process.argv.includes('--no-spaces')
 const USE_SWIFT_PM = process.argv.includes('--use-swiftpm') || process.argv.includes('--use-spm')
 
 async function main() {
-  async function buildForArch(arch?: string) {
+  async function buildForArch(arch?: keyof typeof xcArchMap) {
     const buildOptions: Config = {
       // we isolate the build directory for arch and config because of this random error on subsequent builds if it's just isolated by config
       // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/SwiftServer.node']
@@ -76,7 +77,7 @@ async function main() {
       // await codesign(dest)
     } else {
       await Promise.all(
-        Object.keys(xcArchMap)
+        allArches
           .map(async _arch => {
             const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${_arch}`)
             await lipoThin(_arch, binaryPath, path.join(outdir, 'SwiftServer.node'))
@@ -90,7 +91,7 @@ async function main() {
     await buildForArch()
   } else {
     const onRosetta = await isRosetta()
-    for (const arch of Object.keys(xcArchMap)) {
+    for (const arch of allArches) {
       if (onRosetta || process.arch === arch || process.argv.includes('--all-archs')) {
         await buildForArch(arch)
       }
@@ -104,7 +105,7 @@ main().catch(console.error)
 if (process.argv.includes('--watch')) {
   console.log('Watching for changes...')
   let isBuilding = false
-  const listener = (event: fs.WatchEventType, fileName: string) => {
+  const listener = (event: fs.WatchEventType, fileName: string | null) => {
     console.log('[fs watch event]', event, fileName, new Date().toLocaleString(), isBuilding ? '[existing build in progress]' : '')
     if (!isBuilding) {
       isBuilding = true
@@ -113,5 +114,5 @@ if (process.argv.includes('--watch')) {
         .finally(() => { isBuilding = false })
     }
   }
-  fs.watch(PACKAGE_DIR_PATH, { recursive: true }, listener)
+  fs.watch(PACKAGE_DIR_PATH, { encoding: 'utf-8', recursive: true }, listener)
 }

@@ -284,7 +284,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     partialMessage.behavior = MessageBehavior.KEEP_READ
   }
 
-  const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined
+  const msi: MessageSummaryInfo | undefined = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) as MessageSummaryInfo : undefined
 
   const unsendDataPresent = msi?.otr != null && msi?.rp != null
 
