@@ -12,9 +12,8 @@ export const maxObjectCount = 32768
 // So we just hardcode the correct value.
 const EPOCH = 978307200000
 
-// UID object definition
-class UID {
-  constructor(public uid: number) {}
+export class UID {
+  public constructor(public readonly uid: number) {}
 }
 
 // we're just going to toss the high order bits because javascript doesn't have 64-bit ints
@@ -57,8 +56,8 @@ function bufferToHexString(buffer: Buffer) {
   return str
 }
 
-type PlistPrimitive = null | boolean | string | number | UID | Date | Buffer<ArrayBuffer> | bigint | Plist[]
-type PlistDictionary = { [key: string]: Plist }
+export type PlistPrimitive = null | boolean | string | number | UID | Date | Buffer<ArrayBuffer> | bigint | Plist[]
+export type PlistDictionary = { [key: string]: Plist }
 export type Plist = PlistPrimitive | PlistDictionary
 
 export function parseBuffer(buffer: Buffer) {
