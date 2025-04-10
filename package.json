@@ -1,6 +1,6 @@
 {
   "name": "@beeper/platform-imessage",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "main": "dist/index.js",
   "type": "module",
   "exports": {
@@ -26,7 +26,6 @@
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
   "dependencies": {
-    "@beeper/platform-sdk": "https://github.com/beeper/beeper-desktop-new.git#workspace=@beeper/platform-sdk&commit=15a99f4f4862b403de07ebbb4be89f3988cde179",
     "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053",
     "clsx": "^1.2.1",
     "concurrently": "^9.1.2",
@@ -57,7 +56,7 @@
     "sass": "^1.76.0",
     "ts-jest": "^28.0.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.7.2"
   },
   "os": [
     "darwin"
