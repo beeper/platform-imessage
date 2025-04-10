@@ -4,7 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
-    "module": "Preserve"
+    "module": "Preserve",
+    "moduleResolution": "bundler"
   },
   "include": [
     "src"
