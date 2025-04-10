@@ -1,4 +1,4 @@
-import { Message, MessageReaction, Participant, Thread } from '@textshq/platform-sdk'
+import { CursorProp, Message, MessageReaction, Paginated, Participant, Thread } from '@textshq/platform-sdk'
 import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
 
 export function hashReaction(reaction: MessageReaction): MessageReaction {
@@ -35,13 +35,18 @@ export function hashThreadID(id: string): string {
   return globalThreadIDHasher.hashAndRemember(id)
 }
 
+function hashPaginated<T extends CursorProp>(paginated: Paginated<T>, hasher: (unhashed: T) => T): Paginated<T> {
+  return {
+    hasMore: paginated.hasMore,
+    items: paginated.items.map(hasher),
+  }
+}
+
 export function hashThread(thread: Thread): Thread {
   return ({
     ...thread,
     id: globalThreadIDHasher.hashAndRemember(thread.id),
-    participants: {
-      ...thread.participants,
-      items: thread.participants.items.map(hashParticipant),
-    },
+    messages: hashPaginated(thread.messages, hashMessage),
+    participants: hashPaginated(thread.participants, hashParticipant),
   })
 }
