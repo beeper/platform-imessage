@@ -1,6 +1,6 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity, InboxName } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
@@ -712,6 +712,9 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
       hasMore: false,
       items: participants,
     },
+    // NOTE(skip): This works around a bug in PAS's "map missing" plugin where
+    // the "folder"/inbox name gets forcibly set to the thread ID.
+    folderName: InboxName.NORMAL,
     timestamp: fromAppleTime(chat.msgDateString),
   }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
