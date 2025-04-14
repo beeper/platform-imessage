@@ -1,4 +1,4 @@
-name: Make New Release
+name: CI/CD
 
 on:
   push:
