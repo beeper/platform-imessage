@@ -48,6 +48,11 @@ enum DefaultsKeys {
     static let spacesObserveDock = "BEEPSpacesObserveDock"
     /** when a `.user` space is at play, move the window to the hidden space when the app is activated shortly after the space changes (our heuristic for the app being manually activated) */
     static let spacesObserveCurrentSpaceChanges = "BEEPSpacesObserveCurrentSpaceChanges"
+
+    static let editingDelayBeforePressingMenuItem = "BEEPEditingDelayBeforePressingMenuItem"
+    static let editingDelayBeforeReplacing = "BEEPEditingDelayBeforeReplacing"
+    static let editingDelayBeforeFocusing = "BEEPEditingDelayBeforeFocusing"
+    static let editingDelayPressingReturn = "BEEPEditingDelayBeforePressingReturn"
 }
 
 // TODO: cleanup
@@ -80,6 +85,8 @@ enum Defaults {
             DefaultsKeys.spacesDestroySpaceOnDeinit: true,
             DefaultsKeys.spacesObserveDock: true,
             DefaultsKeys.spacesObserveCurrentSpaceChanges: true,
+
+            DefaultsKeys.editingDelayBeforeReplacing: 0.5
         ])
     }
 
