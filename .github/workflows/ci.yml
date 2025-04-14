@@ -62,7 +62,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Install Node.js dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable --inline-builds
 
         # NOTE(skip): Hopefully helps with caching.
         # See: https://michalzaborowski.medium.com/circleci-60-faster-builds-use-xcode-deriveddata-for-caching-96fb9a58930
