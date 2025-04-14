@@ -44,20 +44,6 @@ jobs:
         run: |
           git config --global url."https://oauth2:${{ secrets.BEEPER_DEPS_TOKEN }}@github.com/beeper/".insteadOf "https://github.com/beeper/"
 
-      - name: Cache Rust build
-        uses: actions/cache@v4
-        with:
-          path: |
-            src/RustServer/target
-            ~/.cargo/git
-            ~/.cargo/registry
-            ~/.cargo/.global-cache
-          # "rust2" has a "version number" that's bumped when the above list of
-          # path changes (for immediate invalidation).
-          key: ${{ runner.os }}-rust2-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-rust2-
-
       - name: Set up Rust toolchains
         run: |
           rustup toolchain install stable --profile minimal
@@ -67,6 +53,14 @@ jobs:
         with:
           cache: 'yarn'
 
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
       - name: Install Node.js dependencies
         run: yarn install --frozen-lockfile
 
@@ -75,20 +69,6 @@ jobs:
       - name: Make Xcode amenable to cached derived data
         run: |
           defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
-
-      - name: Cache Swift/Objective-C build
-        uses: actions/cache@v4
-        with:
-          # ~/.cache/org.swift.swiftpm is seemingly linked to ~/Library/Caches/org.swift.swiftpm
-          path: |
-            src/SwiftServer/.build
-            src/AppleScriptServer/Release
-            build
-            ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-swift2-${{ hashFiles('**/Package.resolved', '**/Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-swift2-
 
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
