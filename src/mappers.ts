@@ -732,6 +732,10 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
 
       reaction: fullySupportedCapabilitySupportLevel,
       reaction_count: 1,
+      // NOTE(skip): Beeper Desktop doesn't check this (instead it checks the
+      // platform-sdk equivalent `canReactWithAllEmojis`), so there's little
+      // point in sending the correct value for this right now.
+      //
       // allowed_reactions
       custom_emoji_reactions: false,
     },
