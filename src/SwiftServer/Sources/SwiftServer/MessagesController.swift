@@ -74,20 +74,27 @@ enum LocalizedStrings {
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
     static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
 
+    /// "Send edit"
     static let editingConfirm = chatKitFrameworkAxBundle.localizedString(forKey: "editing.confirm.button", value: nil, table: "Accessibility")
+    /// "Cancel edit"
     static let editingReject = chatKitFrameworkAxBundle.localizedString(forKey: "editing.reject.button", value: nil, table: "Accessibility")
+    /// "Edit"
+    static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 }
 
 private enum MessageAction {
     case react, reply, undoSend
+    /// might've been added around macOS 15; unknown
+    case edit
 
     var localized: String {
         switch self {
             case .react: return LocalizedStrings.react
             case .reply: return LocalizedStrings.reply
             case .undoSend: return LocalizedStrings.undoSend
+            case .edit: return LocalizedStrings.editButton
         }
     }
 }
