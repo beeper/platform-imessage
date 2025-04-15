@@ -815,26 +815,40 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             Thread.sleep(forTimeInterval: 0.5)
         }
 
+        func assignAndCommitEdit() throws {
+            Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforeReplacing))
+            let editableMessageField = try elements.editableMessageField
+            try assignToMessageField(editableMessageField, text: newText)
+
+            Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforeFocusing))
+            focusMessageField(editableMessageField)
+
+            Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
+            try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
+            // todo: wait for it to disappear
+        }
+
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            if let editAction = try? messageAction(messageCell: $0, action: .edit) {
+                log.debug("found \"Edit\" message action")
+
+                try retry(withTimeout: 6.0, interval: 2.0) {
+                    try editAction()
+                    try assignAndCommitEdit()
+                }
+
+                return
+            }
+
             // this doesn't work reliably:
             // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
             try $0.showMenu()
-
             // retrying this too rapidly can cause the floating editor to appear more than once?
             try retry(withTimeout: 6.0, interval: 2.0) {
                 Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
                 try elements.menuEditItem.press()
 
-                Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforeReplacing))
-                let editableMessageField = try elements.editableMessageField
-                try assignToMessageField(editableMessageField, text: newText)
-
-                Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforeFocusing))
-                focusMessageField(editableMessageField)
-
-                Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
-                try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
-                // todo: wait for it to disappear
+                try assignAndCommitEdit()
             }
         }
     }
