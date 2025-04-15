@@ -797,6 +797,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     // @available(macOS 13, *)
+    // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("!isVenturaOrUp")
