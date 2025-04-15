@@ -692,7 +692,6 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
   }
 
   const fullySupportedCapabilitySupportLevel = 2
-  const partiallySupportedCapabilitySupportLevel = 2
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
@@ -730,7 +729,7 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
       delete: fullySupportedCapabilitySupportLevel,
       delete_max_age: 60 * 2,
 
-      reaction: partiallySupportedCapabilitySupportLevel,
+      reaction: fullySupportedCapabilitySupportLevel,
       reaction_count: 1,
       // allowed_reactions
       custom_emoji_reactions: false,
