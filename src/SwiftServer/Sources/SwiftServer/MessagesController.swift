@@ -801,6 +801,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
+        if let cancelEditButton = try? elements.cancelEditButton {
+            log.warning("went to edit message, but the cancel edit button is accessible. pressing it before continuing")
+            try cancelEditButton.press()
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
             // this doesn't work reliably:
             // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
