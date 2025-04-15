@@ -802,7 +802,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         if let cancelEditButton = try? elements.cancelEditButton {
-            log.warning("went to edit message, but the cancel edit button is accessible. pressing it before continuing")
+            // this is seemingly always available, even when you're not editing; press it just to be safe
+            log.debug("cancel edit button is accessible before performing an edit, pressing before continuing")
             try cancelEditButton.press()
             Thread.sleep(forTimeInterval: 0.5)
         }
