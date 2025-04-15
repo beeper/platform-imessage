@@ -809,11 +809,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        if let cancelEditButton = try? elements.cancelEditButton {
-            // this is seemingly always available, even when you're not editing; press it just to be safe
-            log.debug("cancel edit button is accessible before performing an edit, pressing before continuing")
-            try cancelEditButton.press()
-            Thread.sleep(forTimeInterval: 0.5)
+        func tryPressingCancelEditButton() {
+            if let cancelEditButton = try? elements.cancelEditButton {
+                // this is seemingly always available, even when you're not editing
+                log.debug("pressing cancel edit button")
+
+                do {
+                    try cancelEditButton.press()
+                    Thread.sleep(forTimeInterval: 0.5)
+                } catch {
+                    log.error("failed to press cancel edit button, continuing anyway: \(error)")
+                }
+            }
         }
 
         func assignAndCommitEdit() throws {
@@ -829,28 +836,36 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // todo: wait for it to disappear
         }
 
-        try withMessageCell(threadID: threadID, messageCell: messageCell) {
-            if let editAction = try? messageAction(messageCell: $0, action: .edit) {
+        let onError = { (attempt: Int, error: (any Error)?) in
+            let errorDescription = String(describing: error)
+            log.warning("failed to edit (attempt \(attempt)), pressing cancel edit button and retrying: \(errorDescription)")
+            tryPressingCancelEditButton()
+        }
+
+        try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+            tryPressingCancelEditButton()
+
+            if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                 log.debug("found \"Edit\" message action")
 
-                try retry(withTimeout: 6.0, interval: 2.0) {
+                try retry(withTimeout: 6.0, interval: 2.0, {
                     try editAction()
                     try assignAndCommitEdit()
-                }
+                }, onError: onError)
 
                 return
             }
 
             // this doesn't work reliably:
             // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
-            try $0.showMenu()
+            try messageCell.showMenu()
             // retrying this too rapidly can cause the floating editor to appear more than once?
-            try retry(withTimeout: 6.0, interval: 2.0) {
+            try retry(withTimeout: 6.0, interval: 2.0, {
                 Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
                 try elements.menuEditItem.press()
 
                 try assignAndCommitEdit()
-            }
+            }, onError: onError)
         }
     }
 
