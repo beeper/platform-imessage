@@ -126,7 +126,6 @@ final class MessagesController {
         case emphasize
         case question
         case custom(emoji: Character)
-        // TODO: support arbitrary reactions
 
         /// returns nil for custom emojis
         var index: Int? {
@@ -161,8 +160,33 @@ final class MessagesController {
             }
         }
 
-        init(emoji: Character) {
-            // for robustness, accept emojified codepoints even without U+FE0F
+        /// Creates a reaction from a reaction key (as vended to clients via the object keys in `PlatformInfo.reactions`).
+        ///
+        /// These are only effectively used when running under macOS Sonoma and earlier, because Sequoia introduces
+        /// support for arbitrary emojis. This results in `canReactWithAllEmojis` being set to `true` in the platform info.
+        init?(platformSDKReactionKey key: String) {
+            switch key {
+            case "heart": self = .heart
+            case "like": self = .like
+            case "dislike": self = .dislike
+            case "laugh": self = .laugh
+            case "emphasize": self = .emphasize
+            case "question": self = .question
+            default: return nil
+            }
+        }
+
+        /// Creates a reaction from an arbitrary emoji character.
+        ///
+        /// Support for arbitrary emojis was added in macOS Sequoia.
+        init?(emoji: Character) {
+            guard #available(macOS 15, *) else { return nil }
+
+            // NOTE: This is mapping actual emoji characters into the traditional set of iMessage Tapbacks.
+            // This means it's impossible to react with an actual heart emoji character, because it gets mapped to the "iMessage heart".
+            // It's possible to choosen between either in actual iMessage.
+            //
+            // (For robustness, also accept emojified codepoints even without U+FE0F.)
             switch emoji {
             /* ❤️ */ case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
             /* 👍 */ case "\u{1f44d}": self = .like

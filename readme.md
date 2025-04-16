@@ -105,7 +105,7 @@ Old instructions kept here for posterity:
    repository)**:
 
    ```
-   bun build-binaries
+   bun build
    ```
 
    Upon success, native binaries and CSS should be present in `./binaries`.
@@ -207,10 +207,10 @@ invocation of native Apple methods.
 ```sh
 # for debugging:
 rm binaries/*/libNodeAPI.dylib # needed only when you get ENOENT
-bun run build-swift --debug --watch
+bun run build:swift --debug --watch
 
 # for shipping to prod:
-bun run build-swift
+bun run build:swift
 ```
 
 ### Testing

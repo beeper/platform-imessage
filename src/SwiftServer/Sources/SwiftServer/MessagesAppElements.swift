@@ -407,7 +407,7 @@ final class MessagesAppElements {
         get throws {
             try retry(withTimeout: 1, interval: 0.05) {
                 try menu.children().first { (try? $0.identifier()) == "edit" }
-                    .orThrow(ErrorMessage("menuEditItem not found"))
+                    .orThrow(ErrorMessage("Couldn't find \"Edit\" menu item; messages are only editable for 15 minutes after sending"))
             }
         }
     }

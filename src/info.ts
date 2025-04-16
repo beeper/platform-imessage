@@ -23,6 +23,7 @@ const info: PlatformInfo = {
   },
   loginMode: 'custom',
   deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,
+  // NOTE: this is unrespected by Beeper Desktop, which prefers Matrix room features
   editMessageTimeLimit: 15 * 60,
   // typingDurationMs: 3000,
   attributes: new Set([
@@ -52,7 +53,7 @@ const info: PlatformInfo = {
         !IS_SONOMA_OR_UP && Attribute.SUPPORTS_EDIT_MESSAGE,
       ].filter(Boolean) : []
     ),
-  ]),
+  ].filter(attribute => attribute !== false)),
   reactions: IS_SEQUOIA_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
     gifMimeType: 'image/gif',

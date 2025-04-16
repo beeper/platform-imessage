@@ -127,7 +127,7 @@ function createAPIServer() {
       participants.map(x => `buddy "${x}" of imsgService`).join(','),
     ])
 
-  const hideMessagesAppTimeout: NodeJS.Timeout = null
+  const hideMessagesAppTimeout: NodeJS.Timeout | null = null
   function hideMessagesAppAfterDelay() {
     if (hideMessagesAppTimeout) clearTimeout(hideMessagesAppTimeout)
     setTimeout(() => hideMessages(), 400)

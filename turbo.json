@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "tasks": {
+    "build:swift": {
+      "inputs": [
+        "!**/.DS_Store",
+        "!src/SwiftServer/.build/**",
+        "!src/SwiftServer/.swiftpm/**",
+        "src/SwiftServer/**",
+        "package.json"
+      ],
+      "outputs": [
+        "binaries/*/SwiftServer.node"
+      ]
+    },
+    "build:applescript": {
+      "inputs": [
+        "!**/.DS_Store",
+        "!src/AppleScriptServer/Release/**",
+        "!src/AppleScriptServer/AppleScriptServer.xcodeproj/project.xcworkspace/xcshareddata/**",
+        "src/AppleScriptServer/**"
+      ],
+      "outputs": [
+        "src/AppleScriptServer/Release/**",
+        "binaries/*/AppleScriptServer"
+      ]
+    },
+    "build:rust": {
+      "inputs": [
+        "!**/.DS_Store",
+        "!src/RustServer/target/**",
+        "src/RustServer/**"
+      ],
+      "outputs": [
+        "binaries/*/rust-server.node"
+      ]
+    },
+    "build:typescript": {
+      "outputs": ["dist/**"]
+    },
+    "build:scss": {
+      "inputs": ["src/**/*.scss"],
+      "outputs": ["binaries/*.css"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

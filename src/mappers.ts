@@ -1,8 +1,8 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity } from '@textshq/platform-sdk'
+import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity, InboxName } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP, IS_VENTURA_OR_UP } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
 import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
@@ -11,15 +11,17 @@ import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo, OTRValue } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 
-function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attachment {
-  if (a.transfer_state == null) return
+const associatedTypeIsValid = (type: number): type is keyof typeof ASSOC_MSG_TYPE => Object.keys(ASSOC_MSG_TYPE).includes(String(type))
+
+function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attachment | null {
+  if (a.transfer_state == null) return null
   const { ext, fileName, filePath } = a
   const common = {
     id: a.attachmentID,
@@ -29,7 +31,8 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attach
   } satisfies Partial<Attachment>
   if (filePath) common.srcURL = url.pathToFileURL(filePath).href
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    const size: Size = a.is_sticker ? { height: 100, width: undefined } : a.size
+    const defaultSize = { height: 100, width: 100 }
+    const size: Size = a.is_sticker ? defaultSize : (a.size ?? defaultSize)
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
@@ -52,13 +55,14 @@ const removeObjReplacementChar = (text: string): string => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-function assignReactions(message: Message, _reactionRows: MappedReactionMessageRow[] = [], filterIndex: number, currentUserID: string) {
+function assignReactions(currentUserID: string, message: Message, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
   const reactions: MessageReaction[] = []
   const reactionRows = filterIndex != null
     ? _reactionRows.filter(r => r.associated_message_guid.startsWith(`p:${filterIndex}/`))
     : _reactionRows
   reactionRows.forEach(reaction => {
-    const assocMsgType: string = ASSOC_MSG_TYPE[reaction.associated_message_type]
+    if (!associatedTypeIsValid(reaction.associated_message_type)) return
+    const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
     if (assocMsgType !== 'sticker' && assocMsgType) {
       const [actionType, actionKey] = assocMsgType.split('_', 2) || []
       const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
@@ -131,7 +135,7 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
       // Check for any unsent parts before this one by detecting jumps in the
       // part number relative to the last, and checking if it's present in
       // "rp".
-      if (partNumber !== lastSeenPart + 1 && deletedParts?.includes(partNumber - 1)) {
+      if (lastSeenPart && partNumber !== lastSeenPart + 1 && deletedParts?.includes(partNumber - 1)) {
         // Calculate how many unsent parts come before this one. If we haven't
         // seen any parts yet, then that means the very first part(s) of the
         // message were deleted. Adjust our math accordingly so we always
@@ -239,17 +243,26 @@ export type MessageWithExtra = Omit<Message, 'extra'> & {
 const UUID_START = 11
 const UUID_LENGTH = 36
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
 export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): MessageWithExtra[] {
-  const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(Boolean)
+  const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
   const isSMS = msgRow.service === 'SMS'
   const isGroup = !!msgRow.room_name
+
+  // `0` is frequently used to signify absence in a date column. if we were
+  // using numbers, then `!date` would suffice, but because they regularly
+  // exceed safe representation limits of javascript numbers, we have to
+  // compare with the textual equivalent
+  const dateStringIsFalsy = (date: string | undefined) => !date || date === '0'
+  const dateStringIsTruthy = (date: string | undefined) => !dateStringIsFalsy(date)
 
   const partialMessage: MessageWithExtra = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.guid,
-    cursor: msgRow.date.toString(),
-    timestamp: fromAppleTime(msgRow.date),
-    sortKey: msgRow.date,
+    cursor: msgRow.dateString,
+    // TODO(skip): Should probably be throwing (or otherwise dropping) instead.
+    timestamp: fromAppleTime(msgRow.dateString) ?? new Date(0),
+    sortKey: msgRow.dateString,
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
     // text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
     isSender: msgRow.is_from_me === 1,
@@ -257,33 +270,30 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     isDelivered: msgRow.is_delivered === 1,
     // NOTE(skip): if this is ever implemented for groups (read receipts are
     // possible there when replying), be sure to hash participants
-    seen: isGroup ? undefined : fromAppleTime(msgRow.date_read),
+    seen: isGroup ? undefined : fromAppleTime(msgRow.dateReadString),
     // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
     // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
     // not track an unread count.
     extra: { countsAsUnread: true } as any,
   }
 
-  if (msgRow.date_retracted || msgRow.was_detonated) partialMessage.isDeleted = true
+  if (dateStringIsTruthy(msgRow.dateRetractedString) || msgRow.was_detonated) partialMessage.isDeleted = true
   if (isSMS) partialMessage.extra.isSMS = true
   if (addThreadIDs) partialMessage.threadID = msgRow.threadID
   if (msgRow.is_read) {
     partialMessage.behavior = MessageBehavior.KEEP_READ
   }
 
-  const msi: MessageSummaryInfo = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) : undefined
+  const msi: MessageSummaryInfo | undefined = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) as MessageSummaryInfo : undefined
 
   const unsendDataPresent = msi?.otr != null && msi?.rp != null
-  const entirelyUnsent = unsendDataPresent
-    && Object.keys(msi.otr).length === 1
-    && msi.rp[0] === 0
 
   // When a message is partially unsent, the edited timestamp reflects when the
   // (ostensibly most recent) unsend occurred. If this is the case, don't show
   // the last unsend timestamp to the user as a last edited timestamp, as that's
   // somewhat misleading.
-  if (!unsendDataPresent && msgRow.date_edited) {
-    partialMessage.editedTimestamp = fromAppleTime(msgRow.date_edited)
+  if (!unsendDataPresent && dateStringIsTruthy(msgRow.dateRetractedString) && msgRow.dateEditedString) {
+    partialMessage.editedTimestamp = fromAppleTime(msgRow.dateEditedString) ?? new Date(0)
   }
 
   if (msgRow.item_type !== 0) {
@@ -361,8 +371,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   const partialHeader: Pick<Message, 'textHeading' | 'linkedMessageID'> = {}
-  const partialFooter: Pick<Message, 'textFooter'> = msgRow.expressive_send_style_id
-    ? { textFooter: `(Sent with ${(EXPRESSIVE_MSGS[msgRow.expressive_send_style_id] || msgRow.expressive_send_style_id)} effect)` }
+  const expressiveSendStyleIsValid = (style: string): style is keyof typeof EXPRESSIVE_MSGS =>
+    Object.keys(EXPRESSIVE_MSGS).includes(String(style))
+  const expressiveSendStyleID = msgRow.expressive_send_style_id
+  const partialFooter: Pick<Message, 'textFooter'> = expressiveSendStyleIsValid(expressiveSendStyleID)
+    ? { textFooter: `(Sent with ${(EXPRESSIVE_MSGS[expressiveSendStyleID] || expressiveSendStyleID)} effect)` }
     : {}
 
   const payloadData = getPayloadData(msgRow)
@@ -507,7 +520,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       case MessagePartKind.UNSENT: {
         message.isAction = true
         message.parseTemplate = true
-        message.editedTimestamp = null
+        message.editedTimestamp = undefined
         message.text = '{{sender}} unsent a message'
         break
       }
@@ -539,11 +552,13 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const firstTextPart = messages.find(msg => typeof msg.text === 'string')
   if (msgRow.associated_message_guid) {
     const m: MessageWithExtra = {
-      ...firstTextPart,
+      // fall back to `partialMessage` if no text part was found at all -
+      // important to avoid creating a bogus message object with invalid data
+      ...(firstTextPart ?? partialMessage),
       linkedMessageID: msgRow.associated_message_guid.replace(assocMsgGuidPrefix, ''),
     }
     // texts.log('found associated message. first text:', firstTextPart, ' - linked message - ', m.linkedMessageID)
-    const assocMsgType = ASSOC_MSG_TYPE[msgRow.associated_message_type]
+    const assocMsgType = associatedTypeIsValid(msgRow.associated_message_type) ? ASSOC_MSG_TYPE[msgRow.associated_message_type] : null
     let didFail = false
     switch (assocMsgType) {
       case 'sticker':
@@ -568,10 +583,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         // eslint-disable-next-line no-case-declarations
         const [actionType, actionKey] = assocMsgType.split('_', 2) || []
         // eslint-disable-next-line no-case-declarations
-        const reactionType = {
+        const reactionType = ({
           reacted: MessageActionType.MESSAGE_REACTION_CREATED,
           unreacted: MessageActionType.MESSAGE_REACTION_DELETED,
-        }[actionType]
+        } as const)[actionType]
         if (!reactionType) break
         m.action = {
           type: reactionType,
@@ -591,12 +606,12 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   return messages.map(msg => {
     // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
-    assignReactions(msg, reactionRows, messages.length === 1 ? null : msg.extra.part, currentUserID)
+    assignReactions(currentUserID, msg, reactionRows, messages.length === 1 ? undefined : msg.extra.part)
     return msg
   })
 }
 
-function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, displayName: string = undefined) {
+function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, displayName?: string) {
   if (!participantID) return
   const id = participantID
   const participant: Participant = { id }
@@ -619,13 +634,15 @@ type Context = {
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
   threadReadStore: ThreadReadStore | undefined
-  unreadChatRowIDs: Set<number>
+  unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   // todo this shouldnt be optional
   groupImagesMap?: { [attachmentID: string]: string }
 }
 
-export function mapMessages(messages: MappedMessageRow[], attachmentRows: MappedAttachmentRow[], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
+// @ts-expect-error FIXME(skip): argument ordering
+// eslint-disable-next-line @typescript-eslint/default-param-last
+export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
   return messages
@@ -634,14 +651,14 @@ export function mapMessages(messages: MappedMessageRow[], attachmentRows: Mapped
 }
 
 export function mapThread(chat: MappedChatRow, context: Context): Thread {
-  const { currentUserID, threadReadStore } = context
+  const { currentUserID } = context
   const handleRows = context.handleRowsMap[chat.guid]
   const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]
   const selfID = chat.last_addressed_handle || mapAccountLogin(chat.account_login) || currentUserID
-  const selfParticipant: Participant = currentUserID === handleRows[0]?.participantID
+  const selfParticipant: Participant | undefined = currentUserID === handleRows[0]?.participantID
     ? undefined
     : { ...mapParticipant({ participantID: selfID }), id: currentUserID, isSelf: true }
-  const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(Boolean)
+  const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(participant => participant != null)
   const isGroup = !!chat.room_name
   const isReadOnly = chat.state === 0 && chat.properties != null
   const messages = mapMessageArgs ? mapMessages(...mapMessageArgs, currentUserID) : []
@@ -659,20 +676,38 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     }
   */
   const props = chat.properties ? safeBplistParse(chat.properties) : null
-  const isUnreadInSqlite = context.unreadChatRowIDs.has(chat.ROWID)
+  const unreadCount = context.unreadCounts.get(chat.ROWID) ?? 0
+
+  const getGroupPhotoGuid = (): string | undefined => {
+    if (!(typeof props === 'object' && props != null && 'groupPhotoGuid' in props)) {
+      return undefined
+    }
+
+    const value = props.groupPhotoGuid
+    if (typeof value !== 'string') {
+      return undefined
+    }
+
+    return replaceTilde(context.groupImagesMap?.[value])
+  }
+
+  // `CapabilitySupportLevel.FullySupported`
+  // TODO: replace when we can use @beeper/platform-sdk
+  const fullySupportedCapabilitySupportLevel = 2
+
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
-    imgURL: props?.groupPhotoGuid ? replaceTilde(context.groupImagesMap?.[props?.groupPhotoGuid]) : undefined,
-    isUnread: IS_VENTURA_OR_UP
-      ? isUnreadInSqlite
-      : isUnreadInSqlite && threadReadStore.isThreadUnread(chat.guid, messages[messages.length - 1]?.id),
+    imgURL: getGroupPhotoGuid(),
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
+    // @ts-expect-error FIXME(skip): update to beeper desktop's platform-sdk
+    unreadCount,
+    lastReadMessageSortKey: chat.dateLastMessageReadString,
     messages: {
       hasMore: true,
       items: messages,
@@ -681,8 +716,31 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
       hasMore: false,
       items: participants,
     },
-    timestamp: fromAppleTime(chat.msgDate),
+    // NOTE(skip): This works around a bug in PAS's "map missing" plugin where
+    // the "folder"/inbox name gets forcibly set to the thread ID.
+    folderName: InboxName.NORMAL,
+    timestamp: fromAppleTime(chat.msgDateString),
+    features: {
+      // PlatformInfo `editMessageTimeLimit` stopped being recognized in
+      // 2232e765a1 (beeper-desktop-new), send equivalent room features.
+      edit_max_age: 60 * 15,
+      edit_max_count: 5,
+      edit: fullySupportedCapabilitySupportLevel,
+
+      delete: fullySupportedCapabilitySupportLevel,
+      delete_max_age: 60 * 2,
+
+      reaction: fullySupportedCapabilitySupportLevel,
+      reaction_count: 1,
+      // NOTE(skip): Beeper Desktop doesn't check this (instead it checks the
+      // platform-sdk equivalent `canReactWithAllEmojis`), so there's little
+      // point in sending the correct value for this right now.
+      //
+      // allowed_reactions
+      custom_emoji_reactions: false,
+    },
   }
+  if (thread.id.startsWith('SMS;')) thread.extra = { isSMS: true }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread
 }

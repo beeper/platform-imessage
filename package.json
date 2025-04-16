@@ -1,6 +1,6 @@
 {
   "name": "@beeper/platform-imessage",
-  "version": "0.5.7",
+  "version": "0.7.4",
   "main": "dist/index.js",
   "type": "module",
   "exports": {
@@ -13,16 +13,17 @@
     "binaries/**/*"
   ],
   "scripts": {
-    "dev": "concurrently -P 'yarn transpile-scss --watch' 'yarn tsc --watch' 'yarn build-swift --debug --watch {@}'",
+    "dev": "concurrently -P 'yarn build:scss --watch' 'yarn build:typescript --watch' 'yarn build:swift --debug --watch {@}'",
     "prepack": "yarn build",
-    "transpile-scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
-    "build": "yarn transpile-scss && yarn tsc && yarn build-binaries",
-    "swiftlint": "swiftlint --fix --format src",
+    "lint:swift": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
-    "build-swift": "node --loader ts-node/esm src/SwiftServer/build-swift.ts",
-    "build-as-server": "src/AppleScriptServer/build-as-server.sh",
-    "build-rust-server": "src/RustServer/build-rust-server.sh",
-    "build-binaries": "yarn build-as-server && yarn build-rust-server && yarn build-swift",
+    "build": "turbo run build:swift build:applescript build:rust build:typescript build:scss",
+    "build:scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
+    "build:typescript": "tsc",
+    "typecheck": "tsc --noEmit",
+    "build:swift": "node --loader ts-node/esm src/SwiftServer/build-swift.ts",
+    "build:applescript": "src/AppleScriptServer/build-as-server.sh",
+    "build:rust": "src/RustServer/build-rust-server.sh",
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
   "dependencies": {
@@ -56,6 +57,7 @@
     "sass": "^1.76.0",
     "ts-jest": "^28.0.7",
     "ts-node": "^10.9.2",
+    "turbo": "^2.5.0",
     "typescript": "^5.7.2"
   },
   "os": [

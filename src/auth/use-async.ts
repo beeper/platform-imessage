@@ -3,21 +3,26 @@ import { useState, useCallback, useEffect } from 'react'
 // from https://usehooks.com/
 const useAsync = <T>(asyncFunction: (...args: any[]) => Promise<T>, immediate = true) => {
   const [pending, setPending] = useState(false)
-  const [value, setValue] = useState<T>(null)
-  const [error, setError] = useState<Error>(null)
+  const [value, setValue] = useState<T | null>(null)
+  const [error, setError] = useState<unknown | null>(null)
 
   // The execute function wraps asyncFunction and
   // handles setting state for pending, value, and error.
   // useCallback ensures the below useEffect is not called
   // on every render, but only if asyncFunction changes.
-  const execute = useCallback((...args) => {
+  const execute = useCallback(async (...args) => {
     setPending(true)
     setValue(null)
     setError(null)
-    return asyncFunction(...args)
-      .then((response: any) => setValue(response))
-      .catch((err: Error) => setError(err))
-      .finally(() => setPending(false))
+
+    try {
+      const response = await asyncFunction(...args)
+      setValue(response)
+    } catch (err) {
+      setError(err)
+    } finally {
+      setPending(false)
+    }
   }, [asyncFunction])
 
   // Call execute if we want to fire it right away.
