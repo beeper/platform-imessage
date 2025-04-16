@@ -31,8 +31,10 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attach
   } satisfies Partial<Attachment>
   if (filePath) common.srcURL = url.pathToFileURL(filePath).href
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    const defaultSize = { height: 100, width: 100 }
-    const size: Size = a.is_sticker ? defaultSize : (a.size ?? defaultSize)
+    const defaultStickerSize = { height: 100, width: undefined }
+    // NOTE(DESK-9043): Beeper Desktop and Texts seem to handle bogus sizes
+    // just fine.
+    const size: Size = (a.is_sticker ? defaultStickerSize : a.size) as Size
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
