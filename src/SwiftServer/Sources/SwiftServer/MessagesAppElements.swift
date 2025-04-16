@@ -412,6 +412,23 @@ final class MessagesAppElements {
         }
     }
 
+    var cancelEditButton: Accessibility.Element {
+        get throws {
+            let layoutContainerView = try iOSContentGroupFirstChild.children()[4]
+            let viewControllerWrapperView = try layoutContainerView.children().first
+                .orThrow(ErrorMessage("Couldn't find view controller wrapper view"))
+            // children of `viewControllerWrapperView` are:
+            // - Messages (collection) (CKTranscriptCollectionView)
+            // - Cancel edit (button)
+            // - Message (group) CKMessageEditingBalloonView
+            // - Send edit (button)
+            // - CKMessageEntryView ("composer"; where messages are mainly edited and sent)
+            let cancelEditButton = try viewControllerWrapperView.children().dropFirst().first
+                .orThrow(ErrorMessage("Couldn't find cancel edit button"))
+            return cancelEditButton
+        }
+    }
+
     var toFieldPopupButton: Accessibility.Element {
         get throws {
             try iOSContentGroup.children[0].children().first { try $0.role() == AXRole.popUpButton }

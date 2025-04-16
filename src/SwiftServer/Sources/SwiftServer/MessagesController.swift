@@ -74,20 +74,27 @@ enum LocalizedStrings {
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
     static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
 
+    /// "Send edit"
     static let editingConfirm = chatKitFrameworkAxBundle.localizedString(forKey: "editing.confirm.button", value: nil, table: "Accessibility")
+    /// "Cancel edit"
     static let editingReject = chatKitFrameworkAxBundle.localizedString(forKey: "editing.reject.button", value: nil, table: "Accessibility")
+    /// "Edit"
+    static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 }
 
 private enum MessageAction {
     case react, reply, undoSend
+    /// might've been added around macOS 15; unknown
+    case edit
 
     var localized: String {
         switch self {
             case .react: return LocalizedStrings.react
             case .reply: return LocalizedStrings.reply
             case .undoSend: return LocalizedStrings.undoSend
+            case .edit: return LocalizedStrings.editButton
         }
     }
 }
@@ -790,6 +797,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     // @available(macOS 13, *)
+    // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("!isVenturaOrUp")
@@ -801,20 +809,63 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withMessageCell(threadID: threadID, messageCell: messageCell) {
+        func tryPressingCancelEditButton() {
+            if let cancelEditButton = try? elements.cancelEditButton {
+                // this is seemingly always available, even when you're not editing
+                log.debug("pressing cancel edit button")
+
+                do {
+                    try cancelEditButton.press()
+                    Thread.sleep(forTimeInterval: 0.5)
+                } catch {
+                    log.error("failed to press cancel edit button, continuing anyway: \(error)")
+                }
+            }
+        }
+
+        func assignAndCommitEdit() throws {
+            Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforeReplacing))
+            let editableMessageField = try elements.editableMessageField
+            try assignToMessageField(editableMessageField, text: newText)
+
+            Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforeFocusing))
+            focusMessageField(editableMessageField)
+
+            Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
+            try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
+            // todo: wait for it to disappear
+        }
+
+        let onError = { (attempt: Int, error: (any Error)?) in
+            let errorDescription = String(describing: error)
+            log.warning("failed to edit (attempt \(attempt)), pressing cancel edit button and retrying: \(errorDescription)")
+            tryPressingCancelEditButton()
+        }
+
+        try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+            tryPressingCancelEditButton()
+
+            if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
+                log.debug("found \"Edit\" message action")
+
+                try retry(withTimeout: 6.0, interval: 2.0, {
+                    try editAction()
+                    try assignAndCommitEdit()
+                }, onError: onError)
+
+                return
+            }
+
             // this doesn't work reliably:
             // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
-            try $0.showMenu()
-
-            try retry(withTimeout: 1.2, interval: 0.1) {
+            try messageCell.showMenu()
+            // retrying this too rapidly can cause the floating editor to appear more than once?
+            try retry(withTimeout: 6.0, interval: 2.0, {
+                Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
                 try elements.menuEditItem.press()
-                let editableMessageField = try elements.editableMessageField
-                try assignToMessageField(editableMessageField, text: newText)
-                focusMessageField(editableMessageField)
-                Thread.sleep(forTimeInterval: 0.1)
-                try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
-                // todo: wait for it to disappear
-            }
+
+                try assignAndCommitEdit()
+            }, onError: onError)
         }
     }
 

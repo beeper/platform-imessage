@@ -1,5 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, Participant } from '@textshq/platform-sdk'
-import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SONOMA_OR_UP, IS_SEQUOIA_OR_UP } from './common-constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import type { MessageWithExtra } from './mappers'
 
@@ -50,10 +50,11 @@ const info: PlatformInfo = {
     ...(IS_VENTURA_OR_UP
       ? [
         Attribute.SUPPORTS_MARK_AS_UNREAD,
-        !IS_SONOMA_OR_UP && Attribute.SUPPORTS_EDIT_MESSAGE,
+        // only for messages < 15 mins old
+        Attribute.SUPPORTS_EDIT_MESSAGE,
       ].filter(Boolean) : []
     ),
-  ].filter(attribute => attribute !== false)),
+  ]),
   reactions: IS_SEQUOIA_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
