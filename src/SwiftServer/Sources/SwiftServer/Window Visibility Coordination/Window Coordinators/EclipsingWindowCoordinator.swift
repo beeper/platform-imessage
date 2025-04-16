@@ -44,7 +44,21 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         } else {
             // we already have a known frame, don't overwrite it with the eclisped frame
         }
-        let targetSize = Self.minimumMessagesAppSize
+
+        var targetSize = Self.eclipsingSize
+        if targetSize.height == 0 {
+            // If `height` is 0, then the default value was overridden with a different/invalid type.
+            // Assume the user wants the height to match (so setting "match" as the height produces the desired effect).
+            targetSize.height = largestElectronWindow.frame.height
+        } else if targetSize.height < 0 {
+            // If the `height` is a negative number, treat it as a delta that's applied to the Beeper window height.
+            // Clamp to the minimum height because this "delta height" represents a best-effort preference.
+            targetSize.height = max(Self.messagesAppMinimumSize.height, largestElectronWindow.frame.height + targetSize.height)
+        }
+
+        if !Self.messagesAppMinimumSize.encompasses(targetSize) {
+            log.warning("target size \(targetSize) is smaller than the minimum size \(Self.messagesAppMinimumSize), trying anyways")
+        }
 
         guard largestElectronWindow.frame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
             log.warning("the largest Electron window's frame \(largestElectronWindow.frame) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing")
@@ -109,12 +123,15 @@ private extension EclipsingWindowCoordinator {
     private static var eclipsingOffsetY: CGFloat { Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingOffsetY) }
     private static var eclipsingAlignment: String? { Defaults.swiftServer.string(forKey: DefaultsKeys.eclipsingAlignment) }
 
-    private static var minimumMessagesAppSize: NSSize {
+    private static var eclipsingSize: NSSize {
         NSSize(
             width: Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingWidth),
             height: Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingHeight)
         )
     }
+
+    // Accurate as of macOS 15.3.2.
+    static let messagesAppMinimumSize: NSSize = NSSize(width: 660.0, height: 320.0)
 }
 
 // MARK: - Extensions
