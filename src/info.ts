@@ -23,6 +23,7 @@ const info: PlatformInfo = {
   },
   loginMode: 'custom',
   deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,
+  // NOTE: this is unrespected by Beeper Desktop, which prefers Matrix room features
   editMessageTimeLimit: 15 * 60,
   // typingDurationMs: 3000,
   attributes: new Set([

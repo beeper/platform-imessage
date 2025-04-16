@@ -691,6 +691,10 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     return replaceTilde(context.groupImagesMap?.[value])
   }
 
+  // `CapabilitySupportLevel.FullySupported`
+  // TODO: replace when we can use @beeper/platform-sdk
+  const fullySupportedCapabilitySupportLevel = 2
+
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
@@ -716,6 +720,25 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     // the "folder"/inbox name gets forcibly set to the thread ID.
     folderName: InboxName.NORMAL,
     timestamp: fromAppleTime(chat.msgDateString),
+    features: {
+      // PlatformInfo `editMessageTimeLimit` stopped being recognized in
+      // 2232e765a1 (beeper-desktop-new), send equivalent room features.
+      edit_max_age: 60 * 15,
+      edit_max_count: 5,
+      edit: fullySupportedCapabilitySupportLevel,
+
+      delete: fullySupportedCapabilitySupportLevel,
+      delete_max_age: 60 * 2,
+
+      reaction: fullySupportedCapabilitySupportLevel,
+      reaction_count: 1,
+      // NOTE(skip): Beeper Desktop doesn't check this (instead it checks the
+      // platform-sdk equivalent `canReactWithAllEmojis`), so there's little
+      // point in sending the correct value for this right now.
+      //
+      // allowed_reactions
+      custom_emoji_reactions: false,
+    },
   }
   if (thread.id.startsWith('SMS;')) thread.extra = { isSMS: true }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
