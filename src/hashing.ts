@@ -1,7 +1,16 @@
 import { CursorProp, Message, MessageReaction, Paginated, Participant, Thread } from '@textshq/platform-sdk'
 import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
 
+const entirelyNumbersAndSymbols = /^[\d\s+\-()]+$/
+const entirelyAlphanumericSenderID = /^[\da-zA-Z]{1,11}$/
+
+// https://en.wikipedia.org/wiki/Mobile_marketing#Custom_Sender_ID
+function likelyAlphanumericSenderID(id: string): boolean {
+  return !entirelyNumbersAndSymbols.test(id) && entirelyAlphanumericSenderID.test(id)
+}
+
 export function hashParticipantID(id: string): string {
+  if (likelyAlphanumericSenderID(id)) return id
   return globalParticipantIDHasher.hashAndRemember(id)
 }
 
