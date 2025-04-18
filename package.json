@@ -31,7 +31,7 @@
     "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053",
     "clsx": "^1.2.1",
     "concurrently": "^9.1.2",
-    "conf": "^8.0.0",
+    "conf": "^13",
     "crc": "^4.1.1",
     "image-size": "^1.1.1",
     "lodash": "^4.17.21",
@@ -59,7 +59,7 @@
     "ts-jest": "^28.0.7",
     "ts-node": "^10.9.2",
     "turbo": "^2.5.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.8.3"
   },
   "os": [
     "darwin"
