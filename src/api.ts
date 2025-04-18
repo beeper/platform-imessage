@@ -20,8 +20,8 @@ import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantA
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
-import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
-import { hashMessage, hashParticipantID, hashThread, hashThreadID } from './hashing'
+import { threadHasher as globalThreadIDHasher } from './RustServer/lib'
+import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalParticipantID } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -95,7 +95,7 @@ export default class AppleiMessage implements PlatformAPI {
 
     return {
       ...this.currentUser,
-      id: globalParticipantIDHasher.hashAndRemember(this.currentUser.id),
+      id: hashParticipantID(this.currentUser.id),
     }
   }
 
@@ -221,7 +221,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   createThread = async (hashedUserIDs: string[], title?: string, message?: string) => {
     if (hashedUserIDs.length === 0) return false
-    const userIDs = hashedUserIDs.map(hashedUserID => globalParticipantIDHasher.originalFromHash(hashedUserID))
+    const userIDs = hashedUserIDs.map(hashedUserID => originalParticipantID(hashedUserID))
     if (!IS_BIG_SUR_OR_UP) return this.catalinaCreateThread(userIDs)
     if (userIDs.length === 1) {
       const address = userIDs[0]

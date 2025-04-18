@@ -1,13 +1,34 @@
 import { CursorProp, Message, MessageReaction, Paginated, Participant, Thread } from '@textshq/platform-sdk'
 import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
 
+const entirelyNumbersAndSymbols = /^[\d\s+\-()]+$/
+const entirelyAlphanumericSenderID = /^[\da-zA-Z]{1,11}$/
+
+// https://en.wikipedia.org/wiki/Mobile_marketing#Custom_Sender_ID
+function likelyAlphanumericSenderID(id: string): boolean {
+  return !entirelyNumbersAndSymbols.test(id) && entirelyAlphanumericSenderID.test(id)
+}
+
+export function hashParticipantID(id: string): string {
+  if (likelyAlphanumericSenderID(id)) return id
+  return globalParticipantIDHasher.hashAndRemember(id)
+}
+
+export function originalParticipantID(possiblyHash: string): string {
+  // for unhashed participant IDs, just return as-is
+  if (!possiblyHash.startsWith('imsg')) return possiblyHash
+
+  return globalParticipantIDHasher.originalFromHash(possiblyHash)
+}
+
 export function hashReaction(reaction: MessageReaction): MessageReaction {
   return {
     ...reaction,
     // imessage doesn't support `allowsMultipleReactionsToSingleMessage`, so we
-    // can just straightforwardly hash the id (participant id) here
-    id: globalParticipantIDHasher.hashAndRemember(reaction.id),
-    participantID: globalParticipantIDHasher.hashAndRemember(reaction.participantID),
+    // can just straightforwardly hash the id (participant id) here without
+    // worrying about the concatenated form
+    id: hashParticipantID(reaction.id),
+    participantID: hashParticipantID(reaction.participantID),
   }
 }
 
@@ -16,18 +37,14 @@ export function hashMessage(message: Message): Message {
     ...message,
     threadID: message.threadID ? globalThreadIDHasher.hashAndRemember(message.threadID) : undefined,
     reactions: message.reactions ? message.reactions.map(hashReaction) : undefined,
-    senderID: globalParticipantIDHasher.hashAndRemember(message.senderID),
+    senderID: hashParticipantID(message.senderID),
   })
-}
-
-export function hashParticipantID(id: string): string {
-  return globalParticipantIDHasher.hashAndRemember(id)
 }
 
 export function hashParticipant(participant: Participant): Participant {
   return {
     ...participant,
-    id: globalParticipantIDHasher.hashAndRemember(participant.id),
+    id: hashParticipantID(participant.id),
   }
 }
 
