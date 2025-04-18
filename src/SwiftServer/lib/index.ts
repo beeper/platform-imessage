@@ -1,10 +1,8 @@
-import path from 'path'
+import path from 'node:path'
+import nodeModule from 'node:module'
 import type { MessageID, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
-
-declare const __non_webpack_require__: NodeRequire
-const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require : __non_webpack_require__
 
 export interface Fragment {
   from: number
@@ -89,7 +87,9 @@ export type SwiftServer = {
 
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
 
-const swiftServer: SwiftServer = actualRequire(swiftServerPath)
+const require = nodeModule.createRequire(import.meta.url)
+// eslint-disable-next-line import/no-dynamic-require -- can't bundle .node files
+const swiftServer: SwiftServer = require(swiftServerPath)
 swiftServer.messagesControllerClass = (swiftServer as unknown as { MessagesController: typeof MessagesController }).MessagesController
 
 export default swiftServer
