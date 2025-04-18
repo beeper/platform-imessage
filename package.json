@@ -6,6 +6,7 @@
   "exports": {
     "./*": "./dist/*.js",
     "./auth": "./dist/auth/index.js",
+    "./info": "./dist/info.js",
     ".": "./dist/index.js"
   },
   "files": [
