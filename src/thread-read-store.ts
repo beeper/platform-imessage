@@ -7,7 +7,11 @@ export default class ThreadReadStore {
   private store: Conf
 
   constructor(userDataDirPath: string) {
-    this.store = new Conf({ cwd: userDataDirPath, configName: 'imessage' })
+    this.store = new Conf({
+      cwd: userDataDirPath,
+      configName: 'imessage',
+      clearInvalidConfig: true,
+    })
   }
 
   markThreadRead(threadID: string, messageID?: string) {
