@@ -1,8 +1,7 @@
 import path from 'path'
-import fs from 'fs'
 import type { MessageID, ThreadID } from '@textshq/platform-sdk'
 
-import { ARCH_BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_CATALINA_OR_UP } from '../../constants'
+import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
 declare const __non_webpack_require__: NodeRequire
 const actualRequire = typeof __non_webpack_require__ === 'undefined' ? require : __non_webpack_require__
