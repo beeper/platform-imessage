@@ -36,13 +36,8 @@ private struct RustServerLogMessage: Decodable {
 
 extension Message {
     enum ParsingFormat {
-        // 2025-04-16 20:09:36 +0000 [debug:sws.app-elements] getMainWindow took 22.185087203979492ms
         case swiftServer
-
-        // [log] [2025-03-07T04:49:09.206Z] restoreChangedAppIcon: skipping because newAppPath doesn't exist:
         case rollingLogger
-
-        // {"timestamp":"2025-04-02T02:10:06.277403Z","level":"DEBUG","fields":{"message":"finished polling message updates","chat_guids_with_new_messages":"[imsg##thread:8491862087819470531d11097af12a10040219cc1bc32903]"},"target":"rust_server::poller"}
         case rustServer
     }
 
@@ -56,8 +51,9 @@ extension Message {
     init(parsing line: String, format: ParsingFormat) throws {
         switch format {
         case .swiftServer:
-            let firstOpeningBracket = try line.firstIndex(of: "[").orThrow("couldn't find [")
-            let unparsedDate = line[..<line.index(before: firstOpeningBracket) /* skip space */ ]
+            // 2025-04-16 20:09:36 +0000 [debug:sws.app-elements] getMainWindow took 22.185087203979492ms
+            let openingBracket = try line.firstIndex(of: "[").orThrow("couldn't find ]")
+            let unparsedDate = line[..<openingBracket]
 
             // 2025-04-16 20:09:36 +0000
             timestamp = try Date.ISO8601FormatStyle()
@@ -65,26 +61,28 @@ extension Message {
                 .dateTimeSeparator(.space)
                 .time(includingFractionalSeconds: false)
                 .parse(String(unparsedDate))
-            text = try line[line.index(line.firstIndex(of: "]").orThrow("couldn't find ]"), offsetBy: 2 /* skip space */ )...]
+            text = line[openingBracket...].drop { $0 != "]" }.dropFirst(2)
             origin = .swift
         case .rustServer:
+            // {"timestamp":"2025-04-02T02:10:06.277403Z","level":"DEBUG","fields":{"message":"finished polling message updates","chat_guids_with_new_messages":"[imsg##thread:8491862087819470531d11097af12a10040219cc1bc32903]"},"target":"rust_server::poller"}
+
             let message = try Self.jsonDecoder.decode(RustServerLogMessage.self, from: Data(line.utf8))
             timestamp = message.timestamp
             text = message.fields["message", default: "(...no message...)"][...]
             fields = message.fields.filter { $0.key != "message" }
             origin = .rust
         case .rollingLogger:
-            // drop the first [ and search for the next [
-            // (works because the indices remain unchanged)
-            let dateLeftBracketIndex = try line.dropFirst().firstIndex(of: "[").orThrow("couldn't find date's [")
-            let dateRightBracketIndex = try line.drop(while: { $0 != " " }).firstIndex(of: "]").orThrow("couldn't find date's ]")
+            // [log] [2025-03-07T04:49:09.206Z] restoreChangedAppIcon: skipping because newAppPath doesn't exist:
+
+            let startsWithTimestamp = line.dropFirst().drop(while: { $0 != "[" }).dropFirst()
+            let unparsedTimestamp = startsWithTimestamp.prefix(while: { $0 != " " })
 
             timestamp = try Date.ISO8601FormatStyle()
                 .year().month().day()
                 .time(includingFractionalSeconds: true)
-                .parse(String(line[line.index(after: dateLeftBracketIndex) ..< dateRightBracketIndex]))
+                .parse(String(unparsedTimestamp))
             let sourceReferenceIndex = try line.lastIndex(of: "(").orThrow("couldn't find source reference's (")
-            text = line[line.index(dateRightBracketIndex, offsetBy: 2 /* skip space */ ) ..< sourceReferenceIndex]
+            text = startsWithTimestamp.drop(while: { $0 != " " }).dropFirst()[..<sourceReferenceIndex]
             origin = .renderer
         }
     }

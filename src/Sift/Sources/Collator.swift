@@ -129,6 +129,7 @@ private extension Message {
         text.contains(needle) || fields.contains(where: { $0.value.contains(needle) })
     }
 
+    // FIXME: this is expensive and should be cached
     var landmark: Landmark? {
         switch true {
         case contains("SLEEP: "): .systemWakeStateChanged
