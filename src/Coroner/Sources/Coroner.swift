@@ -25,7 +25,7 @@ struct Coroner: AsyncParsableCommand {
     @Argument(help: "The URL of the Rageshake listing to examine.")
     var rageshakeURL: URL
 
-    @Option(help: "Only displays messages containing this text.")
+    @Option(help: "Only displays messages containing this text. Messages' fields are examined in addition to the main message text.")
     var grep: String?
 
     @Flag(name: [.customShort("i"), .customLong("intermissions")], inversion: .prefixedNo, help: "Whether to display intermissions.")
