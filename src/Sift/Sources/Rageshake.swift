@@ -111,7 +111,7 @@ extension URLRequest {
 extension URLSession {
     static let rageshake: URLSession = .init(configuration: with(URLSessionConfiguration.default) {
         $0.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        $0.httpAdditionalHeaders = ["User-Agent": "Coroner/0.0"]
+        $0.httpAdditionalHeaders = ["User-Agent": "Sift/0.0 (+https://github.com/beeper/platform-imessage; skip@beeper.com)"]
         $0.httpShouldSetCookies = true
         $0.httpCookieStorage = HTTPCookieStorage()
     })

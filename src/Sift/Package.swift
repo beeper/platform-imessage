@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "Coroner",
+    name: "Sift",
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
@@ -12,7 +12,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Coroner",
+            name: "Sift",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),

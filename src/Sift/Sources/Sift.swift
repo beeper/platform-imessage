@@ -18,7 +18,7 @@ enum ANSI {
 }
 
 @main
-struct Coroner: AsyncParsableCommand {
+struct Sift: AsyncParsableCommand {
     @Option(name: [.customShort("p"), .customLong("password")], help: "The password to use when authenticating with rageshake.beeper.com.")
     var rageshakePassword: String
 
@@ -135,7 +135,7 @@ private func collate(_ files: [RageshakeFile], authenticatingWithPassword ragesh
 private extension RageshakeFile {
     private static let cachePath: URL = {
         let caches = try! FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        return caches / "com.automattic.beeper.desktop.coroner"
+        return caches / "com.automattic.beeper.desktop.sift"
     }()
 
     func lines(authenticatingWithPassword rageshakePassword: String, caching: Bool = true) async throws -> any AsyncSequence<String, any Error> {
