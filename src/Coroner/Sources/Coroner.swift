@@ -28,7 +28,10 @@ struct Coroner: AsyncParsableCommand {
     @Option(help: "Only displays messages containing this text.")
     var grep: String?
 
-    @Option(name: [.short, .customLong("intermission-time")], help: "The minimum amount of time (in seconds) before an intermission is emitted in the output.")
+    @Flag(name: [.customShort("i"), .customLong("intermissions")], inversion: .prefixedNo, help: "Whether to display intermissions.")
+    var displayingIntermissions: Bool = true
+
+    @Option(name: [.customShort("I"), .customLong("intermission-time")], help: "The minimum difference of log message timestamp (in seconds) before an intermission is displayed.")
     var intermissionTimeSeconds: Double = 30.0
 
     mutating func run() async throws {
@@ -61,7 +64,7 @@ struct Coroner: AsyncParsableCommand {
                 .weekday(.abbreviated).month(.abbreviated).day()
                 .hour().minute().second().secondFraction(.fractional(3))
 
-            if let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
+            if displayingIntermissions, let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
                 print()
                 print(" ⋮")
                 let formattedDelta = Duration.seconds(delta)
