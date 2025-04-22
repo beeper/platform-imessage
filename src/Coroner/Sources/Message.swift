@@ -72,7 +72,8 @@ extension Message {
                 .year().month().day()
                 .time(includingFractionalSeconds: true)
                 .parse(String(line[line.index(after: dateLeftBracketIndex) ..< dateRightBracketIndex]))
-            text = line[line.index(dateRightBracketIndex, offsetBy: 2 /* skip space */ )...]
+            let sourceReferenceIndex = try line.lastIndex(of: "(").orThrow("couldn't find source reference's (")
+            text = line[line.index(dateRightBracketIndex, offsetBy: 2 /* skip space */ )..<sourceReferenceIndex]
         }
     }
 }
