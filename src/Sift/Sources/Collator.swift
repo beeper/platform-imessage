@@ -42,58 +42,62 @@ struct Collator: AsyncParsableCommand {
 
         var lastTimestamp: Date?
         for message in messages {
-            var landmarkColoration: String?
-            let messageContains = { (text: String) -> Bool in
-                message.text.contains(text) || message.fields.contains(where: { $0.value.contains(text) })
+            printMessage(rendering: message, lastTimestamp: &lastTimestamp)
+        }
+    }
+
+    func printMessage(rendering message: Message, lastTimestamp: inout Date?) {
+        var landmarkColoration: String?
+        let messageContains = { (text: String) -> Bool in
+            message.text.contains(text) || message.fields.contains(where: { $0.value.contains(text) })
+        }
+
+        if messageContains("SLEEP: ") {
+            landmarkColoration = ANSI.reallyBlueBackground
+        } else if messageContains("You're running") {
+            landmarkColoration = ANSI.reallyRedBackground
+        } else if messageContains("Submitting bug report") {
+            landmarkColoration = ANSI.reallyPurpleBackground
+        }
+        if let grep, !messageContains(grep), landmarkColoration == nil { return }
+
+        defer { lastTimestamp = message.timestamp }
+
+        let text = message.text
+            .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
+        let dateTimeFormat = Date.FormatStyle()
+            .weekday(.abbreviated).month(.abbreviated).day()
+            .hour().minute().second().secondFraction(.fractional(3))
+
+        if displayingIntermissions, let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
+            print()
+            print(" ⋮")
+            let formattedDelta = Duration.seconds(delta)
+                .formatted(.units(allowed: [.milliseconds, .seconds, .minutes, .hours, .days], width: .abbreviated))
+            print(" ⋮ \(ANSI.bold)(\(formattedDelta) later...)\(ANSI.reset)")
+            print(" ⋮")
+            print()
+        }
+
+        var fields: String = message.fields
+            .map { key, value in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
+            .joined(separator: "\(ANSI.black), \(ANSI.reset)")
+        fields = fields.isEmpty ? "" : " \(fields)"
+
+        var renderedMessage: String
+        if let landmarkColoration {
+            renderedMessage = "\(message.timestamp.formatted(dateTimeFormat)) \(text)\(fields)"
+            // this is technically incorrect because it counts grapheme clusters and not terminal cells
+            // also, make sure to count before adding the color codes, so they don't affect it
+            if let width = Terminal.size?.width {
+                renderedMessage += String(repeating: " ", count: width - renderedMessage.count)
             }
-
-            if messageContains("SLEEP: ") {
-                landmarkColoration = ANSI.reallyBlueBackground
-            } else if messageContains("You're running") {
-                landmarkColoration = ANSI.reallyRedBackground
-            } else if messageContains("Submitting bug report") {
-                landmarkColoration = ANSI.reallyPurpleBackground
-            }
-            if let grep, !messageContains(grep), landmarkColoration == nil { continue }
-
-            defer { lastTimestamp = message.timestamp }
-
-            let text = message.text
-                .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
-            let dateTimeFormat = Date.FormatStyle()
-                .weekday(.abbreviated).month(.abbreviated).day()
-                .hour().minute().second().secondFraction(.fractional(3))
-
-            if displayingIntermissions, let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
-                print()
-                print(" ⋮")
-                let formattedDelta = Duration.seconds(delta)
-                    .formatted(.units(allowed: [.milliseconds, .seconds, .minutes, .hours, .days], width: .abbreviated))
-                print(" ⋮ \(ANSI.bold)(\(formattedDelta) later...)\(ANSI.reset)")
-                print(" ⋮")
-                print()
-            }
-
-            var fields: String = message.fields
-                .map { key, value in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
-                .joined(separator: "\(ANSI.black), \(ANSI.reset)")
-            fields = fields.isEmpty ? "" : " \(fields)"
-
-            var renderedMessage: String
-            if let landmarkColoration {
-                renderedMessage = "\(message.timestamp.formatted(dateTimeFormat)) \(text)\(fields)"
-                // this is technically incorrect because it counts grapheme clusters and not terminal cells
-                // also, make sure to count before adding the color codes, so they don't affect it
-                if let width = Terminal.size?.width {
-                    renderedMessage += String(repeating: " ", count: width - renderedMessage.count)
-                }
-                renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmarkColoration)\(renderedMessage)\(ANSI.reset)"
-            } else {
-                renderedMessage = "\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)"
-                print(renderedMessage)
-            }
+            renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmarkColoration)\(renderedMessage)\(ANSI.reset)"
+        } else {
+            renderedMessage = "\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)"
             print(renderedMessage)
         }
+        print(renderedMessage)
     }
 }
 
@@ -153,7 +157,7 @@ private extension RageshakeFile {
         let request = URLRequest.rageshakeBasicAuthenticated(for: url(authenticatingWith: .basic), withPassword: rageshakePassword)
         let (bytes, response_) = try await URLSession.rageshake.bytes(for: request)
         let response = response_ as! HTTPURLResponse
-        guard (200..<300).contains(response.statusCode) else {
+        guard (200 ..< 300).contains(response.statusCode) else {
             throw Rageshake.Error.http(response)
         }
         if caching {
