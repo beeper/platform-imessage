@@ -53,7 +53,7 @@ struct Coroner: AsyncParsableCommand {
             }
 
             var fields: String = message.fields
-                .map { (key, value) in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
+                .map { key, value in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
                 .joined(separator: ", ")
             fields = fields.isEmpty ? "" : " \(fields)"
 
