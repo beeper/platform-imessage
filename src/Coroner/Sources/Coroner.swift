@@ -8,7 +8,11 @@ enum ANSI {
     static let time = "\u{1b}[90m\(italic)"
     static let black = "\u{1b}[30m"
     static let bold = "\u{1b}[1m"
+    static let red = "\u{1b}[31m"
+    static let reallyRedBackground = "\u{1b}[48;2;255;0;0m"
+    static let brightWhite = "\u{1b}[97m"
     static let reset = "\u{1b}[0m"
+    static let reverse = "\u{1b}[7m"
 }
 
 @main
@@ -33,7 +37,14 @@ struct Coroner: AsyncParsableCommand {
 
         var lastTimestamp: Date?
         for message in messages {
-            if let grep, !(message.text.contains(grep) || message.fields.contains(where: { $0.value.contains(grep) })) { continue }
+            var isLandmark = false
+            let messageContains = { (text: String) -> Bool in
+                message.text.contains(text) || message.fields.contains(where: { $0.value.contains(text) })
+            }
+
+            isLandmark = messageContains("SLEEP: ")
+            if let grep, !messageContains(grep), !isLandmark { continue }
+
             defer { lastTimestamp = message.timestamp }
 
             let text = message.text
@@ -57,7 +68,18 @@ struct Coroner: AsyncParsableCommand {
                 .joined(separator: ", ")
             fields = fields.isEmpty ? "" : " \(fields)"
 
-            print("\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)")
+            var renderedMessage: String
+            if isLandmark {
+                renderedMessage = "\(message.timestamp.formatted(dateTimeFormat)) \(text)\(fields)"
+                // this is technically incorrect because it counts grapheme clusters and not terminal cells
+                // also, make sure to count before adding the color codes, so they don't affect it
+                renderedMessage += String(repeating: " ", count: Terminal.size!.width - renderedMessage.count)
+                renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(ANSI.reallyRedBackground)\(renderedMessage)\(ANSI.reset)"
+            } else {
+                renderedMessage = "\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)"
+                print(renderedMessage)
+            }
+            print(renderedMessage)
         }
     }
 }
