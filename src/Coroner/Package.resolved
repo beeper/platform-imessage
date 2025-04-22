@@ -1,0 +1,24 @@
+{
+  "originHash" : "95c1aa41bfeb887bc14b2ea97414defa9beeae27a0426194672d2950f9bd9763",
+  "pins" : [
+    {
+      "identity" : "cool",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/slice/Cool",
+      "state" : {
+        "branch" : "main",
+        "revision" : "f799fb3e61f9d62c465ffb341fe72e7a9486179a"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "state" : {
+        "revision" : "41982a3656a71c768319979febd796c6fd111d5c",
+        "version" : "1.5.0"
+      }
+    }
+  ],
+  "version" : 3
+}
