@@ -36,6 +36,7 @@ struct Collator: AsyncParsableCommand {
 
     mutating func run() async throws {
         let rageshake = try Rageshake(at: rageshakeURL).orThrow("couldn't construct rageshake")
+        print("requesting listing")
         let files = try await rageshake.listing(authenticatingWithPassword: rageshakePassword)
         let messages = try await collate(files, authenticatingWithPassword: rageshakePassword)
         print("collated \(messages.count.formatted()) log messages")
@@ -98,13 +99,14 @@ private func collate(_ files: [RageshakeFile], authenticatingWithPassword ragesh
             }
         }
 
-        var allLogs = [Message]()
-        for try await logs in group {
-            allLogs.append(contentsOf: logs)
+        var messages = [Message]()
+        for try await parsedMessagesChunk in group {
+            messages.append(contentsOf: parsedMessagesChunk)
         }
-        return allLogs
+        return messages
     }
 
+    print("sorting")
     return logs.sorted(by: { $0.timestamp < $1.timestamp })
 }
 
