@@ -5,6 +5,13 @@ struct Message {
     let timestamp: Date
     let text: Substring
     let level: Level = .default
+    let origin: Origin
+
+    enum Origin: CaseIterable, Hashable, Equatable {
+        case swift
+        case rust
+        case renderer
+    }
 
     enum Level: CaseIterable, Hashable, Equatable, Comparable {
         case trace
@@ -58,10 +65,12 @@ extension Message {
                 .time(includingFractionalSeconds: false)
                 .parse(String(unparsedDate))
             text = try line[line.index(line.firstIndex(of: "]").orThrow("couldn't find ]"), offsetBy: 2 /* skip space */ )...]
+            origin = .swift
         case .rustServer:
             let message = try Self.jsonDecoder.decode(RustServerLogMessage.self, from: Data(line.utf8))
             timestamp = message.timestamp
             text = message.fields.message[...]
+            origin = .rust
         case .rollingLogger:
             // drop the first [ and search for the next [
             // (works because the indices remain unchanged)
@@ -73,7 +82,8 @@ extension Message {
                 .time(includingFractionalSeconds: true)
                 .parse(String(line[line.index(after: dateLeftBracketIndex) ..< dateRightBracketIndex]))
             let sourceReferenceIndex = try line.lastIndex(of: "(").orThrow("couldn't find source reference's (")
-            text = line[line.index(dateRightBracketIndex, offsetBy: 2 /* skip space */ )..<sourceReferenceIndex]
+            text = line[line.index(dateRightBracketIndex, offsetBy: 2 /* skip space */ ) ..< sourceReferenceIndex]
+            origin = .renderer
         }
     }
 }
