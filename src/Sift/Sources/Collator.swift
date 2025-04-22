@@ -52,18 +52,16 @@ struct Collator: AsyncParsableCommand {
 
         defer { lastTimestamp = message.timestamp }
 
+        if displayingIntermissions,
+           let lastTimestamp,
+           case let delta = lastTimestamp.distance(to: message.timestamp),
+           delta > intermissionTimeSeconds
+        {
+            printIntermission(delta: Duration.seconds(delta))
+        }
+
         let text = message.text
             .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
-
-        if displayingIntermissions, let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
-            print()
-            print(" ⋮")
-            let formattedDelta = Duration.seconds(delta)
-                .formatted(.units(allowed: [.milliseconds, .seconds, .minutes, .hours, .days], width: .abbreviated))
-            print(" ⋮ \(ANSI.bold)(\(formattedDelta) later...)\(ANSI.reset)")
-            print(" ⋮")
-            print()
-        }
 
         var fields: String = message.fields
             .map { key, value in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
@@ -84,6 +82,16 @@ struct Collator: AsyncParsableCommand {
             print(renderedMessage)
         }
         print(renderedMessage)
+    }
+
+    private func printIntermission(delta: Duration) {
+        print()
+        print(" ⋮")
+        let formattedDelta = delta
+            .formatted(.units(allowed: [.milliseconds, .seconds, .minutes, .hours, .days], width: .abbreviated))
+        print(" ⋮ \(ANSI.bold)(\(formattedDelta) later...)\(ANSI.reset)")
+        print(" ⋮")
+        print()
     }
 }
 
