@@ -7,6 +7,7 @@ enum ANSI {
     static let italic = "\u{1b}[3m"
     static let time = "\u{1b}[90m\(italic)"
     static let black = "\u{1b}[30m"
+    static let bold = "\u{1b}[1m"
     static let reset = "\u{1b}[0m"
 }
 
@@ -46,7 +47,7 @@ struct Coroner: AsyncParsableCommand {
                 print(" ⋮")
                 let formattedDelta = Duration.seconds(delta)
                     .formatted(.units(allowed: [.milliseconds, .seconds, .minutes, .hours, .days], width: .abbreviated))
-                print(" ⋮ \u{1b}[1m(\(formattedDelta) later...)\u{1b}[0m")
+                print(" ⋮ \(ANSI.bold)(\(formattedDelta) later...)\(ANSI.reset)")
                 print(" ⋮")
                 print()
             }
