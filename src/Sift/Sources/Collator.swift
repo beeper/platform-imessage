@@ -47,19 +47,8 @@ struct Collator: AsyncParsableCommand {
     }
 
     func printMessage(rendering message: Message, lastTimestamp: inout Date?) {
-        var landmarkColoration: String?
-        let messageContains = { (text: String) -> Bool in
-            message.text.contains(text) || message.fields.contains(where: { $0.value.contains(text) })
-        }
-
-        if messageContains("SLEEP: ") {
-            landmarkColoration = ANSI.reallyBlueBackground
-        } else if messageContains("You're running") {
-            landmarkColoration = ANSI.reallyRedBackground
-        } else if messageContains("Submitting bug report") {
-            landmarkColoration = ANSI.reallyPurpleBackground
-        }
-        if let grep, !messageContains(grep), landmarkColoration == nil { return }
+        let landmark = message.landmark
+        if let grep, !message.contains(grep), landmark == nil { return }
 
         defer { lastTimestamp = message.timestamp }
 
@@ -85,14 +74,14 @@ struct Collator: AsyncParsableCommand {
         fields = fields.isEmpty ? "" : " \(fields)"
 
         var renderedMessage: String
-        if let landmarkColoration {
+        if let landmark {
             renderedMessage = "\(message.timestamp.formatted(dateTimeFormat)) \(text)\(fields)"
             // this is technically incorrect because it counts grapheme clusters and not terminal cells
             // also, make sure to count before adding the color codes, so they don't affect it
             if let width = Terminal.size?.width {
                 renderedMessage += String(repeating: " ", count: width - renderedMessage.count)
             }
-            renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmarkColoration)\(renderedMessage)\(ANSI.reset)"
+            renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmark.ansiColoration)\(renderedMessage)\(ANSI.reset)"
         } else {
             renderedMessage = "\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)"
             print(renderedMessage)
@@ -134,6 +123,35 @@ private func collate(_ files: [RageshakeFile], authenticatingWithPassword ragesh
     }
 
     return logs.sorted(by: { $0.timestamp < $1.timestamp })
+}
+
+private enum Landmark {
+    case systemWakeStateChanged
+    case appLaunching
+    case rageshakeSubmitting
+
+    var ansiColoration: String {
+        switch self {
+        case .systemWakeStateChanged: ANSI.reallyBlueBackground
+        case .appLaunching: ANSI.reallyRedBackground
+        case .rageshakeSubmitting: ANSI.reallyPurpleBackground
+        }
+    }
+}
+
+private extension Message {
+    func contains(_ needle: String) -> Bool {
+        text.contains(needle) || fields.contains(where: { $0.value.contains(needle) })
+    }
+
+    var landmark: Landmark? {
+        switch true {
+        case contains("SLEEP: "): .systemWakeStateChanged
+        case contains("You're running"): .appLaunching
+        case contains("Submitting bug report"): .rageshakeSubmitting
+        default: nil
+        }
+    }
 }
 
 private extension RageshakeFile {
