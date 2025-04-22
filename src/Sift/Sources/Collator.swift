@@ -54,9 +54,6 @@ struct Collator: AsyncParsableCommand {
 
         let text = message.text
             .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
-        let dateTimeFormat = Date.FormatStyle()
-            .weekday(.abbreviated).month(.abbreviated).day()
-            .hour().minute().second().secondFraction(.fractional(3))
 
         if displayingIntermissions, let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
             print()
@@ -75,7 +72,7 @@ struct Collator: AsyncParsableCommand {
 
         var renderedMessage: String
         if let landmark {
-            renderedMessage = "\(message.timestamp.formatted(dateTimeFormat)) \(text)\(fields)"
+            renderedMessage = "\(message.timestamp.formattedForCollation) \(text)\(fields)"
             // this is technically incorrect because it counts grapheme clusters and not terminal cells
             // also, make sure to count before adding the color codes, so they don't affect it
             if let width = Terminal.size?.width {
@@ -83,7 +80,7 @@ struct Collator: AsyncParsableCommand {
             }
             renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmark.ansiColoration)\(renderedMessage)\(ANSI.reset)"
         } else {
-            renderedMessage = "\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)"
+            renderedMessage = "\(ANSI.time)\(message.timestamp.formattedForCollation)\(ANSI.reset) \(text)\(fields)"
             print(renderedMessage)
         }
         print(renderedMessage)
@@ -151,6 +148,15 @@ private extension Message {
         case contains("Submitting bug report"): .rageshakeSubmitting
         default: nil
         }
+    }
+}
+
+private extension Date {
+    var formattedForCollation: String {
+        let formatStyle = Date.FormatStyle()
+            .weekday(.abbreviated).month(.abbreviated).day()
+            .hour().minute().second().secondFraction(.fractional(3))
+        return formatted(formatStyle)
     }
 }
 
