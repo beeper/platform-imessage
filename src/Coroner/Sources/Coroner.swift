@@ -1,4 +1,5 @@
 import ArgumentParser
+import AsyncAlgorithms
 import Cool
 import Foundation
 
@@ -42,12 +43,9 @@ private func collate(_ files: [RageshakeFile], authenticatingWithPassword ragesh
         for fileToExamine in filesToExamine {
             print("ingesting \(fileToExamine)")
             _ = group.addTaskUnlessCancelled {
-                let fileURL = try filesDictionary[fileToExamine].orThrow("rageshake doesn't contain \(fileToExamine)").url(authenticatingWith: .basic)
-                let request = URLRequest.rageshakeBasicAuthenticated(for: fileURL, withPassword: rageshakePassword)
-
-                let fileLines = try await URLSession.rageshake.bytes(for: request).0.lines
+                let file = try filesDictionary[fileToExamine].orThrow("rageshake doesn't contain \(fileToExamine)")
                 var logs = [Message]()
-                for try await line in fileLines {
+                for try await line in try await file.lines(authenticatingWithPassword: rageshakePassword) {
                     guard !Task.isCancelled else { return [] }
                     try logs.append(Message(parsing: line, format: .init(rageshakeFilename: fileToExamine)))
                 }
@@ -64,6 +62,37 @@ private func collate(_ files: [RageshakeFile], authenticatingWithPassword ragesh
     }
 
     return logs.sorted(by: { $0.timestamp < $1.timestamp })
+}
+
+private extension RageshakeFile {
+    private static let cachePath: URL = {
+        let caches = try! FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        return caches / "com.automattic.beeper.desktop.coroner"
+    }()
+
+    func lines(authenticatingWithPassword rageshakePassword: String, caching: Bool = true) async throws -> any AsyncSequence<String, any Error> {
+        let cacheEntryFileName = "\(parent.date)_\(parent.id)_\(fileName)"
+        let cacheEntryURL = Self.cachePath / cacheEntryFileName
+
+        if caching {
+            // try to use the cached version
+            try FileManager.default.createDirectory(at: Self.cachePath, withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: cacheEntryURL.path(percentEncoded: false)) {
+                return cacheEntryURL.resourceBytes.lines
+            }
+        }
+
+        let request = URLRequest.rageshakeBasicAuthenticated(for: url(authenticatingWith: .basic), withPassword: rageshakePassword)
+        let (bytes, response) = try await URLSession.rageshake.bytes(for: request)
+        if caching {
+            let data = try await Data(bytes)
+            try data.write(to: cacheEntryURL)
+            // re-use the code path above
+            return try await lines(authenticatingWithPassword: rageshakePassword, caching: true)
+        } else {
+            return bytes.lines
+        }
+    }
 }
 
 private extension Message.ParsingFormat {
