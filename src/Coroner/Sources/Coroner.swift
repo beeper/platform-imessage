@@ -3,6 +3,13 @@ import AsyncAlgorithms
 import Cool
 import Foundation
 
+enum ANSI {
+    static let italic = "\u{1b}[3m"
+    static let time = "\u{1b}[90m\(italic)"
+    static let black = "\u{1b}[30m"
+    static let reset = "\u{1b}[0m"
+}
+
 @main
 struct Coroner: AsyncParsableCommand {
     @Option(name: [.customShort("p"), .customLong("password")], help: "The password to use when authenticating with rageshake.beeper.com.")
@@ -14,25 +21,42 @@ struct Coroner: AsyncParsableCommand {
     @Option(help: "Only displays messages containing this text.")
     var grep: String?
 
+    @Option(name: [.short, .customLong("intermission-time")], help: "The minimum amount of time (in seconds) before an intermission is emitted in the output.")
+    var intermissionTimeSeconds: Double = 60.0
+
     mutating func run() async throws {
         let rageshake = try Rageshake(at: rageshakeURL).orThrow("couldn't construct rageshake")
         let files = try await rageshake.listing(authenticatingWithPassword: rageshakePassword)
         let messages = try await collate(files, authenticatingWithPassword: rageshakePassword)
         print("collated \(messages.count.formatted()) log messages")
 
+        var lastTimestamp: Date?
         for message in messages {
-            if let grep, !message.text.contains(grep) { continue }
-
-            let timeANSI = "\u{1b}[90m\u{1b}[3m"
-            let blackANSI = "\u{1b}[30m"
-            let resetANSI = "\u{1b}[0m"
+            if let grep, !(message.text.contains(grep) || message.fields.contains(where: { $0.value.contains(grep) })) { continue }
+            defer { lastTimestamp = message.timestamp }
 
             let text = message.text
-                .replacing("[object Object]", with: "\(blackANSI)<object>\(resetANSI)")
+                .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
             let dateTimeFormat = Date.FormatStyle()
                 .weekday(.abbreviated).month(.abbreviated).day()
                 .hour().minute().second().secondFraction(.fractional(3))
-            print("\(timeANSI)\(message.timestamp.formatted(dateTimeFormat))\(resetANSI) \(text)")
+
+            if let lastTimestamp, case let delta = lastTimestamp.distance(to: message.timestamp), delta > intermissionTimeSeconds {
+                print()
+                print(" ⋮")
+                let formattedDelta = Duration.seconds(delta)
+                    .formatted(.units(allowed: [.milliseconds, .seconds, .minutes, .hours, .days], width: .abbreviated))
+                print(" ⋮ \u{1b}[1m(\(formattedDelta) later...)\u{1b}[0m")
+                print(" ⋮")
+                print()
+            }
+
+            var fields: String = message.fields
+                .map { (key, value) in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
+                .joined(separator: ", ")
+            fields = fields.isEmpty ? "" : " \(fields)"
+
+            print("\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)")
         }
     }
 }

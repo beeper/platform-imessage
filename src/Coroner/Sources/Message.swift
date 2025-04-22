@@ -6,6 +6,7 @@ struct Message {
     let text: Substring
     let level: Level = .default
     let origin: Origin
+    var fields: [String: String] = [:]
 
     enum Origin: CaseIterable, Hashable, Equatable {
         case swift
@@ -29,7 +30,7 @@ private struct RustServerLogMessage: Decodable {
 
     let timestamp: Date
     let level: String
-    let fields: Fields
+    let fields: [String: String]
     let target: String
 }
 
@@ -69,7 +70,8 @@ extension Message {
         case .rustServer:
             let message = try Self.jsonDecoder.decode(RustServerLogMessage.self, from: Data(line.utf8))
             timestamp = message.timestamp
-            text = message.fields.message[...]
+            text = message.fields["message", default: "(...no message...)"][...]
+            fields = message.fields.filter { $0.key != "message" }
             origin = .rust
         case .rollingLogger:
             // drop the first [ and search for the next [
