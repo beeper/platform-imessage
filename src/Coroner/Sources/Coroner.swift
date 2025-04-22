@@ -10,6 +10,8 @@ enum ANSI {
     static let bold = "\u{1b}[1m"
     static let red = "\u{1b}[31m"
     static let reallyRedBackground = "\u{1b}[48;2;255;0;0m"
+    static let reallyBlueBackground = "\u{1b}[48;2;0;0;255m"
+    static let reallyPurpleBackground = "\u{1b}[48;2;128;0;255m"
     static let brightWhite = "\u{1b}[97m"
     static let reset = "\u{1b}[0m"
     static let reverse = "\u{1b}[7m"
@@ -27,7 +29,7 @@ struct Coroner: AsyncParsableCommand {
     var grep: String?
 
     @Option(name: [.short, .customLong("intermission-time")], help: "The minimum amount of time (in seconds) before an intermission is emitted in the output.")
-    var intermissionTimeSeconds: Double = 60.0
+    var intermissionTimeSeconds: Double = 30.0
 
     mutating func run() async throws {
         let rageshake = try Rageshake(at: rageshakeURL).orThrow("couldn't construct rageshake")
@@ -37,13 +39,19 @@ struct Coroner: AsyncParsableCommand {
 
         var lastTimestamp: Date?
         for message in messages {
-            var isLandmark = false
+            var landmarkColoration: String?
             let messageContains = { (text: String) -> Bool in
                 message.text.contains(text) || message.fields.contains(where: { $0.value.contains(text) })
             }
 
-            isLandmark = messageContains("SLEEP: ")
-            if let grep, !messageContains(grep), !isLandmark { continue }
+            if messageContains("SLEEP: ") {
+                landmarkColoration = ANSI.reallyBlueBackground
+            } else if messageContains("You're running") {
+                landmarkColoration = ANSI.reallyRedBackground
+            } else if messageContains("Submitting bug report") {
+                landmarkColoration = ANSI.reallyPurpleBackground
+            }
+            if let grep, !messageContains(grep), landmarkColoration == nil { continue }
 
             defer { lastTimestamp = message.timestamp }
 
@@ -69,12 +77,14 @@ struct Coroner: AsyncParsableCommand {
             fields = fields.isEmpty ? "" : " \(fields)"
 
             var renderedMessage: String
-            if isLandmark {
+            if let landmarkColoration {
                 renderedMessage = "\(message.timestamp.formatted(dateTimeFormat)) \(text)\(fields)"
                 // this is technically incorrect because it counts grapheme clusters and not terminal cells
                 // also, make sure to count before adding the color codes, so they don't affect it
-                renderedMessage += String(repeating: " ", count: Terminal.size!.width - renderedMessage.count)
-                renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(ANSI.reallyRedBackground)\(renderedMessage)\(ANSI.reset)"
+                if let width = Terminal.size?.width {
+                    renderedMessage += String(repeating: " ", count: width - renderedMessage.count)
+                }
+                renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmarkColoration)\(renderedMessage)\(ANSI.reset)"
             } else {
                 renderedMessage = "\(ANSI.time)\(message.timestamp.formatted(dateTimeFormat))\(ANSI.reset) \(text)\(fields)"
                 print(renderedMessage)
