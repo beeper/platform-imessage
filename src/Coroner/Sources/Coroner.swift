@@ -11,6 +11,9 @@ struct Coroner: AsyncParsableCommand {
     @Argument(help: "The URL of the Rageshake listing to examine.")
     var rageshakeURL: URL
 
+    @Option(help: "Only displays messages containing this text.")
+    var grep: String?
+
     mutating func run() async throws {
         let rageshake = try Rageshake(at: rageshakeURL).orThrow("couldn't construct rageshake")
         let files = try await rageshake.listing(authenticatingWithPassword: rageshakePassword)
@@ -18,6 +21,8 @@ struct Coroner: AsyncParsableCommand {
         print("collated \(messages.count.formatted()) log messages")
 
         for message in messages {
+            if let grep, !message.text.contains(grep) { continue }
+
             let timeANSI = "\u{1b}[90m\u{1b}[3m"
             let blackANSI = "\u{1b}[30m"
             let resetANSI = "\u{1b}[0m"
