@@ -47,8 +47,7 @@ struct Collator: AsyncParsableCommand {
     }
 
     func printMessage(rendering message: Message, lastTimestamp: inout Date?) {
-        let landmark = message.landmark
-        if let grep, !message.contains(grep), landmark == nil { return }
+        if let grep, !message.contains(grep), message.landmark == nil { return }
 
         defer { lastTimestamp = message.timestamp }
 
@@ -60,28 +59,7 @@ struct Collator: AsyncParsableCommand {
             printIntermission(delta: Duration.seconds(delta))
         }
 
-        let text = message.text
-            .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
-
-        var fields: String = message.fields
-            .map { key, value in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
-            .joined(separator: "\(ANSI.black), \(ANSI.reset)")
-        fields = fields.isEmpty ? "" : " \(fields)"
-
-        var renderedMessage: String
-        if let landmark {
-            renderedMessage = "\(message.timestamp.formattedForCollation) \(text)\(fields)"
-            // this is technically incorrect because it counts grapheme clusters and not terminal cells
-            // also, make sure to count before adding the color codes, so they don't affect it
-            if let width = Terminal.size?.width {
-                renderedMessage += String(repeating: " ", count: width - renderedMessage.count)
-            }
-            renderedMessage = "\(ANSI.bold)\(ANSI.brightWhite)\(landmark.ansiColoration)\(renderedMessage)\(ANSI.reset)"
-        } else {
-            renderedMessage = "\(ANSI.time)\(message.timestamp.formattedForCollation)\(ANSI.reset) \(text)\(fields)"
-            print(renderedMessage)
-        }
-        print(renderedMessage)
+        print(message.render())
     }
 
     private func printIntermission(delta: Duration) {
@@ -156,6 +134,31 @@ private extension Message {
         case contains("Submitting bug report"): .rageshakeSubmitting
         default: nil
         }
+    }
+
+    func render() -> String {
+        let text = text
+            .replacing("[object Object]", with: "\(ANSI.black)<object>\(ANSI.reset)")
+
+        var fields: String = fields
+            .map { key, value in "\(ANSI.black)\(ANSI.italic)\(key)\(ANSI.reset)\(ANSI.black): \(value)\(ANSI.reset)" }
+            .joined(separator: "\(ANSI.black), \(ANSI.reset)")
+        fields = fields.isEmpty ? "" : " \(fields)"
+
+        var rendered: String
+        if let landmark {
+            rendered = "\(timestamp.formattedForCollation) \(text)\(fields)"
+            // this is technically incorrect because it counts grapheme clusters and not terminal cells
+            // also, make sure to count before adding the color codes, so they don't affect it
+            if let width = Terminal.size?.width {
+                rendered += String(repeating: " ", count: width - rendered.count)
+            }
+            rendered = "\(ANSI.bold)\(ANSI.brightWhite)\(landmark.ansiColoration)\(rendered)\(ANSI.reset)"
+        } else {
+            rendered = "\(ANSI.time)\(timestamp.formattedForCollation)\(ANSI.reset) \(text)\(fields)"
+        }
+
+        return rendered
     }
 }
 
