@@ -24,7 +24,10 @@ struct Coroner: AsyncParsableCommand {
 
             let text = message.text
                 .replacing("[object Object]", with: "\(blackANSI)<object>\(resetANSI)")
-            print("\(timeANSI)\(message.timestamp.formatted())\(resetANSI) \(text)")
+            let dateTimeFormat = Date.FormatStyle()
+                .weekday(.abbreviated).month(.abbreviated).day()
+                .hour().minute().second().secondFraction(.fractional(3))
+            print("\(timeANSI)\(message.timestamp.formatted(dateTimeFormat))\(resetANSI) \(text)")
         }
     }
 }
