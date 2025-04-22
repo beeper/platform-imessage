@@ -73,9 +73,8 @@ extension Rageshake {
 }
 
 extension Rageshake {
-    func files(authenticatingWithPassword password: String) async throws -> [RageshakeFile] {
-        var request = URLRequest(url: url(authenticatingWith: .basic))
-        request.addAuthorization(username: "rageshake", password: password)
+    func listing(authenticatingWithPassword password: String) async throws -> [RageshakeFile] {
+        let request = URLRequest.rageshakeBasicAuthenticated(for: url(authenticatingWith: .basic), withPassword: password)
         let (listing, response_) = try await URLSession.rageshake.data(for: request)
         let response = try (response_ as? HTTPURLResponse).orThrow("expected http response")
         guard (200 ..< 300).contains(response.statusCode) else {
@@ -96,14 +95,20 @@ extension Rageshake {
     }
 }
 
-private extension URLRequest {
+extension URLRequest {
+    static func rageshakeBasicAuthenticated(for url: URL, withPassword password: String) -> Self {
+        with(URLRequest(url: url)) {
+            $0.addAuthorization(username: "rageshake", password: password)
+        }
+    }
+
     mutating func addAuthorization(username: String, password: String) {
         let encoded = Data("\(username):\(password)".utf8).base64EncodedString()
         addValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
     }
 }
 
-private extension URLSession {
+extension URLSession {
     static let rageshake: URLSession = .init(configuration: with(URLSessionConfiguration.default) {
         $0.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         $0.httpAdditionalHeaders = ["User-Agent": "Coroner/0.0"]
