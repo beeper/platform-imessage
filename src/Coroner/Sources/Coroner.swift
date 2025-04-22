@@ -17,7 +17,13 @@ struct Coroner: AsyncParsableCommand {
         print("collated \(messages.count.formatted()) log messages")
 
         for message in messages {
-            print("[\(message.timestamp.formatted())] \(message.text)")
+            let timeANSI = "\u{1b}[90m\u{1b}[3m"
+            let blackANSI = "\u{1b}[30m"
+            let resetANSI = "\u{1b}[0m"
+
+            let text = message.text
+                .replacing("[object Object]", with: "\(blackANSI)<object>\(resetANSI)")
+            print("\(timeANSI)\(message.timestamp.formatted())\(resetANSI) \(text)")
         }
     }
 }
