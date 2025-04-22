@@ -18,7 +18,7 @@ enum ANSI {
 }
 
 @main
-struct Sift: AsyncParsableCommand {
+struct Collator: AsyncParsableCommand {
     @Option(name: [.customShort("p"), .customLong("password")], help: "The password to use when authenticating with rageshake.beeper.com.")
     var rageshakePassword: String
 
@@ -151,7 +151,11 @@ private extension RageshakeFile {
         }
 
         let request = URLRequest.rageshakeBasicAuthenticated(for: url(authenticatingWith: .basic), withPassword: rageshakePassword)
-        let (bytes, response) = try await URLSession.rageshake.bytes(for: request)
+        let (bytes, response_) = try await URLSession.rageshake.bytes(for: request)
+        let response = response_ as! HTTPURLResponse
+        guard (200..<300).contains(response.statusCode) else {
+            throw Rageshake.Error.http(response)
+        }
         if caching {
             let data = try await Data(bytes)
             try data.write(to: cacheEntryURL)
