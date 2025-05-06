@@ -263,6 +263,11 @@ enum Preferences {
         SwiftServerLogHandler(identifier: identifier)
     })
 
+    Task {
+        // we trim as we log (within reason), but always try to do it on startup
+        try? await LogFileCoordinator.shared?.tryTrimming()
+    }
+
     let greeting = "howdy from SwiftServer!"
     if let system = System() {
         log.info("\(greeting) (\(system.os) \(system.kernelVersion) \(system.architecture), \(system.osVersion))")
