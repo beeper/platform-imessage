@@ -73,7 +73,7 @@ extension LogFileCoordinator {
             return
         }
 
-        if let lastTrimTime, lastTrimTime.timeIntervalSinceNow < 60 * 5 {
+        if let lastTrimTime, lastTrimTime.timeIntervalSinceNow < -(60 * 5) {
             // guard against frequent trims if those are caused somehow
             return
         }
