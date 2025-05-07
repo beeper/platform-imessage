@@ -95,6 +95,8 @@ const info: PlatformInfo = {
       if (participantID.includes('@')) return { id: participantID, email: participantID }
       return { id: participantID, phoneNumber: participantID }
     },
+    // get picked up by bridge enablement feature flags
+    bridgeID: 'local-imessage',
   },
   getUserProfileLink: ({ email, phoneNumber }) =>
     `imessage://${email || phoneNumber}`,
