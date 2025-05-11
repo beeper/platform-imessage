@@ -2,7 +2,7 @@ import { CursorProp, Message, MessageReaction, Paginated, Participant, Thread } 
 import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
 
 const entirelyNumbersAndSymbols = /^[\d\s+\-()]+$/
-const entirelyAlphanumericSenderID = /^[\da-zA-Z]{1,11}$/
+const entirelyAlphanumericSenderID = /^[\da-zA-Z\-]{1,11}$/
 
 // https://en.wikipedia.org/wiki/Mobile_marketing#Custom_Sender_ID
 function likelyAlphanumericSenderID(id: string): boolean {
