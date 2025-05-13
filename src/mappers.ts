@@ -309,11 +309,12 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     switch (msgRow.item_type) {
       case 1:
         m.behavior = MessageBehavior.SILENT
-        m.text = msgRow.group_action_type === 1
+        const removed = msgRow.group_action_type === 1
+        m.text = removed
           ? `{{sender}} removed {{${msgRow.otherID}}} from the conversation`
           : `{{sender}} added {{${msgRow.otherID}}} to the conversation`
         m.action = {
-          type: msgRow.group_action_type === 1
+          type: removed
             ? MessageActionType.THREAD_PARTICIPANTS_REMOVED
             : MessageActionType.THREAD_PARTICIPANTS_ADDED,
           participantIDs: [msgRow.otherID],
@@ -334,7 +335,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       case 3: {
         m.behavior = MessageBehavior.SILENT
         const changedGroupImg = msgRow.group_action_type === 1
-        if (changedGroupImg || msgRow.group_action_type === 2) {
+        const removedGroupImg = msgRow.group_action_type === 2
+        if (changedGroupImg || removedGroupImg) {
           m.text = changedGroupImg
             ? '{{sender}} changed the group photo'
             : '{{sender}} removed the group photo'
@@ -343,7 +345,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
             type: MessageActionType.THREAD_IMG_CHANGED,
             actorParticipantID: m.senderID,
           }
-        } else {
+        } else if (msgRow.group_action_type === 0) {
           m.text = '{{sender}} left the conversation'
           m.action = {
             type: MessageActionType.THREAD_PARTICIPANTS_REMOVED,
