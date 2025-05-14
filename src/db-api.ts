@@ -174,6 +174,7 @@ export default class DatabaseAPI {
     const db = await getDB()
     texts.log('imsg: creating indexes')
     await db.run(SQLS.createIndexes)
+    texts.log('imsg: done creating indexes, returning new DatabaseAPI')
     return new DatabaseAPI(db, papi)
   }
 

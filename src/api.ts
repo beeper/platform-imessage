@@ -67,13 +67,17 @@ export default class AppleiMessage implements PlatformAPI {
       texts.log('imsg: database already initialized, ignoring initDB() call')
       return
     }
+
     try {
       this.dbAPI = await DatabaseAPI.make(this)
     } catch (error: unknown) {
+      texts.log('imsg initDBIfNeeded: error while creating DatabaseAPI:', error)
       throw new ReAuthError("Can't access iMessage data", { cause: error })
     }
+    texts.log('imsg initDBIfNeeded: created DatabaseAPI')
     // eslint-disable-next-line no-void
     void MessagesControllerWrapper.get()
+    texts.log('imsg initDBIfNeeded: fetched MessagesControllerWrapper')
     this.currentUser = await this.fetchCurrentUser()
   }
 
