@@ -49,32 +49,46 @@ export default class AppleiMessage implements PlatformAPI {
 
   private threadReadStore: ThreadReadStore | undefined
 
-  // NOTE(skip): FWICT, clients make an effort to not call our methods if our
-  // `init` doesn't succeed. We initialize this field there. For the sake of
-  // not having to sprinkle "this.dbAPI!" everywhere (and because this is
-  // seemingly the contract), pretend that this isn't nullable when it
-  // _technically_ is.
-  //
-  // This is also `null` when adding the platform initially.
-  private dbAPI: DatabaseAPI = null as any
+  /**
+   * We need to be constructable (and we should be able to handle our `init`
+   * being called) _without_ Messages.app data access, because those things
+   * always happen when the account is in the process of being added. To
+   * actually propagate failure when permissions aren't granted, `login` is
+   * used.
+   */
+  private potentiallyUninitializedDB: DatabaseAPI | null = null
+
+  private get dbAPI(): DatabaseAPI {
+    if (!this.potentiallyUninitializedDB) {
+      throw new Error('imsg: tried to use api before proper authorization/initialization')
+    }
+
+    return this.potentiallyUninitializedDB!
+  }
 
   private asAPI = IS_BIG_SUR_OR_UP ? undefined : ASAPI()
 
   private onEvent: OnServerEventCallback | undefined
 
-  private async initDBIfNeeded() {
-    if (this.dbAPI) {
+  private async tryInitializingDB(): Promise<boolean> {
+    if (this.potentiallyUninitializedDB) {
       texts.log('imsg: database already initialized, ignoring initDB() call')
-      return
+      return true
     }
+
     try {
-      this.dbAPI = await DatabaseAPI.make(this)
+      this.potentiallyUninitializedDB = await DatabaseAPI.make(this)
     } catch (error: unknown) {
-      throw new ReAuthError("Can't access iMessage data", { cause: error })
+      texts.error('imsg: error while attempting to initialize DatabaseAPI:', error)
+      return false
     }
+
+    texts.log('imsg: created DatabaseAPI')
     // eslint-disable-next-line no-void
     void MessagesControllerWrapper.get()
+    texts.log('imsg: fetched MessagesControllerWrapper')
     this.currentUser = await this.fetchCurrentUser()
+    return true
   }
 
   private fetchCurrentUser = async (): Promise<CurrentUser> => {
@@ -100,8 +114,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   login = async (): Promise<LoginResult> => {
-    await this.initDBIfNeeded()
-    return { type: 'success' }
+    const success = await this.tryInitializingDB()
+    return success
+      ? { type: 'success' }
+      : { type: 'error', errorMessage: 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.' }
   }
 
   private sipEnabled = csrStatus().then(status => {
@@ -128,7 +144,7 @@ export default class AppleiMessage implements PlatformAPI {
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
-    await this.initDBIfNeeded()
+    await this.tryInitializingDB()
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
     if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
       fs.unlink(path.join(userDataDirPath, 'imessage.json')).catch(() => {})
@@ -682,10 +698,7 @@ export default class AppleiMessage implements PlatformAPI {
   //   }
 
   private proxiedAuthFns = {
-    isMessagesAppSetup: async () => {
-      await this.initDBIfNeeded()
-      return this.dbAPI!.isNotEmpty()
-    },
+    isMessagesAppSetup: () => this.tryInitializingDB(),
     canAccessMessagesDir,
     askForAutomationAccess: () => (this.asAPI
       ? this.asAPI!.askForAutomationAccess()
