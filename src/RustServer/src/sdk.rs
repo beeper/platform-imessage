@@ -78,6 +78,7 @@ pub struct UpdateStateSyncEventEntry {
 
     pub unread_count: f64,
     pub last_read_message_sort_key: Either<String, Undefined>,
+    pub is_marked_unread: bool,
 }
 
 impl UpdateStateSyncEvent {
@@ -100,6 +101,17 @@ impl UpdateStateSyncEvent {
                 last_read_message_sort_key: last_read_message_sort_key
                     .map(|sort_key| format!("{sort_key}"))
                     .into(),
+
+                // This is necessary as Beeper Desktop refuses to mark a thread
+                // as read under certain conditions that can be triggered by
+                // manually marking a thread as unread in iMessage itself.
+                // See: https://github.com/beeper/beeper-desktop-new/blob/489c8b4974497c431c8d18d7d5eecc21afdf66b7/src/renderer/stores/ThreadStore.ts#L2109
+                //
+                // Since we "own" the unread state, force our way through certain code paths by
+                // pretending that everything is (manually) marked unread all the time. On our
+                // side, it doesn't seem to be possible to discern between a chat becoming unread
+                // due to a new message arriving or being manually marked as such.
+                is_marked_unread: unread_count > 0,
             }],
         }
     }
