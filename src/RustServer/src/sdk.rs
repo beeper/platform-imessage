@@ -78,6 +78,7 @@ pub struct UpdateStateSyncEventEntry {
 
     pub unread_count: f64,
     pub last_read_message_sort_key: Either<String, Undefined>,
+    pub is_marked_unread: bool,
 }
 
 impl UpdateStateSyncEvent {
@@ -100,6 +101,7 @@ impl UpdateStateSyncEvent {
                 last_read_message_sort_key: last_read_message_sort_key
                     .map(|sort_key| format!("{sort_key}"))
                     .into(),
+                is_marked_unread: unread_count > 0,
             }],
         }
     }
