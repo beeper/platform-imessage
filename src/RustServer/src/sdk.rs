@@ -108,9 +108,9 @@ impl UpdateStateSyncEvent {
                 // See: https://github.com/beeper/beeper-desktop-new/blob/489c8b4974497c431c8d18d7d5eecc21afdf66b7/src/renderer/stores/ThreadStore.ts#L2109
                 //
                 // Since we "own" the unread state, force our way through certain code paths by
-                // pretending that everything is (manually marked unread all the time. On our side,
-                // it doesn't seem to be possible to discern between a chat becoming unread due to
-                // a new message arriving or being manually marked as such.
+                // pretending that everything is (manually) marked unread all the time. On our
+                // side, it doesn't seem to be possible to discern between a chat becoming unread
+                // due to a new message arriving or being manually marked as such.
                 is_marked_unread: unread_count > 0,
             }],
         }
