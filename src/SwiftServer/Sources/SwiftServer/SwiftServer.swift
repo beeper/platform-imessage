@@ -277,8 +277,6 @@ enum Preferences {
 
     Defaults.registerDefaults()
 
-    // strongly retained by askForMessagesDirAccess, deinit called on exit
-    let accessManager = MessagesAccessManager()
     var dict: [String: NodePropertyConvertible] = try [
         "appleInterfaceStyle": NodeProperty { _ in
             UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
@@ -311,7 +309,10 @@ enum Preferences {
         },
 
         "askForMessagesDirAccess": NodeFunction {
-            try await accessManager.requestAccess()
+            try await PersistedBookmark.messages.interactivelyRequestResolutionPersisting()
+            try await PersistedBookmark.preferences.interactivelyRequestResolutionPersisting()
+            // `return` is needed to avoid an ambiguity error for some reason
+            return
         },
 
         "askForAutomationAccess": NodeFunction {
