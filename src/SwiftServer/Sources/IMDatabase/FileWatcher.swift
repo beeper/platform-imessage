@@ -1,6 +1,6 @@
 import Foundation
-import SwiftServerFoundation
 import Logging
+import SwiftServerFoundation
 
 private let log = Logger(label: "sws.imdatabase")
 
