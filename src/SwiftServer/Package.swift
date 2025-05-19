@@ -39,6 +39,9 @@ let package = Package(
             ]
         ),
         .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
+        .target(name: "SQLite", dependencies: [
+            .product(name: "Logging", package: "swift-log"),
+        ]),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
         .target(
             name: "CUnfairLock",
