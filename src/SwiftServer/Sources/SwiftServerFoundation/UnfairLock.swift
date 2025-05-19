@@ -3,10 +3,10 @@ import Foundation
 import CUnfairLock
 
 // http://www.russbishop.net/the-law
-final class UnfairLock: NSLocking {
-    private var _lock: UnsafeMutablePointer<os_unfair_lock>
+public final class UnfairLock: NSLocking {
+    var _lock: UnsafeMutablePointer<os_unfair_lock>
 
-    init() {
+    public init() {
         _lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
         _lock.initialize(to: os_unfair_lock())
     }
@@ -16,11 +16,11 @@ final class UnfairLock: NSLocking {
         _lock.deallocate()
     }
 
-    func tryLock() -> Bool {
+    public func tryLock() -> Bool {
         os_unfair_lock_trylock(_lock)
     }
 
-    func lock() {
+    public func lock() {
         // based on https://hacks.mozilla.org/2022/10/improving-firefox-responsiveness-on-macos/
         os_unfair_lock_lock_with_options(
             _lock,
@@ -28,11 +28,11 @@ final class UnfairLock: NSLocking {
         )
     }
 
-    func unlock() {
+    public func unlock() {
         os_unfair_lock_unlock(_lock)
     }
 
-    func lock<ReturnValue>(_ f: () throws -> ReturnValue) rethrows -> ReturnValue {
+    public func lock<ReturnValue>(_ f: () throws -> ReturnValue) rethrows -> ReturnValue {
         lock()
         defer { unlock() }
         return try f()
