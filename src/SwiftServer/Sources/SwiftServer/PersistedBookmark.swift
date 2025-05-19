@@ -163,11 +163,13 @@ extension PersistedBookmark {
     }
 
     private func persist(bookmarkData bookmark: Data) {
+        log.debug("\(loggingName): persisting bookmark data to \"\(persistenceKey)\"")
         UserDefaults.standard.set(bookmark, forKey: persistenceKey)
     }
 
     private func loadPersistedData() -> Data? {
-        UserDefaults.standard.data(forKey: persistenceKey)
+        log.debug("\(loggingName): trying to load persisted data from \"\(persistenceKey)\"")
+        return UserDefaults.standard.data(forKey: persistenceKey)
     }
 
     func resolveWithPersistedData() throws(Error) {
