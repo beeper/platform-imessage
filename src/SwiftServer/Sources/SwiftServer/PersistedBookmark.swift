@@ -74,16 +74,19 @@ final class PersistedBookmark: NSObject {
     }
 
     func stopAccess() {
-        if hasAccess {
-            if let currentSecurityScopedURL {
-                currentSecurityScopedURL.stopAccessingSecurityScopedResource()
-                log.debug("\(loggingName): stopped access to security-scoped URL")
-            } else {
-                log.warning("\(loggingName): thought we had access, but we don't actually have a security-scoped URL at all")
-            }
+        guard hasAccess else {
+            log.debug("\(loggingName): don't need to stop access")
+            return
         }
 
-        log.debug("\(loggingName): don't need to stop access")
+        if let currentSecurityScopedURL {
+            currentSecurityScopedURL.stopAccessingSecurityScopedResource()
+            log.debug("\(loggingName): stopped access to security-scoped URL")
+        } else {
+            log.warning("\(loggingName): thought we had access, but we don't actually have a security-scoped URL at all")
+        }
+
+        return
     }
 
     deinit {
