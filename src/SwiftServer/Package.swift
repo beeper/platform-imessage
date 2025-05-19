@@ -17,6 +17,7 @@ let package = Package(
             name: "SwiftServer-Auto",
             targets: ["SwiftServer"]
         ),
+        .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"])
     ],
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
@@ -25,6 +26,7 @@ let package = Package(
         .package(url: "https://github.com/TextsHQ/BetterSwiftAX", .branch("main")),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
+        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     ],
     targets: [
         .target(
@@ -44,6 +46,16 @@ let package = Package(
         .target(name: "SQLite", dependencies: [
             .product(name: "Logging", package: "swift-log"),
         ]),
+        .target(
+            name: "IMDatabase",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+                "SQLite",
+                "SwiftServerFoundation"
+            ],
+        ),
+        .executableTarget(name: "IMDatabaseTestBench", dependencies: ["IMDatabase"]),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
         .target(
             name: "CUnfairLock",
