@@ -256,6 +256,11 @@ enum Preferences {
 }
 
 #NodeModule {
+    // this block represents the module initializer, which ends up being
+    // invoked very early in the overall process lifetime of the entire app (as
+    // PAS requires and loads us); we can request any sandbox extensions here
+    // and consume them for the entire process to use with minimal worry
+
     // this needs to be bootstrapped as early as possible, because it needs to
     // be ready by the first `debugLog` call, or else subsequent calls to that
     // function are dropped
@@ -276,6 +281,14 @@ enum Preferences {
     }
 
     Defaults.registerDefaults()
+
+    do {
+        try PersistedBookmark.messages.resolveWithPersistedData()
+    } catch PersistedBookmark.Error.noPersistedBookmark {
+        log.warning("no persisted bookmark data for messages data yet")
+    } catch {
+        log.error("couldn't resolve persisted bookmark data for messages: \(String(reflecting: error))")
+    }
 
     var dict: [String: NodePropertyConvertible] = try [
         "appleInterfaceStyle": NodeProperty { _ in
