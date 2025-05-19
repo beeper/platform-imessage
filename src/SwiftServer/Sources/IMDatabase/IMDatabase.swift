@@ -1,7 +1,7 @@
-import Foundation
-import SwiftServerFoundation
 import AsyncAlgorithms
+import Foundation
 import SQLite
+import SwiftServerFoundation
 
 private func chatDatabaseFile(in messagesDataURL: URL) -> URL {
     messagesDataURL.appendingPathComponent("chat.db")
@@ -14,7 +14,7 @@ private func chatDatabaseWalFile(in messagesDataURL: URL) -> URL {
 public final class IMDatabase {
     let messagesDataDirectory: URL
     public var debounceIntervalMs: Int = 25
-    public let changes = Topic<()>()
+    public let changes = Topic<Void>()
 
     private var dbWatcher: FileWatcher?
     private var dbWalWatcher: FileWatcher?
@@ -23,8 +23,8 @@ public final class IMDatabase {
     private var database: ReadOnlyDatabase
 
     public init(messagesDataBaseURL: URL? = nil) throws {
-        self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
-        self.database = try ReadOnlyDatabase(connecting: chatDatabaseFile(in: self.messagesDataDirectory).path)
+        messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
+        database = try ReadOnlyDatabase(connecting: chatDatabaseFile(in: messagesDataDirectory).path)
     }
 }
 
@@ -38,21 +38,27 @@ public extension IMDatabase {
         self.dbWatcher = dbWatcher
         self.dbWalWatcher = dbWalWatcher
 
-        let debouncedChanges = merge(dbWalWatcher.events.subscribe(), dbWatcher.events.subscribe())
+        let changes = merge(dbWalWatcher.events.subscribe(), dbWatcher.events.subscribe())
         listener = Task { [weak self] in
-            var broadcastingTask: Task<Void, any Error>?
+            // this can't actually throw, but we can't use `AsyncSequence`'s
+            // `Failure` type argument due to deployment
+            try? await self?.listenForChanges(consuming: changes)
+        }
+    }
 
-            for await change in debouncedChanges {
-                broadcastingTask?.cancel()
-                broadcastingTask = Task { [weak self] in
-                    guard let self else { return }
+    private func listenForChanges(consuming sequence: some AsyncSequence) async throws {
+        var broadcastingTask: Task<Void, any Error>?
 
-                    let debouncingPeriod = UInt64(debounceIntervalMs * 1_000_000)
-                    try await Task.sleep(nanoseconds: debouncingPeriod)
-                    try Task.checkCancellation()
+        for try await _ in sequence {
+            broadcastingTask?.cancel()
+            broadcastingTask = Task { [weak self] in
+                guard let self else { return }
 
-                    changes.broadcast(())
-                }
+                let debouncingPeriod = UInt64(debounceIntervalMs * 1_000_000)
+                try await Task.sleep(nanoseconds: debouncingPeriod)
+                try Task.checkCancellation()
+
+                changes.broadcast(())
             }
         }
     }
