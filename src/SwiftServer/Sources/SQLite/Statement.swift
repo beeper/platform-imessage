@@ -1,13 +1,13 @@
 import Logging
 import SQLite3
 
-private let log = Logger(label: "sqlite.rodb.stmt")
+private let log = Logger(label: "sqlite.stmt")
 
 public final class Statement {
     var handle: OpaquePointer
-    var database: ReadOnlyDatabase
+    var database: Database
 
-    init(handle: OpaquePointer, database: ReadOnlyDatabase) {
+    init(handle: OpaquePointer, database: Database) {
         self.handle = handle
         self.database = database
     }
