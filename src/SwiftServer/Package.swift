@@ -47,6 +47,7 @@ let package = Package(
         .target(name: "SQLite", dependencies: [
             .product(name: "Logging", package: "swift-log"),
         ]),
+        .testTarget(name: "SQLiteTests", dependencies: ["SQLite"]),
         .target(
             name: "IMDatabase",
             dependencies: [
