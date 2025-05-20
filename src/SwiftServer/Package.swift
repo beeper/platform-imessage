@@ -11,13 +11,7 @@ let package = Package(
             type: .dynamic,
             targets: ["SwiftServer"]
         ),
-        // The dynamic target will cause linker errors in Xcode.
-        // This target can be selected in Xcode for development.
-        .library(
-            name: "SwiftServer-Auto",
-            targets: ["SwiftServer"]
-        ),
-        .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"])
+        .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
     ],
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
@@ -40,7 +34,16 @@ let package = Package(
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
                 .product(name: "Collections", package: "swift-collections"),
-            ]
+            ],
+
+            // `node-swift`'s build scripts pass some flags that enable dynamic
+            // symbol resolution, which avoids N-API linkage errors at static
+            // linking time. replicate those here so we can build with SPM (just
+            // to run tests).
+            //
+            // the actual build uses `xcodebuild`, so these settings in
+            // particular get ignored
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-undefined", "-Xlinker", "dynamic_lookup"])],
         ),
         .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
         .target(name: "SQLite", dependencies: [
