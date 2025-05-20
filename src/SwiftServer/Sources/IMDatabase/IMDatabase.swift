@@ -20,11 +20,11 @@ public final class IMDatabase {
     private var dbWalWatcher: FileWatcher?
     private var listener: Task<Void, Never>?
 
-    private var database: ReadOnlyDatabase
+    private var database: Database
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
-        database = try ReadOnlyDatabase(connecting: chatDatabaseFile(in: messagesDataDirectory).path)
+        database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
     }
 }
 
