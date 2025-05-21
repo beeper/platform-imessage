@@ -41,12 +41,7 @@ public extension IMDatabase {
     typealias UnreadStates = [Int: UnreadState]
 
     func queryUnreadStates() throws -> UnreadStates {
-        let statement = try unreadStatesStatement ?? {
-            let statement = try database.prepare(sqlWithoutEscaping: unreadStatesQuery, flags: .persistent)
-            unreadStatesStatement = statement
-            return statement
-        }()
-
+        let statement = try cachedStatement(&unreadStatesStatement, creatingWithoutEscapingSQL: unreadStatesQuery)
         try statement.reset()
 
         var unreadStates = UnreadStates()
