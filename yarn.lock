@@ -6885,12 +6885,12 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
 
 "node-swift@https://github.com/slice/node-swift#skip/15_4-tls":
   version: 1.0.0
-  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=e5473254d40bfbac87d2304ec535b0db8eb9e873"
+  resolution: "node-swift@https://github.com/slice/node-swift.git#commit=a9a8aa482657287cb593e80d8f944586efc263de"
   dependencies:
     import-cwd: "npm:^3.0.0"
   bin:
     node-swift: ./lib/cli.js
-  checksum: 10/edd99e198cffcac7405394d3278d90471f485c4fb53d4a66dbf945d67b4db2fb0b2d7391a4c31c30a1603f769ce3fda931eab806f46327f7a92eea89cb3f5f70
+  checksum: 10/0699d5986fa5647eff6ae74e6a407b174ca4be989efda5d35441dc90052e54397c75736c9524675a6f9b5e53991587d3d2f9ceabeb3d8e8805d8d71201948cc8
   languageName: node
   linkType: hard
 
