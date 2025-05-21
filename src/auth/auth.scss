@@ -93,7 +93,7 @@
         margin-bottom: 10px;
         display: grid;
         grid-template-columns: 1.2em /* icon */ 1fr /* title, subtitle, question mark */ auto /* tick */;
-        gap: 0.5em;
+        gap: 0.25em 0.5em;
         .title {
           display: flex;
           align-items: center;
