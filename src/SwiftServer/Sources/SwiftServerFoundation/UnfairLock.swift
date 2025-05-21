@@ -38,3 +38,5 @@ public final class UnfairLock: NSLocking {
         return try f()
     }
 }
+
+extension UnfairLock: @unchecked Sendable {}
