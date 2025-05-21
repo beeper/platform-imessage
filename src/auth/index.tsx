@@ -129,6 +129,7 @@ const InfoIcon = (
 type ChecklistItemProps = {
   title: string
   info: string
+  subtitle?: string
   completed: boolean
   action: () => void | Promise<void>
   icon: React.ReactNode
@@ -139,8 +140,9 @@ type ChecklistItemProps = {
 const ChecklistItem = ({
   icon,
   title,
-  completed,
   info,
+  subtitle,
+  completed,
   action,
   more,
   showMore,
@@ -150,15 +152,18 @@ const ChecklistItem = ({
   <article>
     <div onClick={() => action()} className="main">
       {icon}
-      {title}
-      <Tooltip
-        position="top"
-        tip={false}
-        maxWidth={420}
-        content={info}
-      >
-        <span className="info-icon">{InfoIcon}</span>
-      </Tooltip>
+      <div className="title">
+        {title}
+        <Tooltip
+          position="top"
+          tip={false}
+          maxWidth={420}
+          content={info}
+        >
+          <span className="info-icon">{InfoIcon}</span>
+        </Tooltip>
+      </div>
+      {subtitle && <div className="subtitle">{subtitle}</div>}
       <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
     </div>
     {showMore && <div className="more">{more}</div>}
@@ -226,7 +231,8 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: axAuthorized ?? false,
       action: authorizeAX,
       info: 'Required to power most iMessage functionality.',
-      more: <div onClick={openAXPrefs}>Try adding {appName} manually by clicking the + button and selecting it from your Applications folder &rarr;</div>,
+      subtitle: 'Also used to guide setup automatically.',
+      more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
       showMore,
     },
     {
