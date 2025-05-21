@@ -10,7 +10,16 @@ LoggingSystem.bootstrap { label in
 
 let db = try IMDatabase()
 try db.beginListeningForChanges()
+var states = try db.queryUnreadStates()
 
-for await _ in db.changes.subscribe() {
-    print("** change detected **")
+for try await _ in db.changes.subscribe() {
+    let newStates = try db.queryUnreadStates()
+    defer { states = newStates }
+
+    var changedStates = IMDatabase.UnreadStates()
+    for (chatId, newState) in newStates where states[chatId] != newState {
+        changedStates[chatId] = newState
+    }
+
+    print(changedStates)
 }
