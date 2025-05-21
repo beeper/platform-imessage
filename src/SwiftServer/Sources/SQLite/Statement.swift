@@ -57,4 +57,12 @@ public extension Statement {
             try rowHandler(Row(accessingColumnsOf: self))
         }
     }
+
+    func mapRowsUntilDone<T>(_ transform: (_ row: borrowing Row) throws -> T) throws -> [T] {
+        var results = [T]()
+        try stepUntilDone {
+            results.append(try transform($0))
+        }
+        return results
+    }
 }
