@@ -723,7 +723,7 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     timestamp: fromAppleTime(chat.msgDateString),
     features: roomFeatures,
   }
-  if (thread.id.startsWith('SMS;')) thread.extra = { isSMS: true }
+  if (thread.id.startsWith('SMS;') || thread.id.startsWith('RCS;')) thread.extra = { isSMS: true }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread
 }
