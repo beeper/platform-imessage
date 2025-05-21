@@ -32,8 +32,7 @@ public struct UnreadState: Equatable {
 
     init(row: borrowing Row) {
         unreadCount = row[1].as(Int.self)
-        let secondsSinceAppleEpoch = row[2].as(Double.self) / 1_000_000_000.0
-        lastReadMessageTimestamp = Date(timeIntervalSinceReferenceDate: secondsSinceAppleEpoch)
+        lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: row[2].as(Int.self))
     }
 }
 
