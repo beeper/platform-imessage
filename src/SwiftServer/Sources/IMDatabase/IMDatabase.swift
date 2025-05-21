@@ -12,16 +12,23 @@ private func chatDatabaseWalFile(in messagesDataURL: URL) -> URL {
 }
 
 public final class IMDatabase {
+    // `~/Library/Chat`
     let messagesDataDirectory: URL
+    // coalesce multiple filesystem changes if they happen in a short period
     public var debounceIntervalMs: Int = 25
+    // let consumers of this class subscribe to changes in either `chat.db`
+    // or `chat.db-wal`
     public let changes = Topic<Void>()
 
+    // watch filesystem for changes in `chat.db` and `chat.db-wal` in order to
+    // respond to events
     private var dbWatcher: FileWatcher?
     private var dbWalWatcher: FileWatcher?
     private var listener: Task<Void, Never>?
 
     var database: Database
 
+    // prepared statement caching
     var unreadStatesStatement: Statement?
 
     public init(messagesDataBaseURL: URL? = nil) throws {
@@ -39,6 +46,11 @@ public final class IMDatabase {
         return prepared
     }
 }
+
+// MARK: - Listening for Changes
+
+// rely on watching filesystem for `chat.db`/`chat.db-wal` changes in order to
+// respond by querying the database.
 
 public extension IMDatabase {
     func beginListeningForChanges() throws {
