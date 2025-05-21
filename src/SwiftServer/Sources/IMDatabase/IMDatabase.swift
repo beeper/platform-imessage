@@ -30,6 +30,7 @@ public final class IMDatabase {
 
     // prepared statement caching
     var unreadStatesStatement: Statement?
+    var messageUpdatesStatement: Statement?
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
