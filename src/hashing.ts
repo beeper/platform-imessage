@@ -14,6 +14,12 @@ export function hashParticipantID(id: string): string {
   return globalParticipantIDHasher.hashAndRemember(id)
 }
 
+export function originalThreadID(possiblyHash: string): string {
+  if (!possiblyHash.startsWith('imsg')) return possiblyHash
+
+  return globalThreadIDHasher.originalFromHash(possiblyHash)
+}
+
 export function originalParticipantID(possiblyHash: string): string {
   // for unhashed participant IDs, just return as-is
   if (!possiblyHash.startsWith('imsg')) return possiblyHash
