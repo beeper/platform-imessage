@@ -28,6 +28,16 @@ public final class IMDatabase {
         messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
         database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
     }
+
+    func cachedStatement(_ statement: inout Statement?, creatingWithoutEscapingSQL sql: String) throws -> Statement {
+        if let statement {
+            return statement
+        }
+
+        let prepared = try database.prepare(sqlWithoutEscaping: sql, flags: .persistent)
+        statement = prepared
+        return prepared
+    }
 }
 
 public extension IMDatabase {
