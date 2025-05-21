@@ -59,6 +59,7 @@ let package = Package(
         ),
         .executableTarget(name: "IMDatabaseTestBench", dependencies: ["IMDatabase"]),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
+        .testTarget(name: "SwiftServerTests", dependencies: ["SwiftServer"]),
         .target(
             name: "CUnfairLock",
             dependencies: []
