@@ -20,7 +20,9 @@ public final class IMDatabase {
     private var dbWalWatcher: FileWatcher?
     private var listener: Task<Void, Never>?
 
-    private var database: Database
+    var database: Database
+
+    var unreadStatesStatement: Statement?
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
