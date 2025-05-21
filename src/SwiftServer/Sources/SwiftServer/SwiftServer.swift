@@ -280,6 +280,11 @@ enum Preferences {
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
     var dict: [String: NodePropertyConvertible] = try [
+        "hashers": [
+            "thread": try Hasher.thread.nodeValue(),
+            "participant": try Hasher.participant.nodeValue(),
+        ].nodeValue(),
+
         "appleInterfaceStyle": NodeProperty { _ in
             UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
         },
