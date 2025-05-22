@@ -10,6 +10,7 @@ import Logging
 import Combine
 
 private let log = Logger(swiftServerLabel: "messages-controller")
+private let lifecycleLog = Logger(label: "imsg.lifecycle")
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -252,6 +253,10 @@ final class MessagesController {
 
     private var activateToken: Accessibility.Observer.Token?
     private var deactivateToken: Accessibility.Observer.Token?
+    private var hiddenToken: Accessibility.Observer.Token?
+    private var shownToken: Accessibility.Observer.Token?
+    private var windowMovedToken: Accessibility.Observer.Token?
+    private var windowResizedToken: Accessibility.Observer.Token?
     #if DEBUG
     private var layoutChangedToken: Accessibility.Observer.Token?
     #endif
@@ -452,6 +457,7 @@ final class MessagesController {
         // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
 
         // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
+        let capturedApp = app
         let thread = RunLoopThread {
             let watcher = TimerBlockWatcher { [weak self] in
                 self?.pollActivityStatus()
@@ -463,11 +469,40 @@ final class MessagesController {
                 userInfo: nil,
                 repeats: true
             )
+
+            func status() -> String {
+                do {
+                    let window = try self.elements.mainWindow
+                    let frame = try window.frame()
+                    let position = try window.position()
+                    return "finishedLaunching:\(capturedApp.isFinishedLaunching), active:\(capturedApp.isActive), hidden:\(capturedApp.isHidden), terminated:\(capturedApp.isTerminated), AXframe:\(frame), AXpos:\(position)"
+                } catch {
+                    lifecycleLog.error("failed to query lifecycle status: \(error)")
+                    return "FAILED"
+                }
+            }
+
             self.activateToken = try? self.elements.app.observe(.applicationActivated) { [weak self] _ in
+                // this can be invoked even if the app is already activated
+                lifecycleLog.info("@@ AX activated [\(status())]")
                 self?.activateMessages()
             }
             self.deactivateToken = try? self.elements.app.observe(.applicationDeactivated) { [weak self] _ in
+                lifecycleLog.info("@@ AX deactivated [\(status())]")
                 self?.deactivateMessages()
+            }
+            self.shownToken = try? self.elements.app.observe(.applicationShown) { _ in
+                lifecycleLog.info("@@ AX shown [\(status())]")
+            }
+            self.hiddenToken = try? self.elements.app.observe(.applicationHidden) { _ in
+                lifecycleLog.info("@@ AX hidden [\(status())]")
+            }
+            // TODO(skip): these need to be revived when the window closes/opens
+            self.windowMovedToken = try? self.elements.mainWindow.observe(.windowMoved) { _ in
+                lifecycleLog.info("@@ AX window moved [\(status())]")
+            }
+            self.windowResizedToken = try? self.elements.mainWindow.observe(.windowResized) { _ in
+                lifecycleLog.info("@@ AX window resized [\(status())]")
             }
             #if DEBUG
             self.layoutChangedToken = try? self.elements.app.observe(.layoutChanged) { _ in // [weak self] _ in
