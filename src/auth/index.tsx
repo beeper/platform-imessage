@@ -233,7 +233,7 @@ const ChecklistPage: React.FC<Props> = props => {
       action: authorizeAX,
       info: 'Required to power most iMessage functionality.',
       subtitle: 'Also used to guide setup automatically.',
-      more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
+      more: <div onClick={openAXPrefs}>Try adding {appName} manually by clicking the + button and selecting it from your Applications folder &rarr;</div>,
       showMore,
     },
     {
