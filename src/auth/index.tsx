@@ -16,14 +16,15 @@ const sysPrefsAppName = IS_VENTURA_OR_UP ? 'System Settings' : 'System Preferenc
 const staticPrefix = url.pathToFileURL(BINARIES_DIR_PATH).href
 const cssPath = path.join(staticPrefix, 'imessage-auth.css')
 
-const openSecuritySystemPrefs = (prefPath: string) =>
+const openSecuritySystemPrefs = (prefPath: string) => {
   window.open('x-apple.systempreferences:com.apple.preference.security?' + prefPath)
+}
 
-const openContactsPrefs = () => openSecuritySystemPrefs('Privacy_Contacts')
+const openContactsPrefs = () => { openSecuritySystemPrefs('Privacy_Contacts') }
 
-const openAXPrefs = () => openSecuritySystemPrefs('Privacy_Accessibility')
+const openAXPrefs = () => { openSecuritySystemPrefs('Privacy_Accessibility') }
 
-const openAutomationPrefs = () => openSecuritySystemPrefs('Privacy_Automation')
+const openAutomationPrefs = () => { openSecuritySystemPrefs('Privacy_Automation') }
 
 type AnyFunction = (...args: any[]) => any
 type Async<F extends AnyFunction> = ReturnType<F> extends Promise<any>
