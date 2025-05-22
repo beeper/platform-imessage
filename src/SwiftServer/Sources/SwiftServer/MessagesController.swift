@@ -476,7 +476,7 @@ final class MessagesController {
             }
             #endif
         }
-        thread.qualityOfService = .utility
+        thread.qualityOfService = .userInteractive
         thread.start()
         self.loopThread = thread
 
