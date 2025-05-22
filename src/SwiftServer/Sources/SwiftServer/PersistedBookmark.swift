@@ -106,7 +106,7 @@ extension PersistedBookmark.Error: CustomStringConvertible {
         case .bookmarkResolution: "Couldn’t resolve access to Messages data"
         case .bookmarkBecameStale: "Access to Messages data became stale"
         case .bookmarkAccess: "Couldn’t access Messages data"
-        case let .bookmarkCreation(_): "Couldn’t persist access to Messages data"
+        case .bookmarkCreation(_): "Couldn’t persist access to Messages data"
 
         // developer-facing:
         case .unresolved: "Tried to use unresolved persisted bookmark"
