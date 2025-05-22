@@ -129,6 +129,7 @@ const InfoIcon = (
 type ChecklistItemProps = {
   title: string
   info: string
+  subtitle?: string
   completed: boolean
   action: () => void | Promise<void>
   icon: React.ReactNode
@@ -139,8 +140,9 @@ type ChecklistItemProps = {
 const ChecklistItem = ({
   icon,
   title,
-  completed,
   info,
+  subtitle,
+  completed,
   action,
   more,
   showMore,
@@ -150,15 +152,18 @@ const ChecklistItem = ({
   <article>
     <div onClick={() => action()} className="main">
       {icon}
-      {title}
-      <Tooltip
-        position="top"
-        tip={false}
-        maxWidth={420}
-        content={info}
-      >
-        <span className="info-icon">{InfoIcon}</span>
-      </Tooltip>
+      <div className="title">
+        {title}
+        <Tooltip
+          position="top"
+          tip={false}
+          maxWidth={420}
+          content={info}
+        >
+          <span className="info-icon">{InfoIcon}</span>
+        </Tooltip>
+      </div>
+      {subtitle && <div className="subtitle">{subtitle}</div>}
       <div className={cn('check', { completed })}>{completed && CompletedCheckIcon}</div>
     </div>
     {showMore && <div className="more">{more}</div>}
@@ -221,12 +226,13 @@ const ChecklistPage: React.FC<Props> = props => {
   const appName = <strong>Beeper Desktop</strong>
   const checklistItems: ChecklistItemProps[] = [
     IS_BIG_SUR_OR_UP && {
-      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M8 4.143A1.071 1.071 0 1 0 8 2a1.071 1.071 0 0 0 0 2.143Zm-4.668 1.47 3.24.316v2.5l-.323 4.585A.383.383 0 0 0 7 13.14l.826-4.017c.045-.18.301-.18.346 0L9 13.139a.383.383 0 0 0 .752-.125L9.43 8.43v-2.5l3.239-.316a.38.38 0 0 0-.047-.756H3.379a.38.38 0 0 0-.047.756Z" /><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8Z" /></svg>,
+      icon: <svg className="icon" style={{ translate: '0 1px' /* optical alignment */ }} viewBox="0 0 16 16" height="1em" width="1em"><path d="M8 4.143A1.071 1.071 0 1 0 8 2a1.071 1.071 0 0 0 0 2.143Zm-4.668 1.47 3.24.316v2.5l-.323 4.585A.383.383 0 0 0 7 13.14l.826-4.017c.045-.18.301-.18.346 0L9 13.139a.383.383 0 0 0 .752-.125L9.43 8.43v-2.5l3.239-.316a.38.38 0 0 0-.047-.756H3.379a.38.38 0 0 0-.047.756Z" /><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8Z" /></svg>,
       title: 'Accessibility',
       completed: axAuthorized ?? false,
       action: authorizeAX,
       info: 'Required to power most iMessage functionality.',
-      more: <div onClick={openAXPrefs}>Try adding {appName} manually by clicking the + button and selecting it from your Applications folder &rarr;</div>,
+      subtitle: 'Also used to guide setup automatically.',
+      more: <div onClick={openAXPrefs}>Try: add <strong>Texts.app</strong> manually by clicking the + button and selecting <strong>Texts.app</strong> from your Applications folder &rarr;</div>,
       showMore,
     },
     {

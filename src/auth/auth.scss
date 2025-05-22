@@ -91,14 +91,27 @@
       margin-bottom: 16px;
       .main {
         margin-bottom: 10px;
+        display: grid;
+        grid-template-columns: 1.2em /* icon */ 1fr /* title, subtitle, question mark */ auto /* tick */;
+        gap: 0.25em 0.5em;
+        .title {
+          display: flex;
+          align-items: center;
+        }
+        .label {
+          display: flex;
+          flex-direction: column;
+        }
+        .subtitle {
+          font-size: 0.8em;
+          // nestle this under the title, but to the right of the icon
+          grid-area: 2 / 2 / span 1 / span 1;
+          color: rgba(var(--color-on-surface-rgb), 0.7);
+        }
       }
     }
     article:last-child {
       margin-bottom: 0;
-    }
-    article>div {
-      display: flex;
-      align-items: center;
     }
 
     .check {
@@ -123,7 +136,6 @@
     svg.icon {
       font-size: 18px;
       vertical-align: middle;
-      margin-right: 8px;
       fill: currentColor;
     }
   }
