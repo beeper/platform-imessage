@@ -35,7 +35,6 @@ let package = Package(
                 .product(name: "NodeAPI", package: "node-swift"),
                 .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
-                "CUnfairLock",
                 "EmojiSPI",
             ]
         ),
@@ -49,6 +48,7 @@ let package = Package(
             name: "SwiftServerFoundation",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
+                "CUnfairLock",
             ]
         )
     ]
