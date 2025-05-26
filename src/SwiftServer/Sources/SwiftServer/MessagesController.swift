@@ -10,7 +10,7 @@ import Logging
 import Combine
 
 private let log = Logger(swiftServerLabel: "messages-controller")
-private let lifecycleLog = Logger(label: "imsg.lifecycle")
+private let lifecycleLog = Logger(swiftServerLabel: "lifecycle")
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -22,24 +22,6 @@ private final class TimerBlockWatcher {
     }
 }
 
-private final class RunLoopThread: Thread {
-    private var initialize: (() -> Void)?
-    // safe to retain self inside initialize because it's nil'd out
-    // once main() is called
-    init(initialize: @escaping () -> Void) {
-        self.initialize = initialize
-    }
-    override func main() {
-        initialize?()
-        initialize = nil
-        while !isCancelled {
-            // we need to set a finite deadline, otherwise once the source
-            // is removed we'll be stuck here and never get to the next
-            // isCancelled check
-            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 1))
-        }
-    }
-}
 
 let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
@@ -121,6 +103,10 @@ struct MessageCell: Codable {
     let cellID: String?
     let cellRole: String?
     let overlay: Bool
+}
+
+private enum RunLoopEvent {
+    case observeWindow(window: Accessibility.Element)
 }
 
 // external API is thread safe
@@ -248,19 +234,10 @@ final class MessagesController {
     private let app: NSRunningApplication
     private let elements: MessagesAppElements
 
-    private var timer: Timer?
-    private var loopThread: RunLoopThread?
+    private var activityPollingTimer: Timer?
+    private var loopThread: RunLoopThread<RunLoopEvent>?
 
-    private var activateToken: Accessibility.Observer.Token?
-    private var deactivateToken: Accessibility.Observer.Token?
-    private var hiddenToken: Accessibility.Observer.Token?
-    private var shownToken: Accessibility.Observer.Token?
-    private var windowMovedToken: Accessibility.Observer.Token?
-    private var windowResizedToken: Accessibility.Observer.Token?
-    #if DEBUG
-    private var layoutChangedToken: Accessibility.Observer.Token?
-    #endif
-
+    private var lifecycleObserver: LifecycleObserver?
     private var activityObserver: ActivityObserver?
 
     private var windowCoordinator: WindowCoordinator
@@ -448,72 +425,7 @@ final class MessagesController {
         //         }
         //     }
         // }
-
-        // we need a run loop for polling (and for any future AX observers), but Node
-        // doesn't offer us one (since it uses its own uv loop which is incompatible
-        // with NS/CFRunLoop). Therefore we create a background thread with a run loop.
-        // Note that doing so on a dispatch queue would be very inefficient and so we
-        // create our own thread for it; see https://stackoverflow.com/a/38001438/3769927 and
-        // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
-
-        // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
-        let capturedApp = app
-        let thread = RunLoopThread {
-            let watcher = TimerBlockWatcher { [weak self] in
-                self?.pollActivityStatus()
-            }
-            self.timer = Timer.scheduledTimer(
-                timeInterval: Self.pollingInterval,
-                target: watcher,
-                selector: #selector(TimerBlockWatcher.timerFired),
-                userInfo: nil,
-                repeats: true
-            )
-
-            func status() -> String {
-                do {
-                    let window = try self.elements.mainWindow
-                    let frame = try window.frame()
-                    let position = try window.position()
-                    return "finishedLaunching:\(capturedApp.isFinishedLaunching), active:\(capturedApp.isActive), hidden:\(capturedApp.isHidden), terminated:\(capturedApp.isTerminated), AXframe:\(frame), AXpos:\(position)"
-                } catch {
-                    lifecycleLog.error("failed to query lifecycle status: \(error)")
-                    return "FAILED"
-                }
-            }
-
-            self.activateToken = try? self.elements.app.observe(.applicationActivated) { [weak self] _ in
-                // this can be invoked even if the app is already activated
-                lifecycleLog.info("@@ AX activated [\(status())]")
-                self?.activateMessages()
-            }
-            self.deactivateToken = try? self.elements.app.observe(.applicationDeactivated) { [weak self] _ in
-                lifecycleLog.info("@@ AX deactivated [\(status())]")
-                self?.deactivateMessages()
-            }
-            self.shownToken = try? self.elements.app.observe(.applicationShown) { _ in
-                lifecycleLog.info("@@ AX shown [\(status())]")
-            }
-            self.hiddenToken = try? self.elements.app.observe(.applicationHidden) { _ in
-                lifecycleLog.info("@@ AX hidden [\(status())]")
-            }
-            // TODO(skip): these need to be revived when the window closes/opens
-            self.windowMovedToken = try? self.elements.mainWindow.observe(.windowMoved) { _ in
-                lifecycleLog.info("@@ AX window moved [\(status())]")
-            }
-            self.windowResizedToken = try? self.elements.mainWindow.observe(.windowResized) { _ in
-                lifecycleLog.info("@@ AX window resized [\(status())]")
-            }
-            #if DEBUG
-            self.layoutChangedToken = try? self.elements.app.observe(.layoutChanged) { _ in // [weak self] _ in
-                log.trace("layoutChanged")
-                // self?.pollActivityStatus()
-            }
-            #endif
-        }
-        thread.qualityOfService = .userInteractive
-        thread.start()
-        self.loopThread = thread
+        setUpPollingThread()
 
         guard isValid else {
             dispose() // since deinit isn't called when init throws
@@ -525,6 +437,92 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
         }
         resetWindow()
+    }
+
+    func setUpPollingThread() {
+        // this is ok to instantiate outside of a thread with a run loop
+        var observer = LifecycleObserver()
+
+        let thread = RunLoopThread<RunLoopEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
+            // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
+            let watcher = TimerBlockWatcher { [weak self] in
+                self?.pollActivityStatus()
+            }
+            self.activityPollingTimer = Timer.scheduledTimer(
+                timeInterval: Self.pollingInterval,
+                target: watcher,
+                selector: #selector(TimerBlockWatcher.timerFired),
+                userInfo: nil,
+                repeats: true
+            )
+
+            do {
+                try observer.beginObserving(app: self.elements.app)
+            } catch {
+                log.error("unable to perform initial observation of app: \(error)")
+            }
+            do {
+                try observer.beginObserving(window: try self.elements.mainWindow)
+            } catch {
+                log.error("unable to perform initial observation of main window: \(error)")
+            }
+
+            // this task doesn't run on the thread with the run loop
+            Task {
+                func debuggingStatus() -> String {
+                    // grab the running application again in case it has quit
+                    // and relaunched since we last observed an event
+                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first else { return "<no app>" }
+
+                    do {
+                        let window = try self.elements.mainWindow
+                        let frame = try window.frame()
+                        let position = try window.position()
+                        return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
+                    } catch {
+                        return "<failed to query: \(error)>"
+                    }
+                }
+
+                for await event in observer.events.subscribe() {
+                    func printLifecycle(event: String) {
+                        lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
+                    }
+
+                    switch event {
+                    case .appActivated:
+                        printLifecycle(event: "APP activated")
+                        self.activateMessages()
+                    case .appDeactivated:
+                        printLifecycle(event: "APP deactivated")
+                        self.deactivateMessages()
+                    case .appHidden: printLifecycle(event: "APP hidden")
+                    case .appShown: printLifecycle(event: "APP shown")
+                    case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
+                    case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
+                    case .windowCreated:
+                        // for now, reset our window-local observations whenever we
+                        // see that a window was created (even if it was just e.g.
+                        // the settings window).
+                        rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
+                    }
+                }
+            }
+        }, handlingWorkItemsWithinRunLoop: { event in
+            guard case let .observeWindow(window) = event else { return }
+            do {
+                // swift gives a concurrency warning for capturing `observer` here but it
+                // doesn't know that it's only ever touched from the runloop
+                // thread (which this closure executes on)
+                try observer.beginObserving(window: window)
+            } catch {
+                log.error("can't observe window \(window) in response to posted work item: \(error)")
+            }
+        })
+
+        thread.qualityOfService = .userInteractive
+        thread.start()
+        self.loopThread = thread
     }
 
     var isMessagesAppResponsive: Bool {
@@ -1527,7 +1525,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
-        timer?.invalidate()
+        activityPollingTimer?.invalidate()
         loopThread?.cancel()
         app.terminate()
     }

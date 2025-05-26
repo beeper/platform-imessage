@@ -23,7 +23,8 @@ let package = Package(
         .package(url: "https://github.com/sindresorhus/ExceptionCatcher", from: "2.0.1"),
         .package(url: "https://github.com/beeper/PHTCommon.git", .revision("cbbf93dfa5e084776f3ff0eaf9bb8dff9f2830bf")),
         .package(url: "https://github.com/TextsHQ/BetterSwiftAX", .branch("main")),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0")
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
     ],
     targets: [
         .target(
@@ -36,6 +37,7 @@ let package = Package(
                 .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
+                .product(name: "Collections", package: "swift-collections"),
             ]
         ),
         .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),

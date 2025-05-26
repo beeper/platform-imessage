@@ -27,6 +27,7 @@ public extension Topic {
         lock.lock {
             subscriptions.append(cont)
         }
+
         return stream
     }
 }
