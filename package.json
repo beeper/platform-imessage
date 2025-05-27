@@ -39,6 +39,8 @@
   },
   "devDependencies": {
     "@jxa/global-type": "^1.3.5",
+    "@swc-node/register": "^1.10.10",
+    "@swc/core": "^1.11.29",
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
     "@textshq/platform-test-lib": "TextsHQ/platform-test-lib#main",
     "@types/eslint": "^8.4.10",
