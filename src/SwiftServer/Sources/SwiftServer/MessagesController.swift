@@ -105,7 +105,11 @@ struct MessageCell: Codable {
     let overlay: Bool
 }
 
-private enum RunLoopEvent {
+// used for outgoing communicate from observed AX events to `RunLoopConveyor`
+//
+// (we want to create window observations in response to windows being created,
+// but we need a stable thread with a run loop for that)
+private enum ConveyorEvent {
     case observeWindow(window: Accessibility.Element)
 }
 
@@ -235,7 +239,7 @@ final class MessagesController {
     private let elements: MessagesAppElements
 
     private var activityPollingTimer: Timer?
-    private var loopThread: RunLoopThread<RunLoopEvent>?
+    private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
 
     private var lifecycleObserver: LifecycleObserver?
     private var activityObserver: ActivityObserver?
@@ -425,7 +429,7 @@ final class MessagesController {
         //         }
         //     }
         // }
-        setUpPollingThread()
+        setUpPollingConveyor()
 
         guard isValid else {
             dispose() // since deinit isn't called when init throws
@@ -439,11 +443,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         resetWindow()
     }
 
-    func setUpPollingThread() {
+    func setUpPollingConveyor() {
         // this is ok to instantiate outside of a thread with a run loop
         var observer = LifecycleObserver()
 
-        let thread = RunLoopThread<RunLoopEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
+        let thread = RunLoopConveyor<ConveyorEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
             // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
             let watcher = TimerBlockWatcher { [weak self] in
                 self?.pollActivityStatus()
@@ -522,7 +526,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         thread.qualityOfService = .userInteractive
         thread.start()
-        self.loopThread = thread
+        self.pollingConveyor = thread
     }
 
     var isMessagesAppResponsive: Bool {
@@ -1526,7 +1530,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         activityPollingTimer?.invalidate()
-        loopThread?.cancel()
+        pollingConveyor?.cancel()
         app.terminate()
     }
 

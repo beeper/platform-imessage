@@ -3,7 +3,7 @@ import Logging
 import SwiftServerFoundation
 import Collections
 
-private let log = Logger(swiftServerLabel: "runloop")
+private let log = Logger(swiftServerLabel: "conveyor")
 
 // we need a run loop for polling (and for any future AX observers) since Node
 // doesn't offer us one (since it uses its own uv loop which is incompatible
@@ -12,8 +12,8 @@ private let log = Logger(swiftServerLabel: "runloop")
 // create our own thread for it; see https://stackoverflow.com/a/38001438/3769927 and
 // https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
 
-final class RunLoopThread<WorkItem>: Thread {
-    typealias Initializer = (_ rlt: RunLoopThread<WorkItem>) -> Void
+final class RunLoopConveyor<WorkItem>: Thread {
+    typealias Initializer = (_ rlt: RunLoopConveyor<WorkItem>) -> Void
     typealias WorkItemHandler = @Sendable (_ item: WorkItem) -> Void
 
     private var source: RunLoopSource<WorkItem>
@@ -33,7 +33,7 @@ final class RunLoopThread<WorkItem>: Thread {
         self.handler = handler
 
         super.init()
-        self.name = name ?? "SwiftServer RunLoopThread"
+        self.name = name ?? "SwiftServer RunLoopConveyor"
     }
 
     override func main() {
@@ -55,7 +55,7 @@ final class RunLoopThread<WorkItem>: Thread {
     }
 }
 
-extension RunLoopThread {
+extension RunLoopConveyor {
     func enqueue(_ item: WorkItem) {
         sourceLock.withLock { source.enqueue(item) }
     }

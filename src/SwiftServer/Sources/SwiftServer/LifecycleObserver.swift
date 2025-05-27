@@ -5,6 +5,8 @@ import SwiftServerFoundation
 
 private let log = Logger(swiftServerLabel: "lifecycle.observer")
 
+// this class is only intended to be used from a thread with an available
+// `RunLoop` (e.g. via `RunLoopConveyor`)
 final class LifecycleObserver {
     private(set) var events = Topic<Event>()
 
