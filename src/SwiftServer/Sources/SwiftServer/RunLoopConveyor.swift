@@ -5,13 +5,23 @@ import Collections
 
 private let log = Logger(swiftServerLabel: "conveyor")
 
-// we need a run loop for polling (and for any future AX observers) since Node
-// doesn't offer us one (since it uses its own uv loop which is incompatible
-// with NS/CFRunLoop). therefore we create a background thread with a run loop.
-// note that doing so on a DispatchQueue would be very inefficient and so we
-// create our own thread for it; see https://stackoverflow.com/a/38001438/3769927 and
-// https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4
-
+// this class solves two problems:
+//
+// 1. we need a run loop for polling and AX observation. Node doesn't offer us
+//    one (since it uses uv, which is incompatible with run loops)
+//
+// 2. we'd like to communicate with the run loop from any other thread (due to
+//    swift concurrency) in a thread-safe manner
+//
+// a "conveyor" encapsulates a background thread with a run loop and stable
+// identity; you may enqueue "work items" onto it, which are then consumed on
+// each turn of the loop. (all pending items are consumed at once.) this allows
+// control of the run loop while isolating operations to the thread encapsulated
+// by the conveyor.
+//
+// for more on [1], see https://stackoverflow.com/a/38001438/3769927 and
+// https://forums.swift.org/t/runloop-main-or-dispatchqueue-main-when-using-combine-scheduler/26635/4.
+// note that using a dispatch queue for this would be inefficient.
 final class RunLoopConveyor<WorkItem>: Thread {
     typealias Initializer = (_ rlt: RunLoopConveyor<WorkItem>) -> Void
     typealias WorkItemHandler = @Sendable (_ item: WorkItem) -> Void
