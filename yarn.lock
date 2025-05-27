@@ -1997,7 +1997,7 @@ __metadata:
     lodash: "npm:^4.17.21"
     node-gyp: "npm:^11.0.0"
     node-mac-permissions: TextsHQ/node-mac-permissions.git
-    node-swift: "https://github.com/kabiroberai/node-swift#1.3.0"
+    node-swift: "https://github.com/slice/node-swift#skip/15_4-tls"
     p-queue: "npm:^8"
     p-retry: "npm:^6"
     react: "npm:^18"
@@ -6883,7 +6883,7 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"node-swift@https://github.com/kabiroberai/node-swift#1.3.0":
+"node-swift@https://github.com/slice/node-swift#skip/15_4-tls":
   version: 1.0.0
   resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=e5473254d40bfbac87d2304ec535b0db8eb9e873"
   dependencies:
