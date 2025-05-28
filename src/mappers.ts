@@ -249,7 +249,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
 export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): MessageWithExtra[] {
   const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
-  const isSMS = msgRow.service === 'SMS'
+  const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
   const isGroup = !!msgRow.room_name
 
   // `0` is frequently used to signify absence in a date column. if we were
