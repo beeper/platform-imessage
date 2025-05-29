@@ -30,7 +30,7 @@ public extension Statement {
     }
 }
 
-// MARK: - Resetting, Clearing, Binding, and Stepping
+// MARK: - Resetting, Clearing, and Binding
 
 public extension Statement {
     func reset() throws {
@@ -49,7 +49,11 @@ public extension Statement {
             try binding.unsafeBind(toPreparedStatement: handle, at: currentParameterIndex)
         }
     }
+}
 
+// MARK: - Stepping
+
+public extension Statement {
     func stepUntilDone(handlingRows rowHandler: (_ selected: borrowing Row) throws -> Void) throws {
         defer { try! SQLiteError.check(sqlite3_reset(handle)) }
 
