@@ -322,8 +322,11 @@ enum Preferences {
             try await accessManager.requestAccess()
         },
 
-        "startPolling": NodeFunction { (onEvent: NodeFunction) in
+        "startPolling": NodeFunction { (onEvent: NodeFunction, lastRowIDBig: NodeBigInt, lastDateReadNanosecondsBig: NodeBigInt) in
             log.debug("got a server event sender, starting poller")
+
+            let lastRowID = Int(try lastRowIDBig.signed().value)
+            let lastDateRead = Date(nanosecondsSinceReferenceDate: Int(try lastDateReadNanosecondsBig.signed().value))
 
             let poller = try Poller(serverEventSender: { events in
                 var values = [any NodeValueConvertible]()
@@ -335,7 +338,8 @@ enum Preferences {
                 log.debug("handing over \(values.count) value(s) to the event callback")
 #endif
                 try await onEvent.call([values])
-            })
+            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead))
+
             Task {
                 log.debug("going to poll forever")
                 do {

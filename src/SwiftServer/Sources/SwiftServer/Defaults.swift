@@ -55,6 +55,7 @@ enum DefaultsKeys {
     static let editingDelayPressingReturn = "BEEPEditingDelayBeforePressingReturn"
 
     static let pollerTraceUnreads = "BEEPPollerTraceUnreads"
+    static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
 }
 
 // TODO: cleanup
@@ -93,6 +94,7 @@ enum Defaults {
 
 #if DEBUG
         defaults[DefaultsKeys.pollerTraceUnreads] = true
+        defaults[DefaultsKeys.pollerTraceMessageUpdates] = true
 #endif
 
         swiftServer.register(defaults: defaults)

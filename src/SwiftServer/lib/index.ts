@@ -84,7 +84,7 @@ export type SwiftServer = {
 
   getDNDList: () => string[]
 
-  startPolling: (cb: OnServerEventCallback) => void
+  startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void
 }
 
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
