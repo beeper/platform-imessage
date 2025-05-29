@@ -4,6 +4,7 @@ let updatedChatsSinceQuery = """
 SELECT
     m.ROWID,
     m.date_read,
+    c.ROWID,
     c.guid
 FROM
     message AS m
@@ -18,16 +19,16 @@ ORDER BY
     date DESC
 """
 
-public typealias ChatGUID = String
-
 public struct UpdatedChatsQueryResult {
-    public var updatedChatGUIDs: [ChatGUID]
-    public var overallNewestMessageRowID: Int?
-    public var overallLatestMessageDateRead: Date?
+    public var updatedChats: [ChatRef]
+    /// This maximum is local to the set of updated chats.
+    public var latestMessageRowID: Int?
+    /// This maximum is local to the set of updated chats.
+    public var latestMessageDateRead: Date?
 }
 
 public extension IMDatabase {
-    func queryChats(withMessagesWithRowIDsNewerThan lastRowID: Int, orReadSince lastDateRead: Date) throws -> UpdatedChatsQueryResult {
+    func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date) throws -> UpdatedChatsQueryResult {
         let statement = try cachedStatement(&messageUpdatesStatement, creatingWithoutEscapingSQL: updatedChatsSinceQuery)
 
         try statement.reset()
@@ -35,16 +36,33 @@ public extension IMDatabase {
 
         var newestMessageRowID: Int?
         var latestMessageDateRead: Date?
-        let updatedChatGUIDs = try statement.mapRowsUntilDone { row in
+        let updatedChats = try statement.mapRowsUntilDone { row in
             newestMessageRowID = max(row[0].as(Int.self), newestMessageRowID ?? 0)
-            latestMessageDateRead = max(Date(nanosecondsSinceReferenceDate: row[1].as(Int.self)), latestMessageDateRead ?? .distantPast)
-            return row[2].as(String.self)
+
+            dateRead: do {
+                let nanoseconds = row[1].as(Int.self)
+                // If the message hasn't been read yet (we get `0`), then don't
+                // update the "latest read date" at all.
+                guard nanoseconds > 0 else { break dateRead }
+
+                let dateRead = Date(nanosecondsSinceReferenceDate: nanoseconds)
+                latestMessageDateRead = if let latestMessageDateRead {
+                    max(dateRead, latestMessageDateRead)
+                } else {
+                    dateRead
+                }
+            }
+
+            let rowID = row[2].as(Int.self)
+            let guid = row[3].as(String.self)
+            return ChatRef(rowID: rowID, guid: guid)
         }
 
         return UpdatedChatsQueryResult(
-            updatedChatGUIDs: updatedChatGUIDs,
-            overallNewestMessageRowID: newestMessageRowID,
-            overallLatestMessageDateRead: latestMessageDateRead
+            // Discard chats without a `guid` and `ROWID` (impossible?)
+            updatedChats: updatedChats.compactMap { $0 },
+            latestMessageRowID: newestMessageRowID,
+            latestMessageDateRead: latestMessageDateRead
         )
     }
 }
