@@ -255,6 +255,8 @@ enum Preferences {
     static var enabledExperiments = ""
 }
 
+
+
 #NodeModule {
     // this needs to be bootstrapped as early as possible, because it needs to
     // be ready by the first `debugLog` call, or else subsequent calls to that
@@ -279,6 +281,7 @@ enum Preferences {
 
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
+
     var dict: [String: NodePropertyConvertible] = try [
         "hashers": [
             "thread": try Hasher.thread.nodeValue(),
@@ -317,6 +320,32 @@ enum Preferences {
 
         "askForMessagesDirAccess": NodeFunction {
             try await accessManager.requestAccess()
+        },
+
+        "startPolling": NodeFunction { (onEvent: NodeFunction) in
+            log.debug("got a server event sender, starting poller")
+
+            let poller = try Poller(serverEventSender: { events in
+                var values = [any NodeValueConvertible]()
+                // this probably isn't worth doing in parallel
+                for event in events {
+                    values.append(try await event.nodeValue())
+                }
+#if DEBUG
+                log.debug("handing over \(values.count) value(s) to the event callback")
+#endif
+                try await onEvent.call([values])
+            })
+            Task {
+                log.debug("going to poll forever")
+                do {
+                    try await poller.pollForever()
+                } catch {
+                    log.error("poller died: \(String(reflecting: error))")
+                }
+            }
+
+            return // needed to resolve a compile-time type ambiguity apparently
         },
 
         "askForAutomationAccess": NodeFunction {

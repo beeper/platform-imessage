@@ -1,6 +1,6 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { MessageID, ThreadID } from '@textshq/platform-sdk'
+import type { MessageID, OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
@@ -83,6 +83,8 @@ export type SwiftServer = {
   disableSoundEffects: () => void
 
   getDNDList: () => string[]
+
+  startPolling: (cb: OnServerEventCallback) => void
 }
 
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')

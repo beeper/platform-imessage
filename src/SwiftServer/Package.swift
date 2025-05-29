@@ -33,6 +33,7 @@ let package = Package(
                 .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
+                "IMDatabase",
                 .product(name: "Collections", package: "swift-collections"),
             ],
 

@@ -13,6 +13,7 @@ import IMAGE_EXTS from './image-exts.json'
 import { isSelectable } from './common-util'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow, AXMessageSelection } from './types'
 import type PAPI from './api'
+import swiftServer from './SwiftServer/lib'
 
 const imageSizeAsync = promisify(imageSizeCallback)
 
@@ -218,14 +219,9 @@ export default class DatabaseAPI {
     this.updateRustServer(maxRowID, maxDateRead)
   }
 
+  // eslint-disable-next-line class-methods-use-this
   startPolling(onEvent: OnServerEventCallback) {
-    this.rustServer = new RustServer(onEvent)
-    // let wokeFromSleep = false
-    // parentPort!.on('message', value => {
-    //   if (typeof value === 'string' && value === 'powermonitor-on-resume') {
-    //     wokeFromSleep = true
-    //   }
-    // })
+    swiftServer.startPolling(onEvent)
   }
 
   getThreadParticipants = (chatRowID: number): Promise<MappedHandleRow[]> =>

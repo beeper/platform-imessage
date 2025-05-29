@@ -2,7 +2,7 @@ import Foundation
 import Logging
 import SwiftServerFoundation
 
-private let log = Logger(label: "sws.imdatabase")
+private let log = Logger(label: "watcher")
 
 public final class FileWatcher {
     private let target: URL

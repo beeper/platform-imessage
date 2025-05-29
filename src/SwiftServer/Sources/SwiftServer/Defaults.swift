@@ -53,6 +53,8 @@ enum DefaultsKeys {
     static let editingDelayBeforeReplacing = "BEEPEditingDelayBeforeReplacing"
     static let editingDelayBeforeFocusing = "BEEPEditingDelayBeforeFocusing"
     static let editingDelayPressingReturn = "BEEPEditingDelayBeforePressingReturn"
+
+    static let pollerTraceUnreads = "BEEPPollerTraceUnreads"
 }
 
 // TODO: cleanup
@@ -62,7 +64,7 @@ enum Defaults {
     private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
 
     static func registerDefaults() {
-        swiftServer.register(defaults: [
+        var defaults: [String: Any] = [
             DefaultsKeys.phtAllowConnection: true,
             DefaultsKeys.phtAllowInstallation: true,
 
@@ -86,8 +88,14 @@ enum Defaults {
             DefaultsKeys.spacesObserveDock: true,
             DefaultsKeys.spacesObserveCurrentSpaceChanges: true,
 
-            DefaultsKeys.editingDelayBeforeReplacing: 0.5
-        ])
+            DefaultsKeys.editingDelayBeforeReplacing: 0.5,
+        ]
+
+#if DEBUG
+        defaults[DefaultsKeys.pollerTraceUnreads] = true
+#endif
+
+        swiftServer.register(defaults: defaults)
     }
 
     static var shouldCoordinateWindow: Bool { Self.swiftServer.bool(forKey: DefaultsKeys.windowCoordination) }
