@@ -10,6 +10,18 @@ public enum ChatRef {
 }
 
 extension ChatRef {
+    init?(rowID: Int?, guid: String?) {
+        if let rowID, let guid {
+            self = .both(rowID: rowID, guid: guid)
+        } else if let rowID {
+            self = .justRowID(rowID)
+        } else if let guid {
+            self = .justGUID(guid)
+        } else {
+            return nil
+        }
+    }
+
     public var rowID: Int? {
         switch self {
         case let .justRowID(rowID): rowID
