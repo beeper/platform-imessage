@@ -24,22 +24,27 @@ public struct Column: ~Copyable {
 // [1]: https://www.sqlite.org/c3ref/column_blob.html
 
 public extension Column {
-    consuming func `as`(_: String.Type) -> String {
+    /// Automatic conversion is performed.
+    consuming func `as`(_: String.Type) -> String? {
         // copy TEXT content, because this pointer is invalidated when we step/reset
-        String(cString: sqlite3_column_text(statement.handle, index))
+        guard let ptr = sqlite3_column_text(statement.handle, index) else { return nil}
+        return String(cString: ptr)
     }
 
+    /// Automatic conversion is performed. Returns `0` upon significant mismatch.
     consuming func `as`(_: Int.Type) -> Int {
         Int(sqlite3_column_int64(statement.handle, index))
     }
 
+    /// Automatic conversion is performed. Returns `0` upon significant mismatch.
     consuming func `as`(_: Double.Type) -> Double {
         sqlite3_column_double(statement.handle, index)
     }
 
-    consuming func `as`(_: Data.Type) -> Data {
+    /// Automatic conversion is performed.
+    consuming func `as`(_: Data.Type) -> Data? {
         guard let beginning = sqlite3_column_blob(statement.handle, index) else {
-            return Data()
+            return nil
         }
 
         let length = sqlite3_column_bytes(statement.handle, index)

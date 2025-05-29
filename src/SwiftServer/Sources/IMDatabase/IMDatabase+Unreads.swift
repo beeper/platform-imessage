@@ -54,7 +54,11 @@ public extension IMDatabase {
 
         var unreadStates = UnreadStates()
         try statement.stepUntilDone { row in
-            let chat = ChatRef.both(rowID: row[0].as(Int.self), guid: row[1].as(String.self))
+            let chat = ChatRef(rowID: row[0].as(Int.self), guid: row[1].as(String.self))
+            guard let chat else {
+                log.warning("some chat had neither a rowid nor a guid. can't really do much with this")
+                return
+            }
             let lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: row[3].as(Int.self))
             unreadStates[chat] = UnreadState(unreadCount: row[2].as(Int.self), lastReadMessageTimestamp: lastReadMessageTimestamp)
         }
