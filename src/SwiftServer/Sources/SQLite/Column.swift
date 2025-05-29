@@ -27,7 +27,7 @@ public extension Column {
     /// Automatic conversion is performed.
     consuming func `as`(_: String.Type) -> String? {
         // copy TEXT content, because this pointer is invalidated when we step/reset
-        guard let ptr = sqlite3_column_text(statement.handle, index) else { return nil}
+        guard let ptr = sqlite3_column_text(statement.handle, index) else { return nil }
         return String(cString: ptr)
     }
 
