@@ -171,7 +171,7 @@ export default class AppleiMessage implements PlatformAPI {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
-          texts.Sentry.captureMessage(`iMessage RustServer: ${ev.toast.text}`)
+          texts.Sentry.captureMessage(`iMessage SwiftServer: ${ev.toast.text}`)
         } else {
           evs.push(ev)
         }
