@@ -100,7 +100,10 @@ async function main() {
   await dropboxIgnoreDir(BUILD_DIR_PATH)
 }
 
-main().catch(console.error)
+main().catch(error => {
+  console.error('Failed to build Swift code:', error)
+  process.exit(1)
+})
 
 if (process.argv.includes('--watch')) {
   console.log('Watching for changes...')
