@@ -10,7 +10,8 @@ export const supportedReactions: Record<string, SupportedReaction> = {
   question: { title: 'Question', render: '❓' },
 }
 
-const [DARWIN_MAJOR_VERSON] = os.release().split('.').map(Number)
+const [DARWIN_MAJOR_VERSON, DARWIN_MINOR_VERSION] = os.release().split('.').map(Number)
+
 export const IS_MOJAVE_OR_UP = DARWIN_MAJOR_VERSON >= 18
 export const IS_CATALINA_OR_UP = DARWIN_MAJOR_VERSON >= 19
 export const IS_BIG_SUR_OR_UP = DARWIN_MAJOR_VERSON >= 20
@@ -18,3 +19,4 @@ export const IS_MONTEREY_OR_UP = DARWIN_MAJOR_VERSON >= 21
 export const IS_VENTURA_OR_UP = DARWIN_MAJOR_VERSON >= 22
 export const IS_SONOMA_OR_UP = DARWIN_MAJOR_VERSON >= 23
 export const IS_SEQUOIA_OR_UP = DARWIN_MAJOR_VERSON >= 24
+export const IS_SEQUOIA_15_5_OR_UP = DARWIN_MAJOR_VERSON >= 24 && DARWIN_MINOR_VERSION >= 4

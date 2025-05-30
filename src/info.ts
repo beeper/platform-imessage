@@ -1,5 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, Participant } from '@textshq/platform-sdk'
-import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP } from './common-constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP, IS_SEQUOIA_15_5_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import type { MessageWithExtra } from './mappers'
 
@@ -55,7 +55,7 @@ const info: PlatformInfo = {
       ].filter(Boolean) : []
     ),
   ]),
-  reactions: IS_SEQUOIA_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
+  reactions: IS_SEQUOIA_OR_UP && !IS_SEQUOIA_15_5_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
     maxSize: {
