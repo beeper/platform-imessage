@@ -31,7 +31,7 @@ jobs:
 
   build:
     needs: check-version
-    runs-on: macos-latest
+    runs-on: macos-15 # needed for Xcode 16.3 (required)
 
     steps:
       - uses: actions/checkout@v4
