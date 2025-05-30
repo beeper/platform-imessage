@@ -26,6 +26,13 @@ export interface MessageCell {
   cellRole: string | null
   overlay: boolean
 }
+
+export interface Hasher {
+  tokenizeRemembering: (pii: string) => string
+  /** throws if not found */
+  recoverOriginal: (token: string) => string
+}
+
 export declare class MessagesController {
   static create(): Promise<MessagesController>
 
@@ -85,6 +92,11 @@ export type SwiftServer = {
   getDNDList: () => string[]
 
   startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void
+
+  hashers: {
+    thread: Hasher
+    participant: Hasher
+  }
 }
 
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
