@@ -4,7 +4,7 @@ import IMDatabase
 extension ChatRef: @retroactive CustomStringConvertible {
     public var description: String {
         if let guid {
-            Hasher.participant.tokenizeRemembering(pii: guid)
+            Hasher.thread.tokenizeRemembering(pii: guid)
         } else {
             "chat#\(rowID!)"
         }
