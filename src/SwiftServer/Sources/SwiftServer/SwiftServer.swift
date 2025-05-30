@@ -281,6 +281,7 @@ enum Preferences {
 
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
+    var pollingTask: Task<Void, Never>?
 
     var dict: [String: NodePropertyConvertible] = try [
         "hashers": [
@@ -322,8 +323,24 @@ enum Preferences {
             try await accessManager.requestAccess()
         },
 
+        "cancelPollingIfNecessary": NodeFunction {
+            defer { pollingTask = nil }
+            if let pollingTask {
+                log.info("was asked to cancel polling task, doing so")
+                pollingTask.cancel()
+            } else {
+                log.warning("was asked to cancel polling task, but there isn't one; disregarding")
+            }
+            return
+        },
+
         "startPolling": NodeFunction { (onEvent: NodeFunction, lastRowIDBig: NodeBigInt, lastDateReadNanosecondsBig: NodeBigInt) in
-            log.debug("got a server event sender, starting poller")
+            log.debug("was asked to start polling")
+            if let task = pollingTask {
+                log.warning("was asked to start polling, but there was already a poller alive; canceling it before proceeding")
+                task.cancel()
+                pollingTask = nil
+            }
 
             let lastRowID = Int(try lastRowIDBig.signed().value)
             let lastDateRead = Date(nanosecondsSinceReferenceDate: Int(try lastDateReadNanosecondsBig.signed().value))
@@ -340,7 +357,7 @@ enum Preferences {
                 try await onEvent.call([values])
             }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead))
 
-            Task {
+            pollingTask = Task {
                 log.debug("going to poll forever")
                 do {
                     try await poller.pollForever()

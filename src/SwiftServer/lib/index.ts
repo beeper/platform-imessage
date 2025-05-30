@@ -91,6 +91,7 @@ export type SwiftServer = {
 
   getDNDList: () => string[]
 
+  cancelPollingIfNecessary: () => void
   startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void
 
   hashers: {

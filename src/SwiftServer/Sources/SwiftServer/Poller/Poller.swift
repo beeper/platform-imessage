@@ -26,10 +26,13 @@ final class Poller {
         try db.beginListeningForChanges()
 
         poll: for try await _ in db.changes.subscribe() {
+            guard !Task.isCancelled else {
+                log.info("woke up in response to db change but poller task was canceled, bailing")
+                return
+            }
 #if DEBUG
             log.debug("poller was informed about database change")
 #endif
-            // TODO: Handle cancellation.
 
             var eventsToSend = [PASEvent]()
 
@@ -45,6 +48,10 @@ final class Poller {
 
             guard !eventsToSend.isEmpty else { continue }
             do {
+                guard !Task.isCancelled else {
+                    log.info("had \(eventsToSend.count) event(s) to send but poller task was canceled, bailing")
+                    return
+                }
 #if DEBUG
                 log.debug("sending \(eventsToSend.count) event(s) to PAS")
 #endif

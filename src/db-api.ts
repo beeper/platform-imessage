@@ -181,8 +181,7 @@ export default class DatabaseAPI {
   }
 
   dispose() {
-    // TODO: stop SwiftServer poller
-
+    swiftServer.cancelPollingIfNecessary()
     return this.db.dispose()
   }
 

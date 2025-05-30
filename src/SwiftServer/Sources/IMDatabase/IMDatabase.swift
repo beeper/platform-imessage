@@ -53,6 +53,13 @@ public final class IMDatabase {
         statement = prepared
         return prepared
     }
+
+    deinit {
+        log.debug("being deallocated, stopping watchers and listeners if necessary")
+        dbWatcher?.stopListeningIfNecessary()
+        dbWalWatcher?.stopListeningIfNecessary()
+        listener?.cancel()
+    }
 }
 
 // MARK: - Listening for Changes
@@ -88,6 +95,10 @@ public extension IMDatabase {
         var broadcastingTask: Task<Void, any Error>?
 
         for try await _ in sequence {
+            guard !Task.isCancelled else {
+                log.debug("was cancelled while listening for database file changes, bailing")
+                return
+            }
             broadcastingTask?.cancel()
             broadcastingTask = Task { [weak self] in
                 guard let self else { return }
