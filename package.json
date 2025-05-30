@@ -18,13 +18,12 @@
     "prepack": "yarn build",
     "lint:swift": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
-    "build": "turbo run build:swift build:applescript build:rust build:typescript build:scss",
+    "build": "turbo run build:swift build:applescript build:typescript build:scss",
     "build:scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
     "build:typescript": "tsc",
     "typecheck": "tsc --noEmit",
     "build:swift": "node --loader ts-node/esm src/SwiftServer/build-swift.ts",
     "build:applescript": "src/AppleScriptServer/build-as-server.sh",
-    "build:rust": "src/RustServer/build-rust-server.sh",
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
   "dependencies": {

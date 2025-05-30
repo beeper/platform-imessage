@@ -11,11 +11,8 @@ Old instructions kept here for posterity:
 [beeper-desktop-new]: https://github.com/beeper/beeper-desktop-new/
 [bdn-imsg-dependency]: https://github.com/beeper/beeper-desktop-new/
 [xcode-mas]: https://apps.apple.com/us/app/xcode/id497799835
-[rust]: https://www.rust-lang.org/
-[rustup]: https://rustup.rs/
 [platformapi-subclass]:
   https://github.com/beeper/platform-imessage/blob/a53a113e599b122c8119041d57cbb5de1d8ae348/src/api.ts#L44
-[rustserver]: ./src/RustServer/
 [applescriptserver]: ./src/AppleScriptServer/
 [swiftserver]: ./src/SwiftServer/
 
@@ -27,12 +24,7 @@ Old instructions kept here for posterity:
 > `yarn` may be freely substituted for `bun` in the commands below, as we're
 > merely interested in delegating to `package.json` scripts.
 
-1. Make sure you have [Xcode][xcode-mas] and a stable [Rust] toolchain
-   installed.
-
-   An easy way to install Rust is via [Rustup], which can be installed via e.g.
-   `brew install rustup`. If you already have Rustup installed, you can run
-   `rustup update` to make sure your toolchain is up-to-date.
+1. Make sure you have [Xcode][xcode-mas] installed.
 
 2. **In `beeper-desktop-new`'s `package.json`,** re-point [the
    `@beeper/platform-imessage` entry][bdn-imsg-dependency] in
@@ -100,7 +92,7 @@ Old instructions kept here for posterity:
 > * Try rebooting. <sub>(ol' reliable)</sub>
 
 4. **If you're only interested in running from source,** perform a one-shot
-   build of everything ([RustServer], [AppleScriptServer], [SwiftServer], [the
+   build of everything ([AppleScriptServer], [SwiftServer], [the
    TypeScript code][platformapi-subclass], and the SCSS) **(in this
    repository)**:
 

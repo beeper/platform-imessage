@@ -25,16 +25,6 @@
         "binaries/*/AppleScriptServer"
       ]
     },
-    "build:rust": {
-      "inputs": [
-        "!**/.DS_Store",
-        "!src/RustServer/target/**",
-        "src/RustServer/**"
-      ],
-      "outputs": [
-        "binaries/*/rust-server.node"
-      ]
-    },
     "build:typescript": {
       "outputs": ["dist/**"]
     },

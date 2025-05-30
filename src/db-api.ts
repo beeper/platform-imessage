@@ -186,7 +186,7 @@ export default class DatabaseAPI {
     return this.db.dispose()
   }
 
-  // this should ideally be fetched from rust server
+  // this should ideally be fetched from swiftserver
   async getUnreadCounts(): Promise<Map<number /* chat rowid */, number>> {
     const rows = await this.db.all<[], { unread_count: number, chat_id: number }>(SQLS.getUnreadCounts)
     return new Map(rows.map(row => [row.chat_id, row.unread_count]))
