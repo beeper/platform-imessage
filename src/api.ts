@@ -20,8 +20,7 @@ import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantA
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
-import { threadHasher as globalThreadIDHasher } from './RustServer/lib'
-import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalParticipantID } from './hashing'
+import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalParticipantID, originalThreadID } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -168,17 +167,17 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   subscribeToEvents = (onEvent: OnServerEventCallback): void => {
-    this.dbAPI.startPolling((events: ServerEvent[]) => {
+    this.dbAPI.eventSender = (events: ServerEvent[]) => {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
-          texts.Sentry.captureMessage(`iMessage RustServer: ${ev.toast.text}`)
+          texts.Sentry.captureMessage(`iMessage SwiftServer: ${ev.toast.text}`)
         } else {
           evs.push(ev)
         }
       })
       onEvent(evs)
-    })
+    }
     this.onEvent = onEvent
     if (swiftServer?.isMessagesAppInDock && swiftServer?.isPHTEnabled) {
       this.removeMessagesAppInDock()
@@ -186,7 +185,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThread = async (hashedThreadID: ThreadID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     const chatRow = await this.dbAPI.getThread(threadID)
     if (!chatRow) return
     const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
@@ -308,7 +307,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     const msgRows = await this.dbAPI.getMessages(threadID, pagination)
     if (pagination?.direction !== 'after') msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.ROWID)
@@ -325,7 +324,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     const [messageGUID] = messageID.split('_')
     const msgRow = await this.dbAPI.getMessage(messageGUID)
     if (!msgRow) return
@@ -340,7 +339,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     const hashedThreadID = options?.threadID
-    const threadID = hashedThreadID ? globalThreadIDHasher.originalFromHash(hashedThreadID) : hashedThreadID
+    const threadID = hashedThreadID ? originalThreadID(hashedThreadID) : hashedThreadID
 
     const mediaOnly = Boolean(options?.mediaType)
     const msgRows = await this.dbAPI.searchMessages(typed, threadID, mediaOnly, pagination, options?.sender)
@@ -415,7 +414,7 @@ export default class AppleiMessage implements PlatformAPI {
       texts.error('imsg: imessage potentially sent messages to invalid thread')
       return true
     }
-    const hashedThreadID = globalThreadIDHasher.hashAndRemember(threadID)
+    const hashedThreadID = hashThreadID(threadID)
     const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(hashedThreadID, guid)))).filter(message => message != null)
     for (const message of messages) {
       if (!message.isHidden) {
@@ -448,7 +447,7 @@ export default class AppleiMessage implements PlatformAPI {
   private sendingMessagesCount = 0
 
   sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (threadID.startsWith('SMS;-;') && threadID.includes('@')) throw Error('Cannot send message to email address over SMS')
     try {
       this.sendingMessagesCount++
@@ -472,7 +471,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   editMessage = async (hashedThreadID: ThreadID, messageID: MessageID, content: MessageContent) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('Only supported on macOS Ventura or later')
     const { text } = content
     if (!text) throw new Error('Tried to edit message to have empty content')
@@ -484,7 +483,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   // eslint-disable-next-line class-methods-use-this
   updateThread = async (hashedThreadID: ThreadID, updates: Partial<Thread>) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     if ('mutedUntil' in updates) {
       const mc = await MessagesControllerWrapper.get()
@@ -494,7 +493,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   // eslint-disable-next-line class-methods-use-this
   deleteThread = async (hashedThreadID: ThreadID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     const mc = await MessagesControllerWrapper.get()
     await mc.deleteThread(threadID)
@@ -505,7 +504,7 @@ export default class AppleiMessage implements PlatformAPI {
       texts.error('imsg: ignoring request to send an activity indicator, no thread id provided')
       return
     }
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
@@ -524,7 +523,7 @@ export default class AppleiMessage implements PlatformAPI {
     // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
     // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
     // const message = messages[part || 0]
-    const message = await this.getMessage(globalThreadIDHasher.hashAndRemember(threadID), messageID) as MessageWithExtra
+    const message = await this.getMessage(hashThreadID(threadID), messageID) as MessageWithExtra
     if (!message) throw Error("couldn't find message")
     if (!message._original) throw Error("couldn't find original message")
     const [msgRow] = JSON.parse(message._original)
@@ -560,17 +559,17 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   addReaction = (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     this.setReaction(threadID, messageID, reactionKey, true)
   }
 
   removeReaction = (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     this.setReaction(threadID, messageID, reactionKey, false)
   }
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
     const messageCell = await this.getMessageCell(threadID, messageID)
     const controller = await MessagesControllerWrapper.get()
@@ -579,7 +578,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   // eslint-disable-next-line class-methods-use-this
   private toggleThreadRead = (read: boolean) => async (hashedThreadID: ThreadID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     const controller = await MessagesControllerWrapper.get()
     await controller.toggleThreadRead(threadID, read)
   }
@@ -587,7 +586,7 @@ export default class AppleiMessage implements PlatformAPI {
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
         const isRead = await this.dbAPI.isThreadRead(threadID)
@@ -614,7 +613,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   // eslint-disable-next-line class-methods-use-this
   notifyAnyway = async (hashedThreadID: ThreadID) => {
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     const controller = await MessagesControllerWrapper.get()
     await controller.notifyAnyway(threadID)
   }
@@ -627,7 +626,7 @@ export default class AppleiMessage implements PlatformAPI {
     // use that fork, but we ought to.
     if (!hashedThreadID) return
 
-    const threadID = globalThreadIDHasher.originalFromHash(hashedThreadID)
+    const threadID = originalThreadID(hashedThreadID)
     if (this.experiments.includes('no_watch_thread')) return
     // we don't need to Promise.all because the Promise has already been
     // fired for messagesController

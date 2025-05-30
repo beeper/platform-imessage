@@ -255,6 +255,8 @@ enum Preferences {
     static var enabledExperiments = ""
 }
 
+
+
 #NodeModule {
     // this needs to be bootstrapped as early as possible, because it needs to
     // be ready by the first `debugLog` call, or else subsequent calls to that
@@ -279,7 +281,13 @@ enum Preferences {
 
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
+
     var dict: [String: NodePropertyConvertible] = try [
+        "hashers": [
+            "thread": try Hasher.thread.nodeValue(),
+            "participant": try Hasher.participant.nodeValue(),
+        ].nodeValue(),
+
         "appleInterfaceStyle": NodeProperty { _ in
             UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
         },
@@ -312,6 +320,36 @@ enum Preferences {
 
         "askForMessagesDirAccess": NodeFunction {
             try await accessManager.requestAccess()
+        },
+
+        "startPolling": NodeFunction { (onEvent: NodeFunction, lastRowIDBig: NodeBigInt, lastDateReadNanosecondsBig: NodeBigInt) in
+            log.debug("got a server event sender, starting poller")
+
+            let lastRowID = Int(try lastRowIDBig.signed().value)
+            let lastDateRead = Date(nanosecondsSinceReferenceDate: Int(try lastDateReadNanosecondsBig.signed().value))
+
+            let poller = try Poller(serverEventSender: { events in
+                var values = [any NodeValueConvertible]()
+                // this probably isn't worth doing in parallel
+                for event in events {
+                    values.append(try await event.nodeValue())
+                }
+#if DEBUG
+                log.debug("handing over \(values.count) value(s) to the event callback")
+#endif
+                try await onEvent.call([values])
+            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead))
+
+            Task {
+                log.debug("going to poll forever")
+                do {
+                    try await poller.pollForever()
+                } catch {
+                    log.error("poller died: \(String(reflecting: error))")
+                }
+            }
+
+            return // needed to resolve a compile-time type ambiguity apparently
         },
 
         "askForAutomationAccess": NodeFunction {

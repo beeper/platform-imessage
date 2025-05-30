@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.8
 
 import PackageDescription
 
@@ -11,12 +11,7 @@ let package = Package(
             type: .dynamic,
             targets: ["SwiftServer"]
         ),
-        // The dynamic target will cause linker errors in Xcode.
-        // This target can be selected in Xcode for development.
-        .library(
-            name: "SwiftServer-Auto",
-            targets: ["SwiftServer"]
-        ),
+        .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
     ],
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
@@ -25,6 +20,7 @@ let package = Package(
         .package(url: "https://github.com/TextsHQ/BetterSwiftAX", .branch("main")),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
+        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     ],
     targets: [
         .target(
@@ -37,11 +33,36 @@ let package = Package(
                 .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
+                "IMDatabase",
                 .product(name: "Collections", package: "swift-collections"),
-            ]
+            ],
+
+            // `node-swift`'s build scripts pass some flags that enable dynamic
+            // symbol resolution, which avoids N-API linkage errors at static
+            // linking time. replicate those here so we can build with SPM (just
+            // to run tests).
+            //
+            // the actual build uses `xcodebuild`, so these settings in
+            // particular get ignored
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-undefined", "-Xlinker", "dynamic_lookup"])],
         ),
         .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
+        .target(name: "SQLite", dependencies: [
+            .product(name: "Logging", package: "swift-log"),
+        ]),
+        .testTarget(name: "SQLiteTests", dependencies: ["SQLite"]),
+        .target(
+            name: "IMDatabase",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+                "SQLite",
+                "SwiftServerFoundation"
+            ],
+        ),
+        .executableTarget(name: "IMDatabaseTestBench", dependencies: ["IMDatabase"]),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
+        .testTarget(name: "SwiftServerTests", dependencies: ["SwiftServer"]),
         .target(
             name: "CUnfairLock",
             dependencies: []

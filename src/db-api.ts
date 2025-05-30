@@ -6,13 +6,13 @@ import { Message, OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } fr
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
-import { Server as RustServer, IServer as IRustServer } from './RustServer/lib'
 import { replaceTilde } from './util'
 import { mapMessages, MessageWithExtra } from './mappers'
 import IMAGE_EXTS from './image-exts.json'
 import { isSelectable } from './common-util'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow, AXMessageSelection } from './types'
 import type PAPI from './api'
+import swiftServer from './SwiftServer/lib'
 
 const imageSizeAsync = promisify(imageSizeCallback)
 
@@ -165,7 +165,9 @@ export default class DatabaseAPI {
 
   private chatGUIDRowIDMap = new Map<string, number>()
 
-  private rustServer: IRustServer | null = null
+  // HACK: this is populated by the `PlatformAPI` subclass, because we need to
+  // hand it off to the poller (SwiftServer) in order for it to trigger updates
+  eventSender: OnServerEventCallback | null = null
 
   constructor(private db: IAsyncSqlite, private readonly papi: InstanceType<typeof PAPI>) {}
 
@@ -179,13 +181,12 @@ export default class DatabaseAPI {
   }
 
   dispose() {
-    this.rustServer?.stopPoller()
-    this.rustServer = null
+    // TODO: stop SwiftServer poller
 
     return this.db.dispose()
   }
 
-  // this should ideally be fetched from rust server
+  // this should ideally be fetched from swiftserver
   async getUnreadCounts(): Promise<Map<number /* chat rowid */, number>> {
     const rows = await this.db.all<[], { unread_count: number, chat_id: number }>(SQLS.getUnreadCounts)
     return new Map(rows.map(row => [row.chat_id, row.unread_count]))
@@ -194,15 +195,25 @@ export default class DatabaseAPI {
   getAccountLogins = (): Promise<string[]> =>
     this.db.pluck_all<void[], string>(SQLS.getAccountLogins)
 
-  private calledRustServerSetOnce = false
+  private hasAttemptedToStartPoller = false
 
-  async updateRustServer(maxRowID: number, maxDateRead: number) {
-    if (this.calledRustServerSetOnce) return
-    this.calledRustServerSetOnce = true
-    while (!this.rustServer) {
-      await setTimeoutAsync(10)
+  async startPollingIfNecessary(maxRowID: number, maxDateRead: number) {
+    if (this.hasAttemptedToStartPoller) return
+    this.hasAttemptedToStartPoller = true
+
+    // HACK: We only get the callback via `subscribeToEvents`, but we need it
+    // synchronously here. Wait until we have the value.
+    let spins = 0
+    while (!this.eventSender) {
+      if (++spins === 50) {
+        texts.log("imsg: WARNING: still don't have server event callback after 5 seconds; something is running amok")
+      }
+      await setTimeoutAsync(100)
     }
-    this.rustServer!.startPoller(BigInt(maxRowID), BigInt(maxDateRead))
+
+    texts.log(`imsg: kicking off poller (max row id: ${maxRowID}, max date read: ${maxDateRead})`)
+    // FIXME: it's useless to make these `BigInt`s when they're already `number` (lost precision)
+    swiftServer.startPolling(this.eventSender, BigInt(maxRowID), BigInt(maxDateRead))
   }
 
   setLastCursor(allMsgRows: MappedMessageRow[]) {
@@ -215,17 +226,7 @@ export default class DatabaseAPI {
     if (maxDateRead > this.lastDateRead) {
       this.lastDateRead = maxDateRead
     }
-    this.updateRustServer(maxRowID, maxDateRead)
-  }
-
-  startPolling(onEvent: OnServerEventCallback) {
-    this.rustServer = new RustServer(onEvent)
-    // let wokeFromSleep = false
-    // parentPort!.on('message', value => {
-    //   if (typeof value === 'string' && value === 'powermonitor-on-resume') {
-    //     wokeFromSleep = true
-    //   }
-    // })
+    this.startPollingIfNecessary(maxRowID, maxDateRead)
   }
 
   getThreadParticipants = (chatRowID: number): Promise<MappedHandleRow[]> =>

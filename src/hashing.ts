@@ -1,8 +1,10 @@
 import { CursorProp, Message, MessageReaction, Paginated, Participant, Thread } from '@textshq/platform-sdk'
-import { threadHasher as globalThreadIDHasher, participantHasher as globalParticipantIDHasher } from './RustServer/lib'
+import swiftServer from './SwiftServer/lib'
+
+const { hashers } = swiftServer
 
 const entirelyNumbersAndSymbols = /^[\d\s+\-()]+$/
-const entirelyAlphanumericSenderID = /^[\da-zA-Z\-]{1,11}$/
+const entirelyAlphanumericSenderID = /^[\da-zA-Z-]{1,11}$/
 
 // https://en.wikipedia.org/wiki/Mobile_marketing#Custom_Sender_ID
 function likelyAlphanumericSenderID(id: string): boolean {
@@ -11,14 +13,20 @@ function likelyAlphanumericSenderID(id: string): boolean {
 
 export function hashParticipantID(id: string): string {
   if (likelyAlphanumericSenderID(id)) return id
-  return globalParticipantIDHasher.hashAndRemember(id)
+  return hashers.participant.tokenizeRemembering(id)
+}
+
+export function originalThreadID(possiblyHash: string): string {
+  if (!possiblyHash.startsWith('imsg')) return possiblyHash
+
+  return hashers.thread.recoverOriginal(possiblyHash)
 }
 
 export function originalParticipantID(possiblyHash: string): string {
   // for unhashed participant IDs, just return as-is
   if (!possiblyHash.startsWith('imsg')) return possiblyHash
 
-  return globalParticipantIDHasher.originalFromHash(possiblyHash)
+  return hashers.participant.recoverOriginal(possiblyHash)
 }
 
 export function hashReaction(reaction: MessageReaction): MessageReaction {
@@ -35,7 +43,7 @@ export function hashReaction(reaction: MessageReaction): MessageReaction {
 export function hashMessage(message: Message): Message {
   return ({
     ...message,
-    threadID: message.threadID ? globalThreadIDHasher.hashAndRemember(message.threadID) : undefined,
+    threadID: message.threadID ? hashers.thread.tokenizeRemembering(message.threadID) : undefined,
     reactions: message.reactions ? message.reactions.map(hashReaction) : undefined,
     senderID: hashParticipantID(message.senderID),
   })
@@ -49,7 +57,7 @@ export function hashParticipant(participant: Participant): Participant {
 }
 
 export function hashThreadID(id: string): string {
-  return globalThreadIDHasher.hashAndRemember(id)
+  return hashers.thread.tokenizeRemembering(id)
 }
 
 function hashPaginated<T extends CursorProp>(paginated: Paginated<T>, hasher: (unhashed: T) => T): Paginated<T> {
@@ -62,7 +70,7 @@ function hashPaginated<T extends CursorProp>(paginated: Paginated<T>, hasher: (u
 export function hashThread(thread: Thread): Thread {
   return ({
     ...thread,
-    id: globalThreadIDHasher.hashAndRemember(thread.id),
+    id: hashers.thread.tokenizeRemembering(thread.id),
     messages: hashPaginated(thread.messages, hashMessage),
     participants: hashPaginated(thread.participants, hashParticipant),
   })
