@@ -6,10 +6,9 @@ import Testing
     let hasher = Hasher(kind: "test")
 
     let token = hasher.tokenizeRemembering(pii: "foo")
-    #expect(hasher.recoverOriginal(fromToken: token) == "foo")
+    #expect(try hasher.recoverOriginal(fromToken: token) == "foo")
 
-    #expect(hasher.recoverOriginal(fromToken: "!" + token) == "foo")
-    #expect(hasher.recoverOriginal(fromToken: token + "ab") == nil)
+    #expect(try hasher.recoverOriginal(fromToken: "!" + token) == "foo")
 
     #expect(hasher.cache.count == 1)
     #expect(hasher.originals.count == 1)

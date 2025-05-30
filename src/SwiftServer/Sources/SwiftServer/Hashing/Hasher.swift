@@ -28,12 +28,15 @@ extension Hasher: @unchecked Sendable {}
 // MARK: - Public Interface
 
 public extension Hasher {
-    func recoverOriginal(fromToken token: Token) -> PII? {
+    func recoverOriginal(fromToken token: Token) throws -> PII {
         lock.lock()
         defer { lock.unlock() }
 
         let hexString = token.drop(while: { $0 != ":" }).dropFirst()
-        return originals[[UInt8](hexString: hexString)]
+        guard let original = originals[[UInt8](hexString: hexString)] else {
+            throw ErrorMessage("couldn't recover original chat id for \(token)")
+        }
+        return original
     }
 
     func tokenizeRemembering(pii: PII) -> Token {
