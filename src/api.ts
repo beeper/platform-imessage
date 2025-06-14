@@ -276,7 +276,7 @@ export default class AppleiMessage implements PlatformAPI {
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
-    const [, , groupImagesRows, unreadCounts, dndState] = await Promise.all([
+    const [, , chatImagesRows, unreadCounts, dndState] = await Promise.all([
       Promise.all(chatRows.map(async chat => {
         const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
@@ -285,17 +285,17 @@ export default class AppleiMessage implements PlatformAPI {
       Promise.all(chatRows.map(async chat => {
         handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
       })),
-      IS_BIG_SUR_OR_UP ? this.dbAPI.getGroupImages() : [],
+      IS_BIG_SUR_OR_UP ? this.dbAPI.getChatImages() : [],
       this.dbAPI.getUnreadCounts(),
       getDNDState(),
     ])
     if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
-    const groupImagesMap: { [attachmentID: string]: string } = {}
-    groupImagesRows?.forEach(([attachmentID, fileName]) => {
-      groupImagesMap[attachmentID] = fileName
+    const chatImagesMap: { [attachmentID: string]: string } = {}
+    chatImagesRows?.forEach(([attachmentID, fileName]) => {
+      chatImagesMap[attachmentID] = fileName
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
-    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, groupImagesMap, dndState, unreadCounts, currentUserID: this.currentUser!.id, threadReadStore: this.threadReadStore })
+    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, chatImagesMap, dndState, unreadCounts, currentUserID: this.currentUser!.id, threadReadStore: this.threadReadStore })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
