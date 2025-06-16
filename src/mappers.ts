@@ -259,6 +259,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const dateStringIsFalsy = (date: string | undefined) => !date || date === '0'
   const dateStringIsTruthy = (date: string | undefined) => !dateStringIsFalsy(date)
 
+  if (msgRow.schedule_type) return []
+
   const partialMessage: MessageWithExtra = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.guid,
@@ -307,7 +309,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     }
     let didFail = false
     switch (msgRow.item_type) {
-      case 1:
+      case 1: {
         m.behavior = MessageBehavior.SILENT
         const removed = msgRow.group_action_type === 1
         m.text = removed
@@ -321,6 +323,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           actorParticipantID: m.senderID,
         }
         break
+      }
       case 2:
         m.behavior = MessageBehavior.SILENT
         m.text = msgRow.group_title == null

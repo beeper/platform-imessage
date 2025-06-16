@@ -111,6 +111,13 @@ type MessageRow = {
   is_kt_verified: NumberBool
   // added in sequoia
   associated_message_emoji: string
+
+  is_pending_satellite_send: number
+  needs_relay: number
+  schedule_type: number
+  schedule_state: number
+  sent_or_received_off_grid: number
+  date_recovered: number
 }
 
 // taken from chat.db on big sur
