@@ -642,7 +642,7 @@ type Context = {
   unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   // todo this shouldnt be optional
-  groupImagesMap?: { [attachmentID: string]: string }
+  chatImagesMap?: { [attachmentID: string]: string }
 }
 
 // @ts-expect-error FIXME(skip): argument ordering
@@ -683,24 +683,18 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
   const props = chat.properties ? safeBplistParse(chat.properties) : null
   const unreadCount = context.unreadCounts.get(chat.ROWID) ?? 0
 
-  const getGroupPhotoGuid = (): string | undefined => {
-    if (!(typeof props === 'object' && props != null && 'groupPhotoGuid' in props)) {
-      return undefined
-    }
-
+  const getChatPhotoGuid = (): string | undefined => {
+    if (!(typeof props === 'object' && props != null && 'groupPhotoGuid' in props)) return undefined
     const value = props.groupPhotoGuid
-    if (typeof value !== 'string') {
-      return undefined
-    }
-
-    return replaceTilde(context.groupImagesMap?.[value])
+    if (typeof value !== 'string') return undefined
+    return replaceTilde(context.chatImagesMap?.[value])
   }
 
   const thread: Thread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
-    imgURL: getGroupPhotoGuid(),
+    imgURL: getChatPhotoGuid(),
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
