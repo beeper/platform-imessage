@@ -178,8 +178,6 @@ final class MessagesController {
         ///
         /// Support for arbitrary emojis was added in macOS Sequoia.
         init?(emoji: Character) {
-            guard #available(macOS 15, *) else { return nil }
-
             // NOTE: This is mapping actual emoji characters into the traditional set of iMessage Tapbacks.
             // This means it's impossible to react with an actual heart emoji character, because it gets mapped to the "iMessage heart".
             // It's possible to choosen between either in actual iMessage.
@@ -192,7 +190,11 @@ final class MessagesController {
             /* 😂 */ case "\u{1f602}": self = .laugh
             /* ‼️ */ case "\u{203c}", "\u{203c}\u{fe0f}": self = .emphasize
             /* ❓ */ case "\u{2753}": self = .question
-            default: self = .custom(emoji: emoji)
+            default:
+                guard #available(macOS 15, *) else {
+                    return nil
+                }
+                self = .custom(emoji: emoji)
             }
         }
     }
