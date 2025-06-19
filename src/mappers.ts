@@ -247,7 +247,7 @@ const UUID_START = 11
 const UUID_LENGTH = 36
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): MessageWithExtra[] {
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = true): MessageWithExtra[] {
   const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
   const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
   const isGroup = !!msgRow.room_name
@@ -650,7 +650,7 @@ type Context = {
 
 // @ts-expect-error FIXME(skip): argument ordering
 // eslint-disable-next-line @typescript-eslint/default-param-last
-export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = false): Message[] {
+export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = true): Message[] {
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
   return messages
