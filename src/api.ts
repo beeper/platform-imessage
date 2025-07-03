@@ -21,6 +21,7 @@ import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
+import { makeJSONPersistence, Persistence } from './persistence'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -46,7 +47,9 @@ export default class AppleiMessage implements PlatformAPI {
 
   // private accountID: string
 
-  private threadReadStore: ThreadReadStore | undefined
+  private threadReadStore?: ThreadReadStore
+
+  private persistence?: Persistence
 
   /**
    * We need to be constructable (and we should be able to handle our `init`
@@ -144,6 +147,7 @@ export default class AppleiMessage implements PlatformAPI {
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
     await this.tryInitializingDB()
+    this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
     if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
       fs.unlink(path.join(userDataDirPath, 'imessage.json')).catch(() => {})
