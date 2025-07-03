@@ -20,7 +20,7 @@ import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantA
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
-import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalParticipantID, originalThreadID } from './hashing'
+import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
