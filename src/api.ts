@@ -1,9 +1,10 @@
 import fsSync, { promises as fs } from 'fs'
+import { mapKeys } from 'lodash'
 import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
@@ -207,6 +208,7 @@ export default class AppleiMessage implements PlatformAPI {
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
         unreadCounts,
         dndState,
+        reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
       },
     ))
   }
@@ -232,6 +234,7 @@ export default class AppleiMessage implements PlatformAPI {
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
         unreadCounts,
         dndState,
+        reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
       },
     )
     if (!thread.timestamp) thread.timestamp = new Date()
@@ -299,7 +302,25 @@ export default class AppleiMessage implements PlatformAPI {
       chatImagesMap[attachmentID] = fileName
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
-    const items = mapThreads(chatRows, { mapMessageArgsMap, handleRowsMap, chatImagesMap, dndState, unreadCounts, currentUserID: this.currentUser!.id, threadReadStore: this.threadReadStore })
+
+    let reminders = this.persistence?.batchGetThreadProp(chatRows.map(row => hashThreadID(row.guid)), 'reminder')
+    if (reminders) {
+      // This isn't particularly pretty, but `Persistence` works with hashed
+      // thread IDs and we're working with chat GUIDs (PII). We'll go back and
+      // hash everything before returning.
+      reminders = mapKeys(reminders, (_value, hashedThreadID) => originalThreadID(hashedThreadID))
+    }
+
+    const items = mapThreads(chatRows, {
+      mapMessageArgsMap,
+      handleRowsMap,
+      chatImagesMap,
+      dndState,
+      unreadCounts,
+      currentUserID: this.currentUser!.id,
+      threadReadStore: this.threadReadStore,
+      reminders,
+    })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
@@ -779,5 +800,42 @@ export default class AppleiMessage implements PlatformAPI {
   private removeMessagesAppInDock = () => {
     swiftServer.removeMessagesFromDock()
     swiftServer.killDock()
+  }
+
+  setThreadReminder = async (threadID: string, reminder: ThreadReminder) => {
+    // `threadID` should be hashed already.
+    await this.persistence?.setThreadProp(threadID, 'reminder', reminder)
+  }
+
+  clearThreadReminder = async (threadID: string) => {
+    // `threadID` should be hashed already.
+    await this.persistence?.deleteThreadProp(threadID, 'reminder')
+  }
+
+  recordThreadReminderElapsed = async (threadID: string) => {
+    // `threadID` should be hashed already.
+    // NOTE: This function effectively replicates the behavior of `BeeperClient#recordThreadReminderElapsed`.
+    const reminder = this.persistence?.getThreadProp(threadID, 'reminder')
+
+    // https://github.com/beeper/beeper-desktop-new/blob/8a605b41935215c0380063f71e30048c0efeb588/src/pas-server/beeper/BeeperClient.ts#L893
+    if (!reminder || !reminder.remindAtMs) {
+      texts.error(`imsg: can't record nonexistent reminder for ${threadID} as being elapsed`)
+      return
+    }
+
+    // Update the thread's timestamp in the renderer.
+    // https://github.com/beeper/beeper-desktop-new/blob/8a605b41935215c0380063f71e30048c0efeb588/src/pas-server/beeper/BeeperClient.ts#L898
+    this.onEvent?.([{
+      type: ServerEventType.STATE_SYNC,
+      objectName: 'thread',
+      mutationType: 'update',
+      entries: [{ id: threadID, timestamp: new Date(reminder.remindAtMs) }],
+      objectIDs: {},
+    }])
+
+    this.persistence?.setThreadProp(threadID, 'reminder', {
+      ...reminder,
+      userRemindedAt: Date.now(),
+    })
   }
 }
