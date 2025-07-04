@@ -13,7 +13,6 @@ import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 import { roomFeatures } from './capabilities'
-import type { Persistence } from './persistence'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
