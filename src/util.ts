@@ -3,33 +3,6 @@ import fs from 'fs/promises'
 import childProcess from 'child_process'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
-const DATE_OFFSET = 978307200000
-
-// const appleTimeNow = () => Date.now() - DATE_OFFSET
-
-const nanoToMs = (ts: number) => Math.floor(ts / 1e6)
-
-export const unpackTime = (ts: number) => {
-  if (!ts) return
-  const nano = nanoToMs(ts)
-  return nano !== 0 ? nano : ts
-}
-
-export function fromAppleTime(timestampText: string): Date | undefined {
-  if (
-    !timestampText
-      // Apple frequently uses a date value of 0 to represent no value. When we
-      // cast these to text, they become truthy (in JS's eyes), so be sure to
-      // check for that.
-      || timestampText === '0'
-  ) return
-  const milliseconds = BigInt(timestampText) / 1_000_000n
-  // fall back to apple's epoch
-  if (milliseconds === 0n) return new Date(DATE_OFFSET)
-  // assume that milliseconds can fit into safe integer representations now
-  return new Date(Number(milliseconds) + DATE_OFFSET)
-}
-
 const HOMEDIR = os.homedir()
 export function replaceTilde(str: string): string
 export function replaceTilde(str: undefined): undefined

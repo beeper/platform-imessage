@@ -1,12 +1,24 @@
 import * as fs from 'node:fs/promises'
 import { Thread, ThreadReminder } from '@textshq/platform-sdk'
+import { AppleDate } from './time'
 
 /** All persisted thread data. Stays in memory and gets (de)serialized from/to disk. */
 export type PersistedData = Record<Thread['id'], PersistedThreadProps>
 
+export interface ThreadArchivalState {
+  /**
+   * When the thread was last archived.
+   *
+   * This is set to the latest message's {@linkcode AppleDate}, at the time of
+   * archive.
+   */
+  archivedAt: AppleDate
+}
+
 export interface PersistedThreadProps {
   // TODO: Add archive.
   reminder?: ThreadReminder
+  archive?: ThreadArchivalState
 }
 
 export type PersistedBatchGetResults<P extends keyof PersistedThreadProps> = Record<string, PersistedThreadProps[P] | undefined>

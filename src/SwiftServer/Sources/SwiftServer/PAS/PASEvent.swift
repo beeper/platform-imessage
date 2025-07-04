@@ -9,7 +9,7 @@ enum PASEvent {
     case refreshMessagesInThread(id: String)
     /// A PAS event with type `state_sync` that is used to `update` a
     /// `thread`.
-    case stateSyncThread(id: String, properties: NodeObjectPropertyList)
+    case stateSyncThread(id: String, patch: [String: any NodePropertyConvertible])
 }
 
 extension PASEvent: NodeValueConvertible {
@@ -24,9 +24,9 @@ extension PASEvent: NodeValueConvertible {
             "type": "thread_messages_refresh",
             "threadID": id,
         ])
-        case let .stateSyncThread(id, properties):
-            let entry = try NodeObject(["id": id])
-            try entry.define(properties)
+        case let .stateSyncThread(id, patch):
+            let entry = try NodeObject(coercing: patch)
+            try entry.define(["id": id])
 
             return try NodeObject([
                 "type": "state_sync",

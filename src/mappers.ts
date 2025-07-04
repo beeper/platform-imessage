@@ -1,9 +1,9 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Thread, Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
+import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
-import { fromAppleTime, replaceTilde, stringifyWithArrayBuffers } from './util'
+import { replaceTilde, stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
 import IMAGE_EXTS from './image-exts.json'
@@ -13,7 +13,9 @@ import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 import { roomFeatures } from './capabilities'
-import { BeeperMessage, BeeperMessageExtra, BeeperThread } from './beeper-platform-sdk'
+import { BeeperMessage, BeeperThread } from './beeper-platform-sdk'
+import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
+import { ThreadArchivalState } from './persistence'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -246,12 +248,11 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
   const isGroup = !!msgRow.room_name
 
-  // `0` is frequently used to signify absence in a date column. if we were
-  // using numbers, then `!date` would suffice, but because they regularly
-  // exceed safe representation limits of javascript numbers, we have to
-  // compare with the textual equivalent
-  const dateStringIsFalsy = (date: string | undefined) => !date || date === '0'
-  const dateStringIsTruthy = (date: string | undefined) => !dateStringIsFalsy(date)
+  // for whatever reason the date we get back from the db can be `0` instead of
+  // `nil`, so be sure to check for that.
+  // TODO(skip): perhaps just do this in the database layer
+  const dateStringIsTruthy = (date: AppleDate | undefined) =>
+    date && unwrapAppleDate(date) !== undefined
 
   if (msgRow.schedule_type) return []
 
@@ -259,9 +260,15 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.guid,
     cursor: msgRow.dateString,
-    // TODO(skip): Should probably be throwing (or otherwise dropping) instead.
-    timestamp: fromAppleTime(msgRow.dateString) ?? new Date(0),
-    sortKey: msgRow.dateString,
+
+    // TODO(skip): probably throw (or drop) instead of `0`.
+    timestamp: regularlizeAppleDate(msgRow.dateString) ?? new Date(0),
+
+    // NOTE(skip): because this object is used as a template of sorts, this
+    // means that any additionally synthesized messages will share the same sort
+    // key. this might be problematic
+    sortKey: appleDateToMillisSinceEpoch(msgRow.dateString) ?? 0,
+
     senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
     // text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
     isSender: msgRow.is_from_me === 1,
@@ -269,16 +276,18 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     isDelivered: msgRow.is_delivered === 1,
     // NOTE(skip): if this is ever implemented for groups (read receipts are
     // possible there when replying), be sure to hash participants
-    seen: isGroup ? undefined : fromAppleTime(msgRow.dateReadString),
+    seen: isGroup ? undefined : regularlizeAppleDate(msgRow.dateReadString),
     threadID: msgRow.threadID,
-    // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
-    // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
-    // not track an unread count.
-    extra: { countsAsUnread: true },
+    extra: {
+      // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
+      // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
+      // not track an unread count.
+      countsAsUnread: true,
+      isSMS: isSMS ? true : undefined,
+    },
   }
 
   if (dateStringIsTruthy(msgRow.dateRetractedString) || msgRow.was_detonated) partialMessage.isDeleted = true
-  if (partialMessage.extra && isSMS) partialMessage.extra.isSMS = true
   if (msgRow.is_read) {
     partialMessage.behavior = MessageBehavior.KEEP_READ
   }
@@ -292,7 +301,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // the last unsend timestamp to the user as a last edited timestamp, as that's
   // somewhat misleading.
   if (!unsendDataPresent && dateStringIsTruthy(msgRow.dateRetractedString) && msgRow.dateEditedString) {
-    partialMessage.editedTimestamp = fromAppleTime(msgRow.dateEditedString) ?? new Date(0)
+    partialMessage.editedTimestamp = regularlizeAppleDate(msgRow.dateEditedString) ?? new Date(0)
   }
 
   if (msgRow.item_type !== 0) {
@@ -370,6 +379,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         break
     }
     if (!didFail) return [m]
+  } else {
+    partialMessage.extra!.shouldNotify = true
   }
 
   const partialHeader: Pick<Message, 'textHeading' | 'linkedMessageID'> = {}
@@ -641,6 +652,7 @@ type Context = {
   // todo this shouldnt be optional
   chatImagesMap?: { [attachmentID: string]: string }
   reminders?: { [chatGUID: string]: ThreadReminder | undefined }
+  archivalStates?: { [chatGUID: string]: ThreadArchivalState | undefined }
 }
 
 // @ts-expect-error FIXME(skip): argument ordering
@@ -688,6 +700,9 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     return replaceTilde(context.chatImagesMap?.[value])
   }
 
+  const archivedAt = context.archivalStates?.[chat.guid]?.archivedAt
+  const isArchivedUpToOrder = archivedAt ? appleDateToMillisSinceEpoch(archivedAt) : undefined
+
   const thread: BeeperThread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
@@ -696,10 +711,10 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     // catalina and lower:
     // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
-    isReadOnly,
     type: isGroup ? 'group' : 'single',
+    isReadOnly,
     unreadCount,
-    lastReadMessageSortKey: chat.dateLastMessageReadString,
+    lastReadMessageSortKey: appleDateToMillisSinceEpoch(chat.dateLastMessageReadString),
     messages: {
       hasMore: true,
       items: messages,
@@ -711,15 +726,18 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     // NOTE(skip): This works around a bug in PAS's "map missing" plugin where
     // the "folder"/inbox name gets forcibly set to the thread ID.
     folderName: InboxName.NORMAL,
-    timestamp: fromAppleTime(chat.msgDateString),
+    timestamp: regularlizeAppleDate(chat.msgDateString),
     // @ts-expect-error -- HACK: this exploits the fact that `features` isn't filtered
     // from `assignProps`. this should actually be using `defaultFeatures` once
     // we're able to set our bridge ID properly
     // https://github.com/beeper/beeper-desktop-new/blob/681fe8ea8f23c50cc20d265775eb9a6a3bed5a0f/src/renderer/stores/ThreadStore.ts#L148
     features: roomFeatures,
     reminder: context.reminders?.[chat.guid],
+    extra: {
+      isArchivedUpToOrder,
+      isSMS: (chat.guid.startsWith('SMS;') || chat.guid.startsWith('RCS;')) ? true : undefined,
+    },
   }
-  if (thread.id.startsWith('SMS;') || thread.id.startsWith('RCS;')) thread.extra = { isSMS: true }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread
 }

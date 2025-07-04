@@ -6,6 +6,14 @@ public extension Date {
         Int(timeIntervalSinceReferenceDate * 1_000_000_000)
     }
 
+    var millisecondsSinceReferenceDate: Int {
+        Int(timeIntervalSinceReferenceDate * 1_000)
+    }
+
+    init(millisecondsSinceReferenceDate millis: Int) {
+        self = Date(timeIntervalSinceReferenceDate: Double(millis) / 1_000)
+    }
+
     init(nanosecondsSinceReferenceDate nanos: Int) {
         self = Date(timeIntervalSinceReferenceDate: Double(nanos) / 1_000_000_000)
     }

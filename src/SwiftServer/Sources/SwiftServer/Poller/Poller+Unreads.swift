@@ -1,4 +1,5 @@
 import IMDatabase
+import NodeAPI
 import Logging
 
 private let log = Logger(swiftServerLabel: "poller.unreads")
@@ -34,19 +35,25 @@ extension Poller {
             unreadStates[chat] = fresh
 
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
-            eventsToSend.append(PASEvent.stateSyncThread(id: hashedThreadID, properties: [
-                "unreadCount": currentState.unreadCount,
-                "lastReadMessageSortKey": String(currentState.lastReadMessageTimestamp.nanosecondsSinceReferenceDate),
+            var patch: [String: any NodePropertyConvertible] = [
+                "lastReadMessageSortKey": (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1_000).rounded(),
 
-                // This is necessary as Beeper Desktop refuses to mark a thread
-                // as read under certain conditions that can be triggered by
-                // manually marking a thread as unread in iMessage itself.
-                // See: https://github.com/beeper/beeper-desktop-new/blob/489c8b4974497c431c8d18d7d5eecc21afdf66b7/src/renderer/stores/ThreadStore.ts#L2109
+                // The renderer avoids sending a read receipt if it can see that
+                // the message that it's currently reading up to is older than
+                // the `lastReadMessageSortKey`. However, our `lastReadMessageSortKey`
+                // is sourced from iMessage itself and we can't necessarily rely
+                // on it to perfectly align with how we model unreads. Indeed, the
+                // "last read message timestamp" from iMessage can seemingly be
+                // increased even when no new messages have been sent. That is,
+                // it's more like a "when did the user last check in this chat"
+                // timestamp instead of literally being the sort key of the last
+                // read message.
                 //
-                // Since we "own" the unread state, force our way through certain code paths by
-                // pretending that everything is (manually) marked unread all the time. On our
-                // side, it doesn't seem to be possible to discern between a chat becoming unread
-                // due to a new message arriving or being manually marked as such.
+                // Therefore, when the chat is unread in some form, pretend that
+                // it was manually marked as unread so that it can always send
+                // a read receipt, despite whatever `lastReadMessageSortKey` is.
+                //
+                // See: https://github.com/beeper/beeper-desktop-new/blob/489c8b4974497c431c8d18d7d5eecc21afdf66b7/src/renderer/stores/ThreadStore.ts#L2109
                 "isMarkedUnread": currentState.unreadCount > 0,
 
                 // Part of the "is this room archived?" logic involves comparing
@@ -56,8 +63,25 @@ extension Poller {
                 // and immediately archiving before the message send completes,
                 // because `timestamp` is updated to a instant that succeeds
                 // the archive action.
+                //
+                // TODO(skip): This might not be necessary anymore since we
+                // adopted the stream order concept.
                 "markedUnreadUpdatedAt": Int(fresh.lastUpdated.timeIntervalSince1970 * 1000),
-            ]))
+            ]
+
+            if currentState.unreadCount == 0 {
+                // Sync the fact that the thread became read. This is especially
+                // important for bidirectional syncing (i.e. marking a chat as
+                // read from the iMessage app itself).
+                patch["unreadCount"] = 0
+            } else {
+                // New messages are going to be synced to the renderer soon;
+                // don't sync an `unreadCount` since the renderer will do
+                // automatic incrementation on our behalf, as our messages `countsAsUnread`.
+                // Otherwise, the unread count will become 2 (in the renderer's memory).
+            }
+
+            eventsToSend.append(PASEvent.stateSyncThread(id: hashedThreadID, patch: patch))
 
             traceUnreads("chat \(chat) unread state changed to: \(fresh)")
         }

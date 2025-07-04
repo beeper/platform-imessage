@@ -1,4 +1,5 @@
 import type { MessageCell } from './SwiftServer/lib'
+import { AppleDate } from './time'
 
 type NumberBool = 0 | 1
 // taken from chat.db on big sur
@@ -163,12 +164,12 @@ export type MappedMessageRow = MessageRow & {
   participantID: string
   otherID: string
 
-  dateString: string
-  dateReadString: string
-  dateDeliveredString: string
+  dateString: AppleDate
+  dateReadString: AppleDate
+  dateDeliveredString: AppleDate
   // ventura+
-  dateEditedString?: string
-  dateRetractedString?: string
+  dateEditedString?: AppleDate
+  dateRetractedString?: AppleDate
 }
 
 // db-api.ts -> SQLS
@@ -184,9 +185,9 @@ MappedMessageRow,
 
 // db-api.ts -> SQLS
 export type MappedChatRow = ChatRow & {
-  msgDateString: string
+  msgDateString: AppleDate
   /** `last_read_message_timestamp` but as a string to avoid precision loss */
-  dateLastMessageReadString: string
+  dateLastMessageReadString: AppleDate
 }
 
 // db-api.ts -> SQLS

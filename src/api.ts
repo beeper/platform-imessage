@@ -20,10 +20,11 @@ import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import type { AXMessageSelection, ChatRow, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
-import { makeJSONPersistence, Persistence } from './persistence'
-import { BeeperMessage } from './beeper-platform-sdk'
+import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
+import { BeeperMessage, BeeperThread } from './beeper-platform-sdk'
+import { appleDateToMillisSinceEpoch } from './time'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -210,6 +211,7 @@ export default class AppleiMessage implements PlatformAPI {
         unreadCounts,
         dndState,
         reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
+        archivalStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'archive') },
       },
     )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
   }
@@ -236,6 +238,7 @@ export default class AppleiMessage implements PlatformAPI {
         unreadCounts,
         dndState,
         reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
+        archivalStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'archive') },
       },
     )
     if (!thread.timestamp) thread.timestamp = new Date()
@@ -267,6 +270,17 @@ export default class AppleiMessage implements PlatformAPI {
     // TODO: find if actually registered on imessage
     if ('phoneNumber' in ids) return { id: ids.phoneNumber!, phoneNumber: ids.phoneNumber }
     if ('email' in ids) return { id: ids.email!, email: ids.email }
+  }
+
+  private batchGetThreadPropForChatRows<P extends keyof PersistedThreadProps>(chatRows: ChatRow[], propName: P): PersistedBatchGetResults<P> | undefined {
+    let values = this.persistence?.batchGetThreadProp(chatRows.map(row => hashThreadID(row.guid)), propName)
+    if (values) {
+      // `Persistence` works with hashed thread IDs but we often begin working
+      // with chat GUIDs (PII). we are expected to go back and hash everything
+      // before returning to renderer
+      values = mapKeys(values, (_value, hashedThreadID) => originalThreadID(hashedThreadID))
+    }
+    return values
   }
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
@@ -306,14 +320,6 @@ export default class AppleiMessage implements PlatformAPI {
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
 
-    let reminders = this.persistence?.batchGetThreadProp(chatRows.map(row => hashThreadID(row.guid)), 'reminder')
-    if (reminders) {
-      // This isn't particularly pretty, but `Persistence` works with hashed
-      // thread IDs and we're working with chat GUIDs (PII). We'll go back and
-      // hash everything before returning.
-      reminders = mapKeys(reminders, (_value, hashedThreadID) => originalThreadID(hashedThreadID))
-    }
-
     const items = mapThreads(chatRows, {
       mapMessageArgsMap,
       handleRowsMap,
@@ -322,7 +328,8 @@ export default class AppleiMessage implements PlatformAPI {
       unreadCounts,
       currentUserID: this.currentUser!.id,
       threadReadStore: this.threadReadStore,
-      reminders,
+      reminders: this.batchGetThreadPropForChatRows(chatRows, 'reminder'),
+      archivalStates: this.batchGetThreadPropForChatRows(chatRows, 'archive'),
     })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
@@ -861,5 +868,62 @@ export default class AppleiMessage implements PlatformAPI {
       ...reminder,
       userRemindedAt: Date.now(),
     })
+  }
+
+  archiveThread = async (threadID: string, archived: boolean) => {
+    // TODO(skip): wait for any pending sends to support archiving shortly
+    // after beginning to send, without having the thread jump back into
+    // archive
+
+    const stateSyncThread = (patch: Partial<BeeperThread>) => {
+      this.onEvent?.([{
+        type: ServerEventType.STATE_SYNC,
+        objectName: 'thread',
+        mutationType: 'update',
+        entries: [{ id: threadID, ...patch }],
+        objectIDs: {},
+      }])
+    }
+
+    if (archived) {
+      const chatGUID = originalThreadID(threadID)
+      const msg = await this.dbAPI.getLatestMessage(chatGUID)
+      if (!msg) {
+        throw new Error(`imsg/archive/${threadID}: couldn't find latest message`)
+      }
+
+      const newArchivalOrder = appleDateToMillisSinceEpoch(msg.dateString)
+      texts.log(`imsg/archive/${threadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${msg.dateString})`)
+
+      if (!(await this.dbAPI.isThreadRead(chatGUID))) {
+        texts.log(`imsg/archive/${threadID}: being archived but is unread, marking it as read first`)
+        // NOTE(skip): marking the thread as read might cause the Swift poller
+        // to detect unread changes and state sync
+
+        await this.toggleThreadRead(true)(threadID)
+
+        texts.log(`imsg/archive/${threadID}: successfully marked as read in preparation for archive`)
+      } else {
+        texts.log(`imsg/archive/${threadID}: is already read, proceeding with archival`)
+      }
+
+      this.persistence?.setThreadProp(threadID, 'archive', { archivedAt: msg.dateString })
+      stateSyncThread({
+        extra: {
+          isArchivedUpToOrder: newArchivalOrder,
+          isArchivedUpto: null,
+        },
+      })
+    } else {
+      texts.log(`imsg/archive/${threadID}: unarchiving`)
+
+      this.persistence?.deleteThreadProp(threadID, 'archive')
+      stateSyncThread({
+        extra: {
+          isArchivedUpToOrder: null,
+          isArchivedUpto: null,
+        },
+      })
+    }
   }
 }

@@ -35,7 +35,7 @@ export type MessageContentType =
   'STICKER' | 'LOCATION' | 'MEMBERSHIP' | 'NAME' | 'STATE' | 'HIDDEN' | 'REACTION'
 
 interface iMessageExtra {
-  isSMS?: boolean
+  // `isSMS` is already available on `BeeperMessageExtra`
   part?: number
 }
 

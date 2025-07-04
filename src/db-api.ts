@@ -85,6 +85,14 @@ LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (${msgGUIDs.map(() => '?').join(',')})
 AND chat_id = ?`,
+  getLatestMessage: `SELECT
+${MAP_MESSAGES_COLS}
+FROM message AS m
+${MESSAGE_JOINS}
+WHERE t.guid = ?
+ORDER BY date DESC
+LIMIT 1
+`,
   getMessagesWithChatRowID: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
@@ -281,13 +289,17 @@ export default class DatabaseAPI {
   //   )
   // }
 
+  getLatestMessage(chatGUID: string): Promise<MappedMessageRow | undefined> {
+    return this.db.get<[string], MappedMessageRow>(SQLS.getLatestMessage, chatGUID)
+  }
+
   getMessages(chatGUID: string, pagination?: PaginationArg): Promise<MappedMessageRow[]> {
     // FIXME: this shouldn't be parsing to a number due to precision loss
     const bindings = pagination ? [chatGUID, Number.parseInt(pagination.cursor, 10)] : [chatGUID]
     return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined), ...bindings)
   }
 
-  getMessage = (messageGUID: string): Promise<MappedMessageRow> =>
+  getMessage = (messageGUID: string): Promise<MappedMessageRow | undefined> =>
     this.db.get<string[], MappedMessageRow>(SQLS.getMessage, messageGUID)
 
   private imageSizeMemoized = memoize(imageSizeAsync)
