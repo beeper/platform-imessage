@@ -1,7 +1,7 @@
 import { isEmojiOrSpacesOnlyString } from '@textshq/platform-sdk/dist/emoji'
-import type { MessageWithExtra } from './mappers'
+import { BeeperMessage } from './beeper-platform-sdk'
 
-export const isSelectable = (message: MessageWithExtra): boolean =>
+export const isSelectable = (message: BeeperMessage): boolean =>
   (!message.attachments?.length
     && !message.links?.length
     && !message.tweets?.length

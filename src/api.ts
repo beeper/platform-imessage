@@ -11,7 +11,7 @@ import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin, MessageWithExtra } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
 import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SONOMA_OR_UP } from './constants'
@@ -23,6 +23,7 @@ import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, Persistence } from './persistence'
+import { BeeperMessage } from './beeper-platform-sdk'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -210,7 +211,7 @@ export default class AppleiMessage implements PlatformAPI {
         dndState,
         reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
       },
-    ))
+    )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
   }
 
   private catalinaCreateThread = async (userIDs: string[]) => {
@@ -243,13 +244,15 @@ export default class AppleiMessage implements PlatformAPI {
 
   createThread = async (userIDs: string[], title?: string, message?: string) => {
     if (userIDs.length === 0) return false
-    if (!IS_BIG_SUR_OR_UP) return this.catalinaCreateThread(userIDs)
+    // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+    if (!IS_BIG_SUR_OR_UP) return (await this.catalinaCreateThread(userIDs)) as Thread
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(`iMessage;-;${address}`)
       if (existingThread) {
         if (message) this.sendMessage(existingThread.id, { text: message })
-        return hashThread(existingThread)
+        // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+        return hashThread(existingThread) as Thread
       }
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
@@ -325,7 +328,8 @@ export default class AppleiMessage implements PlatformAPI {
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
-      items: items.map(hashThread),
+      // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+      items: items.map(hashThread) as Thread[],
       hasMore: chatRows.length === THREADS_LIMIT,
       oldestCursor: chatRows[chatRows.length - 1]?.msgDateString,
     }
@@ -343,7 +347,8 @@ export default class AppleiMessage implements PlatformAPI {
     ])
     const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
-      items: items.map(hashMessage),
+      // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+      items: items.map(hashMessage) as Message[],
       hasMore: msgRows.length === MESSAGES_LIMIT,
     }
   }
@@ -359,7 +364,8 @@ export default class AppleiMessage implements PlatformAPI {
     ])
     const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser!.id)
     const message = items.find(i => i.id === messageID)
-    return message ? hashMessage(message) : message
+    // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+    return (message ? hashMessage(message) : message) as Message
   }
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
@@ -374,9 +380,10 @@ export default class AppleiMessage implements PlatformAPI {
       this.dbAPI.getAttachments(msgRowIDs),
       threadID ? this.dbAPI.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id, true)
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
-      items: items.map(hashMessage),
+      // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+      items: items.map(hashMessage) as Message[],
       hasMore: msgRows.length === MESSAGES_LIMIT,
       oldestCursor: msgRows[0]?.date?.toString(),
     }
@@ -548,10 +555,27 @@ export default class AppleiMessage implements PlatformAPI {
     // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
     // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
     // const message = messages[part || 0]
-    const message = await this.getMessage(hashThreadID(threadID), messageID) as MessageWithExtra
+    const message = await this.getMessage(hashThreadID(threadID), messageID) as BeeperMessage
     if (!message) throw Error("couldn't find message")
     if (!message._original) throw Error("couldn't find original message")
-    const [msgRow] = JSON.parse(message._original)
+
+    let parsed: unknown
+    if (!('_original' in message && typeof message._original === 'string')) {
+      throw new Error("imsg: can't recover cell from message without original data")
+    }
+    try {
+      parsed = JSON.parse(message._original) as unknown
+    } catch (error) {
+      throw new Error("imsg: can't recover cell from message, malformed original JSON", { cause: error })
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error("imsg: can't recover cell from message; original data isn't an array")
+    }
+    const msgRow = parsed[0]
+    if (!msgRow) {
+      throw new Error("imsg: can't recover cell from message; no associated row")
+    }
+
     // use overlay mode only when the message is not in a thread
     const overlay = useOverlay && IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
     const closestMessage: AXMessageSelection = overlay

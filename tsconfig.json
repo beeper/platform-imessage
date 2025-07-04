@@ -6,6 +6,7 @@
     "strict": true,
     "module": "Preserve",
     "moduleResolution": "Bundler"
+    // "skipLibCheck": false
   },
   "include": [
     "src"

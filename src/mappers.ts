@@ -13,6 +13,7 @@ import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 import { roomFeatures } from './capabilities'
+import { BeeperMessage, BeeperMessageExtra, BeeperThread } from './beeper-platform-sdk'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -58,7 +59,7 @@ const removeObjReplacementChar = (text: string): string => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-function assignReactions(currentUserID: string, message: Message, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
+function assignReactions(currentUserID: string, message: BeeperMessage, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
   const reactions: MessageReaction[] = []
   const reactionRows = filterIndex != null
     ? _reactionRows.filter(r => r.associated_message_guid.startsWith(`p:${filterIndex}/`))
@@ -236,18 +237,11 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
   return parts
 }
 
-export type MessageWithExtra = Omit<Message, 'extra'> & {
-  extra: {
-    isSMS?: boolean
-    part?: number
-  }
-}
-
 const UUID_START = 11
 const UUID_LENGTH = 36
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = true): MessageWithExtra[] {
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string): BeeperMessage[] {
   const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
   const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
   const isGroup = !!msgRow.room_name
@@ -261,7 +255,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   if (msgRow.schedule_type) return []
 
-  const partialMessage: MessageWithExtra = {
+  const partialMessage: BeeperMessage = {
     _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.guid,
     cursor: msgRow.dateString,
@@ -276,15 +270,15 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     // NOTE(skip): if this is ever implemented for groups (read receipts are
     // possible there when replying), be sure to hash participants
     seen: isGroup ? undefined : fromAppleTime(msgRow.dateReadString),
+    threadID: msgRow.threadID,
     // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
     // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
     // not track an unread count.
-    extra: { countsAsUnread: true } as any,
+    extra: { countsAsUnread: true },
   }
 
   if (dateStringIsTruthy(msgRow.dateRetractedString) || msgRow.was_detonated) partialMessage.isDeleted = true
-  if (isSMS) partialMessage.extra.isSMS = true
-  if (addThreadIDs) partialMessage.threadID = msgRow.threadID
+  if (partialMessage.extra && isSMS) partialMessage.extra.isSMS = true
   if (msgRow.is_read) {
     partialMessage.behavior = MessageBehavior.KEEP_READ
   }
@@ -302,7 +296,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   if (msgRow.item_type !== 0) {
-    const m: MessageWithExtra = {
+    const m: BeeperMessage = {
       ...partialMessage,
       isAction: true,
       parseTemplate: true,
@@ -497,7 +491,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   // messageParts will always be non-empty
-  const messages = messageParts.map<MessageWithExtra>((part, partIdx) => {
+  const messages = messageParts.map<BeeperMessage>((part, partIdx) => {
     const message = { ...partialMessage }
     if (messageParts.length > 1) {
       // we have to copy message.extra, otherwise it shares the object
@@ -559,7 +553,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   const firstTextPart = messages.find(msg => typeof msg.text === 'string')
   if (msgRow.associated_message_guid) {
-    const m: MessageWithExtra = {
+    const m: BeeperMessage = {
       // fall back to `partialMessage` if no text part was found at all -
       // important to avoid creating a bogus message object with invalid data
       ...(firstTextPart ?? partialMessage),
@@ -614,7 +608,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   return messages.map(msg => {
     // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
-    assignReactions(currentUserID, msg, reactionRows, messages.length === 1 ? undefined : msg.extra.part)
+    assignReactions(currentUserID, msg, reactionRows, messages.length === 1 ? undefined : msg.extra?.part)
     return msg
   })
 }
@@ -651,15 +645,15 @@ type Context = {
 
 // @ts-expect-error FIXME(skip): argument ordering
 // eslint-disable-next-line @typescript-eslint/default-param-last
-export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, addThreadIDs = true): Message[] {
+export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string): BeeperMessage[] {
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
   return messages
-    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.ROWID], groupedReactionRows[message.guid], currentUserID, addThreadIDs))
+    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.ROWID], groupedReactionRows[message.guid], currentUserID))
     .filter(Boolean)
 }
 
-export function mapThread(chat: MappedChatRow, context: Context): Thread {
+export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const { currentUserID } = context
   const handleRows = context.handleRowsMap[chat.guid]
   const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]
@@ -694,7 +688,7 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     return replaceTilde(context.chatImagesMap?.[value])
   }
 
-  const thread: Thread = {
+  const thread: BeeperThread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
@@ -704,7 +698,6 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     isReadOnly,
     type: isGroup ? 'group' : 'single',
-    // @ts-expect-error FIXME(skip): update to beeper desktop's platform-sdk
     unreadCount,
     lastReadMessageSortKey: chat.dateLastMessageReadString,
     messages: {
@@ -719,6 +712,10 @@ export function mapThread(chat: MappedChatRow, context: Context): Thread {
     // the "folder"/inbox name gets forcibly set to the thread ID.
     folderName: InboxName.NORMAL,
     timestamp: fromAppleTime(chat.msgDateString),
+    // @ts-expect-error -- HACK: this exploits the fact that `features` isn't filtered
+    // from `assignProps`. this should actually be using `defaultFeatures` once
+    // we're able to set our bridge ID properly
+    // https://github.com/beeper/beeper-desktop-new/blob/681fe8ea8f23c50cc20d265775eb9a6a3bed5a0f/src/renderer/stores/ThreadStore.ts#L148
     features: roomFeatures,
     reminder: context.reminders?.[chat.guid],
   }
