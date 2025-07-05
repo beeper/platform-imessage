@@ -54,6 +54,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private persistence?: Persistence
 
+  private pendingMessageSends = new Map<Thread['id'], Promise<boolean | Message[]>[]>()
+
   /**
    * We need to be constructable (and we should be able to handle our `init`
    * being called) _without_ Messages.app data access, because those things
@@ -486,6 +488,25 @@ export default class AppleiMessage implements PlatformAPI {
   private sendingMessagesCount = 0
 
   sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+    try {
+      const promise = this.actuallySendMessage(hashedThreadID, content, options)
+      if (!this.pendingMessageSends.has(hashedThreadID)) {
+        this.pendingMessageSends.set(hashedThreadID, [])
+      }
+      if (texts.IS_DEV) texts.log(`imsg/pending: ${hashedThreadID}: pushing a pending send`)
+      this.pendingMessageSends.get(hashedThreadID)!.push(promise)
+      // eslint-disable-next-line @typescript-eslint/return-await
+      return await promise
+    } finally {
+      const pending = this.pendingMessageSends.get(hashedThreadID)
+      if (pending) {
+        if (texts.IS_DEV) texts.log(`imsg/pending: ${hashedThreadID}: send completed one way or another, shifting`)
+        pending.shift()
+      }
+    }
+  }
+
+  private actuallySendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
     const threadID = originalThreadID(hashedThreadID)
     if (threadID.startsWith('SMS;-;') && threadID.includes('@')) throw Error('Cannot send message to email address over SMS')
     try {
@@ -870,44 +891,51 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  archiveThread = async (threadID: string, archived: boolean) => {
-    // TODO(skip): wait for any pending sends to support archiving shortly
-    // after beginning to send, without having the thread jump back into
-    // archive
+  archiveThread = async (hashedThreadID: string, archived: boolean) => {
+    const pending = this.pendingMessageSends.get(hashedThreadID)
+    if (pending && pending.length > 0) {
+      if (texts.IS_DEV) texts.log(`imsg/pending/${hashedThreadID}: waiting for ${pending.length} pending sends before archiving`)
+      await Promise.all(pending)
+      if (texts.IS_DEV) texts.log(`imsg/pending/${hashedThreadID}: done waiting, waiting a bit more for message to commit to database`)
+      // HACK: wait an arbitrary amount of time for the second to be committed
+      // to the database so we can use its sort order
+      await setTimeoutAsync(50)
+      if (texts.IS_DEV) texts.log(`imsg/pending/${hashedThreadID}: OK, going to archive now`)
+    }
 
     const stateSyncThread = (patch: Partial<BeeperThread>) => {
       this.onEvent?.([{
         type: ServerEventType.STATE_SYNC,
         objectName: 'thread',
         mutationType: 'update',
-        entries: [{ id: threadID, ...patch }],
+        entries: [{ id: hashedThreadID, ...patch }],
         objectIDs: {},
       }])
     }
 
     if (archived) {
-      const chatGUID = originalThreadID(threadID)
+      const chatGUID = originalThreadID(hashedThreadID)
       const msg = await this.dbAPI.getLatestMessage(chatGUID)
       if (!msg) {
-        throw new Error(`imsg/archive/${threadID}: couldn't find latest message`)
+        throw new Error(`imsg/archive/${hashedThreadID}: couldn't find latest message`)
       }
 
       const newArchivalOrder = appleDateToMillisSinceEpoch(msg.dateString)
-      texts.log(`imsg/archive/${threadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${msg.dateString})`)
+      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${msg.dateString})`)
 
       if (!(await this.dbAPI.isThreadRead(chatGUID))) {
-        texts.log(`imsg/archive/${threadID}: being archived but is unread, marking it as read first`)
+        texts.log(`imsg/archive/${hashedThreadID}: being archived but is unread, marking it as read first`)
         // NOTE(skip): marking the thread as read might cause the Swift poller
         // to detect unread changes and state sync
 
-        await this.toggleThreadRead(true)(threadID)
+        await this.toggleThreadRead(true)(hashedThreadID)
 
-        texts.log(`imsg/archive/${threadID}: successfully marked as read in preparation for archive`)
+        texts.log(`imsg/archive/${hashedThreadID}: successfully marked as read in preparation for archive`)
       } else {
-        texts.log(`imsg/archive/${threadID}: is already read, proceeding with archival`)
+        texts.log(`imsg/archive/${hashedThreadID}: is already read, proceeding with archival`)
       }
 
-      this.persistence?.setThreadProp(threadID, 'archive', { archivedAt: msg.dateString })
+      this.persistence?.setThreadProp(hashedThreadID, 'archive', { archivedAt: msg.dateString })
       stateSyncThread({
         extra: {
           isArchivedUpToOrder: newArchivalOrder,
@@ -915,9 +943,9 @@ export default class AppleiMessage implements PlatformAPI {
         },
       })
     } else {
-      texts.log(`imsg/archive/${threadID}: unarchiving`)
+      texts.log(`imsg/archive/${hashedThreadID}: unarchiving`)
 
-      this.persistence?.deleteThreadProp(threadID, 'archive')
+      this.persistence?.deleteThreadProp(hashedThreadID, 'archive')
       stateSyncThread({
         extra: {
           isArchivedUpToOrder: null,
