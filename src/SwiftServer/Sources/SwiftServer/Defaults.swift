@@ -24,6 +24,8 @@ enum DefaultsKeys {
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
+    /** ensures that we've correctly selected threads before trying to interact with them */
+    static let misfirePrevention = "BEEPMisfirePrevention"
     // dimensions to resize the messages app window to
     static let eclipsingWidth = "BEEPEclipsingWidth"
     static let eclipsingHeight = "BEEPEclipsingHeight"
@@ -71,6 +73,7 @@ enum Defaults {
 
             DefaultsKeys.windowCoordination: true,
 
+            DefaultsKeys.misfirePrevention: true,
             // Messages.app minimum size when resizing with mouse
             DefaultsKeys.eclipsingWidth: 660.0,
             DefaultsKeys.eclipsingHeight: 320.0,

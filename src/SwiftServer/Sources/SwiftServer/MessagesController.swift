@@ -331,6 +331,11 @@ final class MessagesController {
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     private func ensureSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
+        guard Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePrevention) else {
+            log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
+            return
+        }
+
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
 
         log.debug("ensuring selected thread: \(hashedThreadID)")
