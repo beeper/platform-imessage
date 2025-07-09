@@ -351,6 +351,10 @@ final class MessagesController {
                     log.debug("misfire prevention: no access to Messages defaults, using prediction")
                     // TODO: when contacts details change, iMessage might not update the window title immediately.
                     // TODO: to resolve this, perhaps try jiggling the selection around if the title doesn't match
+                    guard Defaults.swiftServer.bool(forKey: DefaultsKeys.prediction) else {
+                        log.debug("misfire prevention: prediction is disabled, no choice but to skip the assertion (potentially dangerous)")
+                        return
+                    }
                     guard let windowTitle = try? elements.mainWindow.title() else {
                         throw ErrorMessage("misfire prevention: couldn't read window title")
                     }

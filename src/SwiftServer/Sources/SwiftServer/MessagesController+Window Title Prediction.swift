@@ -75,7 +75,7 @@ extension MessagesController {
             // blindly adding a swapped prediction for group chats with only
             // two other people, which might help with some other edge cases
             // too
-            if memberNames.count == 2 {
+            if Defaults.swiftServer.bool(forKey: DefaultsKeys.predictionEnableSwapping), memberNames.count == 2 {
                 predictions.insert(shortFormattedList([memberNames[1], memberNames[0]]))
             }
 
@@ -117,6 +117,13 @@ extension MessagesController {
     }
 
     func assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: String, currentWindowTitle: String) throws {
+        if !Defaults.swiftServer.bool(forKey: DefaultsKeys.predictionPredictsGroupChats) {
+            guard !threadIDIsForGroup(desiredChatGUID) else {
+                log.debug("misfire prevention: not asserting for group chat; prediction for group chats is disabled")
+                return
+            }
+        }
+
         let predictedWindowTitles = try predictWindowTitles(forChatGUID: desiredChatGUID)
 #if DEBUG
         log.debug("[PII] predicted window titles: \(String(describing: predictedWindowTitles)), current window title: \(currentWindowTitle.quoted)")

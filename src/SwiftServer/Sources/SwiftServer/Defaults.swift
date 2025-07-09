@@ -26,8 +26,14 @@ enum DefaultsKeys {
 
     /** ensures that we've correctly selected threads before trying to interact with them */
     static let misfirePrevention = "BEEPMisfirePrevention"
-    /** when mobilesms defaults are blocked, whether we try to format contacts with the private short style to correlate them back to the window title */
+    /** when mobilesms defaults are blocked, whether we try to predict the window title in order to prevent misfires */
+    static let prediction = "BEEPPrediction"
+    /** when predicting, whether we try to format contacts with the private short style */
     static let contactsAttemptFormattingWithShortStyle = "BEEPContactsAttemptFormattingWithShortStyle"
+    /** whether to even attempt prediction for group chats. when `false`, assertions for group chats are skipped entirely */
+    static let predictionPredictsGroupChats = "BEEPPredictionPredictsGroupChats"
+    /** enables a hack to add a swapped prediction in the case of a group chat with two other people */
+    static let predictionEnableSwapping = "BEEPPredictionEnableSwapping"
 
     // dimensions to resize the messages app window to
     static let eclipsingWidth = "BEEPEclipsingWidth"
@@ -77,7 +83,10 @@ enum Defaults {
             DefaultsKeys.windowCoordination: true,
 
             DefaultsKeys.misfirePrevention: true,
+            DefaultsKeys.prediction: true,
             DefaultsKeys.contactsAttemptFormattingWithShortStyle: true,
+            DefaultsKeys.predictionPredictsGroupChats: true,
+            DefaultsKeys.predictionEnableSwapping: true,
 
             // Messages.app minimum size when resizing with mouse
             DefaultsKeys.eclipsingWidth: 660.0,
