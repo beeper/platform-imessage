@@ -60,10 +60,9 @@ public extension IMDatabase {
 
         return UpdatedChatsQueryResult(
             // Discard chats without a `guid` and `ROWID` (impossible?)
-            updatedChats: updatedChats.compactMap { $0 },
+            updatedChats: updatedChats.compactMap(\.self),
             latestMessageRowID: newestMessageRowID,
             latestMessageDateRead: latestMessageDateRead
         )
     }
 }
-

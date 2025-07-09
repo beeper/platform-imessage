@@ -39,7 +39,7 @@ public extension IMDatabase {
         try statement.bind(chatGUID)
 
         return try statement.mapRowsUntilDone { row in
-            return Handle(rowid: row[0].as(Int.self), id: row[1].as(String.self)!)
+            Handle(rowid: row[0].as(Int.self), id: row[1].as(String.self)!)
         }
     }
 }

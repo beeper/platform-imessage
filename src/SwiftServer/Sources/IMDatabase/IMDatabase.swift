@@ -1,8 +1,8 @@
 import AsyncAlgorithms
 import Foundation
+import Logging
 import SQLite
 import SwiftServerFoundation
-import Logging
 
 private func chatDatabaseFile(in messagesDataURL: URL) -> URL {
     messagesDataURL.appendingPathComponent("chat.db")
@@ -38,12 +38,12 @@ public final class IMDatabase {
     var handlesInChatWithGUIDStatement: Statement?
 
     public init(messagesDataBaseURL: URL? = nil) throws {
-        messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
+        self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
 #if DEBUG
         log.debug("creating database with messages data directory: \(messagesDataDirectory)")
         defer { log.debug("database created") }
 #endif
-        database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
+        self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
     }
 
     func cachedStatement(_ statement: inout Statement?, creatingWithoutEscapingSQL sql: String) throws -> Statement {

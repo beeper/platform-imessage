@@ -1,5 +1,5 @@
-import Logging
 import Foundation
+import Logging
 import SQLite
 
 private let log = Logger(label: "imdb.unreads")

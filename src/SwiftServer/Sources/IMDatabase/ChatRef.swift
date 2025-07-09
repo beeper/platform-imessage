@@ -9,8 +9,8 @@ public enum ChatRef {
     case both(rowID: Int, guid: String)
 }
 
-extension ChatRef {
-    init?(rowID: Int?, guid: String?) {
+public extension ChatRef {
+    internal init?(rowID: Int?, guid: String?) {
         if let rowID, let guid {
             self = .both(rowID: rowID, guid: guid)
         } else if let rowID {
@@ -22,7 +22,7 @@ extension ChatRef {
         }
     }
 
-    public var rowID: Int? {
+    var rowID: Int? {
         switch self {
         case let .justRowID(rowID): rowID
         case let .both(rowID, _): rowID
@@ -30,7 +30,7 @@ extension ChatRef {
         }
     }
 
-    public var guid: String? {
+    var guid: String? {
         switch self {
         case let .justGUID(guid): guid
         case let .both(_, guid): guid

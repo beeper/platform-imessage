@@ -13,7 +13,7 @@ public final class FileWatcher {
     public private(set) var events = Topic<DispatchSource.FileSystemEvent>()
 
     public init(watching file: URL, name: String? = nil) {
-        target = file
+        self.target = file
         self.name = name ?? file.lastPathComponent
     }
 
