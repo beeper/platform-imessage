@@ -26,6 +26,9 @@ enum DefaultsKeys {
 
     /** ensures that we've correctly selected threads before trying to interact with them */
     static let misfirePrevention = "BEEPMisfirePrevention"
+    /** when mobilesms defaults are blocked, whether we try to format contacts with the private short style to correlate them back to the window title */
+    static let contactsAttemptFormattingWithShortStyle = "BEEPContactsAttemptFormattingWithShortStyle"
+
     // dimensions to resize the messages app window to
     static let eclipsingWidth = "BEEPEclipsingWidth"
     static let eclipsingHeight = "BEEPEclipsingHeight"
@@ -74,6 +77,8 @@ enum Defaults {
             DefaultsKeys.windowCoordination: true,
 
             DefaultsKeys.misfirePrevention: true,
+            DefaultsKeys.contactsAttemptFormattingWithShortStyle: true,
+
             // Messages.app minimum size when resizing with mouse
             DefaultsKeys.eclipsingWidth: 660.0,
             DefaultsKeys.eclipsingHeight: 320.0,

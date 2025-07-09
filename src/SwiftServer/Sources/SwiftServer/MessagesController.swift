@@ -1,4 +1,5 @@
 import AppKit
+import IMDatabase
 import Contacts
 import PHTClient
 import Carbon.HIToolbox.Events
@@ -243,13 +244,14 @@ final class MessagesController {
     private var activityPollingTimer: Timer?
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
 
+    var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver?
     private var activityObserver: ActivityObserver?
 
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
     private let keyPresser: KeyPresser
-    private let contacts = Contacts()
+    let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
 
     private let om = OcclusionMonitor()
@@ -329,6 +331,7 @@ final class MessagesController {
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
+    // TODO: rename to `assertSelectedThread`, which better describes its behavior
     private func ensureSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePrevention) else {
@@ -344,21 +347,32 @@ final class MessagesController {
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
-                let selectedAddressOptional = Defaults.getSelectedThreadID()
-                if selectedAddressOptional == "CKConversationListNewMessageCellIdentifier" {
-                    throw ErrorMessage("compose thread selected")
+                guard let selectedThreadID = Defaults.getSelectedThreadID() else {
+                    log.debug("misfire prevention: no access to Messages defaults, using prediction")
+                    // TODO: when contacts details change, iMessage might not update the window title immediately.
+                    // TODO: to resolve this, perhaps try jiggling the selection around if the title doesn't match
+                    guard let windowTitle = try? elements.mainWindow.title() else {
+                        throw ErrorMessage("misfire prevention: couldn't read window title")
+                    }
+                    return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
                 }
-                let selectedAddress = try selectedAddressOptional.flatMap(threadIDToAddress).orThrow(ErrorMessage("unknown thread selected"))
+                guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
+                    throw ErrorMessage("misfire prevention: compose thread is selected")
+                }
+
+                let selectedAddress = try threadIDToAddress(selectedThreadID)
+                    .orThrow(ErrorMessage("misfire prevention: cannot extract address from selected thread id"))
+
                 guard selectedAddress == addressToMatch ||
                     (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
                 else {
                     log.error("ensureSelectedThread: failed to select thread")
-                    throw ErrorMessage("thread not selected")
+                    throw ErrorMessage("misfire prevention: desired thread is not selected")
                 }
             } catch {
                 if attempt > 5 { // 250ms
                     if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
-                        log.error("ensureSelectedThread: resorted to fallback in order to select")
+                        log.error("ensureSelectedThread: resorted to fallback in order to assert selection")
                         return
                     }
                 }
