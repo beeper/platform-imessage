@@ -2,7 +2,7 @@ import Foundation
 @testable import SwiftServer
 import Testing
 
-@Test func hashing() {
+@Test func hashing() throws {
     let hasher = Hasher(kind: "test")
 
     let token = hasher.tokenizeRemembering(pii: "foo")
