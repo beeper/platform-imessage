@@ -124,6 +124,10 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
     }
 
     @NodeMethod func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
+        guard Defaults.swiftServer.bool(forKey: DefaultsKeys.watchThreadActivity) else {
+            return try NodeNull()
+        }
+
         let controllerArgs: (String, ([MessagesController.ActivityStatus]) -> Void)?
         if try args.count == 1 && args[0].as(NodeNull.self) != nil {
             controllerArgs = nil

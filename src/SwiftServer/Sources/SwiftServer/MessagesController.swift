@@ -1494,6 +1494,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
+        guard Defaults.swiftServer.bool(forKey: DefaultsKeys.pollActivityStatus) else {
+            return
+        }
+
         guard let observer = activityObserver else { return }
 
         guard om.visible else {

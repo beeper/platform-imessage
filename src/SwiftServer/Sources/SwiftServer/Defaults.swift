@@ -24,6 +24,11 @@ enum DefaultsKeys {
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
+    /** whether to respect calls to `onThreadSelected`/`watchThreadActivity` */
+    static let watchThreadActivity = "BEEPWatchThreadActivity"
+    /** whether to continuously poll "activity status" (typing indicator, dnd banner) */
+    static let pollActivityStatus = "BEEPPollActivityStatus"
+
     /** ensures that we've correctly selected threads before trying to interact with them */
     static let misfirePrevention = "BEEPMisfirePrevention"
     /** when mobilesms defaults are blocked, whether we try to predict the window title in order to prevent misfires */
@@ -83,6 +88,9 @@ enum Defaults {
             DefaultsKeys.phtAllowInstallation: true,
 
             DefaultsKeys.windowCoordination: true,
+
+            DefaultsKeys.watchThreadActivity: true,
+            DefaultsKeys.pollActivityStatus: true,
 
             DefaultsKeys.misfirePrevention: true,
             DefaultsKeys.prediction: true,
