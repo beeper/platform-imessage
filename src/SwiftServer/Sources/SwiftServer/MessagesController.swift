@@ -341,14 +341,19 @@ final class MessagesController {
 
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
 
-        log.debug("ensuring selected thread: \(hashedThreadID)")
+        if Defaults.misfirePreventionTracing {
+            log.debug("ensuring selected thread: \(hashedThreadID)")
+        }
 
         var attempt = 0
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
                 guard let selectedThreadID = Defaults.getSelectedThreadID() else {
-                    log.debug("misfire prevention: no access to Messages defaults, using prediction")
+                    if Defaults.misfirePreventionTracing {
+                        log.debug("misfire prevention: no access to Messages defaults, using prediction")
+                    }
+
                     // TODO: when contacts details change, iMessage might not update the window title immediately.
                     // TODO: to resolve this, perhaps try jiggling the selection around if the title doesn't match
                     guard Defaults.swiftServer.bool(forKey: DefaultsKeys.prediction) else {

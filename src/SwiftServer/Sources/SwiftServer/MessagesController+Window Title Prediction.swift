@@ -125,9 +125,9 @@ extension MessagesController {
         }
 
         let predictedWindowTitles = try predictWindowTitles(forChatGUID: desiredChatGUID)
-#if DEBUG
-        log.debug("[PII] predicted window titles: \(String(describing: predictedWindowTitles)), current window title: \(currentWindowTitle.quoted)")
-#endif
+        if Defaults.misfirePreventionTracingPII {
+            log.debug("[@@PII@@] predicted window titles: \(String(describing: predictedWindowTitles)), current window title: \(currentWindowTitle.quoted)")
+        }
         guard !predictedWindowTitles.isEmpty else {
             throw ErrorMessage("misfire prevention: couldn't predict any window titles")
         }
@@ -135,7 +135,9 @@ extension MessagesController {
             throw ErrorMessage("misfire prevention: window title doesn't match any predictions")
         }
 
-        log.debug("misfire prevention: successfully matched window title to an applicable contact")
+        if Defaults.misfirePreventionTracing {
+            log.debug("misfire prevention: successfully matched window title to an applicable contact")
+        }
     }
 }
 

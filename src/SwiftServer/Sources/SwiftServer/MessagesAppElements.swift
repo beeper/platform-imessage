@@ -238,8 +238,6 @@ final class MessagesAppElements {
 
     var iOSContentGroup: Accessibility.Element { // className=UINSSceneView
         get throws {
-            let startTime = Date()
-            defer { log.debug("iOSContentGroup took \(startTime.timeIntervalSinceNow * -1000)ms") }
             return try mainWindow.children().first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == AXRole.group })
                 .orThrow(ErrorMessage("iOSContentGroup not found"))
         }

@@ -28,6 +28,8 @@ enum DefaultsKeys {
     static let misfirePrevention = "BEEPMisfirePrevention"
     /** when mobilesms defaults are blocked, whether we try to predict the window title in order to prevent misfires */
     static let prediction = "BEEPPrediction"
+    static let misfirePreventionTracing = "BEEPMisfirePreventionTracing"
+    static let misfirePreventionTracingPII = "BEEPMisfirePreventionTracingPII"
     /** when predicting, whether we try to format contacts with the private short style */
     static let contactsAttemptFormattingWithShortStyle = "BEEPContactsAttemptFormattingWithShortStyle"
     /** whether to even attempt prediction for group chats. when `false`, assertions for group chats are skipped entirely */
@@ -244,5 +246,13 @@ enum Defaults {
             return nil
         }
         return dict as? [String: Int]
+    }
+
+    static var misfirePreventionTracing: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionTracing)
+    }
+
+    static var misfirePreventionTracingPII: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionTracingPII)
     }
 }
