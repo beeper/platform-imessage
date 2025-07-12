@@ -25,6 +25,7 @@ import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThrea
 import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
 import { BeeperMessage, BeeperThread } from './beeper-platform-sdk'
 import { appleDateToMillisSinceEpoch } from './time'
+import Phaser from './phaser'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
 
@@ -54,7 +55,13 @@ export default class AppleiMessage implements PlatformAPI {
 
   private persistence?: Persistence
 
-  private pendingMessageSends = new Map<Thread['id'], Promise<boolean | Message[]>[]>()
+  // used to make archive calls wait for any pending reactions/message sends,
+  // to remove flicker from e.g. sending then quickly archiving manually
+  private threadPhaser = new Phaser<Thread['id']>({
+    // HACK: wait an arbitrary amount of time for pending sends to be committed
+    // to the database so we can use its sort order
+    delayMsAfterWaiting: 50,
+  })
 
   /**
    * We need to be constructable (and we should be able to handle our `init`
@@ -487,24 +494,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendingMessagesCount = 0
 
-  sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
-    try {
-      const promise = this.actuallySendMessage(hashedThreadID, content, options)
-      if (!this.pendingMessageSends.has(hashedThreadID)) {
-        this.pendingMessageSends.set(hashedThreadID, [])
-      }
-      if (texts.IS_DEV) texts.log(`imsg/pending: ${hashedThreadID}: pushing a pending send`)
-      this.pendingMessageSends.get(hashedThreadID)!.push(promise)
-      // eslint-disable-next-line @typescript-eslint/return-await
-      return await promise
-    } finally {
-      const pending = this.pendingMessageSends.get(hashedThreadID)
-      if (pending) {
-        if (texts.IS_DEV) texts.log(`imsg/pending: ${hashedThreadID}: send completed one way or another, shifting`)
-        pending.shift()
-      }
-    }
-  }
+  sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> =>
+    this.threadPhaser.bracketed(hashedThreadID, this.actuallySendMessage(hashedThreadID, content, options))
 
   private actuallySendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
     const threadID = originalThreadID(hashedThreadID)
@@ -613,7 +604,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
-    if (!IS_BIG_SUR_OR_UP) throw Error('supported on big sur and above')
+    if (!IS_BIG_SUR_OR_UP) throw Error('only supported on big sur and above')
     await pRetry(async () => {
       const messageCell = await this.getMessageCell(threadID, messageID)
       const controller = await MessagesControllerWrapper.get()
@@ -635,14 +626,14 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  addReaction = (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
     const threadID = originalThreadID(hashedThreadID)
-    this.setReaction(threadID, messageID, reactionKey, true)
+    return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true))
   }
 
-  removeReaction = (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+  removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
     const threadID = originalThreadID(hashedThreadID)
-    this.setReaction(threadID, messageID, reactionKey, false)
+    return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
   }
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
@@ -892,16 +883,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   archiveThread = async (hashedThreadID: string, archived: boolean) => {
-    const pending = this.pendingMessageSends.get(hashedThreadID)
-    if (pending && pending.length > 0) {
-      if (texts.IS_DEV) texts.log(`imsg/pending/${hashedThreadID}: waiting for ${pending.length} pending sends before archiving`)
-      await Promise.all(pending)
-      if (texts.IS_DEV) texts.log(`imsg/pending/${hashedThreadID}: done waiting, waiting a bit more for message to commit to database`)
-      // HACK: wait an arbitrary amount of time for the second to be committed
-      // to the database so we can use its sort order
-      await setTimeoutAsync(50)
-      if (texts.IS_DEV) texts.log(`imsg/pending/${hashedThreadID}: OK, going to archive now`)
-    }
+    // wait for any pending message sends/reactions before archiving. the
+    // phaser has an artificial delay, which was introduced in the hopes that
+    // the latest message id is used
+    await this.threadPhaser.waitForAnyCurrentlyPending(hashedThreadID)
 
     const stateSyncThread = (patch: Partial<BeeperThread>) => {
       this.onEvent?.([{
