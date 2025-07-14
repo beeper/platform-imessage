@@ -122,8 +122,7 @@ export async function makeJSONPersistence(saveFilePath: string): Promise<Persist
     try {
       parsed = JSON.parse(json)
     } catch (error) {
-      texts.error("imsg: couldn't create persistence from existing json file:", error)
-      throw error
+      texts.error("imsg: couldn't create persistence from existing json file, going to overwrite:", String(error))
     }
 
     // TODO: validate `parsed` so we aren't blindly passing untrusted data to
