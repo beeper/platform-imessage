@@ -847,12 +847,12 @@ export default class AppleiMessage implements PlatformAPI {
 
   setThreadReminder = async (threadID: string, reminder: ThreadReminder) => {
     // `threadID` should be hashed already.
-    await this.persistence?.setThreadProp(threadID, 'reminder', reminder)
+    this.persistence?.setThreadProp(threadID, 'reminder', reminder)
   }
 
   clearThreadReminder = async (threadID: string) => {
     // `threadID` should be hashed already.
-    await this.persistence?.deleteThreadProp(threadID, 'reminder')
+    this.persistence?.deleteThreadProp(threadID, 'reminder')
   }
 
   recordThreadReminderElapsed = async (threadID: string) => {

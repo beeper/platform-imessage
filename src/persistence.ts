@@ -26,6 +26,8 @@ export type PersistedBatchGetResults<P extends keyof PersistedThreadProps> = Rec
 export class Persistence {
   private data: PersistedData
 
+  private needsSaving = false
+
   constructor(
     /** A callback used to persist the in-memory data to disk given a serialized string representation of all data. */
     private saver: (newContent: string) => Promise<void>,
@@ -35,12 +37,28 @@ export class Persistence {
     this.data = existingData ?? {}
   }
 
-  private async trySaving() {
-    try {
-      await this.saver(JSON.stringify(this.data))
-    } catch (error) {
-      texts.error(`imsg: couldn't save persisted data, any changes will be lost! ${error}`)
-    }
+  private invalidateSavedData() {
+    if (this.needsSaving) return
+    this.needsSaving = true;
+
+    (async () => {
+      if (texts.IS_DEV) {
+        texts.log('imsg: persistence is going to save data')
+      }
+      if (!this.needsSaving) {
+        // we don't expect concurrent instances of this microtask due to the
+        // boolean, but check this anyways in order to prevent corruption
+        texts.error('imsg: `needsSaving` became false somehow, something very sneaky is going on')
+        return
+      }
+
+      try {
+        await this.saver(JSON.stringify(this.data))
+      } catch (error) {
+        texts.error(`imsg: couldn't persist data, any changes will be lost: ${String(error)}`)
+      }
+      this.needsSaving = false
+    })()
   }
 
   /**
@@ -77,7 +95,7 @@ export class Persistence {
    *
    * **Use a hashed thread ID.**
    */
-  async deleteThreadProp<P extends keyof PersistedThreadProps>(threadID: string, propName: P): Promise<void> {
+  deleteThreadProp<P extends keyof PersistedThreadProps>(threadID: string, propName: P): void {
     if (texts.IS_DEV) {
       texts.log(`imsg: deleting persisted prop "${propName}" for ${threadID}`)
     }
@@ -91,7 +109,7 @@ export class Persistence {
       }
     }
 
-    await this.trySaving()
+    this.invalidateSavedData()
   }
 
   /**
@@ -99,14 +117,14 @@ export class Persistence {
    *
    * **Use a hashed thread ID.** The data value is replaced entirely; that is, no merging occurs.
    */
-  async setThreadProp<P extends keyof PersistedThreadProps>(threadID: string, propName: P, propValue: PersistedThreadProps[P]): Promise<void> {
+  setThreadProp<P extends keyof PersistedThreadProps>(threadID: string, propName: P, propValue: PersistedThreadProps[P]): void {
     if (texts.IS_DEV) {
       texts.log(`imsg: setting persisted prop "${propName}" for ${threadID}: ${JSON.stringify(propValue, undefined, 2)}`)
     }
     this.data[threadID] ??= {}
     this.data[threadID][propName] = propValue
 
-    await this.trySaving()
+    this.invalidateSavedData()
   }
 }
 
