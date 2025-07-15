@@ -231,7 +231,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Accessibility',
       completed: axAuthorized ?? false,
       action: authorizeAX,
-      info: 'Required to power most iMessage functionality.',
+      info: 'To connect with iMessage, Beeper briefly takes control of the Messages app when necessary.',
       subtitle: 'Also used to guide setup automatically.',
       more: <div onClick={openAXPrefs}>Try adding {appName} manually by clicking the + button and selecting it from your Applications folder &rarr;</div>,
       showMore,
@@ -241,7 +241,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Contacts',
       completed: contactsAuthorized ?? false,
       action: authorizeContacts,
-      info: 'Required to show names instead of phone numbers.',
+      info: 'Beeper can display names instead of phone numbers and email addresses.',
       more: <div onClick={openContactsPrefs}>Try opening {sysPrefsAppName} and manually checking {appName} in the list &rarr;</div>,
       showMore,
     },
@@ -250,7 +250,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Messages Data',
       completed: messageDirAuthorized ?? false,
       action: authorizeMessagesDir,
-      info: 'Required to fetch and display threads and messages.',
+      info: 'To connect with iMessage, Beeper needs to be able to read your messages.',
       more: <div onClick={() => nmp.askForFullDiskAccess()}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
@@ -259,7 +259,7 @@ const ChecklistPage: React.FC<Props> = props => {
       title: 'Automation',
       completed: automationAuthorized,
       action: authorizeAutomation,
-      info: 'Required to send messages.',
+      info: 'To connect with iMessage, Beeper briefly takes control of the Messages app when necessary.',
       more: <div onClick={openAutomationPrefs}>Try opening {sysPrefsAppName} and manually checking {appName} in the list &rarr;</div>,
       showMore,
     },
@@ -321,7 +321,7 @@ const ChecklistPage: React.FC<Props> = props => {
               <ChecklistItem key={i.title} {...i} Tooltip={Tooltip}>
                 {nextUncompletedItem === i && (
                   <div className="authorize">
-                    <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Authorize</button>
+                    <button className="primary" onClick={axAuthorized ? authorizeAll : () => nextUncompletedItem.action()}>Allow</button>
                   </div>
                 )}
               </ChecklistItem>

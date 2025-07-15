@@ -69,7 +69,7 @@ const info: PlatformInfo = {
   prefs: IS_BIG_SUR_OR_UP ? {
     hide_messages_app: {
       label: 'Hide Messages App in Dock (Experimental)',
-      description: 'This will prompt the installation of a helper tool.',
+      description: 'The Messages app needs to stay open for Beeper to work with iMessage. Hiding it requires the installation of a helper tool that will remove the app icon from your Dock.',
       type: 'checkbox',
       default: false,
     },
@@ -82,13 +82,12 @@ const info: PlatformInfo = {
     requiresContactsAccess: true,
     canQuoteOriginalMessageOnly: true,
     knownIssues: [
-      'Messages.app will be open in the background but Beeper can keep it hidden.',
+      'The Messages app needs to stay open in the background.',
       ...[(() => {
         if (IS_MONTEREY_OR_UP) return "Reacting/replying to some types of messages isn't supported."
-        if (IS_BIG_SUR_OR_UP) return "On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."
-        return "On macOS Catalina and lower: mark as read, typing indicator and reactions aren't supported. We recommend updating to the latest macOS."
+        return "On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."
       })()],
-      'Your iMessage chats won\'t be synced to your other devices.',
+      'Your iMessage chats won’t be synced to your other devices.',
     ],
     getUnknownParticipant(participantID: string): Participant | undefined {
       if (!participantID) return
