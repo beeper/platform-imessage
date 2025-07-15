@@ -105,4 +105,7 @@ export const roomFeatures = {
       max_size: maxFileSizeBytes,
     },
   },
+
+  // needed for desktop to send typing indicators
+  typing_notifications: true,
 } as const
