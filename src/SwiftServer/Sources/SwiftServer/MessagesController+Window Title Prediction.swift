@@ -99,6 +99,10 @@ extension MessagesController {
         let (_, type, address) = try splitThreadID(guid).orThrow(ErrorMessage("couldn't predict window titles: invalid thread id"))
 
         guard type == singleThreadType else {
+            if Defaults.misfirePreventionTracing {
+                log.debug("misfire prevention: predicting for a group")
+            }
+
             return try predictGroupChatDisplayNames(forChatGUID: guid)
         }
 
