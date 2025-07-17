@@ -62,7 +62,7 @@ extension MessagesController {
                 case let .contact(contact):
                     try contacts.formatPreferringShortStyle(contact: contact)
                         .orThrow(ErrorMessage("misfire prevention: couldn't format a group chat member's contact"))
-                case let .stranger(handle): handle.id
+                case let .stranger(handle): handle.id.tryFormattingIfPhoneNumber
                 }
             }
 
@@ -107,17 +107,25 @@ extension MessagesController {
         }
 
         // should map onto a single person
-        guard let contact = contacts.firstMatching(emailOrPhoneNumber: address) else {
-            throw ErrorMessage("misfire prevention: couldn't find a contact that matches the desired thread id")
+        if let contact = contacts.firstMatching(emailOrPhoneNumber: address) {
+            if Defaults.misfirePreventionTracing {
+                log.debug("misfire prevention: found matching contact for address")
+            }
+
+            return Set([
+                // attempt to match against the private "short" contact format style
+                // that prefers nicknames, since iMessage uses it for the window title
+                contacts.format(contact: contact, style: .short),
+
+                contacts.format(contact: contact, style: .standard),
+            ].compactMap(\.self))
+        } else {
+            if Defaults.misfirePreventionTracing {
+                log.debug("misfire prevention: could not find contact with address, predicting with plain and formatted address")
+            }
+
+            return Set([address.tryFormattingIfPhoneNumber])
         }
-
-        return Set([
-            // attempt to match against the private "short" contact format style
-            // that prefers nicknames, since iMessage uses it for the window title
-            contacts.format(contact: contact, style: .short),
-
-            contacts.format(contact: contact, style: .standard),
-        ].compactMap({ $0 }))
     }
 
     func assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: String, currentWindowTitle: String) throws {
@@ -149,6 +157,32 @@ extension MessagesController {
 private extension String {
     var quoted: String {
         "\"\(self)\""
+    }
+
+    // this is crude but it's what `IMStringIsEmail` does
+    var appearsToBeEmail: Bool {
+        contains("@")
+    }
+
+    var tryFormattingIfPhoneNumber: String {
+        // it might be benign to pass emails to the formatting SPI, but check
+        // anyways
+        guard !appearsToBeEmail else { return self }
+
+        do {
+            guard let formatted = try formattedDisplayString(phoneNumber: self) else {
+                return self
+            }
+
+            if Defaults.misfirePreventionTracingPII {
+                log.debug("[@@PII@@] formatted \(quoted) to \(formatted.quoted)")
+            }
+
+            return formatted
+        } catch {
+            log.error("couldn't use phone number formatting SPI: \(String(describing: error))")
+            return self
+        }
     }
 }
 

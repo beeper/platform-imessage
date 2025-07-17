@@ -33,6 +33,8 @@ enum DefaultsKeys {
     static let misfirePrevention = "BEEPMisfirePrevention"
     /** when mobilesms defaults are blocked, whether we try to predict the window title in order to prevent misfires */
     static let prediction = "BEEPPrediction"
+    /** we try to use `IMCore` SPI for window title predictions for phone numbers */
+    static let imCoreSPI = "BEEPIMCoreSPI"
     static let misfirePreventionTracing = "BEEPMisfirePreventionTracing"
     static let misfirePreventionTracingPII = "BEEPMisfirePreventionTracingPII"
     /** when predicting, whether we try to format contacts with the private short style */
@@ -94,6 +96,7 @@ enum Defaults {
 
             DefaultsKeys.misfirePrevention: true,
             DefaultsKeys.prediction: true,
+            DefaultsKeys.imCoreSPI: true,
             DefaultsKeys.contactsAttemptFormattingWithShortStyle: true,
             DefaultsKeys.predictionPredictsGroupChats: true,
             DefaultsKeys.predictionEnableSwapping: true,
