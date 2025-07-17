@@ -74,7 +74,7 @@ struct OnboardingView: View {
     var body: some View {
         HStack(spacing: 0) {
             if #available(macOS 13.0, *) {
-                MessageBubble(text: "Turn on Beeper.app in the list", tl: 16, tr: 16, bl: 8, br: 16)
+                MessageBubble(text: "Turn on Beeper Desktop in the list", tl: 16, tr: 16, bl: 8, br: 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding()
             } else {
@@ -84,7 +84,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                MessageBubble(text: "2. Check Beeper.app in the list", tl: 8, tr: 16, bl: 16, br: 16)
+                MessageBubble(text: "2. Check Beeper Desktop in the list", tl: 8, tr: 16, bl: 16, br: 16)
                     .padding(.bottom, 195)
                     .padding(.trailing, 60)
             }
