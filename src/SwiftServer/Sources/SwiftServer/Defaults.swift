@@ -56,6 +56,8 @@ enum DefaultsKeys {
     static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
     static let eclipsingAlignment = "BEEPEclipsingAlignment"
     static let eclipsingDebug = "BEEPEclipsingDebug"
+    static let eclipsingDebugVisualizationFadeOutDelay = "BEEPEclipsingDebugVisualizationFadeOutDelay"
+    static let eclipsingDebugVisualizationFadeOutDuration = "BEEPEclipsingDebugVisualizationFadeOutDuration"
     /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 
@@ -114,6 +116,8 @@ enum Defaults {
             // positive values nudge the Messages window downwards
             // if set to 0.0, doesn't seem to be flush? are we targeting the right thing?
             DefaultsKeys.eclipsingOffsetY: 200.0,
+            DefaultsKeys.eclipsingDebugVisualizationFadeOutDelay: 2,
+            DefaultsKeys.eclipsingDebugVisualizationFadeOutDuration: 0.35,
 
             DefaultsKeys.hidingCoordinatorDebounce: 0.75,
 

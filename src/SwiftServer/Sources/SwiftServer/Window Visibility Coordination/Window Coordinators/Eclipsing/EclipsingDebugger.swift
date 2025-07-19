@@ -19,6 +19,12 @@ final class OverlayWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
+private extension NSScreen {
+    static var screenWithMouse: NSScreen? {
+        Self.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+    }
+}
+
 @available(macOS 14, *)
 final class EclipsingWindowController: NSWindowController {
     var state: EclipsingDebuggerState? {
@@ -42,9 +48,9 @@ final class EclipsingWindowController: NSWindowController {
         window?.setFrame(screen.frame, display: true)
     }
 
-    func tryCoveringMainScreen() {
-        guard let screen = NSScreen.main else {
-            log.error("no main screen to cover")
+    func tryCoveringScreenWithElectron() {
+        guard let screen = NSApp.largestElectronWindow?.screen else {
+            log.error("don't know what screen the electron window is on")
             return
         }
         cover(screen: screen)
@@ -76,7 +82,7 @@ final class EclipsingDebugger {
             return
         }
 
-        windowController.tryCoveringMainScreen()
+        windowController.tryCoveringScreenWithElectron()
         window.orderFront(nil)
         log.debug("showed window")
     }
@@ -87,7 +93,7 @@ final class EclipsingDebugger {
             return
         }
 
-        windowController.tryCoveringMainScreen()
+        windowController.tryCoveringScreenWithElectron()
         window.orderOut(nil)
         log.debug("hid window")
     }
@@ -97,11 +103,13 @@ final class EclipsingDebugger {
 extension EclipsingDebugger {
     func note(_ point: EclipsingPoint) {
         defer { show() }
+        let index = state.points.count
         state.points.append(point)
     }
 
     func note(_ rect: EclipsingRect) {
         defer { show() }
+        let index = state.points.count
         state.rectangles.append(rect)
     }
 }

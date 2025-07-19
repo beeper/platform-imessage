@@ -39,8 +39,9 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
         let largestElectronWindow = try NSApp.largestElectronWindow.orThrow(WindowCoordinatorError.generic(message: "Couldn't find Electron window"))
 
+        var messagesFrame = try messagesWindow.frame()
         if windowFramePreEclipse == nil {
-            windowFramePreEclipse = try messagesWindow.frame()
+            windowFramePreEclipse = messagesFrame
         } else {
             // we already have a known frame, don't overwrite it with the eclisped frame
         }
@@ -66,24 +67,35 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             return
         }
 
-        log.notice("eclipsing")
+        // NOTE: This points to the top left point of the window.
+        var newPosition = {
+            var base = electronFrame.origin
+
+            if Self.eclipsingAlignment == "right" {
+                // Make the right edge of the Messages window hug the right edge of the Beeper window.
+                // This is useful to avoid the window showing through a material in the Beeper window.
+                base.x = largestElectronWindow.frame.maxX - targetSize.width
+            } else {
+                // `electronOrigin` is "left-aligned" by default.
+            }
+
+            base.x += Self.eclipsingOffsetX
+            base.y += Self.eclipsingOffsetY
+            return base
+        }()
+
+        let targetRect = NSRect(origin: newPosition, size: targetSize)
+        log.debug("electron frame: \(electronFrame.formatted)")
+        if let screen = largestElectronWindow.screen {
+            log.debug("screen with electron frame: \(screen.frame.formatted) [visible: \(screen.visibleFrame.formatted)]")
+        }
+        if let main = NSScreen.main {
+            log.debug("main screen: \(main.frame.formatted) [visible: \(main.visibleFrame.formatted)]")
+        }
+        log.notice("eclipsing (\(messagesFrame.formatted) -> \(targetRect.formatted))")
+
         hideDebouncer.immediatelyUnhide()
         try messagesWindow.size(assign: targetSize)
-
-        // NOTE: This points to the top left point of the window.
-        var newPosition = electronFrame.origin
-
-        if Self.eclipsingAlignment == "right" {
-            // Make the right edge of the Messages window hug the right edge of the Beeper window.
-            // This is useful to avoid the window showing through a material in the Beeper window.
-            newPosition.x = largestElectronWindow.frame.maxX - targetSize.width
-        } else {
-            // `electronOrigin` is "left-aligned" by default.
-        }
-
-        newPosition.x += Self.eclipsingOffsetX
-        newPosition.y += Self.eclipsingOffsetY
-
         try messagesWindow.position(assign: newPosition)
 
         if #available(macOS 14, *) {
@@ -91,11 +103,9 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             Task { @MainActor in
                 guard Defaults.swiftServer.bool(forKey: DefaultsKeys.eclipsingDebug) else { return }
                 let debugger = EclipsingDebugger.shared
-                if let windowFramePreEclipse {
-                    debugger.note(EclipsingRect(rect: windowFramePreEclipse, label: "pre-eclipse", color: NSColor.systemRed.cgColor))
-                }
-                debugger.note(EclipsingRect(rect: electronFrame, label: "largest electron window frame", color: NSColor.systemBlue.cgColor))
-                debugger.note(EclipsingRect(rect: target, label: "eclipsing target", color: NSColor.systemGreen.cgColor))
+                debugger.note(EclipsingRect(rect: messagesFrame, label: "Messages.app Pre-Eclipse Frame", color: NSColor.systemRed.cgColor))
+                debugger.note(EclipsingRect(rect: electronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
+                debugger.note(EclipsingRect(rect: target, label: "Eclipsing Target", color: NSColor.systemGreen.cgColor))
             }
         }
     }
@@ -156,6 +166,10 @@ private extension NSRect {
     func encompasses(_ other: CGRect) -> Bool {
         size.encompasses(other.size)
     }
+
+    var formatted: String {
+        "@\(origin.x),\(origin.y)[\(size.width)x\(size.height)]"
+    }
 }
 
 private extension NSSize {
@@ -166,7 +180,7 @@ private extension NSSize {
     }
 }
 
-private extension NSApplication {
+extension NSApplication {
     var largestElectronWindow: NSWindow? {
         let prefix = Defaults.swiftServer.string(forKey: DefaultsKeys.eclipsingWindowClassNamePrefix) ?? "Electron"
         // XXX: It's likely possible for this read to race with Electron's main thread, or whatever actually owns the window.
