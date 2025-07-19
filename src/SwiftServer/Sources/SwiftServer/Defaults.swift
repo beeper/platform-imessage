@@ -55,6 +55,7 @@ enum DefaultsKeys {
     static let eclipsingOffsetX = "BEEPEclipsingOffsetX"
     static let eclipsingOffsetY = "BEEPEclipsingOffsetY"
     static let eclipsingAlignment = "BEEPEclipsingAlignment"
+    static let eclipsingDebug = "BEEPEclipsingDebug"
     /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 

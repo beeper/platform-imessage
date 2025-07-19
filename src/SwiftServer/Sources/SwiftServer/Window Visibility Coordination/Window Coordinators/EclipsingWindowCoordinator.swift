@@ -89,6 +89,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         if #available(macOS 14, *) {
             let target = CGRect(origin: newPosition, size: targetSize)
             Task { @MainActor in
+                guard Defaults.swiftServer.bool(forKey: DefaultsKeys.eclipsingDebug) else { return }
                 let debugger = EclipsingDebugger.shared
                 if let windowFramePreEclipse {
                     debugger.note(EclipsingRect(rect: windowFramePreEclipse, label: "pre-eclipse", color: NSColor.systemRed.cgColor))
