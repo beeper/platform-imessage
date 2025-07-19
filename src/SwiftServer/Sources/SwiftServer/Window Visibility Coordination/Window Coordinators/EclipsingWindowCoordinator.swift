@@ -60,7 +60,8 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             log.warning("target size \(targetSize) is smaller than the minimum size \(Self.messagesAppMinimumSize), trying anyways")
         }
 
-        guard largestElectronWindow.frame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
+        let electronFrame = largestElectronWindow.frame
+        guard electronFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
             log.warning("the largest Electron window's frame \(largestElectronWindow.frame) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing")
             return
         }
@@ -69,8 +70,8 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         hideDebouncer.immediatelyUnhide()
         try messagesWindow.size(assign: targetSize)
 
-        // NOTE: The origin rests at the top left corner. (This is generally true for AppKit and Core Graphics on macOS in general.)
-        var newPosition = largestElectronWindow.frame.origin
+        // NOTE: This points to the top left point of the window.
+        var newPosition = electronFrame.origin
 
         if Self.eclipsingAlignment == "right" {
             // Make the right edge of the Messages window hug the right edge of the Beeper window.
@@ -84,6 +85,18 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         newPosition.y += Self.eclipsingOffsetY
 
         try messagesWindow.position(assign: newPosition)
+
+        if #available(macOS 14, *) {
+            let target = CGRect(origin: newPosition, size: targetSize)
+            Task { @MainActor in
+                let debugger = EclipsingDebugger.shared
+                if let windowFramePreEclipse {
+                    debugger.note(EclipsingRect(rect: windowFramePreEclipse, label: "pre-eclipse", color: NSColor.systemRed.cgColor))
+                }
+                debugger.note(EclipsingRect(rect: electronFrame, label: "largest electron window frame", color: NSColor.systemBlue.cgColor))
+                debugger.note(EclipsingRect(rect: target, label: "eclipsing target", color: NSColor.systemGreen.cgColor))
+            }
+        }
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
