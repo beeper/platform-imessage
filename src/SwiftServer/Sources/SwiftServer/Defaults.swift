@@ -76,6 +76,7 @@ enum DefaultsKeys {
 
     static let pollerTraceUnreads = "BEEPPollerTraceUnreads"
     static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
+    static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
 }
 
 // TODO: cleanup

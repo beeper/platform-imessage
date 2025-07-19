@@ -1,6 +1,9 @@
 import CryptoKit
 import Foundation
 import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "hasher")
 
 let maxDigestLength = 24
 
@@ -55,6 +58,9 @@ public extension Hasher {
         originals[trimmedDigest] = pii
 
         let token = assembleToken(hexedDigest: trimmedDigest.hexString())
+        if Defaults.swiftServer.bool(forKey: DefaultsKeys.hashingDangerouslyLeakPII) {
+            log.debug("[@@PII@@] leaked PII: \(token) -> \(pii)")
+        }
         defer { cache[pii] = token }
 
         return token
