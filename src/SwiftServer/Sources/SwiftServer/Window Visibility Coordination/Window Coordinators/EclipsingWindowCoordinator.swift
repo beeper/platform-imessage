@@ -4,7 +4,7 @@ import Logging
 
 private let log = Logger(swiftServerLabel: "eclipsing-window-coordinator")
 
-// NOTE: defaults for the defaults are registered in Defaults.swift
+// NOTE: default values for the defaults are registered in Defaults.swift
 
 /**
  * Enables automation of the Messages app by briefly showing it behind the Beeper window whenever automation is needed.
@@ -39,21 +39,21 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
         let largestElectronWindow = try NSApp.largestElectronWindow.orThrow(WindowCoordinatorError.generic(message: "Couldn't find Electron window"))
 
-        var messagesFrame = try messagesWindow.frame()
+        let originalMessagesFrame = try messagesWindow.frame()
         if windowFramePreEclipse == nil {
-            windowFramePreEclipse = messagesFrame
+            windowFramePreEclipse = originalMessagesFrame
         } else {
             // we already have a known frame, don't overwrite it with the eclisped frame
         }
 
         var targetSize = Self.eclipsingSize
         if targetSize.height == 0 {
-            // If `height` is 0, then the default value was overridden with a different/invalid type.
-            // Assume the user wants the height to match (so setting "match" as the height produces the desired effect).
+            // if `height` is 0, then the default value was overridden with a different/invalid type.
+            // assume the user wants the height to match (so setting "match" as the height produces the desired effect).
             targetSize.height = largestElectronWindow.frame.height
         } else if targetSize.height < 0 {
-            // If the `height` is a negative number, treat it as a delta that's applied to the Beeper window height.
-            // Clamp to the minimum height because this "delta height" represents a best-effort preference.
+            // if the `height` is a negative number, treat it as a delta that's applied to the Beeper window height.
+            // clamp to the minimum height because this "delta height" represents a best-effort preference.
             targetSize.height = max(Self.messagesAppMinimumSize.height, largestElectronWindow.frame.height + targetSize.height)
         }
 
@@ -61,53 +61,68 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             log.warning("target size \(targetSize) is smaller than the minimum size \(Self.messagesAppMinimumSize), trying anyways")
         }
 
-        let electronFrame = largestElectronWindow.frame
-        guard electronFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
-            log.warning("the largest Electron window's frame \(largestElectronWindow.frame) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing")
-            return
-        }
-
-        // NOTE: This points to the top left point of the window.
-        var newPosition = {
-            var base = electronFrame.origin
-
-            if Self.eclipsingAlignment == "right" {
-                // Make the right edge of the Messages window hug the right edge of the Beeper window.
-                // This is useful to avoid the window showing through a material in the Beeper window.
-                base.x = largestElectronWindow.frame.maxX - targetSize.width
-            } else {
-                // `electronOrigin` is "left-aligned" by default.
+        let originalElectronFrame = largestElectronWindow.frame
+        let flippedElectronFrame: NSRect = {
+            guard let screen = largestElectronWindow.screen else {
+                log.warning("can't determine which screen the electron window is on, using original frame which will result in an unexpected position")
+                return originalElectronFrame
             }
 
-            base.x += Self.eclipsingOffsetX
-            base.y += Self.eclipsingOffsetY
-            return base
+            // the origin of the window frame is coincident with the bottom-left corner, and is in the cocoa coordinate space (origin at bottom-left)
+            // however, the screen coordinate space (which is used when manipulating windows via AX) has the origin at the top-left
+            // correct the frame to account for this
+            return NSRect(
+                origin: NSPoint(x: originalElectronFrame.origin.x, y: screen.frame.height - originalElectronFrame.maxY),
+                size: originalElectronFrame.size,
+            )
         }()
-
-        let targetRect = NSRect(origin: newPosition, size: targetSize)
-        log.debug("electron frame: \(electronFrame.formatted)")
+        log.debug("largest electron window frame (original): \(originalElectronFrame.formatted)")
+        log.debug("largest electron window frame (in screen space): \(flippedElectronFrame.formatted)")
         if let screen = largestElectronWindow.screen {
             log.debug("screen with electron frame: \(screen.frame.formatted) [visible: \(screen.visibleFrame.formatted)]")
         }
         if let main = NSScreen.main {
             log.debug("main screen: \(main.frame.formatted) [visible: \(main.visibleFrame.formatted)]")
         }
-        log.notice("eclipsing (\(messagesFrame.formatted) -> \(targetRect.formatted))")
+        guard flippedElectronFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
+            log.warning("the largest Electron window's frame \(originalElectronFrame.formatted) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing!")
+            return
+        }
+
+        // NOTE: this refers to the top-left corner of the Messages window
+        var targetOrigin = {
+            var base = flippedElectronFrame.origin
+
+            if Self.eclipsingAlignment == "right" {
+                // make the right edge of the Messages window hug the right edge of the Beeper window.
+                // this is useful to avoid the window showing through a material in the Beeper window.
+                base.x = flippedElectronFrame.maxX - targetSize.width
+            } else {
+                // left-alignment is naturally default
+            }
+
+            // incorporate adjustments that may be used to e.g. avoid window shadows
+            // from protruding
+            base.x += Self.eclipsingOffsetX
+            base.y += Self.eclipsingOffsetY
+            return base
+        }()
+
+        let targetRect = NSRect(origin: targetOrigin, size: targetSize)
+        log.notice("eclipsing (\(originalMessagesFrame.formatted) -> \(targetRect.formatted))")
 
         hideDebouncer.immediatelyUnhide()
         try messagesWindow.size(assign: targetSize)
-        try messagesWindow.position(assign: newPosition)
+        try messagesWindow.position(assign: targetOrigin)
 
-        if #available(macOS 14, *) {
-            let target = CGRect(origin: newPosition, size: targetSize)
+        if #available(macOS 14, *), Defaults.swiftServer.bool(forKey: DefaultsKeys.eclipsingDebug) {
             Task { @MainActor in
-                guard Defaults.swiftServer.bool(forKey: DefaultsKeys.eclipsingDebug) else { return }
                 let debugger = EclipsingDebugger.shared
-                debugger.note(EclipsingRect(at: messagesFrame, label: "Pre-Eclipse", color: NSColor.systemRed.cgColor))
-                debugger.note(EclipsingRect(at: electronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
-                debugger.note(EclipsingRect(at: target, label: "Target", color: NSColor.systemGreen.cgColor))
-            }
-            RunLoop.main.perform {
+                debugger.note(EclipsingRect(at: originalMessagesFrame, label: "Original", color: NSColor.systemRed.cgColor))
+                debugger.note(EclipsingRect(at: flippedElectronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
+                debugger.note(EclipsingRect(at: targetRect, label: "Target", color: NSColor.systemGreen.cgColor))
+                // i think this is up-to-date by now? might need to wait for a next
+                // runloop turn?
                 guard let frame = try? messagesWindow.frame() else { return }
                 EclipsingDebugger.shared.note(EclipsingRect(at: frame, label: "Final", color: NSColor.systemBlue.cgColor))
             }
