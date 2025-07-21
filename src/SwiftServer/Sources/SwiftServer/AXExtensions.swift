@@ -2,7 +2,7 @@ import Carbon.HIToolbox.Events
 import AccessibilityControl
 import SwiftServerFoundation
 
-extension Accessibility.Notification {
+public extension Accessibility.Notification {
     static let layoutChanged = Self(kAXLayoutChangedNotification)
     static let applicationActivated = Self(kAXApplicationActivatedNotification)
     static let applicationDeactivated = Self(kAXApplicationDeactivatedNotification)
@@ -17,7 +17,7 @@ extension Accessibility.Notification {
 // https://gist.github.com/p6p/24fbac5d12891fcfffa2b53761f4343e
 // https://developer.apple.com/documentation/applicationservices/axattributeconstants_h/miscellaneous_defines
 // https://github.com/tmandry/AXSwift/blob/main/Sources/Constants.swift
-extension Accessibility.Names {
+public extension Accessibility.Names {
     var rows: AttributeName<[Accessibility.Element]> { .init(kAXRowsAttribute) }
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
@@ -77,7 +77,7 @@ extension Accessibility.Names {
     var windowCloseButton: AttributeName<Accessibility.Element> { .init(kAXCloseButtonAttribute) }
 }
 
-extension Accessibility.Element {
+public extension Accessibility.Element {
     var isValid: Bool {
         (try? pid()) != nil
     }

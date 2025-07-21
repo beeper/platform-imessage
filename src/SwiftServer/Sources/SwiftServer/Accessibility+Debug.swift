@@ -2,7 +2,7 @@ import Foundation
 import AccessibilityControl
 import SwiftServerFoundation
 
-extension Accessibility.Element {
+public extension Accessibility.Element {
 
     struct Properties {
         var actions: [(Accessibility.Action.Name, String)] = []
