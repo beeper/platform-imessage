@@ -48,14 +48,6 @@ final class EclipsingWindowController: NSWindowController {
         window?.setFrame(screen.frame, display: true)
     }
 
-    func tryCoveringScreenWithElectron() {
-        guard let screen = NSApp.largestElectronWindow?.screen else {
-            log.error("don't know what screen the electron window is on")
-            return
-        }
-        cover(screen: screen)
-    }
-
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("no")
@@ -64,8 +56,8 @@ final class EclipsingWindowController: NSWindowController {
 
 @available(macOS 14, *)
 @MainActor
-final class EclipsingDebugger {
-    static var shared = EclipsingDebugger()
+public final class EclipsingDebugger {
+    public static let shared = EclipsingDebugger()
 
     private var state: EclipsingDebuggerState
     private var windowController: EclipsingWindowController
@@ -76,40 +68,53 @@ final class EclipsingDebugger {
         self.windowController.state = state
     }
 
-    func show() {
+    public func show(on screen: NSScreen) {
         guard let window = windowController.window else {
             log.error("couldn't show: no window")
             return
         }
 
-        windowController.tryCoveringScreenWithElectron()
+        windowController.cover(screen: screen)
         window.orderFront(nil)
         log.debug("showed window")
     }
 
-    func hide() {
+    public func hide() {
         guard let window = windowController.window else {
             log.error("couldn't hide: no window")
             return
         }
 
-        windowController.tryCoveringScreenWithElectron()
         window.orderOut(nil)
         log.debug("hid window")
     }
 }
 
 @available(macOS 14, *)
-extension EclipsingDebugger {
+public extension EclipsingDebugger {
     func note(_ point: EclipsingPoint) {
-        defer { show() }
-        let index = state.points.count
+        defer { show(on: .suitableForDebugger) }
         state.points.append(point)
     }
 
     func note(_ rect: EclipsingRect) {
-        defer { show() }
-        let index = state.points.count
+        defer { show(on: .suitableForDebugger) }
         state.rectangles.append(rect)
+    }
+}
+
+private extension NSScreen {
+    static var suitableForDebugger: NSScreen {
+        if let screen = NSApp.largestElectronWindow?.screen {
+            return screen
+        }
+
+        if let main = NSScreen.main {
+            log.warning("don't know what screen electron is on, falling back to main screen")
+            return main
+        }
+
+        log.error("don't know what screen electron is on, and we don't even have a main screen")
+        fatalError("couldn't determine a screen to put the debugger on")
     }
 }
