@@ -8,6 +8,10 @@ private var visualizationFadeOutDuration: TimeInterval {
     return Defaults.swiftServer.double(forKey: DefaultsKeys.eclipsingDebugVisualizationFadeOutDuration)
 }
 
+private var beingPreviewed: Bool {
+    ProcessInfo().environment["XCODE_RUNNING_FOR_PREVIEWS"] != nil
+}
+
 extension Animation {
     static var debuggerVisualization: Self {
         .linear(duration: visualizationFadeOutDuration).delay(visualizationLifetime)
@@ -15,14 +19,14 @@ extension Animation {
 }
 
 @available(macOS 14, *)
-struct EclipsingPoint: Identifiable {
-    var id = UUID()
+public struct EclipsingPoint: Identifiable {
+    public var id = UUID()
     var position: CGPoint
     var label: String = ""
     var color: CGColor = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
 
     func reoriented(displayingOn screen: NSScreen) -> CGPoint {
-        var origin = screen.frame.origin
+        let origin = screen.frame.origin
         return CGPoint(x: position.x - origin.x, y: position.y - origin.y)
     }
 }
@@ -53,7 +57,11 @@ struct EclipsingPointView: View {
     }
 
     var position: CGPoint {
-        point.reoriented(displayingOn: (NSApp.largestElectronWindow?.screen)!)
+        if let screen = NSApp.largestElectronWindow?.screen {
+            point.reoriented(displayingOn: screen)
+        } else {
+            point.position
+        }
     }
 
     var body: some View {
@@ -89,10 +97,10 @@ struct EclipsingPointView: View {
             }
             .position(
                 x: position.x,
-                // flip because coords are in cocoa space
-                y: proxy.size.height - position.y,
+                y: position.y,
             )
             .onAppear {
+                guard !beingPreviewed else { return }
                 withAnimation(.debuggerVisualization) { hidden = true }
             }
         }
@@ -100,11 +108,17 @@ struct EclipsingPointView: View {
 }
 
 @available(macOS 14, *)
-struct EclipsingRect: Identifiable {
-    var id = UUID()
+public struct EclipsingRect: Identifiable {
+    public var id = UUID()
     var rect: CGRect
     var label: String = ""
     var color: CGColor = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+
+    public init(at source: CGRect, label: String, color: CGColor) {
+        self.rect = source
+        self.label = label
+        self.color = color
+    }
 
     func reoriented(displayingOn screen: NSScreen) -> CGRect {
         let position = rect.origin
@@ -120,40 +134,42 @@ struct EclipsingRectView: View {
     @State private var hidden = false
 
     private var fontSize: CGFloat {
-        8
+        32
     }
 
     @ViewBuilder
     private var labelView: some View {
         Text(verbatim: rect.label)
-            .font(.system(size: fontSize))
-            .opacity(hidden ? 0 : 0.6)
+            .font(.system(size: fontSize, weight: .bold))
+            .opacity(hidden ? 0 : 0.8)
             .fixedSize()
     }
 
     var body: some View {
         let color = Color(rect.color)
-        let rect = rect.reoriented(displayingOn: (NSApp.largestElectronWindow?.screen)!)
-
-        GeometryReader { proxy in
-            Rectangle()
-                .fill(color.opacity(0.2))
-                // stroke goes inside, doesn't grow outside boundaries
-                .strokeBorder(color, lineWidth: 1)
-                .frame(width: rect.width, height: rect.height)
-                .overlay { labelView }
-                // `.position` adjusts the center but the coords are in
-                // cocoa space (relative to bottom left)
-                .position(
-                    x: rect.origin.x + rect.width / 2,
-                    // flip because coords are in cocoa space
-                    y: proxy.size.height - rect.origin.y - rect.height / 2,
-                )
-                .opacity(hidden ? 0 : 1)
-                .onAppear {
-                    withAnimation(.debuggerVisualization) { hidden = true }
-                }
+        let rect = if let screen = NSApp.largestElectronWindow?.screen {
+            rect.reoriented(displayingOn: screen)
+        } else {
+            rect.rect
         }
+
+        Rectangle()
+            .fill(color.opacity(0.2))
+            // stroke goes inside, doesn't grow outside boundaries
+            .strokeBorder(color, lineWidth: 1)
+            .frame(width: rect.width, height: rect.height)
+            .overlay(alignment: .bottomLeading) { labelView.padding() }
+            // `.position` adjusts the center but the coords are in
+            // cocoa space (relative to bottom left)
+            .position(
+                x: rect.origin.x + rect.width / 2,
+                y: rect.origin.y + rect.height / 2,
+            )
+            .opacity(hidden ? 0 : 1)
+            .onAppear {
+                guard !beingPreviewed else { return }
+                withAnimation(.debuggerVisualization) { hidden = true }
+            }
     }
 }
 
@@ -191,10 +207,10 @@ struct EclipsingDebuggerView: View {
 @available(macOS 14, *)
 #Preview {
     @Previewable var state = EclipsingDebuggerState(points: [
-        EclipsingPoint(position: CGPoint(x: 100, y: 100), label: "bottomleft"),
-        EclipsingPoint(position: CGPoint(x: 100 + 150, y: 100 + 75), label: "topright"),
+        EclipsingPoint(position: CGPoint(x: 200, y: 100), label: "topleft"),
+        EclipsingPoint(position: CGPoint(x: 200 + 150, y: 100 + 75), label: "bottomright"),
     ], rectangles: [
-        EclipsingRect(rect: CGRect(x: 100, y: 100, width: 150, height: 75), label: "rectangle"),
+        EclipsingRect(at: CGRect(x: 200, y: 100, width: 150, height: 75), label: "rectangle", color: NSColor.green.cgColor),
     ])
 
     EclipsingDebuggerView(state: state)

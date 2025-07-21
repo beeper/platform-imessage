@@ -103,9 +103,13 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             Task { @MainActor in
                 guard Defaults.swiftServer.bool(forKey: DefaultsKeys.eclipsingDebug) else { return }
                 let debugger = EclipsingDebugger.shared
-                debugger.note(EclipsingRect(rect: messagesFrame, label: "Messages.app Pre-Eclipse Frame", color: NSColor.systemRed.cgColor))
-                debugger.note(EclipsingRect(rect: electronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
-                debugger.note(EclipsingRect(rect: target, label: "Eclipsing Target", color: NSColor.systemGreen.cgColor))
+                debugger.note(EclipsingRect(at: messagesFrame, label: "Pre-Eclipse", color: NSColor.systemRed.cgColor))
+                debugger.note(EclipsingRect(at: electronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
+                debugger.note(EclipsingRect(at: target, label: "Target", color: NSColor.systemGreen.cgColor))
+            }
+            RunLoop.main.perform {
+                guard let frame = try? messagesWindow.frame() else { return }
+                EclipsingDebugger.shared.note(EclipsingRect(at: frame, label: "Final", color: NSColor.systemBlue.cgColor))
             }
         }
     }
