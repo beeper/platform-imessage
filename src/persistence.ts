@@ -17,9 +17,9 @@ export interface ThreadArchivalState {
 }
 
 export interface PersistedThreadProps {
-  // TODO: Add archive.
-  reminder?: ThreadReminder
   archive?: ThreadArchivalState
+  pin?: boolean
+  reminder?: ThreadReminder
 }
 
 export type PersistedBatchGetResults<P extends keyof PersistedThreadProps> = Record<string, PersistedThreadProps[P] | undefined>

@@ -4,7 +4,7 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
@@ -200,6 +200,17 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
+    this.persistence?.setThreadProp(hashedThreadID, 'pin', pinned)
+    this.onEvent?.([{
+      type: ServerEventType.STATE_SYNC,
+      objectName: 'thread',
+      mutationType: 'update',
+      entries: [{ id: hashedThreadID, isPinned: pinned }],
+      objectIDs: {},
+    }])
+  }
+
   getThread = async (hashedThreadID: ThreadID) => {
     const threadID = originalThreadID(hashedThreadID)
     const chatRow = await this.dbAPI.getThread(threadID)
@@ -221,6 +232,7 @@ export default class AppleiMessage implements PlatformAPI {
         dndState,
         reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
         archivalStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'archive') },
+        pinStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'pin') },
       },
     )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
   }
@@ -339,6 +351,7 @@ export default class AppleiMessage implements PlatformAPI {
       threadReadStore: this.threadReadStore,
       reminders: this.batchGetThreadPropForChatRows(chatRows, 'reminder'),
       archivalStates: this.batchGetThreadPropForChatRows(chatRows, 'archive'),
+      pinStates: this.batchGetThreadPropForChatRows(chatRows, 'pin'),
     })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
