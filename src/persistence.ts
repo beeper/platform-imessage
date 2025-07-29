@@ -58,14 +58,12 @@ export class Persistence {
   }
 
   private async save(versionToWrite: number) {
-    if (texts.IS_DEV) {
-      texts.log(`imsg: persistence is going to save data (${versionToWrite})`)
-    }
+    texts.log(`imsg/persistence: going to save data (${versionToWrite})`)
 
     try {
       await this.saver(JSON.stringify(this.data))
     } catch (error) {
-      texts.error(`imsg: couldn't persist data (${versionToWrite}), any changes will be lost: ${String(error)}`)
+      texts.error(`imsg/persistence: couldn't persist data (${versionToWrite}), any changes will be lost: ${String(error)}`)
 
       // don't do the version check, because if the write fails again we'd just
       // hammer retries infinitely -- at this point, just try writing when/if
@@ -80,7 +78,7 @@ export class Persistence {
     // schedule another write if so
     const versionAfterSaving = this.version
     if (versionAfterSaving > versionToWrite) {
-      if (texts.IS_DEV) texts.log(`imsg: witnessed version changed to ${versionAfterSaving} (from ${versionToWrite}) after done writing, queueing another save`)
+      texts.log(`imsg/persistence: witnessed version changed to ${versionAfterSaving} (from ${versionToWrite}) after done writing, queueing another save`)
       void this.save(versionAfterSaving)
     }
   }
@@ -108,9 +106,7 @@ export class Persistence {
     for (const threadID of threadIDs) {
       results[threadID] = this.getThreadProp(threadID, propName)
     }
-    if (texts.IS_DEV) {
-      texts.log(`imsg: batch request for "${propName}" across thread ids ${JSON.stringify(threadIDs)} returned ${JSON.stringify(results, undefined, 2)}`)
-    }
+    texts.log(`imsg/persistence: batch request for "${propName}" across thread ids ${JSON.stringify(threadIDs)} returned: ${JSON.stringify(results, undefined, 2)}`)
     return results
   }
 
@@ -120,15 +116,13 @@ export class Persistence {
    * **Use a hashed thread ID.**
    */
   deleteThreadProp<P extends keyof PersistedThreadProps>(threadID: string, propName: P): void {
-    if (texts.IS_DEV) {
-      texts.log(`imsg: deleting persisted prop "${propName}" for ${threadID}`)
-    }
+    texts.log(`imsg/persistence: deleting persisted prop "${propName}" for ${threadID}`)
 
     if (this.data[threadID]) {
       delete this.data[threadID][propName]
 
       if (Object.keys(this.data[threadID]).length === 0) {
-        texts.log(`imsg: evicting ${threadID} from persisted prop data, no more keys`)
+        texts.log(`imsg/persistence: evicting ${threadID}, no more keys`)
         delete this.data[threadID]
       }
     }
@@ -142,9 +136,7 @@ export class Persistence {
    * **Use a hashed thread ID.** The data value is replaced entirely; that is, no merging occurs.
    */
   setThreadProp<P extends keyof PersistedThreadProps>(threadID: string, propName: P, propValue: PersistedThreadProps[P]): void {
-    if (texts.IS_DEV) {
-      texts.log(`imsg: setting persisted prop "${propName}" for ${threadID}: ${JSON.stringify(propValue, undefined, 2)}`)
-    }
+    texts.log(`imsg/persistence: setting "${propName}" for ${threadID}: ${JSON.stringify(propValue, undefined, 2)}`)
     this.data[threadID] ??= {}
     this.data[threadID][propName] = propValue
 
@@ -164,7 +156,7 @@ export async function makeJSONPersistence(saveFilePath: string): Promise<Persist
     try {
       parsed = JSON.parse(json)
     } catch (error) {
-      texts.error("imsg: couldn't create persistence from existing json file, going to overwrite:", String(error))
+      texts.error("imsg/persistence: couldn't create from existing json file, going to overwrite:", String(error))
     }
 
     // TODO: validate `parsed` so we aren't blindly passing untrusted data to
@@ -172,8 +164,8 @@ export async function makeJSONPersistence(saveFilePath: string): Promise<Persist
 
     return new Persistence(saver, parsed as PersistedData)
   } catch (error) {
-    // If we can't read an existing file or otherwise parse existing persistent
-    // data, then start fresh.
+    texts.log(`imsg/persistence: creating fresh instance: ${error}`)
+    // If we can't read an existing file then start fresh.
     return new Persistence(saver)
   }
 }
