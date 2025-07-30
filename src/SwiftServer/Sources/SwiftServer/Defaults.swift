@@ -36,6 +36,8 @@ enum DefaultsKeys {
     /** we try to use `IMCore` SPI for window title predictions for phone numbers */
     static let imCoreSPI = "BEEPIMCoreSPI"
     static let misfirePreventionTracing = "BEEPMisfirePreventionTracing"
+    /** whether to always attempt window title prediction, even if we have defaults access */
+    static let misfirePreventionAlwaysPredict = "BEEPMisfirePreventionAlwaysPredict"
     static let misfirePreventionTracingPII = "BEEPMisfirePreventionTracingPII"
     /** when predicting, whether we try to format contacts with the private short style */
     static let contactsAttemptFormattingWithShortStyle = "BEEPContactsAttemptFormattingWithShortStyle"

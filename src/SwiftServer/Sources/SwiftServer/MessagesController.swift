@@ -349,7 +349,7 @@ final class MessagesController {
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
-                guard let selectedThreadID = Defaults.getSelectedThreadID() else {
+                guard let selectedThreadID = Defaults.getSelectedThreadID(), !Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionAlwaysPredict) else {
                     if Defaults.misfirePreventionTracing {
                         log.debug("misfire prevention: no access to Messages defaults, using prediction")
                     }
