@@ -116,7 +116,6 @@ ${MESSAGE_JOINS}
 WHERE m.guid = ?`,
   threadUnreadCount: `SELECT COUNT(m.ROWID)
 FROM message AS m
-INDEXED BY message_idx_isRead_isFromMe_itemType
 INNER JOIN chat_message_join AS cmj ON m.ROWID = cmj.message_id
 WHERE cmj.chat_id = ?
 AND m.item_type == 0
