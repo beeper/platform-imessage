@@ -4,7 +4,7 @@ import os
 
 private var dateFormatter: DateFormatter {
     let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS Z"
     formatter.timeZone = TimeZone(abbreviation: "UTC")
     return formatter
 }
