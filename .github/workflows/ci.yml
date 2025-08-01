@@ -68,10 +68,11 @@ jobs:
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
         # Otherwise, just build to provide diagnostics.
-        # NOTE: Doing == 'true' because GitHub Actions doesn't coerce 'false' to false.
         if: ${{ !(github.ref_name == 'main' && needs.check-version.outputs.version_changed == 'true') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          CI_PUBLISHING: 'false'
         run: |
           yarn build
 
@@ -79,4 +80,6 @@ jobs:
         if: ${{ github.ref_name == 'main' && needs.check-version.outputs.version_changed == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          CI_PUBLISHING: 'true'
         run: npm publish

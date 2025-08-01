@@ -24,6 +24,20 @@ const dropboxIgnoreDir = (dirPath: string) =>
 const strip = (src: string, dest?: string) =>
   shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
 
+const uploadBinaryToSentry = async (binaryPath: string): Promise<void> => {
+  const token = process.env.SENTRY_AUTH_TOKEN
+  if (!token) {
+    throw new Error(`can't upload ${binaryPath} to sentry, missing SENTRY_AUTH_TOKEN env var`)
+  }
+  const baseSentryCliArgs = [
+    '--log-level', 'debug',
+    '--org', 'a8c',
+    '--project', 'beeper-desktop-new',
+    '--auth-token', token,
+  ]
+  await shellExec('yarn', ...['sentry-cli', 'debug-files', 'upload', ...baseSentryCliArgs, binaryPath])
+}
+
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR_PATH = path.join(dirname, '../..')
 const BUILD_DIR_PATH = path.join(ROOT_DIR_PATH, 'build')
@@ -56,12 +70,21 @@ async function main() {
 
     if (NO_SPACES) buildOptions.swiftFlags += '-DNO_SPACES'
 
+    // forcefully disable stripping, we can do it manually and we'd like to
+    // upload symbols to sentry
+    const xcodeBuilderSettings = [
+      ...(arch ? ['ONLY_ACTIVE_ARCH=YES'] : []),
+      'DEPLOYMENT_POSTPROCESSING=NO',
+      'COPY_PHASE_STRIP=NO',
+      'STRIP_STYLE=non-global',
+      'STRIP_INSTALLED_PRODUCT=NO',
+    ]
     const binaryPath = await build(config, {
       ...buildOptions,
       builder: USE_SWIFT_PM ? {} : {
         type: 'xcode',
         destinations: arch ? [`platform=macOS,arch=${xcArchMap[arch]}`] : undefined,
-        settings: arch ? ['ONLY_ACTIVE_ARCH=YES'] : undefined,
+        settings: xcodeBuilderSettings,
       },
     })
 
@@ -80,6 +103,11 @@ async function main() {
         allArches
           .map(async _arch => {
             const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${_arch}`)
+
+            if (process.env.CI_PUBLISHING === 'true') {
+              await uploadBinaryToSentry(binaryPath)
+            }
+
             await lipoThin(_arch, binaryPath, path.join(outdir, 'SwiftServer.node'))
             await strip(binaryPath, binaryPath)
           }),

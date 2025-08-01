@@ -1,6 +1,8 @@
 import os from 'os'
 import fs from 'fs/promises'
+import * as stream from 'stream'
 import childProcess from 'child_process'
+import * as rl from 'readline/promises'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
 const HOMEDIR = os.homedir()
@@ -28,16 +30,34 @@ export function parseTweetURL(url: string) {
   if (tweetID) return { username, tweetID }
 }
 
+async function* concatStreams<T>(readables: stream.Readable[]): AsyncIterable<T> {
+  for (const readable of readables) {
+    for await (const chunk of readable) {
+      yield chunk
+    }
+  }
+}
+
 export async function shellExec(command: string, ...args: readonly string[]): Promise<string> {
   const cp = childProcess.spawn(command, args)
-  const chunks: Uint8Array[] = []
-  cp.stdout.on('data', chunk => {
-    if (!(chunk instanceof Uint8Array || chunk instanceof Buffer)) throw new Error('shellExec received unexpected type of data')
-    chunks.push(chunk)
+  const lineInterface = rl.createInterface({
+    input: stream.Readable.from(concatStreams([cp.stdout, cp.stderr])),
+    crlfDelay: Infinity,
   })
-  return new Promise<string>(resolve => {
-    cp.stdout.on('end', () => {
-      resolve(Buffer.concat(chunks).toString())
+  const lines: string[] = [];
+  (async () => {
+    for await (const line of lineInterface) {
+      console.log(`\x1b[1m${command}\x1b[0m: ${line}`)
+      lines.push(line)
+    }
+  })()
+  return new Promise<string>((resolve, reject) => {
+    cp.on('exit', code => {
+      if (code) {
+        reject(new Error(`${command} exited with status code ${code}`))
+      } else {
+        resolve(lines.join('\n'))
+      }
     })
   })
 }

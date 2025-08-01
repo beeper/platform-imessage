@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@jxa/global-type": "^1.3.5",
+    "@sentry/cli": "^2.50.2",
     "@swc-node/register": "^1.10.10",
     "@swc/core": "^1.11.29",
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
