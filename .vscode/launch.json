@@ -1,0 +1,22 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:platform-imessage}/src/SwiftServer",
+      "name": "Debug IMDatabaseTestBench (src/SwiftServer)",
+      "program": "${workspaceFolder:platform-imessage}/src/SwiftServer/.build/debug/IMDatabaseTestBench",
+      "preLaunchTask": "swift: Build Debug IMDatabaseTestBench (src/SwiftServer)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:platform-imessage}/src/SwiftServer",
+      "name": "Release IMDatabaseTestBench (src/SwiftServer)",
+      "program": "${workspaceFolder:platform-imessage}/src/SwiftServer/.build/release/IMDatabaseTestBench",
+      "preLaunchTask": "swift: Build Release IMDatabaseTestBench (src/SwiftServer)"
+    }
+  ]
+}
