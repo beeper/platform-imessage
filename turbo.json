@@ -1,7 +1,8 @@
 {
   "$schema": "./node_modules/turbo/schema.json",
   "globalEnv": [
-    "CI_PUBLISHING"
+    "CI_PUBLISHING",
+    "SENTRY_AUTH_TOKEN"
   ],
   "tasks": {
     "build:swift": {
