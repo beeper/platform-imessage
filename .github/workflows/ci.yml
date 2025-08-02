@@ -82,4 +82,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           CI_PUBLISHING: 'true'
+        # runs `prepack` which runs `yarn build` which runs `src/SwiftServer/build-swift.ts`
         run: npm publish

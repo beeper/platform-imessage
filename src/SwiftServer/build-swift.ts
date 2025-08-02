@@ -21,8 +21,10 @@ const lipoThin = (_arch: string, srcPath: string, destPath: string) => {
 const dropboxIgnoreDir = (dirPath: string) =>
   shellExec('xattr', '-w', 'com.dropbox.ignored', '1', dirPath).catch(error => console.error('swallowing xattr failure:', error))
 
-const strip = (src: string, dest?: string) =>
-  shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
+const strip = async (src: string, dest?: string) => {
+  console.log(`build-swift: stripping ${src} -> ${dest}`)
+  await shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
+}
 
 const uploadBinaryToSentry = async (binaryPath: string): Promise<void> => {
   const token = process.env.SENTRY_AUTH_TOKEN
@@ -54,11 +56,11 @@ const NO_SPACES = process.argv.includes('--no-spaces')
 const USE_SWIFT_PM = process.argv.includes('--use-swiftpm') || process.argv.includes('--use-spm')
 
 async function main() {
-  async function buildForArch(arch?: keyof typeof xcArchMap) {
+  async function buildForArch(specificArch?: keyof typeof xcArchMap) {
     const buildOptions: Config = {
       // we isolate the build directory for arch and config because of this random error on subsequent builds if it's just isolated by config
       // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/SwiftServer.node']
-      buildPath: path.join(BUILD_DIR_PATH, `${config}-${arch || 'universal'}`),
+      buildPath: path.join(BUILD_DIR_PATH, `${config}-${specificArch || 'universal'}`),
       packagePath: PACKAGE_DIR_PATH,
       swiftFlags: '',
     }
@@ -66,14 +68,14 @@ async function main() {
     if (config === 'release' || process.argv.includes('--clean')) await clean(buildOptions)
     await dropboxIgnoreDir(BUILD_DIR_PATH)
 
-    console.log(`Building ${arch || 'universal'} target...`)
+    console.log(`build-swift: building ${specificArch || 'universal'} target...`)
 
     if (NO_SPACES) buildOptions.swiftFlags += '-DNO_SPACES'
 
     // forcefully disable stripping, we can do it manually and we'd like to
     // upload symbols to sentry
     const xcodeBuilderSettings = [
-      ...(arch ? ['ONLY_ACTIVE_ARCH=YES'] : []),
+      ...(specificArch ? ['ONLY_ACTIVE_ARCH=YES'] : []),
       'DEPLOYMENT_POSTPROCESSING=NO',
       'COPY_PHASE_STRIP=NO',
       'STRIP_STYLE=non-global',
@@ -83,13 +85,17 @@ async function main() {
       ...buildOptions,
       builder: USE_SWIFT_PM ? {} : {
         type: 'xcode',
-        destinations: arch ? [`platform=macOS,arch=${xcArchMap[arch]}`] : undefined,
+        destinations: specificArch ? [`platform=macOS,arch=${xcArchMap[specificArch]}`] : undefined,
         settings: xcodeBuilderSettings,
       },
     })
 
-    if (arch) {
-      const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${arch}`)
+    if (process.env.CI_PUBLISHING === 'true') {
+      await uploadBinaryToSentry(binaryPath)
+    }
+
+    if (specificArch) {
+      const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${specificArch}`)
       fsp.mkdir(outdir, { recursive: true })
       const dest = `${outdir}/SwiftServer.node`
       if (config === 'release') {
@@ -101,14 +107,10 @@ async function main() {
     } else {
       await Promise.all(
         allArches
-          .map(async _arch => {
-            const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${_arch}`)
-
-            if (process.env.CI_PUBLISHING === 'true') {
-              await uploadBinaryToSentry(binaryPath)
-            }
-
-            await lipoThin(_arch, binaryPath, path.join(outdir, 'SwiftServer.node'))
+          .map(async arch => {
+            const archOutDir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${arch}`)
+            console.log(`build-swift: thinning for ${arch}, outputting to ${archOutDir}`)
+            await lipoThin(arch, binaryPath, path.join(archOutDir, 'SwiftServer.node'))
             await strip(binaryPath, binaryPath)
           }),
       )
@@ -134,10 +136,10 @@ main().catch(error => {
 })
 
 if (process.argv.includes('--watch')) {
-  console.log('Watching for changes...')
+  console.log('build-swift: watching for changes...')
   let isBuilding = false
   const listener = (event: fs.WatchEventType, fileName: string | null) => {
-    console.log('[fs watch event]', event, fileName, new Date().toLocaleString(), isBuilding ? '[existing build in progress]' : '')
+    console.log('build-swift: fs watch event:', event, fileName, new Date().toLocaleString(), isBuilding ? '[existing build in progress]' : '')
     if (!isBuilding) {
       isBuilding = true
       main()
