@@ -11,26 +11,27 @@ on:
         type: boolean
 
 jobs:
-  check-version:
+  check-published:
     runs-on: ubuntu-latest
     outputs:
-      version_changed: ${{ steps.check.outputs.changed }}
+      version-exists: ${{ steps.check.outputs.version-exists }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Check for version change
+      - name: Check if version has been published
         id: check
-        # Check to see if the line containing `"version":` was touched between
-        # the current commit and the one before.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git diff @^ @ --name-only | grep "package.json" && \
-          git diff @^ @ package.json | grep "\"version\":" && \
-          echo "changed=true" >> $GITHUB_OUTPUT || echo "changed=false" >> $GITHUB_OUTPUT
+          set -eux -o pipefail
+          version="$(jq -r .version package.json)"
+          version_exists="$(npm show "@beeper/platform-imessage@$version" && echo true || echo false)"
+          echo "version-exists=$version_exists" >> $GITHUB_OUTPUT
 
   build:
-    needs: check-version
+    needs: check-published
     runs-on: macos-15 # needed for Xcode 16.3 (required)
 
     steps:
@@ -68,16 +69,15 @@ jobs:
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
         # Otherwise, just build to provide diagnostics.
-        if: ${{ !(github.ref_name == 'main' && needs.check-version.outputs.version_changed == 'true') }}
+        if: ${{ !(github.ref_name == 'main' && (needs.check-published.outputs.version-exists == 'false' || inputs.publishing == 'true')) }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           CI_PUBLISHING: 'false'
-        run: |
-          yarn build
+        run: yarn build
 
       - name: Build and publish
-        if: ${{ github.ref_name == 'main' && needs.check-version.outputs.version_changed == 'true' }}
+        if: ${{ github.ref_name == 'main' && (needs.check-published.outputs.version-exists == 'false' || inputs.publishing == 'true') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
