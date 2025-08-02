@@ -19,7 +19,7 @@ const lipoThin = (_arch: string, srcPath: string, destPath: string) => {
 //   shellExec('codesign', '-fs', '-', filePath)
 
 const dropboxIgnoreDir = (dirPath: string) =>
-  shellExec('xattr', '-w', 'com.dropbox.ignored', '1', dirPath)
+  shellExec('xattr', '-w', 'com.dropbox.ignored', '1', dirPath).catch(error => console.error('swallowing xattr failure:', error))
 
 const strip = (src: string, dest?: string) =>
   shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
