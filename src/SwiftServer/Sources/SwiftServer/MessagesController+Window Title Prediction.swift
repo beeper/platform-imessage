@@ -134,16 +134,45 @@ extension MessagesController {
         if Defaults.misfirePreventionTracingPII {
             log.debug("[@@PII@@] predicted window titles: \(String(describing: predictedWindowTitles)), current window title: \(currentWindowTitle.quoted)")
         }
-        let guidTypeForDebugging = if threadIDIsForGroup(desiredChatGUID) {
-            "(group)"
-        } else {
-            "(direct)"
-        }
+
+        let debuggingSuffix: String = {
+            let desireType = threadIDIsForGroup(desiredChatGUID) ? "desiring group" : "desiring direct"
+            var flags = [desireType]
+
+            // use the localized display name of the Messages app to determine
+            // the app name, which is probably what ends up getting used
+            let messagesAppName = FileManager.default.displayName(atPath: "/Applications/Messages.app")
+                .replacingOccurrences(of: ".app", with: "")
+
+            switch currentWindowTitle {
+            case messagesAppName:
+                flags.append("window title is default")
+            case "":
+                flags.append("window title is empty")
+            default: break
+            }
+
+            if currentWindowTitle.appearsToBeEmail {
+                flags.append("window title appears to be an email")
+            }
+            if currentWindowTitle.appearsToBePhoneNumber {
+                flags.append("window title appears to be a phone number")
+            }
+            if currentWindowTitle.contains(",") {
+                flags.append("window title contains comma")
+            }
+            if currentWindowTitle.contains("&") {
+                flags.append("window title contains ampersand")
+            }
+
+            return "(\(flags.joined(separator: "; ")))"
+        }()
+
         guard !predictedWindowTitles.isEmpty else {
-            throw ErrorMessage("misfire prevention: couldn't predict any window titles \(guidTypeForDebugging)")
+            throw ErrorMessage("misfire prevention: couldn't predict any window titles \(debuggingSuffix)")
         }
         guard predictedWindowTitles.contains(currentWindowTitle) else {
-            throw ErrorMessage("misfire prevention: window title doesn't match any predictions \(guidTypeForDebugging)")
+            throw ErrorMessage("misfire prevention: window title doesn't match any predictions \(debuggingSuffix)")
         }
 
         if Defaults.misfirePreventionTracing {
@@ -152,10 +181,17 @@ extension MessagesController {
     }
 }
 
+let phoneNumberRegularExpression = try? NSRegularExpression(pattern: "[0-9-+() ]+")
 
 private extension String {
     var quoted: String {
         "\"\(self)\""
+    }
+
+    var appearsToBePhoneNumber: Bool {
+        guard let phoneNumberRegularExpression else { return false }
+        let range = NSRange(startIndex..<endIndex, in: self)
+        return phoneNumberRegularExpression.numberOfMatches(in: self, range: range) == 1
     }
 
     // this is crude but it's what `IMStringIsEmail` does
