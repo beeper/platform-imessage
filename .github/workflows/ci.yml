@@ -27,7 +27,7 @@ jobs:
         run: |
           set -eux -o pipefail
           version="$(jq -r .version package.json)"
-          version_exists="$(npm show "@beeper/platform-imessage@$version" && echo true || echo false)"
+          version_exists="$(npm show "@beeper/platform-imessage@$version" >/dev/null 2>&1 && echo true || echo false)"
           echo "version-exists=$version_exists" >> $GITHUB_OUTPUT
 
   build:
