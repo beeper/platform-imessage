@@ -170,9 +170,13 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
             throw ErrorMessage("Invalid messageCellJSON arg")
         }
 
-        // try the "legacy" reactions first (keyed by `supported` in platform info)
-        let reaction = MessagesController.Reaction(platformSDKReactionKey: reactionName)
-            ?? reactionName.first.flatMap(MessagesController.Reaction.init(emoji:))
+        let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
+            // try the "legacy" reactions first (keyed by `supported` in platform info)
+            reaction
+        } else {
+            // assume an emoji itself was passed (beeper desktop)
+            reactionName.withoutSkinToneModifiers.first.flatMap(Reaction.init(emoji:))
+        }
 
         guard let reaction else {
             log.error("couldn't create reaction from provided name: \(reactionName)")
