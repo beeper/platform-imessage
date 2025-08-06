@@ -1,4 +1,5 @@
 import Foundation
+import ExceptionCatcher
 
 /// Coordinates writes to a log file to prevent racing.
 // TODO(skip): kabir says: a channel-style AsyncSequence could be faster
@@ -11,24 +12,47 @@ public actor LogFileCoordinator {
     private var fileURL: URL
     private var lastTrimTime: Date?
 
-    private let handle: FileHandle
+    private var handle: FileHandle
 
     public init(url: URL) throws {
-        do {
-            handle = try FileHandle(forUpdating: url)
-        } catch {
-            // try creating the file first
-            try? "".write(to: url, atomically: false, encoding: .utf8)
-            handle = try FileHandle(forUpdating: url)
-        }
-
+        handle = try Self.handleFor(url)
         fileURL = url
 
         handle.seekToEndOfFile()
     }
 
+    private static func handleFor(_ url: URL) throws -> FileHandle {
+        do {
+            return try FileHandle(forUpdating: url)
+        } catch {
+            // try creating the file first
+            try? "".write(to: url, atomically: false, encoding: .utf8)
+            return try FileHandle(forUpdating: url)
+        }
+    }
+
+    func reviveFileHandle() throws {
+        print("imsg: reviving file handle")
+        handle = try Self.handleFor(fileURL)
+    }
+
     public func emit(line: String) {
-        handle.write(Data("\(line)\n".utf8))
+        let write = { [handle] in
+            try ExceptionCatcher.catch {
+                handle.write(Data("\(line)\n".utf8))
+            }
+        }
+
+        do {
+            try write()
+        } catch {
+            do {
+                try reviveFileHandle()
+                try write()
+            } catch {
+                print("imsg: couldn't revive log file handle and retry write: \(error)")
+            }
+        }
 
         // wait until twice the file size limit so we aren't constantly trimming
         // after every message
