@@ -24,6 +24,24 @@ public extension IMDatabase {
         return chats.first
     }
 
+    func chats() throws -> [Chat] {
+        let statement = try cachedStatement(&allChatsStatement, creatingWithoutEscapingSQL: """
+        SELECT ROWID, guid, display_name
+        FROM chat
+        """)
+
+        try statement.reset()
+
+        return try statement.mapRowsUntilDone { row -> Chat? in
+            let id = row[0].as(Int.self)
+            guard let guid = row[1].as(String.self) else {
+                log.error("chat \(id) has no GUID, very spooky. dropping it on the ground")
+                return nil
+            }
+            return Chat(id: id, guid: guid, displayName: row[2].as(String.self))
+        }.compactMap(\.self)
+    }
+
     // this doesn't include the user themselves, just everyone else in the group chat,
     // UNLESS the user went out of their way to redundantly add themselves, which is possible when initially creating the chat
     func handles(inChatWithGUID chatGUID: String) throws -> [Handle] {

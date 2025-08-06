@@ -35,6 +35,7 @@ public final class IMDatabase {
     var unreadStatesStatement: Statement?
     var messageUpdatesStatement: Statement?
     var chatWithGUIDStatement: Statement?
+    var allChatsStatement: Statement?
     var handlesInChatWithGUIDStatement: Statement?
 
     public init(messagesDataBaseURL: URL? = nil) throws {
