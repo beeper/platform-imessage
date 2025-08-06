@@ -19,7 +19,7 @@ struct SettingsView: View {
     @State private var purgeError: Error?
 
     static var windowTitle: String {
-        "Local iMessage Connection Settings"
+        "On-Device iMessage Connection Settings"
     }
 
     var piiToggle: Binding<Bool> {
