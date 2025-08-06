@@ -141,7 +141,7 @@ extension MessagesController {
 
             // use the localized display name of the Messages app to determine
             // the app name, which is probably what ends up getting used
-            let messagesAppName = FileManager.default.displayName(atPath: "/Applications/Messages.app")
+            let messagesAppName = FileManager.default.displayName(atPath: "/System/Applications/Messages.app")
                 .replacingOccurrences(of: ".app", with: "")
 
             switch currentWindowTitle {
