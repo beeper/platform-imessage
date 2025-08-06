@@ -287,6 +287,15 @@ enum Preferences {
 
     Defaults.registerDefaults()
 
+    Task { @MainActor in
+        if #available(macOS 13, *) {
+            log.debug("trying to inject settings menu item whenever possible")
+            MenuMaintainer.shared.add(maintaining: SettingsView.menuItem)
+        } else {
+            log.debug("couldn't inject settings menu item, macOS 13 or later is needed")
+        }
+    }
+
     // strongly retained by askForMessagesDirAccess, deinit called on exit
     let accessManager = MessagesAccessManager()
     var pollingTask: Task<Void, Never>?
