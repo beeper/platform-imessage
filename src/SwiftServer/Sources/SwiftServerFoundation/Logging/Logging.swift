@@ -1,4 +1,5 @@
 import Logging
+import Cocoa
 import Foundation
 
 public extension Logger {
@@ -36,6 +37,30 @@ public enum Log {
             .appendingPathComponent("logs", isDirectory: true)
             .appendingPathComponent("platform-imessage.log")
     }()
+
+    public static func purge() throws {
+        guard let file else {
+            throw ErrorMessage("unable to determine log file URL")
+        }
+        try FileManager.default.removeItem(at: file)
+        // LogFileCoordinator doesn't automatically revive its file handle, unfortunately
+        Task {
+            do {
+                try await LogFileCoordinator.shared?.reviveFileHandle()
+            } catch {
+                debugLog("couldn't revive log file handle: \(error)")
+            }
+        }
+        debugLog("log file was manually purged")
+    }
+
+    public static func reveal() {
+        guard let file else {
+            fatalError("no log file url?")
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting([file])
+    }
 }
 
 private let debugLogLogger = Logger(swiftServerLabel: nil)
