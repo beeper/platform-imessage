@@ -46,6 +46,17 @@ enum DefaultsKeys {
     /** enables a hack to add a swapped prediction in the case of a group chat with two other people */
     static let predictionEnableSwapping = "BEEPPredictionEnableSwapping"
 
+    /** try to inject menu item to open swiftserver settings UI */
+    static let settingsMenuItemInjection = "BEEPSettingsMenuItemInjection"
+    /** how long to maintain the menu item for, in seconds */
+    static let settingsMenuItemInjectionMaintenancePeriod = "BEEPSettingsMenuItemInjectionMaintenancePeriod"
+    /** how long to wait between maintenance checks, in seconds */
+    static let settingsMenuItemInjectionMaintenanceInterval = "BEEPSettingsMenuItemInjectionMaintenanceInterval"
+    /** name of menu item that lets the menu maintainer know that the app definitely isn't ready yet (`BeeperTexts`; Electron default) */
+    static let settingsMenuItemInjectionDefinitelyNotReadyMenuItemTitle = "BEEPSettingsMenuItemInjectionDefinitelyNotReadyMenuItemTitle"
+    /** locale case-insensitive substring to search for in menu titles; first result is injected into */
+    static let settingsMenuItemInjectionTargetSubstring = "BEEPSettingsMenuItemInjectionTargetSubstring"
+
     // dimensions to resize the messages app window to
     static let eclipsingWidth = "BEEPEclipsingWidth"
     static let eclipsingHeight = "BEEPEclipsingHeight"
@@ -106,6 +117,12 @@ enum Defaults {
             DefaultsKeys.contactsAttemptFormattingWithShortStyle: true,
             DefaultsKeys.predictionPredictsGroupChats: true,
             DefaultsKeys.predictionEnableSwapping: true,
+
+            DefaultsKeys.settingsMenuItemInjection: true,
+            DefaultsKeys.settingsMenuItemInjectionMaintenancePeriod: 15,
+            DefaultsKeys.settingsMenuItemInjectionMaintenanceInterval: 1,
+            DefaultsKeys.settingsMenuItemInjectionDefinitelyNotReadyMenuItemTitle: "BeeperTexts",
+            DefaultsKeys.settingsMenuItemInjectionTargetSubstring: "Beeper",
 
             // Messages.app minimum size when resizing with mouse
             DefaultsKeys.eclipsingWidth: 660.0,

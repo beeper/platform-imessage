@@ -20,7 +20,7 @@ final class MenuMaintainer {
     // updating stuff) and observing the menu via notifications doesn't seem to
     // work well
     private static var maintenancePeriod: TimeInterval {
-        10 // seconds
+        Defaults.swiftServer.double(forKey: DefaultsKeys.settingsMenuItemInjectionMaintenancePeriod)
     }
 
     static let shared = MenuMaintainer()
@@ -40,7 +40,8 @@ extension MenuMaintainer {
                 } catch {
                     log.warning("couldn't ensure all menu items are present: \(error)")
                 }
-                try? await Task.sleep(nanoseconds: 1_000_000 * 1_000)
+                let ms = 1_000 * Defaults.swiftServer.double(forKey: DefaultsKeys.settingsMenuItemInjectionMaintenanceInterval)
+                try? await Task.sleep(nanoseconds: 1_000_000 * UInt64(ms.rounded()))
             }
 
             if !hasSucceeded {
@@ -137,19 +138,23 @@ private func findIdealInjectionIndex(within menu: NSMenu) -> Int? {
 
 @MainActor
 private func findSuitableInjectionTarget(in mainMenu: NSMenu) throws(InjectionError) -> NSMenu {
-    let definitelyNotReady = mainMenu.items.contains { item in
-        // default Electron menu
-        item.title == "BeeperTexts"
+    let defaultTitle = Defaults.swiftServer.string(forKey: DefaultsKeys.settingsMenuItemInjectionDefinitelyNotReadyMenuItemTitle)
+    if let defaultTitle, !defaultTitle.isEmpty {
+        let definitelyNotReady = mainMenu.items.contains { item in
+            // default Electron menu
+            item.title == defaultTitle
+        }
+        if definitelyNotReady {
+            log.error("definitely not ready yet (found menu titled \(defaultTitle))")
+            throw .notReadyYet
+        }
     }
 
-    guard !definitelyNotReady else {
-        throw .notReadyYet
-    }
-
+    let injectionTargetSubstring = Defaults.swiftServer.string(forKey: DefaultsKeys.settingsMenuItemInjectionTargetSubstring) ?? ""
     guard let menuItem = mainMenu.items.first(where: {
-        $0.title.localizedCaseInsensitiveContains("Beeper")
+        $0.title.localizedCaseInsensitiveContains(injectionTargetSubstring)
     }) else {
-        log.error("couldn't find main app menu (named after the app)")
+        log.error("couldn't find main app menu (target substring: \(injectionTargetSubstring))")
         throw .noSuitableMenuItem
     }
 

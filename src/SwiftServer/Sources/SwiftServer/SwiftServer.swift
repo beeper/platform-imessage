@@ -288,6 +288,8 @@ enum Preferences {
     Defaults.registerDefaults()
 
     Task { @MainActor in
+        guard Defaults.swiftServer.bool(forKey: DefaultsKeys.settingsMenuItemInjection) else { return }
+
         if #available(macOS 13, *) {
             log.debug("trying to inject settings menu item whenever possible")
             MenuMaintainer.shared.add(maintaining: SettingsView.menuItem)
