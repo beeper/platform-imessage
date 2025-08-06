@@ -21,6 +21,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
     ],
     targets: [
         .target(
@@ -60,7 +61,13 @@ let package = Package(
                 "SwiftServerFoundation"
             ],
         ),
-        .executableTarget(name: "IMDatabaseTestBench", dependencies: ["IMDatabase"]),
+        .executableTarget(
+            name: "IMDatabaseTestBench",
+            dependencies: [
+                "IMDatabase",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
         .testTarget(name: "SwiftServerTests", dependencies: ["SwiftServer"]),
         .target(
