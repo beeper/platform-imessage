@@ -78,6 +78,7 @@ let package = Package(
             name: "SwiftServerFoundation",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
+                "ExceptionCatcher",
                 "CUnfairLock",
             ]
         )
