@@ -19,31 +19,38 @@ private enum ChatMember {
 
 @available(macOS 11, *)
 extension MessagesController {
-    // `address` looks like `chat01234…`
-    private func predictGroupChatDisplayNames(forChatGUID guid: String) throws -> Set<String> {
-        guard let contacts else {
-            throw ErrorMessage("misfire prevention: group: contacts access not authorized")
-        }
+    var db: IMDatabase {
+        get throws {
+            let db: IMDatabase
 
-        let db: IMDatabase
-        if let cachedDatabase {
-            db = cachedDatabase
-        } else {
-            do {
-                db = try IMDatabase()
-            } catch {
-                throw ErrorMessage("misfire prevention: group: couldn't open database: \(error)")
+            if let cachedDatabase {
+                db = cachedDatabase
+            } else {
+                do {
+                    db = try IMDatabase()
+                } catch {
+                    throw ErrorMessage("messages controller couldn't open database: \(error)")
+                }
+                cachedDatabase = db
             }
-            cachedDatabase = db
-        }
 
+            return db
+        }
+    }
+
+    private func predictFromDisplayName(forChatGUID guid: String) throws -> Set<String> {
         guard let chat = try db.chat(withGUID: guid) else {
-            throw ErrorMessage("misfire prevention: group: couldn't find desired chat in the database at all")
+            throw ErrorMessage("misfire prevention: chat display name: couldn't find desired chat in the database at all")
         }
 
-        // if the group chat has a custom display name, then only match against that
+        // if the chat has a custom display name, then only match against that
+        // perhaps guaranteed to exist for businesses?
         if let displayName = chat.displayName {
             return [displayName]
+        }
+
+        guard let contacts else {
+            throw ErrorMessage("misfire prevention: chat display name: can't predict further, no contacts access")
         }
 
         let members = try db.handles(inChatWithGUID: guid).map { handle in
@@ -61,7 +68,7 @@ extension MessagesController {
                 switch member {
                 case let .contact(contact):
                     try contacts.formatPreferringShortStyle(contact: contact)
-                        .orThrow(ErrorMessage("misfire prevention: group: couldn't format a group chat member's contact"))
+                        .orThrow(ErrorMessage("misfire prevention: chat display name: couldn't format a group chat member's contact"))
                 case let .stranger(handle): handle.id.tryFormattingIfPhoneNumber
                 }
             }
@@ -86,7 +93,7 @@ extension MessagesController {
         do {
             predictions.formUnion(try groupChatDisplayNamePredictions(formattingContactsUsingStyle: .short))
         } catch {
-            log.warning("misfire prevention: group: couldn't format using short style to form display name proposals: \(error)")
+            log.warning("misfire prevention: chat display name: couldn't format using short style to form display name proposals: \(error)")
         }
         return predictions
     }
@@ -98,10 +105,10 @@ extension MessagesController {
 
         let (_, type, address) = try splitThreadID(guid).orThrow(ErrorMessage("couldn't predict window titles: invalid thread id"))
 
-        guard type == singleThreadType else {
-            log.debug("misfire prevention: predicting for a group")
+        if type == groupThreadType || address.hasPrefix("urn:biz:") {
+            log.debug("misfire prevention: predicting for a group or business")
 
-            return try predictGroupChatDisplayNames(forChatGUID: guid)
+            return try predictFromDisplayName(forChatGUID: guid)
         }
 
         // should map onto a single person
@@ -176,7 +183,7 @@ extension MessagesController {
         }
 
         if Defaults.misfirePreventionTracing {
-            log.debug("misfire prevention: successfully matched window title to an applicable contact")
+            log.debug("misfire prevention: successfully matched window title")
         }
     }
 }
