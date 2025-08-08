@@ -95,6 +95,13 @@ enum DefaultsKeys {
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
 }
 
+enum SwiftServerDefaults {
+    @inline(__always)
+    static subscript(_ key: KeyPath<DefaultsKeys.Type, String>) -> Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.self[keyPath: key])
+    }
+}
+
 // TODO: cleanup
 enum Defaults {
     public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
