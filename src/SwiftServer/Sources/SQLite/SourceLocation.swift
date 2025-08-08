@@ -5,6 +5,10 @@ public struct SourceLocation {
         self.id = nil
     }
 
+    public init(in file: StaticString, line: Int) {
+        self.id = "\(file):\(line)"
+    }
+
     public init(opaque: String) {
         self.id = opaque
     }

@@ -51,27 +51,27 @@ extension Column.Error: CustomStringConvertible {
 public extension Column {
     /// Expects a non-`NULL` value in this column, returning the requested type via automatic conversion.
     consuming func expectConverting<Value: ColumnValue>(_: Value.Type, _ file: StaticString = #fileID, line: Int = #line) throws(Column.Error) -> Value {
-        try _expectNonNull(preferring: Value.preferredDataType, sourceLocation: SourceLocation(opaque: "\(file):\(line)"))
+        try _expectNonNull(preferring: Value.preferredDataType, sourceLocation: SourceLocation(in: file, line: line))
         return try Value.readNonNullConverting(from: statement.handle, at: index)
     }
 
     /// Expects a non-`NULL` value of a specific type in this column.
     consuming func expect<Value: ColumnValue>(_: Value.Type, _ file: StaticString = #fileID, line: Int = #line) throws(Column.Error) -> Value {
-        try _expectSpecific(Value.preferredDataType, sourceLocation: SourceLocation(opaque: "\(file):\(line)"))
+        try _expectSpecific(Value.preferredDataType, sourceLocation: SourceLocation(in: file, line: line))
         return try Value.readNonNullConverting(from: statement.handle, at: index)
     }
 
     /// Requests the value of this column, converting to the requested type. `nil` is returned if the value is `NULL`.
     consuming func optionalConverting<Value: ColumnValue>(_: Value.Type, _ file: StaticString = #fileID, line: Int = #line) throws(Column.Error) -> Value? {
         guard type != .null else { return nil }
-        try _expectSpecific(Value.preferredDataType, sourceLocation: SourceLocation(opaque: "\(file):\(line)"))
+        try _expectSpecific(Value.preferredDataType, sourceLocation: SourceLocation(in: file, line: line))
         return try Value.readNonNullConverting(from: statement.handle, at: index)
     }
 
     /// Requests the value of this column, expecting it to be a specific type. `nil` is returned if the value is `NULL`.
     consuming func optional<Value: ColumnValue>(_: Value.Type, _ file: StaticString = #fileID, line: Int = #line) throws(Column.Error) -> Value? {
         guard type != .null else { return nil }
-        try _expectNonNull(preferring: Value.preferredDataType, sourceLocation: SourceLocation(opaque: "\(file):\(line)"))
+        try _expectNonNull(preferring: Value.preferredDataType, sourceLocation: SourceLocation(in: file, line: line))
         return try Value.readNonNullConverting(from: statement.handle, at: index)
     }
 }
