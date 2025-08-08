@@ -91,6 +91,8 @@ enum DefaultsKeys {
     static let editingDelayPressingReturn = "BEEPEditingDelayBeforePressingReturn"
 
     static let pollerTraceUnreads = "BEEPPollerTraceUnreads"
+    // debugging for FSEvents, waking up when the iMessage SQLite file changes, etc.
+    static let pollerTraceChangeListening = "BEEPPollerTraceChangeListening"
     static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
 }

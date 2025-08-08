@@ -10,6 +10,11 @@ public final class FileWatcher {
     private static let queue = DispatchQueue(label: "sws.file-watcher")
     private var name: String
 
+    public var noisy = false {
+        didSet {
+            log.debug("\(name): noisy was set to \(noisy)")
+        }
+    }
     public private(set) var events = Topic<DispatchSource.FileSystemEvent>()
 
     public init(watching file: URL, name: String? = nil) {
@@ -67,16 +72,30 @@ extension FileWatcher {
         log.debug("\(name): created fs object source: \(source.description)")
 
         source.setEventHandler { [weak self] in
-            self?.events.broadcast(source.data)
+            guard let self else {
+                log.warning("event handler: no self?")
+                return
+            }
+
+            if noisy {
+                log.debug("\(name): noisy: fs object source vended event: fd=\(fd), mask=\(source.mask), data=\(source.data)")
+            }
+
+            self.events.broadcast(source.data)
         }
 
         source.setCancelHandler { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                log.warning("cancel handler: no self?")
+                return
+            }
 
             let status = close(fd)
-            if status != 0 {
-                log.error("\(name): couldn't close database: fd=\(fd), status=\(status)")
+            guard status == 0 else {
+                log.error("\(name): cancel handler: couldn't close database: fd=\(fd), status=\(status)")
+                return
             }
+            log.warning("\(name): cancel handler: closed database: fd=\(fd)")
         }
 
         self.source = source

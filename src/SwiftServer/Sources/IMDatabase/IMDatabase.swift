@@ -25,9 +25,24 @@ public final class IMDatabase {
 
     // watch filesystem for changes in `chat.db` and `chat.db-wal` in order to
     // respond to events
-    private var dbWatcher: FileWatcher?
-    private var dbWalWatcher: FileWatcher?
+    private var dbWatcher: FileWatcher? {
+        didSet {
+            dbWatcher?.noisy = noisy
+        }
+    }
+    private var dbWalWatcher: FileWatcher? {
+        didSet {
+            dbWalWatcher?.noisy = noisy
+        }
+    }
     private var listener: Task<Void, Never>?
+
+    public var noisy = false {
+        didSet {
+            dbWatcher?.noisy = noisy
+            dbWalWatcher?.noisy = noisy
+        }
+    }
 
     var database: Database
 
@@ -110,9 +125,9 @@ public extension IMDatabase {
                 try await Task.sleep(nanoseconds: debouncingPeriod)
                 try Task.checkCancellation()
 
-#if DEBUG
-                log.debug("detected database change")
-#endif
+                if noisy {
+                    log.debug("noisy: IMDatabase is going to broadcast a change")
+                }
                 changes.broadcast(())
             }
         }
