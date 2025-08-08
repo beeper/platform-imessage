@@ -14,8 +14,8 @@ public extension IMDatabase {
         try statement.bind(chatGUID)
 
         let chats = try statement.mapRowsUntilDone { row in
-            let displayName = row[1].as(String.self)?.nonEmpty
-            return Chat(id: row[0].as(Int.self), guid: chatGUID, displayName: displayName)
+            let displayName = try row[1].optional(String.self)?.nonEmpty
+            return try Chat(id: row[0].expect(Int.self), guid: chatGUID, displayName: displayName)
         }
 
         if chats.count > 1 {
@@ -33,12 +33,12 @@ public extension IMDatabase {
         try statement.reset()
 
         return try statement.mapRowsUntilDone { row -> Chat? in
-            let id = row[0].as(Int.self)
-            guard let guid = row[1].as(String.self) else {
+            let id = try row[0].expect(Int.self)
+            guard let guid = try row[1].optional(String.self) else {
                 log.error("chat \(id) has no GUID, very spooky. dropping it on the ground")
                 return nil
             }
-            return Chat(id: id, guid: guid, displayName: row[2].as(String.self))
+            return try Chat(id: id, guid: guid, displayName: row[2].optional(String.self))
         }.compactMap(\.self)
     }
 
@@ -57,7 +57,7 @@ public extension IMDatabase {
         try statement.bind(chatGUID)
 
         return try statement.mapRowsUntilDone { row in
-            Handle(rowid: row[0].as(Int.self), id: row[1].as(String.self)!)
+            try Handle(rowid: row[0].expect(Int.self), id: row[1].expect(String.self))
         }
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import IMDatabase
+import SQLite
 import Logging
 import ArgumentParser
 

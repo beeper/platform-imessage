@@ -6,7 +6,7 @@ public struct SQLiteError: Error {
 
     public init(code: CInt) {
         self.code = Int(code)
-        localizedDescription = if let pointer = sqlite3_errstr(code) {
+        self.localizedDescription = if let pointer = sqlite3_errstr(code) {
             String(cString: pointer)
         } else {
             "<no message>"

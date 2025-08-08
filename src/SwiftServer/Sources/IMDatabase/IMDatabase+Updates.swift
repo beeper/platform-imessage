@@ -1,4 +1,7 @@
 import Foundation
+import Logging
+
+private let log = Logger(label: "imdb.updates")
 
 let updatedChatsSinceQuery = """
 SELECT
@@ -37,10 +40,13 @@ public extension IMDatabase {
         var newestMessageRowID: Int?
         var latestMessageDateRead: Date?
         let updatedChats = try statement.mapRowsUntilDone { row in
-            newestMessageRowID = max(row[0].as(Int.self), newestMessageRowID ?? 0)
+            newestMessageRowID = try max(row[0].expect(Int.self), newestMessageRowID ?? 0)
 
             dateRead: do {
-                let nanoseconds = row[1].as(Int.self)
+                // AFAICT this is a timestamp or zero. The column itself is
+                // nullable but my local database doesn't have any `NULL`s, just
+                // zeroes
+                let nanoseconds = try row[1].optional(Int.self) ?? 0
                 // If the message hasn't been read yet (we get `0`), then don't
                 // update the "latest read date" at all.
                 guard nanoseconds > 0 else { break dateRead }
@@ -53,8 +59,11 @@ public extension IMDatabase {
                 }
             }
 
-            let rowID = row[2].as(Int.self)
-            let guid = row[3].as(String.self)
+            let rowID = try row[2].expect(Int.self)
+            let guid = try row[3].optional(String.self)
+            if guid == nil {
+                log.error("chat \(rowID) has a `NULL` GUID for some reason, continuing with chat query")
+            }
             return ChatRef(rowID: rowID, guid: guid)
         }
 

@@ -65,7 +65,7 @@ public extension Statement {
     func mapRowsUntilDone<T>(_ transform: (_ row: borrowing Row) throws -> T) throws -> [T] {
         var results = [T]()
         try stepUntilDone {
-            results.append(try transform($0))
+            try results.append(transform($0))
         }
         return results
     }
