@@ -1,3 +1,4 @@
+import { supportedReactions } from './common-constants'
 // 100 MB as of macOS Monterey 12.2; big media files are automatically
 // compressed
 const maxFileSizeBytes = 100 * 1_024 * 1_024
@@ -51,11 +52,14 @@ export const roomFeatures = {
 
   reaction: CapabilitySupportLevel.FullySupported,
   reaction_count: 1,
-  // NOTE(skip): Beeper Desktop doesn't check this (instead it checks the
-  // platform-sdk equivalent `canReactWithAllEmojis`), so there's little
-  // point in sending the correct value for this right now.
-  //
-  // allowed_reactions
+  allowed_reactions: [
+    supportedReactions.heart.render,
+    supportedReactions.like.render,
+    supportedReactions.dislike.render,
+    supportedReactions.laugh.render,
+    supportedReactions.emphasize.render,
+    supportedReactions.question.render,
+  ],
   custom_emoji_reactions: false,
 
   file: {

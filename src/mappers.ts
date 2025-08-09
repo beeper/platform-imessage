@@ -607,7 +607,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           participantID: m.senderID,
           reactionKey: actionKey === 'emoji' ? msgRow.associated_message_emoji : actionKey,
         }
-        if (actionKey === 'emoji' || supportedReactions[actionKey]) {
+        if (actionKey === 'emoji' || actionKey in supportedReactions) {
           m.parseTemplate = true
           m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} ${msi?.ams ? `"${msi?.ams}"` : 'a message'}`
           m.isHidden = true

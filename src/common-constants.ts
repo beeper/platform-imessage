@@ -1,14 +1,14 @@
 import os from 'os'
 import type { SupportedReaction } from '@textshq/platform-sdk'
 
-export const supportedReactions: Record<string, SupportedReaction> = {
+export const supportedReactions = {
   heart: { title: 'Heart', render: '❤️' },
   like: { title: 'Like', render: '👍' },
   dislike: { title: 'Dislike', render: '👎' },
   laugh: { title: 'Laugh', render: '😂' },
   emphasize: { title: 'Emphasize', render: '‼️' },
   question: { title: 'Question', render: '❓' },
-}
+} as const satisfies Record<string, SupportedReaction>
 
 const [DARWIN_MAJOR_VERSON, DARWIN_MINOR_VERSION] = os.release().split('.').map(Number)
 
