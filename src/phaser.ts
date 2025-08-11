@@ -31,11 +31,13 @@ export default class Phaser<K extends string = string> {
    * Adds some asynchronous operation, guaranteeing eventual removal.
    */
   public async bracketed<T>(key: K, pending: Promise<T>): Promise<T> {
+    texts.log(`imsg/phaser/${key}: beginning bracketed operation`)
     this.add(key, pending)
     try {
       // eslint-disable-next-line @typescript-eslint/return-await -- for more explicit stacks
       return await pending
     } finally {
+      texts.log(`imsg/phaser/${key}: bracketed operation completed, removing`)
       this.removeSingle(key)
     }
   }
@@ -47,13 +49,16 @@ export default class Phaser<K extends string = string> {
   public async waitForAnyCurrentlyPending(key: K): Promise<void> {
     const pending = this.store.get(key)
     if (!pending || pending.length === 0) {
+      texts.log(`imsg/phaser/${key}: nothing pending`)
       return
     }
 
+    texts.log(`imsg/phaser/${key}: ${pending.length} promise(s) pending, awaiting them`)
     await Promise.all(pending)
 
     if (this.options.delayMsAfterWaiting && this.options.delayMsAfterWaiting > 0) {
       await setTimeoutAsync(this.options.delayMsAfterWaiting)
     }
+    texts.log(`imsg/phaser/${key}: done, proceeding`)
   }
 }
