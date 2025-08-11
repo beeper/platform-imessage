@@ -807,7 +807,7 @@ export default class AppleiMessage implements PlatformAPI {
       case 'proxied': {
         const methodNameIsValid = (name: string): name is keyof typeof this.proxiedAuthFns =>
           Object.keys(this.proxiedAuthFns).includes(name)
-        if (!methodNameIsValid(methodName)) throw new Error(`Unknown proxied method name "${methodName}`)
+        if (!methodNameIsValid(methodName)) throw new Error(`Unknown proxied method name "${methodName}"`)
 
         const result = await this.proxiedAuthFns[methodName]()
         const json = JSON.stringify(result)
