@@ -26,18 +26,19 @@ const strip = async (src: string, dest?: string) => {
   await shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
 }
 
-const uploadBinaryToSentry = async (binaryPath: string): Promise<void> => {
+const uploadDebugFilesToSentry = async (searchPath: string): Promise<void> => {
   const token = process.env.SENTRY_AUTH_TOKEN
   if (!token) {
-    throw new Error(`can't upload ${binaryPath} to sentry, missing SENTRY_AUTH_TOKEN env var`)
+    throw new Error(`can't upload from ${searchPath} to sentry, missing SENTRY_AUTH_TOKEN env var`)
   }
+  console.log('invoking sentry-cli to upload debug files from:', searchPath)
   const baseSentryCliArgs = [
     '--log-level', 'debug',
     '--org', 'a8c',
     '--project', 'beeper-desktop-new',
     '--auth-token', token,
   ]
-  await shellExec('yarn', ...['sentry-cli', 'debug-files', 'upload', ...baseSentryCliArgs, binaryPath])
+  await shellExec('yarn', ...['sentry-cli', 'debug-files', 'upload', ...baseSentryCliArgs, searchPath])
 }
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -91,7 +92,8 @@ async function main() {
     })
 
     if (process.env.CI_PUBLISHING === 'true') {
-      await uploadBinaryToSentry(binaryPath)
+      await uploadDebugFilesToSentry(binaryPath)
+      await uploadDebugFilesToSentry(BUILD_DIR_PATH)
     }
 
     if (specificArch) {
