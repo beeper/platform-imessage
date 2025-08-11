@@ -800,6 +800,7 @@ export default class AppleiMessage implements PlatformAPI {
       return true
     },
     isNotificationsEnabledForMessages: () => swiftServer.isNotificationsEnabledForMessages,
+    revealSettings: () => swiftServer.revealSettings?.(),
   } satisfies Record<string, () => Awaitable<boolean | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {

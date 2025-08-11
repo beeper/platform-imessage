@@ -465,6 +465,24 @@ enum Preferences {
             }
             let list = dict.compactMap { $0.value == Int(Date.distantFuture.timeIntervalSince1970) ? $0.key : nil }
             return list as [NodeValueConvertible]
+        },
+
+        "revealSettings": NodeFunction {
+            log.debug("told to reveal settings window")
+            Task { @MainActor in
+                guard #available(macOS 13, *) else {
+                    log.error("can't reveal settings on macOS <13")
+                    return
+                }
+                guard let window = SettingsWindowController.shared.window else {
+                    log.error("can't reveal settings, no window?")
+                    return
+                }
+                log.debug("revealing settings window")
+                window.makeKeyAndOrderFront(nil)
+            }
+            // needed or else we get a type ambiguity error?
+            return undefined
         }
     ]
 

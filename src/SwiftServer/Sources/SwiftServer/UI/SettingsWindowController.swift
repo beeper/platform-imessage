@@ -5,6 +5,8 @@ import SwiftUI
 final class SettingsWindowController: NSWindowController {
     private var settingsController: NSHostingController<SettingsView>?
 
+    static let shared = SettingsWindowController()
+
     init() {
         var settingsController: NSHostingController = {
             var controller = NSHostingController(rootView: SettingsView())

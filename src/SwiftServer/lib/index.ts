@@ -94,6 +94,8 @@ export type SwiftServer = {
   cancelPollingIfNecessary: () => void
   startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void
 
+  revealSettings: () => void
+
   hashers: {
     thread: Hasher
     participant: Hasher
