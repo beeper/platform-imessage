@@ -1,6 +1,6 @@
 {
   "name": "@beeper/platform-imessage",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "main": "dist/index.js",
   "type": "module",
   "exports": {
