@@ -35,8 +35,11 @@ extension Poller {
             unreadStates[chat] = fresh
 
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
+            let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1_000).rounded()
+            let isUnread = currentState.unreadCount > 0
+            let markedUnreadUpdatedAt = Int(fresh.lastUpdated.timeIntervalSince1970 * 1000)
             var patch: [String: any NodePropertyConvertible] = [
-                "lastReadMessageSortKey": (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1_000).rounded(),
+                "lastReadMessageSortKey": lastReadMessageSortKey,
 
                 // The renderer avoids sending a read receipt if it can see that
                 // the message that it's currently reading up to is older than
@@ -54,7 +57,7 @@ extension Poller {
                 // a read receipt, despite whatever `lastReadMessageSortKey` is.
                 //
                 // See: https://github.com/beeper/beeper-desktop-new/blob/489c8b4974497c431c8d18d7d5eecc21afdf66b7/src/renderer/stores/ThreadStore.ts#L2109
-                "isMarkedUnread": currentState.unreadCount > 0,
+                "isMarkedUnread": isUnread,
 
                 // Part of the "is this room archived?" logic involves comparing
                 // this thread property to when the thread was archived by the user.
@@ -66,8 +69,10 @@ extension Poller {
                 //
                 // TODO(skip): This might not be necessary anymore since we
                 // adopted the stream order concept.
-                "markedUnreadUpdatedAt": Int(fresh.lastUpdated.timeIntervalSince1970 * 1000),
+                "markedUnreadUpdatedAt": markedUnreadUpdatedAt,
             ]
+
+            traceUnreads("chat \(chat) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")
 
             if currentState.unreadCount == 0 {
                 // Sync the fact that the thread became read. This is especially
