@@ -127,7 +127,8 @@ enum Defaults {
             DefaultsKeys.predictionPredictsGroupChats: true,
             DefaultsKeys.predictionEnableSwapping: true,
 
-            DefaultsKeys.settingsMenuItemInjection: true,
+            // not injecting settings menu item anymore in favor of the secret
+            // command bar item added to desktop
             DefaultsKeys.settingsMenuItemInjectionMaintenancePeriod: 15,
             DefaultsKeys.settingsMenuItemInjectionMaintenanceInterval: 1,
             DefaultsKeys.settingsMenuItemInjectionDefinitelyNotReadyMenuItemTitle: "BeeperTexts",
