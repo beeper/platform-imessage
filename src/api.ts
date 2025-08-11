@@ -4,7 +4,7 @@ import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
@@ -800,7 +800,7 @@ export default class AppleiMessage implements PlatformAPI {
       return true
     },
     isNotificationsEnabledForMessages: () => swiftServer.isNotificationsEnabledForMessages,
-  }
+  } satisfies Record<string, () => Awaitable<boolean | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {
     switch (pathHex) {
