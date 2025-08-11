@@ -155,6 +155,8 @@ enum Defaults {
             DefaultsKeys.spacesObserveCurrentSpaceChanges: true,
 
             DefaultsKeys.editingDelayBeforeReplacing: 0.5,
+
+            DefaultsKeys.pollerTraceUnreads: true,
         ]
 
 #if DEBUG
