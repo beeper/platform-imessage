@@ -1,7 +1,7 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, Participant } from '@textshq/platform-sdk'
 import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP, IS_SEQUOIA_15_5_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
-import type { BeeperMessage } from './beeper-platform-sdk'
+import { BeeperMessage } from './desktop-types'
 
 const canQuote = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part
 const canReact = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part && (message.linkedMessageID ? isSelectable(message) : true)

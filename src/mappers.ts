@@ -13,9 +13,9 @@ import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 import { roomFeatures } from './capabilities'
-import { BeeperMessage, BeeperThread } from './beeper-platform-sdk'
 import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
 import { ThreadArchivalState } from './persistence'
+import { BeeperThread, BeeperMessage } from './desktop-types'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -714,7 +714,11 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     type: isGroup ? 'group' : 'single',
     isReadOnly,
+
+    // This mirrors Poller+Unreads.swift.
     unreadCount,
+    isMarkedUnread: unreadCount > 0,
+
     lastReadMessageSortKey: appleDateToMillisSinceEpoch(chat.dateLastMessageReadString),
     messages: {
       hasMore: true,
@@ -728,7 +732,7 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     // the "folder"/inbox name gets forcibly set to the thread ID.
     folderName: InboxName.NORMAL,
     timestamp: regularlizeAppleDate(chat.msgDateString),
-    // @ts-expect-error -- HACK: this exploits the fact that `features` isn't filtered
+    // @ts-expect-error -- HACK(skip): this exploits the fact that `features` isn't filtered
     // from `assignProps`. this should actually be using `defaultFeatures` once
     // we're able to set our bridge ID properly
     // https://github.com/beeper/beeper-desktop-new/blob/681fe8ea8f23c50cc20d265775eb9a6a3bed5a0f/src/renderer/stores/ThreadStore.ts#L148

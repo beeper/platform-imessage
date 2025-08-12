@@ -9,7 +9,7 @@ interface Messagelike extends CursorProp {
 
 interface Threadlike {
   id: string
-  messages: Paginated<Messagelike>
+  messages?: Paginated<Messagelike>
   participants: Paginated<Participant>
 }
 
@@ -83,7 +83,7 @@ export function hashThread<T extends Threadlike>(thread: T): T {
   return ({
     ...thread,
     id: hashers.thread.tokenizeRemembering(thread.id),
-    messages: hashPaginated(thread.messages, hashMessage),
+    ...(thread.messages ? { messages: hashPaginated(thread.messages, hashMessage) } : {}),
     participants: hashPaginated(thread.participants, hashParticipant),
   })
 }

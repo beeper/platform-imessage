@@ -13,7 +13,7 @@ import { isSelectable } from './common-util'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow, AXMessageSelection } from './types'
 import type PAPI from './api'
 import swiftServer from './SwiftServer/lib'
-import { BeeperMessage } from './beeper-platform-sdk'
+import { BeeperMessage } from './desktop-types'
 
 const imageSizeAsync = promisify(imageSizeCallback)
 

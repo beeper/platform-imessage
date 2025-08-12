@@ -4,6 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "typeRoots": ["node_modules/@types", "src/typings"],
     "module": "Preserve",
     "moduleResolution": "Bundler"
     // "skipLibCheck": false
