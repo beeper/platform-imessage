@@ -6,8 +6,9 @@ import ExceptionCatcher
 public actor LogFileCoordinator {
     public static let shared = Log.file.flatMap { try? LogFileCoordinator(url: $0) }
 
-    // 5 MiB
-    public static let fileSizeLimit = 1_024 * 1_024 * 5
+    // log file is allowed to grow around double this limit, then is trimmed to
+    // approximately match it - this avoids constant trimming
+    public static let fileSizeLimit = 1_024 * 1_024 * 20
 
     private var fileURL: URL
     private var lastTrimTime: Date?
