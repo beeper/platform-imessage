@@ -903,6 +903,7 @@ export default class AppleiMessage implements PlatformAPI {
     await this.threadPhaser.waitForAnyCurrentlyPending(hashedThreadID)
 
     const stateSyncThread = (patch: Partial<BeeperThread>) => {
+      texts.log(`imsg/archive/${hashedThreadID}: syncing thread ${hashedThreadID} with patch: ${JSON.stringify(patch)}`)
       this.onEvent?.([{
         type: ServerEventType.STATE_SYNC,
         objectName: 'thread',
