@@ -305,6 +305,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
+    texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     if (folderName !== InboxName.NORMAL) {
       return {
@@ -341,6 +342,18 @@ export default class AppleiMessage implements PlatformAPI {
     })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
 
+    const archivalStates = this.batchGetThreadPropForChatRows(chatRows, 'archive')
+    try {
+      const hashedIDs = chatRows.map(row => {
+        const hashedID = hashThreadID(row.guid)
+        const abbreviated = hashedID.substring(0, 29)
+        return `${abbreviated}[${archivalStates?.[row.guid]?.archivedAt ?? '?'}]`
+      })
+      texts.log(`imsg/getThreads: going to map ${JSON.stringify(pagination)} (${hashedIDs.length}) ${hashedIDs.join(', ')}`)
+      // eslint-disable-next-line no-empty
+    } catch (err) {
+      texts.error(`imsg/getThreads: couldn't log hashed ids: ${err}`)
+    }
     const items = mapThreads(chatRows, {
       mapMessageArgsMap,
       handleRowsMap,
@@ -350,7 +363,7 @@ export default class AppleiMessage implements PlatformAPI {
       currentUserID: this.currentUser!.id,
       threadReadStore: this.threadReadStore,
       reminders: this.batchGetThreadPropForChatRows(chatRows, 'reminder'),
-      archivalStates: this.batchGetThreadPropForChatRows(chatRows, 'archive'),
+      archivalStates,
       pinStates: this.batchGetThreadPropForChatRows(chatRows, 'pin'),
     })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
