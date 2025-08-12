@@ -10,6 +10,7 @@ import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
+import { ReAuthError } from '@beeper/platform-sdk'
 import { BeeperMessage, BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
@@ -158,7 +159,12 @@ export default class AppleiMessage implements PlatformAPI {
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
-    await this.tryInitializingDB()
+    try {
+      await this.tryInitializingDB()
+    } catch (error) {
+      texts.error(`imsg: couldn't initialize db: ${error}`)
+      throw new ReAuthError('no access to iMessage data')
+    }
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
     if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
