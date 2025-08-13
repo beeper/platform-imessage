@@ -32,3 +32,5 @@ DerivedData/
 !.yarn/versions
 
 .turbo
+
+headless.mjs

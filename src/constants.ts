@@ -1,5 +1,5 @@
-import os from 'os'
-import path from 'path'
+import os from 'node:os'
+import path from 'node:path'
 import { texts } from '@textshq/platform-sdk'
 import { IS_BIG_SUR_OR_UP } from './common-constants'
 

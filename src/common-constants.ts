@@ -1,4 +1,4 @@
-import os from 'os'
+import os from 'node:os'
 import type { SupportedReaction } from '@textshq/platform-sdk'
 
 export const supportedReactions = {
