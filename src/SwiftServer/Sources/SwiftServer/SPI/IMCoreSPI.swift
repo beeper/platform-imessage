@@ -40,30 +40,28 @@ enum SPIError: Error, CustomStringConvertible {
 
 // this might not actually return `nil`, but just in case
 typealias IMFormattedDisplayStringForNumberFunction = (@convention(c) (String, Locale) -> String?)
-private var functionPointerCacheLock = UnfairLock()
-private var functionPointerCache: IMFormattedDisplayStringForNumberFunction?
+private var functionPointerCache = Protected<IMFormattedDisplayStringForNumberFunction?>()
 
 private func formattedDisplayStringFunction() throws -> IMFormattedDisplayStringForNumberFunction {
-    functionPointerCacheLock.lock()
-    defer { functionPointerCacheLock.unlock() }
+    try functionPointerCache.withLock { cached in
+        if let cached {
+            return cached
+        }
 
-    if let functionPointerCache {
-        return functionPointerCache
+        guard let imCore = dlopen("/System/Library/PrivateFrameworks/IMCore.framework/IMCore", RTLD_NOW) else {
+            throw SPIError.current ?? .imageNotFound
+        }
+
+        guard let pointer = unsafeBitCast(
+            dlsym(imCore, "IMFormattedDisplayStringForNumber"),
+            to: (@convention(c) (String, Locale) -> String?)?.self
+        ) else {
+            throw SPIError.current ?? .functionNotFound
+        }
+
+        cached = pointer
+        return pointer
     }
-
-    guard let imCore = dlopen("/System/Library/PrivateFrameworks/IMCore.framework/IMCore", RTLD_NOW) else {
-        throw SPIError.current ?? .imageNotFound
-    }
-
-    guard let pointer = unsafeBitCast(
-        dlsym(imCore, "IMFormattedDisplayStringForNumber"),
-        to: (@convention(c) (String, Locale) -> String?)?.self
-    ) else {
-        throw SPIError.current ?? .functionNotFound
-    }
-
-    functionPointerCache = pointer
-    return pointer
 }
 
 func formattedDisplayString(phoneNumber: String) throws -> String? {
