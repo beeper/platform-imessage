@@ -11,6 +11,7 @@ public extension Accessibility.Notification {
     static let windowMoved = Self(kAXWindowMovedNotification)
     static let windowResized = Self(kAXWindowResizedNotification)
     static let windowCreated = Self(kAXWindowCreatedNotification)
+    static let titleChanged = Self(kAXTitleChangedNotification)
 }
 
 // refer to AXAttributeConstants.h

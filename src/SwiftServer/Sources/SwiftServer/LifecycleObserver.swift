@@ -20,7 +20,9 @@ final class LifecycleObserver {
     private var windowResizedToken: Accessibility.Observer.Token?
     private var windowCreatedToken: Accessibility.Observer.Token?
 
+    private var titleChangedToken: Accessibility.Observer.Token?
     private var layoutChangedToken: Accessibility.Observer.Token?
+
     init() {}
 }
 
@@ -53,6 +55,16 @@ extension LifecycleObserver {
 #endif
             lastLayoutChange?.withLock { $0 = Date() }
         }
+#if DEBUG
+        titleChangedToken = try app.observe(.titleChanged) { info in
+            do {
+                let windows = try app.appWindows().compactMap { try? $0.title() }
+                log.info("@@ AX: window titles changed, now: \(windows)")
+            } catch {
+                log.error("failed to check windows after title changed: \(error)")
+            }
+        }
+#endif
     }
 
     /// Observations are registered on the current `RunLoop`, so this method
