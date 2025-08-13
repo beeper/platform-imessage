@@ -2,9 +2,7 @@ public final class Topic<T> {
     public typealias BufferingPolicy = AsyncStream<T>.Continuation.BufferingPolicy
 
     private let bufferingPolicy: BufferingPolicy
-    // TODO(skip): this should really be using a `Mutex<T>`-like type
-    private var subscriptions = [AsyncStream<T>.Continuation]()
-    private var lock = UnfairLock()
+    private var subscriptions = Protected<[AsyncStream<T>.Continuation]>([])
 
     public init(bufferingPolicy: BufferingPolicy = .unbounded) {
         self.bufferingPolicy = bufferingPolicy
@@ -15,8 +13,8 @@ extension Topic: @unchecked Sendable {}
 
 public extension Topic {
     func broadcast(_ value: sending T) {
-        lock.lock {
-            for subscription in subscriptions {
+        subscriptions.withLock {
+            for subscription in $0 {
                 subscription.yield(value)
             }
         }
@@ -24,8 +22,8 @@ public extension Topic {
 
     func subscribe() -> AsyncStream<T> {
         let (stream, cont) = AsyncStream.makeStream(of: T.self, bufferingPolicy: bufferingPolicy)
-        lock.lock {
-            subscriptions.append(cont)
+        subscriptions.withLock {
+            $0.append(cont)
         }
 
         return stream
