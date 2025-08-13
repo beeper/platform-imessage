@@ -61,7 +61,8 @@
     "ts-jest": "^28.0.7",
     "ts-node": "^10.9.2",
     "turbo": "^2.5.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "zod": "^4.0.17"
   },
   "os": [
     "darwin"

@@ -34,3 +34,4 @@ DerivedData/
 .turbo
 
 headless.mjs
+headless-config.json
