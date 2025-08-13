@@ -648,16 +648,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         perform: () throws -> Void
     ) throws {
         if let openBefore {
+#if DEBUG
+            log.debug("withActivation: opening before performing: \(openBefore)")
+#endif
             try Self.openDeepLink(openBefore)
         }
 
         try perform()
 
         if let openAfter {
-            if openAfter == openBefore {
-                // debugLog("withActivation: skipping, openAfter == openBefore")
-            } else {
-                // debugLog("withActivation: returning to openAfter \(openAfter)")
+            if openAfter != openBefore {
+#if DEBUG
+            debugLog("withActivation: opening after performing: \(openAfter)")
+#endif
                 try Self.openDeepLink(openAfter)
             }
         }
