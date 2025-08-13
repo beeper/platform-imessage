@@ -262,38 +262,78 @@ final class MessagesController {
             log.debug("ensuring selected thread: \(hashedThreadID)")
         }
 
+        func ensureSelectedThreadViaDefault(value selectedThreadID: String) throws {
+            guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
+                throw ErrorMessage("misfire prevention: compose thread is selected")
+            }
+
+            let selectedAddress = try threadIDToAddress(selectedThreadID)
+                .orThrow(ErrorMessage("misfire prevention: cannot extract address from selected thread id"))
+
+            guard selectedAddress == addressToMatch ||
+                (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
+            else {
+                log.error("ensureSelectedThread: failed to select thread")
+                throw ErrorMessage("misfire prevention: desired thread is not selected")
+            }
+        }
+
+        func ensureSelectedThreadViaLayoutWaiter() throws {
+            guard let lifecycleObserver else {
+                throw ErrorMessage("misfire prevention: no lifecycle observer!")
+            }
+
+            guard let lastLayoutChange = lifecycleObserver.lastLayoutChange.read() else {
+                throw ErrorMessage("misfire prevention: layout hasn't changed at all")
+            }
+
+            let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
+            guard lastLayoutChange > beganEnsuringThreadSelection else {
+                throw ErrorMessage("misfire prevention: layout hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
+            }
+
+            log.debug("misfire prevention: 📐 layout changed \(lastLayoutChange.iso8601Formatted) (waited \(waitingTime) overall)")
+        }
+
         var attempt = 0
+        let beganEnsuringThreadSelection = Date()
+        var hasLoggedAboutFallback = false
+
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
-                guard let selectedThreadID = Defaults.getSelectedThreadID(), !Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionAlwaysPredict) else {
-                    if Defaults.misfirePreventionTracing {
-                        log.debug("misfire prevention: no access to Messages defaults, using prediction")
-                    }
+                // always prefer reading the default if we can (impossible on recent macOS; see DESK-10725)
+                if !SwiftServerDefaults[\.misfirePreventionAlwaysFallback], let selectedThreadID = Defaults.getSelectedThreadID() {
+                    return try ensureSelectedThreadViaDefault(value: selectedThreadID)
+                }
 
+                let strategy = Defaults.swiftServer.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy)
+                if Defaults.misfirePreventionTracing, !hasLoggedAboutFallback {
+                    log.debug("misfire prevention: no access to Messages defaults, falling back (strategy: \"\(strategy ?? "<nil>")\")")
+                    hasLoggedAboutFallback = true
+                }
+                // we can't read the default, fall back to a designated strategy to ensure that
+                // Messages is focused to our desired chat:
+
+                switch strategy {
+                case "title-prediction":
                     // TODO: when contacts details change, iMessage might not update the window title immediately.
                     // TODO: to resolve this, perhaps try jiggling the selection around if the title doesn't match
-                    guard Defaults.swiftServer.bool(forKey: DefaultsKeys.prediction) else {
-                        log.debug("misfire prevention: prediction is disabled, no choice but to skip the assertion (potentially dangerous)")
-                        return
-                    }
                     guard let windowTitle = try? elements.mainWindow.title() else {
                         throw ErrorMessage("misfire prevention: couldn't read window title")
                     }
+
                     return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
-                }
-                guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
-                    throw ErrorMessage("misfire prevention: compose thread is selected")
-                }
-
-                let selectedAddress = try threadIDToAddress(selectedThreadID)
-                    .orThrow(ErrorMessage("misfire prevention: cannot extract address from selected thread id"))
-
-                guard selectedAddress == addressToMatch ||
-                    (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
-                else {
-                    log.error("ensureSelectedThread: failed to select thread")
-                    throw ErrorMessage("misfire prevention: desired thread is not selected")
+                case "layout-waiter":
+                    // wait until Accessibility posts a notification stating that the layout has changed.
+                    // this happens very frequently, for example after changing the active chat (what we specifically want to know about)
+                    // or even scrolling the chat list
+                    try ensureSelectedThreadViaLayoutWaiter()
+                default:
+                    var sleepInterval = Defaults.swiftServer.double(forKey: DefaultsKeys.misfirePreventionSleepInterval)
+                    if sleepInterval <= 0.0 { sleepInterval = 0.5 }
+                    log.warning("misfire prevention: no fallback strategy specified; sleeping for \(sleepInterval)s instead")
+                    Thread.sleep(forTimeInterval: sleepInterval)
                 }
             } catch {
                 if attempt > 5 { // 250ms
@@ -397,6 +437,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func setUpPollingConveyor() {
         // this is ok to instantiate outside of a thread with a run loop
         var observer = LifecycleObserver()
+        lifecycleObserver = observer
 
         let thread = RunLoopConveyor<ConveyorEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
             // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
