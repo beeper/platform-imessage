@@ -9,6 +9,7 @@ private let log = Logger(swiftServerLabel: "lifecycle.observer")
 // `RunLoop` (e.g. via `RunLoopConveyor`)
 final class LifecycleObserver {
     private(set) var events = Topic<Event>()
+    private(set) var lastLayoutChange = Protected<Date?>()
 
     private var activateToken: Accessibility.Observer.Token?
     private var deactivateToken: Accessibility.Observer.Token?
@@ -19,6 +20,7 @@ final class LifecycleObserver {
     private var windowResizedToken: Accessibility.Observer.Token?
     private var windowCreatedToken: Accessibility.Observer.Token?
 
+    private var layoutChangedToken: Accessibility.Observer.Token?
     init() {}
 }
 
@@ -44,6 +46,12 @@ extension LifecycleObserver {
         }
         windowCreatedToken = try app.observe(.windowCreated) { [weak events] _ in
             events?.broadcast(.windowCreated)
+        }
+        layoutChangedToken = try app.observe(.layoutChanged) { [weak lastLayoutChange] _ in
+#if DEBUG
+            log.debug("@@ AX: layoutChanged")
+#endif
+            lastLayoutChange?.withLock { $0 = Date() }
         }
     }
 
