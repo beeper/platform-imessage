@@ -26,8 +26,7 @@ final class RunLoopConveyor<WorkItem>: Thread {
     typealias Initializer = (_ rlt: RunLoopConveyor<WorkItem>) -> Void
     typealias WorkItemHandler = @Sendable (_ item: WorkItem) -> Void
 
-    private var source: RunLoopSource<WorkItem>
-    private var sourceLock = UnfairLock()
+    private var source: Protected<RunLoopSource<WorkItem>>
     private var initializer: Initializer?
     private var handler: WorkItemHandler
 
@@ -39,7 +38,7 @@ final class RunLoopConveyor<WorkItem>: Thread {
         // safe to retain self inside initialize because it's nil'd out
         // once main() is called
         self.initializer = initializer
-        source = RunLoopSource()
+        source = Protected(RunLoopSource())
         self.handler = handler
 
         super.init()
@@ -47,13 +46,14 @@ final class RunLoopConveyor<WorkItem>: Thread {
     }
 
     override func main() {
-        source.addToRunLoop(.current)
+        source.withLock { $0.addToRunLoop(.current) }
         log.debug("performing one time initialization for run loop thread")
         initializer?(self)
         initializer = nil
 
         while !isCancelled {
-            for workItem in source.drain() {
+            let drained = source.withLock { $0.drain() }
+            for workItem in drained {
                 handler(workItem)
             }
 
@@ -67,14 +67,14 @@ final class RunLoopConveyor<WorkItem>: Thread {
 
 extension RunLoopConveyor {
     func enqueue(_ item: WorkItem) {
-        sourceLock.withLock { source.enqueue(item) }
+        source.withLock { $0.enqueue(item) }
     }
 }
 
 // this class is _NOT_ thread-safe, the assumption is that this is only touched
 // by a single thread at a time (that is, the thread with a valid `RunLoop`)
 // https://gist.github.com/thomsmed/28164a6052fba8eb389ab25507011138
-final class RunLoopSource<WorkItem> {
+private final class RunLoopSource<WorkItem> {
     private var guts: CFRunLoopSource
     private weak var associatedRunLoop: RunLoop?
     private var pendingWorkItems = Deque<WorkItem>()
