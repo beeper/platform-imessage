@@ -6,9 +6,13 @@ import Logging
 
 private let sentryLog = Logger(swiftServerLabel: "sentry")
 private let log = Logger(swiftServerLabel: "swift-server")
+private let queueLog = Logger(swiftServerLabel: "queue")
 
 let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
     .appendingPathComponent("Messages", isDirectory: true)
+
+// not depending on swift-atomics for now
+private let queueCounter = Protected<Int>(0)
 
 @available(macOS 11, *)
 @NodeActor @NodeClass final class MessagesControllerWrapper {
@@ -21,12 +25,22 @@ let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .user
         function: StaticString = #function,
         _ action: @escaping () throws -> NodeValueConvertible
     ) throws -> NodePromise {
-        addBreadcrumb("Calling returnAsync from \(function)")
+        let id = queueCounter.withLock {
+            let current = $0
+            $0 += 1
+            return current
+        }
+
+        queueLog.debug("\(function)#\(id): materializing promise")
         return try NodePromise { deferred in
             queue.async {
                 let result = Result { try action() }
                 try? jsQueue.run {
-                    addBreadcrumb("Resolving returnAsync from \(function)")
+                    let settleResult = switch result {
+                    case .success: "resolved"
+                    case .failure: "rejected"
+                    }
+                    queueLog.debug("\(function)#\(id): \(settleResult)")
                     try deferred(result)
                 }
             }
