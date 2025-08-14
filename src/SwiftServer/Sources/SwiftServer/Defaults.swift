@@ -31,15 +31,13 @@ enum DefaultsKeys {
 
     /** ensures that we've correctly selected threads before trying to interact with them */
     static let misfirePrevention = "BEEPMisfirePrevention"
-    /** what we do when we can't read mobilesms defaults (`title-prediction` or `layout-waiter`) */
-    static let misfirePreventionFallbackStrategy = "BEEPMisfirePreventionFallbackStrategy"
-    /** whether to always attempt the fallback strat, even if we have defaults access */
-    static let misfirePreventionAlwaysFallback = "BEEPMisfirePreventionAlwaysFallback"
-    /** if we don't want to use a real fallback strat, how long to sleep for */
-    static let misfirePreventionSleepInterval = "BEEPMisfirePreventionSleepInterval"
+    /** when mobilesms defaults are blocked, whether we try to predict the window title in order to prevent misfires */
+    static let prediction = "BEEPPrediction"
     /** we try to use `IMCore` SPI for window title predictions for phone numbers */
     static let imCoreSPI = "BEEPIMCoreSPI"
     static let misfirePreventionTracing = "BEEPMisfirePreventionTracing"
+    /** whether to always attempt window title prediction, even if we have defaults access */
+    static let misfirePreventionAlwaysPredict = "BEEPMisfirePreventionAlwaysPredict"
     static let misfirePreventionTracingPII = "BEEPMisfirePreventionTracingPII"
     /** when predicting, whether we try to format contacts with the private short style */
     static let contactsAttemptFormattingWithShortStyle = "BEEPContactsAttemptFormattingWithShortStyle"
@@ -123,9 +121,7 @@ enum Defaults {
             DefaultsKeys.pollActivityStatus: true,
 
             DefaultsKeys.misfirePrevention: true,
-            DefaultsKeys.misfirePreventionFallbackStrategy: "layout-waiter",
-            // 0.3 (300ms) might be faster, but let's be conservative
-            DefaultsKeys.misfirePreventionSleepInterval: 0.5,
+            DefaultsKeys.prediction: true,
             DefaultsKeys.imCoreSPI: true,
             DefaultsKeys.contactsAttemptFormattingWithShortStyle: true,
             DefaultsKeys.predictionPredictsGroupChats: true,
