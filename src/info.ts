@@ -16,7 +16,6 @@ const info: PlatformInfo = {
 <path d="M9.99995 0.892499C4.76618 0.892499 0.523438 4.26842 0.523438 8.43459C0.527791 11.0813 2.2748 13.531 5.12747 14.8925C4.75456 15.6911 4.19448 16.4397 3.47043 17.108C4.87355 16.8723 6.19107 16.3787 7.3185 15.6633C8.1891 15.8685 9.09162 15.9739 9.99995 15.9753C15.2337 15.9753 19.4764 12.5994 19.4764 8.4332C19.4764 4.26842 15.2337 0.891113 9.99995 0.891113V0.892499Z" fill="white"/>
 </svg>
   `,
-  // @ts-expect-error - `brand` is valid, but we cannot update `platform-sdk`. See PLT-1246
   brand: {
     iconBackground: '#19BA3B',
     iconName: 'imessage',
@@ -26,6 +25,7 @@ const info: PlatformInfo = {
   // NOTE: this is unrespected by Beeper Desktop, which prefers Matrix room features
   editMessageTimeLimit: 15 * 60,
   // typingDurationMs: 3000,
+  // @ts-expect-error - convert 'can_receive_otp' to an Attribute
   attributes: new Set([
     Attribute.CAN_MESSAGE_PHONE_NUMBER,
     Attribute.CAN_MESSAGE_EMAIL,
@@ -37,6 +37,7 @@ const info: PlatformInfo = {
     Attribute.SUPPORTS_PIN_THREAD,
     Attribute.SORT_MESSAGES_ON_PUSH,
     Attribute.GET_MESSAGES_SUPPORTS_AFTER_DIRECTION,
+    'can_receive_otp',
     ...(IS_BIG_SUR_OR_UP
       ? [
         Attribute.SUBSCRIBE_TO_THREAD_SELECTION,
