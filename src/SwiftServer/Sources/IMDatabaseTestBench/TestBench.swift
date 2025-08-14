@@ -63,7 +63,7 @@ extension TestBench {
                 (chatRef.rowID!, state)
             })
 
-            for (chatIndex, chat) in try db.chats().enumerated() where filter.allSatisfy({ $0.test(against: chat) }) {
+            for chat in try db.chats() where filter.allSatisfy({ $0.test(against: chat) }) {
                 chat.dump()
 
                 if let state = states[chat.id] {
