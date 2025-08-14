@@ -1,4 +1,6 @@
-import os from 'node:os'
+// NOTE: DO NOT PREFIX THESE IMPORTS WITH `node:`, it doesn't bundle correctly
+// on desktop
+import os from 'os'
 import type { SupportedReaction } from '@textshq/platform-sdk'
 
 export const supportedReactions = {

@@ -1,5 +1,7 @@
-import os from 'node:os'
-import path from 'node:path'
+// NOTE: DO NOT PREFIX THESE IMPORTS WITH `node:`, it doesn't bundle correctly
+// on desktop
+import os from 'os'
+import path from 'path'
 import { texts } from '@textshq/platform-sdk'
 import { IS_BIG_SUR_OR_UP } from './common-constants'
 
