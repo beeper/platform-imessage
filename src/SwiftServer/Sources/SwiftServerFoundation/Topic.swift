@@ -28,4 +28,18 @@ public extension Topic {
 
         return stream
     }
+
+    /**
+     * Finishes all current subscribers and empties the subscriptions list.
+     *
+     * New subscribers may still be registered after calling this method.
+     */
+    func finishCurrentSubscribers() {
+        subscriptions.withLock {
+            for subscription in $0 {
+                subscription.finish()
+            }
+            $0.removeAll()
+        }
+    }
 }
