@@ -152,7 +152,7 @@ extension TestBench {
             bootstrap(logLevel: options.logLevel)
             let queue = DispatchQueue(label: "IMDatabaseTestBench FSEvents")
 
-            let watcher = try FSEvents(watchingPath: targetPath, includingFiles: files)
+            let watcher = try FSEventsWatcher(watchingPath: targetPath, includingFiles: files)
 
             Task {
                 for try await event in watcher.events.subscribe() {

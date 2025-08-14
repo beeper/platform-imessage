@@ -2,7 +2,7 @@ import Cocoa
 import Foundation
 import SwiftServerFoundation
 
-public final class FSEvents {
+public final class FSEventsWatcher {
     private var stream: FSEventStreamRef!
 
     public private(set) var events = Topic<Event>()
@@ -26,7 +26,7 @@ public final class FSEvents {
             version: 0,
             info: Unmanaged.passRetained(self).toOpaque(),
             retain: nil,
-            release: { $0.flatMap(Unmanaged<FSEvents>.fromOpaque)?.release() },
+            release: { $0.flatMap(Unmanaged<FSEventsWatcher>.fromOpaque)?.release() },
             copyDescription: nil,
         )
 
@@ -52,7 +52,7 @@ public final class FSEvents {
     }
 }
 
-public extension FSEvents {
+public extension FSEventsWatcher {
     /** Starts the event stream. Make sure to set a dispatch queue before calling. */
     func start() throws(Error) {
         guard FSEventStreamStart(stream) else {
@@ -75,7 +75,7 @@ public extension FSEvents {
     }
 }
 
-public extension FSEvents {
+public extension FSEventsWatcher {
     /** Asks the FS Events service to immediately flush any undelivered events that have occurred since the last callback invocation. */
     func flush() {
         FSEventStreamFlushSync(stream)
@@ -88,13 +88,13 @@ public extension FSEvents {
     }
 }
 
-extension FSEvents: CustomStringConvertible {
+extension FSEventsWatcher: CustomStringConvertible {
     public var description: String {
         FSEventStreamCopyDescription(stream) as String
     }
 }
 
-public extension FSEvents {
+public extension FSEventsWatcher {
     enum Error: Swift.Error {
         case creatingStream
         case startingStream
@@ -103,7 +103,7 @@ public extension FSEvents {
     }
 }
 
-public extension FSEvents {
+public extension FSEventsWatcher {
     struct Flags: OptionSet, CustomStringConvertible {
         public let rawValue: Int
 
@@ -158,7 +158,7 @@ public extension FSEvents {
     }
 }
 
-public extension FSEvents {
+public extension FSEventsWatcher {
     struct Event: Identifiable {
         public var id: Int
         public var path: String
@@ -178,7 +178,7 @@ private func callback(
         return
     }
 
-    let wrapper = Unmanaged<FSEvents>.fromOpaque(callbackInfo).takeUnretainedValue()
+    let wrapper = Unmanaged<FSEventsWatcher>.fromOpaque(callbackInfo).takeUnretainedValue()
 
     guard let eventsPaths = unsafeBitCast(eventsPaths, to: NSArray.self) as? [String] else {
         return
@@ -187,8 +187,8 @@ private func callback(
     let eventsIDs = UnsafeBufferPointer(start: eventsIDs, count: numberOfEvents)
 
     for (id, (path, flags)) in zip(eventsIDs, zip(eventsPaths, eventsFlags)) {
-        let flags = FSEvents.Flags(rawValue: flags)
-        let event = FSEvents.Event(id: numericCast(id), path: path, flags: flags)
+        let flags = FSEventsWatcher.Flags(rawValue: flags)
+        let event = FSEventsWatcher.Event(id: numericCast(id), path: path, flags: flags)
         wrapper.events.broadcast(event)
     }
 }
