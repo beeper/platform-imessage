@@ -58,7 +58,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
                 "SQLite",
-                "SwiftServerFoundation"
+                "SwiftServerFoundation",
             ],
         ),
         .executableTarget(
@@ -66,6 +66,7 @@ let package = Package(
             dependencies: [
                 "IMDatabase",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "SwiftServerFoundation",
             ]
         ),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
@@ -81,6 +82,6 @@ let package = Package(
                 "ExceptionCatcher",
                 "CUnfairLock",
             ]
-        )
+        ),
     ]
 )

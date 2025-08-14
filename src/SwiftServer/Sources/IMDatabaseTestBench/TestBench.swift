@@ -3,6 +3,7 @@ import Foundation
 import IMDatabase
 import Logging
 import SQLite
+import SwiftServerFoundation
 
 private func bootstrap(logLevel: Logger.Level = .trace) {
     LoggingSystem.bootstrap { label in
@@ -17,7 +18,7 @@ extension Logger.Level: @retroactive ExpressibleByArgument {}
 @main
 struct TestBench: AsyncParsableCommand {
     struct Options: ParsableArguments {
-        @Option(name: [.long, .customShort("l")], help: "Specify the log level.")
+        @Option(name: .long, help: "Specify the log level.")
         var logLevel: Logger.Level = .trace
     }
 
@@ -145,7 +146,13 @@ extension TestBench {
         @OptionGroup var options: TestBench.Options
 
         @Argument(help: "The paths to monitor. Each path is monitored by both FSEvents and DispatchSourceFileSystemObject.") var targetPaths: [String]
-        @Flag(name: [.customLong("fs-events-files"), .customShort("f")], help: "Whether to tell FSEvents to observe file activity for the specified paths.") var fsEventsFiles = false
+        @Option(name: [.customLong("fse-latency"), .customShort("l")], help: "The latency to use when leveraging FSEvents to observe file activity..") var latency: Double = 1.0 / 60.0
+        @Flag(name: [.customLong("fse-files"), .customShort("f")], help: "Whether to tell FSEvents to observe file activity for the specified paths.") var fsEventsFiles = false
+
+        enum Event {
+            case fse(source: FSEventsWatcher, FSEventsWatcher.Event)
+            case dispatch(source: FileWatcher, path: String, DispatchSource.FileSystemEvent)
+        }
 
         mutating func run() async throws {
             bootstrap(logLevel: options.logLevel)
@@ -161,34 +168,47 @@ extension TestBench {
                 "\u{1b}[90;3m[" + dateFormatter.string(from: Date()) + "]\u{1b}[0m"
             }
 
+            let topic = Topic<Event>()
+            var watchers = [Any]()
+
             func watchWithFSEvents(path: String) throws {
-                let fsEventsWatcher = try FSEventsWatcher(watchingPath: path, includingFiles: fsEventsFiles)
-
-                Task {
-                    for try await event in fsEventsWatcher.events.subscribe() {
-                        print("\(now()) \u{1b}[1;32m<FSEvents>      \u{1b}[0m [\(event.id)] \(event.path.shortenedPath) \u{1b}[1m\(event.flags)\u{1b}[0m")
-                    }
+                let fsEventsWatcher = try FSEventsWatcher(watchingPath: path, includingFiles: fsEventsFiles, latency: latency) { watcher, event in
+                    topic.broadcast(.fse(source: watcher, event))
                 }
-
                 fsEventsWatcher.setDispatchQueue(fsEventsQueue)
                 try fsEventsWatcher.start()
+                watchers.append(fsEventsWatcher)
             }
 
             func watchWithDispatchSource(path: String) throws {
-                let watcher = FileWatcher(watching: URL(fileURLWithPath: path))
-
-                Task {
-                    for try await event in watcher.events.subscribe() {
-                        print("\(now()) \u{1b}[1;34m<DispatchSource>\u{1b}[0m (\(path.shortenedPath)) \u{1b}[1m<\(event.imdb_description)>\u{1b}[0m")
-                    }
-                }
-
+                let watcher = FileWatcher(watching: URL(fileURLWithPath: path), onEvent: { watcher, event in
+                    topic.broadcast(.dispatch(source: watcher, path: path, event))
+                })
                 try watcher.beginListening()
+                watchers.append(watcher)
             }
 
             for path in targetPaths {
                 try watchWithFSEvents(path: path)
                 try watchWithDispatchSource(path: path)
+            }
+
+            print("total watcher count: \(watchers.count)")
+
+            Task {
+                for try await event in topic.subscribe() {
+                    switch event {
+                    case let .fse(_, event):
+                        print("\(now()) \u{1b}[1;32m<FSEvents>      \u{1b}[0m [\(event.id)] \(event.path.shortenedPath) \u{1b}[1m\(event.flags)\u{1b}[0m")
+                    case let .dispatch(source, path, event):
+                        let linksLabel = switch try source.hasHardLinks() {
+                        case .some(true): "\u{1b}[1;32m(has links)\u{1b}[0m"
+                        case .some(false): "\u{1b}[1;31m(no links)\u{1b}[0m"
+                        case nil: "\u{1b}[1;33m(unknown)\u{1b}[0m"
+                        }
+                        print("\(now()) \u{1b}[1;34m<DispatchSource>\u{1b}[0m (\(path.shortenedPath)) \u{1b}[1m<\(event.imdb_description)>\u{1b}[0m \(linksLabel)")
+                    }
+                }
             }
 
             // `dispatchMain` crashes

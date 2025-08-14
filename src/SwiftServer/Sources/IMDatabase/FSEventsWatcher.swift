@@ -1,16 +1,26 @@
 import Cocoa
 import Foundation
+import Logging
 import SwiftServerFoundation
 
+private let log = Logger(swiftServerLabel: "fsevent")
+
+// FSEvents is better for detecting FS events that occur in a directory tree,
+// such as files being created or deleted. it doesn't seem to work well for
+// detecting changes to files, such as `chat.db-wal`. use FileWatcher for that.
 public final class FSEventsWatcher {
     private var stream: FSEventStreamRef!
 
-    public private(set) var events = Topic<Event>()
+    public typealias Callback = @Sendable (FSEventsWatcher, sending FSEventsWatcher.Event) -> Void
+
+    // not thread-safe
+    public var callback: Callback
 
     public init(
         watchingPath path: String,
         includingFiles: Bool = false,
         latency: TimeInterval = 1.0 / 60.0,
+        onEvent callback: @escaping Callback,
     ) throws(Error) {
         var flags = FSEventStreamCreateFlags(
             kFSEventStreamCreateFlagUseCFTypes
@@ -20,6 +30,8 @@ public final class FSEventsWatcher {
         if includingFiles {
             flags |= numericCast(kFSEventStreamCreateFlagFileEvents)
         }
+
+        self.callback = callback
 
         // https://www.mikeash.com/pyblog/friday-qa-2017-08-11-swiftunmanaged.html#:~:text=Asynchronous%20Multi%2DShot%20Callback
         var context = FSEventStreamContext(
@@ -32,7 +44,7 @@ public final class FSEventsWatcher {
 
         guard let stream = FSEventStreamCreate(
             kCFAllocatorDefault,
-            callback,
+            fsEventsCallback,
             &context,
             [path as CFString] as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
@@ -46,6 +58,7 @@ public final class FSEventsWatcher {
     }
 
     deinit {
+        print("fsevents watcher deinit")
         FSEventStreamStop(stream)
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)
@@ -166,7 +179,7 @@ public extension FSEventsWatcher {
     }
 }
 
-private func callback(
+private func fsEventsCallback(
     _ stream: ConstFSEventStreamRef,
     _ callbackInfo: UnsafeMutableRawPointer?,
     _ numberOfEvents: Int,
@@ -175,20 +188,25 @@ private func callback(
     _ eventsIDs: UnsafePointer<FSEventStreamEventId>
 ) {
     guard let callbackInfo else {
+        log.error("fsevent callback: no callback info")
         return
     }
 
     let wrapper = Unmanaged<FSEventsWatcher>.fromOpaque(callbackInfo).takeUnretainedValue()
 
     guard let eventsPaths = unsafeBitCast(eventsPaths, to: NSArray.self) as? [String] else {
+        log.error("fsevent callback: couldn't cast event paths")
         return
     }
     let eventsFlags = UnsafeBufferPointer(start: eventsFlags, count: numberOfEvents)
     let eventsIDs = UnsafeBufferPointer(start: eventsIDs, count: numberOfEvents)
 
+#if DEBUG
+    log.debug("fsevent callback: \(numberOfEvents) event(s)")
+#endif
     for (id, (path, flags)) in zip(eventsIDs, zip(eventsPaths, eventsFlags)) {
         let flags = FSEventsWatcher.Flags(rawValue: flags)
         let event = FSEventsWatcher.Event(id: numericCast(id), path: path, flags: flags)
-        wrapper.events.broadcast(event)
+        wrapper.callback(wrapper, event)
     }
 }
