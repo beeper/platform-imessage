@@ -1,8 +1,8 @@
+import ArgumentParser
 import Foundation
 import IMDatabase
-import SQLite
 import Logging
-import ArgumentParser
+import SQLite
 
 private func bootstrap(logLevel: Logger.Level = .trace) {
     LoggingSystem.bootstrap { label in
@@ -26,8 +26,7 @@ struct TestBench: AsyncParsableCommand {
         subcommands: [Watch.self, Chats.self, FSEventsCommand.self],
     )
 
-    mutating func run() async throws {
-    }
+    mutating func run() async throws {}
 }
 
 extension TestBench {
@@ -60,11 +59,11 @@ extension TestBench {
             bootstrap(logLevel: options.logLevel)
 
             let db = try IMDatabase()
-            let states = Dictionary(uniqueKeysWithValues: try db.queryUnreadStates().map { (chatRef, state) in
+            let states = try Dictionary(uniqueKeysWithValues: db.queryUnreadStates().map { chatRef, state in
                 (chatRef.rowID!, state)
             })
 
-            for (chatIndex, chat) in try db.chats().enumerated() where filter.allSatisfy({ $0.test(against: chat)}) {
+            for (chatIndex, chat) in try db.chats().enumerated() where filter.allSatisfy({ $0.test(against: chat) }) {
                 chat.dump()
 
                 if let state = states[chat.id] {
@@ -139,29 +138,59 @@ extension TestBench {
 extension TestBench {
     struct FSEventsCommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            commandName: "fs-events",
-            abstract: "Tests the FSEvents wrapper implementation.",
+            commandName: "fs-watch",
+            abstract: "Tests file system watcher implementations.",
         )
 
         @OptionGroup var options: TestBench.Options
 
-        @Argument(help: "The path to the directory to monitor.") var targetPath: String
-        @Flag(help: "Whether to observe file activity within the monitored directory.") var files = false
+        @Argument(help: "The paths to monitor. Each path is monitored by both FSEvents and DispatchSourceFileSystemObject.") var targetPaths: [String]
+        @Flag(name: [.customLong("fs-events-files"), .customShort("f")], help: "Whether to tell FSEvents to observe file activity for the specified paths.") var fsEventsFiles = false
 
         mutating func run() async throws {
             bootstrap(logLevel: options.logLevel)
-            let queue = DispatchQueue(label: "IMDatabaseTestBench FSEvents")
 
-            let watcher = try FSEventsWatcher(watchingPath: targetPath, includingFiles: files)
+            let fsEventsQueue = DispatchQueue(label: "IMDatabaseTestBench FSEvents")
+            let dateFormatter = {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withFullTime, .withFractionalSeconds]
+                return formatter
+            }()
 
-            Task {
-                for try await event in watcher.events.subscribe() {
-                    print("[\(event.id)] \(event.path) \(event.flags)")
-                }
+            func now() -> String {
+                "\u{1b}[90;3m[" + dateFormatter.string(from: Date()) + "]\u{1b}[0m"
             }
 
-            watcher.setDispatchQueue(queue)
-            try watcher.start()
+            func watchWithFSEvents(path: String) throws {
+                let fsEventsWatcher = try FSEventsWatcher(watchingPath: path, includingFiles: fsEventsFiles)
+
+                Task {
+                    for try await event in fsEventsWatcher.events.subscribe() {
+                        print("\(now()) \u{1b}[1;32m<FSEvents>      \u{1b}[0m [\(event.id)] \(event.path.shortenedPath) \u{1b}[1m\(event.flags)\u{1b}[0m")
+                    }
+                }
+
+                fsEventsWatcher.setDispatchQueue(fsEventsQueue)
+                try fsEventsWatcher.start()
+            }
+
+            func watchWithDispatchSource(path: String) throws {
+                let watcher = FileWatcher(watching: URL(fileURLWithPath: path))
+
+                Task {
+                    for try await event in watcher.events.subscribe() {
+                        print("\(now()) \u{1b}[1;34m<DispatchSource>\u{1b}[0m (\(path.shortenedPath)) \u{1b}[1m<\(event.imdb_description)>\u{1b}[0m")
+                    }
+                }
+
+                try watcher.beginListening()
+            }
+
+            for path in targetPaths {
+                try watchWithFSEvents(path: path)
+                try watchWithDispatchSource(path: path)
+            }
+
             // `dispatchMain` crashes
             await Task.never()
         }
@@ -169,8 +198,35 @@ extension TestBench {
 }
 
 private extension Task where Success == Never, Failure == Never {
-    static func never() async -> Void {
+    static func never() async {
         let empty = AsyncStream<Never> { _ in }
         for await _ in empty {}
+    }
+}
+
+private extension String {
+    var shortenedPath: String {
+        replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+
+    func padEnd(to length: Int) -> String {
+        self + String(repeating: " ", count: max(0, length - count))
+    }
+}
+
+private extension DispatchSource.FileSystemEvent {
+    var imdb_description: String {
+        switch self {
+        case .all: "all"
+        case .attrib: "attrib"
+        case .delete: "delete"
+        case .extend: "extend"
+        case .funlock: "funlock"
+        case .link: "link"
+        case .rename: "rename"
+        case .revoke: "revoke"
+        case .write: "write"
+        default: "unknown"
+        }
     }
 }
