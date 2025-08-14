@@ -23,7 +23,7 @@ struct TestBench: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
-        subcommands: [Watch.self, Chats.self],
+        subcommands: [Watch.self, Chats.self, FSEventsCommand.self],
     )
 
     mutating func run() async throws {
@@ -131,5 +131,46 @@ extension TestBench {
                 print("changed unread states:", changedStates)
             }
         }
+    }
+}
+
+// MARK: - FSEvents
+
+extension TestBench {
+    struct FSEventsCommand: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "fs-events",
+            abstract: "Tests the FSEvents wrapper implementation.",
+        )
+
+        @OptionGroup var options: TestBench.Options
+
+        @Argument(help: "The path to the directory to monitor.") var targetPath: String
+        @Flag(help: "Whether to observe file activity within the monitored directory.") var files = false
+
+        mutating func run() async throws {
+            bootstrap(logLevel: options.logLevel)
+            let queue = DispatchQueue(label: "IMDatabaseTestBench FSEvents")
+
+            let watcher = try FSEvents(watchingPath: targetPath, includingFiles: files)
+
+            Task {
+                for try await event in watcher.events.subscribe() {
+                    print("[\(event.id)] \(event.path) \(event.flags)")
+                }
+            }
+
+            watcher.setDispatchQueue(queue)
+            try watcher.start()
+            // `dispatchMain` crashes
+            await Task.never()
+        }
+    }
+}
+
+private extension Task where Success == Never, Failure == Never {
+    static func never() async -> Void {
+        let empty = AsyncStream<Never> { _ in }
+        for await _ in empty {}
     }
 }
