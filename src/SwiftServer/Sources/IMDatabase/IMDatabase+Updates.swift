@@ -10,12 +10,11 @@ SELECT
     c.ROWID,
     c.guid
 FROM
-    message AS m
-    LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-    LEFT JOIN chat c ON cmj.chat_id = c.ROWID
+    message m
+LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+LEFT JOIN chat c ON cmj.chat_id = c.ROWID
 WHERE
-    m.ROWID > ?
-    OR m.date_read > ?
+    m.ROWID > ? OR m.date_read > ?
 GROUP BY
     c.guid
 ORDER BY
