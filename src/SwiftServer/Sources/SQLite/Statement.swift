@@ -69,4 +69,14 @@ public extension Statement {
         }
         return results
     }
+
+    func compactMapRowsUntilDone<T>(_ transform: (_ row: borrowing Row) throws -> T?) throws -> [T] {
+        var results = [T]()
+        try stepUntilDone {
+            if let result = try transform($0) {
+                results.append(result)
+            }
+        }
+        return results
+    }
 }

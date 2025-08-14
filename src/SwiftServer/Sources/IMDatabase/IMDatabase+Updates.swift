@@ -39,8 +39,11 @@ public extension IMDatabase {
 
         var newestMessageRowID: Int?
         var latestMessageDateRead: Date?
-        let updatedChats = try statement.mapRowsUntilDone { row in
-            newestMessageRowID = try max(row[0].expect(Int.self), newestMessageRowID ?? 0)
+        var timesWarnedAboutOrphanedMessage = 0
+
+        let updatedChats: [ChatRef] = try statement.compactMapRowsUntilDone { row in
+            let messageRowID = try row[0].expect(Int.self)
+            newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
 
             dateRead: do {
                 // AFAICT this is a timestamp or zero. The column itself is
@@ -59,17 +62,26 @@ public extension IMDatabase {
                 }
             }
 
-            let rowID = try row[2].expect(Int.self)
-            let guid = try row[3].optional(String.self)
-            if guid == nil {
-                log.error("chat \(rowID) has a `NULL` GUID for some reason, continuing with chat query")
+            guard let rowID = try row[2].optional(Int.self), let guid = try row[3].optional(String.self) else {
+                // For whatever reason it's possible for messages to not be
+                // joinable with chats. Right now I have one of these for a SMS
+                // TOTP verification code, which might've been automatically
+                // deleted in a weird way due to the autofill feature.
+                //
+                // In case there are tons of orphaned messages, don't spam the
+                // logs with this message.
+                if timesWarnedAboutOrphanedMessage < 10 {
+                    log.error("couldn't join message \(messageRowID) to chat, dropping")
+                    timesWarnedAboutOrphanedMessage += 1
+                }
+                return nil
             }
+
             return ChatRef(rowID: rowID, guid: guid)
         }
 
         return UpdatedChatsQueryResult(
-            // Discard chats without a `guid` and `ROWID` (impossible?)
-            updatedChats: updatedChats.compactMap(\.self),
+            updatedChats: updatedChats,
             latestMessageRowID: newestMessageRowID,
             latestMessageDateRead: latestMessageDateRead
         )
