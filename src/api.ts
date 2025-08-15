@@ -159,10 +159,7 @@ export default class AppleiMessage implements PlatformAPI {
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
-    try {
-      await this.tryInitializingDB()
-    } catch (error) {
-      texts.error(`imsg: couldn't initialize db: ${error}`)
+    if (!await this.tryInitializingDB()) {
       throw new ReAuthError('no access to iMessage data')
     }
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
