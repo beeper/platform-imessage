@@ -1328,11 +1328,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     var lastActivate: Date?
+    var messagesIsManuallyActivated = false
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
     private func activateMessages() {
         do {
             lastActivate = Date()
+            messagesIsManuallyActivated = true
             log.debug("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
@@ -1352,6 +1354,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func deactivateMessages() {
         do {
             lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
+            messagesIsManuallyActivated = false
             log.debug("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
@@ -1459,6 +1462,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         return { [weak self] quiescence in
             guard let self else { return }
+
+            guard !messagesIsManuallyActivated else {
+                log.debug("not observing activity, Messages is manually activated")
+                return
+            }
 
             guard om.visible else {
 #if DEBUG
