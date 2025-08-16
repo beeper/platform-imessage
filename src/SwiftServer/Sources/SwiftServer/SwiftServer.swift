@@ -159,6 +159,7 @@ private let queueCounter = Protected<Int>(0)
         }
 
         guard threadID.hasPrefix("iMessage;-;") else {
+            // we might need to handle group typing indicators eventually
 #if DEBUG
             log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
 #endif
@@ -170,45 +171,18 @@ private let queueCounter = Protected<Int>(0)
             try? self.watchCBQueue.run {
                 try sendStatus(statuses.map(\.rawValue))
             }
+            return
         }
 
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
-
-        // TODO: move this logic to the controller
-
-        // TODO: handle the watch target changing in the middle of a lull period;
-        // TODO: need to stash the thread id somewhere?
-
-        Self.queue.setIdleCallback { [controller] quiescence in
-            guard controller.om.visible else {
-#if DEBUG
-            log.debug("not polling activity status, window occluded")
-#endif
-                return
-            }
-
-            guard controller.isValid else {
-#if DEBUG
-            log.debug("not polling activity status, controller is invalid")
-#endif
-                return
-            }
-
+        // it's okay that we aren't using `performAsync`/`returnAsync` here -
+        // the idle callback is itself submitted onto the queue, so everything's
+        // still serial
+        let observe = try controller.idleObservingCallback(for: threadID, sendStatus: sendStatusOnQueue)
+        Self.queue.setIdleCallback { quiescence in
             do {
-                if quiescence == .began {
-                    log.debug("entered idle state, opening deep link in order to watch thread activity")
-                    try controller.prepareForAutomation()
-                    defer { controller.finishedAutomation() }
-                    try controller._removeObserver()
-
-                    try MessagesController.openDeepLink(url)
-                    // TODO: wait for layout change instead of this
-                    Thread.sleep(forTimeInterval: 0.5)
-                }
-
-                sendStatusOnQueue(controller.activityStatus())
+                try observe(quiescence)
             } catch {
-                log.error("watch work failed! \(error)")
+                log.error("failed to observe activity: \(error)")
             }
         }
 

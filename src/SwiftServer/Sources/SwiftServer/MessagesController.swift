@@ -164,6 +164,7 @@ final class MessagesController {
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver?
     private var activityObserver: ActivityObserver?
+    private var lastObservedThreadID = Protected<String?>()
 
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
@@ -1452,6 +1453,46 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         MessagesController.deleteThread()
     */
     private let activityLock = UnfairLock()
+
+    func idleObservingCallback(for threadID: String, sendStatus: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
+        lastObservedThreadID.withLock { $0 = threadID }
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        return { [weak self] quiescence in
+            guard let self else { return }
+
+            guard om.visible else {
+#if DEBUG
+            log.debug("not observing activity, window occluded")
+#endif
+                return
+            }
+
+            guard isValid else {
+#if DEBUG
+            log.debug("not observing activity, controller is invalid")
+#endif
+                return
+            }
+
+            if quiescence == .began || lastObservedThreadID.read() != threadID {
+                log.debug("entered idle state or thread id changed, opening deep link in order to watch thread activity")
+                try prepareForAutomation()
+                defer { finishedAutomation() }
+                try _removeObserver()
+
+                try Self.openDeepLink(url)
+
+                // TODO: wait for layout change instead of this
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+
+            guard activityLock.tryLock() else { return }
+            defer { activityLock.unlock() }
+
+            sendStatus(activityStatus())
+        }
+    }
 
     // called on run loop thread, not main node thread
     private func pollActivityStatus() {
