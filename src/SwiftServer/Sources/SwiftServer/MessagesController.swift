@@ -164,7 +164,7 @@ final class MessagesController {
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver?
     private var activityObserver: ActivityObserver?
-    private var lastObservedThreadID = Protected<String?>()
+    private var lastThreadIDOpenedForObservation = Protected<String?>()
 
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
@@ -1455,7 +1455,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private let activityLock = UnfairLock()
 
     func idleObservingCallback(for threadID: String, sendStatus: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
-        lastObservedThreadID.withLock { $0 = threadID }
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         return { [weak self] quiescence in
@@ -1475,13 +1474,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 return
             }
 
-            if quiescence == .began || lastObservedThreadID.read() != threadID {
+            if quiescence == .began || lastThreadIDOpenedForObservation.read() != threadID {
                 log.debug("entered idle state or thread id changed, opening deep link in order to watch thread activity")
                 try prepareForAutomation()
                 defer { finishedAutomation() }
                 try _removeObserver()
 
                 try Self.openDeepLink(url)
+                lastThreadIDOpenedForObservation.withLock { $0 = threadID }
 
                 // TODO: wait for layout change instead of this
                 Thread.sleep(forTimeInterval: 0.5)
