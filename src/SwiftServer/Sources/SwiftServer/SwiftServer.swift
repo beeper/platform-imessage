@@ -18,7 +18,7 @@ private let queueCounter = Protected<Int>(0)
 @NodeActor @NodeClass final class MessagesControllerWrapper {
     static let name = "MessagesController"
 
-    private static let queue = DispatchQueue(label: "messages-controller-wrapper-queue")
+    static let queue = PassivelyAwareDispatchQueue(label: "messages-controller-wrapper-queue", idleDelay: 1)
 
     private static func returnAsync(
         on jsQueue: NodeAsyncQueue,
@@ -139,44 +139,80 @@ private let queueCounter = Protected<Int>(0)
 
     @NodeMethod func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.watchThreadActivity) else {
-            return try NodeNull()
+            return undefined
         }
 
         let controllerArgs: (String, ([MessagesController.ActivityStatus]) -> Void)?
-        if try args.count == 1 && args[0].as(NodeNull.self) != nil {
-            controllerArgs = nil
-        } else if args.count == 2,
-                  let threadID = try args[0].as(String.self),
-                  let fn = try args[1].as(NodeFunction.self) {
-            controllerArgs = (threadID, { status in
-                try? self.watchCBQueue.run { try fn(status.map { $0.rawValue }) }
-            })
-        } else {
-            print("warning: Invalid args to watchThreadActivity")
-            controllerArgs = nil
+
+        let reset = { [self] in
+            try controller.removeObserver()
+            Self.queue.setIdleCallback(nil)
         }
-        let req = UUID()
-        do {
-            threadObserveRequestTokenLock.lock()
-            defer { threadObserveRequestTokenLock.unlock() }
-            threadObserveRequestToken = req
+
+        guard args.count == 2,
+              let threadID = try args[0].as(String.self),
+              let sendStatus = try args[1].as(NodeFunction.self)
+        else {
+            log.error("invalid args passed to watchThreadActivity")
+            try reset()
+            return undefined
         }
-        return try performAsync { [self] in
+
+        guard threadID.hasPrefix("iMessage;-;") else {
+#if DEBUG
+            log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+#endif
+            try reset()
+            return undefined
+        }
+
+        let sendStatusOnQueue = { (statuses: [MessagesController.ActivityStatus]) in
+            try? self.watchCBQueue.run {
+                try sendStatus(statuses.map(\.rawValue))
+            }
+        }
+
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        // TODO: move this logic to the controller
+
+        // TODO: handle the watch target changing in the middle of a lull period;
+        // TODO: need to stash the thread id somewhere?
+
+        Self.queue.setIdleCallback { [controller] quiescence in
+            guard controller.om.visible else {
+#if DEBUG
+            log.debug("not polling activity status, window occluded")
+#endif
+                return
+            }
+
+            guard controller.isValid else {
+#if DEBUG
+            log.debug("not polling activity status, controller is invalid")
+#endif
+                return
+            }
+
             do {
-                threadObserveRequestTokenLock.lock()
-                defer { threadObserveRequestTokenLock.unlock() }
-                // if another watchThreadActivity request has been enqueued
-                // after our current one (but before this performAsync block
-                // began executing), then this check will fail and therefore
-                // prevent the current block from unnecessarily running
-                guard threadObserveRequestToken == req else { return }
-            }
-            if let (threadID, callback) = controllerArgs {
-                try controller.observe(threadID: threadID, callback: callback)
-            } else {
-                try controller.removeObserver()
+                if quiescence == .began {
+                    log.debug("entered idle state, opening deep link in order to watch thread activity")
+                    try controller.prepareForAutomation()
+                    defer { controller.finishedAutomation() }
+                    try controller._removeObserver()
+
+                    try MessagesController.openDeepLink(url)
+                    // TODO: wait for layout change instead of this
+                    Thread.sleep(forTimeInterval: 0.5)
+                }
+
+                sendStatusOnQueue(controller.activityStatus())
+            } catch {
+                log.error("watch work failed! \(error)")
             }
         }
+
+        return undefined
     }
 
     @NodeMethod func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
@@ -249,7 +285,7 @@ private let queueCounter = Protected<Int>(0)
         hasBeenDisposed = true
 
         Log.default.notice("[MessagesControllerWrapper] disposing")
-        Self.queue.sync { controller.dispose() }
+        Self.queue.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
     }
 }

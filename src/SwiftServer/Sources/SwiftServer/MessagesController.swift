@@ -171,9 +171,9 @@ final class MessagesController {
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
 
-    private let om = OcclusionMonitor()
+    let om = OcclusionMonitor()
 
-    private class OcclusionMonitor {
+    class OcclusionMonitor {
         var visible: Bool = true
 
         private var ncToken: NSObjectProtocol?
@@ -1366,7 +1366,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func activityStatus() -> [ActivityStatus] {
+    func activityStatus() -> [ActivityStatus] {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1490,7 +1490,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     // must call with lock held
-    private func _removeObserver() throws {
+    func _removeObserver() throws {
         if let old = activityObserver {
             old.send([.notTyping])
             activityObserver = nil

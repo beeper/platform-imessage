@@ -14,6 +14,7 @@ const Config = z.object({
   guids: z.object({
     first: z.string(),
     second: z.string(),
+    watching: z.string().optional(),
   }),
 })
 
@@ -66,23 +67,46 @@ async function main() {
     }
   }
 
-  async function run(command: string): Promise<void> {
-    if (command === 'stress') {
-      console.log(c.bold.green('stressing...'))
-      await Promise.all([
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.second, true),
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.second, true),
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.second, true),
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.first, true),
-        call('toggleThreadRead', config.guids.first, true),
-      ])
-      console.log(c.bold.cyan('done!'))
+  async function watch(id: string) {
+    await call('watchThreadActivity', id, statuses => {
+      console.log(c.bold.cyan('thread activity:'), statuses)
+    })
+  }
+
+  async function run(input: string): Promise<void> {
+    const [command, ...args] = input.split(' ')
+
+    switch (command) {
+      case 'stress': {
+        console.log(c.bold.green('stressing...'))
+        await Promise.all([
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.second, true),
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.second, true),
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.second, true),
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.first, true),
+          call('toggleThreadRead', config.guids.first, true),
+        ])
+        console.log(c.bold.cyan('done!'))
+        break
+      }
+      case 'watch': {
+        if (!args.length) {
+          console.log(c.bold.red('watch command requires a thread ID'))
+          break
+        }
+        await watch(args[0])
+        break
+      }
+      default: {
+        console.log(c.bold.red(`unknown command: ${command}`))
+        break
+      }
     }
   }
 
@@ -90,6 +114,7 @@ async function main() {
   for (const command of cliCommands) {
     await run(command)
   }
+  if (config.guids.watching) await watch(config.guids.watching)
 
   const running = true
   while (running) {

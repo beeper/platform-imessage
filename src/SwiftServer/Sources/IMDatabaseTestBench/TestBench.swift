@@ -24,7 +24,7 @@ struct TestBench: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
-        subcommands: [Watch.self, Chats.self, FSEventsCommand.self],
+        subcommands: [Watch.self, Chats.self, FSEventsCommand.self, TestIdleAware.self],
     )
 
     mutating func run() async throws {}
@@ -247,6 +247,57 @@ private extension DispatchSource.FileSystemEvent {
         case .revoke: "revoke"
         case .write: "write"
         default: "unknown"
+        }
+    }
+}
+
+// MARK: - Idle Aware
+
+extension TestBench {
+    struct TestIdleAware: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "test-idle-aware",
+            abstract: "Tests the idle aware queue."
+        )
+        @OptionGroup var options: TestBench.Options
+
+        mutating func run() async throws {
+            bootstrap(logLevel: options.logLevel)
+
+            let queue = PassivelyAwareDispatchQueue(label: "test", idleDelay: 0.1)
+
+            queue.setIdleCallback { info in
+                print("*** IDLE! *** [0.1s] <\(info)>")
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+
+            queue.async {
+                print("1. [1s]")
+                Thread.sleep(forTimeInterval: 1)
+            }
+            queue.async {
+                print("2. [0.5s]")
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+            queue.async {
+                print("3. [0.25s]")
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+
+            Task {
+                while true {
+                    let ms = Int.random(in: 500...4_000)
+                    try! await Task.sleep(nanoseconds: UInt64(1_000_000 * ms))
+
+                    queue.async {
+                        let cost = Double.random(in: 0.5...1)
+                        print("r. [\(cost)s]")
+                        Thread.sleep(forTimeInterval: cost)
+                    }
+                }
+            }
+
+            await Task.never()
         }
     }
 }
