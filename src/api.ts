@@ -25,7 +25,7 @@ import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, ChatRow, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
-import { appleDateToMillisSinceEpoch } from './time'
+import { AppleDate, appleDateNow, appleDateToMillisSinceEpoch } from './time'
 import Phaser from './phaser'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
@@ -931,27 +931,38 @@ export default class AppleiMessage implements PlatformAPI {
 
     if (archived) {
       const chatGUID = originalThreadID(hashedThreadID)
-      const msg = await this.dbAPI.getLatestMessage(chatGUID)
-      if (!msg) {
-        throw new Error(`imsg/archive/${hashedThreadID}: couldn't find latest message`)
-      }
 
-      const newArchivalOrder = appleDateToMillisSinceEpoch(msg.dateString)
-      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${msg.dateString})`)
+      let newArchivalOrder: number | undefined
+      let persistedArchivedAt: AppleDate | undefined
+      const latestMessage = await this.dbAPI.getLatestMessage(chatGUID)
+      if (latestMessage) {
+        newArchivalOrder = appleDateToMillisSinceEpoch(latestMessage.dateString)
+        persistedArchivedAt = latestMessage.dateString
 
-      if (!(await this.dbAPI.isThreadRead(chatGUID))) {
-        texts.log(`imsg/archive/${hashedThreadID}: being archived but is unread, marking it as read first`)
-        // NOTE(skip): marking the thread as read might cause the Swift poller
-        // to detect unread changes and state sync
+        texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${latestMessage.dateString})`)
 
-        await this.toggleThreadRead(true)(hashedThreadID)
+        if (!(await this.dbAPI.isThreadRead(chatGUID))) {
+          texts.log(`imsg/archive/${hashedThreadID}: being archived but is unread, marking it as read first`)
+          // NOTE(skip): marking the thread as read might cause the Swift poller
+          // to detect unread changes and state sync
 
-        texts.log(`imsg/archive/${hashedThreadID}: successfully marked as read in preparation for archive`)
+          await this.toggleThreadRead(true)(hashedThreadID)
+
+          texts.log(`imsg/archive/${hashedThreadID}: successfully marked as read in preparation for archive`)
+        } else {
+          texts.log(`imsg/archive/${hashedThreadID}: is already read, proceeding with archival`)
+        }
       } else {
-        texts.log(`imsg/archive/${hashedThreadID}: is already read, proceeding with archival`)
+        // chat is empty or we can't fetch the latest message for whatever reason;
+        // just synthesize an HS order & timestamp to use
+        newArchivalOrder = Date.now()
+        persistedArchivedAt = appleDateNow()
+        texts.log(`imsg/archive/${hashedThreadID}: chat is empty, using synthesized archival order (${newArchivalOrder}, raw "apple date": ${persistedArchivedAt})`)
       }
 
-      this.persistence?.setThreadProp(hashedThreadID, 'archive', { archivedAt: msg.dateString })
+      this.persistence?.setThreadProp(hashedThreadID, 'archive', {
+        archivedAt: persistedArchivedAt,
+      })
       stateSyncThread({
         extra: {
           isArchivedUpToOrder: newArchivalOrder,
