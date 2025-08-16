@@ -7,7 +7,7 @@
 export const CORE_FOUNDATION_REFERENCE_DATE_MS = 978307200000
 
 // use a branded type to prevent confusion
-const AppleDateBrand: unique symbol = Symbol.for('AppleDate')
+declare const AppleDateBrand: unique symbol
 /** A timestamp represented as a quantity of nanoseconds since 2001-01-01 00:00:00 GMT. */
 export type AppleDate = string & {
   readonly [AppleDateBrand]: unknown
