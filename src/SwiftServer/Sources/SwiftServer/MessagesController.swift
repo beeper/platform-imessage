@@ -1451,6 +1451,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     */
     private let activityLock = UnfairLock()
 
+    private func waitForLayoutChange(timeout: TimeInterval) {
+        let beganWaiting = Date()
+
+        while Date().timeIntervalSince(beganWaiting) < timeout {
+            guard let lastLayoutChange = lifecycleObserver.lastLayoutChange.read() else {
+                continue
+            }
+            if lastLayoutChange > beganWaiting {
+                log.debug("observed layout change, exiting wait loop")
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.05) // 50ms
+        }
+
+        log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
+    }
+
     func idleObservingCallback(for threadID: String, sendStatus: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
@@ -1477,16 +1494,15 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             if quiescence == .began || lastThreadIDOpenedForObservation.read() != threadID {
-                log.debug("entered idle state or thread id changed, opening deep link in order to watch thread activity")
+                log.debug("activity: entered idle state or thread id changed, opening deep link")
                 try prepareForAutomation()
                 defer { finishedAutomation() }
                 try _removeObserver()
 
                 try Self.openDeepLink(url)
+                log.debug("activity: opened deep link, waiting for layout change")
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
-
-                // TODO: wait for layout change instead of this
-                Thread.sleep(forTimeInterval: 0.5)
+                waitForLayoutChange(timeout: 0.5)
             }
 
             guard activityLock.tryLock() else { return }
