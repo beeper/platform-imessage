@@ -162,7 +162,7 @@ final class MessagesController {
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
 
     var cachedDatabase: IMDatabase?
-    private var lifecycleObserver: LifecycleObserver?
+    private var lifecycleObserver: LifecycleObserver
     private var activityObserver: ActivityObserver?
     private var lastThreadIDOpenedForObservation = Protected<String?>()
 
@@ -280,10 +280,6 @@ final class MessagesController {
         }
 
         func ensureSelectedThreadViaLayoutWaiter() throws {
-            guard let lifecycleObserver else {
-                throw ErrorMessage("misfire prevention: no lifecycle observer!")
-            }
-
             guard let lastLayoutChange = lifecycleObserver.lastLayoutChange.read() else {
                 throw ErrorMessage("misfire prevention: layout hasn't changed at all")
             }
@@ -421,7 +417,9 @@ final class MessagesController {
         //         }
         //     }
         // }
-        setUpPollingConveyor()
+        let observer = LifecycleObserver()
+        lifecycleObserver = observer
+        setUpPollingConveyor(with: lifecycleObserver)
 
         guard isValid else {
             dispose() // since deinit isn't called when init throws
@@ -435,11 +433,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         resetWindow()
     }
 
-    func setUpPollingConveyor() {
-        // this is ok to instantiate outside of a thread with a run loop
-        var observer = LifecycleObserver()
-        lifecycleObserver = observer
-
+    func setUpPollingConveyor(with observer: LifecycleObserver) {
         let thread = RunLoopConveyor<ConveyorEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
             // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
             let watcher = TimerBlockWatcher { [weak self] in
