@@ -644,7 +644,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // performs `perform` while the Messages window is unhidden
     private func withActivation(
-        openBefore: URL?, openAfter: URL?,
+        openBefore: URL?, openAfter: URL? = nil,
         perform: () throws -> Void
     ) throws {
         if let openBefore {
@@ -676,7 +676,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try? closeReplyTranscriptView(wait: false)
         }
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
 
             // we don't close transcript view here because when reacting, closing it will undo the reaction
@@ -909,7 +909,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
 
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
@@ -970,7 +970,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
@@ -1014,7 +1014,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
             // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
@@ -1034,7 +1034,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
             try triggerThreadCellAction(threadID: threadID, action: .delete)
             try elements.alertSheetDeleteButton.press()
@@ -1052,7 +1052,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             if isTyping { return } // no further action required
 
             try ensureSelectedThread(threadID: threadID)
@@ -1237,7 +1237,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             if let threadID { try ensureSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
@@ -1433,7 +1433,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url, openAfter: activityObserver?.url) {
+        try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
             try elements.notifyAnywayButton.press()
         }
