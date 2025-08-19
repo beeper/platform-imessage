@@ -1,6 +1,5 @@
 import { CursorProp, MessageReaction, Paginated, Participant } from '@textshq/platform-sdk'
 import swiftServer from './SwiftServer/lib'
-import { likelyAlphanumericSenderID } from './heuristics'
 
 interface Messagelike extends CursorProp {
   threadID?: string
@@ -17,7 +16,6 @@ interface Threadlike {
 const { hashers } = swiftServer
 
 export function hashParticipantID(id: string): string {
-  if (likelyAlphanumericSenderID(id)) return id
   return hashers.participant.tokenizeRemembering(id)
 }
 
