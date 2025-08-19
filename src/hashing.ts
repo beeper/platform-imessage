@@ -1,5 +1,6 @@
 import { CursorProp, MessageReaction, Paginated, Participant } from '@textshq/platform-sdk'
 import swiftServer from './SwiftServer/lib'
+import { likelyAlphanumericSenderID } from './heuristics'
 
 interface Messagelike extends CursorProp {
   threadID?: string
@@ -14,15 +15,6 @@ interface Threadlike {
 }
 
 const { hashers } = swiftServer
-
-const entirelyNumbersAndSymbols = /^[\d\s+\-()]+$/
-// https://web.archive.org/web/20250624231541/https://api.support.vonage.com/hc/en-us/articles/204017783-United-Kingdom-SMS-Features-and-Restrictions
-const entirelyAlphanumericSenderID = /^[\da-zA-Z .&_/-]{1,11}$/
-
-// https://en.wikipedia.org/wiki/Mobile_marketing#Custom_Sender_ID
-function likelyAlphanumericSenderID(id: string): boolean {
-  return !entirelyNumbersAndSymbols.test(id) && entirelyAlphanumericSenderID.test(id)
-}
 
 export function hashParticipantID(id: string): string {
   if (likelyAlphanumericSenderID(id)) return id
