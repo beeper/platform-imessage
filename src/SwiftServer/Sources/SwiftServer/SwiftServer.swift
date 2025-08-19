@@ -378,7 +378,6 @@ enum Preferences {
         },
 
         "startPolling": NodeFunction { (onEvent: NodeFunction, lastRowIDBig: NodeBigInt, lastDateReadNanosecondsBig: NodeBigInt) in
-            log.debug("was asked to start polling")
             if let task = pollingTask {
                 log.warning("was asked to start polling, but there was already a poller alive; canceling it before proceeding")
                 task.cancel()
@@ -387,6 +386,7 @@ enum Preferences {
 
             let lastRowID = Int(try lastRowIDBig.signed().value)
             let lastDateRead = Date(nanosecondsSinceReferenceDate: Int(try lastDateReadNanosecondsBig.signed().value))
+            log.debug("was asked to start polling (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
             let poller = try Poller(serverEventSender: { events in
                 var values = [any NodeValueConvertible]()
