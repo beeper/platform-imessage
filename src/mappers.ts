@@ -16,6 +16,7 @@ import { roomFeatures } from './capabilities'
 import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
 import { ThreadArchivalState } from './persistence'
 import { BeeperThread, BeeperMessage } from './desktop-types'
+import { likelyAlphanumericSenderID } from './heuristics'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -639,6 +640,10 @@ function mapParticipant({ participantID: id, uncanonicalized_id }: MappedHandleR
     participant.email = id
   } else if (isPhone) {
     participant.phoneNumber = id
+  } else if (likelyAlphanumericSenderID(id)) {
+    // Use the `username` field to avoid first/last name splitting treatments
+    // and keep the sender ID as-is.
+    participant.username = id
   }
 
   if (!isPhone && uncanonicalized_id) {
