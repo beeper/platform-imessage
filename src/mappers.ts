@@ -624,19 +624,27 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   })
 }
 
-function mapParticipant({ participantID, uncanonicalized_id }: MappedHandleRow, displayName?: string) {
-  if (!participantID) return
-  const id = participantID
+function mapParticipant({ participantID: id, uncanonicalized_id }: MappedHandleRow, chatDisplayName?: string): Participant | undefined {
+  if (!id) return
+
   const participant: Participant = { id }
+
   const isEmail = id.includes('@')
   const isBusiness = id.startsWith('urn:')
   const isPhone = !isBusiness && !isEmail && /\d/.test(id)
-  if (isBusiness) participant.fullName = displayName
-  else if (isEmail) participant.email = id
-  else if (isPhone) participant.phoneNumber = id
+
+  if (isBusiness) {
+    participant.fullName = chatDisplayName
+  } else if (isEmail) {
+    participant.email = id
+  } else if (isPhone) {
+    participant.phoneNumber = id
+  }
+
   if (!isPhone && uncanonicalized_id) {
     participant.id = uncanonicalized_id
   }
+
   return participant
 }
 
