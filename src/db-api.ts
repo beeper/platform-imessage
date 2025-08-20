@@ -225,7 +225,18 @@ export default class DatabaseAPI {
 
   setLastCursor(allMsgRows: MappedMessageRow[]) {
     if (!allMsgRows.length) return
-    const maxDateRead = maxBy(allMsgRows, 'date_read')!.date_read
+    // FIXME: use columns that don't drop precision
+    const maxDateRead = maxBy(allMsgRows, msgRow => {
+      const largestSigned64BitInt = '9223372036854775807'
+      // Try to guard against bogus read dates. Not sure what causes these to
+      // be committed to the database.
+      if (msgRow.dateReadString >= largestSigned64BitInt) {
+        texts.error(`imsg: detected unreasonably large date_read on message ROWID ${msgRow.ROWID}: ${msgRow.dateReadString}`)
+        return 0
+      }
+
+      return msgRow.date_read
+    })!.date_read
     const maxRowID = maxBy(allMsgRows, 'ROWID')!.ROWID
     if (maxRowID > this.lastRowID) {
       this.lastRowID = maxRowID

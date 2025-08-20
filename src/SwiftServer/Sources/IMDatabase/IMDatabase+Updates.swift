@@ -45,16 +45,21 @@ public extension IMDatabase {
             newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
 
             dateRead: do {
-                // AFAICT this is a timestamp or zero. The column itself is
-                // nullable but my local database doesn't have any `NULL`s, just
-                // zeroes
+                // IMCore typically uses `0` to represent absence, but fall back
+                // to `0` explicitly just in case.
                 let nanoseconds = try row[1].optional(Int.self) ?? 0
-                // If the message hasn't been read yet (we get `0`), then don't
-                // update the "latest read date" at all.
-                guard nanoseconds > 0 else { break dateRead }
+
+                // If the message hasn't been read yet or has a bogus read date,
+                // then don't update the "latest read date" at all. I'm not sure
+                // what causes bogus read dates, but if you let it leak into the
+                // rest of the program then it can cause an integer overflow
+                // crash.
+                guard nanoseconds > 0, nanoseconds < .max else {
+                    break dateRead
+                }
 
                 let dateRead = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestMessageDateRead = if let latestMessageDateRead {
+                latestMessageDateRead = if let latestMessageDateRead, dateRead < .distantFuture {
                     max(dateRead, latestMessageDateRead)
                 } else {
                     dateRead
