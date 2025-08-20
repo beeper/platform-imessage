@@ -633,6 +633,13 @@ function mapParticipant({ participantID: id, uncanonicalized_id }: MappedHandleR
   const isEmail = id.includes('@')
   const isBusiness = id.startsWith('urn:')
   const isPhone = !isBusiness && !isEmail && /\d/.test(id)
+  // iMessage can canonicalize SMS shortcodes to contain e.g. `(smsft_rm)` or
+  // `(smsft)` at the end. These seemingly aren't a part of the actual SMS
+  // shortcode itself, so be sure to prefer the uncanonicalized version when
+  // running the heuristic.
+  //
+  // See: https://www.notion.so/beeper/Canonicalization-Notes-255a168aa37080c189c0d616724830e4?source=copy_link
+  const idPreferringUncanonicalized = uncanonicalized_id || id
 
   if (isBusiness) {
     participant.fullName = chatDisplayName
@@ -640,10 +647,10 @@ function mapParticipant({ participantID: id, uncanonicalized_id }: MappedHandleR
     participant.email = id
   } else if (isPhone) {
     participant.phoneNumber = id
-  } else if (likelyAlphanumericSenderID(id)) {
+  } else if (likelyAlphanumericSenderID(idPreferringUncanonicalized)) {
     // Use the `username` field to avoid first/last name splitting treatments
     // and keep the sender ID as-is.
-    participant.username = id
+    participant.username = idPreferringUncanonicalized
   }
 
   if (!isPhone && uncanonicalized_id) {
