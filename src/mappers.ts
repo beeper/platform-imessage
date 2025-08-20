@@ -674,6 +674,7 @@ type Context = {
   reminders?: { [chatGUID: string]: ThreadReminder | undefined }
   archivalStates?: { [chatGUID: string]: ThreadArchivalState | undefined }
   pinStates?: { [chatGUID: string]: boolean | undefined }
+  lowPriorityStates?: { [chatGUID: string]: boolean | undefined }
 }
 
 // @ts-expect-error FIXME(skip): argument ordering
@@ -763,6 +764,7 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
       isSMS: (chat.guid.startsWith('SMS;') || chat.guid.startsWith('RCS;')) ? true : undefined,
     },
     isPinned: context.pinStates?.[chat.guid] === true,
+    isLowPriority: context.lowPriorityStates?.[chat.guid] === true,
   }
   if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread

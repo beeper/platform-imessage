@@ -236,6 +236,7 @@ export default class AppleiMessage implements PlatformAPI {
         reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
         archivalStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'archive') },
         pinStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'pin') },
+        lowPriorityStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'lowPriority') },
       },
     )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
   }
@@ -368,6 +369,7 @@ export default class AppleiMessage implements PlatformAPI {
       reminders: this.batchGetThreadPropForChatRows(chatRows, 'reminder'),
       archivalStates,
       pinStates: this.batchGetThreadPropForChatRows(chatRows, 'pin'),
+      lowPriorityStates: this.batchGetThreadPropForChatRows(chatRows, 'lowPriority'),
     })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
@@ -568,6 +570,13 @@ export default class AppleiMessage implements PlatformAPI {
     if ('mutedUntil' in updates) {
       const mc = await MessagesControllerWrapper.get()
       await mc.muteThread(threadID, updates.mutedUntil === 'forever')
+    }
+    if ('isLowPriority' in updates) {
+      if (updates.isLowPriority) {
+        this.persistence?.setThreadProp(hashedThreadID, 'lowPriority', true)
+      } else {
+        this.persistence?.deleteThreadProp(hashedThreadID, 'lowPriority')
+      }
     }
   }
 

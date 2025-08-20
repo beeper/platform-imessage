@@ -20,6 +20,7 @@ export interface PersistedThreadProps {
   archive?: ThreadArchivalState
   pin?: boolean
   reminder?: ThreadReminder
+  lowPriority?: boolean
 }
 
 export type PersistedBatchGetResults<P extends keyof PersistedThreadProps> = Record<string, PersistedThreadProps[P] | undefined>

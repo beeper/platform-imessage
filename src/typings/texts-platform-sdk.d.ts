@@ -16,6 +16,7 @@ declare module '@textshq/platform-sdk' {
 
   export interface Thread {
     reminder?: ThreadReminder
+    isLowPriority?: boolean
   }
 
   export interface PlatformAPI {
