@@ -1,6 +1,6 @@
 import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, Size, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
+import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
 import { replaceTilde, stringifyWithArrayBuffers } from './util'
@@ -36,14 +36,10 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attach
   } satisfies Partial<Attachment>
   if (filePath) common.srcURL = url.pathToFileURL(filePath).href
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    const defaultStickerSize = { height: 100, width: undefined }
-    // NOTE(DESK-9043): Beeper Desktop and Texts seem to handle bogus sizes
-    // just fine.
-    const size: Size = (a.is_sticker ? defaultStickerSize : a.size) as Size
     if (ext === 'png') {
       common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
     }
-    return { ...common, type: AttachmentType.IMG, size, isSticker: a.is_sticker === 1 }
+    return { ...common, type: AttachmentType.IMG, size: a.size, isSticker: a.is_sticker === 1 }
   }
   if (VIDEO_EXTS.includes(ext)) {
     return { ...common, type: AttachmentType.VIDEO }
