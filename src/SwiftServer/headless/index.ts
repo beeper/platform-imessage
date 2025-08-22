@@ -1,4 +1,6 @@
 import { app } from 'electron'
+import * as path from 'node:path'
+import * as fs from 'node:fs/promises'
 import { inspect } from 'node:util'
 import { readFile } from 'node:fs/promises'
 import readline from 'node:readline/promises'
@@ -6,7 +8,7 @@ import readline from 'node:readline/promises'
 import c from 'ansi-colors'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import * as z from 'zod'
-import swiftServer, { MessagesController } from '../lib/index'
+import swiftServer, { messageControllerDebuggingAvailable, MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController, MessagesControllerDebugging } from '../lib/index'
 import { measure } from './util'
 /* eslint-disable no-inner-declarations */
 
@@ -19,10 +21,32 @@ const Config = z.object({
 })
 
 swiftServer.isLoggingEnabled = true
+const state: { mc: MessagesController | null } = { mc: null }
+
+const completer: readline.Completer = linePartial => {
+  const { mc } = state
+  if (!mc) return [[], linePartial]
+  const hits = MESSAGES_CONTROLLER_METHOD_NAMES.filter(key => key.startsWith(linePartial))
+  return [hits, linePartial]
+}
+
+const historyFilePath = path.resolve(import.meta.dirname, '.headless-history.json')
+const readHistory = async (): Promise<string[]> => JSON.parse(await fs.readFile(historyFilePath, 'utf8'))
+const writeHistory = (history: string[]): Promise<void> => fs.writeFile(historyFilePath, JSON.stringify(history))
 
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
+  historySize: 1_000,
+  tabSize: 2,
+  history: await readHistory().catch(() => []),
+  completer,
+})
+
+rl.on('history', history => {
+  setTimeout(() => {
+    writeHistory(history)
+  }, 0)
 })
 
 async function main() {
@@ -37,6 +61,7 @@ async function main() {
   const { messagesControllerClass } = swiftServer
   console.log(c.bold.blue('creating messages controller'))
   const [mc, creationLatency] = await measure(messagesControllerClass.create)
+  state.mc = mc
   console.log(c.bold.green(`messages controller created in ${creationLatency.toFixed(3)}ms`))
 
   async function call<K extends keyof MessagesController>(methodName: K, ...args: Parameters<MessagesController[K]>): Promise<ReturnType<MessagesController[K]>> {
@@ -104,7 +129,36 @@ async function main() {
         break
       }
       default: {
-        console.log(c.bold.red(`unknown command: ${command}`))
+        if (command === '') {
+          break
+        }
+
+        const method = mc[command as keyof MessagesController]
+        if (!method || !(method instanceof Function)) {
+          console.log(c.bold.red(`no such command or MessagesController method: "${command}"`))
+          break
+        }
+
+        // doesn't seem to actually work for native methods, but leaving in for correctness sake
+        if (args.length < method.length) {
+          console.error(c.bold.red(`⌨️ ⚠️ ${c.blue(command)} requires ${method.length} arguments (passed ${args.length})`))
+          break
+        }
+
+        const before = performance.now()
+        try {
+          const bound = (method as Function).bind(mc) as (...arg: unknown[]) => unknown
+          const transformed: unknown[] = args.map(arg => {
+            if (arg === '_') return undefined
+            return arg.replaceAll('%date%', new Date().toLocaleString())
+          })
+          const result = await bound(...transformed)
+          const latency = performance.now() - before
+          console.error(c.bold.green(`⌨️ ✅ MessagesController#${c.blue(command)} interactive call OK (took ${latency.toFixed(3)}ms):`), result)
+        } catch (error) {
+          const latency = performance.now() - before
+          console.error(c.bold.red(`⌨️ ❌ MessagesController#${c.blue(command)} interactive call FAILED (took ${latency.toFixed(3)}ms):`), error)
+        }
         break
       }
     }
@@ -130,13 +184,32 @@ async function main() {
   }
 }
 
+const announceError = (error: unknown, kind = 'exception') => {
+  const banner = () => {
+    console.log()
+    console.log('🚨'.repeat(40))
+    console.log()
+  }
+
+  banner()
+  const stringed = String(error)
+  console.error(c.inverse.bold.red(`❌ UNCAUGHT ${kind}:`.toUpperCase()), c.bold.red(stringed))
+  banner()
+}
+
+process.on('uncaughtException', error => {
+  announceError(error)
+})
+
+process.on('unhandledRejection', error => {
+  announceError(error, 'rejection')
+})
+
 app.whenReady().then(async () => {
   try {
     await main()
   } catch (err) {
-    // don't let electron catch the error because it'll display it in a dialog
-    // which you have to dismiss manually, and it's super annoying
-    console.error(c.bold.red('uncaught exception:'), err)
+    announceError(err, 'exception (in main)')
     process.exit(1)
   }
 })

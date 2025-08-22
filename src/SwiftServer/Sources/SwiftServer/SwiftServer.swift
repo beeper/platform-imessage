@@ -264,6 +264,20 @@ private let queueCounter = Protected<Int>(0)
     }
 }
 
+#if DEBUG
+@available(macOS 11, *)
+extension MessagesControllerWrapper {
+    @NodeMethod func _getMainWindow() {
+        do {
+            let window = try self.controller.elements.mainWindow
+            Log.default.debug("@@@ [DEBUG] was able to fetch main window: \(window)")
+        } catch {
+            Log.default.error("@@@ [DEBUG] ❌ COULDN'T get main window! \(error)")
+        }
+    }
+}
+#endif
+
 @available(macOS 10.15, *)
 enum SysPrefsOnboarding {
     static var onboardingManager: OnboardingManager? = nil

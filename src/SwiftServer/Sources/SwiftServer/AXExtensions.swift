@@ -140,3 +140,11 @@ public extension Accessibility.Element {
         try closeButton.press()
     }
 }
+
+extension Accessibility.Element {
+    func firstChild(withRole role: KeyPath<AXRole.Type, String>) -> Accessibility.Element? {
+        try? self.children().first { child in
+            (try? child.role()) == AXRole.self[keyPath: role]
+        }
+    }
+}

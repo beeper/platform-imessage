@@ -77,7 +77,7 @@ private extension PassivelyAwareDispatchQueue {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
 #if DEBUG
-            log.debug("\(queue.label): 💭 running passive work now")
+            // log.debug("\(queue.label): 💭 running passive work now")
 #endif
 
             let isQuiet = pending.read() == 0

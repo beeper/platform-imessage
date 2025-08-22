@@ -23,13 +23,18 @@ private func printAttribute(_ key: String, _ value: Any?, last: Bool = false) {
 }
 
 extension Accessibility.Element {
-    func axTool_dump(indent: Int = 0, shallow: Bool = false) throws {
+    func axTool_dump(indent: Int = 0, shallow: Bool = false, preamble: String? = nil) throws {
         let ws = String(repeating: "  ", count: indent)
         guard let role = try? self.role() else {
             print("\(ws)<!-- ⚠️ couldn't obtain role, skipping (\(self)) -->")
             return
         }
-        print("\(ws)<\(role)", terminator: " ")
+        let preamble = if let preamble {
+            "<!-- \(preamble) --> "
+        } else {
+            ""
+        }
+        print("\(ws)\(preamble)<\(role)", terminator: " ")
         var attributesPointingToElements = [String: [Accessibility.Element]]()
 
         if let supported = try? supportedAttributes() {
@@ -72,8 +77,8 @@ extension Accessibility.Element {
         defer { print("\(ws)</\(role)>") }
 
         if let actions = try? supportedActions(), !actions.isEmpty {
-            for action in actions {
-                print("\(ws2)<action", terminator: " ")
+            for (index, action) in actions.enumerated() {
+                print("\(ws2)<!-- actions[\(index)] --> <action", terminator: " ")
                 printAttribute("name", action.name.value)
                 printAttribute("description", action.description, last: true)
                 print("></action>")
@@ -87,8 +92,8 @@ extension Accessibility.Element {
         }
 
         if let sections = try? self.sections() as [[String: Any]] {
-            for section in sections {
-                print("\(ws2)<section", terminator: " ")
+            for (index, section) in sections.enumerated() {
+                print("\(ws2)<!-- [\(index)] --> <section", terminator: " ")
                 printAttribute("uniqueID", section["SectionUniqueID"])
                 printAttribute("description", section["SectionDescription"], last: true)
                 if case let object = section["SectionObject"] as CFTypeRef, CFGetTypeID(object) == AXUIElementGetTypeID() {
@@ -103,8 +108,8 @@ extension Accessibility.Element {
         }
 
         guard let children = try? self.children() else { return }
-        for child in children {
-            try child.axTool_dump(indent: indent + 1)
+        for (index, child) in children.enumerated() {
+            try child.axTool_dump(indent: indent + 1, preamble: "[\(index)]")
         }
     }
 }

@@ -91,6 +91,33 @@ final class MessagesAppElements {
     private func isPromptVisibleInMessagesApp() -> Bool {
         allWindows.contains(where: { (try? $0.windowCloseButton().isEnabled()) == false })
     }
+    
+    // TODO: move to extension method on ax element
+    private func dismissAnyPresentedSheet() throws {
+        // TODO: a sheet can be potentially "primed" to appear but not actually appear until the window is actually created and _focused_ for whatever
+        // TODO: reason. eg this code path can repeatedly fail (such as after being automatically launched by swiftserver) until the user clicks on the app, which then actually causes the
+        // TODO: sheet to appear and the automated close to work.
+        let mainWindow = try app.appMainWindow()
+        guard let sheet = mainWindow.firstChild(withRole: \.sheet) else {
+            log.debug("(found no sheet to dismiss)")
+            return
+        }
+        
+        let startTime = Date()
+        guard let okButton = sheet.recursiveChildren().lazy.first(where: { child in
+            let description = try? child.localizedDescription()
+            return description == LocalizedStrings.dismissButtonLabel || description == LocalizedStrings.ok
+        }) else {
+            log.debug("found a sheet, but no OK button within it to dismiss (took \(startTime.elapsedMilliseconds)ms)")
+            return
+        }
+        log.debug("found OK button within sheet, going to press it (took \(startTime.elapsedMilliseconds)ms)")
+        do {
+            try okButton.press()
+        } catch {
+            log.error("couldn't press OK button: \(error)")
+        }
+    }
 
     var mainWindow: Accessibility.Element {
         get throws {
@@ -114,6 +141,12 @@ final class MessagesAppElements {
                         // regular terminate wont work since all window close buttons are disabled
                         self.runningApp.forceTerminate()
                         // this should invalidate the MessagesController
+                    }
+                } else if attempt > 3 {
+                    do {
+                       try self.dismissAnyPresentedSheet()
+                    } catch {
+                        log.error("couldn't try dismissing any presented sheet: \(error)")
                     }
                 }
             }

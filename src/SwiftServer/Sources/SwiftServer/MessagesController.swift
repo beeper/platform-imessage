@@ -66,6 +66,13 @@ enum LocalizedStrings {
     static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
+    
+    static let whatsNewSyndicationDetailTitle = chatKitFramework.localizedString(forKey: "WHATS_NEW_SYNDICATION_DETAIL_TITLE", value: nil, table: nil)
+    
+    // "OK"
+    static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
+    // "OK"
+    static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
 }
 
 private enum MessageAction {
@@ -155,8 +162,8 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 1
 
-    private let app: NSRunningApplication
-    private let elements: MessagesAppElements
+private let app: NSRunningApplication
+    let elements: MessagesAppElements
 
     private var activityPollingTimer: Timer?
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?

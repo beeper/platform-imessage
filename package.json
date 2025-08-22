@@ -1,6 +1,6 @@
 {
   "name": "@beeper/platform-imessage",
-  "version": "0.15.18",
+  "version": "0.15.19",
   "main": "dist/index.js",
   "type": "module",
   "exports": {
@@ -19,7 +19,7 @@
     "lint:swift": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
     "headless:build": "esbuild src/SwiftServer/headless/index.ts --bundle --platform=node --format=esm --external:electron --outfile=headless.mjs",
-    "headless:run": "../beeper-desktop-new/node_modules/.bin/electron headless.mjs",
+    "headless:run": "env NODE_OPTIONS=\"--force-node-api-uncaught-exceptions-policy=true\" ../beeper-desktop-new/node_modules/.bin/electron headless.mjs",
     "build": "turbo run build:swift build:applescript build:typescript build:scss",
     "build:scss": "sass -s compressed --no-source-map src/auth/auth.scss binaries/imessage-auth.css",
     "build:typescript": "tsc",

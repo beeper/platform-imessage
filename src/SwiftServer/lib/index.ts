@@ -65,6 +65,33 @@ export declare class MessagesController {
   dispose: () => void
 }
 
+export interface MessagesControllerDebugging {
+  _getMainWindow(): void
+}
+
+// purely for headless (REPL) tab-autocomplete
+export const MESSAGES_CONTROLLER_METHOD_NAMES = [
+  'isValid',
+  'createThread',
+  'toggleThreadRead',
+  'muteThread',
+  'deleteThread',
+  'undoSend',
+  'editMessage',
+  'notifyAnyway',
+  'sendTypingStatus',
+  'watchThreadActivity',
+  'sendMessage',
+  'setReaction',
+  'isSameContact',
+  'dispose',
+  '_getMainWindow',
+] as const satisfies (keyof MessagesController | keyof MessagesControllerDebugging)[]
+
+export function messageControllerDebuggingAvailable(mc: MessagesController): mc is MessagesController & MessagesControllerDebugging {
+  return 'debug' in mc && typeof mc.debug === 'boolean' && mc.debug
+}
+
 export type SwiftServer = {
   appleInterfaceStyle: string
   isLoggingEnabled: boolean
