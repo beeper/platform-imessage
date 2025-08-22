@@ -173,7 +173,7 @@ public extension FSEventsWatcher {
 
 public extension FSEventsWatcher {
     struct Event: Identifiable {
-        public var id: Int
+        public var id: UInt64
         public var path: String
         public var flags: Flags
     }
@@ -206,7 +206,7 @@ private func fsEventsCallback(
 #endif
     for (id, (path, flags)) in zip(eventsIDs, zip(eventsPaths, eventsFlags)) {
         let flags = FSEventsWatcher.Flags(rawValue: flags)
-        let event = FSEventsWatcher.Event(id: numericCast(id), path: path, flags: flags)
+        let event = FSEventsWatcher.Event(id: id, path: path, flags: flags)
         wrapper.callback(wrapper, event)
     }
 }
