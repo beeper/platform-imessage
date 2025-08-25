@@ -1,0 +1,292 @@
+{
+  "ko": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Emergency SOS Report",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Emergency Services",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Information Sent"
+  },
+  "he": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "דיווח ״חירום SOS״",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "שירותי חירום",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "‏- ‏%@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "המידע שנשלח"
+  },
+  "id": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Laporan Darurat SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Layanan Darurat",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informasi Terkirim"
+  },
+  "nl": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Nood­meldingsrapport",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Hulpdiensten",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informatie verzonden"
+  },
+  "tr": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Acil SOS Raporu",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Acil Servis",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Gönderilen Bilgiler"
+  },
+  "ru": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Отчет по экстренному вызову — SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Экстренные службы",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Информация отправлена"
+  },
+  "hu": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Vészhelyzet – SOS jelentése",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Sürgősségi segélyszolgálatok",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Információ elküldve"
+  },
+  "fi": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Hätätila SOS -ilmoitus",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Hätäpuhelut",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Tiedot lähetetty"
+  },
+  "it": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Segnalazione di “SOS emergenze”",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Servizi di emergenza",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informazioni inviate"
+  },
+  "el": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Αναφορά Επείγοντος SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Υπηρεσίες έκτακτης ανάγκης",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Οι πληροφορίες στάλθηκαν"
+  },
+  "es_419": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Reporte de Emergencia SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Servicios de emergencia",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Información enviada"
+  },
+  "ca": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Informe de l’avís d’emergència SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Serveis d’emergències",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informació enviada"
+  },
+  "fr_CA": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Rapport d’Urgence SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Services d’urgence",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Information envoyée"
+  },
+  "zh_TW": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "SOS緊急服務回報",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "緊急服務",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "已傳送資訊"
+  },
+  "zh_HK": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "緊急求助SOS報告",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "緊急服務",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "已傳送資料"
+  },
+  "sv": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Rapport om Nödanrop SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Nödfallstjänster",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Information som skickades"
+  },
+  "ar": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "تقرير طوارئ SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "خدمات الطوارئ",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "تم إرسال المعلومات"
+  },
+  "hi": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "आपातकालीन SOS रिपोर्ट",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "आपातकालीन सेवाएँ",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "जानकारी भेजी गई"
+  },
+  "pl": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Raport funkcji Alarmowe SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Służby ratownicze",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informacje wysłane"
+  },
+  "LocProvenance": {
+    "ko": 1,
+    "he": 1,
+    "id": 1,
+    "nl": 1,
+    "tr": 1,
+    "ru": 1,
+    "hu": 1,
+    "fi": 1,
+    "it": 1,
+    "el": 1,
+    "es_419": 1,
+    "ca": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "ar": 1,
+    "hi": 1,
+    "pl": 1,
+    "en": 1,
+    "da": 1,
+    "no": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "cs": 1,
+    "ms": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "ro": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "pt": 1,
+    "ja": 1,
+    "pt_PT": 1,
+    "hr": 1
+  },
+  "en": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Emergency SOS Report",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Emergency Services",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Information Sent"
+  },
+  "da": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Rapport om Nød‑SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Alarmcentral",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Oplysninger sendt"
+  },
+  "no": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Rapportert Nødanrop (SOS)",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Nødetatene",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informasjon sendt"
+  },
+  "th": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "แจ้ง SOS ฉุกเฉิน",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "บริการฉุกเฉิน",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "ส่งข้อมูลแล้ว"
+  },
+  "zh_CN": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "SOS紧急联络报告",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "紧急服务",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "信息已发送"
+  },
+  "en_GB": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Emergency SOS Report",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Emergency Services",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Information Sent"
+  },
+  "es_US": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Reporte de Emergencia SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Servicios de emergencia",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Información enviada"
+  },
+  "cs": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Zpráva funkce Tíseň SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Tísňové služby",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Odeslané informace"
+  },
+  "ms": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Laporan SOS Kecemasan",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Khidmat Kecemasan",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Maklumat Dihantar"
+  },
+  "sk": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Správa z funkcie SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Tiesňové služby",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Odoslané informácie"
+  },
+  "en_AU": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Emergency SOS Report",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Emergency Services",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Information Sent"
+  },
+  "sl": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Poročilo o nujnem pozivu SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Služba za nujno pomoč",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informacije so poslane"
+  },
+  "de": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Notruf SOS-Meldung",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Rettungsdienste",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "– %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informationen gesendet"
+  },
+  "vi": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Báo cáo SOS khẩn cấp",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Dịch vụ khẩn cấp",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Đã gửi thông tin"
+  },
+  "ro": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Raport S.O.S. urgențe",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Servicii de urgență",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informații trimise"
+  },
+  "es": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Informe de “Emergencia SOS”",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Servicios de emergencia",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Información enviada"
+  },
+  "fr": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Rapport « SOS d’urgence »",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Secours",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informations envoyées"
+  },
+  "uk": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Звіт про Сигнал SOS",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Екстрені служби",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Інформацію надіслано"
+  },
+  "pt": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Relatório do SOS de Emergência",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Serviços de Emergência",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informações Enviadas"
+  },
+  "ja": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "緊急SOS報告",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "緊急通報サービス",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "送信された情報"
+  },
+  "pt_PT": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Relatório de SOS emergência",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Serviços de urgência",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informação enviada"
+  },
+  "hr": {
+    "STEWIE_EMERGENCY_MESSAGE_SUBJECT": "Izvještaj o hitnom pozivu",
+    "STEWIE_EMERGENCY_DISPLAY_NAME": "Hitne službe",
+    "STEWIE_EMERGENCY_MESSAGE_INFO_LIST": "- %@",
+    "STEWIE_EMERGENCY_MESSAGE_INFO": "Informacije poslane"
+  }
+}

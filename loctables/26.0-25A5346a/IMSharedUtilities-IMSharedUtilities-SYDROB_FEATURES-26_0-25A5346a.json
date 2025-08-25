@@ -1,0 +1,415 @@
+{
+  "he": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "שירותי חירום",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "חירום SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "שירותי חירום",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "נוצר על-ידי %@ קשר עם שירותי חירום באמצעות לוויין, ושיחה זו משותפת איתך.",
+    "TS_LOCATION_SHARED": "המיקום נשלח על ידי %@",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "‏%@ ושירותי חירום",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "‏%@ אל: ‏%@"
+  },
+  "ko": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "긴급 서비스",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "긴급 구조 요청",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "긴급 서비스",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@님이 위성을 통해 긴급 서비스에 연락했으며 사용자와 대화 내용을 공유했습니다.",
+    "TS_LOCATION_SHARED": "^[%@이](inflect: true, inflectionAlternative: \"{1}이(가)\") 위치를 전송함",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ 및 긴급 서비스",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ 수신자: %@"
+  },
+  "id": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Layanan Darurat",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Darurat SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Layanan Darurat",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ telah menghubungi Layanan Darurat melalui Satelit dan telah membagikan obrolannya dengan Anda",
+    "TS_LOCATION_SHARED": "%@ mengirim lokasi",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Layanan Darurat",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ ke: %@"
+  },
+  "fi": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Hätäpuhelut",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Hätätila SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Hätäpuhelut",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ on ottanut yhteyttä hätäkeskukseen satelliitin kautta ja on jakanut chatin kanssasi",
+    "TS_LOCATION_SHARED": "%@ lähetti sijainnin",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ ja hätäkeskus",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@, saaja: %@"
+  },
+  "tr": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Acil Servis",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Acil SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Acil Servis",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ uydu aracılığıyla acil servise ulaştı ve bu yazışmayı sizinle paylaştı",
+    "TS_LOCATION_SHARED": "%@ konum gönderdi",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ ve Acil Servis",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@: %@"
+  },
+  "nl": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Hulpdiensten",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS-noodmelding",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Hulpdiensten",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ heeft via satelliet contact opgenomen met de hulpdiensten en heeft de chat met je gedeeld",
+    "TS_LOCATION_SHARED": "%@ heeft de locatie verstuurd",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ en hulpdiensten",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ aan: %@"
+  },
+  "hu": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Sürgősségi segélyszolgálatok",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Vészhelyzet – SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Sürgősségi segélyszolgálatok",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ felvette a kapcsolatot a sürgősségi segélyszolgálatokkal műholdon keresztül, és megosztotta Önnel a csevegést",
+    "TS_LOCATION_SHARED": "%@ elküldte a helyzetét",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ és sürgősségi segélyszolgálatok",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ neki: %@"
+  },
+  "ru": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Экстренные службы",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Экстренный вызов — SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Экстренные службы",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ установил(а) контакт с экстренными службами по спутниковой связи и открыл(а) Вам доступ к этой переписке",
+    "TS_LOCATION_SHARED": "%@ делится геопозицией",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ и экстренные службы",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ для пользователя %@"
+  },
+  "it": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Servizi di emergenza",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS emergenze",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Servizi di emergenza",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ ha contattato i servizi di emergenza tramite satellite e ha condiviso la chat con te",
+    "TS_LOCATION_SHARED": "%@ ha inviato la posizione",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ e servizi di emergenza",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ per: %@"
+  },
+  "el": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Υπηρεσίες έκτακτης ανάγκης",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Επείγον SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Υπηρεσίες έκτακτης ανάγκης",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "Ο χρήστης «%@» επικοινώνησε με τις Υπηρεσίες έκτακτης ανάγκης μέσω δορυφόρου και κοινοποίησε τη συνομιλία σε εσάς",
+    "TS_LOCATION_SHARED": "%@: έστειλε τοποθεσία",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ και Υπηρεσίες έκτακτης ανάγκης",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ για: %@"
+  },
+  "es_419": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Servicios de emergencia",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergencia SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Servicios de emergencia",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ se comunicó con los servicios de emergencia vía satélite y compartió la conversación de texto contigo.",
+    "TS_LOCATION_SHARED": "%@ envió la ubicación",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ y servicios de emergencia",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ para: %@"
+  },
+  "ca": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Serveis d’emergències",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Avís d’emergència",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Serveis d’emergències",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ ha contactat amb els serveis d’emergències per satèl·lit i ha compartit el xat amb tu.",
+    "TS_LOCATION_SHARED": "%@ ha enviat la ubicació.",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ i serveis d’emergències",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ per a: %@"
+  },
+  "ar": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "خدمات الطوارئ",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "طوارئ SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "خدمات الطوارئ",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "اتصل(ت) %@ بخدمات الطوارئ عبر القمر الصناعي وشارك(ت) المحادثة معك",
+    "TS_LOCATION_SHARED": "تم إرسال موقع من قبل %@",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ وخدمات الطوارئ",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "‏%@ إلى: %@"
+  },
+  "fr_CA": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Services d’urgence",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Urgence SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Services d’urgence",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ a contacté les services d’urgence par satellite et a partagé la conversation avec vous.",
+    "TS_LOCATION_SHARED": "%@ a envoyé la position.",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ et services d’urgence",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ à : %@"
+  },
+  "zh_TW": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "緊急服務",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS緊急服務",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "緊急服務",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@已透過衛星聯絡緊急服務並與你分享聊天內容",
+    "TS_LOCATION_SHARED": "%@已傳送位置",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@與緊急服務",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@給：%@"
+  },
+  "pl": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Służby ratownicze",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Alarmowe SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Służby ratownicze",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ udostępnia Ci zapis połączenia ze służbami ratowniczymi przez łącze satelitarne",
+    "TS_LOCATION_SHARED": "%@ wysyła położenie",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ i służby ratownicze",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ do: %@"
+  },
+  "sv": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Nödfallstjänster",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Nödanrop SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Nödfallstjänster",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ har kontaktat nödfallstjänster via satellit och har delat chatten med dig",
+    "TS_LOCATION_SHARED": "%@ skickade plats",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ och nödfallstjänster",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ till: %@"
+  },
+  "no": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Nødetatene",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Nødanrop (SOS)",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Nødetatene",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ har kontaktet nødetatene via satellitt og har delt meldingene med deg",
+    "TS_LOCATION_SHARED": "%@ sendte posisjon",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ og nødetatene",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ til: %@"
+  },
+  "da": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Alarmcentral",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Nød‑SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Alarmcentral",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ har kontaktet alarmcentralen via satellit og har delt chatten med dig",
+    "TS_LOCATION_SHARED": "%@ sendte lokalitet",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ og alarmcentralen",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ til: %@"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "el": 1,
+    "es_419": 1,
+    "ca": 1,
+    "ar": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "pl": 1,
+    "sv": 1,
+    "no": 1,
+    "da": 1,
+    "en": 1,
+    "hi": 1,
+    "zh_HK": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "ms": 1,
+    "cs": 1,
+    "sk": 1,
+    "es_US": 1,
+    "sl": 1,
+    "en_AU": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "ro": 1,
+    "pt": 1,
+    "ja": 1,
+    "hr": 1,
+    "pt_PT": 1
+  },
+  "en": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Emergency Services",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergency SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergency Services",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ has contacted Emergency Services via Satellite and has shared the chat with you",
+    "TS_LOCATION_SHARED": "%@ sent location",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Emergency Services",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ to: %@"
+  },
+  "hi": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "आपातकालीन सेवाएँ",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "आपातकालीन SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "आपातकालीन सेवाएँ",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ ने सैटेलाइट के ज़रिए आपातकालीन सेवाओं से संपर्क किया है और आपके साथ वार्तालाप शेयर किया है",
+    "TS_LOCATION_SHARED": "%@ ने स्थान भेजा",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ और आपातकालीन सेवाएँ",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ इन्हें : %@"
+  },
+  "zh_HK": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "緊急服務",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "緊急求助SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "緊急服務",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@已透過衛星聯絡緊急服務，並已與你共享該對話",
+    "TS_LOCATION_SHARED": "%@已傳送位置",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@與緊急服務",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@至：%@"
+  },
+  "th": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "บริการฉุกเฉิน",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS ฉุกเฉิน",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "บริการฉุกเฉิน",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%[tt]@ได้ติดต่อบริการฉุกเฉินผ่านดาวเทียมและแชร์บทสนทนากับคุณ",
+    "TS_LOCATION_SHARED": "%[tt]@ส่งตำแหน่งที่ตั้ง",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%[tt]@และบริการฉุกเฉิน",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%[tt]@ถึง: %@"
+  },
+  "zh_CN": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "紧急服务",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS紧急联络",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "紧急服务",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@通过卫星联系了紧急服务，并与你共享了该对话",
+    "TS_LOCATION_SHARED": "%@发送了位置",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@与紧急服务",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@发给：%@"
+  },
+  "en_GB": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Emergency Services",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergency SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergency Services",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ has contacted Emergency Services via Satellite and has shared the chat with you",
+    "TS_LOCATION_SHARED": "%@ sent location",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Emergency Services",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ to: %@"
+  },
+  "ms": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Khidmat Kecemasan",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS Kecemasan",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Khidmat Kecemasan",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ telah menghubungi Perkhidmatan Kecemasan melalui Satelit dan telah berkongsi perbualan dengan anda",
+    "TS_LOCATION_SHARED": "%@ menghantar lokasi",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Perkhidmatan Kecemasan",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ kepada: %@"
+  },
+  "cs": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Tísňové služby",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Tíseň SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Tísňové služby",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "Uživatel %@ kontaktoval přes satelit tísňové služby a sdílí s vámi průběh konverzace",
+    "TS_LOCATION_SHARED": "%@ odesílá informace o poloze",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ a tísňové služby",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ pro: %@"
+  },
+  "sk": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Tiesňové služby",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Tiesňové služby",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "Užívateľ %@ kontaktoval tiesňové služby cez satelit a zdieľa s vami túto konverzáciu",
+    "TS_LOCATION_SHARED": "%@ odoslaná poloha",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ a tiesňové služby",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ pre: %@"
+  },
+  "es_US": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Servicios de emergencia",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergencia SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Servicios de emergencia",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ se comunicó con los servicios de emergencia vía satélite y compartió la conversación de texto contigo.",
+    "TS_LOCATION_SHARED": "%@ envió la ubicación",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ y servicios de emergencia",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ para: %@"
+  },
+  "sl": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Služba za nujno pomoč",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Nujni poziv SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Služba za nujno pomoč",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "Oseba %@ je prek satelita stopila v stik s službo za nujno pomoč in z vami delila klepet",
+    "TS_LOCATION_SHARED": "%@ pošilja lokacijo",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ in služba za nujno pomoč",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ za: %@"
+  },
+  "en_AU": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Emergency Services",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergency SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergency Services",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ has contacted Emergency Services via Satellite and has shared the chat with you",
+    "TS_LOCATION_SHARED": "%@ sent location",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Emergency Services",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ to: %@"
+  },
+  "de": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Rettungsdienste",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Notruf SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Rettungsdienste",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ hat die Rettungsdienste via Satellit kontaktiert und den Chat mit dir geteilt.",
+    "TS_LOCATION_SHARED": "„%@“ hat Standort gesendet",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Rettungsdienste",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ an: %@"
+  },
+  "vi": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Dịch vụ khẩn cấp",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS khẩn cấp",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Dịch vụ khẩn cấp",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ đã liên hệ với các Dịch vụ khẩn cấp qua vệ tinh và đã chia sẻ cuộc trò chuyện với bạn",
+    "TS_LOCATION_SHARED": "%@ đã gửi vị trí",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ & Dịch vụ khẩn cấp",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ đến: %@"
+  },
+  "es": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Servicios de emergencia",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Emergencia SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Servicios de emergencia",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ ha contactado con los servicios de emergencia vía satélite y ha compartido la conversación contigo",
+    "TS_LOCATION_SHARED": "%@ envió la ubicación",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ y servicios de emergencia",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ para: %@"
+  },
+  "uk": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Екстрені служби",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Сигнал SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Екстрені служби",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ звертається до екстрених служб через супутник і поширює транскрипцію розмови для вас",
+    "TS_LOCATION_SHARED": "%@ надсилає геопозицію",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ і екстрені служби",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ до: %@"
+  },
+  "fr": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Secours",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS d’urgence",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Secours",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ a contacté les secours par satellite et a partagé la conversation avec vous.",
+    "TS_LOCATION_SHARED": "%@ a envoyé sa position",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ et secours",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ à : %@"
+  },
+  "ro": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Servicii de urgență",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "S.O.S. urgențe",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Servicii de urgență",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ a contactat serviciile de urgență prin satelit și a partajat conversația cu dvs.",
+    "TS_LOCATION_SHARED": "%@ a trimis localizarea",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ și serviciile de urgență",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ către: %@"
+  },
+  "pt": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Serviços de Emergência",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS de Emergência",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Serviços de Emergência",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ contatou os Serviços de Emergência via satélite e compartilhou a conversa com você",
+    "TS_LOCATION_SHARED": "Localização de %@ enviada",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ e Serviços de Emergência",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ para: %@"
+  },
+  "ja": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "緊急通報サービス",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "緊急SOS",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "緊急通報サービス",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@さんは衛星経由で緊急通報サービスに連絡し、そのチャット内容をあなたと共有しました",
+    "TS_LOCATION_SHARED": "%@が位置情報を送信しました",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@と緊急通報サービス",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@の送信先: %@"
+  },
+  "hr": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Hitne službe",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Hitan poziv",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Hitne službe",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "Korisnik %@ kontaktirao je hitne službe putem satelita i podijelio dopisivanje s vama",
+    "TS_LOCATION_SHARED": "%@ šalje lokaciju",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ i hitne službe",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ za: %@"
+  },
+  "pt_PT": {
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME": "Serviços de urgência",
+    "TS_NOTIFICATION_EMERGENCY_SOS_HANDLE": "SOS emergência",
+    "STEWIE_NOTIFICATION_EMERGENCY_SOS_HANDLE": "Serviços de urgência",
+    "TS_EMERGENCY_USER_BODY_FIRST_MESSAGE": "%@ contactou os serviços de urgência por satélite e partilhou a conversa consigo.",
+    "TS_LOCATION_SHARED": "%@ enviou a localização",
+    "TS_NOTIFICATION_EMERGENCY_SUBTITLE_DISPLAYNAME_FIRST_MESSASGE": "%@ e serviços de urgência",
+    "TS_EMERGENCY_USER_SUBTITLE_MESSAGE": "%@ para: %@"
+  }
+}

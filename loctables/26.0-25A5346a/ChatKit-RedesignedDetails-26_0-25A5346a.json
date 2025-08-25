@@ -1,0 +1,3299 @@
+{
+  "ko": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "%lld장의 사진 삭제",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "비디오",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "%lld개의 비디오 삭제",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "전체",
+    "DETAILS_TAB_INFO": "정보",
+    "EDIT_MENU_WALLET_PASSES": "패스 선택",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "iCloud에 있는 %d개의 첨부 파일 다운로드",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "파일",
+    "COPY_LOCATIONS": "위치 복사",
+    "Share": "공유",
+    "DETAILS_TAB_PHOTOS": "사진",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "스크린샷",
+    "DETAILS_TAB_BACKGROUNDS": "배경",
+    "COPY_PHOTOS": "사진 복사",
+    "COPY_LINKS": "링크 복사",
+    "EDIT_MENU_PHOTOS": "사진 선택",
+    "EDIT_MENU_DOCUMENTS": "문서 선택",
+    "DETAILS_TAB_WALLET": "지갑",
+    "Links": "링크",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "사진",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "전체",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "%lld개의 항목 삭제",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "%d개의 첨부 파일 다운로드 중…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "삭제",
+    "EDIT_MENU_LINKS": "링크 선택",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "공동 작업",
+    "COPY_FILES": "파일 복사",
+    "Pins": "고정",
+    "DETAILS_TAB_LINKS": "링크",
+    "DETAILS_TAB_LOCATIONS": "위치",
+    "DETAILS_TAB_DOCUMENTS": "문서",
+    "COPY_PASSES": "패스 복사",
+    "EDIT_MENU_LOCATIONS": "위치 선택",
+    "SHOW_IN_CONVERSATION": "대화에서 보기",
+    "COPY": "복사",
+    "SEARCH_SHARE": "공유"
+  },
+  "he": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "מחיקת התמונה",
+        "NSStringFormatValueTypeKey": "lld",
+        "other": "מחיקת %lld תמונות",
+        "two": "מחיקת שתי תמונות",
+        "many": "מחיקת %lld תמונות",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "סרטונים",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "מחיקת הסרטון",
+        "NSStringFormatValueTypeKey": "lld",
+        "other": "מחיקת %lld סרטונים",
+        "two": "מחיקת שני סרטונים",
+        "many": "מחיקת %lld סרטונים",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "הכול",
+    "DETAILS_TAB_INFO": "פרטים",
+    "EDIT_MENU_WALLET_PASSES": "בחירת כרטיסים",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "הורדת קובץ מצורף ב-iCloud",
+        "NSStringFormatValueTypeKey": "d",
+        "other": "הורדת %d קבצים מצורפים ב-iCloud",
+        "two": "הורדת שני קבצים מצורפים ב-iCloud",
+        "many": "הורדת %d קבצים מצורפים ב-iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "קבצים",
+    "COPY_LOCATIONS": "העתקת המיקומים",
+    "Share": "שיתוף",
+    "DETAILS_TAB_PHOTOS": "תמונות",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "צילומי מסך",
+    "DETAILS_TAB_BACKGROUNDS": "רקעים",
+    "COPY_PHOTOS": "העתקת התמונות",
+    "COPY_LINKS": "העתקת קישורים",
+    "EDIT_MENU_PHOTOS": "בחירת תמונות",
+    "EDIT_MENU_DOCUMENTS": "בחירת מסמכים",
+    "DETAILS_TAB_WALLET": "ארנק",
+    "Links": "קישורים",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "תמונות",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "הכול",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "מחיקת הפריט",
+        "NSStringFormatValueTypeKey": "lld",
+        "other": "מחיקת %lld פריטים",
+        "two": "מחיקת שני פריטים",
+        "many": "מחיקת %lld פריטים",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "מוריד קובץ מצורף…",
+        "NSStringFormatValueTypeKey": "d",
+        "other": "מוריד %d קבצים מצורפים…",
+        "two": "מוריד שני קבצים מצורפים…",
+        "many": "מוריד %d קבצים מצורפים…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%#@value@"
+    },
+    "DELETE": "מחיקה",
+    "EDIT_MENU_LINKS": "בחירת קישורים",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "שיתופי פעולה",
+    "COPY_FILES": "העתקת הקבצים",
+    "Pins": "הצמדות",
+    "DETAILS_TAB_LINKS": "קישורים",
+    "DETAILS_TAB_LOCATIONS": "מיקומים",
+    "DETAILS_TAB_DOCUMENTS": "מסמכים",
+    "COPY_PASSES": "העתקת הכרטיסים",
+    "EDIT_MENU_LOCATIONS": "בחירת מיקומים",
+    "SHOW_IN_CONVERSATION": "הצגה בשיחה",
+    "COPY": "העתקה",
+    "SEARCH_SHARE": "שיתוף"
+  },
+  "id": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "Hapus %lld Foto",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Video",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "Hapus %lld Video",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Semua",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Pilih Pass",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "Unduh %d Lampiran di iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "File",
+    "COPY_LOCATIONS": "Salin Lokasi",
+    "Share": "Bagikan",
+    "DETAILS_TAB_PHOTOS": "Foto",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Tangkapan Layar",
+    "DETAILS_TAB_BACKGROUNDS": "Latar Belakang",
+    "COPY_PHOTOS": "Salin Foto",
+    "COPY_LINKS": "Salin Tautan",
+    "EDIT_MENU_PHOTOS": "Pilih Foto",
+    "EDIT_MENU_DOCUMENTS": "Pilih Dokumen",
+    "DETAILS_TAB_WALLET": "Dompet",
+    "Links": "Tautan",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Foto",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Semua",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "Hapus %lld Item",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "Mengunduh %d Lampiran…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Hapus",
+    "EDIT_MENU_LINKS": "Pilih Tautan",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Kolaborasi",
+    "COPY_FILES": "Salin File",
+    "Pins": "Pin",
+    "DETAILS_TAB_LINKS": "Tautan",
+    "DETAILS_TAB_LOCATIONS": "Lokasi",
+    "DETAILS_TAB_DOCUMENTS": "Dokumen",
+    "COPY_PASSES": "Salin Pass",
+    "EDIT_MENU_LOCATIONS": "Pilih Lokasi",
+    "SHOW_IN_CONVERSATION": "Tampilkan di Percakapan",
+    "COPY": "Salin",
+    "SEARCH_SHARE": "Bagikan"
+  },
+  "fi": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Poista kuva",
+        "other": "Poista %lld kuvaa",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videot",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Poista video",
+        "other": "Poista %lld videota",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Kaikki",
+    "DETAILS_TAB_INFO": "Tiedot",
+    "EDIT_MENU_WALLET_PASSES": "Valitse kortit",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Lataa %d liite iCloudiin",
+        "other": "Lataa %d liitettä iCloudiin",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Tiedostot",
+    "COPY_LOCATIONS": "Kopioi sijainteja",
+    "Share": "Jaa",
+    "DETAILS_TAB_PHOTOS": "Kuvat",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Näyttökuvat",
+    "DETAILS_TAB_BACKGROUNDS": "Taustat",
+    "COPY_PHOTOS": "Kopioi kuvat",
+    "COPY_LINKS": "Kopioi linkit",
+    "EDIT_MENU_PHOTOS": "Valitse kuvat",
+    "EDIT_MENU_DOCUMENTS": "Valitse dokumentit",
+    "DETAILS_TAB_WALLET": "Lompakko",
+    "Links": "Linkit",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Kuvat",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Kaikki",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Poista kohde",
+        "other": "Poista %lld kohdetta",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Ladataan %d liitettä…",
+        "other": "Ladataan %d liitettä…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Poista",
+    "EDIT_MENU_LINKS": "Valitse linkit",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Yhteistyöt",
+    "COPY_FILES": "Kopioi tiedostoja",
+    "Pins": "Kiinnitetyt",
+    "DETAILS_TAB_LINKS": "Linkit",
+    "DETAILS_TAB_LOCATIONS": "Sijainnit",
+    "DETAILS_TAB_DOCUMENTS": "Dokumentit",
+    "COPY_PASSES": "Kopioi kortteja",
+    "EDIT_MENU_LOCATIONS": "Valitse sijainnit",
+    "SHOW_IN_CONVERSATION": "Näytä keskustelussa",
+    "COPY": "Kopioi",
+    "SEARCH_SHARE": "Jaa"
+  },
+  "tr": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Fotoğrafı Sil",
+        "other": "%lld Fotoğrafı Sil",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videolar",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Videoyu Sil",
+        "other": "%lld Videoyu Sil",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Tümü",
+    "DETAILS_TAB_INFO": "Bilgi",
+    "EDIT_MENU_WALLET_PASSES": "Kartları Seç",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "iCloud’daki %d İlişiği İndir",
+        "other": "iCloud’daki %d İlişiği İndir",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Dosyalar",
+    "COPY_LOCATIONS": "Konumları Kopyala",
+    "Share": "Paylaş",
+    "DETAILS_TAB_PHOTOS": "Fotoğraflar",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Ekran Resimleri",
+    "DETAILS_TAB_BACKGROUNDS": "Arka Planlar",
+    "COPY_PHOTOS": "Fotoğrafları Kopyala",
+    "COPY_LINKS": "Bağlantıları Kopyala",
+    "EDIT_MENU_PHOTOS": "Fotoğrafları Seç",
+    "EDIT_MENU_DOCUMENTS": "Belgeleri Seç",
+    "DETAILS_TAB_WALLET": "Cüzdan",
+    "Links": "Bağlantılar",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotoğraflar",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Tümü",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Öğeyi Sil",
+        "other": "%lld Öğeyi Sil",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d İlişik İndiriliyor…",
+        "other": "%d İlişik İndiriliyor…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Sil",
+    "EDIT_MENU_LINKS": "Bağlantıları Seç",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Ortak Çalışmalar",
+    "COPY_FILES": "Dosyaları Kopyala",
+    "Pins": "İğneler",
+    "DETAILS_TAB_LINKS": "Bağlantılar",
+    "DETAILS_TAB_LOCATIONS": "Konumlar",
+    "DETAILS_TAB_DOCUMENTS": "Belgeler",
+    "COPY_PASSES": "Kartları Kopyala",
+    "EDIT_MENU_LOCATIONS": "Konumları Seç",
+    "SHOW_IN_CONVERSATION": "Yazışmada Göster",
+    "COPY": "Kopyala",
+    "SEARCH_SHARE": "Paylaş"
+  },
+  "nl": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Verwijder foto",
+        "other": "Verwijder %lld foto's",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Video's",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Verwijder video",
+        "other": "Verwijder %lld video's",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Alle",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Selecteer kaarten",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Download %d bijlage in iCloud",
+        "other": "Download %d bijlagen in iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Bestanden",
+    "COPY_LOCATIONS": "Kopieer locaties",
+    "Share": "Deel",
+    "DETAILS_TAB_PHOTOS": "Foto's",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Schermafbeeldingen",
+    "DETAILS_TAB_BACKGROUNDS": "Achtergronden",
+    "COPY_PHOTOS": "Kopieer foto's",
+    "COPY_LINKS": "Kopieer links",
+    "EDIT_MENU_PHOTOS": "Selecteer foto's",
+    "EDIT_MENU_DOCUMENTS": "Selecteer documenten",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Foto's",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Alle",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Verwijder onderdeel",
+        "other": "Verwijder %lld onderdelen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d bijlage downloaden…",
+        "other": "%d bijlagen downloaden…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Verwijder",
+    "EDIT_MENU_LINKS": "Selecteer links",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Samenwerkingen",
+    "COPY_FILES": "Kopieer bestanden",
+    "Pins": "Spelden",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Locaties",
+    "DETAILS_TAB_DOCUMENTS": "Documenten",
+    "COPY_PASSES": "Kopieer kaarten",
+    "EDIT_MENU_LOCATIONS": "Selecteer locaties",
+    "SHOW_IN_CONVERSATION": "Toon in gesprek",
+    "COPY": "Kopieer",
+    "SEARCH_SHARE": "Deel"
+  },
+  "hu": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Fotó törlése",
+        "other": "%lld fotó törlése",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videók",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Videó törlése",
+        "other": "%lld videó törlése",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Összes",
+    "DETAILS_TAB_INFO": "Infó",
+    "EDIT_MENU_WALLET_PASSES": "Jegyek kiválasztása",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d melléklet letöltése az iCloudban",
+        "other": "%d melléklet letöltése az iCloudban",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Fájlok",
+    "COPY_LOCATIONS": "Helyek másolása",
+    "Share": "Megosztás",
+    "DETAILS_TAB_PHOTOS": "Fotók",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Képernyőfotók",
+    "DETAILS_TAB_BACKGROUNDS": "Hátterek",
+    "COPY_PHOTOS": "Fotók másolása",
+    "COPY_LINKS": "Linkek másolása",
+    "EDIT_MENU_PHOTOS": "Fotók kiválasztása",
+    "EDIT_MENU_DOCUMENTS": "Dokumentumok kiválasztása",
+    "DETAILS_TAB_WALLET": "Tárca",
+    "Links": "Linkek",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotók",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Összes",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Elem törlése",
+        "other": "%lld elem törlése",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d melléklet letöltése…",
+        "other": "%d melléklet letöltése…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Törlés",
+    "EDIT_MENU_LINKS": "Linkek kiválasztása",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Együttműködések",
+    "COPY_FILES": "Fájlok másolása",
+    "Pins": "Rögzített elemek",
+    "DETAILS_TAB_LINKS": "Linkek",
+    "DETAILS_TAB_LOCATIONS": "Helyek",
+    "DETAILS_TAB_DOCUMENTS": "Dokumentumok",
+    "COPY_PASSES": "Jegyek másolása",
+    "EDIT_MENU_LOCATIONS": "Helyek kiválasztása",
+    "SHOW_IN_CONVERSATION": "Megjelenítés a beszélgetésben",
+    "COPY": "Másolás",
+    "SEARCH_SHARE": "Megosztás"
+  },
+  "ru": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Удалить %lld фото",
+        "one": "Удалить %lld фото",
+        "other": "Delete %lld Photos",
+        "many": "Удалить %lld фото",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Видео",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Удалить %lld видео",
+        "one": "Удалить %lld видео",
+        "other": "Delete %lld Videos",
+        "many": "Удалить %lld видео",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Все",
+    "DETAILS_TAB_INFO": "Сведения",
+    "EDIT_MENU_WALLET_PASSES": "Выбрать карты",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Загрузить %d вложения из iCloud",
+        "one": "Загрузить %d вложение из iCloud",
+        "other": "Download %d Attachments in iCloud",
+        "many": "Загрузить %d вложений из iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Файлы",
+    "COPY_LOCATIONS": "Скопировать геопозиции",
+    "Share": "Поделиться",
+    "DETAILS_TAB_PHOTOS": "Фото",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Снимки экрана",
+    "DETAILS_TAB_BACKGROUNDS": "Фон",
+    "COPY_PHOTOS": "Скопировать фото",
+    "COPY_LINKS": "Скопировать ссылки",
+    "EDIT_MENU_PHOTOS": "Выбрать фото",
+    "EDIT_MENU_DOCUMENTS": "Выбрать документы",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Ссылки",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Фото",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Все",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Удалить %lld объекта",
+        "one": "Удалить %lld объект",
+        "other": "Delete %lld Items",
+        "many": "Удалить %lld объектов",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Загрузка %d вложений…",
+        "one": "Загрузка %d вложения…",
+        "other": "Downloading %d Attachments…",
+        "many": "Загрузка %d вложений…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Удалить",
+    "EDIT_MENU_LINKS": "Выбрать ссылки",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Совместная работа",
+    "COPY_FILES": "Скопировать файлы",
+    "Pins": "Закрепленное",
+    "DETAILS_TAB_LINKS": "Ссылки",
+    "DETAILS_TAB_LOCATIONS": "Геопозиции",
+    "DETAILS_TAB_DOCUMENTS": "Документы",
+    "COPY_PASSES": "Скопировать карты",
+    "EDIT_MENU_LOCATIONS": "Выбрать геопозиции",
+    "SHOW_IN_CONVERSATION": "Показать в разговоре",
+    "COPY": "Скопировать",
+    "SEARCH_SHARE": "Поделиться"
+  },
+  "it": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Elimina foto",
+        "other": "Elimina %lld foto",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Video",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Elimina video",
+        "other": "Elimina %lld video",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Tutti",
+    "DETAILS_TAB_INFO": "Informazioni",
+    "EDIT_MENU_WALLET_PASSES": "Seleziona biglietti",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Scarica %d allegato su iCloud",
+        "other": "Scarica %d allegati su iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "File",
+    "COPY_LOCATIONS": "Copia posizioni",
+    "Share": "Condividi",
+    "DETAILS_TAB_PHOTOS": "Foto",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Screenshot",
+    "DETAILS_TAB_BACKGROUNDS": "Sfondi",
+    "COPY_PHOTOS": "Copia foto",
+    "COPY_LINKS": "Copia i link",
+    "EDIT_MENU_PHOTOS": "Seleziona foto",
+    "EDIT_MENU_DOCUMENTS": "Seleziona documenti",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Link",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Foto",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Tutto",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Elimina elemento",
+        "other": "Elimina %lld elementi",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Scarico %d allegato…",
+        "other": "Scarico %d allegati…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Elimina",
+    "EDIT_MENU_LINKS": "Seleziona link",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Collaborazioni",
+    "COPY_FILES": "Copia file",
+    "Pins": "In evidenza",
+    "DETAILS_TAB_LINKS": "Link",
+    "DETAILS_TAB_LOCATIONS": "Luoghi",
+    "DETAILS_TAB_DOCUMENTS": "Documenti",
+    "COPY_PASSES": "Copia biglietti",
+    "EDIT_MENU_LOCATIONS": "Seleziona luoghi",
+    "SHOW_IN_CONVERSATION": "Mostra nella conversazione",
+    "COPY": "Copia",
+    "SEARCH_SHARE": "Condividi"
+  },
+  "es_419": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Eliminar foto",
+        "other": "Eliminar %lld fotos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Eliminar video",
+        "other": "Eliminar %lld videos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Todos",
+    "DETAILS_TAB_INFO": "Datos",
+    "EDIT_MENU_WALLET_PASSES": "Seleccionar pases",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descargar %d archivo adjunto en iCloud",
+        "other": "Descargar %d archivos adjuntos en iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Archivos",
+    "COPY_LOCATIONS": "Copiar ubicaciones",
+    "Share": "Compartir",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Capturas",
+    "DETAILS_TAB_BACKGROUNDS": "Fondos",
+    "COPY_PHOTOS": "Copiar fotos",
+    "COPY_LINKS": "Copiar enlaces",
+    "EDIT_MENU_PHOTOS": "Seleccionar fotos",
+    "EDIT_MENU_DOCUMENTS": "Seleccionar documentos",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Enlaces",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Todas",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Eliminar elemento",
+        "other": "Eliminar %lld elementos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descargando %d archivo adjunto…",
+        "other": "Descargando %d archivos adjuntos…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Eliminar",
+    "EDIT_MENU_LINKS": "Seleccionar enlaces",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Colaboraciones",
+    "COPY_FILES": "Copiar archivos",
+    "Pins": "Destacados",
+    "DETAILS_TAB_LINKS": "Enlaces",
+    "DETAILS_TAB_LOCATIONS": "Ubicaciones",
+    "DETAILS_TAB_DOCUMENTS": "Documentos",
+    "COPY_PASSES": "Copiar pases",
+    "EDIT_MENU_LOCATIONS": "Seleccionar ubicaciones",
+    "SHOW_IN_CONVERSATION": "Mostrar en la conversación",
+    "COPY": "Copiar",
+    "SEARCH_SHARE": "Compartir"
+  },
+  "el": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Διαγραφή φωτογραφίας",
+        "other": "Διαγραφή %lld φωτογραφιών",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Βίντεο",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Διαγραφή βίντεο",
+        "other": "Διαγραφή %lld βίντεο",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Όλα",
+    "DETAILS_TAB_INFO": "Πληροφορίες",
+    "EDIT_MENU_WALLET_PASSES": "Επιλογή πάσων",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Λήψη %d συνημμένου στο iCloud",
+        "other": "Λήψη %d συνημμένων στο iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Αρχεία",
+    "COPY_LOCATIONS": "Αντιγραφή τοποθεσιών",
+    "Share": "Κοινοποίηση",
+    "DETAILS_TAB_PHOTOS": "Φωτογραφίες",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Στιγμιότυπα",
+    "DETAILS_TAB_BACKGROUNDS": "Φόντα",
+    "COPY_PHOTOS": "Αντιγραφή φωτογραφιών",
+    "COPY_LINKS": "Αντιγραφή συνδέσμων",
+    "EDIT_MENU_PHOTOS": "Επιλογή φωτογραφιών",
+    "EDIT_MENU_DOCUMENTS": "Επιλογή εγγράφων",
+    "DETAILS_TAB_WALLET": "Πορτοφόλι",
+    "Links": "Σύνδεσμοι",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Φωτογραφίες",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Όλες",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Διαγραφή στοιχείου",
+        "other": "Διαγραφή %lld στοιχείων",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Λήψη %d συνημμένου…",
+        "other": "Λήψη %d συνημμένων…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Διαγραφή",
+    "EDIT_MENU_LINKS": "Επιλογή συνδέσμων",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Συνεργασίες",
+    "COPY_FILES": "Αντιγραφή αρχείων",
+    "Pins": "Καρφίτσες",
+    "DETAILS_TAB_LINKS": "Σύνδεσμοι",
+    "DETAILS_TAB_LOCATIONS": "Τοποθεσίες",
+    "DETAILS_TAB_DOCUMENTS": "Έγγραφα",
+    "COPY_PASSES": "Αντιγραφή πάσων",
+    "EDIT_MENU_LOCATIONS": "Επιλογή τοποθεσιών",
+    "SHOW_IN_CONVERSATION": "Εμφάνιση στη συζήτηση",
+    "COPY": "Αντιγραφή",
+    "SEARCH_SHARE": "Κοινοποίηση"
+  },
+  "fr_CA": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Supprimer la photo",
+        "other": "Supprimer %lld photos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Vidéos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Supprimer la vidéo",
+        "other": "Supprimer %lld vidéos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Tout",
+    "DETAILS_TAB_INFO": "Informations",
+    "EDIT_MENU_WALLET_PASSES": "Sélectionner des cartes",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Télécharger %d pièce jointe dans iCloud",
+        "other": "Télécharger %d pièces jointes dans iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Fichiers",
+    "COPY_LOCATIONS": "Copier les lieux",
+    "Share": "Partager",
+    "DETAILS_TAB_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Captures d’écran",
+    "DETAILS_TAB_BACKGROUNDS": "Arrière-plans",
+    "COPY_PHOTOS": "Copier les photos",
+    "COPY_LINKS": "Copier les liens",
+    "EDIT_MENU_PHOTOS": "Sélectionner des photos",
+    "EDIT_MENU_DOCUMENTS": "Sélectionner des documents",
+    "DETAILS_TAB_WALLET": "Portefeuille",
+    "Links": "Liens",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Tout",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Supprimer l’élément",
+        "other": "Supprimer %lld éléments",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Téléchargement de %d pièce jointe…",
+        "other": "Téléchargement de %d pièces jointes…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Supprimer",
+    "EDIT_MENU_LINKS": "Sélectionner des liens",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Collaborations",
+    "COPY_FILES": "Copier les fichiers",
+    "Pins": "Épinglés",
+    "DETAILS_TAB_LINKS": "Liens",
+    "DETAILS_TAB_LOCATIONS": "Emplacements",
+    "DETAILS_TAB_DOCUMENTS": "Documents",
+    "COPY_PASSES": "Copier les cartes",
+    "EDIT_MENU_LOCATIONS": "Sélectionner des lieux",
+    "SHOW_IN_CONVERSATION": "Afficher dans la conversation",
+    "COPY": "Copier",
+    "SEARCH_SHARE": "Partager"
+  },
+  "ar": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "حذف الصورة",
+        "few": "حذف %lld صور",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "حذف %lld صورة",
+        "two": "حذف الصورتين",
+        "other": "حذف %lld صورة",
+        "NSStringFormatValueTypeKey": "lld",
+        "zero": "حذف %lld صورة"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "مقاطع فيديو",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "حذف الفيديو",
+        "few": "حذف %lld فيديوهات",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "حذف %lld فيديو",
+        "two": "حذف الفيديوهين",
+        "other": "حذف %lld فيديو",
+        "NSStringFormatValueTypeKey": "lld",
+        "zero": "حذف %lld فيديو"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "الكل",
+    "DETAILS_TAB_INFO": "معلومات",
+    "EDIT_MENU_WALLET_PASSES": "تحديد البطاقات",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "تنزيل مرفق واحد في iCloud",
+        "few": "تنزيل %d مرفقات في iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "تنزيل %d مرفقًا في iCloud",
+        "two": "تنزيل مرفقين في iCloud",
+        "other": "تنزيل %d مرفق في iCloud",
+        "NSStringFormatValueTypeKey": "d",
+        "zero": "تنزيل %d مرفق في iCloud"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "الملفات",
+    "COPY_LOCATIONS": "نسخ المواقع",
+    "Share": "مشاركة",
+    "DETAILS_TAB_PHOTOS": "الصور",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "لقطات شاشة",
+    "DETAILS_TAB_BACKGROUNDS": "الخلفيات",
+    "COPY_PHOTOS": "نسخ الصور",
+    "COPY_LINKS": "نسخ الروابط",
+    "EDIT_MENU_PHOTOS": "تحديد الصور",
+    "EDIT_MENU_DOCUMENTS": "تحديد المستندات",
+    "DETAILS_TAB_WALLET": "المحفظة",
+    "Links": "الروابط",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "الصور",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "الكل",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "حذف العنصر",
+        "few": "حذف %lld عناصر",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "حذف %lld عنصرًا",
+        "two": "حذف عنصرين",
+        "other": "حذف %lld عنصر",
+        "NSStringFormatValueTypeKey": "lld",
+        "zero": "حذف %lld عنصر"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "يجري تنزيل مرفق واحد…",
+        "few": "يجري تنزيل %d مرفقات…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "يجري تنزيل %d مرفقًا…",
+        "two": "يجري تنزيل مرفقين…",
+        "other": "يجري تنزيل %d مرفق…",
+        "NSStringFormatValueTypeKey": "d",
+        "zero": "يجري تنزيل %d مرفق…"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "حذف",
+    "EDIT_MENU_LINKS": "تحديد الروابط",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "ملفات التعاون",
+    "COPY_FILES": "نسخ الملفات",
+    "Pins": "مثبتة",
+    "DETAILS_TAB_LINKS": "الروابط",
+    "DETAILS_TAB_LOCATIONS": "المواقع",
+    "DETAILS_TAB_DOCUMENTS": "المستندات",
+    "COPY_PASSES": "نسخ بطاقات المرور",
+    "EDIT_MENU_LOCATIONS": "تحديد المواقع",
+    "SHOW_IN_CONVERSATION": "إظهار في المحادثة",
+    "COPY": "نسخ",
+    "SEARCH_SHARE": "مشاركة"
+  },
+  "zh_TW": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "刪除%lld張照片",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "影片",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "刪除%lld部影片",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "全部",
+    "DETAILS_TAB_INFO": "資訊",
+    "EDIT_MENU_WALLET_PASSES": "選取票卡",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "下載iCloud中的%d個附件",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "檔案",
+    "COPY_LOCATIONS": "拷貝位置",
+    "Share": "分享",
+    "DETAILS_TAB_PHOTOS": "照片",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "截圖",
+    "DETAILS_TAB_BACKGROUNDS": "背景",
+    "COPY_PHOTOS": "拷貝照片",
+    "COPY_LINKS": "拷貝連結",
+    "EDIT_MENU_PHOTOS": "選取照片",
+    "EDIT_MENU_DOCUMENTS": "選取文件",
+    "DETAILS_TAB_WALLET": "錢包",
+    "Links": "連結",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "照片",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "全部",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "刪除%lld個項目",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "正在下載%d個附件⋯",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "刪除",
+    "EDIT_MENU_LINKS": "選取連結",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "合作項目",
+    "COPY_FILES": "拷貝檔案",
+    "Pins": "釘選",
+    "DETAILS_TAB_LINKS": "連結",
+    "DETAILS_TAB_LOCATIONS": "位置",
+    "DETAILS_TAB_DOCUMENTS": "文件",
+    "COPY_PASSES": "拷貝票卡",
+    "EDIT_MENU_LOCATIONS": "選取位置",
+    "SHOW_IN_CONVERSATION": "在對話中顯示",
+    "COPY": "拷貝",
+    "SEARCH_SHARE": "分享"
+  },
+  "zh_HK": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "刪除%lld張相片",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "影片",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "刪除%lld段影片",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "全部",
+    "DETAILS_TAB_INFO": "資料",
+    "EDIT_MENU_WALLET_PASSES": "選擇票證",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "正在下載%d個iCloud中的附件",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "檔案",
+    "COPY_LOCATIONS": "複製位置",
+    "Share": "共享",
+    "DETAILS_TAB_PHOTOS": "相片",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "螢幕截圖",
+    "DETAILS_TAB_BACKGROUNDS": "背景",
+    "COPY_PHOTOS": "複製相片",
+    "COPY_LINKS": "複製連結",
+    "EDIT_MENU_PHOTOS": "選擇相片",
+    "EDIT_MENU_DOCUMENTS": "選擇文件",
+    "DETAILS_TAB_WALLET": "銀包",
+    "Links": "連結",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "相片",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "全部",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "刪除%lld個項目",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "正在下載%d個附件⋯",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "刪除",
+    "EDIT_MENU_LINKS": "選擇連結",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "共同編輯",
+    "COPY_FILES": "複製檔案",
+    "Pins": "釘選項目",
+    "DETAILS_TAB_LINKS": "連結",
+    "DETAILS_TAB_LOCATIONS": "位置",
+    "DETAILS_TAB_DOCUMENTS": "文件",
+    "COPY_PASSES": "複製票證",
+    "EDIT_MENU_LOCATIONS": "選擇位置",
+    "SHOW_IN_CONVERSATION": "在對話中顯示",
+    "COPY": "複製",
+    "SEARCH_SHARE": "分享"
+  },
+  "sv": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Radera bild",
+        "other": "Radera %lld bilder",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videor",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Radera video",
+        "other": "Radera %lld videor",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Alla",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Välj kort",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Hämta %d bilaga från iCloud",
+        "other": "Hämta %d bilagor från iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Filer",
+    "COPY_LOCATIONS": "Kopiera platser",
+    "Share": "Dela",
+    "DETAILS_TAB_PHOTOS": "Bilder",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Skärmavbilder",
+    "DETAILS_TAB_BACKGROUNDS": "Bakgrunder",
+    "COPY_PHOTOS": "Kopiera bilder",
+    "COPY_LINKS": "Kopiera länkar",
+    "EDIT_MENU_PHOTOS": "Välj bilder",
+    "EDIT_MENU_DOCUMENTS": "Välj dokument",
+    "DETAILS_TAB_WALLET": "Plånbok",
+    "Links": "Länkar",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Bilder",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Alla",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Radera objekt",
+        "other": "Radera %lld objekt",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Hämtar %d bilaga…",
+        "other": "Hämtar %d bilagor…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Radera",
+    "EDIT_MENU_LINKS": "Välj länkar",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Samarbeten",
+    "COPY_FILES": "Kopiera filer",
+    "Pins": "Nålar",
+    "DETAILS_TAB_LINKS": "Länkar",
+    "DETAILS_TAB_LOCATIONS": "Platser",
+    "DETAILS_TAB_DOCUMENTS": "Dokument",
+    "COPY_PASSES": "Kopiera kort",
+    "EDIT_MENU_LOCATIONS": "Välj platser",
+    "SHOW_IN_CONVERSATION": "Visa i konversation",
+    "COPY": "Kopiera",
+    "SEARCH_SHARE": "Dela"
+  },
+  "no": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Slett bilde",
+        "other": "Slett %lld bilder",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videoer",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Slett video",
+        "other": "Slett %lld videoer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Alle",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Velg kort",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Last ned %d vedlegg i iCloud",
+        "other": "Last ned %d vedlegg i iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Filer",
+    "COPY_LOCATIONS": "Kopier steder",
+    "Share": "Del",
+    "DETAILS_TAB_PHOTOS": "Bilder",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Skjermbilder",
+    "DETAILS_TAB_BACKGROUNDS": "Bakgrunner",
+    "COPY_PHOTOS": "Kopier bilder",
+    "COPY_LINKS": "Kopier lenker",
+    "EDIT_MENU_PHOTOS": "Velg bilder",
+    "EDIT_MENU_DOCUMENTS": "Velg dokumenter",
+    "DETAILS_TAB_WALLET": "Lommebok",
+    "Links": "Lenker",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Bilder",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Alle",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Slett artikkel",
+        "other": "Slett %lld objekter",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Laster ned %d vedlegg…",
+        "other": "Laster ned %d vedlegg…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Slett",
+    "EDIT_MENU_LINKS": "Velg lenker",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Samarbeid",
+    "COPY_FILES": "Kopier filer",
+    "Pins": "Festet",
+    "DETAILS_TAB_LINKS": "Lenker",
+    "DETAILS_TAB_LOCATIONS": "Steder",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenter",
+    "COPY_PASSES": "Kopier kort",
+    "EDIT_MENU_LOCATIONS": "Velg steder",
+    "SHOW_IN_CONVERSATION": "Vis i samtale",
+    "COPY": "Kopier",
+    "SEARCH_SHARE": "Del"
+  },
+  "pl": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Usuń %lld zdjęcia",
+        "one": "Usuń zdjęcie",
+        "other": "Delete %lld Photos",
+        "many": "Usuń %lld zdjęć",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Wideo",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Usuń %lld wideo",
+        "one": "Usuń wideo",
+        "other": "Delete %lld Videos",
+        "many": "Usuń %lld wideo",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Wszystko",
+    "DETAILS_TAB_INFO": "Informacje",
+    "EDIT_MENU_WALLET_PASSES": "Wybierz karty",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Pobierz %d załączniki w iCloud",
+        "one": "Pobierz %d załącznik w iCloud",
+        "other": "Download %d Attachments in iCloud",
+        "many": "Pobierz %d załączników w iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Pliki",
+    "COPY_LOCATIONS": "Kopiuj miejsca",
+    "Share": "Udostępnij",
+    "DETAILS_TAB_PHOTOS": "Zdjęcia",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Zrzuty ekranu",
+    "DETAILS_TAB_BACKGROUNDS": "Tła",
+    "COPY_PHOTOS": "Kopiuj zdjęcia",
+    "COPY_LINKS": "Kopiuj łącza",
+    "EDIT_MENU_PHOTOS": "Wybierz zdjęcia",
+    "EDIT_MENU_DOCUMENTS": "Wybierz dokumenty",
+    "DETAILS_TAB_WALLET": "Portfel",
+    "Links": "Łącza",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Zdjęcia",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Wszystko",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Usuń %lld rzeczy",
+        "one": "Usuń rzecz",
+        "other": "Delete %lld Items",
+        "many": "Usuń %lld rzeczy",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Pobieram %d załączniki…",
+        "one": "Pobieram %d załącznik…",
+        "other": "Downloading %d Attachments…",
+        "many": "Pobieram %d załączników…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Usuń",
+    "EDIT_MENU_LINKS": "Wybierz łącza",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Przedmioty współpracy",
+    "COPY_FILES": "Kopiuj pliki",
+    "Pins": "Przypięte",
+    "DETAILS_TAB_LINKS": "Łącza",
+    "DETAILS_TAB_LOCATIONS": "Położenia",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenty",
+    "COPY_PASSES": "Kopiuj karty",
+    "EDIT_MENU_LOCATIONS": "Wybierz położenia",
+    "SHOW_IN_CONVERSATION": "Pokaż w rozmowie",
+    "COPY": "Kopiuj",
+    "SEARCH_SHARE": "Udostępnij"
+  },
+  "da": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Slet foto",
+        "other": "Slet %lld fotos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videoer",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Slet video",
+        "other": "Slet %lld videoer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Alle",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Vælg kort",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Hent %d bilag i iCloud",
+        "other": "Hent %d bilag i iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Arkiver",
+    "COPY_LOCATIONS": "Kopier lokaliteter",
+    "Share": "Del",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Skærmbilleder",
+    "DETAILS_TAB_BACKGROUNDS": "Baggrunde",
+    "COPY_PHOTOS": "Kopier fotos",
+    "COPY_LINKS": "Kopier links",
+    "EDIT_MENU_PHOTOS": "Vælg fotos",
+    "EDIT_MENU_DOCUMENTS": "Vælg dokumenter",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Alle",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Slet emne",
+        "other": "Slet %lld emner",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Henter %d bilag…",
+        "other": "Henter %d bilag…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Slet",
+    "EDIT_MENU_LINKS": "Vælg links",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Samarbejdsemner",
+    "COPY_FILES": "Kopier arkiver",
+    "Pins": "Fastgjorte emner",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Lokaliteter",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenter",
+    "COPY_PASSES": "Kopier kort",
+    "EDIT_MENU_LOCATIONS": "Vælg lokaliteter",
+    "SHOW_IN_CONVERSATION": "Vis i samtale",
+    "COPY": "Kopier",
+    "SEARCH_SHARE": "Del"
+  },
+  "LocProvenance": {
+    "ko": 3,
+    "he": 3,
+    "id": 3,
+    "fi": 3,
+    "tr": 3,
+    "nl": 3,
+    "hu": 3,
+    "ru": 3,
+    "it": 3,
+    "es_419": 3,
+    "el": 3,
+    "fr_CA": 3,
+    "ar": 3,
+    "zh_TW": 3,
+    "zh_HK": 3,
+    "sv": 3,
+    "no": 3,
+    "pl": 3,
+    "da": 3,
+    "en": 3,
+    "hi": 3,
+    "ca": 3,
+    "th": 3,
+    "zh_CN": 3,
+    "en_GB": 3,
+    "es_US": 3,
+    "cs": 3,
+    "ms": 3,
+    "sk": 3,
+    "en_AU": 3,
+    "sl": 3,
+    "de": 3,
+    "vi": 3,
+    "es": 3,
+    "none": 0,
+    "fr": 3,
+    "uk": 3,
+    "ro": 3,
+    "pt": 3,
+    "ja": 3,
+    "pt_PT": 3,
+    "hr": 3
+  },
+  "en": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Delete Photo",
+        "other": "Delete %lld Photos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Delete Video",
+        "other": "Delete %lld Videos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "All",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Select Passes",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Download %d Attachment in iCloud",
+        "other": "Download %d Attachments in iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Files",
+    "COPY_LOCATIONS": "Copy Locations",
+    "Share": "Share",
+    "DETAILS_TAB_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Screenshots",
+    "DETAILS_TAB_BACKGROUNDS": "Backgrounds",
+    "COPY_PHOTOS": "Copy Photos",
+    "COPY_LINKS": "Copy Links",
+    "EDIT_MENU_PHOTOS": "Select Photos",
+    "EDIT_MENU_DOCUMENTS": "Select Documents",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "All",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Delete Item",
+        "other": "Delete %lld Items",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Downloading %d Attachment…",
+        "other": "Downloading %d Attachments…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Delete",
+    "EDIT_MENU_LINKS": "Select Links",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Collaborations",
+    "COPY_FILES": "Copy Files",
+    "Pins": "Pins",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Locations",
+    "DETAILS_TAB_DOCUMENTS": "Documents",
+    "COPY_PASSES": "Copy Passes",
+    "EDIT_MENU_LOCATIONS": "Select Locations",
+    "SHOW_IN_CONVERSATION": "Show in Conversation",
+    "COPY": "Copy",
+    "SEARCH_SHARE": "Share"
+  },
+  "hi": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "तस्वीर डिलीट करें",
+        "other": "%lld तस्वीरें डिलीट करें",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "वीडियो",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "वीडियो डिलीट करें",
+        "other": "%lld वीडियो डिलीट करें",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "सभी",
+    "DETAILS_TAB_INFO": "जानकारी",
+    "EDIT_MENU_WALLET_PASSES": "पास चुनें",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "iCloud में %d अटैचमेंट डाउनलोड करें",
+        "other": "iCloud में %d अटैचमेंट डाउनलोड करें",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "फ़ाइलें",
+    "COPY_LOCATIONS": "स्थान कॉपी करें",
+    "Share": "शेयर करें",
+    "DETAILS_TAB_PHOTOS": "तस्वीरें",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "स्क्रीनशॉट",
+    "DETAILS_TAB_BACKGROUNDS": "बैकग्राउंड",
+    "COPY_PHOTOS": "तस्वीरें कॉपी करें",
+    "COPY_LINKS": "लिंक कॉपी करें",
+    "EDIT_MENU_PHOTOS": "तस्वीरें चुनें",
+    "EDIT_MENU_DOCUMENTS": "दस्तावेज़ चुनें",
+    "DETAILS_TAB_WALLET": "वॉलेट",
+    "Links": "लिंक",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "तस्वीरें",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "सभी",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "आइटम डिलीट करें",
+        "other": "%lld आइटम डिलीट करें",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d अटैचमेंट डाउनलोड किया जा रहा है…",
+        "other": "%d अटैचमेंट डाउनलोड किए जा रहे हैं…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "डिलीट करें",
+    "EDIT_MENU_LINKS": "लिंक चुनें",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "सहयोग",
+    "COPY_FILES": "फ़ाइलें कॉपी करें",
+    "Pins": "पिन",
+    "DETAILS_TAB_LINKS": "लिंक",
+    "DETAILS_TAB_LOCATIONS": "स्थान",
+    "DETAILS_TAB_DOCUMENTS": "दस्तावेज़",
+    "COPY_PASSES": "पास कॉपी करें",
+    "EDIT_MENU_LOCATIONS": "स्थान चुनें",
+    "SHOW_IN_CONVERSATION": "वार्तालाप में दिखाएँ",
+    "COPY": "कॉपी",
+    "SEARCH_SHARE": "शेयर करें"
+  },
+  "ca": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Elimina la foto",
+        "other": "Elimina les %lld fotos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Vídeos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Elimina el vídeo",
+        "other": "Elimina els %lld vídeos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Tots",
+    "DETAILS_TAB_INFO": "Informació",
+    "EDIT_MENU_WALLET_PASSES": "Selecciona passis",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descarrega %d adjunt de l’iCloud",
+        "other": "Descarrega %d adjunts de l’iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Arxius",
+    "COPY_LOCATIONS": "Copia les ubicacions",
+    "Share": "Comparteix",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Captures",
+    "DETAILS_TAB_BACKGROUNDS": "Fons",
+    "COPY_PHOTOS": "Copia les fotos",
+    "COPY_LINKS": "Copia els enllaços",
+    "EDIT_MENU_PHOTOS": "Selecciona fotos",
+    "EDIT_MENU_DOCUMENTS": "Selecciona documents",
+    "DETAILS_TAB_WALLET": "Cartera",
+    "Links": "Enllaços",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Totes",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Elimina l’ítem",
+        "other": "Elimina els %lld ítems",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descarregant %d adjunt…",
+        "other": "Descarregant %d adjunts…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Elimina",
+    "EDIT_MENU_LINKS": "Selecciona enllaços",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Col·laboracions",
+    "COPY_FILES": "Copia els arxius",
+    "Pins": "Fixats",
+    "DETAILS_TAB_LINKS": "Enllaços",
+    "DETAILS_TAB_LOCATIONS": "Ubicacions",
+    "DETAILS_TAB_DOCUMENTS": "Documents",
+    "COPY_PASSES": "Copia els passis",
+    "EDIT_MENU_LOCATIONS": "Selecciona ubicacions",
+    "SHOW_IN_CONVERSATION": "Mostra a la conversa",
+    "COPY": "Copia",
+    "SEARCH_SHARE": "Comparteix"
+  },
+  "th": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "ลบรูปภาพ %lld รูป",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "วิดีโอ",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "ลบวิดีโอ %lld ไฟล์",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "ทั้งหมด",
+    "DETAILS_TAB_INFO": "ข้อมูล",
+    "EDIT_MENU_WALLET_PASSES": "เลือกบัตร",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "ดาวน์โหลด %d ไฟล์แนบบน iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "ไฟล์",
+    "COPY_LOCATIONS": "คัดลอกตำแหน่งที่ตั้ง",
+    "Share": "แชร์",
+    "DETAILS_TAB_PHOTOS": "รูปภาพ",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "ภาพถ่ายหน้าจอ",
+    "DETAILS_TAB_BACKGROUNDS": "พื้นหลัง",
+    "COPY_PHOTOS": "คัดลอกรูปภาพ",
+    "COPY_LINKS": "คัดลอกลิงก์",
+    "EDIT_MENU_PHOTOS": "เลือกรูปภาพ",
+    "EDIT_MENU_DOCUMENTS": "เลือกเอกสาร",
+    "DETAILS_TAB_WALLET": "กระเป๋าสตางค์",
+    "Links": "ลิงก์",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "รูปภาพ",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "ทั้งหมด",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "ลบ %lld รายการ",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "กำลังดาวน์โหลด %d ไฟล์แนบ…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "ลบ",
+    "EDIT_MENU_LINKS": "เลือกลิงก์",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "การใช้งานร่วมกัน",
+    "COPY_FILES": "คัดลอกไฟล์",
+    "Pins": "ปักหมุด",
+    "DETAILS_TAB_LINKS": "ลิงก์",
+    "DETAILS_TAB_LOCATIONS": "ตำแหน่งที่ตั้ง",
+    "DETAILS_TAB_DOCUMENTS": "เอกสาร",
+    "COPY_PASSES": "คัดลอกบัตร",
+    "EDIT_MENU_LOCATIONS": "เลือกตำแหน่งที่ตั้ง",
+    "SHOW_IN_CONVERSATION": "แสดงในการสนทนา",
+    "COPY": "คัดลอก",
+    "SEARCH_SHARE": "แชร์"
+  },
+  "zh_CN": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "删除%lld张照片",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "视频",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "删除%lld个视频",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "全部",
+    "DETAILS_TAB_INFO": "资料",
+    "EDIT_MENU_WALLET_PASSES": "选择凭证",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "下载iCloud中的%d个附件",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "文件",
+    "COPY_LOCATIONS": "拷贝位置",
+    "Share": "共享",
+    "DETAILS_TAB_PHOTOS": "照片",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "截屏",
+    "DETAILS_TAB_BACKGROUNDS": "背景",
+    "COPY_PHOTOS": "拷贝照片",
+    "COPY_LINKS": "拷贝链接",
+    "EDIT_MENU_PHOTOS": "选择照片",
+    "EDIT_MENU_DOCUMENTS": "选择文稿",
+    "DETAILS_TAB_WALLET": "钱包",
+    "Links": "链接",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "照片",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "全部",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "删除%lld个项目",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "正在下载%d个附件…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "删除",
+    "EDIT_MENU_LINKS": "选择链接",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "协作",
+    "COPY_FILES": "拷贝文件",
+    "Pins": "固定",
+    "DETAILS_TAB_LINKS": "链接",
+    "DETAILS_TAB_LOCATIONS": "位置",
+    "DETAILS_TAB_DOCUMENTS": "文稿",
+    "COPY_PASSES": "拷贝凭证",
+    "EDIT_MENU_LOCATIONS": "选择位置",
+    "SHOW_IN_CONVERSATION": "在对话中显示",
+    "COPY": "拷贝",
+    "SEARCH_SHARE": "共享"
+  },
+  "en_GB": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Delete Photo",
+        "other": "Delete %lld Photos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Delete Video",
+        "other": "Delete %lld Videos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "All",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Select Passes",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Download %d Attachment in iCloud",
+        "other": "Download %d Attachments in iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Files",
+    "COPY_LOCATIONS": "Copy Locations",
+    "Share": "Share",
+    "DETAILS_TAB_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Screenshots",
+    "DETAILS_TAB_BACKGROUNDS": "Backgrounds",
+    "COPY_PHOTOS": "Copy Photos",
+    "COPY_LINKS": "Copy Links",
+    "EDIT_MENU_PHOTOS": "Select Photos",
+    "EDIT_MENU_DOCUMENTS": "Select Documents",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "All",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Delete Item",
+        "other": "Delete %lld Items",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Downloading %d Attachment…",
+        "other": "Downloading %d Attachments…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Delete",
+    "EDIT_MENU_LINKS": "Select Links",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Collaborations",
+    "COPY_FILES": "Copy Files",
+    "Pins": "Pins",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Locations",
+    "DETAILS_TAB_DOCUMENTS": "Documents",
+    "COPY_PASSES": "Copy Passes",
+    "EDIT_MENU_LOCATIONS": "Select Locations",
+    "SHOW_IN_CONVERSATION": "Show in Conversation",
+    "COPY": "Copy",
+    "SEARCH_SHARE": "Share"
+  },
+  "es_US": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Eliminar foto",
+        "other": "Eliminar %lld fotos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Eliminar video",
+        "other": "Eliminar %lld videos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Todos",
+    "DETAILS_TAB_INFO": "Datos",
+    "EDIT_MENU_WALLET_PASSES": "Seleccionar pases",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descargar %d archivo adjunto en iCloud",
+        "other": "Descargar %d archivos adjuntos en iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Archivos",
+    "COPY_LOCATIONS": "Copiar ubicaciones",
+    "Share": "Compartir",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Capturas",
+    "DETAILS_TAB_BACKGROUNDS": "Fondos",
+    "COPY_PHOTOS": "Copiar fotos",
+    "COPY_LINKS": "Copiar enlaces",
+    "EDIT_MENU_PHOTOS": "Seleccionar fotos",
+    "EDIT_MENU_DOCUMENTS": "Seleccionar documentos",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Enlaces",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Todas",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Eliminar elemento",
+        "other": "Eliminar %lld elementos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descargando %d archivo adjunto…",
+        "other": "Descargando %d archivos adjuntos…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Eliminar",
+    "EDIT_MENU_LINKS": "Seleccionar enlaces",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Colaboraciones",
+    "COPY_FILES": "Copiar archivos",
+    "Pins": "Destacados",
+    "DETAILS_TAB_LINKS": "Enlaces",
+    "DETAILS_TAB_LOCATIONS": "Ubicaciones",
+    "DETAILS_TAB_DOCUMENTS": "Documentos",
+    "COPY_PASSES": "Copiar pases",
+    "EDIT_MENU_LOCATIONS": "Seleccionar ubicaciones",
+    "SHOW_IN_CONVERSATION": "Mostrar en la conversación",
+    "COPY": "Copiar",
+    "SEARCH_SHARE": "Compartir"
+  },
+  "cs": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Smazat %lld fotky",
+        "one": "Smazat fotku",
+        "other": "Smazat %lld fotek",
+        "many": "Smazat %lld fotky",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videa",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Smazat %lld videa",
+        "one": "Smazat video",
+        "other": "Smazat %lld videí",
+        "many": "Smazat %lld videa",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Vše",
+    "DETAILS_TAB_INFO": "Informace",
+    "EDIT_MENU_WALLET_PASSES": "Vybrat lístky",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Stáhnout z iCloudu %d přílohy",
+        "one": "Stáhnout z iCloudu %d přílohu",
+        "other": "Stáhnout z iCloudu %d příloh",
+        "many": "Stáhnout z iCloudu %d přílohy",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Soubory",
+    "COPY_LOCATIONS": "Kopírovat místa",
+    "Share": "Sdílet",
+    "DETAILS_TAB_PHOTOS": "Fotky",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Snímky obrazovky",
+    "DETAILS_TAB_BACKGROUNDS": "Pozadí",
+    "COPY_PHOTOS": "Zkopírovat fotky",
+    "COPY_LINKS": "Zkopírovat odkazy",
+    "EDIT_MENU_PHOTOS": "Vybrat fotky",
+    "EDIT_MENU_DOCUMENTS": "Vybrat dokumenty",
+    "DETAILS_TAB_WALLET": "Peněženka",
+    "Links": "Odkazy",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotky",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Vše",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Smazat %lld položky",
+        "one": "Smazat položku",
+        "other": "Smazat %lld položek",
+        "many": "Smazat %lld položky",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Stahují se %d přílohy…",
+        "one": "Stahuje se %d příloha…",
+        "other": "Stahuje se %d příloh…",
+        "many": "Stahuje se %d přílohy…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Smazat",
+    "EDIT_MENU_LINKS": "Vybrat odkazy",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Spolupráce",
+    "COPY_FILES": "Kopírovat soubory",
+    "Pins": "Přišpendlené",
+    "DETAILS_TAB_LINKS": "Odkazy",
+    "DETAILS_TAB_LOCATIONS": "Místa",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenty",
+    "COPY_PASSES": "Kopírovat lístky",
+    "EDIT_MENU_LOCATIONS": "Vybrat místa",
+    "SHOW_IN_CONVERSATION": "Zobrazit v konverzaci",
+    "COPY": "Kopírovat",
+    "SEARCH_SHARE": "Sdílet"
+  },
+  "ms": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "Padam %lld Foto",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Video",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "Padam %lld Video",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Semua",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Pilih Pas",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "Muat Turun %d Lampiran dalam iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Fail",
+    "COPY_LOCATIONS": "Salin Lokasi",
+    "Share": "Kongsi",
+    "DETAILS_TAB_PHOTOS": "Foto",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Gambar Skrin",
+    "DETAILS_TAB_BACKGROUNDS": "Latar Belakang",
+    "COPY_PHOTOS": "Salin Foto",
+    "COPY_LINKS": "Salin Pautan",
+    "EDIT_MENU_PHOTOS": "Pilih Foto",
+    "EDIT_MENU_DOCUMENTS": "Pilih Dokumen",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Pautan",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Foto",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Semua",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "Padam %lld Item",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "Memuat Turun %d Lampiran…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Padam",
+    "EDIT_MENU_LINKS": "Pilih Pautan",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Kerjasama",
+    "COPY_FILES": "Salin Fail",
+    "Pins": "Pin",
+    "DETAILS_TAB_LINKS": "Pautan",
+    "DETAILS_TAB_LOCATIONS": "Lokasi",
+    "DETAILS_TAB_DOCUMENTS": "Dokumen",
+    "COPY_PASSES": "Salin Pas",
+    "EDIT_MENU_LOCATIONS": "Pilih Lokasi",
+    "SHOW_IN_CONVERSATION": "Tunjukkan dalam Perbualan",
+    "COPY": "Salin",
+    "SEARCH_SHARE": "Kongsi"
+  },
+  "sk": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Vymazať %lld fotky",
+        "one": "Vymazať fotku",
+        "other": "Vymazať %lld fotiek",
+        "many": "Vymazať %lld fotky",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videá",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Vymazať %lld videá",
+        "one": "Vymazať video",
+        "other": "Vymazať %lld videí",
+        "many": "Vymazať %lld videa",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Všetky",
+    "DETAILS_TAB_INFO": "Informácie",
+    "EDIT_MENU_WALLET_PASSES": "Vybrať lístky",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Stiahnuť %d prílohy z iCloudu",
+        "one": "Stiahnuť %d prílohu z iCloudu",
+        "other": "Stiahnuť %d príloh z iCloudu",
+        "many": "Stiahnuť %d prílohy z iCloudu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Súbory",
+    "COPY_LOCATIONS": "Kopírovať miesta",
+    "Share": "Zdieľať",
+    "DETAILS_TAB_PHOTOS": "Fotky",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Snímky obrazovky",
+    "DETAILS_TAB_BACKGROUNDS": "Pozadia",
+    "COPY_PHOTOS": "Kopírovať fotky",
+    "COPY_LINKS": "Kopírovať odkazy",
+    "EDIT_MENU_PHOTOS": "Vybrať fotky",
+    "EDIT_MENU_DOCUMENTS": "Vybrať dokumenty",
+    "DETAILS_TAB_WALLET": "Peňaženka",
+    "Links": "Odkazy",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotky",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Všetky",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Vymazať %lld položky",
+        "one": "Vymazať položku",
+        "other": "Vymazať %lld položiek",
+        "many": "Vymazať %lld položky",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Sťahujem %d prílohy…",
+        "one": "Sťahujem %d prílohu…",
+        "other": "Sťahujem %d príloh…",
+        "many": "Sťahujem %d prílohy…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Vymazať",
+    "EDIT_MENU_LINKS": "Vybrať odkazy",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Spolupráce",
+    "COPY_FILES": "Kopírovať súbory",
+    "Pins": "Pripnuté",
+    "DETAILS_TAB_LINKS": "Odkazy",
+    "DETAILS_TAB_LOCATIONS": "Miesta",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenty",
+    "COPY_PASSES": "Kopírovať lístky",
+    "EDIT_MENU_LOCATIONS": "Vybrať miesta",
+    "SHOW_IN_CONVERSATION": "Zobraziť v konverzácii",
+    "COPY": "Kopírovať",
+    "SEARCH_SHARE": "Zdieľať"
+  },
+  "en_AU": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Delete Photo",
+        "other": "Delete %lld Photos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Delete Video",
+        "other": "Delete %lld Videos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "All",
+    "DETAILS_TAB_INFO": "Info",
+    "EDIT_MENU_WALLET_PASSES": "Select Passes",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Download %d Attachment in iCloud",
+        "other": "Download %d Attachments in iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Files",
+    "COPY_LOCATIONS": "Copy Locations",
+    "Share": "Share",
+    "DETAILS_TAB_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Screenshots",
+    "DETAILS_TAB_BACKGROUNDS": "Backgrounds",
+    "COPY_PHOTOS": "Copy Photos",
+    "COPY_LINKS": "Copy Links",
+    "EDIT_MENU_PHOTOS": "Select Photos",
+    "EDIT_MENU_DOCUMENTS": "Select Documents",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "All",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Delete Item",
+        "other": "Delete %lld Items",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Downloading %d Attachment…",
+        "other": "Downloading %d Attachments…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Delete",
+    "EDIT_MENU_LINKS": "Select Links",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Collaborations",
+    "COPY_FILES": "Copy Files",
+    "Pins": "Pins",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Locations",
+    "DETAILS_TAB_DOCUMENTS": "Documents",
+    "COPY_PASSES": "Copy Passes",
+    "EDIT_MENU_LOCATIONS": "Select Locations",
+    "SHOW_IN_CONVERSATION": "Show in Conversation",
+    "COPY": "Copy",
+    "SEARCH_SHARE": "Share"
+  },
+  "sl": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Izbriši %lld fotografije",
+        "one": "Izbriši %lld fotografijo",
+        "other": "Izbriši %lld fotografij",
+        "two": "Izbriši %lld fotografiji",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videi",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Izbriši %lld videe",
+        "one": "Izbriši %lld video",
+        "other": "Izbriši %lld videov",
+        "two": "Izbriši %lld videa",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Vsi",
+    "DETAILS_TAB_INFO": "Podatki",
+    "EDIT_MENU_WALLET_PASSES": "Izbor prepustnic",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Prenesi %d priloge iz storitve iCloud",
+        "one": "Prenesi %d prilogo iz storitve iCloud",
+        "other": "Prenesi %d prilog iz storitve iCloud",
+        "two": "Prenesi %d prilogi iz storitve iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Datoteke",
+    "COPY_LOCATIONS": "Kopiraj lokacije",
+    "Share": "Deli",
+    "DETAILS_TAB_PHOTOS": "Fotografije",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Posnetki zaslona",
+    "DETAILS_TAB_BACKGROUNDS": "Ozadja",
+    "COPY_PHOTOS": "Kopiraj fotografije",
+    "COPY_LINKS": "Kopiraj povezave",
+    "EDIT_MENU_PHOTOS": "Izberi fotografije",
+    "EDIT_MENU_DOCUMENTS": "Izbor dokumentov",
+    "DETAILS_TAB_WALLET": "Denarnica",
+    "Links": "Povezave",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotografije",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Vse",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Izbriši %lld elemente",
+        "one": "Izbriši %lld element",
+        "other": "Izbriši %lld elementov",
+        "two": "Izbriši %lld elementa",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Prenašanje %d prilog …",
+        "one": "Prenašanje %d priloge …",
+        "other": "Prenašanje %d prilog …",
+        "two": "Prenašanje %d prilog …",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Izbriši",
+    "EDIT_MENU_LINKS": "Izbor povezav",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Sodelovanja",
+    "COPY_FILES": "Kopiraj datoteke",
+    "Pins": "Pripete vsebine",
+    "DETAILS_TAB_LINKS": "Povezave",
+    "DETAILS_TAB_LOCATIONS": "Lokacije",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenti",
+    "COPY_PASSES": "Kopiraj prepustnice",
+    "EDIT_MENU_LOCATIONS": "Izbor lokacij",
+    "SHOW_IN_CONVERSATION": "Prikaži v pogovoru",
+    "COPY": "Kopiraj",
+    "SEARCH_SHARE": "Deli"
+  },
+  "de": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Foto löschen",
+        "other": "%lld Fotos löschen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Video löschen",
+        "other": "%lld Videos löschen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Alle",
+    "DETAILS_TAB_INFO": "Informationen",
+    "EDIT_MENU_WALLET_PASSES": "Karten auswählen",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d Anhang in iCloud laden",
+        "other": "%d Anhänge in iCloud laden",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Dateien",
+    "COPY_LOCATIONS": "Orte kopieren",
+    "Share": "Teilen",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Bildschirmfotos",
+    "DETAILS_TAB_BACKGROUNDS": "Hintergründe",
+    "COPY_PHOTOS": "Fotos kopieren",
+    "COPY_LINKS": "Links kopieren",
+    "EDIT_MENU_PHOTOS": "Fotos auswählen",
+    "EDIT_MENU_DOCUMENTS": "Dokumente auswählen",
+    "DETAILS_TAB_WALLET": "Wallet",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Alle",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Objekt löschen",
+        "other": "%lld Objekte löschen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "%d Anhang laden …",
+        "other": "%d Anhänge laden …",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Löschen",
+    "EDIT_MENU_LINKS": "Links auswählen",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Zusammenarbeit",
+    "COPY_FILES": "Dateien kopieren",
+    "Pins": "Angepinnt",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Standorte",
+    "DETAILS_TAB_DOCUMENTS": "Dokumente",
+    "COPY_PASSES": "Karten kopieren",
+    "EDIT_MENU_LOCATIONS": "Standorte auswählen",
+    "SHOW_IN_CONVERSATION": "In Konversation anzeigen",
+    "COPY": "Kopieren",
+    "SEARCH_SHARE": "Teilen"
+  },
+  "vi": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "Xóa %lld ảnh",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Video",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "Xóa %lld video",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Tất cả",
+    "DETAILS_TAB_INFO": "Thông tin",
+    "EDIT_MENU_WALLET_PASSES": "Chọn thẻ",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "Tải về %d tệp đính kèm trong iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Tệp",
+    "COPY_LOCATIONS": "Sao chép vị trí",
+    "Share": "Chia sẻ",
+    "DETAILS_TAB_PHOTOS": "Ảnh",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Ảnh màn hình",
+    "DETAILS_TAB_BACKGROUNDS": "Nền",
+    "COPY_PHOTOS": "Sao chép các ảnh",
+    "COPY_LINKS": "Sao chép liên kết",
+    "EDIT_MENU_PHOTOS": "Chọn ảnh",
+    "EDIT_MENU_DOCUMENTS": "Chọn tài liệu",
+    "DETAILS_TAB_WALLET": "Ví",
+    "Links": "Liên kết",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Ảnh",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Tất cả",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "Xóa %lld mục",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "Đang tải về %d tệp đính kèm…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Xóa",
+    "EDIT_MENU_LINKS": "Chọn liên kết",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Cộng tác",
+    "COPY_FILES": "Sao chép tệp",
+    "Pins": "Ghim",
+    "DETAILS_TAB_LINKS": "Liên kết",
+    "DETAILS_TAB_LOCATIONS": "Vị trí",
+    "DETAILS_TAB_DOCUMENTS": "Tài liệu",
+    "COPY_PASSES": "Sao chép thẻ",
+    "EDIT_MENU_LOCATIONS": "Chọn vị trí",
+    "SHOW_IN_CONVERSATION": "Hiển thị trong cuộc hội thoại",
+    "COPY": "Sao chép",
+    "SEARCH_SHARE": "Chia sẻ"
+  },
+  "es": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Eliminar foto",
+        "other": "Eliminar %lld fotos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Vídeos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Eliminar vídeo",
+        "other": "Eliminar %lld vídeos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Todo",
+    "DETAILS_TAB_INFO": "Información",
+    "EDIT_MENU_WALLET_PASSES": "Seleccionar pases",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descargar %d archivo adjunto en iCloud",
+        "other": "Descargar %d archivos adjuntos en iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Archivos",
+    "COPY_LOCATIONS": "Copiar ubicaciones",
+    "Share": "Compartir",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Capturas",
+    "DETAILS_TAB_BACKGROUNDS": "Fondos",
+    "COPY_PHOTOS": "Copiar fotos",
+    "COPY_LINKS": "Copiar enlaces",
+    "EDIT_MENU_PHOTOS": "Seleccionar fotos",
+    "EDIT_MENU_DOCUMENTS": "Seleccionar documentos",
+    "DETAILS_TAB_WALLET": "Cartera",
+    "Links": "Enlaces",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Todas",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Eliminar ítem",
+        "other": "Eliminar %lld ítems",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descargando %d archivo adjunto…",
+        "other": "Descargando %d archivos adjuntos…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Eliminar",
+    "EDIT_MENU_LINKS": "Seleccionar enlaces",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Colaboraciones",
+    "COPY_FILES": "Copiar archivos",
+    "Pins": "Fijados",
+    "DETAILS_TAB_LINKS": "Enlaces",
+    "DETAILS_TAB_LOCATIONS": "Ubicaciones",
+    "DETAILS_TAB_DOCUMENTS": "Documentos",
+    "COPY_PASSES": "Copiar pases",
+    "EDIT_MENU_LOCATIONS": "Seleccionar ubicaciones",
+    "SHOW_IN_CONVERSATION": "Mostrar en la conversación",
+    "COPY": "Copiar",
+    "SEARCH_SHARE": "Compartir"
+  },
+  "uk": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Видалити %lld фото",
+        "one": "Видалити %lld фото",
+        "other": "Delete %lld Photos",
+        "many": "Видалити %lld фото",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Відео",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Видалити %lld відео",
+        "one": "Видалити %lld відео",
+        "other": "Delete %lld Videos",
+        "many": "Видалити %lld відео",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Усі",
+    "DETAILS_TAB_INFO": "Досьє",
+    "EDIT_MENU_WALLET_PASSES": "Вибрати картки",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Викачати %d вкладення в iCloud",
+        "one": "Викачати %d вкладення в iCloud",
+        "other": "Download %d Attachments in iCloud",
+        "many": "Викачати %d вкладень в iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Файли",
+    "COPY_LOCATIONS": "Скопіювати місця",
+    "Share": "Поширити",
+    "DETAILS_TAB_PHOTOS": "Фотографії",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Знімки екрана",
+    "DETAILS_TAB_BACKGROUNDS": "Зразки тла",
+    "COPY_PHOTOS": "Скопіювати фотографії",
+    "COPY_LINKS": "Скопіювати посилання",
+    "EDIT_MENU_PHOTOS": "Вибрати фото",
+    "EDIT_MENU_DOCUMENTS": "Вибрати документи",
+    "DETAILS_TAB_WALLET": "Картки",
+    "Links": "Посилання",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Фотографії",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Усі",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Видалити %lld елементи",
+        "one": "Видалити %lld елемент",
+        "other": "Delete %lld Items",
+        "many": "Видалити %lld елементів",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Викачування %d вкладень…",
+        "one": "Викачування %d вкладення…",
+        "other": "Downloading %d Attachments…",
+        "many": "Викачування %d вкладень…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Видалити",
+    "EDIT_MENU_LINKS": "Вибрати посилання",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Співпраця",
+    "COPY_FILES": "Скопіювати файли",
+    "Pins": "Закріплення",
+    "DETAILS_TAB_LINKS": "Посилання",
+    "DETAILS_TAB_LOCATIONS": "Місця",
+    "DETAILS_TAB_DOCUMENTS": "Документи",
+    "COPY_PASSES": "Скопіювати картки",
+    "EDIT_MENU_LOCATIONS": "Вибрати місця",
+    "SHOW_IN_CONVERSATION": "Показати в обговоренні",
+    "COPY": "Скопіювати",
+    "SEARCH_SHARE": "Поширити"
+  },
+  "fr": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Supprimer la photo",
+        "other": "Supprimer %lld photos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Vidéos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Supprimer la vidéo",
+        "other": "Supprimer %lld vidéos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Tout",
+    "DETAILS_TAB_INFO": "Infos",
+    "EDIT_MENU_WALLET_PASSES": "Sélectionner des cartes",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Télécharger la pièce jointe sur iCloud",
+        "other": "Télécharger %d pièces jointes sur iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Fichiers",
+    "COPY_LOCATIONS": "Copier les lieux",
+    "Share": "Partager",
+    "DETAILS_TAB_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Captures d’écran",
+    "DETAILS_TAB_BACKGROUNDS": "Arrière-plans",
+    "COPY_PHOTOS": "Copier les photos",
+    "COPY_LINKS": "Copier les liens",
+    "EDIT_MENU_PHOTOS": "Sélectionner des photos",
+    "EDIT_MENU_DOCUMENTS": "Sélectionner des documents",
+    "DETAILS_TAB_WALLET": "Cartes",
+    "Links": "Liens",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Photos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Tout",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Supprimer l’élément",
+        "other": "Supprimer %lld éléments",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Téléchargement de la pièce jointe…",
+        "other": "Téléchargement de %d pièces jointes…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Supprimer",
+    "EDIT_MENU_LINKS": "Sélectionner des liens",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Collaborations",
+    "COPY_FILES": "Copier les fichiers",
+    "Pins": "Éléments épinglés",
+    "DETAILS_TAB_LINKS": "Liens",
+    "DETAILS_TAB_LOCATIONS": "Lieux",
+    "DETAILS_TAB_DOCUMENTS": "Documents",
+    "COPY_PASSES": "Copier les cartes",
+    "EDIT_MENU_LOCATIONS": "Sélectionner des lieux",
+    "SHOW_IN_CONVERSATION": "Afficher dans la conversation",
+    "COPY": "Copier",
+    "SEARCH_SHARE": "Partager"
+  },
+  "ro": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Ștergeți %lld poze",
+        "one": "Ștergeți poza",
+        "other": "Ștergeți %lld de poze",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Clipuri video",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Ștergeți %lld clipuri video",
+        "one": "Ștergeți clipul video",
+        "other": "Ștergeți %lld de clipuri video",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Toate",
+    "DETAILS_TAB_INFO": "Informații",
+    "EDIT_MENU_WALLET_PASSES": "Selectați tichete",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Descărcați %d fișiere atașate din iCloud",
+        "one": "Descărcați %d fișier atașat din iCloud",
+        "other": "Descărcați %d de fișiere atașate din iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Fișiere",
+    "COPY_LOCATIONS": "Copiați localizările",
+    "Share": "Partajați",
+    "DETAILS_TAB_PHOTOS": "Poze",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Capturi de ecran",
+    "DETAILS_TAB_BACKGROUNDS": "Fundaluri",
+    "COPY_PHOTOS": "Copiați pozele",
+    "COPY_LINKS": "Copiați linkurile",
+    "EDIT_MENU_PHOTOS": "Selectați poze",
+    "EDIT_MENU_DOCUMENTS": "Selectați documente",
+    "DETAILS_TAB_WALLET": "Portofel",
+    "Links": "Linkuri",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Poze",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Toate",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Ștergeți %lld articole",
+        "one": "Ștergeți articolul",
+        "other": "Ștergeți %lld de articole",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Se descarcă %d fișiere atașate…",
+        "one": "Se descarcă %d fișier atașat…",
+        "other": "Se descarcă %d de fișiere atașate…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Ștergeți",
+    "EDIT_MENU_LINKS": "Selectați linkuri",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Colaborări",
+    "COPY_FILES": "Copiați fișierele",
+    "Pins": "Conținut fixat",
+    "DETAILS_TAB_LINKS": "Linkuri",
+    "DETAILS_TAB_LOCATIONS": "Localizări",
+    "DETAILS_TAB_DOCUMENTS": "Documente",
+    "COPY_PASSES": "Copiați tichetele",
+    "EDIT_MENU_LOCATIONS": "Selectați locuri",
+    "SHOW_IN_CONVERSATION": "Afișați în conversație",
+    "COPY": "Copiați",
+    "SEARCH_SHARE": "Partajați"
+  },
+  "pt": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Apagar Foto",
+        "other": "Apagar %lld Fotos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Vídeos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Apagar Vídeo",
+        "other": "Apagar %lld Vídeos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Todos",
+    "DETAILS_TAB_INFO": "Informações",
+    "EDIT_MENU_WALLET_PASSES": "Selecionar Tíquetes",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Baixar %d Anexo do iCloud",
+        "other": "Baixar %d Anexos do iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Arquivos",
+    "COPY_LOCATIONS": "Copiar Localizações",
+    "Share": "Compartilhar",
+    "DETAILS_TAB_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Capturas de Tela",
+    "DETAILS_TAB_BACKGROUNDS": "Fundos",
+    "COPY_PHOTOS": "Copiar Fotos",
+    "COPY_LINKS": "Copiar Links",
+    "EDIT_MENU_PHOTOS": "Selecionar Fotos",
+    "EDIT_MENU_DOCUMENTS": "Selecionar Documentos",
+    "DETAILS_TAB_WALLET": "Carteira",
+    "Links": "Links",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotos",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Todas",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Apagar Item",
+        "other": "Apagar %lld Itens",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Baixando %d Anexo…",
+        "other": "Baixando %d Anexos…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Apagar",
+    "EDIT_MENU_LINKS": "Selecionar Links",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Colaborações",
+    "COPY_FILES": "Copiar Arquivos",
+    "Pins": "Mensagens Fixadas",
+    "DETAILS_TAB_LINKS": "Links",
+    "DETAILS_TAB_LOCATIONS": "Localizações",
+    "DETAILS_TAB_DOCUMENTS": "Documentos",
+    "COPY_PASSES": "Copiar Tíquetes",
+    "EDIT_MENU_LOCATIONS": "Selecionar Localizações",
+    "SHOW_IN_CONVERSATION": "Mostrar na Conversa",
+    "COPY": "Copiar",
+    "SEARCH_SHARE": "Compartilhar"
+  },
+  "ja": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "other": "%lld枚の写真を削除",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "ビデオ",
+    "DELETE_VIDEOS": {
+      "value": {
+        "other": "%lld本のビデオを削除",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "すべて",
+    "DETAILS_TAB_INFO": "情報",
+    "EDIT_MENU_WALLET_PASSES": "パスを選択",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "iCloud内の%d個の添付ファイルをダウンロード",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "ファイル",
+    "COPY_LOCATIONS": "場所をコピー",
+    "Share": "共有",
+    "DETAILS_TAB_PHOTOS": "写真",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "スクリーンショット",
+    "DETAILS_TAB_BACKGROUNDS": "背景",
+    "COPY_PHOTOS": "写真をコピー",
+    "COPY_LINKS": "リンクをコピー",
+    "EDIT_MENU_PHOTOS": "写真を選択",
+    "EDIT_MENU_DOCUMENTS": "書類を選択",
+    "DETAILS_TAB_WALLET": "ウォレット",
+    "Links": "リンク",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "写真",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "すべて",
+    "DELETE_ITEMS": {
+      "value": {
+        "other": "%lld項目を削除",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "other": "%d個の添付ファイルをダウンロード中…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "削除",
+    "EDIT_MENU_LINKS": "リンクを選択",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "共同作業",
+    "COPY_FILES": "ファイルをコピー",
+    "Pins": "ピン留め",
+    "DETAILS_TAB_LINKS": "リンク",
+    "DETAILS_TAB_LOCATIONS": "場所",
+    "DETAILS_TAB_DOCUMENTS": "書類",
+    "COPY_PASSES": "パスをコピー",
+    "EDIT_MENU_LOCATIONS": "場所を選択",
+    "SHOW_IN_CONVERSATION": "チャットで表示",
+    "COPY": "コピー",
+    "SEARCH_SHARE": "共有"
+  },
+  "pt_PT": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "one": "Apagar fotografia",
+        "other": "Apagar %lld fotografias",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Vídeos",
+    "DELETE_VIDEOS": {
+      "value": {
+        "one": "Apagar vídeo",
+        "other": "Apagar %lld vídeos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Todos",
+    "DETAILS_TAB_INFO": "Informação",
+    "EDIT_MENU_WALLET_PASSES": "Selecionar cartões",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "Descarregar %d anexo em iCloud",
+        "other": "Descarregar %d anexos em iCloud",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Ficheiros",
+    "COPY_LOCATIONS": "Copiar localizações",
+    "Share": "Partilhar",
+    "DETAILS_TAB_PHOTOS": "Fotografias",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Capturas de ecrã",
+    "DETAILS_TAB_BACKGROUNDS": "Fundos",
+    "COPY_PHOTOS": "Copiar fotografias",
+    "COPY_LINKS": "Copiar hiperligações",
+    "EDIT_MENU_PHOTOS": "Selecionar fotografias",
+    "EDIT_MENU_DOCUMENTS": "Selecionar documentos",
+    "DETAILS_TAB_WALLET": "Carteira",
+    "Links": "Hiperligações",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotografias",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Todas",
+    "DELETE_ITEMS": {
+      "value": {
+        "one": "Apagar elemento",
+        "other": "Apagar %lld elementos",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "one": "A descarregar %d anexo…",
+        "other": "A descarregar %d anexos…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Apagar",
+    "EDIT_MENU_LINKS": "Selecionar hiperligações",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Colaborações",
+    "COPY_FILES": "Copiar ficheiros",
+    "Pins": "Afixadas",
+    "DETAILS_TAB_LINKS": "Hiperligações",
+    "DETAILS_TAB_LOCATIONS": "Localizações",
+    "DETAILS_TAB_DOCUMENTS": "Documentos",
+    "COPY_PASSES": "Copiar cartões",
+    "EDIT_MENU_LOCATIONS": "Selecionar localizações",
+    "SHOW_IN_CONVERSATION": "Mostrar na conversa",
+    "COPY": "Copiar",
+    "SEARCH_SHARE": "Partilhar"
+  },
+  "hr": {
+    "DELETE_PHOTOS": {
+      "value": {
+        "few": "Obriši %lld fotografije",
+        "one": "Obriši %lld fotografiju",
+        "other": "Obriši %lld fotografija",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_PHOTOS_TAB_FILTER_VIDEOS": "Videozapisi",
+    "DELETE_VIDEOS": {
+      "value": {
+        "few": "Obriši %lld videozapisa",
+        "one": "Obriši %lld videozapis",
+        "other": "Obriši %lld videozapisa",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_ALL": "Sve",
+    "DETAILS_TAB_INFO": "Informacije",
+    "EDIT_MENU_WALLET_PASSES": "Odaberi propusnice",
+    "DOWNLOAD_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Preuzmi %d privitka s iClouda",
+        "one": "Preuzmi %d privitak s iClouda",
+        "other": "Preuzmi %d privitaka s iClouda",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DETAILS_DOCUMENTS_TAB_FILTER_FILES": "Datoteke",
+    "COPY_LOCATIONS": "Kopiraj lokacije",
+    "Share": "Dijeli",
+    "DETAILS_TAB_PHOTOS": "Fotografije",
+    "DETAILS_PHOTOS_TAB_FILTER_SCREENSHOTS": "Slike zaslona",
+    "DETAILS_TAB_BACKGROUNDS": "Pozadine",
+    "COPY_PHOTOS": "Kopiraj fotografije",
+    "COPY_LINKS": "Kopiraj linkove",
+    "EDIT_MENU_PHOTOS": "Odaberi fotografije",
+    "EDIT_MENU_DOCUMENTS": "Odaberi dokumente",
+    "DETAILS_TAB_WALLET": "Novčanik",
+    "Links": "Linkovi",
+    "DETAILS_PHOTOS_TAB_FILTER_PHOTOS": "Fotografije",
+    "DETAILS_PHOTOS_TAB_FILTER_ALL": "Sve",
+    "DELETE_ITEMS": {
+      "value": {
+        "few": "Obriši %lld stavke",
+        "one": "Obriši %lld stavku",
+        "other": "Obriši %lld stavki",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lld"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DOWNLOADING_ATTACHMENTS_IN_ICLOUD": {
+      "value": {
+        "few": "Preuzimanje %d privitka…",
+        "one": "Preuzimanje %d privitka…",
+        "other": "Preuzimanje %d privitaka…",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "d"
+      },
+      "NSStringLocalizedFormatKey": "%#@value@"
+    },
+    "DELETE": "Obriši",
+    "EDIT_MENU_LINKS": "Odaberi linkove",
+    "DETAILS_DOCUMENTS_TAB_FILTER_COLLABORATIONS": "Suradnje",
+    "COPY_FILES": "Kopiraj datoteke",
+    "Pins": "Zakvačene stavke",
+    "DETAILS_TAB_LINKS": "Linkovi",
+    "DETAILS_TAB_LOCATIONS": "Lokacije",
+    "DETAILS_TAB_DOCUMENTS": "Dokumenti",
+    "COPY_PASSES": "Kopiraj propusnice",
+    "EDIT_MENU_LOCATIONS": "Odaberi lokacije",
+    "SHOW_IN_CONVERSATION": "Prikaži u razgovoru",
+    "COPY": "Kopiraj",
+    "SEARCH_SHARE": "Dijeli"
+  }
+}

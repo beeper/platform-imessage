@@ -1,0 +1,210 @@
+{
+  "he": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "‏%@ כדי לשלוח הודעות SMS באמצעות לוויין ה-iPhone חייב להיות מופעל ומחובר לרשת WLAN או רשת סלולרית.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "‏%@ כדי לשלוח הודעות SMS באמצעות לוויין ה-iPhone חייב להיות מופעל ומחובר לרשת אלחוטית או סלולרית."
+  },
+  "ko": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ 위성을 통해 SMS 메시지를 보내려면 iPhone이 켜져 있고 WLAN 또는 셀룰러에 연결되어 있어야 합니다.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ 위성을 통해 SMS 메시지를 보내려면 iPhone이 켜져 있고 Wi-Fi 또는 셀룰러에 연결되어 있어야 합니다."
+  },
+  "id": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Untuk mengirim pesan SMS melalui satelit, iPhone Anda harus dinyalakan dan terhubung ke WLAN atau seluler.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Untuk mengirim pesan SMS melalui satelit, iPhone Anda harus dinyalakan dan terhubung ke Wi-Fi atau seluler."
+  },
+  "fi": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ iPhonen on oltava päällä ja yhdistettynä WLANiin tai mobiiliverkkoon, jotta tekstiviestejä voidaan lähettää satelliitin kautta.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ iPhonen on oltava päällä ja yhdistettynä Wi-Fiin tai mobiiliverkkoon, jotta tekstiviestejä voidaan lähettää satelliitin kautta."
+  },
+  "tr": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Uydu üzerinden SMS mesajları göndermek için iPhone’unuzun açık ve bir WLAN ağına veya hücresel ağa bağlı olması gerekir.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Uydu üzerinden SMS mesajları göndermek için iPhone’unuzun açık ve bir Wi-Fi ağına veya hücresel ağa bağlı olması gerekir."
+  },
+  "nl": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Om sms-berichten via satelliet te versturen, moet je iPhone zijn ingeschakeld en zijn verbonden met een WLAN-netwerk of mobiel netwerk.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Om sms-berichten via satelliet te versturen, moet je iPhone zijn ingeschakeld en zijn verbonden met een wifinetwerk of mobiel netwerk."
+  },
+  "hu": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Ha műholdon keresztül szeretne SMS-üzeneteket küldeni, az iPhone-nak bekapcsolt állapotban kell lennie, és csatlakoznia kell egy WLAN‑ vagy mobilhálózathoz.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Ha műholdon keresztül szeretne SMS-üzeneteket küldeni, az iPhone-nak bekapcsolt állapotban kell lennie, és csatlakoznia kell egy Wi‑Fi‑ vagy mobilhálózathoz."
+  },
+  "ru": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Для отправки SMS‑сообщений по спутниковой связи необходимо, чтобы iPhone был включен и подключен к WLAN или сотовой сети.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Для отправки SMS‑сообщений по спутниковой связи необходимо, чтобы iPhone был включен и подключен к Wi‑Fi или сотовой сети."
+  },
+  "it": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Per inviare messaggi SMS via satellite, iPhone deve essere acceso e connesso a una rete WLAN o cellulare.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Per inviare messaggi SMS via satellite, iPhone deve essere acceso e connesso a una rete Wi‑Fi o cellulare."
+  },
+  "es_419": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Para enviar mensajes SMS vía satélite, el iPhone debe estar encendido y conectado a una red WLAN o celular.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Para enviar mensajes SMS vía satélite, el iPhone debe estar encendido y conectado a una red Wi-Fi o celular."
+  },
+  "el": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Για αποστολή μηνυμάτων SMS μέσω δορυφόρου, το iPhone σας πρέπει να είναι ενεργοποιημένο και συνδεδεμένο σε WLAN ή κινητό δίκτυο.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Για αποστολή μηνυμάτων SMS μέσω δορυφόρου, το iPhone σας πρέπει να είναι ενεργοποιημένο και συνδεδεμένο σε Wi-Fi ή κινητό δίκτυο."
+  },
+  "ca": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Per enviar missatges SMS per satèl·lit, cal que l’iPhone estigui engegat i connectat a una xarxa WLAN o de dades mòbils.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Per enviar missatges SMS per satèl·lit, cal que l’iPhone estigui engegat i connectat a una xarxa Wi‑Fi o de dades mòbils."
+  },
+  "ar": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "‏%@ لإرسال رسائل SMS عبر القمر الصناعي، يجب تشغيل iPhone واتصاله بشبكة WLAN أو الشبكة الخلوية.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "‏%@ لإرسال رسائل SMS عبر القمر الصناعي، يجب تشغيل iPhone واتصاله بشبكة Wi‑Fi أو الشبكة الخلوية."
+  },
+  "zh_TW": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@若要透過衛星傳送SMS訊息，你的iPhone必須已開啟並連接至WLAN或行動網路。",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@若要透過衛星傳送SMS訊息，你的iPhone必須已開啟並連接至Wi-Fi或行動網路。"
+  },
+  "zh_HK": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@如要透過衛星傳送SMS訊息，你的iPhone必須已開啟並連接至WLAN或流動網絡。",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@如要透過衛星傳送SMS訊息，你的iPhone必須已開啟並連接至Wi-Fi或流動網絡。"
+  },
+  "pl": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Aby wysyłać wiadomości SMS przez satelitę, iPhone musi być włączony i połączony z siecią WLAN lub komórkową.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Aby wysyłać wiadomości SMS przez satelitę, iPhone musi być włączony i połączony z siecią Wi‑Fi lub komórkową."
+  },
+  "sv": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Om du vill skicka SMS-meddelanden via satellit måste iPhone vara påslagen och ansluten till WLAN eller ett mobilnät.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Om du vill skicka SMS-meddelanden via satellit måste iPhone vara påslagen och ansluten till Wi‑Fi eller ett mobilnät."
+  },
+  "no": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ iPhonen må være slått på og koblet til WLAN eller mobilnett for å sende SMS-meldinger via satellitt.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ iPhonen må være slått på og koblet til Wi‑Fi eller mobilnett for å sende SMS-meldinger via satellitt."
+  },
+  "da": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Din iPhone skal være tændt og forbundet til et WLAN- eller mobilnetværk for at sende sms-beskeder via satellit.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Din iPhone skal være tændt og forbundet til et Wi-Fi- eller mobilnetværk for at sende sms-beskeder via satellit."
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "ar": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "pl": 1,
+    "sv": 1,
+    "no": 1,
+    "da": 1,
+    "en": 1,
+    "hi": 1,
+    "fr_CA": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "ms": 1,
+    "cs": 1,
+    "sk": 1,
+    "es_US": 1,
+    "sl": 1,
+    "en_AU": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "ro": 1,
+    "pt": 1,
+    "ja": 1,
+    "hr": 1,
+    "pt_PT": 1
+  },
+  "en": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ To send SMS messages via satellite, your iPhone must be turned on and connected to WLAN or cellular.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ To send SMS messages via satellite, your iPhone must be turned on and connected to Wi-Fi or cellular."
+  },
+  "hi": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ सैटेलाइट के ज़रिए SMS संदेश भेजने के लिए, आपका iPhone चालू होना चाहिए और WLAN या मोबाइल डेटा से कनेक्ट होना चाहिए।",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ सैटेलाइट के ज़रिए SMS संदेश भेजने के लिए, आपका iPhone चालू होना चाहिए और वाई-फ़ाई या मोबाइल डेटा से कनेक्ट होना चाहिए।"
+  },
+  "fr_CA": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Pour envoyer des SMS par satellite, votre iPhone doit être allumé et connecté à un réseau WLAN ou cellulaire.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Pour envoyer des SMS par satellite, votre iPhone doit être allumé et connecté à un réseau Wi‑Fi ou cellulaire."
+  },
+  "th": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ ในการส่งข้อความ SMS ผ่านดาวเทียม iPhone ของคุณต้องเปิดเครื่องอยู่และเชื่อมต่อกับ WLAN หรือเซลลูลาร์",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ ในการส่งข้อความ SMS ผ่านดาวเทียม iPhone ของคุณต้องเปิดเครื่องอยู่และเชื่อมต่อกับ Wi‑Fi หรือเซลลูลาร์"
+  },
+  "zh_CN": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@若要通过卫星发送短信，iPhone必须开机并接入无线局域网或蜂窝网络。",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@若要通过卫星发送短信，iPhone必须开机并接入Wi-Fi或蜂窝网络。"
+  },
+  "en_GB": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ To send SMS messages via satellite, your iPhone must be turned on and connected to WLAN or a mobile network.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ To send SMS messages via satellite, your iPhone must be turned on and connected to Wi-Fi or a mobile network."
+  },
+  "ms": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Untuk menghantar mesej SMS melalui satelit, iPhone anda mesti dihidupkan dan bersambung ke WLAN atau selular.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Untuk menghantar mesej SMS melalui satelit, iPhone anda mesti dihidupkan dan bersambung ke Wi‑Fi atau selular."
+  },
+  "cs": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Chcete‑li posílat SMS zprávy přes satelit, iPhone musí být zapnutý a připojený k WLAN nebo mobilní síti.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Chcete‑li posílat SMS zprávy přes satelit, iPhone musí být zapnutý a připojený k Wi‑Fi nebo mobilní síti."
+  },
+  "sk": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Ak chcete posielať SMS správy cez satelit, váš iPhone musí byť zapnutý a pripojený k WLAN alebo mobilnej sieti.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Ak chcete posielať SMS správy cez satelit, váš iPhone musí byť zapnutý a pripojený k Wi‑Fi alebo mobilnej sieti."
+  },
+  "es_US": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Para enviar mensajes SMS vía satélite, el iPhone debe estar encendido y conectado a una red WLAN o celular.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Para enviar mensajes SMS vía satélite, el iPhone debe estar encendido y conectado a una red Wi-Fi o celular."
+  },
+  "sl": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Če želite pošiljati sporočila SMS prek satelita, mora biti iPhone vklopljen in povezan z omrežjem WLAN ali mobilnim omrežjem.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Če želite pošiljati sporočila SMS prek satelita, mora biti iPhone vklopljen in povezan z omrežjem Wi‑Fi ali mobilnim omrežjem."
+  },
+  "en_AU": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ To send SMS messages via satellite, your iPhone must be turned on and connected to WLAN or a mobile network.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ To send SMS messages via satellite, your iPhone must be turned on and connected to Wi-Fi or a mobile network."
+  },
+  "de": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Um SMS-Nachrichten via Satellit zu senden, muss dein iPhone eingeschaltet und mit einem WLAN oder Mobilfunk verbunden sein.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Um SMS-Nachrichten via Satellit zu senden, muss dein iPhone eingeschaltet und mit einem WLAN oder Mobilfunk verbunden sein."
+  },
+  "vi": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Để gửi tin nhắn SMS qua vệ tinh, bạn phải bật và kết nối iPhone vào WLAN hoặc mạng di động.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Để gửi tin nhắn SMS qua vệ tinh, bạn phải bật và kết nối iPhone vào Wi-Fi hoặc mạng di động."
+  },
+  "es": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Para enviar mensajes SMS vía satélite, el iPhone debe estar encendido y conectado a una red WLAN o móvil.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Para enviar mensajes SMS vía satélite, el iPhone debe estar encendido y conectado a una red Wi‑Fi o móvil."
+  },
+  "uk": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Щоб надсилати SMS-повідомлення через супутниковий звʼязок, iPhone має бути ввімкнений і підʼєднаний до WLAN або стільникової мережі.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Щоб надсилати SMS-повідомлення через супутниковий звʼязок, iPhone має бути ввімкнений і підʼєднаний до Wi‑Fi або стільникової мережі."
+  },
+  "fr": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Pour envoyer des SMS par satellite, votre iPhone doit être allumé et connecté à un réseau WLAN ou cellulaire.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Pour envoyer des SMS par satellite, votre iPhone doit être allumé et connecté à un réseau Wi-Fi ou cellulaire."
+  },
+  "ro": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Pentru a trimite mesaje SMS prin satelit, iPhone‑ul trebuie să fie pornit și conectat la o rețea WLAN sau celulară.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Pentru a trimite mesaje SMS prin satelit, iPhone‑ul trebuie să fie pornit și conectat la o rețea Wi‑Fi sau celulară."
+  },
+  "pt": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Para enviar mensagens de SMS via satélite, o iPhone deve estar ligado e conectado a uma rede WLAN ou celular.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Para enviar mensagens de SMS via satélite, o iPhone deve estar ligado e conectado a uma rede Wi‑Fi ou celular."
+  },
+  "ja": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@衛星経由でSMSメッセージを送信するには、iPhoneの電源が入っていて、WLANまたはモバイル通信に接続されている必要があります。",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@衛星経由でSMSメッセージを送信するには、iPhoneの電源が入っていて、Wi‑Fiまたはモバイル通信に接続されている必要があります。"
+  },
+  "hr": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Za slanje SMS poruka putem satelita vaš iPhone mora biti uključen i spojen na WLAN ili mobilnu mrežu.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Za slanje SMS poruka putem satelita vaš iPhone mora biti uključen i spojen na Wi-Fi ili mobilnu mrežu."
+  },
+  "pt_PT": {
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WLAN": "%@ Para enviar mensagens SMS por satélite, o iPhone tem de estar ligado e com ligação estabelecida a uma rede móvel ou WLAN.",
+    "MESSAGE_SEND_FAILURE_SMS_EXTRA_INFO_WIFI": "%@ Para enviar mensagens SMS por satélite, o iPhone tem de estar ligado e com ligação estabelecida a uma rede móvel ou Wi‑Fi."
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "he": {
+    "message.snippet.message": "הודעה: %@",
+    "message.snippet.status.sent": "נשלח",
+    "message.snippet.status.unsent": "לא נשלח"
+  },
+  "ko": {
+    "message.snippet.message": "메시지: %@",
+    "message.snippet.status.sent": "전송됨",
+    "message.snippet.status.unsent": "전송되지 않음"
+  },
+  "id": {
+    "message.snippet.message": "Pesan: %@",
+    "message.snippet.status.sent": "Terkirim",
+    "message.snippet.status.unsent": "Tidak dikirim"
+  },
+  "fi": {
+    "message.snippet.message": "Viesti: %@",
+    "message.snippet.status.sent": "Lähetetty",
+    "message.snippet.status.unsent": "Ei lähetetty"
+  },
+  "tr": {
+    "message.snippet.message": "Mesaj: %@",
+    "message.snippet.status.sent": "Gönderildi",
+    "message.snippet.status.unsent": "Gönderilmedi"
+  },
+  "ru": {
+    "message.snippet.message": "Сообщение: %@",
+    "message.snippet.status.sent": "Отправлено",
+    "message.snippet.status.unsent": "Не отправлено"
+  },
+  "nl": {
+    "message.snippet.message": "Bericht: %@",
+    "message.snippet.status.sent": "Verstuurd",
+    "message.snippet.status.unsent": "Niet verstuurd"
+  },
+  "hu": {
+    "message.snippet.message": "Üzenet: %@",
+    "message.snippet.status.sent": "Elküldve",
+    "message.snippet.status.unsent": "Nincs elküldve"
+  },
+  "it": {
+    "message.snippet.message": "Messaggio: %@",
+    "message.snippet.status.sent": "Inviato",
+    "message.snippet.status.unsent": "Non inviato"
+  },
+  "es_419": {
+    "message.snippet.message": "Mensaje: %@",
+    "message.snippet.status.sent": "Se envió",
+    "message.snippet.status.unsent": "Sin enviar"
+  },
+  "el": {
+    "message.snippet.message": "Μήνυμα: %@",
+    "message.snippet.status.sent": "Στάλθηκε",
+    "message.snippet.status.unsent": "Δεν στάλθηκε"
+  },
+  "ca": {
+    "message.snippet.message": "Missatge: %@",
+    "message.snippet.status.sent": "Enviat",
+    "message.snippet.status.unsent": "No enviat"
+  },
+  "fr_CA": {
+    "message.snippet.message": "Message : %@",
+    "message.snippet.status.sent": "Envoyé",
+    "message.snippet.status.unsent": "Non envoyé"
+  },
+  "zh_TW": {
+    "message.snippet.message": "訊息：%@",
+    "message.snippet.status.sent": "已傳送",
+    "message.snippet.status.unsent": "未傳送"
+  },
+  "zh_HK": {
+    "message.snippet.message": "訊息：%@",
+    "message.snippet.status.sent": "已傳送",
+    "message.snippet.status.unsent": "未傳送"
+  },
+  "sv": {
+    "message.snippet.message": "Meddelande: %@",
+    "message.snippet.status.sent": "Skickat",
+    "message.snippet.status.unsent": "Inte skickat"
+  },
+  "ar": {
+    "message.snippet.message": "الرسالة: ‏%@",
+    "message.snippet.status.sent": "تم الإرسال",
+    "message.snippet.status.unsent": "لم يتم الإرسال"
+  },
+  "no": {
+    "message.snippet.message": "Melding: %@",
+    "message.snippet.status.sent": "Sendt",
+    "message.snippet.status.unsent": "Ikke sendt"
+  },
+  "da": {
+    "message.snippet.message": "Besked: %@",
+    "message.snippet.status.sent": "Sendt",
+    "message.snippet.status.unsent": "Ikke sendt"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "ru": 1,
+    "nl": 1,
+    "hu": 1,
+    "it": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "ar": 1,
+    "no": 1,
+    "da": 1,
+    "en": 1,
+    "yue_CN": 1,
+    "pl": 1,
+    "hi": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "cs": 1,
+    "sk": 1,
+    "ms": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "ro": 1,
+    "pt": 1,
+    "ja": 1,
+    "pt_PT": 1,
+    "hr": 1
+  },
+  "yue_CN": {
+    "message.snippet.message": "Message: %@",
+    "message.snippet.status.sent": "Sent",
+    "message.snippet.status.unsent": "Not sent"
+  },
+  "en": {
+    "message.snippet.message": "Message: %@",
+    "message.snippet.status.sent": "Sent",
+    "message.snippet.status.unsent": "Not sent"
+  },
+  "pl": {
+    "message.snippet.message": "Wiadomość: %@",
+    "message.snippet.status.sent": "Wysłano",
+    "message.snippet.status.unsent": "Nie wysłano"
+  },
+  "th": {
+    "message.snippet.message": "ข้อความ: %@",
+    "message.snippet.status.sent": "ส่งแล้ว",
+    "message.snippet.status.unsent": "ไม่ได้ส่ง"
+  },
+  "zh_CN": {
+    "message.snippet.message": "信息：%@",
+    "message.snippet.status.sent": "已发送",
+    "message.snippet.status.unsent": "未发送"
+  },
+  "hi": {
+    "message.snippet.message": "संदेश : %@",
+    "message.snippet.status.sent": "प्रेषित",
+    "message.snippet.status.unsent": "भेजा नहीं गया"
+  },
+  "en_GB": {
+    "message.snippet.message": "Message: %@",
+    "message.snippet.status.sent": "Sent",
+    "message.snippet.status.unsent": "Not sent"
+  },
+  "es_US": {
+    "message.snippet.message": "Mensaje: %@",
+    "message.snippet.status.sent": "Se envió",
+    "message.snippet.status.unsent": "Sin enviar"
+  },
+  "cs": {
+    "message.snippet.message": "Zpráva: %@",
+    "message.snippet.status.sent": "Odesláno",
+    "message.snippet.status.unsent": "Neodesláno"
+  },
+  "sk": {
+    "message.snippet.message": "Správa: %@",
+    "message.snippet.status.sent": "Odoslané",
+    "message.snippet.status.unsent": "Neodoslané"
+  },
+  "ms": {
+    "message.snippet.message": "Mesej: %@",
+    "message.snippet.status.sent": "Dihantar",
+    "message.snippet.status.unsent": "Tidak dihantar"
+  },
+  "en_AU": {
+    "message.snippet.message": "Message: %@",
+    "message.snippet.status.sent": "Sent",
+    "message.snippet.status.unsent": "Not sent"
+  },
+  "sl": {
+    "message.snippet.message": "Sporočilo: %@",
+    "message.snippet.status.sent": "Poslano",
+    "message.snippet.status.unsent": "Ni poslano"
+  },
+  "de": {
+    "message.snippet.message": "Nachricht: %@",
+    "message.snippet.status.sent": "Gesendet",
+    "message.snippet.status.unsent": "Nicht gesendet"
+  },
+  "vi": {
+    "message.snippet.message": "Tin nhắn: %@",
+    "message.snippet.status.sent": "Đã gửi",
+    "message.snippet.status.unsent": "Chưa gửi"
+  },
+  "es": {
+    "message.snippet.message": "Mensaje: %@",
+    "message.snippet.status.sent": "Enviado",
+    "message.snippet.status.unsent": "No enviado"
+  },
+  "uk": {
+    "message.snippet.message": "Звістка: %@",
+    "message.snippet.status.sent": "Надіслано",
+    "message.snippet.status.unsent": "Не надіслано"
+  },
+  "fr": {
+    "message.snippet.message": "Message : %@",
+    "message.snippet.status.sent": "Envoyé",
+    "message.snippet.status.unsent": "Non envoyé"
+  },
+  "ro": {
+    "message.snippet.message": "Mesaj: %@",
+    "message.snippet.status.sent": "Trimis",
+    "message.snippet.status.unsent": "Netrimis"
+  },
+  "pt": {
+    "message.snippet.message": "Mensagem: %@",
+    "message.snippet.status.sent": "Enviada",
+    "message.snippet.status.unsent": "Não enviado"
+  },
+  "ja": {
+    "message.snippet.message": "メッセージ: %@",
+    "message.snippet.status.sent": "送信済み",
+    "message.snippet.status.unsent": "未送信"
+  },
+  "pt_PT": {
+    "message.snippet.message": "Mensagem: %@",
+    "message.snippet.status.sent": "Enviada",
+    "message.snippet.status.unsent": "Não enviada"
+  },
+  "hr": {
+    "message.snippet.message": "Poruka: %@",
+    "message.snippet.status.sent": "Poslano",
+    "message.snippet.status.unsent": "Nije poslano"
+  }
+}

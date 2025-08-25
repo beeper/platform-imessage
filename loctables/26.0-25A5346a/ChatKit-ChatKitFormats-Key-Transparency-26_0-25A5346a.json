@@ -1,0 +1,1145 @@
+{
+  "he": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "אדם אחד",
+        "NSStringFormatValueTypeKey": "lu",
+        "other": "‏%lu אנשים",
+        "two": "שני אנשים",
+        "many": "‏%lu אנשים",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%1$@ ועוד %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "אחד",
+        "NSStringFormatValueTypeKey": "lu",
+        "other": "‏%lu",
+        "two": "שניים",
+        "many": "‏%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "num_in_chat": {
+        "one": "אחד אומת",
+        "NSStringFormatValueTypeKey": "lu",
+        "other": "‏%lu אומתו",
+        "two": "שניים אומתו",
+        "many": "‏%lu אומתו",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "‏%1$#@num_verified@ מתוך %2$#@num_in_chat@"
+    }
+  },
+  "ko": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu명",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ 외 %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu명",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu명",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "총 %2$#@num_in_chat@ 중 %1$#@num_verified@ 확인됨"
+    }
+  },
+  "id": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu Orang",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ dan %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu Terverifikasi",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ dari %2$#@num_in_chat@"
+    }
+  },
+  "fi": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu käyttäjä",
+        "other": "%lu käyttäjää",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ ja %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu vahvistettu",
+        "other": "%lu vahvistettu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@\/%2$#@num_in_chat@"
+    }
+  },
+  "tr": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu Kişi",
+        "other": "%lu kişi",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ ve %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu Doğrulanmış",
+        "other": "%lu Doğrulanmış",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ \/ %2$#@num_in_chat@"
+    }
+  },
+  "nl": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu persoon",
+        "other": "%lu personen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ en %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu geverifieerd",
+        "other": "%lu geverifieerd",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ van %2$#@num_in_chat@"
+    }
+  },
+  "hu": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu személy",
+        "other": "%lu személy",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ és %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu ellenőrzött",
+        "other": "%lu ellenőrzött",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@\/%2$#@num_in_chat@"
+    }
+  },
+  "ru": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "еще %lu человека",
+        "one": "еще %lu человек",
+        "other": "еще %lu человека",
+        "many": "еще %lu человек",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ и %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "Проверено %lu",
+        "one": "Проверен %lu",
+        "other": "Проверено %lu",
+        "many": "Проверено %lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "many": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ из %2$#@num_in_chat@"
+    }
+  },
+  "it": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu persona",
+        "other": "%lu persone",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ e %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu verificato",
+        "other": "%lu verificati",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ di %2$#@num_in_chat@"
+    }
+  },
+  "el": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu άτομο",
+        "other": "%lu άτομα",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "«%1$@» και %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu επαληθεύτηκε",
+        "other": "%lu επαληθεύτηκαν",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ από %2$#@num_in_chat@"
+    }
+  },
+  "es_419": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu persona",
+        "other": "%lu personas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ y %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu verificado",
+        "other": "%lu verificados",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ de %2$#@num_in_chat@"
+    }
+  },
+  "ca": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu persona",
+        "other": "%lu persones",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ i %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "d’%lu verificat",
+        "other": "de %lu verificats",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ %2$#@num_in_chat@"
+    }
+  },
+  "ar": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "شخص واحد",
+        "few": "%lu أشخاص",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "%lu شخصًا",
+        "two": "شخصان",
+        "other": "%lu شخص",
+        "NSStringFormatValueTypeKey": "lu",
+        "zero": "‏%lu شخص"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ و%2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "تم التحقق من %lu",
+        "few": "تم التحقق من %lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "تم التحقق من %lu",
+        "two": "تم التحقق من %lu",
+        "other": "تم التحقق من %lu",
+        "NSStringFormatValueTypeKey": "lu",
+        "zero": "تم التحقق من %lu"
+      },
+      "num_in_chat": {
+        "one": "%lu",
+        "few": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "%lu",
+        "two": "%lu",
+        "other": "%lu",
+        "NSStringFormatValueTypeKey": "lu",
+        "zero": "%lu"
+      },
+      "NSStringLocalizedFormatKey": "‏%1$#@num_verified@ من %2$#@num_in_chat@"
+    }
+  },
+  "zh_TW": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@和%2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@已驗證（共%2$#@num_in_chat@）"
+    }
+  },
+  "zh_HK": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@和%2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@已驗證（共%2$#@num_in_chat@）"
+    }
+  },
+  "sv": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu person",
+        "other": "%lu personer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ och %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu verifierad",
+        "other": "%lu verifierade",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ av %2$#@num_in_chat@"
+    }
+  },
+  "no": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu person",
+        "other": "%lu personer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ og %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu verifisert",
+        "other": "%lu verifisert",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ av %2$#@num_in_chat@"
+    }
+  },
+  "hi": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu व्यक्ति",
+        "other": "%lu लोग",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ और %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu सत्यापित",
+        "other": "%lu सत्यापित",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@\/%2$#@num_in_chat@"
+    }
+  },
+  "da": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu person",
+        "other": "%lu personer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ og %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu bekræftet",
+        "other": "%lu bekræftet",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ af %2$#@num_in_chat@"
+    }
+  },
+  "LocProvenance": {
+    "he": 2,
+    "ko": 2,
+    "id": 2,
+    "fi": 2,
+    "tr": 2,
+    "nl": 2,
+    "hu": 2,
+    "ru": 2,
+    "it": 2,
+    "el": 2,
+    "es_419": 2,
+    "ca": 2,
+    "ar": 2,
+    "zh_TW": 2,
+    "zh_HK": 2,
+    "sv": 2,
+    "no": 2,
+    "hi": 2,
+    "da": 2,
+    "en": 2,
+    "pl": 2,
+    "fr_CA": 2,
+    "th": 2,
+    "zh_CN": 2,
+    "en_GB": 2,
+    "ms": 2,
+    "cs": 2,
+    "sk": 2,
+    "es_US": 2,
+    "sl": 2,
+    "en_AU": 2,
+    "de": 2,
+    "vi": 2,
+    "es": 2,
+    "ro": 2,
+    "fr": 2,
+    "none": 1,
+    "uk": 2,
+    "pt": 2,
+    "ja": 2,
+    "hr": 2,
+    "pt_PT": 2
+  },
+  "en": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu Person",
+        "other": "%lu People",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ and %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu Verified",
+        "other": "%lu Verified",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ of %2$#@num_in_chat@"
+    }
+  },
+  "pl": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu inne osoby",
+        "one": "%lu osoba",
+        "other": "%lu innej osoby",
+        "many": "%lu innych osób",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ i %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "many": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu zweryfikowano",
+        "one": "%lu zweryfikowano",
+        "other": "%lu zweryfikowano",
+        "many": "%lu zweryfikowano",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ z %2$#@num_in_chat@"
+    }
+  },
+  "fr_CA": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu personne",
+        "other": "%lu personnes",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ et %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu validé",
+        "other": "%lu validés",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ sur %2$#@num_in_chat@"
+    }
+  },
+  "th": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu คน",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ และ %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu คน",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ จาก %2$#@num_in_chat@"
+    }
+  },
+  "zh_CN": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@和%2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@已验证，共%2$#@num_in_chat@"
+    }
+  },
+  "en_GB": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu Person",
+        "other": "%lu People",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ and %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu Verified",
+        "other": "%lu Verified",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ of %2$#@num_in_chat@"
+    }
+  },
+  "ms": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu Orang",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ dan %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu Disahkan",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ daripada %2$#@num_in_chat@"
+    }
+  },
+  "cs": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu další uživatelé",
+        "one": "%lu další uživatel",
+        "other": "%lu dalších uživatelů",
+        "many": "%lu dalších uživatelů",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ a %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "Ověřeni %lu",
+        "one": "Ověřen %lu",
+        "other": "Ověřeno %lu",
+        "many": "Ověřeno %lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "ze %lu účastníků",
+        "one": "z %lu účastníka",
+        "other": "z %lu účastníků",
+        "many": "z %lu účastníka",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ %2$#@num_in_chat@"
+    }
+  },
+  "sk": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu ďalšie osoby",
+        "one": "%lu osoba",
+        "other": "%lu ďalších osôb",
+        "many": "%lu ďalšej osoby",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ a %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "many": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "many": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "Overené: %1$#@num_verified@ z %2$#@num_in_chat@"
+    }
+  },
+  "es_US": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu persona",
+        "other": "%lu personas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ y %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu verificado",
+        "other": "%lu verificados",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ de %2$#@num_in_chat@"
+    }
+  },
+  "sl": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu osebe",
+        "one": "%lu oseba",
+        "other": "%lu oseb",
+        "two": "%lu osebi",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ in %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "two": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu preverjeni",
+        "one": "%lu preverjen",
+        "other": "%lu preverjenih",
+        "two": "%lu preverjena",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ od %2$#@num_in_chat@"
+    }
+  },
+  "en_AU": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu Person",
+        "other": "%lu People",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ and %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu Verified",
+        "other": "%lu Verified",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ of %2$#@num_in_chat@"
+    }
+  },
+  "de": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu Person",
+        "other": "%lu Personen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ und %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu bestätigt",
+        "other": "%lu bestätigt",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ von %2$#@num_in_chat@"
+    }
+  },
+  "vi": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu người",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ và %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu được xác minh",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ \/ %2$#@num_in_chat@"
+    }
+  },
+  "es": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu persona",
+        "other": "%lu personas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ y %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu verificado",
+        "other": "%lu verificados",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ de %2$#@num_in_chat@"
+    }
+  },
+  "ro": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu persoane",
+        "one": "%lu persoană",
+        "other": "%lu de persoane",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ și %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu contacte verificate",
+        "one": "%lu contact verificat",
+        "other": "%lu de contacte verificate",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ din %2$#@num_in_chat@"
+    }
+  },
+  "fr": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu personne",
+        "other": "%lu personnes",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ et %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu validée",
+        "other": "%lu validées",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ sur %2$#@num_in_chat@"
+    }
+  },
+  "uk": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu людини",
+        "one": "%lu людина",
+        "other": "%lu людини",
+        "many": "%lu людей",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ і %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "many": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu перевірених",
+        "one": "%lu перевіреного",
+        "other": "%lu перевіреного",
+        "many": "%lu перевірених",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ із %2$#@num_in_chat@"
+    }
+  },
+  "pt": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu Pessoa",
+        "other": "%lu Pessoas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ e %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu Verificado",
+        "other": "%lu Verificados",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ de %2$#@num_in_chat@"
+    }
+  },
+  "ja": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "other": "%lu人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@と%2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "other": "%lu人確認済み",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ \/ %2$#@num_in_chat@"
+    }
+  },
+  "hr": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "few": "%lu osobe",
+        "one": "%lu osoba",
+        "other": "%lu osoba",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ i %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "few": "%lu",
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "few": "%lu verificirana",
+        "one": "%lu verificiran",
+        "other": "%lu verificiranih",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ od %2$#@num_in_chat@"
+    }
+  },
+  "pt_PT": {
+    "X_AND_N_PEOPLE": {
+      "people": {
+        "one": "%lu pessoa",
+        "other": "%lu pessoas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$@ e %2$#@people@"
+    },
+    "N_OF_N_VERIFIED": {
+      "num_verified": {
+        "one": "%lu",
+        "other": "%lu",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "num_in_chat": {
+        "one": "%lu confirmado",
+        "other": "%lu confirmados",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "lu"
+      },
+      "NSStringLocalizedFormatKey": "%1$#@num_verified@ de %2$#@num_in_chat@"
+    }
+  }
+}

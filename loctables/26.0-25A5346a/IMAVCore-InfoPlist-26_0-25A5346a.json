@@ -1,0 +1,245 @@
+{
+  "he": {
+    "NSRTFDPboardType": "מלל עשיר (RTFD)",
+    "CFBundleName": "מסגרת IMAVCore",
+    "NSHumanReadableCopyright": "‏© 2002-‏2009 Apple Inc.‎\nכל הזכויות שמורות."
+  },
+  "ko": {
+    "NSRTFDPboardType": "리치 텍스트 포맷(RTFD)",
+    "CFBundleName": "IMAVCore 프레임워크",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\n모든 권리 보유."
+  },
+  "id": {
+    "NSRTFDPboardType": "Format Teks Kaya (RTFD)",
+    "CFBundleName": "Kerangka IMAVCore",
+    "NSHumanReadableCopyright": "Hak Cipta © 2002-2009 Apple Inc.\nSemua hak cipta dilindungi undang-undang."
+  },
+  "fi": {
+    "NSRTFDPboardType": "Rich Text Format (RTFD)",
+    "CFBundleName": "IMAVCore-sovelluskehys",
+    "NSHumanReadableCopyright": "Copyright © 2002 - 2009 Apple Inc.\nKaikki oikeudet pidätetään."
+  },
+  "tr": {
+    "NSRTFDPboardType": "Zengin Metin Biçimi (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTüm hakları saklıdır."
+  },
+  "ru": {
+    "NSRTFDPboardType": "Форматированный текст (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nВсе права защищены."
+  },
+  "hu": {
+    "NSRTFDPboardType": "Rich Text formátum (RTFD)",
+    "CFBundleName": "IMAVCore keretrendszer",
+    "NSHumanReadableCopyright": "Copyright © 2002–2009 Apple Inc.\nMinden jog fenntartva."
+  },
+  "nl": {
+    "NSRTFDPboardType": "Rich Text Format (RTFD)",
+    "CFBundleName": "IMAVCore-framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAlle rechten voorbehouden."
+  },
+  "it": {
+    "NSRTFDPboardType": "File RTF (Rich Text Format)",
+    "CFBundleName": "Framework IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTutti i diritti riservati."
+  },
+  "es_419": {
+    "NSRTFDPboardType": "Formato RTFD",
+    "CFBundleName": "Estructura IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTodos los derechos reservados."
+  },
+  "el": {
+    "NSRTFDPboardType": "Μορφή εμπλουτισμένου κειμένου (RTFD)",
+    "CFBundleName": "Πλαίσιο εργασίας IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nΜε επιφύλαξη κάθε δικαιώματος."
+  },
+  "ca": {
+    "NSRTFDPboardType": "Text amb format (RTFD)",
+    "CFBundleName": "Estructura IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTots els drets reservats."
+  },
+  "ar": {
+    "NSRTFDPboardType": "تنسيق (Rich Text Format (RTFD",
+    "CFBundleName": "IMAVCore إطار العمل",
+    "NSHumanReadableCopyright": "‏Copyright © 2002-2009 Apple Inc.\nجميع الحقوق محفوظة."
+  },
+  "zh_TW": {
+    "NSRTFDPboardType": "RTF格式（RTFD）",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\n保留一切權利。"
+  },
+  "zh_HK": {
+    "NSRTFDPboardType": "RTF格式（RTFD）",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\n保留一切權利。"
+  },
+  "fr_CA": {
+    "NSRTFDPboardType": "RTFD (Rich Text Format)",
+    "CFBundleName": "Cadre d’applications IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTous droits réservés."
+  },
+  "hi": {
+    "NSRTFDPboardType": "रिच टेक्स्ट फ़ॉर्मैट (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "कॉपीराइट © 2002-2009 Apple Inc.\nसर्वाधिकार सुरक्षित।"
+  },
+  "pl": {
+    "NSRTFDPboardType": "Tekst sformatowany z obrazkami (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nWszelkie prawa zastrzeżone."
+  },
+  "da": {
+    "NSRTFDPboardType": "RTFD (Rich Text Format)",
+    "CFBundleName": "IMCore-framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAlle rettigheder forbeholdes."
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "ru": 1,
+    "hu": 1,
+    "nl": 1,
+    "it": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "ar": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "fr_CA": 1,
+    "hi": 1,
+    "pl": 1,
+    "da": 1,
+    "sv": 1,
+    "en": 1,
+    "no": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "ms": 1,
+    "cs": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "ro": 1,
+    "pt_BR": 1,
+    "hr": 1,
+    "pt_PT": 1,
+    "ja": 1
+  },
+  "sv": {
+    "NSRTFDPboardType": "Formaterad text (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002–2009 Apple Inc.\nAlla rättigheter förbehålls."
+  },
+  "en": {
+    "NSRTFDPboardType": "Rich Text Format (RTFD)",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAll rights reserved.",
+    "CFBundleName": "IMAVCore Framework"
+  },
+  "no": {
+    "NSRTFDPboardType": "Rik tekst-format (RTFD)",
+    "CFBundleName": "IMAVCore-rammeverk",
+    "NSHumanReadableCopyright": "Copyright © 2002–2009 Apple Inc.\nAlle rettigheter forbeholdes."
+  },
+  "th": {
+    "NSRTFDPboardType": "ข้อความแบบ RTF (RTFD)",
+    "CFBundleName": "เฟรมเวิร์ค IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nสงวนสิทธิ์ทุกประการ"
+  },
+  "zh_CN": {
+    "NSRTFDPboardType": "多信息文本格式(RTFD)",
+    "CFBundleName": "IMAVCore框架",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\n保留一切权利。"
+  },
+  "en_GB": {
+    "NSRTFDPboardType": "Rich Text Format (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAll rights reserved."
+  },
+  "ms": {
+    "NSRTFDPboardType": "Format Teks Beraneka (RTFD)",
+    "CFBundleName": "Rangka Kerja IMAVCore",
+    "NSHumanReadableCopyright": "Hak Cipta © 2002-2009 Apple Inc.\nHak cipta terpelihara."
+  },
+  "cs": {
+    "NSRTFDPboardType": "Formátovaný text (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nVšechna práva vyhrazena."
+  },
+  "sk": {
+    "NSRTFDPboardType": "Formátovaný text (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002 – 2009 Apple Inc.\nVšetky práva vyhradené."
+  },
+  "en_AU": {
+    "NSRTFDPboardType": "Rich Text Format (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAll rights reserved."
+  },
+  "sl": {
+    "NSRTFDPboardType": "Obogateno besedilo (RTFD)",
+    "CFBundleName": "Ogrodje IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002–2009 Apple Inc.\nVse pravice pridržane."
+  },
+  "de": {
+    "NSRTFDPboardType": "Rich Text Format (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAlle Rechte vorbehalten."
+  },
+  "vi": {
+    "NSRTFDPboardType": "Định dạng Văn bản Đa dạng thức (RTFD)",
+    "CFBundleName": "Khung IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nMọi quyền được bảo lưu."
+  },
+  "es": {
+    "NSRTFDPboardType": "Formato RTFD",
+    "CFBundleName": "Estructura IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTodos los derechos reservados."
+  },
+  "uk": {
+    "NSRTFDPboardType": "Форматований текст (RTFD)",
+    "CFBundleName": "Бібліотека IMAVCore",
+    "NSHumanReadableCopyright": "© 2002–2009 Apple Inc.\nУсі права захищено."
+  },
+  "fr": {
+    "NSRTFDPboardType": "RTFD (Rich Text Format)",
+    "CFBundleName": "Cadre d’applications IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTous droits réservés."
+  },
+  "ro": {
+    "NSRTFDPboardType": "Format text îmbogățit (RTFD)",
+    "CFBundleName": "IMAVCore Framework",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nToate drepturile rezervate."
+  },
+  "pt_BR": {
+    "NSRTFDPboardType": "Formato RTFD",
+    "CFBundleName": "Framework IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTodos os direitos reservados."
+  },
+  "hr": {
+    "NSRTFDPboardType": "Format bogatog teksta (RTFD)",
+    "CFBundleName": "Radno okruženje IMAVCore",
+    "NSHumanReadableCopyright": "Autorsko pravo © 2002- 2009 Apple Inc.\nSva prava pridržana."
+  },
+  "pt_PT": {
+    "NSRTFDPboardType": "Texto formatado (RTFD)",
+    "CFBundleName": "Framework IMAVCore",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nTodos os direitos reservados."
+  },
+  "ja": {
+    "NSRTFDPboardType": "リッチテキストフォーマット（RTFD）",
+    "CFBundleName": "IMAVCoreフレームワーク",
+    "NSHumanReadableCopyright": "Copyright © 2002-2009 Apple Inc.\nAll rights reserved."
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "he": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "‏SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "שירותי חירום"
+  },
+  "ko": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "구조 요청",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "긴급 서비스"
+  },
+  "id": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Layanan Darurat"
+  },
+  "fi": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Hätäpuhelut"
+  },
+  "tr": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Acil Servis"
+  },
+  "nl": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Hulpdiensten"
+  },
+  "hu": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Sürgősségi segélyszolgálatok"
+  },
+  "ru": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Экстренные службы"
+  },
+  "it": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Servizi di emergenza"
+  },
+  "el": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Υπηρεσίες έκτακτης ανάγκης"
+  },
+  "es_419": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Servicios de emergencia"
+  },
+  "ca": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Serveis d’emergències"
+  },
+  "fr_CA": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Services d’urgence"
+  },
+  "zh_TW": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "緊急服務"
+  },
+  "zh_HK": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "緊急服務"
+  },
+  "ar": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "طوارئ SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "خدمات الطوارئ"
+  },
+  "hi": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "आपातकालीन सेवाएँ"
+  },
+  "pl": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Służby ratownicze"
+  },
+  "da": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Alarmcentral"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "el": 1,
+    "es_419": 1,
+    "ca": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "ar": 1,
+    "hi": 1,
+    "pl": 1,
+    "da": 1,
+    "en": 1,
+    "sv": 1,
+    "no": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "cs": 1,
+    "ms": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "ro": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "es": 1,
+    "pt": 1,
+    "ja": 1,
+    "pt_PT": 1,
+    "hr": 1
+  },
+  "en": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Emergency Services"
+  },
+  "sv": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Nödfallstjänster"
+  },
+  "no": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Nødetatene"
+  },
+  "th": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "บริการฉุกเฉิน"
+  },
+  "zh_CN": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "紧急服务"
+  },
+  "en_GB": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Emergency Services"
+  },
+  "es_US": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Servicios de emergencia"
+  },
+  "cs": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Tísňové služby"
+  },
+  "ms": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Khidmat Kecemasan"
+  },
+  "sk": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Tiesňové služby"
+  },
+  "en_AU": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Emergency Services"
+  },
+  "sl": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Služba za nujno pomoč"
+  },
+  "de": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Rettungsdienste"
+  },
+  "vi": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Dịch vụ khẩn cấp"
+  },
+  "ro": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "S.O.S.",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Servicii de urgență"
+  },
+  "uk": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Екстрені служби"
+  },
+  "fr": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "Appel d’urgence",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Secours"
+  },
+  "es": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Servicios de emergencia"
+  },
+  "pt": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Serviços de Emergência"
+  },
+  "ja": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "緊急通報サービス"
+  },
+  "pt_PT": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "SOS",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Serviços de urgência"
+  },
+  "hr": {
+    "STEWIE_EMERGENCY_SOS_HANDLE_WATCH": "Hitan slučaj",
+    "STEWIE_EMERGENCY_SOS_HANDLE": "Hitne službe"
+  }
+}

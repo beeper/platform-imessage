@@ -1,0 +1,292 @@
+{
+  "he": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "סינון לפי רשימת אנשים",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "ניתן לראות רק את ההודעות הרצויות. למשל, באפשרותך לראות רק שיחות עם אנשים שהתרת לקבל מהם עדכונים בזמן העבודה.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "סינון לפי רשימת אנשים",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "סינון שיחות"
+  },
+  "ko": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "사람들 목록으로 필터링",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "원하는 메시지만 표시합니다. 예를 들어 업무 중에 알림을 허용한 사람과의 대화만 표시할 수 있습니다.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "사람들 목록으로 필터링",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "대화 필터링"
+  },
+  "id": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filter menurut Daftar Orang",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Hanya lihat pesan yang Anda inginkan. Misalnya, hanya lihat percakapan dengan orang yang pemberitahuannya telah Anda izinkan saat bekerja.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filter menurut Daftar Orang",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filter Percakapan"
+  },
+  "nl": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filter op personenlijst",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Geef alleen de berichten weer die je wilt zien. Je kunt er bijvoorbeeld voor kiezen om alleen gesprekken weer te geven met personen die meldingen mogen sturen wanneer je werkt.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filter op personenlijst",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filter gesprekken"
+  },
+  "tr": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Kişi Listesine Göre Filtrele",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Yalnızca görmek istediğiniz mesajları görün. Örneğin çalışıyorken yalnızca bildirimlerine izin verdiğiniz kişilerle olan yazışmalarınızı görün.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Kişi Listesine Göre Filtrele",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Yazışmaları Filtrele"
+  },
+  "ru": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Фильтровать по списку людей",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Отображайте только те сообщения, которые хотите видеть. Например, во время работы можно отображать разговоры только с теми людьми, от которых разрешены уведомления.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Фильтровать по списку людей",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Фильтровать разговоры"
+  },
+  "hu": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Szűrés a személylista alapján",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Beállíthatja, hogy csak az Ön számára fontos üzenetek jelenjenek meg. Megadhatja például, hogy a munkája közben csak azokkal a személyekkel folytatott beszélgetései legyenek láthatók, akiktől engedélyezte az értesítéseket.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Szűrés a személylista alapján",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Beszélgetések szűrése"
+  },
+  "fi": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Suodatusperuste: käyttäjäluettelo",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Näe vain viestit, jotka haluat. Esimerkiksi vain keskustelut sellaisten henkilöiden kanssa, joiden ilmoitukset olet sallinut työskennellessäsi.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Suodatusperuste: käyttäjäluettelo",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Suodata keskustelut"
+  },
+  "it": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtra per elenco persone",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Visualizza solo i messaggi che desideri. Ad esempio, puoi vedere solo le conversazioni con le persone da cui hai consentito le notifiche quando sei al lavoro.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtra per elenco persone",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtra conversazioni"
+  },
+  "es_419": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrar por lista de personas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Accede sólo a los mensajes que te interesan. Por ejemplo, las conversaciones de las personas cuyas notificaciones estén permitidas mientras trabajas.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrar por lista de personas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrar conversaciones"
+  },
+  "el": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Φιλτράρισμα κατά λίστα ατόμων",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Δείτε μόνο τα μηνύματα που θέλετε. Για παράδειγμα, δείτε μόνο τις συζητήσεις με άτομα από τα οποία έχετε επιτρέψει τη λήψη γνωστοποιήσεων ενώ εργάζεστε.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Φιλτράρισμα κατά λίστα ατόμων",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Φιλτράρισμα συζητήσεων"
+  },
+  "ca": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtratge per llista de persones",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Accedeix només als missatges que vulguis. Per exemple, mostra únicament les converses amb persones de qui hagis permès les notificacions mentre treballes.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtratge per llista de persones",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtra les converses"
+  },
+  "fr_CA": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrer par liste de personnes",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Affichez uniquement certains messages. Par exemple, affichez uniquement les conversations avec les personnes dont les notifications sont autorisées lorsque vous travaillez.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrer par liste de personnes",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrer les conversations"
+  },
+  "zh_TW": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "依聯絡人列表過濾",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "只顯示你想要看到的訊息。例如，在工作時只查看與允許通知的聯絡人之間的對話。",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "依聯絡人列表過濾",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "過濾對話"
+  },
+  "zh_HK": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "以聯絡人列表過濾",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "只查看你想看到的訊息。例如，在工作期間只查看與允許通知的聯絡人之間的對話。",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "以聯絡人列表過濾",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "過濾對話"
+  },
+  "sv": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrera efter lista med personer",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Visa bara de meddelanden du vill se. Du kan till exempel välja att bara se konversationer med personer som får skicka notiser till dig när du arbetar.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrera efter lista med personer",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrera konversationer"
+  },
+  "ar": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "فلترة حسب قائمة الأشخاص",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "رؤية الرسائل التي تريدها. مثلاً، يمكنك اختيار رؤية المحادثات مع الأشخاص الذين سمحت بالإشعارات منهم أثناء العمل فقط.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "فلترة حسب قائمة الأشخاص",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "فلترة المحادثات"
+  },
+  "no": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrer etter Personer-liste",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Se kun de meldingene du er interessert i. Du kan for eksempel se kun samtaler fra personer du tillater varslinger fra mens du jobber.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrer etter Personer-liste",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrer samtaler"
+  },
+  "hi": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "लोग सूची के अनुसार फ़िल्टर करें",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "केवल वे संदेश देखें जिन्हें आप देखना ^[चाहते हैं](inflect: true)। जैसे कि काम करते समय केवल उन लोगों के वार्तालाप देखें जिन्हें आपने अनुमति दी है।",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "लोग सूची के अनुसार फ़िल्टर करें",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "वार्तालाप फ़िल्टर करें"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "nl": 1,
+    "tr": 1,
+    "ru": 1,
+    "hu": 1,
+    "fi": 1,
+    "it": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "ar": 1,
+    "no": 1,
+    "hi": 1,
+    "en": 1,
+    "pl": 1,
+    "da": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "cs": 1,
+    "sk": 1,
+    "ms": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "ro": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "es": 1,
+    "pt": 1,
+    "hr": 1,
+    "pt_PT": 1,
+    "ja": 1
+  },
+  "en": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filter by People List",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "See only the messages you want to. For example, just see conversations with people you’ve allowed notifications from when you’re working.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filter by People List",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filter Conversations"
+  },
+  "pl": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtruj wg listy osób",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Wyświetlaj tylko te wiadomości, których potrzebujesz. Możesz na przykład wyświetlać tylko rozmowy z osobami, które mogą wysyłać Ci powiadomienia, gdy pracujesz.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtruj wg listy osób",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtruj rozmowy"
+  },
+  "da": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrer efter liste med personer",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Se kun de beskeder, du er interesseret i. Du kan f.eks. vælge, at det kun er samtaler fra personer, du tillader notifikationer fra, som må vises, mens du arbejder.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrer efter liste med personer",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrer samtaler"
+  },
+  "th": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "ฟิลเตอร์ตามรายการผู้คน",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "ดูเฉพาะข้อความที่คุณต้องการ ตัวอย่างเช่น ดูเฉพาะการสนทนากับผู้คนที่คุณอนุญาตให้แจ้งเตือนในระหว่างที่คุณทำงาน",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "ฟิลเตอร์ตามรายการผู้คน",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "ฟิลเตอร์การสนทนา"
+  },
+  "zh_CN": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "按联系人列表过滤",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "只显示你想要看到的信息。例如，工作时只显示与允许通知的联系人之间的对话。",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "按联系人列表过滤",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "过滤对话"
+  },
+  "en_GB": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filter by People List",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "See only the messages you want to. For example, just see conversations with people you’ve allowed notifications from when you’re working.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filter by People List",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filter Conversations"
+  },
+  "es_US": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrar por lista de personas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Accede sólo a los mensajes que te interesan. Por ejemplo, las conversaciones de las personas cuyas notificaciones estén permitidas mientras trabajas.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrar por lista de personas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrar conversaciones"
+  },
+  "cs": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrovat podle seznamu osob",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Zobrazte si jen zprávy, o které stojíte. Když například právě pracujete, můžete mít zobrazené jen konverzace s lidmi, od kterých máte povolená oznámení.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrovat podle seznamu osob",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrovat konverzace"
+  },
+  "sk": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrovať podľa zoznamu ľudí",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Nechajte si zobraziť len tie správy, ktoré chcete. Napríklad pri práci sa vám môžu zobrazovať len konverzácie s ľuďmi, ktorým ste povolili hlásenia.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrovať podľa zoznamu ľudí",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrovať konverzácie"
+  },
+  "ms": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Tapis ikut Senarai Orang",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Hanya lihat mesej yang anda inginkan. Contohnya, hanya lihat perbualan dengan orang yang anda benarkan pemberitahuan semasa anda bekerja.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Tapis ikut Senarai Orang",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Tapis Perbualan"
+  },
+  "en_AU": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filter by People List",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "See only the messages you want to. For example, just see conversations with people you’ve allowed notifications from when you’re working.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filter by People List",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filter Conversations"
+  },
+  "sl": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtriraj po seznamu oseb",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Prikazana vam bodo samo tista sporočila, ki jih želite prikazati. Med delom imejte na primer prikazane samo pogovore z osebami, katerih obvestila ste dovolili.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtriraj po seznamu oseb",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtriranje pogovorov"
+  },
+  "de": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Nach Personenliste filtern",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Zeige nur die Nachrichten an, die du sehen möchtest. Zum Beispiel kannst du ausschließlich Konversationen mit Personen anzeigen, die dir Mitteilungen während der Arbeit senden dürfen.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Nach Personenliste filtern",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Konversationen filtern"
+  },
+  "vi": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Lọc theo danh sách người",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Chỉ xem các tin nhắn bạn muốn. Ví dụ: chỉ xem các cuộc hội thoại với những người mà bạn đã cho phép nhận thông báo từ họ khi bạn đang làm việc.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Lọc theo danh sách người",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Lọc cuộc hội thoại"
+  },
+  "ro": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrare după lista de persoane",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Vedeți doar mesajele pe care le doriți. De exemplu, afișați doar conversațiile cu persoanele de la care ați permis primirea notificărilor în timp ce munciți.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrare după lista de persoane",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrare conversații"
+  },
+  "uk": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Фільтрувати за списком осіб",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Отримуйте тільки потрібні повідомлення. Наприклад, зʼявлятимуться тільки бесіди з людьми, від яких дозволені сповіщення в робочий час.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Фільтрувати за списком осіб",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Фільтрувати обговорення"
+  },
+  "fr": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrer par liste de personnes",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Affichez uniquement certains messages. Par exemple, affichez uniquement les messages des personnes dont les notifications sont autorisées lorsque vous travaillez.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrer par liste de personnes",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrer les conversations"
+  },
+  "es": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrar por lista de personas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Muestra solo los mensajes que quieras. Por ejemplo, puedes ver solo los de las conversaciones con personas cuyas notificaciones hayas permitido mientras trabajas.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrar por lista de personas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrar conversaciones"
+  },
+  "pt": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrar pela Lista de Pessoas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Veja apenas as mensagens que você quer. Por exemplo, veja apenas as conversas com pessoas das quais você autorizou o recebimento de notificações durante o horário de trabalho.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrar pela Lista de Pessoas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrar Conversas"
+  },
+  "hr": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtriraj prema popisu osoba",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Podesite prikazivanje samo željenih poruka. Primjerice, gledajte samo razgovore s osobama za koje ste dozvolili obavijesti kad radite.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtriraj prema popisu osoba",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtriraj razgovore"
+  },
+  "pt_PT": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "Filtrar por lista de pessoas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "Veja apenas as mensagens pretendidas. Por exemplo, pode optar por ver apenas as conversas com pessoas cujas notificações são permitidas enquanto está a trabalhar.",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "Filtrar por lista de pessoas",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "Filtrar conversas"
+  },
+  "ja": {
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_PARAMETER_ENABLE_FOCUS_FILTERING_DESCRIPTION": "連絡先のリストでフィルタ",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DESCRIPTION": "読みたいメッセージだけを表示できます。例えば、仕事中に通知を許可している連絡先とのチャットのみを表示できます。",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_DISPLAY_REPRESENTATION_TITLE": "連絡先のリストでフィルタ",
+    "CONVERSATION_LIST_FOCUS_FILTER_ACTION_TITLE": "チャットをフィルタ"
+  }
+}

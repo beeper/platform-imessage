@@ -1,0 +1,374 @@
+{
+  "he": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "לא ניתן לפתוח הודעה זו ב״מצב נעילה״. ניתן לכבות את ״מצב נעילה״ דרך ״הגדרות״.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "פרטים נוספים",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "לא ניתן להשתמש ב-Messages for Business כאשר המכשיר נמצא במצב נעילה",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "הודעה אחת",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "לא ניתן להשתמש ב-Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "לא ניתן לפתוח הודעה ב״מצב נעילה״"
+  },
+  "ko": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "차단 모드에서는 이 메시지를 열 수 없습니다. 설정에서 차단 모드를 끌 수 있습니다.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "더 알⁠아⁠보⁠기",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "기기가 잠겨 있을 때는 Messages for Business를 사용할 수 없습니다.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1개의 메시지",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Business를 사용할 수 없음",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "차단 모드에서는 메시지를 열 수 없음"
+  },
+  "id": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Pesan ini tidak dapat dibuka dalam Mode Kuncitara. Anda dapat mematikan Mode Kuncitara di Pengaturan.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Lebih Lanjut",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Tidak dapat menggunakan Messages for Business saat perangkat dalam mode kuncitara",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Pesan",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Tidak dapat menggunakan Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Tidak dapat membuka pesan dalam Mode Kuncitara"
+  },
+  "fi": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Tätä viestiä ei voida avata sulkutilassa. Voit laittaa sulkutilan pois päältä Asetuksissa.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Lisätietoja",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Messages for Businessia ei voi käyttää, kun laite on sulkutilassa",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 viesti",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Businessia ei voi käyttää",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Viestiä ei voida avata sulkutilassa"
+  },
+  "tr": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Bu mesaj Kilit Modu’nda açılamaz. Kilit Modu’nu Ayarlar’da kapatabilirsiniz.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Daha Fazla Bilgi",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Aygıt kilitlenmişken Messages for Business kullanılamaz",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Mesaj",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Business kullanılamıyor",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Mesaj, Kilit Modu’nda açılamaz"
+  },
+  "nl": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Dit bericht kan niet worden geopend in de isolatiemodus. Je kunt de isolatiemodus uitschakelen in Instellingen.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Meer informatie",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Messages for Business kan niet worden gebruikt wanneer het apparaat in de isolatiemodus staat",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 bericht",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Business kan niet worden gebruikt",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Bericht kan niet worden geopend in de isolatiemodus"
+  },
+  "hu": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Ez az üzenet nem nyitható meg Zárt módban. A Zárt módot a Beállításokban kapcsolhatja ki.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Bővebben",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "A Messages for Business funkció nem használható, ha az eszköz zárolva van",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Üzenet",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "A Messages for Business nem használható",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Az üzenet nem nyitható meg Zárt módban"
+  },
+  "ru": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Это сообщение нельзя открыть в режиме блокировки. Режим можно выключить в Настройках.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Подробнее",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Невозможно использовать Messages for Business, пока устройство заблокировано",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 сообщение",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Приложение Messages for Business недоступно",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Невозможно открыть сообщение в режиме блокировки"
+  },
+  "it": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Non è possibile aprire questo messaggio in modalità di isolamento. Puoi disattivarla in Impostazioni.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Scopri di più",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Quando il dispositivo è in modalità di isolamento, non è possibile utilizzare Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 messaggio",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Impossibile utilizzare Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Impossibile aprire il messaggio in modalità di isolamento"
+  },
+  "el": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Δεν είναι δυνατό το άνοιγμα αυτού του μηνύματος κατά τη Λειτουργία απομόνωσης. Μπορείτε να απενεργοποιήσετε τη Λειτουργία απομόνωσης στις Ρυθμίσεις.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Μάθετε περισσότερα",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Δεν είναι δυνατή η χρήση του Messages for Business όταν η συσκευή βρίσκεται σε Λειτουργία απομόνωσης",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 μήνυμα",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Δεν είναι δυνατή η χρήση του Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Δεν είναι δυνατό το άνοιγμα μηνύματος κατά τη Λειτουργία απομόνωσης"
+  },
+  "es_419": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Este mensaje no se puede abrir durante el modo hermético, el cual puedes desactivar en Configuración.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Obtén detalles",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "No se puede usar Messages for Business si el dispositivo está en modo hermético",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "Un mensaje",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "No se puede usar Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "El mensaje no se puede abrir en el modo hermético"
+  },
+  "ca": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "El missatge no es pot obrir amb el mode d’aïllament activat. Pots desactivar‑lo a la configuració.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Més informació",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "L’Apple Messages for Business no es pot utilitzar amb el dispositiu en mode d’aïllament.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 missatge",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Error en utilitzar l’Apple Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "El mode d’aïllament no permet obrir el missatge"
+  },
+  "fr_CA": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Impossible d’ouvrir ce message en mode de confinement. Vous pouvez désactiver ce mode dans Réglages.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "En savoir plus",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Impossible d’utiliser Messages for Business quand l’appareil est en mode de confinement",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 message",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Impossible d’utiliser Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Impossible d’ouvrir le message en mode de confinement"
+  },
+  "zh_TW": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "無法在「封閉模式」中打開此訊息。你可以在「設定」中關閉「封閉模式」。",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "更多內容",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "裝置處於「封閉模式」時無法使用Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1則訊息",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "無法使用Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "無法在「封閉模式」中打開訊息"
+  },
+  "zh_HK": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "無法在「封鎖模式」中開啟此訊息。你可以在「設定」中關閉「封鎖模式」。",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "進一步了解",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "裝置處於「封鎖模式」時無法使用Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1個訊息",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "無法使用Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "無法在「封鎖模式」中開啟訊息"
+  },
+  "sv": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Det går inte att öppna det här meddelandet i Låst läge. Du kan stänga av Låst läge i Inställningar.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Läs mer",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Det går inte att använda Messages for Business när enheten är låst",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 meddelande",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Det går inte att använda Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Det går inte att öppna meddelandet i Låst läge"
+  },
+  "no": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Denne meldingen kan ikke åpnes i Sikringsmodus. Du kan slå av Sikringsmodus i Innstillinger.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Finn ut mer",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Kan ikke bruke Messages for Business når enheten er i sikringsmodus",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 melding",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Kan ikke bruke Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Kan ikke åpne melding i Sikringsmodus"
+  },
+  "hi": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "यह संदेश लॉकडाउन मोड में खोला नहीं जा सकता है। सेटिंग में जाकर आप लॉकडाउन मोड बंद कर ^[सकते हैं](inflect: true)।",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "अधिक जानें",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "डिवाइस लॉक डाउन होने पर Messages for Business का इस्तेमाल नहीं किया जा सकता है",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 संदेश",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Business का इस्तेमाल नहीं किया जा सकता है",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "लॉकडाउन मोड में संदेश खोला नहीं जा सकता"
+  },
+  "da": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Denne besked kan ikke åbnes i Nedlukningstilstand. Du kan slå Nedlukningstilstand fra i Indstillinger.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Læs mere",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Kan ikke bruge Messages for Business, når enheden er i Nedlukningstilstand",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 besked",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Kan ikke bruge Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Kan ikke åbne besked i Nedlukningstilstand"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "el": 1,
+    "es_419": 1,
+    "ca": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "no": 1,
+    "hi": 1,
+    "da": 1,
+    "en": 1,
+    "pl": 1,
+    "ar": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "cs": 1,
+    "ms": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "ro": 1,
+    "fr": 1,
+    "uk": 1,
+    "pt": 1,
+    "ja": 1,
+    "pt_PT": 1,
+    "hr": 1
+  },
+  "en": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "This message cannot be opened in Lockdown Mode. You can turn off Lockdown Mode in Settings.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Learn More",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Cannot use Messages for Business when device is locked down",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Message",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Cannot use Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Cannot open message in Lockdown Mode"
+  },
+  "pl": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Tej wiadomości nie można otworzyć w trybie blokady. Tryb ten możesz wyłączyć w Ustawieniach.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Więcej informacji",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Używanie Messages for Business jest niemożliwe, gdy urządzenie jest zablokowane",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 wiadomość",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Nie można użyć Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Tryb blokady uniemożliwia otwarcie wiadomości"
+  },
+  "ar": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "لا يمكن فتح هذه الرسالة في نمط المنع. يمكنك إيقاف نمط المنع في الإعدادات.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "لمعرفة المزيد",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "لا يمكن استخدام مراسلة الشركات عندما يكون الجهاز في وضع المنع",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "رسالة واحدة",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "لا يمكن استخدام مراسلة الشركات",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "لا يمكن فتح الرسائل في نمط المنع"
+  },
+  "th": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "ไม่สามารถเปิดข้อความนี้ได้ในโหมดล็อคดาวน์ คุณสามารถปิดใช้โหมดล็อคดาวน์ได้ในการตั้งค่า",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "เรียนรู้เพิ่มเติม",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "ไม่สามารถใช้ Messages for Business เมื่ออุปกรณ์อยู่ในโหมดล็อคดาวน์ได้",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 ข้อความ",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "ไม่สามารถใช้ Messages for Business ได้",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "ไม่สามารถเปิดข้อความได้ในโหมดล็อคดาวน์"
+  },
+  "zh_CN": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "锁定模式下无法打开此信息。你可以在“设置”中关闭锁定模式。",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "进一步了解",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "设备在锁定模式下无法使用Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1条信息",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "无法使用Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "无法在锁定模式下打开信息"
+  },
+  "en_GB": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "This message cannot be opened in Lockdown Mode. You can turn off Lockdown Mode in Settings.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Learn More",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Cannot use Messages for Business when device is locked down",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Message",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Cannot use Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Cannot open message in Lockdown Mode"
+  },
+  "es_US": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Este mensaje no se puede abrir durante el modo hermético, el cual puedes desactivar en Configuración.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Obtén detalles",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "No se puede usar Messages for Business si el dispositivo está en modo hermético",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "Un mensaje",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "No se puede usar Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "El mensaje no se puede abrir en el modo hermético"
+  },
+  "cs": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "V režimu blokování nelze zprávu otevřít. Tento režim můžete vypnout v Nastavení.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Další informace",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Na zamčeném zařízení nelze Messages for Business používat",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 zpráva",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Funkci Messages for Business nelze použít",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Zprávu nelze v režimu blokování otevřít"
+  },
+  "ms": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Mesej ini tidak boleh dibuka dalam Mod Penyekatan. Anda boleh menyahaktifkan Mod Penyekatan dalam Seting.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Ketahui Lanjut",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Tidak boleh menggunakan Messages for Business apabila peranti dalam mod penyekatan",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Mesej",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Tidak boleh menggunakan Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Tidak boleh membuka mesej dalam Mod Penyekatan"
+  },
+  "sk": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Túto správu nie je možné otvoriť v režime blokovania. Tento režim môžete vypnúť v Nastaveniach.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Viac informácií",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Službu Messages for Business nie je možné používať, keď je zariadenie uzamknuté.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 správa",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Nie je možné použiť Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Túto správu nie je možné otvoriť v režime blokovania"
+  },
+  "en_AU": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "This message cannot be opened in Lockdown Mode. You can turn off Lockdown Mode in Settings.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Learn More",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Cannot use Messages for Business when device is locked down",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Message",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Cannot use Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Cannot open message in Lockdown Mode"
+  },
+  "sl": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Tega sporočila ni mogoče odpreti v omejenem varnostnem načinu. Omejeni varnostni način lahko izklopite v Nastavitvah.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Več o tem",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Ko je naprava v omejenem varnostnem načinu, ni mogoče uporabiti storitve Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 sporočilo",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Ni mogoče uporabiti storitve Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "V omejenem varnostnem načinu ni mogoče odpreti sporočila"
+  },
+  "de": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Diese Nachricht kann nicht im Blockierungsmodus geöffnet werden. Du kannst den Blockierungsmodus in den Einstellungen deaktivieren.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Weitere Infos",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Messages for Business kann im Blockierungsmodus nicht verwendet werden.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Nachricht",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Business kann nicht verwendet werden",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Nachricht kann im Blockierungsmodus nicht geöffnet werden"
+  },
+  "vi": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Không thể mở tin nhắn này trong Chế độ phong tỏa. Bạn có thể tắt Chế độ phong tỏa trong Cài đặt.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Tìm hiểu thêm",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Không thể sử dụng Messages for Business khi thiết bị được phong tỏa",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 tin nhắn",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Không thể sử dụng Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Không thể mở tin nhắn trong Chế độ phong tỏa"
+  },
+  "es": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Este mensaje no se puede abrir en el modo de aislamiento. Ve a Ajustes para desactivarlo.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Más información",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "No se puede usar Apple Messages for Business cuando el dispositivo está en modo de aislamiento",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 mensaje",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "No se puede usar Apple Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "No se puede abrir este mensaje en el modo de aislamiento"
+  },
+  "ro": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Acest mesaj nu poate fi deschis în modul Izolare. Puteți dezactiva modul Izolare în Configurări.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Mai multe",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Funcționalitatea „Messages for Business” nu poate fi utilizată în modul Izolare",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 mesaj",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Funcționalitatea „Messages for Business” nu poate fi utilizată",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Mesajul nu poate fi deschis în modul Izolare"
+  },
+  "fr": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Ce message ne peut pas être ouvert en mode Isolement. Vous pouvez désactiver le mode Isolement dans Réglages.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "En savoir plus",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Impossible d’utiliser Messages for Business lorsque l’appareil est verrouillé",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 message",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Impossible d’utiliser Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Impossible d’ouvrir le message en mode Isolement"
+  },
+  "uk": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Це повідомлення не можна відкрити в режимі карантину. Режим карантину можна вимкнути в Параметрах.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Докладніше",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Не можна використовувати Apple Messages for Business, коли пристрій замкнено",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 повідомлення",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Apple Messages for Business недоступні",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "У режимі карантину не можна відкрити повідомлення"
+  },
+  "pt": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Não é possível abrir esta mensagem no Modo de Isolamento. Você pode desativar o Modo de Isolamento nos Ajustes.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Saiba Mais",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Não é possível usar Messages for Business quando o dispositivo está bloqueado",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 Mensagem",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Não é possível usar Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Não é possível abrir a mensagem no Modo de Isolamento"
+  },
+  "ja": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "ロックダウンモードではこのメッセージを開けません。ロックダウンモードは“設定”でオフにできます。",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "詳しい情報",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "デバイスがロックダウンされている場合はMessages for Businessを使用できません",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1件のメッセージ",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Messages for Businessを使用できません",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "ロックダウンモードではメッセージを開けません"
+  },
+  "pt_PT": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Não é possível abrir esta mensagem em modo de bloqueio. Pode desativar o modo de bloqueio nas Definições.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Saiba mais",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Não é possível usar Messages for Business quando o dispositivo está bloqueado",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 mensagem",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Não é possível usar Messages for Business",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Impossível abrir mensagem em modo de bloqueio"
+  },
+  "hr": {
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_MESSAGE": "Ova poruka ne može se otvoriti u modu zaključavanja. Isključite mod zaključavanja u Postavkama.",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_LEARN_MORE_BUTTON": "Saznajte više",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TEXT": "Poruke za poduzeća ne mogu se koristiti kad je uređaj zaključan",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ONE_ATTACHMENT": "1 poruka",
+    "LOCKDOWN_BIZ_CHAT_ALERT_TITLE": "Poruke za poduzeća ne mogu se koristiti",
+    "LOCKDOWN_ATTACHMENT_BALLOON_ALERT_TITLE": "Poruka se ne može otvoriti u modu zaključavanja"
+  }
+}

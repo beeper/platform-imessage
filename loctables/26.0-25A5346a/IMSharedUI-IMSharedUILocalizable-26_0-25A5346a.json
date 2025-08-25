@@ -1,0 +1,549 @@
+{
+  "ko": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@명",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "하하"
+  },
+  "he": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "אדם אחד",
+        "NSStringFormatValueTypeKey": "@",
+        "other": "‏%@ אנשים",
+        "two": "שני אנשים",
+        "many": "‏%@ אנשים",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "חחחח"
+  },
+  "id": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@ Orang",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "nl": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 persoon",
+        "other": "%@ personen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "tr": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 Kişi",
+        "other": "%@ Kişi",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "ru": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ человека",
+        "one": "%@ человек",
+        "other": "%@ человека",
+        "many": "%@ человек",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "ХАХА"
+  },
+  "hu": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 személy",
+        "other": "%@ személy",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "fi": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 henkilö",
+        "other": "%@ käyttäjää",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "it": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 persona",
+        "other": "%@ persone",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "AHAH"
+  },
+  "el": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 άτομο",
+        "other": "%@ άτομα",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "ΧΑΧΑ"
+  },
+  "es_419": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 persona",
+        "other": "%@ personas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "JAJA"
+  },
+  "ca": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 persona",
+        "other": "%@ persones",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "fr_CA": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 personne",
+        "other": "%@ personnes",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "zh_TW": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "哈哈"
+  },
+  "zh_HK": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@個人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "哈哈"
+  },
+  "ar": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "شخص واحد",
+        "few": "‏%@ أشخاص",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "many": "‏%@ شخصًا",
+        "two": "شخصين",
+        "other": "‏%@ شخص",
+        "NSStringFormatValueTypeKey": "@",
+        "zero": "‏%@ شخص"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "هاها"
+  },
+  "no": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 person",
+        "other": "%@ personer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "pl": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ osoby",
+        "one": "1 osoba",
+        "other": "%@ osoby",
+        "many": "%@ osób",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "hi": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "%@ व्यक्ति",
+        "other": "%@ लोग",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "हाहा"
+  },
+  "LocProvenance": {
+    "ko": 3,
+    "he": 3,
+    "id": 3,
+    "nl": 3,
+    "tr": 3,
+    "ru": 3,
+    "hu": 3,
+    "fi": 3,
+    "it": 3,
+    "el": 3,
+    "es_419": 3,
+    "ca": 3,
+    "fr_CA": 3,
+    "zh_TW": 3,
+    "zh_HK": 3,
+    "ar": 3,
+    "no": 3,
+    "pl": 3,
+    "hi": 3,
+    "en": 3,
+    "sv": 3,
+    "da": 3,
+    "th": 3,
+    "zh_CN": 3,
+    "en_GB": 3,
+    "es_US": 3,
+    "cs": 3,
+    "ms": 3,
+    "sk": 3,
+    "en_AU": 3,
+    "sl": 3,
+    "de": 3,
+    "vi": 3,
+    "es": 3,
+    "none": 0,
+    "fr": 3,
+    "uk": 3,
+    "ro": 3,
+    "pt": 3,
+    "hr": 3,
+    "ja": 3,
+    "pt_PT": 3
+  },
+  "en": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 Person",
+        "other": "%@ People",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "sv": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 person",
+        "other": "%@ personer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "da": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 person",
+        "other": "%@ personer",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "th": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@ คน",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "ฮ่าฮ่า"
+  },
+  "zh_CN": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "哈哈"
+  },
+  "en_GB": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 Person",
+        "other": "%@ People",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "es_US": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 persona",
+        "other": "%@ personas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "JAJA"
+  },
+  "cs": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ lidé",
+        "one": "1 člověk",
+        "other": "%@ lidí",
+        "many": "%@ člověka",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "ms": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@ Orang",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "sk": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ ľudia",
+        "one": "1 osoba",
+        "other": "%@ ľudí",
+        "many": "%@ osoby",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "en_AU": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 Person",
+        "other": "%@ People",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "sl": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ osebe",
+        "one": "%@ oseba",
+        "other": "%@ oseb",
+        "two": "%@ osebi",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "de": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 Person",
+        "other": "%@ Personen",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "vi": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@ người",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "es": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 persona",
+        "other": "%@ personas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "JAJA"
+  },
+  "uk": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ людини",
+        "one": "%@ людина",
+        "other": "%@ людини",
+        "many": "%@ людей",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "ХАХА"
+  },
+  "fr": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "%@ personne",
+        "other": "%@ personnes",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "ro": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ persoane",
+        "one": "1 persoană",
+        "other": "%@ de persoane",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "pt": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 Pessoa",
+        "other": "%@ Pessoas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "hr": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "few": "%@ osobe",
+        "one": "%@ osoba",
+        "other": "%@ osoba",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  },
+  "ja": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "other": "%@人",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "笑"
+  },
+  "pt_PT": {
+    "GROUPACK_PEOPLE_COUNT_LABEL": {
+      "people": {
+        "one": "1 pessoa",
+        "other": "%@ pessoas",
+        "NSStringFormatSpecTypeKey": "NSStringPluralRuleType",
+        "NSStringFormatValueTypeKey": "@"
+      },
+      "NSStringLocalizedFormatKey": "%#@people@"
+    },
+    "ACKNOWLEDGMENT_HAHA_NAME": "HAHA"
+  }
+}
