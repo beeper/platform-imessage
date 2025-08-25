@@ -73,6 +73,9 @@ enum LocalizedStrings {
     static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
     // "OK"
     static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
+    
+    // "Reply…"
+    static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
 }
 
 private enum MessageAction {
@@ -667,6 +670,42 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
         }
     }
+    
+    private func revealReplyTranscriptViaMenu() throws {
+        guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
+            throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
+        }
+        
+        log.debug("reveal: 1/5 showing the cell's menu")
+        try cell.showMenu()
+        Thread.sleep(forTimeInterval: 0.1)
+        
+        let targetTitle = LocalizedStrings.inlineReplyMenu
+        log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
+        
+        guard let menuItems = try? elements.menu.children() else {
+            throw ErrorMessage("reveal: couldn't query menu item children")
+        }
+        guard let replyMenuItem = menuItems.first(where: { menuItem in
+            guard let title = try? menuItem.title() else {
+                return false
+            }
+
+            let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
+            log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
+            return title == targetTitle
+        }) else {
+            throw ErrorMessage("reveal: couldn't find reply menu item")
+        }
+
+        log.debug("reveal: 3/5 found, pressing")
+        try replyMenuItem.press()
+        
+        log.debug("reveal: 4/5 sleeping for a bit")
+        Thread.sleep(forTimeInterval: 0.4)
+
+        log.debug("reveal: 5/5 done, proceeding with grabbing the cell")
+    }
 
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
@@ -688,7 +727,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             //         closeReplyTranscriptView(wait: true)
             //     }
             // }
-            if messageCell.overlay { try waitUntilReplyTranscriptVisible() }
+            if messageCell.overlay {
+                if #available(macOS 26, *) {
+                    try revealReplyTranscriptViaMenu()
+                }
+                try waitUntilReplyTranscriptVisible()
+            }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try messageCell.overlay
                     ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
@@ -1243,6 +1287,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if let threadID { try ensureSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
+                if #available(macOS 26, *) {
+                    try revealReplyTranscriptViaMenu()
+                }
                 try waitUntilReplyTranscriptVisible()
             }
             if Defaults.isSelectedThreadCellCompose() {
