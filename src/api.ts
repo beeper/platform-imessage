@@ -71,43 +71,37 @@ export default class AppleiMessage implements PlatformAPI {
    * actually propagate failure when permissions aren't granted, `login` is
    * used.
    */
-  private potentiallyUninitializedDB: DatabaseAPI | null = null
-
-  private get dbAPI(): DatabaseAPI {
-    if (!this.potentiallyUninitializedDB) {
-      throw new Error('imsg: tried to use api before proper authorization/initialization')
-    }
-
-    return this.potentiallyUninitializedDB!
-  }
+  private cachedDB: DatabaseAPI | null = null
 
   private asAPI = IS_BIG_SUR_OR_UP ? undefined : ASAPI()
 
   private onEvent: OnServerEventCallback | undefined
 
-  private async tryInitializingDB(): Promise<boolean> {
-    if (this.potentiallyUninitializedDB) {
-      texts.log('imsg: database already initialized, ignoring initDB() call')
-      return true
+  private async ensureDB(): Promise<DatabaseAPI> {
+    if (this.cachedDB) {
+      return this.cachedDB
     }
 
     try {
-      this.potentiallyUninitializedDB = await DatabaseAPI.make(this)
+      this.cachedDB = await DatabaseAPI.make(this)
     } catch (error: unknown) {
-      texts.error('imsg: error while attempting to initialize DatabaseAPI:', error)
-      return false
+      texts.error("imsg: couldn't initialize DatabaseAPI:", error)
+      throw error
     }
+    // at this point, we can definitely read the imsg database
 
     texts.log('imsg: created DatabaseAPI')
+
     // eslint-disable-next-line no-void
     void MessagesControllerWrapper.get()
     texts.log('imsg: fetched MessagesControllerWrapper')
     this.currentUser = await this.fetchCurrentUser()
-    return true
+
+    return this.cachedDB
   }
 
   private fetchCurrentUser = async (): Promise<CurrentUser> => {
-    const logins = await this.dbAPI.getAccountLogins()
+    const logins = await (await this.ensureDB()).getAccountLogins()
     const unprefixed = logins.map(mapAccountLogin).filter(Boolean)
     return {
       id: unprefixed[0] || 'default',
@@ -129,10 +123,13 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   login = async (): Promise<LoginResult> => {
-    const success = await this.tryInitializingDB()
-    return success
-      ? { type: 'success' }
-      : { type: 'error', errorMessage: 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.' }
+    try {
+      await this.ensureDB()
+      return { type: 'success' }
+    } catch (error) {
+      const errorMessage = 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.'
+      return { type: 'error', errorMessage }
+    }
   }
 
   private sipEnabled = csrStatus().then(status => {
@@ -160,9 +157,6 @@ export default class AppleiMessage implements PlatformAPI {
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
-    if (!await this.tryInitializingDB()) {
-      throw new ReAuthError('no access to iMessage data')
-    }
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
     this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
     if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
@@ -181,13 +175,14 @@ export default class AppleiMessage implements PlatformAPI {
     await Promise.all([
       MessagesControllerWrapper.dispose(),
       fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
-      this.dbAPI.dispose(),
+      this.cachedDB?.dispose(),
       this.asAPI?.dispose(),
     ])
   }
 
-  subscribeToEvents = (onEvent: OnServerEventCallback): void => {
-    this.dbAPI.eventSender = (events: ServerEvent[]) => {
+  subscribeToEvents = async (onEvent: OnServerEventCallback): Promise<void> => {
+    const db = await this.ensureDB()
+    db.eventSender = (events: ServerEvent[]) => {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
@@ -216,13 +211,14 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThread = async (hashedThreadID: ThreadID) => {
+    const db = await this.ensureDB()
     const threadID = originalThreadID(hashedThreadID)
-    const chatRow = await this.dbAPI.getThread(threadID)
+    const chatRow = await db.getThread(threadID)
     if (!chatRow) return
     const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
-      this.dbAPI.getThreadParticipants(chatRow.ROWID),
-      this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
-      this.dbAPI.getUnreadCounts(),
+      db.getThreadParticipants(chatRow.ROWID),
+      db.fetchLastMessageRows(chatRow.ROWID),
+      db.getUnreadCounts(),
       getDNDState(),
     ])
     return hashThread(mapThread(
@@ -243,14 +239,15 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private catalinaCreateThread = async (userIDs: string[]) => {
+    const db = await this.ensureDB()
     const threadID = await this.asAPI!.createThread(userIDs)
     await setTimeoutAsync(10)
-    const [chatRow] = await this.dbAPI.getThreadWithWait(threadID)
+    const [chatRow] = await db.getThreadWithWait(threadID)
     if (!chatRow) throw new Error("couldn't find newly created thread")
     const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
-      this.dbAPI.getThreadParticipantsWithWait(chatRow, userIDs),
-      this.dbAPI.fetchLastMessageRows(chatRow.ROWID),
-      this.dbAPI.getUnreadCounts(),
+      db.getThreadParticipantsWithWait(chatRow, userIDs),
+      db.fetchLastMessageRows(chatRow.ROWID),
+      db.getUnreadCounts(),
       getDNDState(),
     ])
     if (handleRows.length < 1) throw new Error('newly created thread had no handles')
@@ -310,6 +307,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
+    const db = await this.ensureDB()
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     if (folderName !== InboxName.NORMAL) {
@@ -321,7 +319,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const cursor = pagination?.cursor ?? null
     if (texts.isLoggingEnabled) console.time('imsg dbapi')
-    const chatRows = await this.dbAPI.getThreads(pagination)
+    const chatRows = await db.getThreads(pagination)
     if (texts.isLoggingEnabled) console.timeEnd('imsg dbapi')
     const mapMessageArgsMap: { [chatGUID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] } = {}
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
@@ -329,15 +327,15 @@ export default class AppleiMessage implements PlatformAPI {
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
     const [, , chatImagesRows, unreadCounts, dndState] = await Promise.all([
       Promise.all(chatRows.map(async chat => {
-        const [msgRows, attachmentRows, reactionRows] = await this.dbAPI.fetchLastMessageRows(chat.ROWID)
+        const [msgRows, attachmentRows, reactionRows] = await db.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
         mapMessageArgsMap[chat.guid] = [msgRows, attachmentRows, reactionRows]
       })),
       Promise.all(chatRows.map(async chat => {
-        handleRowsMap[chat.guid] = await this.dbAPI.getThreadParticipants(chat.ROWID)
+        handleRowsMap[chat.guid] = await db.getThreadParticipants(chat.ROWID)
       })),
-      IS_BIG_SUR_OR_UP ? this.dbAPI.getChatImages() : [],
-      this.dbAPI.getUnreadCounts(),
+      IS_BIG_SUR_OR_UP ? db.getChatImages() : [],
+      db.getUnreadCounts(),
       getDNDState(),
     ])
     if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
@@ -373,7 +371,7 @@ export default class AppleiMessage implements PlatformAPI {
       lowPriorityStates: this.batchGetThreadPropForChatRows(chatRows, 'lowPriority'),
     })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
-    if (!cursor) this.dbAPI.setLastCursor(allMsgRows)
+    if (!cursor) db.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
@@ -384,14 +382,15 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
+    const db = await this.ensureDB()
     const threadID = originalThreadID(hashedThreadID)
-    const msgRows = await this.dbAPI.getMessages(threadID, pagination)
+    const msgRows = await db.getMessages(threadID, pagination)
     if (pagination?.direction !== 'after') msgRows.reverse()
     const msgRowIDs = msgRows.map(m => m.ROWID)
     const msgGUIDs = msgRows.map(m => m.guid)
     const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
-      this.dbAPI.getAttachments(msgRowIDs),
-      this.dbAPI.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }),
+      db.getAttachments(msgRowIDs),
+      db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }),
     ])
     const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
@@ -402,13 +401,14 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
+    const db = await this.ensureDB()
     const threadID = originalThreadID(hashedThreadID)
     const [messageGUID] = messageID.split('_')
-    const msgRow = await this.dbAPI.getMessage(messageGUID)
+    const msgRow = await db.getMessage(messageGUID)
     if (!msgRow) return
     const [attachmentRows, reactionRows] = await Promise.all([
-      this.dbAPI.getAttachments([msgRow.ROWID]),
-      this.dbAPI.getMessageReactions([msgRow.guid], { type: 'guid', guid: threadID }),
+      db.getAttachments([msgRow.ROWID]),
+      db.getMessageReactions([msgRow.guid], { type: 'guid', guid: threadID }),
     ])
     const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser!.id)
     const message = items.find(i => i.id === messageID)
@@ -417,16 +417,17 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
+    const db = await this.ensureDB()
     const hashedThreadID = options?.threadID
     const threadID = hashedThreadID ? originalThreadID(hashedThreadID) : hashedThreadID
 
     const mediaOnly = Boolean(options?.mediaType)
-    const msgRows = await this.dbAPI.searchMessages(typed, threadID, mediaOnly, pagination, options?.sender)
+    const msgRows = await db.searchMessages(typed, threadID, mediaOnly, pagination, options?.sender)
     const msgRowIDs = msgRows.map(m => m.ROWID)
     const msgGUIDs = msgRows.map(m => m.guid)
     const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
-      this.dbAPI.getAttachments(msgRowIDs),
-      threadID ? this.dbAPI.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
+      db.getAttachments(msgRowIDs),
+      threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
     const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
@@ -465,7 +466,8 @@ export default class AppleiMessage implements PlatformAPI {
     })
 
   private waitForMessageSend = async (threadID: ThreadID, quotedMessageID: MessageID | undefined, text: string | undefined, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
-    const lastRowID = await this.dbAPI.getLastMessageRowID()
+    const db = await this.ensureDB()
+    const lastRowID = await db.getLastMessageRowID()
     await callback()
     let sentMessageIDs: [number, string][] | undefined
     const startTime = Date.now()
@@ -474,13 +476,13 @@ export default class AppleiMessage implements PlatformAPI {
     const expectedNewMessageIDCount = links?.length || 1
     const waitForLinksTimeout = 1_500
     while (sentMessageIDs?.length !== expectedNewMessageIDCount) {
-      sentMessageIDs = await this.dbAPI.getSentMessageIDsSince(lastRowID)
+      sentMessageIDs = await db.getSentMessageIDsSince(lastRowID)
       // at least one message sent, but not `expectedNewMessageIDCount`
       if (text && sentMessageIDs.length > 0 && (Date.now() - startTime) > waitForLinksTimeout) break
       if ((Date.now() - startTime) > timeoutMs) throw Error('timed out waiting for sent messages')
       await setTimeoutAsync(25)
     }
-    const getSentThreadIDs = () => Promise.all(sentMessageIDs.map(([rowID]) => this.dbAPI.getThreadIDForMessageRowID(rowID)))
+    const getSentThreadIDs = () => Promise.all(sentMessageIDs.map(([rowID]) => db.getThreadIDForMessageRowID(rowID)))
     let sentThreadIDs = await getSentThreadIDs()
     const start = Date.now()
     while (sentThreadIDs.some(t => !t)) {
@@ -606,6 +608,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private getMessageCell = async (threadID: ThreadID, messageID: MessageID, useOverlay = true): Promise<MessageCell> => {
+    const db = await this.ensureDB()
     // ogMessageJSON is
     // const [msgID, part] = messageID.split('_', 2)
     // const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
@@ -638,7 +641,7 @@ export default class AppleiMessage implements PlatformAPI {
     const overlay = useOverlay && IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
     const closestMessage: AXMessageSelection = overlay
       ? { messageGUID: messageID, offset: 0, cellID: IS_SONOMA_OR_UP ? null : msgRow.balloon_bundle_id, cellRole: null }
-      : await this.dbAPI.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
+      : await db.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
     return { ...closestMessage, overlay } as MessageCell
   }
 
@@ -693,15 +696,16 @@ export default class AppleiMessage implements PlatformAPI {
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
+    const db = await this.ensureDB()
     const threadID = originalThreadID(hashedThreadID)
     if (IS_BIG_SUR_OR_UP) {
       await pRetry(async () => {
-        const isRead = await this.dbAPI.isThreadRead(threadID)
+        const isRead = await db.isThreadRead(threadID)
         if (isRead) return
         await this.toggleThreadRead(true)(hashedThreadID)
         if (!IS_VENTURA_OR_UP) {
           await setTimeoutAsync(50)
-          if (!await this.dbAPI.isThreadRead(threadID)) {
+          if (!await db.isThreadRead(threadID)) {
             this.threadReadStore?.markThreadRead(threadID, messageID)
             throw new Error('toggleThreadRead failed')
           }
@@ -803,7 +807,7 @@ export default class AppleiMessage implements PlatformAPI {
   //   }
 
   private proxiedAuthFns = {
-    isMessagesAppSetup: () => this.tryInitializingDB(),
+    isMessagesAppSetup: () => this.ensureDB().then(() => true, () => false),
     canAccessMessagesDir,
     askForAutomationAccess: () => (this.asAPI
       ? this.asAPI!.askForAutomationAccess()
@@ -923,6 +927,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   archiveThread = async (hashedThreadID: string, archived: boolean) => {
+    const db = await this.ensureDB()
     // wait for any pending message sends/reactions before archiving. the
     // phaser has an artificial delay, which was introduced in the hopes that
     // the latest message id is used
@@ -944,14 +949,14 @@ export default class AppleiMessage implements PlatformAPI {
 
       let newArchivalOrder: number | undefined
       let persistedArchivedAt: AppleDate | undefined
-      const latestMessage = await this.dbAPI.getLatestMessage(chatGUID)
+      const latestMessage = await db.getLatestMessage(chatGUID)
       if (latestMessage) {
         newArchivalOrder = appleDateToMillisSinceEpoch(latestMessage.dateString)
         persistedArchivedAt = latestMessage.dateString
 
         texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${latestMessage.dateString})`)
 
-        if (!(await this.dbAPI.isThreadRead(chatGUID))) {
+        if (!(await db.isThreadRead(chatGUID))) {
           texts.log(`imsg/archive/${hashedThreadID}: being archived but is unread, marking it as read first`)
           // NOTE(skip): marking the thread as read might cause the Swift poller
           // to detect unread changes and state sync
