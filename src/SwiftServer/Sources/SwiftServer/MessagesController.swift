@@ -502,6 +502,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     case .appShown: printLifecycle(event: "APP shown")
                     case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
                     case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
+                    case .focusedUIElementChanged:
+                        printLifecycle(event: "FOCUSED UI ELEMENT changed")
+#if DEBUG
+                        var focusedDescription = ""
+                        try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
+                        printLifecycle(event: "FOCUSED: \(focusedDescription)")
+#endif
                     case .windowCreated:
                         // for now, reset our window-local observations whenever we
                         // see that a window was created (even if it was just e.g.
