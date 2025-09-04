@@ -3,6 +3,7 @@ import ApplicationServices
 
 public extension Accessibility.Notification {
     static let layoutChanged = Self(kAXLayoutChangedNotification)
+    static let focusedUIElementChanged = Self(kAXFocusedUIElementChangedNotification)
     static let applicationActivated = Self(kAXApplicationActivatedNotification)
     static let applicationDeactivated = Self(kAXApplicationDeactivatedNotification)
     static let applicationShown = Self(kAXApplicationShownNotification)

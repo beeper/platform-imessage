@@ -67,6 +67,7 @@ public extension Accessibility.Names {
     var appWindows: AttributeName<[Accessibility.Element]> { .init(kAXWindowsAttribute) }
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
     var appFocusedWindow: AttributeName<Accessibility.Element> { .init(kAXFocusedWindowAttribute) }
+    var focusedElement: AttributeName<Accessibility.Element> { .init(kAXFocusedUIElementAttribute) }
 
     // Window-specific
     var windowIsMain: MutableAttributeName<Bool> { .init(kAXMainAttribute) }
