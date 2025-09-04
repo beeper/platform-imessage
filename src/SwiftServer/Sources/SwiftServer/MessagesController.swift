@@ -239,12 +239,27 @@ final class MessagesController {
     }
 
     @discardableResult
-    static func openDeepLink(_ url: URL, withoutActivation: Bool = true) throws -> NSRunningApplication {
-        return try NSWorkspace.shared.open(
-            url,
-            options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
-            configuration: [:]
-        )
+    static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
+        var openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = hiding
+        
+        var horribleWaiter = DispatchSemaphore(value: 0)
+        var result: Result<NSRunningApplication, Error>?
+        NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
+#if DEBUG
+            log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+#endif
+            if let error {
+                result = .failure(error)
+            } else {
+                result = .success(running!)
+            }
+            horribleWaiter.signal()
+        }
+        horribleWaiter.wait()
+        
+        return try result!.get()
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -390,7 +405,8 @@ final class MessagesController {
                 Thread.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
+            // TODO macos26
+            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation, hiding: false)
         }
 
         var messagesApps = Self.getRunningMessagesApps()
