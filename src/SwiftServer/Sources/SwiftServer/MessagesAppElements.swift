@@ -2,6 +2,7 @@ import AppKit
 import AccessibilityControl
 import SwiftServerFoundation
 import Logging
+import BetterSwiftAXAdditions
 
 private let log = Logger(swiftServerLabel: "app-elements")
 
