@@ -1,5 +1,18 @@
+import Carbon.HIToolbox.Events
 import AccessibilityControl
-import ApplicationServices
+import SwiftServerFoundation
+
+public extension Accessibility.Notification {
+    static let layoutChanged = Self(kAXLayoutChangedNotification)
+    static let applicationActivated = Self(kAXApplicationActivatedNotification)
+    static let applicationDeactivated = Self(kAXApplicationDeactivatedNotification)
+    static let applicationShown = Self(kAXApplicationShownNotification)
+    static let applicationHidden = Self(kAXApplicationHiddenNotification)
+    static let windowMoved = Self(kAXWindowMovedNotification)
+    static let windowResized = Self(kAXWindowResizedNotification)
+    static let windowCreated = Self(kAXWindowCreatedNotification)
+    static let titleChanged = Self(kAXTitleChangedNotification)
+}
 
 // refer to AXAttributeConstants.h
 // https://gist.github.com/p6p/24fbac5d12891fcfffa2b53761f4343e
@@ -13,10 +26,6 @@ public extension Accessibility.Names {
     // ["SectionObject": <AXUIElement 0x60000387e160> {pid=16768}, "SectionUniqueID": 11266711619528580561, "SectionDescription": Messages]
     var sections: AttributeName<[[String: CFTypeRef]]> { "AXSections" }
     var parent: AttributeName<Accessibility.Element> { .init(kAXParentAttribute) }
-    var valueDescription: AttributeName<Any> { .init(kAXValueDescriptionAttribute) }
-
-    var isExpanded: AttributeName<Bool> { .init(kAXExpandedAttribute) }
-    var isHidden: AttributeName<Bool> { .init(kAXHiddenAttribute) }
 
     // this wont work without the com.apple.private.accessibility.inspection entitlement
     // https://stackoverflow.com/questions/45590888/how-to-get-the-objective-c-class-name-corresponding-to-an-axuielement
@@ -36,17 +45,12 @@ public extension Accessibility.Names {
     var role: AttributeName<String> { .init(kAXRoleAttribute) }
     var subrole: AttributeName<String> { .init(kAXSubroleAttribute) }
     var roleDescription: AttributeName<String> { .init(kAXRoleDescriptionAttribute) }
-    var help: AttributeName<String> { .init(kAXHelpAttribute) }
 
     var noOfChars: AttributeName<Int> { .init(kAXNumberOfCharactersAttribute) }
 
     var isSelected: MutableAttributeName<Bool> { .init(kAXSelectedAttribute) }
     var isFocused: MutableAttributeName<Bool> { .init(kAXFocusedAttribute) }
     var isEnabled: AttributeName<Bool> { .init(kAXEnabledAttribute) }
-
-    var selectedRows: AttributeName<[AXUIElement]> { .init(kAXSelectedRowsAttribute) }
-    var selectedColumns: AttributeName<[AXUIElement]> { .init(kAXSelectedColumnsAttribute) }
-    var selectedCells: AttributeName<[AXUIElement]> { .init(kAXSelectedCellsAttribute) }
 
     // https://developer.apple.com/documentation/applicationservices/axactionconstants_h/miscellaneous_defines
     var press: ActionName { .init(kAXPressAction) }
@@ -56,25 +60,91 @@ public extension Accessibility.Names {
 
     var increment: ActionName { .init(kAXIncrementAction) }
 
-#if DEBUG
+    #if DEBUG
     var decrement: ActionName { .init(kAXDecrementAction) }
 
     var minValue: AttributeName<Any> { .init(kAXMinValueAttribute) }
     var maxValue: AttributeName<Any> { .init(kAXMaxValueAttribute) }
-#endif
+    #endif
 
     // App-specific
     var appWindows: AttributeName<[Accessibility.Element]> { .init(kAXWindowsAttribute) }
     var appMainWindow: AttributeName<Accessibility.Element> { .init(kAXMainWindowAttribute) }
     var appFocusedWindow: AttributeName<Accessibility.Element> { .init(kAXFocusedWindowAttribute) }
-    var focusedElement: AttributeName<Accessibility.Element> { .init(kAXFocusedUIElementAttribute) }
 
     // Window-specific
-    var windowIsMain: MutableAttributeName<Bool> { .init(kAXMainAttribute) }
-    var windowIsModal: AttributeName<Bool> { .init(kAXModalAttribute) }
     var windowIsMinimized: MutableAttributeName<Bool> { .init(kAXMinimizedAttribute) }
     var windowIsFullScreen: MutableAttributeName<Bool> { "AXFullScreen" }
     var windowCloseButton: AttributeName<Accessibility.Element> { .init(kAXCloseButtonAttribute) }
-    var windowDefaultButton: AttributeName<Accessibility.Element> { .init(kAXDefaultButtonAttribute) }
-    var windowCancelButton: AttributeName<Accessibility.Element> { .init(kAXCancelButtonAttribute) }
+}
+
+public extension Accessibility.Element {
+    var isValid: Bool {
+        (try? pid()) != nil
+    }
+
+    var isFrameValid: Bool {
+        (try? self.frame()) != nil
+    }
+
+    var isInViewport: Bool {
+        (try? self.frame()) != CGRect.null
+    }
+
+    // breadth-first, seems faster than dfs
+    func recursiveChildren() -> AnySequence<Accessibility.Element> {
+        AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
+            guard !queue.isEmpty else { return nil }
+            let elt = queue.removeFirst()
+            if let children = try? elt.children() {
+                queue.append(contentsOf: children)
+            }
+            return elt
+        })
+    }
+
+    func recursiveSelectedChildren() -> AnySequence<Accessibility.Element> {
+        AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
+            guard !queue.isEmpty else { return nil }
+            let elt = queue.removeFirst()
+            if let selectedChildren = try? elt.selectedChildren() {
+                queue.append(contentsOf: selectedChildren)
+            }
+            return elt
+        })
+    }
+
+    func recursivelyFindChild(withID id: String) -> Accessibility.Element? {
+        recursiveChildren().lazy.first {
+            (try? $0.identifier()) == id
+        }
+    }
+
+    func setFrame(_ frame: CGRect) throws {
+        DispatchQueue.concurrentPerform(iterations: 2) { i in
+            switch i {
+            case 0:
+                try? self.position(assign: frame.origin)
+            case 1:
+                try? self.size(assign: frame.size)
+            default:
+                break
+            }
+        }
+    }
+
+    func closeWindow() throws {
+        guard let closeButton = try? self.windowCloseButton() else {
+            throw ErrorMessage("window close button not found")
+        }
+        try closeButton.press()
+    }
+}
+
+extension Accessibility.Element {
+    func firstChild(withRole role: KeyPath<AXRole.Type, String>) -> Accessibility.Element? {
+        try? self.children().first { child in
+            (try? child.role()) == AXRole.self[keyPath: role]
+        }
+    }
 }

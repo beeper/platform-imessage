@@ -35,7 +35,6 @@ let package = Package(
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
                 "IMDatabase",
-                "BetterSwiftAXAdditions",
                 .product(name: "Collections", package: "swift-collections"),
             ],
 
@@ -75,7 +74,6 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "BetterSwiftAX",
-                "BetterSwiftAXAdditions",
                 "SwiftServerFoundation",
             ]
         ),
@@ -84,13 +82,6 @@ let package = Package(
         .target(
             name: "CUnfairLock",
             dependencies: []
-        ),
-        .target(
-            name: "BetterSwiftAXAdditions",
-            dependencies: [
-                "BetterSwiftAX",
-                "SwiftServerFoundation",
-            ],
         ),
         .target(
             name: "SwiftServerFoundation",

@@ -2,8 +2,10 @@
 --swiftversion 6
 --header strip
 --indent 4
---disable spaceAroundOperators,unusedArguments,wrapConditionalBodies,wrapLoopBodies,redundantSelf
+--disable spaceAroundOperators,unusedArguments,wrapConditionalBodies,wrapLoopBodies
 --wraparguments before-first
 --ifdef outdent
+--self init-only
+--selfrequired info,debug,notice,warning,warn,error,critical,fault,trace
 --hexliteralcase lowercase
 --decimalgrouping 3,4

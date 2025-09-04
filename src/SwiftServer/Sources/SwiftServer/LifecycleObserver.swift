@@ -10,7 +10,6 @@ private let log = Logger(swiftServerLabel: "lifecycle.observer")
 final class LifecycleObserver {
     private(set) var events = Topic<Event>()
     private(set) var lastLayoutChange = Protected<Date?>()
-    private(set) var lastFocusedUIElementChange = Protected<Date?>()
 
     private var activateToken: Accessibility.Observer.Token?
     private var deactivateToken: Accessibility.Observer.Token?
@@ -23,7 +22,6 @@ final class LifecycleObserver {
 
     private var titleChangedToken: Accessibility.Observer.Token?
     private var layoutChangedToken: Accessibility.Observer.Token?
-    private var focusedUIElementChangedToken: Accessibility.Observer.Token?
 
     init() {}
 }
@@ -58,10 +56,6 @@ extension LifecycleObserver {
             lastLayoutChange?.withLock { $0 = Date() }
         }
 #if DEBUG
-        focusedUIElementChangedToken = try app.observe(.focusedUIElementChanged) { [weak lastFocusedUIElementChange, weak events] _ in
-            events?.broadcast(.focusedUIElementChanged)
-            lastFocusedUIElementChange?.withLock { $0 = Date() }
-        }
         titleChangedToken = try app.observe(.titleChanged) { info in
             do {
                 let windows = try app.appWindows().compactMap { try? $0.title() }
@@ -94,7 +88,6 @@ extension LifecycleObserver {
         case appHidden
         case appShown
         case windowCreated
-        case focusedUIElementChanged
         case anyObservedWindowMoved
         case anyObservedWindowResized
     }

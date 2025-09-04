@@ -1,7 +1,6 @@
 import AccessibilityControl
 import AppKit
 import ArgumentParser
-import BetterSwiftAXAdditions
 import Foundation
 import Logging
 import SwiftServerFoundation
@@ -35,20 +34,7 @@ extension AXTool {
     struct Dump: ParsableCommand {
         @OptionGroup var options: AXTool.Options
 
-        @Argument(help: "The bundle identifier of the app to target.")
-        var bundleID: String
-        
-        @Flag(name: [.customShort("s"), .customLong("no-sections")], help: "Skips dumping sections.")
-        var excludeSections = false
-        
-        @Flag(name: [.customLong("no-actions")], help: "Skips dumping actions.")
-        var excludeActions = false
-        
-        @Option(name: [.customShort("x"), .customLong("exclude-role")], help: "Skips dumping UI elements with the given role.")
-        var excludedRoles = [String]()
-        
-        @Option(name: [.customShort("a"), .customLong("exclude-attribute")], help: "Skips dumping the named UI element attribute.")
-        var excludedAttributes = Array(XMLDumper.defaultExcludedAttributes)
+        @Argument(help: "The bundle identifier of the app to target.") var bundleID: String
 
         mutating func run() throws {
             bootstrap(logLevel: options.logLevel)
@@ -57,17 +43,8 @@ extension AXTool {
                 Self.exit(withError: ErrorMessage("Found no running applications with the bundle identifier \"\(bundleID)\"."))
             }
             let app = Accessibility.Element(pid: runningApp.processIdentifier)
-            
-            var output = ""
-            print("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>", to: &output)
-            try app.dumpXML(
-                to: &output,
-                excludingElementsWithRoles: Set(excludedRoles),
-                excludingAttributes: Set(excludedAttributes),
-                includeActions: !excludeActions,
-                includeSections: !excludeSections,
-            )
-            print(output)
+            print("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>")
+            try app.axTool_dump()
         }
     }
 }

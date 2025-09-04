@@ -60,15 +60,11 @@ export default class MessagesControllerWrapper {
     pRetry(async () => {
       let { controller } = MessagesControllerWrapper
       if (!controller) {
-        texts.log('imsg: [getMessagesController] creating MessagesController...')
+        texts.log('creating MessagesController...')
         controller = await timeoutAndReport(messagesControllerClass.create()) // can throw
         MessagesControllerWrapper.controller = controller
       }
-
-      const controllerValid = await controller.isValid()
-      const isForcingInvalidation = MessagesControllerWrapper.forceInvalidate
-      if (!controllerValid || isForcingInvalidation) {
-        texts.log(`imsg: [getMessagesController] DISPOSING MessagesController (valid? ${controllerValid}, invalidation forced? ${isForcingInvalidation})`)
+      if (!(await controller.isValid()) || MessagesControllerWrapper.forceInvalidate) {
         texts.trackPlatformEvent({
           platform: 'imessage',
           message: 'disposing MessagesController',
@@ -83,8 +79,8 @@ export default class MessagesControllerWrapper {
     }, {
       retries: 3,
       onFailedAttempt: err => {
-        texts.error('imsg: [getMessagesController] errored while trying to get controller:', err)
-        texts.log('imsg: [getMessagesController] retrying...')
+        texts.error('[imessage] getMessagesController', err)
+        texts.log('retrying...')
         texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
       },
     })
