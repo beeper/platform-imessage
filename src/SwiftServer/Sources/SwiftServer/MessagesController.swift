@@ -673,34 +673,55 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
     
     private func revealReplyTranscriptViaMenu() throws {
-        guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
-            throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
-        }
-        
-        log.debug("reveal: 1/5 showing the cell's menu")
-        try cell.showMenu()
-        Thread.sleep(forTimeInterval: 0.1)
-        
-        let targetTitle = LocalizedStrings.inlineReplyMenu
-        log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
-        
-        guard let menuItems = try? elements.menu.children() else {
-            throw ErrorMessage("reveal: couldn't query menu item children")
-        }
-        guard let replyMenuItem = menuItems.first(where: { menuItem in
-            guard let title = try? menuItem.title() else {
-                return false
+        do {
+            let window = NSApp.largestElectronWindow
+            let previousLevel = window?.level
+            if let window {
+                let higherLevel = NSWindow.Level(Int(CGWindowLevelForKey(.draggingWindow)))
+                log.debug("reveal: elevating window to level \(higherLevel) (currently: \(window.level))")
+                window.level = higherLevel
+            }
+            defer {
+                if let window, let previousLevel {
+                    log.debug("reveal: lowering window to previous level \(previousLevel)")
+                    window.level = previousLevel
+                }
+            }
+            
+            try Self.queue.sync {
+                guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
+                    throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
+                }
+
+                Thread.sleep(forTimeInterval: 1.0)
+                log.debug("reveal: 1/5 showing the cell's menu")
+                try cell.showMenu()
+                Thread.sleep(forTimeInterval: 0.1)
+                
+                let targetTitle = LocalizedStrings.inlineReplyMenu
+                log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
+                
+                guard let menuItems = try? elements.menu.children() else {
+                    throw ErrorMessage("reveal: couldn't query menu item children")
+                }
+                guard let replyMenuItem = menuItems.first(where: { menuItem in
+                    guard let title = try? menuItem.title() else {
+                        return false
+                    }
+                    
+                    let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
+                    log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
+                    return title == targetTitle
+                }) else {
+                    throw ErrorMessage("reveal: couldn't find reply menu item")
+                }
+                
+                log.debug("reveal: 3/5 found, pressing")
+                try replyMenuItem.press()
+
             }
 
-            let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
-            log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
-            return title == targetTitle
-        }) else {
-            throw ErrorMessage("reveal: couldn't find reply menu item")
         }
-
-        log.debug("reveal: 3/5 found, pressing")
-        try replyMenuItem.press()
         
         log.debug("reveal: 4/5 sleeping for a bit")
         Thread.sleep(forTimeInterval: 0.4)
