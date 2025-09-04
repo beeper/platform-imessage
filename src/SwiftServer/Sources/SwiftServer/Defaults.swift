@@ -31,7 +31,7 @@ enum DefaultsKeys {
 
     /** ensures that we've correctly selected threads before trying to interact with them */
     static let misfirePrevention = "BEEPMisfirePrevention"
-    /** what we do when we can't read mobilesms defaults (`title-prediction` or `layout-waiter`) */
+    /** what we do when we can't read mobilesms defaults (`title-prediction`, `layout-waiter`, or `focus-waiter`) */
     static let misfirePreventionFallbackStrategy = "BEEPMisfirePreventionFallbackStrategy"
     /** whether to always attempt the fallback strat, even if we have defaults access */
     static let misfirePreventionAlwaysFallback = "BEEPMisfirePreventionAlwaysFallback"
@@ -123,7 +123,7 @@ enum Defaults {
             DefaultsKeys.pollActivityStatus: true,
 
             DefaultsKeys.misfirePrevention: true,
-            DefaultsKeys.misfirePreventionFallbackStrategy: "layout-waiter",
+            DefaultsKeys.misfirePreventionFallbackStrategy: "focus-waiter",
             // 0.3 (300ms) might be faster, but let's be conservative
             DefaultsKeys.misfirePreventionSleepInterval: 0.5,
             DefaultsKeys.imCoreSPI: true,

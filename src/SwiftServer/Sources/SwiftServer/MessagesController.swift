@@ -289,18 +289,18 @@ final class MessagesController {
                 throw ErrorMessage("misfire prevention: desired thread is not selected")
             }
         }
-
-        func ensureSelectedThreadViaLayoutWaiter() throws {
-            guard let lastLayoutChange = lifecycleObserver.lastLayoutChange.read() else {
-                throw ErrorMessage("misfire prevention: layout hasn't changed at all")
+        
+        func ensureSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
+            guard let lastChange = date.read() else {
+                throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
-
+            
             let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
-            guard lastLayoutChange > beganEnsuringThreadSelection else {
-                throw ErrorMessage("misfire prevention: layout hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
+            guard lastChange > beganEnsuringThreadSelection else {
+                throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
             }
 
-            log.debug("misfire prevention: 📐 layout changed \(lastLayoutChange.iso8601Formatted) (waited \(waitingTime) overall)")
+            log.debug("misfire prevention: \(emoji) \(type) changed \(lastChange.iso8601Formatted) (waited \(waitingTime) overall)")
         }
 
         var attempt = 0
@@ -332,11 +332,14 @@ final class MessagesController {
                     }
 
                     return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
+                case "focus-waiter":
+                    // wait until Accessibility posts a notification staging that the focused element has changed.
+                    try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastFocusedUIElementChange, type: "focus", emoji: "👆")
                 case "layout-waiter":
                     // wait until Accessibility posts a notification stating that the layout has changed.
                     // this happens very frequently, for example after changing the active chat (what we specifically want to know about)
                     // or even scrolling the chat list
-                    try ensureSelectedThreadViaLayoutWaiter()
+                    try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastLayoutChange, type: "layout", emoji: "📐")
                 default:
                     var sleepInterval = Defaults.swiftServer.double(forKey: DefaultsKeys.misfirePreventionSleepInterval)
                     if sleepInterval <= 0.0 { sleepInterval = 0.5 }
