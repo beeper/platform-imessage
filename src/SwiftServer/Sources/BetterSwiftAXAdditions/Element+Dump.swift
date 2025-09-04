@@ -13,28 +13,54 @@ private func printAttribute(to output: inout some TextOutputStream, name: String
     print("\(name)=\(valueEscaped.quoted)", terminator: omitTrailingSpace ? "" : " ", to: &output)
 }
 
-extension Accessibility.Element {
-    func dumpXML(to output: inout some TextOutputStream, indent: Int = 0, shallow: Bool = false, preamble: String? = nil) throws {
-        let whitespace = String(repeating: "  ", count: indent)
+public struct XMLDumper {
+    public static let defaultExcludedAttributes: Set<String> = [
+        // children are printed specially, so we don't need to print them out as attributes
+        "AXChildren", "AXChildrenInNavigationOrder",
 
-        guard let role = try? self.role() else {
+        // avoid redundantly printing parent elements, which can quickly bloat the result
+        "AXTopLevelUIElement", "AXMenuItemPrimaryUIElement", "AXParent", "AXWindow",
+    ]
+
+    var indentation = "  "
+    var excludedRoles: Set<String> = []
+    var excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes
+    var includeActions = true
+    var includeSections = true
+
+    func dump(
+        _ element: Accessibility.Element,
+        to output: inout some TextOutputStream,
+        indent: Int = 0,
+        shallow: Bool = false,
+        preamble: String? = nil,
+    ) throws {
+        let whitespace = String(repeating: indentation, count: indent)
+
+        guard let role = try? element.role() else {
             print(whitespace + "⚠️ couldn't obtain role, skipping (\(self))".asComment, to: &output)
             return
         }
+
+        guard !excludedRoles.contains(role) else {
+            return
+        }
+
         let injectedComment = if let preamble { preamble.asComment + " " } else { "" }
         print("\(whitespace)\(injectedComment)<\(role)", terminator: " ", to: &output)
 
+        // keep track of attributes that contain ui elements (as opposed to string/rect/etc.), so we can emit them as child XML elements instead of XML attributes
         var attributesPointingToElements = [String: [Accessibility.Element]]()
-        if let supportedAttributes = try? supportedAttributes() {
+
+        if let supportedAttributes = try? element.supportedAttributes() {
             let attributes = Dictionary(
-                supportedAttributes.filter { $0.name.value != kAXChildrenAttribute }.map { attribute in (attribute.name.value, try? attribute()) },
+                supportedAttributes.filter { !excludedAttributes.contains($0.name.value) }.map { attribute in (attribute.name.value, try? attribute()) },
                 uniquingKeysWith: { first, second in second },
             )
 
             let lastNonNilIndex = Array(attributes.values).lastIndex(where: { $0 != nil })
 
             for (index, (name, value)) in attributes.enumerated() {
-                // collect attribute values which contain ui elements separately, so we can emit them as child XML elements
                 if let array = value as? [Any] {
                     guard let first = array.first, CFGetTypeID(first as CFTypeRef) == AXUIElementGetTypeID() else {
                         continue
@@ -56,13 +82,13 @@ extension Accessibility.Element {
 
         // closing angle bracket of the opening tag
         print(">", to: &output)
-        let whitespace2 = String(repeating: "  ", count: indent + 1)
+        let whitespace2 = String(repeating: indentation, count: indent + 1)
 
         if !shallow {
             for (attributeContainingElementsName, containedElements) in attributesPointingToElements {
-                print(whitespace2 + "attribute containing element(s)".asComment + " <\(attributeContainingElementsName)>", to: &output)
+                print(whitespace2 + "attribute containing elements".asComment + " <\(attributeContainingElementsName)>", to: &output)
                 for element in containedElements {
-                    try element.dumpXML(to: &output, indent: indent + 2, shallow: true)
+                    try dump(element, to: &output, indent: indent + 2, shallow: true)
                 }
                 print("\(whitespace2)</\(attributeContainingElementsName)>", to: &output)
             }
@@ -70,7 +96,7 @@ extension Accessibility.Element {
 
         defer { print("\(whitespace)</\(role)>", to: &output) }
 
-        if let actions = try? supportedActions(), !actions.isEmpty {
+        if includeActions, let actions = try? element.supportedActions(), !actions.isEmpty {
             for (index, action) in actions.enumerated() {
                 print(whitespace2 + "actions[\(index)]".asComment + "<action", terminator: " ", to: &output)
                 printAttribute(to: &output, name: "name", value: action.name.value)
@@ -81,20 +107,21 @@ extension Accessibility.Element {
 
         guard !shallow else {
             // used to avoid following cycles endlessly, since sections can point back up the tree etc.
-            print(whitespace2 + "omitting children, sections, etc.".asComment, to: &output)
+            print(whitespace2 + "...".asComment, to: &output)
             return
         }
 
-        if let sections = try? self.sections() as [[String: Any]] {
+        if includeSections, let sections = try? element.sections() as [[String: Any]] {
             for (index, section) in sections.enumerated() {
                 print(whitespace2 + "[\(index)]".asComment + " <section", terminator: " ", to: &output)
                 printAttribute(to: &output, name: "uniqueID", value: section["SectionUniqueID"])
                 printAttribute(to: &output, name: "description", value: section["SectionDescription"], omitTrailingSpace: true)
 
                 if case let object = section["SectionObject"] as CFTypeRef, CFGetTypeID(object) == AXUIElementGetTypeID() {
-                    let element = Accessibility.Element(axRaw: object)
                     print(">", to: &output)
-                    try element?.dumpXML(to: &output, indent: indent + 2)
+                    if let element = Accessibility.Element(axRaw: object) {
+                        try dump(element, to: &output, indent: indent + 2)
+                    }
                     print("\(whitespace2)</section>", to: &output)
                 } else {
                     print("></section>", to: &output)
@@ -102,10 +129,27 @@ extension Accessibility.Element {
             }
         }
 
-        guard let children = try? self.children() else { return }
+        guard let children = try? element.children() else { return }
         for (index, child) in children.enumerated() {
-            try child.dumpXML(to: &output, indent: indent + 1, preamble: "[\(index)]")
+            try dump(child, to: &output, indent: indent + 1, preamble: "children[\(index)]")
         }
+    }
+}
+
+public extension Accessibility.Element {
+    func dumpXML(
+        to output: inout some TextOutputStream,
+        excludingElementsWithRoles excludedRoles: Set<String> = [],
+        excludingAttributes excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes,
+        includeActions: Bool = true,
+        includeSections: Bool = true,
+    ) throws {
+        try XMLDumper(
+            excludedRoles: excludedRoles,
+            excludedAttributes: excludedAttributes,
+            includeActions: includeActions,
+            includeSections: includeSections,
+        ).dump(self, to: &output)
     }
 }
 
