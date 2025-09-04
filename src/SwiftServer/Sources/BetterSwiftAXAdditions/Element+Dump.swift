@@ -27,14 +27,16 @@ public struct XMLDumper {
     var excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes
     var includeActions = true
     var includeSections = true
+    var shallow = false
 
     func dump(
         _ element: Accessibility.Element,
         to output: inout some TextOutputStream,
         indent: Int = 0,
-        shallow: Bool = false,
+        shallow: Bool? = nil,
         preamble: String? = nil,
     ) throws {
+        var shallow = shallow ?? self.shallow
         let whitespace = String(repeating: indentation, count: indent)
 
         guard let role = try? element.role() else {
@@ -139,6 +141,7 @@ public struct XMLDumper {
 public extension Accessibility.Element {
     func dumpXML(
         to output: inout some TextOutputStream,
+        shallow: Bool = false,
         excludingElementsWithRoles excludedRoles: Set<String> = [],
         excludingAttributes excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes,
         includeActions: Bool = true,
@@ -149,6 +152,7 @@ public extension Accessibility.Element {
             excludedAttributes: excludedAttributes,
             includeActions: includeActions,
             includeSections: includeSections,
+            shallow: shallow,
         ).dump(self, to: &output)
     }
 }
