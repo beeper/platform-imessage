@@ -166,7 +166,7 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 1
 
-private let app: NSRunningApplication
+    private let app: NSRunningApplication
     let elements: MessagesAppElements
 
     private var activityPollingTimer: Timer?
