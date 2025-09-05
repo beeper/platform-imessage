@@ -155,12 +155,30 @@ private let queueCounter = Protected<Int>(0)
             return undefined
         }
 
-        guard threadID.hasPrefix("iMessage;-;") else {
-            // we might need to handle group typing indicators eventually
+        // only watch thread activity for iMessage chats
+        // TODO: implement this for groups
+        if !threadID.hasPrefix("iMessage;-;") {
+            guard threadID.hasPrefix("any;-;") else {
+            // only bother checking the database if the GUID can't tell us what service the chat is for
+            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
 #if DEBUG
             log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
 #endif
-            return undefined
+                return undefined
+            }
+
+            let chat = try self.controller.db.chat(withGUID: threadID)
+            guard let chat else {
+                log.error("watchThreadActivity: couldn't locate the chat to watch in the database")
+                return undefined
+            }
+
+            guard chat.serviceName == .imessage else {
+#if DEBUG
+            log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+#endif
+                return undefined
+            }
         }
 
         let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
