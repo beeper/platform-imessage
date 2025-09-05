@@ -1,7 +1,8 @@
 import AccessibilityControl
 import AppKit
-import SwiftServerFoundation
+import BetterSwiftAXAdditions
 import Logging
+import SwiftServerFoundation
 
 // func sendMouseClick(at point: CGPoint, to pid: pid_t) throws {
 //     for mouseType in [CGEventType.leftMouseDown, CGEventType.leftMouseUp] {

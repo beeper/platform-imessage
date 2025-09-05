@@ -1,14 +1,15 @@
-import AppKit
-import IMDatabase
-import Contacts
-import PHTClient
-import Carbon.HIToolbox.Events
 import AccessibilityControl
-import WindowControl
-import EmojiSPI
-import SwiftServerFoundation
-import Logging
+import AppKit
+import BetterSwiftAXAdditions
+import Carbon.HIToolbox.Events
 import Combine
+import Contacts
+import EmojiSPI
+import IMDatabase
+import Logging
+import PHTClient
+import SwiftServerFoundation
+import WindowControl
 
 private let log = Logger(swiftServerLabel: "messages-controller")
 private let lifecycleLog = Logger(swiftServerLabel: "lifecycle")
@@ -165,7 +166,7 @@ final class MessagesController {
 
     private static let pollingInterval: TimeInterval = 1
 
-private let app: NSRunningApplication
+    private let app: NSRunningApplication
     let elements: MessagesAppElements
 
     private var activityPollingTimer: Timer?
@@ -238,12 +239,27 @@ private let app: NSRunningApplication
     }
 
     @discardableResult
-    static func openDeepLink(_ url: URL, withoutActivation: Bool = true) throws -> NSRunningApplication {
-        return try NSWorkspace.shared.open(
-            url,
-            options: withoutActivation ? [.andHide, .withoutActivation] : [.andHide],
-            configuration: [:]
-        )
+    static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
+        var openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = hiding
+        
+        var horribleWaiter = DispatchSemaphore(value: 0)
+        var result: Result<NSRunningApplication, Error>?
+        NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
+#if DEBUG
+            log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+#endif
+            if let error {
+                result = .failure(error)
+            } else {
+                result = .success(running!)
+            }
+            horribleWaiter.signal()
+        }
+        horribleWaiter.wait()
+        
+        return try result!.get()
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -288,18 +304,18 @@ private let app: NSRunningApplication
                 throw ErrorMessage("misfire prevention: desired thread is not selected")
             }
         }
-
-        func ensureSelectedThreadViaLayoutWaiter() throws {
-            guard let lastLayoutChange = lifecycleObserver.lastLayoutChange.read() else {
-                throw ErrorMessage("misfire prevention: layout hasn't changed at all")
+        
+        func ensureSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
+            guard let lastChange = date.read() else {
+                throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
-
+            
             let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
-            guard lastLayoutChange > beganEnsuringThreadSelection else {
-                throw ErrorMessage("misfire prevention: layout hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
+            guard lastChange > beganEnsuringThreadSelection else {
+                throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
             }
 
-            log.debug("misfire prevention: 📐 layout changed \(lastLayoutChange.iso8601Formatted) (waited \(waitingTime) overall)")
+            log.debug("misfire prevention: \(emoji) \(type) changed \(lastChange.iso8601Formatted) (waited \(waitingTime) overall)")
         }
 
         var attempt = 0
@@ -331,11 +347,14 @@ private let app: NSRunningApplication
                     }
 
                     return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
+                case "focus-waiter":
+                    // wait until Accessibility posts a notification staging that the focused element has changed.
+                    try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastFocusedUIElementChange, type: "focus", emoji: "👆")
                 case "layout-waiter":
                     // wait until Accessibility posts a notification stating that the layout has changed.
                     // this happens very frequently, for example after changing the active chat (what we specifically want to know about)
                     // or even scrolling the chat list
-                    try ensureSelectedThreadViaLayoutWaiter()
+                    try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastLayoutChange, type: "layout", emoji: "📐")
                 default:
                     var sleepInterval = Defaults.swiftServer.double(forKey: DefaultsKeys.misfirePreventionSleepInterval)
                     if sleepInterval <= 0.0 { sleepInterval = 0.5 }
@@ -386,7 +405,8 @@ private let app: NSRunningApplication
                 Thread.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), withoutActivation: withoutActivation)
+            // TODO macos26
+            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation, hiding: false)
         }
 
         var messagesApps = Self.getRunningMessagesApps()
@@ -501,6 +521,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     case .appShown: printLifecycle(event: "APP shown")
                     case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
                     case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
+                    case .focusedUIElementChanged:
+                        printLifecycle(event: "FOCUSED UI ELEMENT changed")
+#if DEBUG
+                        var focusedDescription = ""
+                        try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
+                        printLifecycle(event: "FOCUSED: \(focusedDescription)")
+#endif
                     case .windowCreated:
                         // for now, reset our window-local observations whenever we
                         // see that a window was created (even if it was just e.g.
@@ -672,34 +699,55 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
     
     private func revealReplyTranscriptViaMenu() throws {
-        guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
-            throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
-        }
-        
-        log.debug("reveal: 1/5 showing the cell's menu")
-        try cell.showMenu()
-        Thread.sleep(forTimeInterval: 0.1)
-        
-        let targetTitle = LocalizedStrings.inlineReplyMenu
-        log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
-        
-        guard let menuItems = try? elements.menu.children() else {
-            throw ErrorMessage("reveal: couldn't query menu item children")
-        }
-        guard let replyMenuItem = menuItems.first(where: { menuItem in
-            guard let title = try? menuItem.title() else {
-                return false
+        do {
+            let window = NSApp.largestElectronWindow
+            let previousLevel = window?.level
+            if let window {
+                let higherLevel = NSWindow.Level(Int(CGWindowLevelForKey(.draggingWindow)))
+                log.debug("reveal: elevating window to level \(higherLevel) (currently: \(window.level))")
+                window.level = higherLevel
+            }
+            defer {
+                if let window, let previousLevel {
+                    log.debug("reveal: lowering window to previous level \(previousLevel)")
+                    window.level = previousLevel
+                }
+            }
+            
+            try Self.queue.sync {
+                guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
+                    throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
+                }
+
+                Thread.sleep(forTimeInterval: 1.0)
+                log.debug("reveal: 1/5 showing the cell's menu")
+                try cell.showMenu()
+                Thread.sleep(forTimeInterval: 0.1)
+                
+                let targetTitle = LocalizedStrings.inlineReplyMenu
+                log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
+                
+                guard let menuItems = try? elements.menu.children() else {
+                    throw ErrorMessage("reveal: couldn't query menu item children")
+                }
+                guard let replyMenuItem = menuItems.first(where: { menuItem in
+                    guard let title = try? menuItem.title() else {
+                        return false
+                    }
+                    
+                    let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
+                    log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
+                    return title == targetTitle
+                }) else {
+                    throw ErrorMessage("reveal: couldn't find reply menu item")
+                }
+                
+                log.debug("reveal: 3/5 found, pressing")
+                try replyMenuItem.press()
+
             }
 
-            let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
-            log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
-            return title == targetTitle
-        }) else {
-            throw ErrorMessage("reveal: couldn't find reply menu item")
         }
-
-        log.debug("reveal: 3/5 found, pressing")
-        try replyMenuItem.press()
         
         log.debug("reveal: 4/5 sleeping for a bit")
         Thread.sleep(forTimeInterval: 0.4)
