@@ -128,53 +128,15 @@ private enum ConveyorEvent {
 // external API is thread safe
 @available(macOS 11, *)
 final class MessagesController {
-    enum ActivityStatus: String {
-        case dnd = "DND"
-        case dndCanNotify = "DND_CAN_NOTIFY"
-        case typing = "TYPING"
-        case notTyping = "NOT_TYPING"
-        case unknown = "UNKNOWN"
-    }
-
-    private class ActivityObserver {
-        let threadID: String
-        let url: URL
-
-        // may be called on a bg thread
-        private let callback: ([ActivityStatus]) -> Void
-
-        private var lastSent: [ActivityStatus] = [.notTyping]
-        private var lastSentTime = Date()
-
-        init(threadID: String, url: URL, callback: @escaping ([ActivityStatus]) -> Void) {
-            self.threadID = threadID
-            self.url = url
-            self.callback = callback
-        }
-
-        func send(_ status: [ActivityStatus]) {
-            // send if the status is different OR if we're sending typing events and it's
-            // been a long time since the last one
-            guard lastSent != status || (status.contains(.typing) && lastSentTime.timeIntervalSinceNow > 30) else {
-                return
-            }
-            lastSent = status
-            lastSentTime = Date()
-            callback(status)
-        }
-    }
-
     private static let pollingInterval: TimeInterval = 1
 
     private let app: NSRunningApplication
     let elements: MessagesAppElements
 
-    private var activityPollingTimer: Timer?
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
 
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
-    private var activityObserver: ActivityObserver?
     private var lastThreadIDOpenedForObservation = Protected<String?>()
 
     private var windowCoordinator: WindowCoordinator
@@ -464,18 +426,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     func setUpPollingConveyor(with observer: LifecycleObserver) {
         let thread = RunLoopConveyor<ConveyorEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
-            // we use a timer instead of observe(.layoutChanged) here because AX doesn't emit the event when the window is hidden
-            let watcher = TimerBlockWatcher { [weak self] in
-                self?.pollActivityStatus()
-            }
-            self.activityPollingTimer = Timer.scheduledTimer(
-                timeInterval: Self.pollingInterval,
-                target: watcher,
-                selector: #selector(TimerBlockWatcher.timerFired),
-                userInfo: nil,
-                repeats: true
-            )
-
             do {
                 try observer.beginObserving(app: self.elements.app)
             } catch {
@@ -1541,7 +1491,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     /*
         activityLock.lock() called by:
         MessagesController.observe()
-        MessagesController.removeObserver()
         MessagesController.sendMessage()
         MessagesController.setReaction()
         MessagesController.sendTypingStatus()
@@ -1569,7 +1518,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    func idleObservingCallback(for threadID: String, sendStatus: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
+    /// returns a callback meant to be assigned to a `PassivelyAwareDispatchQueue` that observes a single thread once
+    /// the passively aware dispatch queue should call the returned callback repeatedly
+    func idleCallback(observingThreadID threadID: String, statusSender: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         return { [weak self] quiescence in
@@ -1598,7 +1549,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.debug("activity: entered idle state or thread id changed, opening deep link")
                 try prepareForAutomation()
                 defer { finishedAutomation() }
-                try _removeObserver()
 
                 try Self.openDeepLink(url)
                 log.debug("activity: opened deep link, waiting for layout change")
@@ -1613,74 +1563,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    // called on run loop thread, not main node thread
-    private func pollActivityStatus() {
-        guard Defaults.swiftServer.bool(forKey: DefaultsKeys.pollActivityStatus) else {
-            return
-        }
-
-        guard let observer = activityObserver else { return }
-
-        guard om.visible else {
-            log.trace("pollActivityStatus: skipping since window occluded")
-            return
-        }
-
-        // if someone else (observe/removeObserver) holds the lock,
-        // silently skip this polling attempt
-        guard activityLock.tryLock() else { return }
-        defer { activityLock.unlock() }
-
-        guard isValid else {
-            log.trace("pollActivityStatus: invalid MessagesController")
-            return
-        }
-
-        log.trace("pollActivityStatus")
-
-        do {
-            try ensureSelectedThread(threadID: observer.threadID)
-        } catch {
-            log.trace("pollActivityStatus: selected thread changed, not polling \(observer.threadID) \(error)")
-            observer.send([.unknown])
-            return
-        }
-
-        observer.send(activityStatus())
-    }
-
-    // must call with lock held
-    func _removeObserver() throws {
-        if let old = activityObserver {
-            old.send([.notTyping])
-            activityObserver = nil
-        }
-    }
-
-    func removeObserver() throws {
-        try activityLock.lock {
-            try _removeObserver()
-        }
-    }
-
-    func observe(threadID: String, callback: @escaping ([ActivityStatus]) -> Void) throws {
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
-
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        // we remove the previous observer first, so that if
-        // this method fails we don't keep sending notifs to the old
-        // observer. We only update to the new observer once we've
-        // successfully switched chats.
-        try _removeObserver()
-
-        try Self.openDeepLink(url)
-
-        guard threadID.hasPrefix("iMessage;-;") else { return }
-        activityObserver = .init(threadID: threadID, url: url, callback: callback)
-    }
-
     private var isDisposed = false
 
     func dispose() {
@@ -1688,7 +1570,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
-        activityPollingTimer?.invalidate()
         pollingConveyor?.cancel()
         app.terminate()
     }

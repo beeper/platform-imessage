@@ -142,19 +142,16 @@ private let queueCounter = Protected<Int>(0)
             return undefined
         }
 
-        let controllerArgs: (String, ([MessagesController.ActivityStatus]) -> Void)?
+        let controllerArgs: (String, ([ActivityStatus]) -> Void)?
 
-        let reset = { [self] in
-            try controller.removeObserver()
-            Self.queue.setIdleCallback(nil)
-        }
+        // reset the idle callback in case we fail and bail out
+        Self.queue.setIdleCallback(nil)
 
         guard args.count == 2,
               let threadID = try args[0].as(String.self),
               let sendStatus = try args[1].as(NodeFunction.self)
         else {
             log.error("invalid args passed to watchThreadActivity")
-            try reset()
             return undefined
         }
 
@@ -163,11 +160,10 @@ private let queueCounter = Protected<Int>(0)
 #if DEBUG
             log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
 #endif
-            try reset()
             return undefined
         }
 
-        let sendStatusOnQueue = { (statuses: [MessagesController.ActivityStatus]) in
+        let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
             try? self.watchCBQueue.run {
                 try sendStatus(statuses.map(\.rawValue))
             }
@@ -177,7 +173,7 @@ private let queueCounter = Protected<Int>(0)
         // it's okay that we aren't using `performAsync`/`returnAsync` here -
         // the idle callback is itself submitted onto the queue, so everything's
         // still serial
-        let observe = try controller.idleObservingCallback(for: threadID, sendStatus: sendStatusOnQueue)
+        let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
         Self.queue.setIdleCallback { quiescence in
             do {
                 try observe(quiescence)
