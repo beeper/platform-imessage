@@ -9,7 +9,7 @@ public struct Chat {
 
 private var businessGUIDPrefixes: [String] {
     // RCS might not be a thing, but just in case
-    ["SMS;-;urn:biz:", "iMessage;-;urn:biz:", "RCS;-;urn:biz:"]
+    ["SMS;-;urn:biz:", "iMessage;-;urn:biz:", "RCS;-;urn:biz:", "any;-;urn:biz:"]
 }
 
 public extension Chat {
