@@ -57,11 +57,11 @@ extension LifecycleObserver {
 #endif
             lastLayoutChange?.withLock { $0 = Date() }
         }
-#if DEBUG
         focusedUIElementChangedToken = try app.observe(.focusedUIElementChanged) { [weak lastFocusedUIElementChange, weak events] _ in
             events?.broadcast(.focusedUIElementChanged)
             lastFocusedUIElementChange?.withLock { $0 = Date() }
         }
+#if DEBUG
         titleChangedToken = try app.observe(.titleChanged) { info in
             do {
                 let windows = try app.appWindows().compactMap { try? $0.title() }
