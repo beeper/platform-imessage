@@ -405,8 +405,7 @@ final class MessagesController {
                 Thread.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
-            // TODO macos26
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation, hiding: false)
+            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
         }
 
         var messagesApps = Self.getRunningMessagesApps()
