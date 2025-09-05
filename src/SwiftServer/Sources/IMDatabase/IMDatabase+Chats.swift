@@ -5,7 +5,7 @@ private let log = Logger(label: "imdb.chats")
 public extension IMDatabase {
     func chat(withGUID chatGUID: String) throws -> Chat? {
         let statement = try cachedStatement(&chatWithGUIDStatement, creatingWithoutEscapingSQL: """
-        SELECT ROWID, display_name
+        SELECT ROWID, display_name, service_name
         FROM chat
         WHERE guid = ?
         """)
@@ -15,7 +15,8 @@ public extension IMDatabase {
 
         let chats = try statement.mapRowsUntilDone { row in
             let displayName = try row[1].optional(String.self)?.nonEmpty
-            return try Chat(id: row[0].expect(Int.self), guid: chatGUID, displayName: displayName)
+            let serviceName = try Chat.ServiceName(rawValue: row[2].expect(String.self))
+            return try Chat(id: row[0].expect(Int.self), guid: chatGUID, displayName: displayName, serviceName: serviceName)
         }
 
         if chats.count > 1 {
@@ -26,7 +27,7 @@ public extension IMDatabase {
 
     func chats() throws -> [Chat] {
         let statement = try cachedStatement(&allChatsStatement, creatingWithoutEscapingSQL: """
-        SELECT ROWID, guid, display_name
+        SELECT ROWID, guid, display_name, service_name
         FROM chat
         """)
 
@@ -38,7 +39,9 @@ public extension IMDatabase {
                 log.error("chat \(id) has no GUID, very spooky. dropping it on the ground")
                 return nil
             }
-            return try Chat(id: id, guid: guid, displayName: row[2].optional(String.self))
+            let displayName = try row[1].optional(String.self)?.nonEmpty
+            let serviceName = try Chat.ServiceName(rawValue: row[2].expect(String.self))
+            return Chat(id: id, guid: guid, displayName: displayName, serviceName: serviceName)
         }.compactMap(\.self)
     }
 
