@@ -138,6 +138,8 @@ final class MessagesController {
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
     private var lastThreadIDOpenedForObservation = Protected<String?>()
+    private var lastSentActivityStatus: [ActivityStatus]?
+    private var lastSentActivityStatusTime: Date?
 
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
@@ -1558,8 +1560,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             guard activityLock.tryLock() else { return }
             defer { activityLock.unlock() }
-
-            sendStatus(activityStatus())
+            
+            let statusToSend = activityStatus()
+            guard lastSentActivityStatus != statusToSend || (statusToSend.contains(.typing) && lastSentActivityStatusTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
+#if DEBUG
+                log.debug("activity: same activity or too recent, skipping activity update")
+#endif
+                return
+            }
+            defer {
+                lastSentActivityStatus = statusToSend
+                lastSentActivityStatusTime = Date()
+            }
+#if DEBUG
+            log.debug("activity: sending: \(statusToSend)")
+#endif
+            statusSender(statusToSend)
         }
     }
 
