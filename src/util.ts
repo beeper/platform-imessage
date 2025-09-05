@@ -79,7 +79,8 @@ export async function waitForFileToExist(filePath: string, maxWaitMs: number) {
 export const threadIDToAddress = (threadID: string): string =>
   threadID.split(';', 3).pop() as string // .split() never returns an empty array
 
+const singleParticipantChatGuid = /^(RCS|iMessage|any);-;/
 export function getSingleParticipantAddress(threadID: string | null): string | null {
-  if (!threadID?.startsWith('iMessage;-;')) return null
+  if (!threadID || !singleParticipantChatGuid.test(threadID)) return null
   return threadIDToAddress(threadID)
 }
