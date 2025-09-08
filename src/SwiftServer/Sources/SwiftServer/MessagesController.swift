@@ -921,9 +921,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             tryPressingCancelEditButton()
         }
 
+        tryPressingCancelEditButton()
         try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
-            tryPressingCancelEditButton()
-
             if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                 log.debug("found \"Edit\" message action")
 
