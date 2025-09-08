@@ -897,6 +897,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 } catch {
                     log.error("failed to press cancel edit button, continuing anyway: \(error)")
                 }
+            } else {
+                log.debug("(no cancel edit button was found)")
             }
         }
 
