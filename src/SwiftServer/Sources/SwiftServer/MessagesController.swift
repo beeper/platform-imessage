@@ -1139,11 +1139,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         do {
             if isVenturaOrUp {
                 let value = try (messageField.value() as? NSAttributedString)
-                    .orThrow(ErrorMessage("Could not cast to NSAttributedString"))
+                    .orThrow(ErrorMessage("couldn't cast message field value to NSAttributedString"))
                 return value.string
             }
             return try (messageField.value() as? String)
-                .orThrow(ErrorMessage("Could not cast to String"))
+                .orThrow(ErrorMessage("couldn't cast message field value to String"))
         } catch {
             if error is AccessibilityError, let axError = error as? AccessibilityError, axError.code == .noValue { return "" }
             throw error
@@ -1168,22 +1168,48 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
+        log.debug("\(#function): focusing field and pressing return")
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
-        try retry(withTimeout: 1.5, interval: 0.1) {
-            let message = try messageFieldValue(messageField)
-            if !message.isEmpty {
-                let hasNewline = message.hasSuffix("\n")
-                throw ErrorMessage("Could not send message\(hasNewline ? " (extraneous newline)" : "")")
+        log.debug("\(#function): completed initial attempt")
+        
+        do {
+            log.debug("\(#function): will now attempt to verify the send")
+            
+            try retry(withTimeout: 1.5, interval: 0.1) {
+                let message = try messageFieldValue(messageField)
+                if !message.isEmpty {
+                    let hasNewline = message.hasSuffix("\n")
+                    throw ErrorMessage("couldn't verify message send\(hasNewline ? " (extra newline)" : "")")
+                }
+            } onError: { attempt, error in
+                if let error {
+                    log.warning("\(#function): couldn't verify the send (attempt \(attempt)): \(error)")
+                }
+
+                if attempt == 2 {
+                    log.debug("\(#function): focusing and pressing enter again")
+
+                    self.focusMessageField(messageField)
+                    try? self.keyPresser.return()
+                } else if attempt == 6 {
+                    log.debug("\(#function): focusing and pressing enter again (alt. strategy)")
+
+                    try? messageField.press()
+                    try? self.keyPresser.return()
+                }
             }
-        } onError: { attempt, _  in
-            if attempt == 2 {
-                self.focusMessageField(messageField)
-                try? self.keyPresser.return()
-            } else if attempt == 6 {
-                try? messageField.press()
-                try? self.keyPresser.return()
-            }
+            
+            log.debug("\(#function): successfully verified the send")
+        } catch {
+            // if we can't verify the message send, then blindly swallow the error and assume that the send went through; don't let
+            // it bubble to the TypeScript side, which will retry (since we specifically do that for failed message sends). this
+            // has caused duplicate message sends.
+            //
+            // user hitting `cannotComplete` repeatedly when we try to fetch the message field value:
+            // https://linear.app/beeper/issue/DESK-14971/issue-parent-imessages-sometimes-send-more-than-once
+            // https://linear.app/beeper/issue/DESK-16318/mrmangoes-messages-sending-multiple-times#comment-4a743fdf
+            log.warning("\(#function): timed out retrying send verification, proceeding anyways: \(error)")
         }
     }
 
