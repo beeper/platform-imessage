@@ -111,10 +111,11 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  // NOTE(skip): this isn't always immediately available, so it should really
-  // be modeled as such
-  getCurrentUser = (): CurrentUser => {
-    if (!this.currentUser) return { __imsg__: true } as unknown as CurrentUser // FIXME(types)
+  getCurrentUser = async (): Promise<CurrentUser> => {
+    await this.ensureDB()
+    if (!this.currentUser) {
+      throw new Error('imsg: expected current user to be loaded by now')
+    }
 
     return {
       ...this.currentUser,
