@@ -52,6 +52,9 @@ extension AXTool {
         
         @Option(name: [.customShort("d"), .customLong("max-depth")], help: "Skips dumping elements surpassing the specified depth.")
         var maxDepth: Int? = nil
+        
+        @Flag(name: [.customShort("p"), .customLong("no-pii")], help: "Attempts to omit PII from the output.")
+        var excludingPII = false
 
         mutating func run() throws {
             bootstrap(logLevel: options.logLevel)
@@ -63,14 +66,25 @@ extension AXTool {
             
             var output = ""
             print("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>", to: &output)
-            try app.dumpXML(
-                to: &output,
-                maxDepth: maxDepth,
-                excludingElementsWithRoles: Set(excludedRoles),
-                excludingAttributes: Set(excludedAttributes),
-                includeActions: !excludeActions,
-                includeSections: !excludeSections,
-            )
+            
+            if excludingPII {
+                try app.dumpXMLWithoutPII(
+                    to: &output,
+                    maxDepth: maxDepth,
+                    excludingElementsWithRoles: Set(excludedRoles),
+                    includeActions: !excludeActions,
+                    includeSections: !excludeSections,
+                )
+            } else {
+                try app.dumpXML(
+                    to: &output,
+                    maxDepth: maxDepth,
+                    excludingElementsWithRoles: Set(excludedRoles),
+                    excludingAttributes: Set(excludedAttributes),
+                    includeActions: !excludeActions,
+                    includeSections: !excludeSections,
+                )
+            }
             print(output)
         }
     }
