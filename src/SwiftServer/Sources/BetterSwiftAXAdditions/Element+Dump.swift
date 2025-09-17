@@ -86,7 +86,7 @@ public struct XMLDumper {
         }
 
         // closing angle bracket of the opening tag
-        print(">", to: &output)
+        print("> \(String(describing: element.raw).asComment)", to: &output)
         let whitespace2 = String(repeating: indentation, count: indent + 1)
 
         if !shallow {
