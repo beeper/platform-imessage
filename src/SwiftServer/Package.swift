@@ -90,6 +90,7 @@ let package = Package(
             dependencies: [
                 "BetterSwiftAX",
                 "SwiftServerFoundation",
+                .product(name: "Collections", package: "swift-collections"),
             ],
         ),
         .target(

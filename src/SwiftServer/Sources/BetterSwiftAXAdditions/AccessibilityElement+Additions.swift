@@ -2,6 +2,7 @@ import AccessibilityControl
 import CoreFoundation
 import SwiftServerFoundation
 import Logging
+import Collections
 
 private let log = Logger(swiftServerLabel: "ax-additions")
 
@@ -26,13 +27,17 @@ public extension Accessibility.Element {
         // incremented for every element with children that we discover; not "depth" since it's a running tally
         var traversalComplexity = 0
 
-        return AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
-            guard !queue.isEmpty else { return nil }
+        return AnySequence(sequence(state: [self] as Deque) { queue -> Accessibility.Element? in
             guard traversalComplexity < maxTraversalComplexity else {
                 log.error("HIT RECURSIVE TRAVERSAL COMPLEXITY LIMIT (\(traversalComplexity) > \(maxTraversalComplexity), queue count: \(queue.count)), terminating early")
                 return nil
             }
-            let elt = queue.removeFirst()
+
+            guard let elt = queue.popFirst() else {
+                // queue is empty, we're done
+                return nil
+            }
+
             if let children = try? elt.children() {
                 defer { traversalComplexity += 1 }
                 queue.append(contentsOf: children)
