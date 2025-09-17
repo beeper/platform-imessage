@@ -21,11 +21,29 @@ public struct XMLDumper {
         // avoid redundantly printing parent elements, which can quickly bloat the result
         "AXTopLevelUIElement", "AXMenuItemPrimaryUIElement", "AXParent", "AXWindow",
     ]
+    
+    static var attributesLikelyToContainPII: Set<String> {
+        [
+            kAXHelpAttribute,
+            kAXDescriptionAttribute,
+            kAXTitleAttribute,
+
+            // text entry area values
+            kAXValueAttribute,
+            
+            kAXLabelValueAttribute,
+            kAXSelectedTextAttribute,
+            kAXPlaceholderValueAttribute,
+            kAXFilenameAttribute,
+            kAXDocumentAttribute,
+        ]
+    }
 
     var maxDepth: Int? = nil
     var indentation = "  "
     var excludedRoles: Set<String> = []
     var excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes
+    var intendingToExcludePII = false
     var includeActions = true
     var includeSections = true
     var shallow = false
@@ -113,8 +131,22 @@ public struct XMLDumper {
         if includeActions, let actions = try? element.supportedActions(), !actions.isEmpty {
             for (index, action) in actions.enumerated() {
                 print(whitespace2 + "actions[\(index)]".asComment + "<action", terminator: " ", to: &output)
-                printAttribute(to: &output, name: "name", value: action.name.value)
-                printAttribute(to: &output, name: "description", value: action.description, omitTrailingSpace: true)
+
+                let actionName = action.name.value
+                // some action names (maybe menu items?) are weird and look something like:
+                //
+                // "Name:Pin <NAME OF A CHAT>
+                // Target:0x0
+                // Selector:(null)"
+                //
+                // (yes, including the newlines.) skip these if we are intending to exclude PII
+                if (intendingToExcludePII && actionName.hasPrefix("AX")) || !intendingToExcludePII {
+                    printAttribute(to: &output, name: "name", value: actionName)
+                }
+
+                if !excludedAttributes.contains(kAXDescriptionAttribute) {
+                    printAttribute(to: &output, name: "description", value: action.description, omitTrailingSpace: true)
+                }
                 print("></action>", to: &output)
             }
         }
@@ -151,6 +183,27 @@ public struct XMLDumper {
 }
 
 public extension Accessibility.Element {
+    func dumpXMLWithoutPII(
+        to output: inout some TextOutputStream,
+        shallow: Bool = false,
+        maxDepth: Int? = nil,
+        excludingElementsWithRoles excludedRoles: Set<String> = [],
+        includeActions: Bool = true,
+        includeSections: Bool = true,
+    ) throws {
+        let excludedAttributes = XMLDumper.defaultExcludedAttributes.union(XMLDumper.attributesLikelyToContainPII)
+
+        return try XMLDumper(
+            maxDepth: maxDepth,
+            excludedRoles: excludedRoles,
+            excludedAttributes: excludedAttributes,
+            intendingToExcludePII: true,
+            includeActions: includeActions,
+            includeSections: includeSections,
+            shallow: shallow,
+        ).dump(self, to: &output)
+    }
+
     func dumpXML(
         to output: inout some TextOutputStream,
         shallow: Bool = false,
