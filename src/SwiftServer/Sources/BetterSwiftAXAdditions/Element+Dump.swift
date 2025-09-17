@@ -39,8 +39,11 @@ public struct XMLDumper {
         var shallow = shallow ?? self.shallow
         let whitespace = String(repeating: indentation, count: indent)
 
-        guard let role = try? element.role() else {
-            print(whitespace + "⚠️ couldn't obtain role, skipping (\(self))".asComment, to: &output)
+        let role: String
+        do {
+            role = try element.role()
+        } catch {
+            print(whitespace + "⚠️ couldn't obtain role, skipping \(element): \(String(describing: error))".asComment, to: &output)
             return
         }
 
