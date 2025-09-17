@@ -183,40 +183,26 @@ public struct XMLDumper {
 }
 
 public extension Accessibility.Element {
-    func dumpXMLWithoutPII(
-        to output: inout some TextOutputStream,
-        shallow: Bool = false,
-        maxDepth: Int? = nil,
-        excludingElementsWithRoles excludedRoles: Set<String> = [],
-        includeActions: Bool = true,
-        includeSections: Bool = true,
-    ) throws {
-        let excludedAttributes = XMLDumper.defaultExcludedAttributes.union(XMLDumper.attributesLikelyToContainPII)
-
-        return try XMLDumper(
-            maxDepth: maxDepth,
-            excludedRoles: excludedRoles,
-            excludedAttributes: excludedAttributes,
-            intendingToExcludePII: true,
-            includeActions: includeActions,
-            includeSections: includeSections,
-            shallow: shallow,
-        ).dump(self, to: &output)
-    }
-
     func dumpXML(
         to output: inout some TextOutputStream,
         shallow: Bool = false,
         maxDepth: Int? = nil,
+        excludingPII: Bool = false,
         excludingElementsWithRoles excludedRoles: Set<String> = [],
         excludingAttributes excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes,
         includeActions: Bool = true,
         includeSections: Bool = true,
     ) throws {
-        try XMLDumper(
+        var excludedAttributes = excludedAttributes
+        if excludingPII {
+            excludedAttributes.formUnion(XMLDumper.attributesLikelyToContainPII)
+        }
+        
+        return try XMLDumper(
             maxDepth: maxDepth,
             excludedRoles: excludedRoles,
             excludedAttributes: excludedAttributes,
+            intendingToExcludePII: excludingPII,
             includeActions: includeActions,
             includeSections: includeSections,
             shallow: shallow,

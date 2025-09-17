@@ -67,24 +67,15 @@ extension AXTool {
             var output = ""
             print("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>", to: &output)
             
-            if excludingPII {
-                try app.dumpXMLWithoutPII(
-                    to: &output,
-                    maxDepth: maxDepth,
-                    excludingElementsWithRoles: Set(excludedRoles),
-                    includeActions: !excludeActions,
-                    includeSections: !excludeSections,
-                )
-            } else {
-                try app.dumpXML(
-                    to: &output,
-                    maxDepth: maxDepth,
-                    excludingElementsWithRoles: Set(excludedRoles),
-                    excludingAttributes: Set(excludedAttributes),
-                    includeActions: !excludeActions,
-                    includeSections: !excludeSections,
-                )
-            }
+            try app.dumpXML(
+                to: &output,
+                maxDepth: maxDepth,
+                excludingPII: excludingPII,
+                excludingElementsWithRoles: Set(excludedRoles),
+                excludingAttributes: Set(excludedAttributes),
+                includeActions: !excludeActions,
+                includeSections: !excludeSections,
+            )
             print(output)
         }
     }
