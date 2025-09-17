@@ -1,6 +1,9 @@
 import AccessibilityControl
 import CoreFoundation
 import SwiftServerFoundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "ax-additions")
 
 public extension Accessibility.Element {
     var isValid: Bool {
@@ -15,12 +18,23 @@ public extension Accessibility.Element {
         (try? self.frame()) != CGRect.null
     }
 
-    // breadth-first, seems faster than dfs
-    func recursiveChildren() -> AnySequence<Accessibility.Element> {
-        AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
+    // - breadth-first, seems faster than dfs
+    // - default max complexity to 1,800; if i dump the complexity of the Messages app right now i get ~360. x10 that, should be plenty
+    // - we can't turn `AXUIElement`s into e.g. `ObjectIdentifier`s and use that to track a set of seen elements and avoid cycles because
+    //   the objects aren't pooled; any given instance of `AXUIElement` in memory is "transient" and another may take its place
+    func recursiveChildren(maxTraversalComplexity: Int = 3_600) -> AnySequence<Accessibility.Element> {
+        // incremented for every element with children that we discover; not "depth" since it's a running tally
+        var traversalComplexity = 0
+
+        return AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
             guard !queue.isEmpty else { return nil }
+            guard traversalComplexity < maxTraversalComplexity else {
+                log.error("HIT RECURSIVE TRAVERSAL COMPLEXITY LIMIT (\(traversalComplexity) > \(maxTraversalComplexity), queue count: \(queue.count)), terminating early")
+                return nil
+            }
             let elt = queue.removeFirst()
             if let children = try? elt.children() {
+                defer { traversalComplexity += 1 }
                 queue.append(contentsOf: children)
             }
             return elt
