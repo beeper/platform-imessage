@@ -22,6 +22,7 @@ public struct XMLDumper {
         "AXTopLevelUIElement", "AXMenuItemPrimaryUIElement", "AXParent", "AXWindow",
     ]
 
+    var maxDepth: Int? = nil
     var indentation = "  "
     var excludedRoles: Set<String> = []
     var excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes
@@ -32,12 +33,20 @@ public struct XMLDumper {
     func dump(
         _ element: Accessibility.Element,
         to output: inout some TextOutputStream,
+        depth: Int = 0,
         indent: Int = 0,
         shallow: Bool? = nil,
         preamble: String? = nil,
     ) throws {
-        var shallow = shallow ?? self.shallow
+        let shallow = shallow ?? self.shallow
         let whitespace = String(repeating: indentation, count: indent)
+        
+        if let maxDepth {
+            guard depth < maxDepth else {
+                print(whitespace + "⚠️ reached max depth (\(depth) >= \(maxDepth))".asComment, to: &output)
+                return
+            }
+        }
 
         let role: String
         do {
@@ -93,7 +102,7 @@ public struct XMLDumper {
             for (attributeContainingElementsName, containedElements) in attributesPointingToElements {
                 print(whitespace2 + "attribute containing elements".asComment + " <\(attributeContainingElementsName)>", to: &output)
                 for element in containedElements {
-                    try dump(element, to: &output, indent: indent + 2, shallow: true)
+                    try dump(element, to: &output, depth: depth + 1, indent: indent + 2, shallow: true)
                 }
                 print("\(whitespace2)</\(attributeContainingElementsName)>", to: &output)
             }
@@ -125,7 +134,7 @@ public struct XMLDumper {
                 if case let object = section["SectionObject"] as CFTypeRef, CFGetTypeID(object) == AXUIElementGetTypeID() {
                     print(">", to: &output)
                     if let element = Accessibility.Element(axRaw: object) {
-                        try dump(element, to: &output, indent: indent + 2)
+                        try dump(element, to: &output, depth: depth + 1, indent: indent + 2)
                     }
                     print("\(whitespace2)</section>", to: &output)
                 } else {
@@ -136,7 +145,7 @@ public struct XMLDumper {
 
         guard let children = try? element.children() else { return }
         for (index, child) in children.enumerated() {
-            try dump(child, to: &output, indent: indent + 1, preamble: "children[\(index)]")
+            try dump(child, to: &output, depth: depth + 1, indent: indent + 1, preamble: "children[\(index)]")
         }
     }
 }
@@ -145,12 +154,14 @@ public extension Accessibility.Element {
     func dumpXML(
         to output: inout some TextOutputStream,
         shallow: Bool = false,
+        maxDepth: Int? = nil,
         excludingElementsWithRoles excludedRoles: Set<String> = [],
         excludingAttributes excludedAttributes: Set<String> = XMLDumper.defaultExcludedAttributes,
         includeActions: Bool = true,
         includeSections: Bool = true,
     ) throws {
         try XMLDumper(
+            maxDepth: maxDepth,
             excludedRoles: excludedRoles,
             excludedAttributes: excludedAttributes,
             includeActions: includeActions,
