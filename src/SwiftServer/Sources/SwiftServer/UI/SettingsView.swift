@@ -49,8 +49,16 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        Form {
-            diagnosticsSection
+        VStack {
+            Form {
+                diagnosticsSection
+                
+                HStack {
+                    showLogFileInFinderButton
+                    Spacer()
+                    helpButton
+                }
+            }
         }
         .navigationTitle(Text(Self.windowTitle))
         .formStyle(.grouped)
@@ -102,6 +110,7 @@ struct SettingsView: View {
             Message content and attachments are never recorded.
             """)
         }
+        .frame(width: 600, height: 400)
     }
 
     @ViewBuilder
@@ -123,11 +132,6 @@ struct SettingsView: View {
             your privacy.
             """)
         } footer: {
-            HStack {
-                showLogFileInFinderButton
-                Spacer()
-                helpButton
-            }
         }
     }
 

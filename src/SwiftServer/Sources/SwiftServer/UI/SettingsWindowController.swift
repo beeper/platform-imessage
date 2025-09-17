@@ -8,9 +8,9 @@ final class SettingsWindowController: NSWindowController {
     static let shared = SettingsWindowController()
 
     init() {
-        var settingsController: NSHostingController = {
-            var controller = NSHostingController(rootView: SettingsView())
-            controller.sizingOptions = [.preferredContentSize]
+        let settingsController: NSHostingController = {
+            let controller = NSHostingController(rootView: SettingsView())
+            controller.sizingOptions = [.standardBounds]
             if #available(macOS 14, *) {
                 controller.sceneBridgingOptions = .all
             }
