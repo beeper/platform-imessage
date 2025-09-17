@@ -86,7 +86,7 @@ export default class AppleiMessage implements PlatformAPI {
       this.cachedDB = await DatabaseAPI.make(this)
     } catch (error: unknown) {
       texts.error("imsg: couldn't initialize DatabaseAPI:", error)
-      throw error
+      throw new ReAuthError("Can't access iMessage data", { cause: error })
     }
     // at this point, we can definitely read the imsg database
 
