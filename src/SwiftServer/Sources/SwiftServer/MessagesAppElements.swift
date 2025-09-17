@@ -120,7 +120,7 @@ final class MessagesAppElements {
         }
     }
 
-    var mainWindow: Accessibility.Element {
+    var _mainWindowReally: Accessibility.Element {
         get throws {
             if let cached = cachedMainWindow, cached.isFrameValid {
                 return cached
@@ -155,6 +155,42 @@ final class MessagesAppElements {
             // clearCachedElements()
             cachedMainWindow = mainWindow
             return mainWindow
+        }
+    }
+    
+    private var lastDumpedApplicationTree: Date?
+    
+    private func dumpAndLogApplicationTree() throws {
+        var buffer = ""
+        // 10 should be plenty
+        try app.dumpXML(to: &buffer, maxDepth: 10, excludingPII: true, includeActions: false, includeSections: true)
+        log.info("\(buffer)")
+    }
+    
+    private func dumpAndLogApplicationTreeIfNeeded() throws {
+        if let lastDumpedApplicationTree {
+            guard lastDumpedApplicationTree.timeIntervalSinceNow * -1 >= 60 else {
+                log.debug("not dumping application tree as it was dumped less than a minute ago")
+                return
+            }
+        }
+
+        defer { lastDumpedApplicationTree = Date() }
+        try dumpAndLogApplicationTree()
+    }
+    
+    var mainWindow: Accessibility.Element {
+        get throws {
+            do {
+                return try _mainWindowReally
+            } catch {
+                do {
+                    try dumpAndLogApplicationTreeIfNeeded()
+                } catch {
+                    log.error("couldn't dump application tree: \(String(describing: error))")
+                }
+                throw error
+            }
         }
     }
 
