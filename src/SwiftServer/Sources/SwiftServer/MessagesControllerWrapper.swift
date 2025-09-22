@@ -1,4 +1,5 @@
 import NodeAPI
+import Sentry
 import Foundation
 import WindowControl
 import SwiftServerFoundation
@@ -28,22 +29,42 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             return current
         }
 
-        queueLog.debug("\(function)#\(id): materializing promise")
+        let blockID = "\(function)#\(id)"
+        queueLog.debug("\(blockID): materializing promise")
+        breadcrumb("\(blockID): materializing", category: "mcw")
+        
         return try NodePromise { deferred in
             queue.async {
-                let result = Result { try action() }
+                let transaction = SentrySDK.startTransaction(name: "\(function)", operation: "queue.return_async", bindToScope: true)
+                transaction.setData(value: function, key: "queue.function")
+                transaction.setData(value: id, key: "queue.promise_id")
+                let result = Result {
+                    try action()
+                }
+
                 try? jsQueue.run {
-                    let settleResult = switch result {
-                    case .success: "resolved"
-                    case .failure: "rejected"
+                    switch result {
+                    case .success:
+                        breadcrumb("\(function)#\(id): resolved", category: "mcw", level: .debug)
+                        queueLog.debug("\(function)#\(id): resolved")
+                        transaction.finish()
+                    case let .failure(error):
+                        SentrySDK.capture(error: error)
+                        let errorString = String(describing: error)
+                        breadcrumb("\(function)#\(id): REJECTED", category: "mcw", type: "error", level: .error, data: [
+                            "error": errorString
+                        ])
+                        queueLog.error("\(function)#\(id): REJECTED: \(error)")
+                        transaction.setData(value: errorString, key: "error")
+                        transaction.finish(status: .internalError)
                     }
-                    queueLog.debug("\(function)#\(id): \(settleResult)")
+                    
                     try deferred(result)
                 }
             }
         }
     }
-
+    
     private func returnAsync(
         function: StaticString = #function,
         _ action: @escaping () throws -> NodeValueConvertible
@@ -62,16 +83,17 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
     }
 
     @NodeMethod static func create() throws -> NodeValueConvertible {
-        addBreadcrumb("Creating async queue")
         let q = try NodeAsyncQueue(label: "create-messages-controller")
-        addBreadcrumb("Opening async context")
         return try returnAsync(on: q) {
             let controller = try MessagesController(reportToSentry: { txt in
                 sentryLog.error("<!> report to sentry: \(txt)")
-                try? q.run {
-                    try Node.texts.Sentry.captureMessage(txt)
-                }
+
+                var event = Event()
+                event.message = SentryMessage(formatted: txt)
+                event.level = .error
+                SentrySDK.capture(event: event)
             })
+            
             return NodeDeferredValue {
                 addBreadcrumb("NodeDeferred.init")
                 return try MessagesControllerWrapper(controller: controller).wrapped()
@@ -80,11 +102,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
     }
 
     private static func addBreadcrumb(_ message: String) {
-        _ = try? Node.texts.Sentry.addBreadcrumb([
-            "category": "swiftserver",
-            "level": "info",
-            "message": message
-        ])
+        breadcrumb(message, category: "mcw")
         sentryLog.info("[breadcrumb] \(message)")
     }
 
@@ -272,5 +290,16 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         Log.default.notice("[MessagesControllerWrapper] disposing")
         Self.queue.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
+    }
+
+    @NodeMethod func _getMainWindow() {
+#if DEBUG
+        do {
+            let window = try self.controller.elements.mainWindow
+            Log.default.debug("@@@ [DEBUG] was able to fetch main window: \(window)")
+        } catch {
+            Log.default.error("@@@ [DEBUG] ❌ COULDN'T get main window! \(error)")
+        }
+#endif
     }
 }

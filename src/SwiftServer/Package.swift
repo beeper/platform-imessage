@@ -101,6 +101,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 "ExceptionCatcher",
                 "CUnfairLock",
+                .product(name: "Sentry", package: "sentry-cocoa"),
             ]
         ),
     ]

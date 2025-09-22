@@ -1,3 +1,4 @@
+import Sentry
 import AccessibilityControl
 import CoreFoundation
 import SwiftServerFoundation
@@ -26,14 +27,18 @@ public extension Accessibility.Element {
     func recursiveChildren(maxTraversalComplexity: Int = 3_600) -> AnySequence<Accessibility.Element> {
         // incremented for every element with children that we discover; not "depth" since it's a running tally
         var traversalComplexity = 0
+        
+        let span = currentlyActiveSpan?.startChild(operation: "ax.recurse", description: "\((try? self.role()) ?? "(unknown)")")
 
         return AnySequence(sequence(state: [self] as Deque) { queue -> Accessibility.Element? in
             guard traversalComplexity < maxTraversalComplexity else {
+                span?.finish(status: .resourceExhausted)
                 log.error("HIT RECURSIVE TRAVERSAL COMPLEXITY LIMIT (\(traversalComplexity) > \(maxTraversalComplexity), queue count: \(queue.count)), terminating early")
                 return nil
             }
 
             guard let elt = queue.popFirst() else {
+                span?.finish()
                 // queue is empty, we're done
                 return nil
             }
@@ -88,6 +93,27 @@ public extension Accessibility.Element {
     func firstChild(withRole role: KeyPath<AXRole.Type, String>) -> Accessibility.Element? {
         try? self.children().first { child in
             (try? child.role()) == AXRole.self[keyPath: role]
+        }
+    }
+}
+
+public extension Accessibility.Element {
+    var sentryData: [String: String] {
+        get {
+            // separated or else the swift compiler gets unhappy
+            let identifier = try? self.identifier()
+            let isEnabled = (try? self.isEnabled()).map(String.init)
+            let isFocused = (try? self.isFocused()).map(String.init)
+            let supportedActions = try? self.supportedActions()
+            
+            return [
+                "ax.element.role": try? self.role(),
+                "ax.element.enabled": isEnabled,
+                "ax.element.focused": isFocused,
+                "ax.element.identifier": identifier,
+                "ax.element.role_description": try? self.roleDescription(),
+                "ax.actions": supportedActions?.map(\.name.value).joined(separator: ", "),
+            ].compactMapValues(\.self)
         }
     }
 }
