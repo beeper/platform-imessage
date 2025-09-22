@@ -750,11 +750,11 @@ export default class AppleiMessage implements PlatformAPI {
     // if (!participantID) {
     //   return messagesController.watchThreadActivity(null)
     // }
-    texts.log('imsg: thread activity: watching', hashedThreadID)
+    texts.log(`imsg/activity/${hashedThreadID}: watching`)
 
     // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
     return messagesController.watchThreadActivity(threadID, statuses => {
-      texts.log('imsg: thread activity: received', JSON.stringify(statuses))
+      texts.log(`imsg/activity/${hashedThreadID}: received`, JSON.stringify(statuses))
 
       const isDNDCanNotify = statuses.includes(ActivityStatus.DNDCanNotify)
       const userID = threadID.split(';', 3).pop() as string // .split() never returns empty array
@@ -765,7 +765,10 @@ export default class AppleiMessage implements PlatformAPI {
       }
 
       // only sync user activity for groups
-      if (!singleParticipantID) return
+      if (!singleParticipantID) {
+        texts.log(`imsg/activity/${hashedThreadID}: NOT syncing; not a single participant`, JSON.stringify(statuses))
+        return
+      }
 
       const events: ServerEvent[] = [{
         type: ServerEventType.USER_ACTIVITY,
