@@ -44,6 +44,7 @@ public final class IMDatabase {
     var chatWithGUIDStatement: Statement?
     var allChatsStatement: Statement?
     var handlesInChatWithGUIDStatement: Statement?
+    private var statementCache = [String: Statement]()
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
@@ -54,14 +55,14 @@ public final class IMDatabase {
         self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
     }
 
-    func cachedStatement(_ statement: inout Statement?, creatingWithoutEscapingSQL sql: String) throws -> Statement {
-        if let statement {
-            return statement
+    func cachedStatement(forEscapedSQL sql: String) throws -> Statement {
+        if let cached = statementCache[sql] {
+            return cached
         }
 
-        let prepared = try database.prepare(sqlWithoutEscaping: sql, flags: .persistent)
-        statement = prepared
-        return prepared
+        let statement = try Statement.prepare(escapedSQL: sql, for: database, flags: .persistent)
+        statementCache[sql] = statement
+        return statement
     }
 
     deinit {

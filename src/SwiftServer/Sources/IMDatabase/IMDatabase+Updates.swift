@@ -31,7 +31,7 @@ public struct UpdatedChatsQueryResult {
 
 public extension IMDatabase {
     func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date) throws -> UpdatedChatsQueryResult {
-        let statement = try cachedStatement(&messageUpdatesStatement, creatingWithoutEscapingSQL: updatedChatsSinceQuery)
+        let statement = try cachedStatement(forEscapedSQL: updatedChatsSinceQuery)
 
         try statement.reset()
         try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate)

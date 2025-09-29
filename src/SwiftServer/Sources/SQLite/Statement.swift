@@ -1,4 +1,5 @@
 import Logging
+import Darwin
 import SQLite3
 
 private let log = Logger(label: "sqlite.stmt")
@@ -6,6 +7,26 @@ private let log = Logger(label: "sqlite.stmt")
 public final class Statement {
     var handle: OpaquePointer
     var database: Database
+
+    public static func prepare(escapedSQL sql: String, for database: Database, flags: PrepareFlags = []) throws -> Statement {
+        precondition(!sql.isEmpty, "can't prepare an empty SQL statement")
+
+        var statement: OpaquePointer?
+
+        try sql.withCString { ptr in
+            _ = try SQLiteError.check(sqlite3_prepare_v3(database.connection, ptr, Int32(strlen(ptr)), flags.rawValue, &statement, nil))
+        }
+
+        guard let statement else {
+            preconditionFailure("sqlite3_prepare_v3 didn't give us a statement")
+        }
+
+#if DEBUG
+        log.debug("prepared: \"\(sql)\"")
+#endif
+
+        return Statement(handle: statement, database: database)
+    }
 
     init(handle: OpaquePointer, database: Database) {
         self.handle = handle
@@ -15,6 +36,18 @@ public final class Statement {
     deinit {
         log.debug("finalizing prepared statement")
         try! SQLiteError.check(sqlite3_finalize(handle))
+    }
+}
+
+public extension Statement {
+    struct PrepareFlags: OptionSet {
+        public let rawValue: UInt32
+
+        public init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+
+        public static let persistent = Self(rawValue: UInt32(SQLITE_PREPARE_PERSISTENT))
     }
 }
 

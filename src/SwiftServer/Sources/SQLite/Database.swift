@@ -37,32 +37,8 @@ public final class Database {
 }
 
 public extension Database {
-    struct PrepareFlags: OptionSet {
-        public let rawValue: UInt32
-
-        public init(rawValue: UInt32) {
-            self.rawValue = rawValue
-        }
-
-        public static let persistent = Self(rawValue: UInt32(SQLITE_PREPARE_PERSISTENT))
-    }
-
-    func prepare(sqlWithoutEscaping sql: String, flags: PrepareFlags = []) throws -> Statement {
-        precondition(!sql.isEmpty, "can't prepare an empty SQL statement")
-
-        var statement: OpaquePointer?
-        try sql.withCString { ptr in
-            _ = try SQLiteError.check(sqlite3_prepare_v3(connection, ptr, Int32(strlen(ptr)), flags.rawValue, &statement, nil))
-        }
-
-        guard let statement else {
-            preconditionFailure("sqlite3_prepare_v3 didn't give us a statement")
-        }
-        return Statement(handle: statement, database: self)
-    }
-
     func execute<each T: SQLiteBindable>(sqlWithoutEscaping sql: String, _ bindingValue: repeat each T) throws {
-        let statement = try prepare(sqlWithoutEscaping: sql)
+        let statement = try Statement.prepare(escapedSQL: sql, for: self)
         try statement.bind(repeat each bindingValue)
         try statement.stepUntilDone(handlingRows: { _ in })
     }

@@ -49,7 +49,7 @@ public extension IMDatabase {
     typealias UnreadStates = [ChatRef: UnreadState]
 
     func queryUnreadStates() throws -> UnreadStates {
-        let statement = try cachedStatement(&unreadStatesStatement, creatingWithoutEscapingSQL: unreadStatesQuery)
+        let statement = try cachedStatement(forEscapedSQL: unreadStatesQuery)
         try statement.reset()
 
         var unreadStates = UnreadStates()

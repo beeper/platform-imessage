@@ -4,7 +4,7 @@ private let log = Logger(label: "imdb.chats")
 
 public extension IMDatabase {
     func chat(withGUID chatGUID: String) throws -> Chat? {
-        let statement = try cachedStatement(&chatWithGUIDStatement, creatingWithoutEscapingSQL: """
+        let statement = try cachedStatement(forEscapedSQL: """
         SELECT ROWID, display_name, service_name
         FROM chat
         WHERE guid = ?
@@ -26,7 +26,7 @@ public extension IMDatabase {
     }
 
     func chats() throws -> [Chat] {
-        let statement = try cachedStatement(&allChatsStatement, creatingWithoutEscapingSQL: """
+        let statement = try cachedStatement(forEscapedSQL: """
         SELECT ROWID, guid, display_name, service_name
         FROM chat
         """)
@@ -48,7 +48,7 @@ public extension IMDatabase {
     // this doesn't include the user themselves, just everyone else in the group chat,
     // UNLESS the user went out of their way to redundantly add themselves, which is possible when initially creating the chat
     func handles(inChatWithGUID chatGUID: String) throws -> [Handle] {
-        let statement = try cachedStatement(&handlesInChatWithGUIDStatement, creatingWithoutEscapingSQL: """
+        let statement = try cachedStatement(forEscapedSQL: """
         SELECT handle.ROWID, handle.id
         FROM chat
         INNER JOIN chat_handle_join ON chat_handle_join.chat_id = chat.ROWID

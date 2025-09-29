@@ -7,7 +7,7 @@ import Testing
     try database.execute(sqlWithoutEscaping: "CREATE TABLE foo (bar TEXT)")
     try database.execute(sqlWithoutEscaping: "INSERT INTO foo VALUES (\"hi\"), (NULL)")
 
-    let stmt = try database.prepare(sqlWithoutEscaping: "SELECT bar FROM foo")
+    let stmt = try Statement.prepare(escapedSQL: "SELECT bar FROM foo", for: database)
     let strings = try stmt.mapRowsUntilDone { row in
         try row[0].optional(String.self)
     }
@@ -19,7 +19,7 @@ import Testing
     try database.execute(sqlWithoutEscaping: "CREATE TABLE vals (val)")
     try database.execute(sqlWithoutEscaping: "INSERT INTO vals VALUES (NULL)")
 
-    let stmt = try database.prepare(sqlWithoutEscaping: "SELECT val FROM vals")
+    let stmt = try Statement.prepare(escapedSQL: "SELECT val FROM vals", for: database)
     try stmt.stepUntilDone { row in
         #expect(throws: Column.Error.expectedSpecificType(columnIndex: 0, desired: .text, actual: .null, sourceLocation: .anywhere)) {
             try row[0].expect(String.self)
