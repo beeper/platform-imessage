@@ -36,8 +36,8 @@ extension AXTool {
         @OptionGroup var options: AXTool.Options
 
         @Argument(help: "The bundle identifier of the app to target.")
-        var bundleID: String
-        
+        var bundleID = "com.apple.MobileSMS"
+
         @Flag(name: [.customShort("s"), .customLong("no-sections")], help: "Skips dumping sections.")
         var excludeSections = false
         
