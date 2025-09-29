@@ -213,11 +213,16 @@ final class MessagesController {
             let horribleWaiter = DispatchSemaphore(value: 0)
             var result: Result<NSRunningApplication, Error>?
             NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
-    #if DEBUG
-                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
-    #else
-                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
-    #endif
+#if DEBUG
+                let builtForDebugging = true
+#else
+                let builtForDebugging = false
+#endif
+                if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
+                    log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+                } else {
+                    log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
+                }
                 if let error {
                     result = .failure(error)
                 } else {

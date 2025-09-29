@@ -37,6 +37,7 @@ enum DefaultsKeys {
     static let misfirePreventionAlwaysFallback = "BEEPMisfirePreventionAlwaysFallback"
     /** if we don't want to use a real fallback strat, how long to sleep for */
     static let misfirePreventionSleepInterval = "BEEPMisfirePreventionSleepInterval"
+    static let deepLinkTracingPII = "BEEPDeepLinkTracingPII"
     /** we try to use `IMCore` SPI for window title predictions for phone numbers */
     static let imCoreSPI = "BEEPIMCoreSPI"
     static let misfirePreventionTracing = "BEEPMisfirePreventionTracing"
