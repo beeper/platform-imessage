@@ -13,8 +13,6 @@ private func bootstrap(logLevel: Logger.Level = .trace) {
     }
 }
 
-extension Logger.Level: @retroactive ExpressibleByArgument {}
-
 @main
 struct TestBench: AsyncParsableCommand {
     struct Options: ParsableArguments {
@@ -89,22 +87,6 @@ extension TestBench {
                 }
                 print()
             }
-        }
-    }
-}
-
-private extension Date? {
-    var formatted: String {
-        guard let self else {
-            return "(no date)"
-        }
-
-        if #available(macOS 12, *) {
-            let relative = self.formatted(.relative(presentation: .numeric, unitsStyle: .wide))
-            let absolute = self.formatted()
-            return "\(absolute) (\(relative))"
-        } else {
-            return "\(self)"
         }
     }
 }
@@ -279,42 +261,8 @@ extension TestBench {
                 }
             }
 
-            // `dispatchMain` crashes
+            // calling `dispatchMain` crashes, so do this instead
             await Task.never()
-        }
-    }
-}
-
-private extension Task where Success == Never, Failure == Never {
-    static func never() async {
-        let empty = AsyncStream<Never> { _ in }
-        for await _ in empty {}
-    }
-}
-
-private extension String {
-    var shortenedPath: String {
-        replacingOccurrences(of: NSHomeDirectory(), with: "~")
-    }
-
-    func padEnd(to length: Int) -> String {
-        self + String(repeating: " ", count: max(0, length - count))
-    }
-}
-
-private extension DispatchSource.FileSystemEvent {
-    var imdb_description: String {
-        switch self {
-        case .all: "all"
-        case .attrib: "attrib"
-        case .delete: "delete"
-        case .extend: "extend"
-        case .funlock: "funlock"
-        case .link: "link"
-        case .rename: "rename"
-        case .revoke: "revoke"
-        case .write: "write"
-        default: "unknown"
         }
     }
 }
