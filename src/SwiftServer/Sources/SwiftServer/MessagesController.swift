@@ -515,6 +515,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                             log.error("couldn't introspect focused element: \(error)")
                         }
                     case .windowCreated:
+                        printLifecycle(event: "WINDOW created")
                         // for now, reset our window-local observations whenever we
                         // see that a window was created (even if it was just e.g.
                         // the settings window).
