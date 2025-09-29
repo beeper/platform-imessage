@@ -66,14 +66,17 @@ jobs:
         run: |
           defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
 
-      # avoid hanging in ci when building
+      # this avoids hanging in ci when building
       #
       # https://github.com/getsentry/sentry-cocoa/issues/4331
       # https://github.com/actions/runner-images/issues/1820#issuecomment-719549887
-      - name: Create New Keychain
+      - name: Create dummy keychain and default to it
         run: |
-          KEYCHAIN_PATH="$RUNNER_TEMP/platform-imessage"
-          security create-keychain -p beepbeep "$KEYCHAIN_PATH"
+          keychain_path="$RUNNER_TEMP/platform-imessage.keychain"
+          password="beepbeep"
+          security create-keychain -p beepbeep "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security unlock-keychain -p "$password" "$keychain_path"
 
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
