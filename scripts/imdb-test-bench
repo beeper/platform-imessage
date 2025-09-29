@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+here="$(dirname -- "${BASH_SOURCE[0]}")"
+cd "$here/../src/SwiftServer"
+
+.build/debug/IMDatabaseTestBench "$@"
+
+cd - >/dev/null
