@@ -2,7 +2,9 @@
 import sys
 import re
 
-# Attributes to exclude from output
+# Claude-generated script to sort XML attributes from AXTool output to aid in
+# diffing.
+
 EXCLUDED_ATTRIBUTES = {
     'AXFrame',
     'AXPosition',
