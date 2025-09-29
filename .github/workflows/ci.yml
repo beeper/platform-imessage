@@ -88,11 +88,11 @@ jobs:
           CI_PUBLISHING: 'false'
         run: yarn build
 
-      - name: Build and publish
+      - name: Build and publish (test)
         if: ${{ github.ref_name == 'main' && (needs.check-published.outputs.version-exists == 'false' || inputs.publishing == 'true') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           CI_PUBLISHING: 'true'
         # runs `prepack` which runs `yarn build` which runs `src/SwiftServer/build-swift.ts`
-        run: npm publish
+        run: node --loader ts-node/esm src/SwiftServer/build-swift.ts
