@@ -39,8 +39,8 @@ public extension IMDatabase {
                 log.error("chat \(id) has no GUID, very spooky. dropping it on the ground")
                 return nil
             }
-            let displayName = try row[1].optional(String.self)?.nonEmpty
-            let serviceName = try Chat.ServiceName(rawValue: row[2].expect(String.self))
+            let displayName = try row[2].optional(String.self)?.nonEmpty
+            let serviceName = try Chat.ServiceName(rawValue: row[3].optional(String.self) ?? "NONE")
             return Chat(id: id, guid: guid, displayName: displayName, serviceName: serviceName)
         }.compactMap(\.self)
     }
