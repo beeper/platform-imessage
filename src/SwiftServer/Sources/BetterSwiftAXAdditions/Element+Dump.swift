@@ -85,13 +85,15 @@ public struct XMLDumper {
 
         if let supportedAttributes = try? element.supportedAttributes() {
             let attributes = Dictionary(
-                supportedAttributes.filter { !excludedAttributes.contains($0.name.value) }.map { attribute in (attribute.name.value, try? attribute()) },
+                supportedAttributes
+                    .filter { !excludedAttributes.contains($0.name.value) }
+                    .map { attribute in (attribute.name.value, try? attribute()) },
                 uniquingKeysWith: { first, second in second },
             )
 
             let lastNonNilIndex = Array(attributes.values).lastIndex(where: { $0 != nil })
 
-            for (index, (name, value)) in attributes.enumerated() {
+            for (index, (name, value)) in attributes.sorted(by: { $0.key < $1.key }).enumerated() {
                 if let array = value as? [Any] {
                     guard let first = array.first, CFGetTypeID(first as CFTypeRef) == AXUIElementGetTypeID() else {
                         continue
@@ -116,7 +118,7 @@ public struct XMLDumper {
         let whitespace2 = String(repeating: indentation, count: indent + 1)
 
         if !shallow {
-            for (attributeContainingElementsName, containedElements) in attributesPointingToElements {
+            for (attributeContainingElementsName, containedElements) in attributesPointingToElements.sorted(by: { $0.key < $1.key }) {
                 print(whitespace2 + "attribute containing elements".asComment + " <\(attributeContainingElementsName)>", to: &output)
                 for element in containedElements {
                     try dump(element, to: &output, depth: depth + 1, indent: indent + 2, shallow: true)
@@ -128,7 +130,7 @@ public struct XMLDumper {
         defer { print("\(whitespace)</\(role)>", to: &output) }
 
         if includeActions, let actions = try? element.supportedActions(), !actions.isEmpty {
-            for (index, action) in actions.enumerated() {
+            for (index, action) in actions.sorted(by: { $0.name.value < $1.name.value }).enumerated() {
                 print(whitespace2 + "actions[\(index)]".asComment + "<action", terminator: " ", to: &output)
 
                 let actionName = action.name.value
