@@ -155,7 +155,7 @@ public func withSpan<T>(
 public func startSentry(deviceID: String?) {
     SentrySDK.start { options in
         options.dsn = "https://bbec929e3efac3317cc8b3b10802db83@o248881.ingest.us.sentry.io/4507211628216320"
-        options.debug = true
+        options.debug = false
         options.sendDefaultPii = false
         options.enableCaptureFailedRequests = false
         options.tracesSampleRate = 1
