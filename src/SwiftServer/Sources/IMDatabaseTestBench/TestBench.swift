@@ -24,7 +24,7 @@ struct TestBench: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
-        subcommands: [Watch.self, Chats.self, FSEventsCommand.self, TestIdleAware.self],
+        subcommands: [Watch.self, Messages.self, Chats.self, FSEventsCommand.self, TestIdleAware.self],
     )
 
     mutating func run() async throws {}
@@ -38,6 +38,73 @@ extension TestBench {
             switch self {
             case .biz: chat.isBusiness
             }
+        }
+    }
+}
+
+// MARK: - Messages
+
+extension TestBench {
+    struct Messages: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Queries the database for messages.",
+            aliases: ["m"],
+        )
+
+        @OptionGroup var options: TestBench.Options
+
+        @Argument(help: "The GUID of the chat to query messages from.")
+        var chatGUID: String
+
+        @Option(name: .shortAndLong, help: "The maximum number of messages to fetch.")
+        var limit: Int = 50
+
+        mutating func run() async throws {
+            bootstrap(logLevel: options.logLevel)
+
+            let db = try IMDatabase()
+
+            guard let chat = try db.chat(withGUID: chatGUID) else {
+                print("No such chat.")
+                throw ExitCode.success
+            }
+
+            let messages = try db.messages(in: chat.guid, limit: limit)
+
+            for message in messages {
+                let tags: String = {
+                    let tags = [message.isFromMe ? "(from me)" : nil, message.isSent ? "(is sent)" : nil].compactMap(\.self)
+                    guard !tags.isEmpty else {
+                        return ""
+                    }
+                    return " \u{1b}[1;34m\(tags.joined(separator: ", "))\u{1b}[0m"
+                }()
+
+                print("\u{1b}[1m\(message.guid)\u{1b}[0m #\(message.id), \(message.date.formatted)\(tags)")
+                if let text = message.text?.unwrappingSensitiveData() {
+                    print("  text: \(text)")
+                }
+                if let attributedBody = message.attributedBody?.unwrappingSensitiveData() {
+                    print("  attributed body: \(attributedBody)")
+                }
+                print()
+            }
+        }
+    }
+}
+
+private extension Date? {
+    var formatted: String {
+        guard let self else {
+            return "(no date)"
+        }
+
+        if #available(macOS 12, *) {
+            let relative = self.formatted(.relative(presentation: .numeric, unitsStyle: .wide))
+            let absolute = self.formatted()
+            return "\(absolute) (\(relative))"
+        } else {
+            return "\(self)"
         }
     }
 }
