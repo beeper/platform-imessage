@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+here="$(dirname -- "${BASH_SOURCE[0]}")"
+cd "$here/../src/SwiftServer"
+
+xcrun swift build -c release --product AXTool
+# (set CODESIGNING_IDENTITY to the name of a stable signing identity; needed so
+# the designated requirement of the binary doesn't constantly change, and AX
+# permissions remain granted)
+codesign -f -vvv --sign "$CODESIGNING_IDENTITY" --timestamp .build/release/AXTool
+
+cd - >/dev/null

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+here="$(dirname -- "${BASH_SOURCE[0]}")"
+cd "$here/../src/SwiftServer"
+
+xml_file="$HOME/Documents/AXTool-Dump-iMessage-$(date +%Y-%m-%d-%I-%M-%S-%p).xml"
+.build/release/AXTool dump -s com.apple.MobileSMS --no-actions >"$xml_file"
+$EDITOR "$xml_file"
+
+cd - >/dev/null
