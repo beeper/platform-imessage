@@ -1,5 +1,5 @@
-import Sentry
 import Logging
+import Sentry
 
 private let log = Logger(swiftServerLabel: "sentry")
 
@@ -17,7 +17,7 @@ public func breadcrumb(
     crumb.data = data
     crumb.message = message
     crumb.origin = "platform-imessage"
-    
+
     switch level {
     case .none:
         log.notice("[bc] [none] [\(category)] \(message)")
@@ -34,7 +34,7 @@ public func breadcrumb(
     @unknown default:
         log.info("[bc] [?] [\(category)] \(message)")
     }
-    
+
     SentrySDK.addBreadcrumb(crumb)
 }
 
@@ -61,7 +61,7 @@ public func landmark(
     guard let span = currentlyActiveSpan else {
         return
     }
-   
+
     let child = span.startChild(operation: op, description: description)
     for (key, value) in tags {
         child.setTag(value: value, key: key)
@@ -83,15 +83,15 @@ public func captureMessage(_ message: String, level: SentryLevel = .debug) {
 
 public struct SentryTags {}
 
-extension SentryTags {
-    public static var misfireStrategy: String { "misfire.strategy" }
-    public static var misfireWaiterType: String { "misfire.waiter.type" }
-    public static var misfireWaiterBegan: String { "misfire.waiter.began" }
-    public static var misfireDefaultComposeThread: String { "misfire.default.compose_thread" }
-    public static var misfireChatType: String { "misfire.chat.type" }
-    public static var sendHasOverlay: String { "send.has_overlay" }
-    public static var sendHasQuotedMessage: String { "send.has_quoted_message" }
-    public static var sendHasFilePath: String { "send.has_file_path" }
+public extension SentryTags {
+    static var misfireStrategy: String { "misfire.strategy" }
+    static var misfireWaiterType: String { "misfire.waiter.type" }
+    static var misfireWaiterBegan: String { "misfire.waiter.began" }
+    static var misfireDefaultComposeThread: String { "misfire.default.compose_thread" }
+    static var misfireChatType: String { "misfire.chat.type" }
+    static var sendHasOverlay: String { "send.has_overlay" }
+    static var sendHasQuotedMessage: String { "send.has_quoted_message" }
+    static var sendHasFilePath: String { "send.has_file_path" }
 }
 
 public extension Sentry.Span {
@@ -100,7 +100,7 @@ public extension Sentry.Span {
             let key = SentryTags.self[keyPath: tag]
             return self.tags[key]
         }
-        
+
         set(newValue) {
             let key = SentryTags.self[keyPath: tag]
             if let newValue {
@@ -154,7 +154,8 @@ public func withSpan<T>(
 
 public func startSentry(deviceID: String?) {
     SentrySDK.start { options in
-        options.dsn = "https://bbec929e3efac3317cc8b3b10802db83@o248881.ingest.us.sentry.io/4507211628216320"
+        options.dsn =
+            "https://bbec929e3efac3317cc8b3b10802db83@o248881.ingest.us.sentry.io/4507211628216320"
         options.debug = false
         options.sendDefaultPii = false
         options.enableCaptureFailedRequests = false
@@ -178,7 +179,7 @@ public func startSentry(deviceID: String?) {
             }
             return scope
         }
-        
+
         // avoid sampling stacks when sending messages, so we can send events to appear
         // within traces without them being expensive. exceptions and errors always get
         // stack traces regardless of this option
