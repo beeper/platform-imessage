@@ -57,6 +57,12 @@ extension TestBench {
         @Option(name: .shortAndLong, help: "The maximum number of messages to fetch.")
         var limit: Int = 50
 
+        @Option(name: .shortAndLong, help: "Only fetches before or after the specified date.", transform: MessageQueryFilter.parse)
+        var filter: MessageQueryFilter? = nil
+
+        @Option(name: .shortAndLong, help: "Order the query results.")
+        var order: DateOrdering = .newestFirst
+
         mutating func run() async throws {
             bootstrap(logLevel: options.logLevel)
 
@@ -67,7 +73,7 @@ extension TestBench {
                 throw ExitCode.success
             }
 
-            let messages = try db.messages(in: chat.guid, limit: limit)
+            let messages = try db.messages(in: chat.guid, filter: filter, order: order, limit: limit)
 
             for message in messages {
                 let tags: String = {

@@ -3,18 +3,50 @@ import Foundation
 import SQLite
 import SwiftServerFoundation
 
+public enum DateOrdering {
+    case newestFirst
+    case oldestFirst
+
+    var sqlKeyword: String {
+        switch self {
+        case .newestFirst: "DESC"
+        case .oldestFirst: "ASC"
+        }
+    }
+}
+
+public struct MessageQueryFilter {
+    let sql: String
+    init(escapedSQL: String) {
+        self.sql = escapedSQL
+    }
+
+    public static func before(_ date: Date) -> Self {
+        MessageQueryFilter(escapedSQL: "date < ?")
+    }
+
+    public static func after(_ date: Date) -> Self {
+        MessageQueryFilter(escapedSQL: "date > ?")
+    }
+}
+
 public extension IMDatabase {
-    func messages(in chatGUID: GUID<Chat>, limit: Int = 50) throws -> [Message] {
-        let statement = try cachedStatement(forEscapedSQL: """
+    func messages(in chatGUID: GUID<Chat>, filter: MessageQueryFilter? = nil, order: DateOrdering = .newestFirst, limit: Int = 50) throws -> [Message] {
+        let statement = try Statement.prepare(escapedSQL: """
         SELECT m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read
         FROM message m
         LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
         LEFT JOIN chat c ON cmj.chat_id = c.ROWID
         WHERE c.guid = ?
-        ORDER BY date DESC
+        \(filter.map { "AND m.\($0.sql)" } ?? "")
+        ORDER BY date \(order.sqlKeyword)
         LIMIT ?
-        """).reset()
-        try statement.bind(chatGUID, limit)
+        """, for: database).reset()
+        if let filter {
+            try statement.bind(chatGUID, filter.sql, limit)
+        } else {
+            try statement.bind(chatGUID, limit)
+        }
 
         return try statement.mapRowsUntilDone { row in
             try Message(
