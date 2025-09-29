@@ -66,8 +66,10 @@ public extension Statement {
 // MARK: - Resetting, Clearing, and Binding
 
 public extension Statement {
-    func reset() throws {
+    @discardableResult
+    func reset() throws -> Self {
         try SQLiteError.check(sqlite3_reset(handle))
+        return self
     }
 
     func clearBindings() throws {
