@@ -38,12 +38,6 @@ public final class IMDatabase {
 
     var database: Database
 
-    // prepared statement caching
-    var unreadStatesStatement: Statement?
-    var messageUpdatesStatement: Statement?
-    var chatWithGUIDStatement: Statement?
-    var allChatsStatement: Statement?
-    var handlesInChatWithGUIDStatement: Statement?
     private var statementCache = [String: Statement]()
 
     public init(messagesDataBaseURL: URL? = nil) throws {

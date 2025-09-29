@@ -84,16 +84,17 @@ extension TestBench {
 
 private extension Chat {
     func dump() {
-        var header = "\u{1b}[1m"
+        print({
+            var header = "\u{1b}[1m\(guid)\u{1b}[0m "
+            if let displayName {
+                header += "\"\(displayName)\""
+            } else {
+                header += "(no display name)"
+            }
 
-        if let displayName {
-            header += displayName.isEmpty ? "(empty display name)" : "\"\(displayName)\""
-        } else {
-            header += "(no display name)"
-        }
-
-        header += " <\(guid)> [\(id)]\u{1b}[0m"
-        print(header)
+            header += " #\(id)\u{1b}[0m"
+            return header
+        }())
 
         if isBusiness {
             print("\u{1b}[35m- business chat\u{1b}[0m")
