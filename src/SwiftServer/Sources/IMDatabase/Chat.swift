@@ -1,7 +1,7 @@
 /** Represents a row in the `chat` table. */
 public struct Chat {
     public var id: Int
-    public var guid: String
+    public var guid: GUID<Chat>
 
     /** For group chats, a custom name. For business chats, the business name. */
     public var displayName: String?
@@ -9,9 +9,10 @@ public struct Chat {
 }
 
 public extension Chat {
+    /** `service_name` column of `chat` rows. */
     struct ServiceName: RawRepresentable, Hashable, Equatable, Sendable {
         public var rawValue: String
-        
+
         public static var rcs: Self { Self(rawValue: "RCS") }
         public static var sms: Self { Self(rawValue: "SMS") }
         public static var imessage: Self { Self(rawValue: "iMessage") }
@@ -29,6 +30,6 @@ private var businessGUIDPrefixes: [String] {
 
 public extension Chat {
     var isBusiness: Bool {
-        businessGUIDPrefixes.contains(where: { guid.hasPrefix($0) })
+        businessGUIDPrefixes.contains(where: { guid.guts.hasPrefix($0) })
     }
 }
