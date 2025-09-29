@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
+if [ "${1-}" = "" ]; then
+  printf >&2 "usage: build-and-sign <target>"
+  exit 1
+fi
+target="$1"
+
 here="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$here/../src/SwiftServer"
 
-xcrun swift build -c release --product AXTool
+xcrun swift build -c debug --product "$target"
 # (set CODESIGNING_IDENTITY to the name of a stable signing identity; needed so
 # the designated requirement of the binary doesn't constantly change, and AX
 # permissions remain granted)
-codesign -f -vvv --sign "$CODESIGNING_IDENTITY" --timestamp .build/release/AXTool
+codesign -f -vvv --sign "$CODESIGNING_IDENTITY" --timestamp ".build/debug/$target"
 
 cd - >/dev/null
