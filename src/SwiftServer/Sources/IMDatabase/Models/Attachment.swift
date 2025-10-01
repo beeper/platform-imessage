@@ -8,6 +8,8 @@ public struct Attachment: Identifiable {
     public var transferName: String?
     public var isSticker: Bool
     public var transferState: TransferState?
+    // TODO: not using UTType due to deployment target
+    public var uti: String?
 }
 
 // MARK: - Attachment+Transfer State

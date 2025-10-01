@@ -86,7 +86,7 @@ public extension IMDatabase {
         let messageRowIDs = messages.values.map { "\($0.id)" }
 
         let statement = try Statement.prepare(escapedSQL: """
-        SELECT m.ROWID, a.ROWID, a.guid, a.filename, a.transfer_name, a.is_sticker, a.transfer_state
+        SELECT m.ROWID, a.ROWID, a.guid, a.filename, a.transfer_name, a.is_sticker, a.transfer_state, a.uti
         FROM message m
         INNER JOIN message_attachment_join maj ON maj.message_id = m.ROWID
         INNER JOIN attachment a ON a.ROWID = maj.attachment_id
@@ -100,6 +100,7 @@ public extension IMDatabase {
             let transferName = try row[4].optionalConverting(String.self)
             let isSticker = try row[5].looseBool()
             let transferState = try Attachment.TransferState(rawValue: row[6].expectConverting(Int.self))
+            let uti = try row[7].optionalConverting(String.self)
 
             guard messages[messageRowID] != nil else {
                 return
@@ -116,6 +117,7 @@ public extension IMDatabase {
                     transferName: transferName,
                     isSticker: isSticker,
                     transferState: transferState,
+                    uti: uti,
                 )
             )
         }
