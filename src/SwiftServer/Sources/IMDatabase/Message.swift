@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Message {
+public struct Message: Identifiable {
     public var id: Int
     public var guid: GUID<Message>
 
