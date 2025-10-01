@@ -91,6 +91,12 @@ extension TestBench {
                 if let attributedBody = message.attributedBody?.unwrappingSensitiveData() {
                     print("  attributed body: \(attributedBody)")
                 }
+
+                if let attachments = message.attachments {
+                    for (index, attachment) in attachments.enumerated() {
+                        print("  attachment \(index + 1)/\(attachments.count): \(attachment)")
+                    }
+                }
                 print()
             }
         }

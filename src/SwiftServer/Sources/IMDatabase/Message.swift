@@ -16,4 +16,6 @@ public struct Message: Identifiable {
     public var date: Date?
     public var dateRead: Date?
     public var dateDelivered: Date?
+
+    public var attachments: [Attachment]?
 }

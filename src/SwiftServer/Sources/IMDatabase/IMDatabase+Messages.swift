@@ -31,7 +31,13 @@ public struct MessageQueryFilter {
 }
 
 public extension IMDatabase {
-    func messages(in chatGUID: GUID<Chat>, filter: MessageQueryFilter? = nil, order: DateOrdering = .newestFirst, limit: Int = 50) throws -> [Message] {
+    func messages(
+        in chatGUID: GUID<Chat>,
+        filter: MessageQueryFilter? = nil,
+        order: DateOrdering = .newestFirst,
+        limit: Int = 50,
+        withAttachments includeAttachments: Bool = true,
+    ) throws -> some Collection<Message> {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read
         FROM message m
@@ -48,10 +54,14 @@ public extension IMDatabase {
             try statement.bind(chatGUID, limit)
         }
 
-        return try statement.mapRowsUntilDone { row in
-            try Message(
-                id: row[0].expect(Int.self),
-                guid: GUID(row[1].expect(String.self)),
+        var messages = [Message.ID: Message]()
+        try statement.stepUntilDone { row in
+            let id = try row[0].expect(Int.self)
+            let guid = try GUID<Message>(row[1].expect(String.self))
+
+            messages[id] = try Message(
+                id: id,
+                guid: guid,
                 text: row[2].optional(String.self).map {
                     Sensitive(.messageText, hiding: $0)
                 },
@@ -62,6 +72,51 @@ public extension IMDatabase {
                 isSent: row[5].looseBool(),
                 date: row[6].imCoreDate(),
                 dateRead: row[7].imCoreDate(),
+            )
+        }
+
+        if includeAttachments {
+            try hydrateAttachments(for: &messages)
+        }
+
+        return messages.values
+    }
+
+    private func hydrateAttachments(for messages: inout [Message.ID: Message]) throws {
+        let messageRowIDs = messages.values.map { "\($0.id)" }
+
+        let statement = try Statement.prepare(escapedSQL: """
+        SELECT m.ROWID, a.ROWID, a.guid, a.filename, a.transfer_name, a.is_sticker, a.transfer_state
+        FROM message m
+        INNER JOIN message_attachment_join maj ON maj.message_id = m.ROWID
+        INNER JOIN attachment a ON a.ROWID = maj.attachment_id
+        WHERE m.ROWID IN (\(messageRowIDs.joined(separator: ",")))
+        """, for: database)
+        try statement.stepUntilDone { row in
+            let messageRowID = try row[0].expect(Int.self)
+            let attachmentRowID = try row[1].expect(Int.self)
+            let attachmentGUID = try GUID<Attachment>(row[2].expect(String.self))
+            let fileName = try row[3].optionalConverting(String.self)
+            let transferName = try row[4].optionalConverting(String.self)
+            let isSticker = try row[5].looseBool()
+            let transferState = try Attachment.TransferState(rawValue: row[6].expectConverting(Int.self))
+
+            guard messages[messageRowID] != nil else {
+                return
+            }
+
+            if messages[messageRowID]!.attachments == nil {
+                messages[messageRowID]!.attachments = []
+            }
+            messages[messageRowID]!.attachments!.append(
+                Attachment(
+                    id: attachmentRowID,
+                    guid: attachmentGUID,
+                    fileName: fileName,
+                    transferName: transferName,
+                    isSticker: isSticker,
+                    transferState: transferState,
+                )
             )
         }
     }
