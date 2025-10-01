@@ -16,17 +16,17 @@ public enum DateOrdering {
 }
 
 public struct MessageQueryFilter {
-    let sql: String
-    init(escapedSQL: String) {
-        self.sql = escapedSQL
+    let sqlFragment: String
+    init(escapedSQLFragment: String) {
+        self.sqlFragment = escapedSQLFragment
     }
 
     public static func before(_ date: Date) -> Self {
-        MessageQueryFilter(escapedSQL: "date < ?")
+        MessageQueryFilter(escapedSQLFragment: "date < \(date.nanosecondsSinceReferenceDate)")
     }
 
     public static func after(_ date: Date) -> Self {
-        MessageQueryFilter(escapedSQL: "date > ?")
+        MessageQueryFilter(escapedSQLFragment: "date > \(date.nanosecondsSinceReferenceDate)")
     }
 }
 
@@ -44,15 +44,11 @@ public extension IMDatabase {
         LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
         LEFT JOIN chat c ON cmj.chat_id = c.ROWID
         WHERE c.guid = ?
-        \(filter.map { "AND m.\($0.sql)" } ?? "")
-        ORDER BY date \(order.sqlKeyword)
+        \(filter.map { "AND m.\($0.sqlFragment)" } ?? "")
+        ORDER BY m.date \(order.sqlKeyword)
         LIMIT ?
         """).reset()
-        if let filter {
-            try statement.bind(chatGUID, filter.sql, limit)
-        } else {
-            try statement.bind(chatGUID, limit)
-        }
+        try statement.bind(chatGUID, limit)
 
         var messages = [Message.ID: Message]()
         try statement.stepUntilDone { row in
