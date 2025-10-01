@@ -60,6 +60,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+                .product(name: "Collections", package: "swift-collections"),
                 "SQLite",
                 "ExceptionCatcher",
                 "SwiftServerFoundation",

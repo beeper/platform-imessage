@@ -3,6 +3,7 @@ import Logging
 private let log = Logger(label: "imdb.chats")
 
 public extension IMDatabase {
+    // TODO: replace with overload that takes `GUID`
     func chat(withGUID chatGUID: String) throws -> Chat? {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT ROWID, display_name, service_name
@@ -23,6 +24,10 @@ public extension IMDatabase {
             log.warning("database anomaly: more than one chat returned by guid query")
         }
         return chats.first
+    }
+
+    func chat(withGUID guid: GUID<Chat>) throws -> Chat? {
+        try chat(withGUID: guid.guts)
     }
 
     func chats() throws -> [Chat] {

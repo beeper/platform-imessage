@@ -22,7 +22,7 @@ struct TestBench: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
-        subcommands: [Watch.self, Messages.self, Chats.self, FSEventsCommand.self, TestIdleAware.self],
+        subcommands: [Watch.self, Messages.self, Chats.self, FSEventsCommand.self, TestIdleAware.self, ClosestSelectable.self],
     )
 
     mutating func run() async throws {}
@@ -76,29 +76,76 @@ extension TestBench {
             let messages = try db.messages(in: chat.guid, filter: filter, order: order, limit: limit)
 
             for message in messages {
-                let tags: String = {
-                    let tags = [message.isFromMe ? "(from me)" : nil, message.isSent ? "(is sent)" : nil].compactMap(\.self)
-                    guard !tags.isEmpty else {
-                        return ""
-                    }
-                    return " \u{1b}[1;34m\(tags.joined(separator: ", "))\u{1b}[0m"
-                }()
-
-                print("\u{1b}[1m\(message.guid)\u{1b}[0m #\(message.id), \(message.date.formatted)\(tags)")
-                if let text = message.text?.unwrappingSensitiveData() {
-                    print("  text: \(text)")
-                }
-                if let attributedBody = message.attributedBody?.unwrappingSensitiveData() {
-                    print("  attributed body: \(attributedBody)")
-                }
-
-                if let attachments = message.attachments {
-                    for (index, attachment) in attachments.enumerated() {
-                        print("  attachment \(index + 1)/\(attachments.count): \(attachment)")
-                    }
-                }
-                print()
+                message.dump()
             }
+        }
+    }
+}
+
+private extension Message {
+    func dump() {
+        let tags: String = {
+            let tags = [isFromMe ? "(from me)" : nil, isSent ? "(is sent)" : nil].compactMap(\.self)
+            guard !tags.isEmpty else {
+                return ""
+            }
+            return " \u{1b}[1;34m\(tags.joined(separator: ", "))\u{1b}[0m"
+        }()
+
+        print("\u{1b}[1m\(guid)\u{1b}[0m #\(id), \(date.formattedForDebugging)\(tags)")
+        if let text = text?.unwrappingSensitiveData() {
+            print("  text: \(text)")
+        }
+        if let attributedBody = attributedBody?.unwrappingSensitiveData() {
+            print("  attributed body: \(attributedBody)")
+        }
+
+        if let attachments = attachments {
+            for (index, attachment) in attachments.enumerated() {
+                print("  attachment \(index + 1)/\(attachments.count): \(attachment)")
+            }
+        }
+        print()
+    }
+}
+
+extension TestBench {
+    struct ClosestSelectable: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Finds the closest selectable message relative to another message.",
+            aliases: ["closest"],
+        )
+
+        @OptionGroup var options: TestBench.Options
+
+        @Argument(help: "The GUID of the target message.", transform: GUID.init)
+        var messageGUID: GUID<Message>
+
+        mutating func run() async throws {
+            bootstrap(logLevel: options.logLevel)
+
+            let db = try IMDatabase()
+
+            guard let (message, chatGUID) = try db.message(with: messageGUID) else {
+                Self.exit(withError: ErrorMessage("Message with GUID \"\(messageGUID)\" not found."))
+            }
+
+            print("chat GUID: \(chatGUID)")
+
+            guard let closest = try db.findSelectableMessage(closestTo: message, in: chatGUID) else {
+                Self.exit(withError: ErrorMessage("Couldn't find a closest selectable message."))
+            }
+
+            print()
+            print("(original)")
+            message.dump()
+            print(String(repeating: "=", count: 100))
+            print()
+            print()
+            print("(closest selectable)")
+            print("offset: \(closest.relativeOffsetFromTarget)")
+            closest.selectable.dump()
+            print()
         }
     }
 }

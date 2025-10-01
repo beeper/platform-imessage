@@ -22,7 +22,7 @@ public final class Statement {
         }
 
 #if DEBUG
-        log.debug("prepared: \"\(sql)\"")
+        log.debug("PREPARED\n\n\(sql)\n\n")
 #endif
 
         return Statement(handle: statement, database: database)
