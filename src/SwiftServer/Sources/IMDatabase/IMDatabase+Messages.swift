@@ -32,7 +32,7 @@ public struct MessageQueryFilter {
 
 public extension IMDatabase {
     func messages(in chatGUID: GUID<Chat>, filter: MessageQueryFilter? = nil, order: DateOrdering = .newestFirst, limit: Int = 50) throws -> [Message] {
-        let statement = try Statement.prepare(escapedSQL: """
+        let statement = try cachedStatement(forEscapedSQL: """
         SELECT m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read
         FROM message m
         LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
@@ -41,7 +41,7 @@ public extension IMDatabase {
         \(filter.map { "AND m.\($0.sql)" } ?? "")
         ORDER BY date \(order.sqlKeyword)
         LIMIT ?
-        """, for: database).reset()
+        """).reset()
         if let filter {
             try statement.bind(chatGUID, filter.sql, limit)
         } else {
