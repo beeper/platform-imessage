@@ -125,6 +125,14 @@ extension TestBench {
         @Argument(help: "The GUID of the target message.", transform: GUID.init)
         var messageGUID: GUID<Message>
 
+        @Argument(help: "The part of the target message to use as a starting point for locating the closest selectable part.", transform: { arg in
+            guard let index = Int(arg) else {
+                throw ValidationError("message part isn't an integer: \(arg)")
+            }
+            return Message.Part.Index(rawValue: index)
+        })
+        var partIndex: Message.Part.Index
+
         mutating func run() async throws {
             bootstrap(logLevel: options.logLevel)
 
@@ -134,21 +142,27 @@ extension TestBench {
                 Self.exit(withError: ErrorMessage("Message with GUID \"\(messageGUID)\" not found."))
             }
 
+            print()
             print("chat GUID: \(chatGUID)")
+            let parts = message.parts
+            guard let part = parts.first(where: { $0.index == partIndex }) else {
+                Self.exit(withError: ErrorMessage("Message \"\(messageGUID)\" doesn't have a part with index \(partIndex) (part indices: \(parts.map(\.index))."))
+            }
+            print("target part: \(part)")
+            print()
+            print("(original message)")
+            message.dump()
+            print(String(repeating: "=", count: 100))
 
-            guard let closest = try db.findSelectableMessage(closestTo: message, in: chatGUID) else {
+            guard let closest = try db.findClosestSelectablePart(from: part, parentMessage: message, in: chatGUID) else {
                 Self.exit(withError: ErrorMessage("Couldn't find a closest selectable message."))
             }
 
             print()
-            print("(original)")
-            message.dump()
-            print(String(repeating: "=", count: 100))
-            print()
             print()
             print("(closest selectable)")
-            print("offset: \(closest.relativeOffsetFromTarget)")
-            closest.selectable.dump()
+            print("\u{1b}[1;32mtarget relative offset (in parts): \(closest.offsetFromTarget)\u{1b}[0m")
+            print("\u{1b}[1;32mselectable part:", closest.closestSelectable, "\u{1b}[0m")
             print()
         }
     }
