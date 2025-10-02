@@ -36,7 +36,7 @@ extension Attachment.TransferState: CustomStringConvertible {
         case .notDownloaded: "not downloaded"
         case .downloading: "downloading"
         case .downloaded: "downloaded"
-        default: "unknown (\(self))"
+        default: "unknown (\(rawValue))"
         }
     }
 }
