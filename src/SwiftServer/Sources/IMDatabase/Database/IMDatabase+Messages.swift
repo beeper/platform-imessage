@@ -32,7 +32,7 @@ public struct MessageQueryFilter {
 }
 
 let messagesQuerySharedPrelude = """
-SELECT c.guid, m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read
+SELECT c.guid, m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
 FROM message m
 LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
@@ -112,6 +112,7 @@ private extension Message {
             isSent: row[6].looseBool(),
             date: row[7].imCoreDate(),
             dateRead: row[8].imCoreDate(),
+            summaryInfo: row[9].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
         )
     }
 }

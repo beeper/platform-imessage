@@ -105,6 +105,10 @@ private extension Message {
                 print("  attachment \(index + 1)/\(attachments.count): \(attachment)")
             }
         }
+
+        if let summaryInfo = summaryInfo {
+            print("  summary info:", summaryInfo)
+        }
         print()
     }
 }

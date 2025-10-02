@@ -18,4 +18,7 @@ public struct Message: Identifiable {
     public var dateDelivered: Date?
 
     public var attachments: [Attachment]?
+
+    /** `message_summary_info` column */
+    public var summaryInfo: SummaryInfo?
 }
