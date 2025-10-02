@@ -66,18 +66,6 @@ jobs:
         run: |
           defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
 
-      # this avoids hanging in ci when building
-      #
-      # https://github.com/getsentry/sentry-cocoa/issues/4331
-      # https://github.com/actions/runner-images/issues/1820#issuecomment-719549887
-      - name: Create dummy keychain and default to it
-        run: |
-          keychain_path="$RUNNER_TEMP/platform-imessage.keychain"
-          password="beepbeep"
-          security create-keychain -p beepbeep "$keychain_path"
-          security default-keychain -s "$keychain_path"
-          security unlock-keychain -p "$password" "$keychain_path"
-
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
         # Otherwise, just build to provide diagnostics.
@@ -88,11 +76,11 @@ jobs:
           CI_PUBLISHING: 'false'
         run: yarn build
 
-      - name: Build and publish (test)
+      - name: Build and publish
         if: ${{ github.ref_name == 'main' && (needs.check-published.outputs.version-exists == 'false' || inputs.publishing == 'true') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           CI_PUBLISHING: 'true'
         # runs `prepack` which runs `yarn build` which runs `src/SwiftServer/build-swift.ts`
-        run: node --loader ts-node/esm src/SwiftServer/build-swift.ts
+        run: npm publish
