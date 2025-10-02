@@ -1,5 +1,4 @@
 import NodeAPI
-import Sentry
 import Foundation
 import WindowControl
 import SwiftServerFoundation
@@ -9,6 +8,20 @@ private let log = Logger(swiftServerLabel: "swift-server")
 
 let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
     .appendingPathComponent("Messages", isDirectory: true)
+
+#if DEBUG
+@available(macOS 11, *)
+extension MessagesControllerWrapper {
+    @NodeMethod func _getMainWindow() {
+        do {
+            let window = try self.controller.elements.mainWindow
+            Log.default.debug("@@@ [DEBUG] was able to fetch main window: \(window)")
+        } catch {
+            Log.default.error("@@@ [DEBUG] ❌ COULDN'T get main window! \(error)")
+        }
+    }
+}
+#endif
 
 @available(macOS 10.15, *)
 enum SysPrefsOnboarding {
@@ -51,23 +64,6 @@ enum Preferences {
         log.info("\(greeting) (\(system.os) \(system.kernelVersion) \(system.architecture), \(system.osVersion))")
     } else {
         log.info("\(greeting)")
-    }
-    
-    Task {
-        var globalDeviceID: String?
-        do {
-            // merely doing `try await Node.MACHINE_ID` doesn't work (crashes due to not being on @NodeActor)
-            globalDeviceID = try await Task { @NodeActor in
-                try Node.MACHINE_ID.nodeValue().as(String.self)
-            }.value
-#if DEBUG
-            log.debug("*** machine id: \(globalDeviceID ?? "nil")")
-#endif
-        } catch {
-            log.error("couldn't retrieve MACHINE_ID from node: \(error)")
-        }
-        
-        startSentry(deviceID: globalDeviceID)
     }
 
     Defaults.registerDefaults()

@@ -28,6 +28,7 @@ public struct XMLDumper {
             kAXDescriptionAttribute,
             kAXTitleAttribute,
 
+            // text entry area values
             kAXValueAttribute,
             
             kAXLabelValueAttribute,

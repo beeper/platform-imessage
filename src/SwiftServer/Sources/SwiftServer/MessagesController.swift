@@ -1,5 +1,4 @@
 import AccessibilityControl
-import Sentry
 import AppKit
 import BetterSwiftAXAdditions
 import Carbon.HIToolbox.Events
@@ -205,35 +204,34 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-        try withSpan(op: "mc.open", description: "activating? \(activating), hiding? \(hiding)") {
-            let openOptions = NSWorkspace.OpenConfiguration()
-            openOptions.activates = activating
-            openOptions.hides = hiding
-            
-            let horribleWaiter = DispatchSemaphore(value: 0)
-            var result: Result<NSRunningApplication, Error>?
-            NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
+         let openOptions = NSWorkspace.OpenConfiguration()
+         openOptions.activates = activating
+         openOptions.hides = hiding
+
+         let horribleWaiter = DispatchSemaphore(value: 0)
+         var result: Result<NSRunningApplication, Error>?
+         NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
 #if DEBUG
-                let builtForDebugging = true
+            let builtForDebugging = true
 #else
-                let builtForDebugging = false
+            let builtForDebugging = false
 #endif
-                if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
-                    log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
-                } else {
-                    log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
-                }
-                if let error {
-                    result = .failure(error)
-                } else {
-                    result = .success(running!)
-                }
-                horribleWaiter.signal()
+            if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
+                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+            } else {
+                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
             }
-            horribleWaiter.wait()
-            
-            return try result!.get()
+
+            if let error {
+                result = .failure(error)
+            } else {
+                result = .success(running!)
+            }
+            horribleWaiter.signal()
         }
+        horribleWaiter.wait()
+
+        return try result!.get()
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -252,14 +250,12 @@ final class MessagesController {
     // TODO: rename to `assertSelectedThread`, which better describes its behavior
     private func ensureSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-        let misfireSpan = currentlyActiveSpan?.startChild(operation: "mc.misfire_prevent", description: hashedThreadID)
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
             return
         }
 
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
-        misfireSpan?[\.misfireChatType] = String(type)
 
         if Defaults.misfirePreventionTracing {
             log.debug("ensuring selected thread: \(hashedThreadID)")
@@ -267,7 +263,6 @@ final class MessagesController {
 
         func ensureSelectedThreadViaDefault(value selectedThreadID: String) throws {
             guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
-                misfireSpan?[\.misfireDefaultComposeThread] = "true"
                 throw ErrorMessage("misfire prevention: compose thread is selected")
             }
 
@@ -283,17 +278,12 @@ final class MessagesController {
         }
         
         func ensureSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
-            misfireSpan?[\.misfireWaiterType] = type
-            misfireSpan?[\.misfireWaiterBegan] = beganEnsuringThreadSelection.description
-
             guard let lastChange = date.read() else {
-                captureMessage("misfire: \(type) hasn't changed at all", level: .debug)
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
             
             let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
             guard lastChange > beganEnsuringThreadSelection else {
-                captureMessage("misfire: \(type) hasn't changed yet (waited \(waitingTime) so far)")
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
             }
 
@@ -304,23 +294,22 @@ final class MessagesController {
         let beganEnsuringThreadSelection = Date()
         var hasLoggedAboutFallback = false
 
-        try misfireSpan.around { try retry(withTimeout: 1.2, interval: 0.05) {
+        try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
                 // always prefer reading the default if we can (impossible on recent macOS; see DESK-10725)
                 if !SwiftServerDefaults[\.misfirePreventionAlwaysFallback], let selectedThreadID = Defaults.getSelectedThreadID() {
                     return try ensureSelectedThreadViaDefault(value: selectedThreadID)
                 }
-                
+
                 let strategy = Defaults.swiftServer.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy)
-                misfireSpan?[\.misfireStrategy] = strategy
                 if Defaults.misfirePreventionTracing, !hasLoggedAboutFallback {
                     log.debug("misfire prevention: no access to Messages defaults, falling back (strategy: \"\(strategy ?? "<nil>")\")")
                     hasLoggedAboutFallback = true
                 }
                 // we can't read the default, fall back to a designated strategy to ensure that
                 // Messages is focused to our desired chat:
-                
+
                 switch strategy {
                 case "title-prediction":
                     // TODO: when contacts details change, iMessage might not update the window title immediately.
@@ -328,7 +317,7 @@ final class MessagesController {
                     guard let windowTitle = try? elements.mainWindow.title() else {
                         throw ErrorMessage("misfire prevention: couldn't read window title")
                     }
-                    
+
                     return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
                 case "focus-waiter":
                     // wait until Accessibility posts a notification staging that the focused element has changed.
@@ -353,14 +342,12 @@ final class MessagesController {
                 }
                 throw error
             }
-        } }
+        }
     }
 
     private func openThread(_ threadID: String) throws {
-        try withSpan(op: "mc.open_thread", description: Hasher.thread.tokenizeRemembering(pii: threadID)) {
-            try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
-            try ensureSelectedThread(threadID: threadID)
-        }
+        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try ensureSelectedThread(threadID: threadID)
     }
 
     private static func getRunningMessagesApps() -> [NSRunningApplication] {
@@ -486,46 +473,26 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     case .appActivated:
                         printLifecycle(event: "APP activated")
                         self.activateMessages()
-                        landmark(op: "ax.observer", description: "activated")
                     case .appDeactivated:
                         printLifecycle(event: "APP deactivated")
                         self.deactivateMessages()
-                        landmark(op: "ax.observer", description: "deactivated")
-                    case .appHidden:
-                        printLifecycle(event: "APP hidden")
-                        landmark(op: "ax.observer", description: "hidden")
-                    case .appShown:
-                        printLifecycle(event: "APP shown")
-                        landmark(op: "ax.observer", description: "shown")
-                    case .anyObservedWindowMoved:
-                        printLifecycle(event: "WINDOW moved")
-                        landmark(op: "ax.observer", description: "window moved")
-                    case .anyObservedWindowResized:
-                        printLifecycle(event: "WINDOW resized")
-                        landmark(op: "ax.observer", description: "window resized")
+                    case .appHidden: printLifecycle(event: "APP hidden")
+                    case .appShown: printLifecycle(event: "APP shown")
+                    case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
+                    case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
                     case .focusedUIElementChanged:
-                        do {
-                            var xml = ""
-    #if DEBUG
-                            let excludingPII = false
-    #else
-                            let excludingPII = true
-    #endif
-                            let element = try? self.elements.app.focusedElement()
-                            try element?.dumpXML(to: &xml, maxDepth: 3, excludingPII: excludingPII)
-                            landmark(op: "ax.observer", description: "focused element changed", data: element?.sentryData ?? [:])
-                            printLifecycle(event: "FOCUSED UI ELEMENT changed: \(xml)")
-                        } catch {
-                            SentrySDK.capture(error: error)
-                            log.error("couldn't introspect focused element: \(error)")
-                        }
+                        printLifecycle(event: "FOCUSED UI ELEMENT changed")
+#if DEBUG
+                        var focusedDescription = ""
+                        try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
+                        printLifecycle(event: "FOCUSED: \(focusedDescription)")
+#endif
                     case .windowCreated:
                         printLifecycle(event: "WINDOW created")
                         // for now, reset our window-local observations whenever we
                         // see that a window was created (even if it was just e.g.
                         // the settings window).
                         rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
-                        landmark(op: "ax.observer", description: "window created")
                     }
                 }
             }
@@ -555,38 +522,34 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     @inlinable func prepareForAutomation() throws {
-        try withSpan(op: "mc.automation.prepare") {
-            log.info("prepareForAutomation")
-            afterAutomationTask?.cancel()
-            elements.clearCachedElements()
-            log.debug("prepareForAutomation: making the app automatable")
-            do {
-                try phtConnection?.setMessagesHidden(true)
-            } catch {
-                log.error("failed to hide messages app via pht: \(error)")
-            }
-            if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-                try windowCoordinator.makeAutomatable(mainWindow)
-            }
-            activityLock.lock()
+        log.info("prepareForAutomation")
+        afterAutomationTask?.cancel()
+        elements.clearCachedElements()
+        log.debug("prepareForAutomation: making the app automatable")
+        do {
+            try phtConnection?.setMessagesHidden(true)
+        } catch {
+            log.error("failed to hide messages app via pht: \(error)")
         }
+        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
+            try windowCoordinator.makeAutomatable(mainWindow)
+        }
+        activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
-        withSpan(op: "mc.automation.finish") {
-            log.info("finishedAutomation")
-            activityLock.unlock()
-            // this isn't propagated to make finishedAutomation callable inside of defer { … }
-            if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-                do {
-                    try windowCoordinator.automationDidComplete(mainWindow)
-                } catch {
-                    log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
-                }
+        log.info("finishedAutomation")
+        activityLock.unlock()
+        // this isn't propagated to make finishedAutomation callable inside of defer { … }
+        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
+            do {
+                try windowCoordinator.automationDidComplete(mainWindow)
+            } catch {
+                log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
             }
-            // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
-            scheduleCancelReplyTranscriptView()
         }
+        // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
+        scheduleCancelReplyTranscriptView()
     }
 
     private var afterAutomationTask: DispatchWorkItem?
@@ -676,61 +639,54 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         openBefore: URL?, openAfter: URL? = nil,
         perform: () throws -> Void
     ) throws {
-        var description = [
-            openBefore != nil ? "open some URL before" : nil,
-            openAfter != nil ? "open some URL after" : nil
-        ].compactMap(\.self).joined(separator: ", ")
+        if let openBefore {
+#if DEBUG
+            log.debug("withActivation: opening before performing: \(openBefore)")
+#endif
+            try Self.openDeepLink(openBefore)
+        }
 
-        try withSpan(op: "mc.with_activation", description: description) {
-            if let openBefore {
-    #if DEBUG
-                log.debug("withActivation: opening before performing: \(openBefore)")
-    #endif
-                try Self.openDeepLink(openBefore)
-            }
+        try perform()
 
-            try perform()
-
-            if let openAfter {
-                if openAfter != openBefore {
-    #if DEBUG
-                debugLog("withActivation: opening after performing: \(openAfter)")
-    #endif
-                    try Self.openDeepLink(openAfter)
-                }
+        if let openAfter {
+            if openAfter != openBefore {
+#if DEBUG
+            debugLog("withActivation: opening after performing: \(openAfter)")
+#endif
+                try Self.openDeepLink(openAfter)
             }
         }
     }
-
-    private func reallyRevealReplyTranscriptViaMenu() throws {
+    
+    private func revealReplyTranscriptViaMenu() throws {
         do {
             let window = NSApp.largestElectronWindow
             let previousLevel = window?.level
             if let window {
                 let higherLevel = NSWindow.Level(Int(CGWindowLevelForKey(.draggingWindow)))
-                breadcrumb("reveal: elevating window to level \(higherLevel) (currently: \(window.level))", category: "reveal")
+                log.debug("reveal: elevating window to level \(higherLevel) (currently: \(window.level))")
                 window.level = higherLevel
             }
             defer {
                 if let window, let previousLevel {
-                    breadcrumb("reveal: lowering window to previous level \(previousLevel)", category: "reveal")
+                    log.debug("reveal: lowering window to previous level \(previousLevel)")
                     window.level = previousLevel
                 }
             }
-
+            
             try Self.queue.sync {
                 guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
                     throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
                 }
 
                 Thread.sleep(forTimeInterval: 1.0)
-                breadcrumb("reveal: 1/5 showing the cell's menu", category: "reveal")
+                log.debug("reveal: 1/5 showing the cell's menu")
                 try cell.showMenu()
                 Thread.sleep(forTimeInterval: 0.1)
-
+                
                 let targetTitle = LocalizedStrings.inlineReplyMenu
-                breadcrumb("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")", category: "reveal")
-
+                log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
+                
                 guard let menuItems = try? elements.menu.children() else {
                     throw ErrorMessage("reveal: couldn't query menu item children")
                 }
@@ -738,34 +694,28 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     guard let title = try? menuItem.title() else {
                         return false
                     }
-
+                    
                     let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
-                    breadcrumb("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)", category: "reveal")
+                    log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
                     return title == targetTitle
                 }) else {
                     throw ErrorMessage("reveal: couldn't find reply menu item")
                 }
-
-                breadcrumb("reveal: 3/5 found, pressing", category: "reveal")
+                
+                log.debug("reveal: 3/5 found, pressing")
                 try replyMenuItem.press()
 
             }
 
         }
-
-        breadcrumb("reveal: 4/5 sleeping for a bit", category: "reveal")
+        
+        log.debug("reveal: 4/5 sleeping for a bit")
         Thread.sleep(forTimeInterval: 0.4)
 
-        breadcrumb("reveal: 5/5 done, proceeding with grabbing the cell", category: "reveal")
+        log.debug("reveal: 5/5 done, proceeding with grabbing the cell")
     }
 
-    private func revealReplyTranscriptViaMenu() throws {
-        try withSpan(op: "mc.reveal_reply_transcript_via_menu") {
-            try reallyRevealReplyTranscriptViaMenu()
-        }
-    }
-
-    private func withMessageCellReally(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
+    private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
 
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
@@ -833,14 +783,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
             }
             try action(targetCell)
-        }
-    }
-    
-    private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
-        try withSpan(op: "mc.with_message_cell", description: Hasher.thread.tokenizeRemembering(pii: threadID)) {
-            try withMessageCellReally(threadID: threadID, messageCell: messageCell) { cell in
-                try action(cell)
-            }
         }
     }
 
@@ -1281,31 +1223,27 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func closeReplyTranscriptView(wait: Bool) throws {
-        try withSpan(op: "mc.close_reply_transcript_view", description: "waiting? \(wait)") {
-            guard let rtv = try? elements.replyTranscriptView else { return }
-            log.debug("calling replyTranscriptView.cancel()")
-            try rtv.cancel()
-            func waitForReplyTranscriptsClose() throws {
-                try retry(withTimeout: 1.2, interval: 0.1) {
-                    guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                          pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
-                        throw ErrorMessage("replyTranscriptView visible")
-                    }
+        guard let rtv = try? elements.replyTranscriptView else { return }
+        log.debug("calling replyTranscriptView.cancel()")
+        try rtv.cancel()
+        func waitForReplyTranscriptsClose() throws {
+            try retry(withTimeout: 1.2, interval: 0.1) {
+                guard let pValue = try? elements.messageBodyField.placeholderValue(),
+                    pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                    throw ErrorMessage("replyTranscriptView visible")
                 }
-                Thread.sleep(forTimeInterval: 0.4) // wait for animation still
             }
-            if wait { try waitForReplyTranscriptsClose() }
+            Thread.sleep(forTimeInterval: 0.4) // wait for animation still
         }
+        if wait { try waitForReplyTranscriptsClose() }
     }
 
     private func waitUntilReplyTranscriptVisible() throws {
-        try withSpan(op: "mc.wait_until_reply_transcript_visible") {
-            log.debug("waitUntilReplyTranscriptVisible")
-            try retry(withTimeout: 1.2, interval: 0.1) {
-                guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                      pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
-                    throw ErrorMessage("replyTranscriptView not visible")
-                }
+        log.debug("waitUntilReplyTranscriptVisible")
+        try retry(withTimeout: 1.2, interval: 0.1) {
+            guard let pValue = try? elements.messageBodyField.placeholderValue(),
+                pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
+                throw ErrorMessage("replyTranscriptView not visible")
             }
         }
     }
@@ -1330,23 +1268,24 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        
-        currentlyActiveSpan?[\.sendHasQuotedMessage] = String(quotedMessage != nil)
-        currentlyActiveSpan?[\.sendHasOverlay] = String(quotedMessage?.overlay == true)
-        currentlyActiveSpan?[\.sendHasFilePath] = String(filePath != nil)
 
         if let threadID, quotedMessage == nil { // fast path using OSA
-            if let text {
-                if !text.contains("@"), !containsLink(text) { // no mentions and no links
-                    try OSA.send(threadID: threadID, text: text)
-                    return
+            do {
+                if let text {
+                    if !text.contains("@"), !containsLink(text) { // no mentions and no links
+                        try OSA.send(threadID: threadID, text: text)
+                        return
+                    }
+                } else if let filePath {
+                    // we don't always use OSA for files bc send file is randomly unreliable
+                    if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                        try OSA.send(threadID: threadID, filePath: filePath)
+                        return
+                    }
                 }
-            } else if let filePath {
-                // we don't always use OSA for files bc send file is randomly unreliable
-                if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
-                    try OSA.send(threadID: threadID, filePath: filePath)
-                    return
-                }
+            } catch {
+                reportToSentry?("osa err: \(error)")
+                // fall back to regular send
             }
         }
 

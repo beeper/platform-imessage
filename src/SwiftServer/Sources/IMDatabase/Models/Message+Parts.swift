@@ -1,3 +1,8 @@
+import Foundation
+import Logging
+
+private let log = Logger(swiftServerLabel: "imdb.models")
+
 public extension Message {
     var parts: [Message.Part] {
         guard let body = attributedBody?.unwrappingSensitiveData() else {

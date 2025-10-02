@@ -1,7 +1,4 @@
 import Foundation
-import Logging
-
-private let log = Logger(swiftServerLabel: "imdb.models")
 
 public extension Message {
     struct Part {

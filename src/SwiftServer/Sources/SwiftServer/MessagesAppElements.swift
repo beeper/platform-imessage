@@ -1,5 +1,4 @@
 import AppKit
-import Sentry
 import AccessibilityControl
 import SwiftServerFoundation
 import Logging
@@ -183,9 +182,7 @@ final class MessagesAppElements {
     var mainWindow: Accessibility.Element {
         get throws {
             do {
-                return try withSpan(op: "ax.elements", description: "mainWindow") {
-                    try _mainWindowReally
-                }
+                return try _mainWindowReally
             } catch {
                 do {
                     try dumpAndLogApplicationTreeIfNeeded()
@@ -237,8 +234,9 @@ final class MessagesAppElements {
     }
 
     private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
-        let span = currentlyActiveSpan?.startChild(operation: "ax.elements", description: replyTranscript ? "transcript (reply)" : "transcript")
-        
+        let startTime = Date()
+        defer { log.debug("getTranscriptView(replyTranscript: \(replyTranscript)) took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
         func isReplyTranscriptView(_ el: Accessibility.Element) -> Bool {
             // alternative: (localizedDescription == "Messages" when main transcript)
             (try? el.localizedDescription()) == LocalizedStrings.replyTranscript
@@ -252,17 +250,9 @@ final class MessagesAppElements {
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
         // takes ~8ms
-        if let tv = try? mainWindowSections.first(where: predicate) {
-            span?.finish()
-            return tv
-        }
+        if let tv = try? mainWindowSections.first(where: predicate) { return tv }
         // takes ~19ms
-        if let tv = try? mainWindow.recursiveChildren().lazy.first(where: predicate) {
-            span?.finish()
-            return tv
-        }
-        
-        span?.finish(status: .notFound)
+        if let tv = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return tv }
         throw ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found")
     }
 

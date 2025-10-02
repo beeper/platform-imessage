@@ -13,25 +13,21 @@ enum OSA {
     }
 
     static func send(threadID: String, text: String) throws {
-        try withSpan(op: "osa", description: "send(threadID:text:)") {
-            try run("""
-            const [tid, txt] = \(try jsonStringify([threadID, text]))
-            const Messages = Application('Messages')
-            const to = Messages.chats.byId(tid)()
-            Messages.send(txt, { to })
-            """)
-        }
+        try run("""
+        const [tid, txt] = \(try jsonStringify([threadID, text]))
+        const Messages = Application('Messages')
+        const to = Messages.chats.byId(tid)()
+        Messages.send(txt, { to })
+        """)
     }
 
     static func send(threadID: String, filePath: String) throws {
-        try withSpan(op: "osa", description: "send(threadID:filePath:)") {
-            try run("""
-            const [tid, fp] = \(try jsonStringify([threadID, filePath]))
-            const Messages = Application('Messages')
-            const to = Messages.chats.byId(tid)()
-            Messages.send(Path(fp), { to })
-            """)
-        }
+        try run("""
+        const [tid, fp] = \(try jsonStringify([threadID, filePath]))
+        const Messages = Application('Messages')
+        const to = Messages.chats.byId(tid)()
+        Messages.send(Path(fp), { to })
+        """)
     }
 
     static func promptAutomationAccess() throws {
