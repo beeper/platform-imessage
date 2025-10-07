@@ -6,6 +6,17 @@ import { BeeperMessage } from './desktop-types'
 const canQuote = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part
 const canReact = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part && (message.linkedMessageID ? isSelectable(message) : true)
 
+// (DESK-13231; removed until this actually works)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const prefs = {
+  hide_messages_app: {
+    label: 'Hide Messages App in Dock (Experimental)',
+    description: 'The Messages app needs to stay open for Beeper to work with iMessage. Hiding it requires the installation of a helper tool that will remove the app icon from your Dock.',
+    type: 'checkbox',
+    default: false,
+  },
+}
+
 const info: PlatformInfo = {
   name: 'imessage',
   version: '1.0.0',
@@ -68,14 +79,7 @@ const info: PlatformInfo = {
       files: 100 * 1024 * 1024,
     },
   },
-  prefs: IS_BIG_SUR_OR_UP ? {
-    hide_messages_app: {
-      label: 'Hide Messages App in Dock (Experimental)',
-      description: 'The Messages app needs to stay open for Beeper to work with iMessage. Hiding it requires the installation of a helper tool that will remove the app icon from your Dock.',
-      type: 'checkbox',
-      default: false,
-    },
-  } : {},
+  prefs: {},
   extra: {
     e2ee: 'full',
     canQuote,

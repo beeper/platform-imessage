@@ -115,8 +115,9 @@ enum Defaults {
 
     static func registerDefaults() {
         var defaults: [String: Any] = [
-            DefaultsKeys.phtAllowConnection: true,
-            DefaultsKeys.phtAllowInstallation: true,
+            // (DESK-13231; removed until this actually works)
+            DefaultsKeys.phtAllowConnection: false,
+            DefaultsKeys.phtAllowInstallation: false,
 
             DefaultsKeys.windowCoordination: true,
 

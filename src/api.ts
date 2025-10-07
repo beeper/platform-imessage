@@ -153,7 +153,8 @@ export default class AppleiMessage implements PlatformAPI {
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
-      swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
+      // (DESK-13231; removed until this actually works)
+      // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
     }
