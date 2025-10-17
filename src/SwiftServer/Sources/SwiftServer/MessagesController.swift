@@ -663,14 +663,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let window = NSApp.largestElectronWindow
             let previousLevel = window?.level
             if let window {
-                let higherLevel = NSWindow.Level(Int(CGWindowLevelForKey(.draggingWindow)))
-                log.debug("reveal: elevating window to level \(higherLevel) (currently: \(window.level))")
-                window.level = higherLevel
+                DispatchQueue.main.sync {
+                    let higherLevel = NSWindow.Level(Int(CGWindowLevelForKey(.draggingWindow)))
+                    log.debug("reveal: elevating window to level \(higherLevel) (currently: \(window.level))")
+                    window.level = higherLevel
+                }
             }
             defer {
                 if let window, let previousLevel {
-                    log.debug("reveal: lowering window to previous level \(previousLevel)")
-                    window.level = previousLevel
+                    DispatchQueue.main.sync {
+                        log.debug("reveal: lowering window to previous level \(previousLevel)")
+                        window.level = previousLevel
+                    }
                 }
             }
             
