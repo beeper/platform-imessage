@@ -37,12 +37,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Xcode 26
+      - name: Download and install Xcode 26.1.1
         shell: bash
         run: |
-          # only attempt to switch to the first matching Xcode; not e.g. `/Applications/Xcode_26.1_beta.app`
-          xcodes=( /Applications/Xcode_26*.app )
-          sudo xcode-select -s "${xcodes[0]}"
+          ver="26.1.1"
+          xcodes install "$ver"
+          xcodes select "$ver"
 
       - name: Inject access tokens
         shell: bash
