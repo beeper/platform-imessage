@@ -53,7 +53,7 @@
     "jest": "^28.1.3",
     "node-gyp": "^11.0.0",
     "node-mac-permissions": "TextsHQ/node-mac-permissions.git",
-    "node-swift": "https://github.com/kabiroberai/node-swift#314becf1c88b3c638ee96340c1458ac7c18d3838",
+    "node-swift": "https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71",
     "p-queue": "^8",
     "p-retry": "^6",
     "react": "^18",

@@ -1998,7 +1998,7 @@ __metadata:
     lodash: "npm:^4.17.21"
     node-gyp: "npm:^11.0.0"
     node-mac-permissions: TextsHQ/node-mac-permissions.git
-    node-swift: "https://github.com/kabiroberai/node-swift#314becf1c88b3c638ee96340c1458ac7c18d3838"
+    node-swift: "https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
     p-queue: "npm:^8"
     p-retry: "npm:^6"
     react: "npm:^18"
@@ -6829,14 +6829,14 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"node-swift@https://github.com/kabiroberai/node-swift#314becf1c88b3c638ee96340c1458ac7c18d3838":
-  version: 1.4.0
-  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=314becf1c88b3c638ee96340c1458ac7c18d3838"
+"node-swift@https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71":
+  version: 1.0.0
+  resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
   dependencies:
     import-cwd: "npm:^3.0.0"
   bin:
     node-swift: ./lib/cli.js
-  checksum: 10/2db49e94f644f6c8e2d060303b7b26e23ed3254de2ff36ae1ca6c5307767661e99537a9215c6e8c6542b75c7306a67d08b2df03cbad68d6ead749e6eaf3e409b
+  checksum: 10/3947a8993e36c382fa913bc9b2eca73a1db149020535eaa43dab619db5318060289a4a97f8fd2624e910197e088139bce1cc06f8bf10349128470cdf39c4fdfe
   languageName: node
   linkType: hard
 
