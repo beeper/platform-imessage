@@ -72,7 +72,7 @@ extension SpacesWindowCoordinator: WindowCoordinator {
     }
 
     func reset(_ window: Accessibility.Element) throws {
-        guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), let lastKnownWindow else {
+        guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), lastKnownWindow != nil else {
             log.debug("can't reset, the last known window or current space was missing")
             return
         }
@@ -81,6 +81,7 @@ extension SpacesWindowCoordinator: WindowCoordinator {
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
+        log.info("automationDidComplete", metadata: ["window": .string(window.description)])
         // after automating, keep the window on the hidden space
     }
 

@@ -233,7 +233,7 @@ enum Preferences {
         },
 
         "killDock": NodeFunction {
-            Dock.getApp()?.terminate()
+            Dock.runningApplication()?.terminate()
         },
 
         "disableSoundEffects": NodeFunction {

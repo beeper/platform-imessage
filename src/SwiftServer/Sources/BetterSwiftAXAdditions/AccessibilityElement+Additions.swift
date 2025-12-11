@@ -4,7 +4,7 @@ import SwiftServerFoundation
 import Logging
 import Collections
 
-private let log = Logger(swiftServerLabel: "ax-additions")
+private let logger = Logger(swiftServerLabel: "ax-additions")
 
 public extension Accessibility.Element {
     var isValid: Bool {
@@ -29,7 +29,7 @@ public extension Accessibility.Element {
 
         return AnySequence(sequence(state: [self] as Deque) { queue -> Accessibility.Element? in
             guard traversalComplexity < maxTraversalComplexity else {
-                log.error("HIT RECURSIVE TRAVERSAL COMPLEXITY LIMIT (\(traversalComplexity) > \(maxTraversalComplexity), queue count: \(queue.count)), terminating early")
+                logger.error("HIT RECURSIVE TRAVERSAL COMPLEXITY LIMIT (\(traversalComplexity) > \(maxTraversalComplexity), queue count: \(queue.count)), terminating early")
                 return nil
             }
 
@@ -62,6 +62,12 @@ public extension Accessibility.Element {
             (try? $0.identifier()) == id
         }
     }
+    
+    @discardableResult
+    func recursivelyFindChild(where predicate: (Accessibility.Element) throws -> (Bool)) rethrows -> Accessibility.Element? {
+        return try recursiveChildren().lazy.first(where: predicate)
+    }
+
 
     func setFrame(_ frame: CGRect) throws {
         DispatchQueue.concurrentPerform(iterations: 2) { i in

@@ -381,11 +381,12 @@ final class MessagesController {
         }
 
         var messagesApps = Self.getRunningMessagesApps()
-        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-            messagesApps.forEach { try? Self.terminateApp($0) }
-            messagesApps.removeAll()
-        }
+//        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
+//            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
+//            messagesApps.forEach { try? Self.terminateApp($0) }
+//            messagesApps.removeAll()
+//        }
+        
         if let existingApp = messagesApps.first {
             // if coordination is disabled, avoid unnecessarily terminating the app
             if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
@@ -405,7 +406,7 @@ final class MessagesController {
         windowCoordinator.app = app
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        try app.waitForLaunch()
+        try app._legacyWaitForLaunch()
         elements = MessagesAppElements(runningApp: app)
         keyPresser = KeyPresser(pid: app.processIdentifier)
 
@@ -522,7 +523,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     @inlinable func prepareForAutomation() throws {
-        log.info("prepareForAutomation")
+        log.info("prepareForAutomation [OLD]")
         afterAutomationTask?.cancel()
         elements.clearCachedElements()
         log.debug("prepareForAutomation: making the app automatable")
@@ -533,6 +534,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
+            if windowCoordinator is EclipsingWindowCoordinator {
+                log.debug("windowCoordinator: eclipse")
+            } else {
+                log.debug("windowCoordinator: other")
+            }
         }
         activityLock.lock()
     }
@@ -1270,6 +1276,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // this method has a lot of combinations, test carefully
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
+        log.info("TESTTEST")
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 

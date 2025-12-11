@@ -6,14 +6,6 @@ import Foundation
 import Logging
 import SwiftServerFoundation
 
-private func bootstrap(logLevel: Logger.Level = .trace) {
-    LoggingSystem.bootstrap { label in
-        var handler = StreamLogHandler.standardError(label: label)
-        handler.logLevel = logLevel
-        return handler
-    }
-}
-
 extension Logger.Level: @retroactive ExpressibleByArgument {}
 
 @main
@@ -57,7 +49,11 @@ extension AXTool {
         var excludingPII = false
 
         mutating func run() throws {
-            bootstrap(logLevel: options.logLevel)
+            LoggingSystem.bootstrap { [options] label in
+                var handler = StreamLogHandler.standardError(label: label)
+                handler.logLevel = options.logLevel
+                return handler
+            }
 
             guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
                 Self.exit(withError: ErrorMessage("Found no running applications with the bundle identifier \"\(bundleID)\"."))

@@ -90,7 +90,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
 
         // NOTE: this refers to the top-left corner of the Messages window
-        var targetOrigin = {
+        let targetOrigin = {
             var base = flippedElectronFrame.origin
 
             if Self.eclipsingAlignment == "right" {
