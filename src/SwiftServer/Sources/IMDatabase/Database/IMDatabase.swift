@@ -4,19 +4,16 @@ import Logging
 import SQLite
 import SwiftServerFoundation
 
-private func chatDatabaseFile(in messagesDataURL: URL) -> URL {
-    messagesDataURL.appendingPathComponent("chat.db")
-}
-
-private func chatDatabaseWalFile(in messagesDataURL: URL) -> URL {
-    messagesDataURL.appendingPathComponent("chat.db-wal")
-}
 
 private let log = Logger(label: "imdb")
 
 public final class IMDatabase {
     // `~/Library/Messages/`
     let messagesDataDirectory: URL
+    
+    var chatDatabaseFileURL: URL
+    var chatDatabaseWALFileURL: URL
+
     // coalesce multiple filesystem changes if they happen in a short period
     public var debounceIntervalMs: Int = 25
 
@@ -42,11 +39,15 @@ public final class IMDatabase {
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
+        self.chatDatabaseFileURL = messagesDataDirectory.appendingPathComponent("chat.db")
+        self.chatDatabaseWALFileURL = messagesDataDirectory.appendingPathComponent("chat.db-wal")
+
+
 #if DEBUG
         log.debug("creating database with messages data directory: \(messagesDataDirectory)")
         defer { log.debug("database created") }
 #endif
-        self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
+        self.database = try Database(connecting: chatDatabaseFileURL.path, flags: .readOnly)
     }
 
     func cachedStatement(forEscapedSQL sql: String) throws -> Statement {
@@ -61,10 +62,11 @@ public final class IMDatabase {
 
     deinit {
         log.debug("being deallocated, stopping watchers and listeners if necessary")
-        for watcher in fileWatchers {
-            watcher.stopListeningIfNecessary()
-        }
+
+        fileWatchers.forEach { $0.stopListeningIfNecessary() }
+        
         debouncer?.cancel()
+        debouncer = nil
     }
 }
 
@@ -160,8 +162,8 @@ public extension IMDatabase {
         }
 
         // watch `.db`/`.db-wal` files for changes
-        try watchFile(at: chatDatabaseFile(in: messagesDataDirectory))
-        try watchFile(at: chatDatabaseWalFile(in: messagesDataDirectory))
+        try watchFile(at: chatDatabaseFileURL)
+        try watchFile(at: chatDatabaseWALFileURL)
 
         log.debug("watcher count after ensuring: \(fileWatchers.count)")
     }

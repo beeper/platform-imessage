@@ -10,7 +10,7 @@ import SwiftServerFoundation
 // }
 
 enum DraftsManager {
-    static let draftsDir = messagesDir?
+    static let draftsDirectory = messagesDir?
         .appendingPathComponent("Drafts", isDirectory: true)
 
     static let objReplacementChar = "\u{fffc}"
@@ -18,31 +18,32 @@ enum DraftsManager {
     static let CKCompositionFileURL = NSAttributedString.Key(rawValue: "CKCompositionFileURL")
 
     static func saveDraft(address: String, filePath: String) throws {
-        let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir nil"))
+        let draftsDirectory: URL = try draftsDirectory.orThrow(ErrorMessage("draftsDirectory nil"))
 
-        let ogFileURL = URL(fileURLWithPath: filePath)
-        let addressDir = draftsDir.appendingPathComponent(address, isDirectory: true)
-        let uniqueAttachmentDir = addressDir
+        let ogFileURL: URL = URL(fileURLWithPath: filePath)
+        let addressDirectory: URL = draftsDirectory.appendingPathComponent(address, isDirectory: true)
+        let uniqueAttachmentDirectory: URL = addressDirectory
             .appendingPathComponent("Attachments", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let fileURL = uniqueAttachmentDir.appendingPathComponent(ogFileURL.lastPathComponent)
+        
+        let fileURL: URL = uniqueAttachmentDirectory.appendingPathComponent(ogFileURL.lastPathComponent)
 
-        try FileManager.default.createDirectory(at: uniqueAttachmentDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: uniqueAttachmentDirectory, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: ogFileURL, to: fileURL)
 
-        let attrs = [CKCompositionFileURL: fileURL]
-        let rootObj = NSAttributedString(string: objReplacementChar, attributes: attrs)
-        let data = try NSKeyedArchiver.archivedData(withRootObject: rootObj, requiringSecureCoding: false)
-        let compositionDict = ["text": data]
+        let attributes: [NSAttributedString.Key: Any] = [CKCompositionFileURL: fileURL]
+        let rootObject: Any = NSAttributedString(string: objReplacementChar, attributes: attributes)
+        let data: Data = try NSKeyedArchiver.archivedData(withRootObject: rootObject, requiringSecureCoding: false)
+        let compositionDict: [String: Data] = ["text": data]
 
-        try (compositionDict as NSDictionary).write(to: addressDir.appendingPathComponent("composition.plist"))
+        try (compositionDict as NSDictionary).write(to: addressDirectory.appendingPathComponent("composition.plist"))
     }
 
     // static var pendingDraftExists: Bool {
     //     get throws {
-    //         let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir not found"))
+    //         let draftsDirectory = try draftsDirectory.orThrow(ErrorMessage("draftsDirectory not found"))
 
-    //         let pendingDir = draftsDir.appendingPathComponent("Pending", isDirectory: true)
+    //         let pendingDir = draftsDirectory.appendingPathComponent("Pending", isDirectory: true)
     //         return FileManager.default.directoryExists(atPath: pendingDir)
     //     }
     // }

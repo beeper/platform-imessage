@@ -35,7 +35,7 @@ public final class PassivelyAwareDispatchQueue {
     }
 
     public func async(execute activeWork: @Sendable @escaping () -> Void) {
-        let (epoch, newCount) = bumpStateInResponseToWorkSubmission()
+        let (epoch, _) = bumpStateInResponseToWorkSubmission()
 
         queue.async { [self] in
             activeWork()

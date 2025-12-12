@@ -33,22 +33,27 @@ public func retry<T>(
     onError: ((_ attempt: Int, _ err: Error?) throws -> Void)? = nil
 ) throws -> T {
     let start = Date()
-    var res: Result<T, Error>
+    var result: Result<T, Error>
     var attempt = 0
+    
     repeat {
-        res = Result(catching: perform)
-        switch res {
-        case let .success(val):
-            return val
-        case let .failure(err):
+        result = Result(catching: perform)
+        
+        switch result {
+        case let .success(value):
+            return value
+        case let .failure(error):
             do {
-                try onError?(attempt, err)
+                try onError?(attempt, error)
                 attempt += 1
             } catch {
-                Log.errors.error("retry onError errored \(error)")
+                Log.errors.error("retry onError errored \(error) on attempt: \(attempt)")
             }
         }
-        interval.map(Thread.sleep(forTimeInterval:))
-    } while -start.timeIntervalSinceNow < timeout
-    return try res.get()
+        
+        interval.map(Thread.sleep)
+        
+    } while (-start.timeIntervalSinceNow < timeout)
+    
+    return try result.get()
 }

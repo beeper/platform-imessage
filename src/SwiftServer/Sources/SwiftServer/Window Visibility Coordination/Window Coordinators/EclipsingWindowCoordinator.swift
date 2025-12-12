@@ -18,7 +18,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         didSet {
             if let app {
                 log.info("now coordinating \(app.processIdentifier), hiding it immediately")
-                app.hide()
+//                app.hide()
             } else {
                 log.info("no longer coordinating")
             }
@@ -130,7 +130,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
-        hideDebouncer.requestHide()
+//        hideDebouncer.requestHide()
     }
 
     func reset(_ window: Accessibility.Element) throws {
@@ -155,7 +155,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func userManuallyDeactivated(_ app: NSRunningApplication) throws {
-        hideDebouncer.requestHide()
+//        hideDebouncer.requestHide()
     }
 }
 

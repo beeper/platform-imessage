@@ -4,7 +4,7 @@ import CUnfairLock
 
 // http://www.russbishop.net/the-law
 public final class UnfairLock: NSLocking {
-    var _lock: UnsafeMutablePointer<os_unfair_lock>
+    private let _lock: UnsafeMutablePointer<os_unfair_lock>
 
     public init() {
         _lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
@@ -20,7 +20,9 @@ public final class UnfairLock: NSLocking {
         os_unfair_lock_trylock(_lock)
     }
 
+    @available(*, noasync, message: "Do not hold os_unfair_lock across suspension points.")
     public func lock() {
+        // HACK: might break on future versions of macOS
         // based on https://hacks.mozilla.org/2022/10/improving-firefox-responsiveness-on-macos/
         os_unfair_lock_lock_with_options(
             _lock,
@@ -28,10 +30,12 @@ public final class UnfairLock: NSLocking {
         )
     }
 
+    @available(*, noasync, message: "Do not hold os_unfair_lock across suspension points.")
     public func unlock() {
         os_unfair_lock_unlock(_lock)
     }
 
+    @available(*, noasync, message: "Keep critical sections synchronous.")
     public func lock<ReturnValue>(_ f: () throws -> ReturnValue) rethrows -> ReturnValue {
         lock()
         defer { unlock() }

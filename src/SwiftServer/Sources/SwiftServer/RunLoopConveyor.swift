@@ -103,7 +103,7 @@ private final class RunLoopSource<WorkItem> {
         return pendingWorkItems
     }
 
-    func addToRunLoop(_ runLoop: RunLoop = .current) {
+    func addToRunLoop(_ runLoop: RunLoop = .main) {
         log.debug("run loop source is being added to run loop \(runLoop), associating")
         associatedRunLoop = runLoop
         CFRunLoopAddSource(runLoop.getCFRunLoop(), guts, .defaultMode)

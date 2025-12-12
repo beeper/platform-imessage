@@ -3,7 +3,7 @@
 // `OSAllocatedUnfairLock` nor `Mutex`
 public final class Protected<Protecting>: @unchecked Sendable {
     private nonisolated(unsafe) var guts: Protecting
-    private var lock = UnfairLock()
+    private let lock = UnfairLock()
 
     public init(_ initialValue: Protecting) {
         self.guts = initialValue
@@ -13,6 +13,7 @@ public final class Protected<Protecting>: @unchecked Sendable {
         self.init(nil)
     }
 
+    @available(*, noasync, message: "Do not hold os_unfair_lock across suspension points.")
     public func withLock<T>(_ work: (inout Protecting) throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
