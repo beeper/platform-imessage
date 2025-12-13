@@ -23,7 +23,7 @@ class KeyPresser {
                 .orThrow(ErrorMessage("key \(key) event empty"))
             if let flags { ev.flags = flags }
             ev.postToPid(self.pid)
-            if isSequoiaOrUp, !keyDown { // workaround courtesy https://github.com/pmanot
+            if MacOSVersion.isAtLeast(.sequoia), !keyDown { // workaround courtesy https://github.com/pmanot
                 ev.flags = []
                 ev.postToPid(self.pid)
             }

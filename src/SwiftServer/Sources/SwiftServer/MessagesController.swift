@@ -24,12 +24,24 @@ private final class TimerBlockWatcher {
     }
 }
 
-
 let messagesBundleID = "com.apple.MobileSMS"
-let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
-let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
-let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
-let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
+
+enum MacOSVersion: Int, CaseIterable {
+    case monterey = 12
+    case ventura = 13
+    case sonoma = 14
+    case sequoia = 15
+    
+    static func isAtLeast(_ version: MacOSVersion) -> Bool {
+        ProcessInfo.processInfo.isOperatingSystemAtLeast(
+            OperatingSystemVersion(
+                majorVersion: version.rawValue,
+                minorVersion: 0,
+                patchVersion: 0
+            )
+        )
+    }
+}
 
 enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
@@ -203,38 +215,22 @@ final class MessagesController {
     }
     
     @discardableResult
-    static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
+    static func openDeepLink(
+        _ url: URL,
+        activating: Bool = false,
+        hiding: Bool = true
+    ) throws -> NSRunningApplication {
         log.log(level: .info, "openDeepLink")
-        let openOptions = NSWorkspace.OpenConfiguration()
-        openOptions.activates = activating
-        openOptions.hides = false
-        openOptions.createsNewApplicationInstance = true
         
-        let horribleWaiter = DispatchSemaphore(value: 0)
-        var result: Result<NSRunningApplication, Error>?
-        NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
-#if DEBUG
-            let builtForDebugging = true
-#else
-            let builtForDebugging = false
-#endif
-            if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
-                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
-            } else {
-                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
-            }
-            
-            if let error {
-                result = .failure(error)
-            } else {
-                result = .success(running!)
-            }
-            horribleWaiter.signal()
+        return try unsafeBlockCurrentThreadUntilComplete {
+            let openOptions = NSWorkspace.OpenConfiguration()
+            openOptions.activates = activating
+            openOptions.hides = hiding
+            openOptions.createsNewApplicationInstance = true
+            openOptions.allowsRunningApplicationSubstitution = true
+            openOptions.appleEvent
+            return try await NSWorkspace.shared.open(url, configuration: openOptions)
         }
-        
-        horribleWaiter.wait()
-        
-        return try result!.get()
     }
     
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -401,7 +397,7 @@ final class MessagesController {
                 try Self.terminateApp(existingApp)
                 // this is for markAsReadWithPressHack (monterey or lower)
                 // launch with activation because the hack doesn't work until the app is activated at least once
-                app = try launchMessages(!isVenturaOrUp)
+                app = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
             }
         } else {
             app = try launchMessages(false)
@@ -409,8 +405,11 @@ final class MessagesController {
         
         windowCoordinator.app = app
         
-        // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        try app._legacyWaitForLaunch()
+        // HACK: allows calling an async function synchronously, this should be removed soon
+        try unsafeBlockCurrentThreadUntilComplete { [app] in
+            try await app.waitForLaunch()
+        }
+        
         elements = MessagesAppElements(runningApp: app)
         keyPresser = KeyPresser(pid: app.processIdentifier)
         
@@ -811,12 +810,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let reactAction = try messageAction(messageCell: $0, action: .react)
             try reactAction() // performing this 2x will close reaction view
             
-            if isSequoiaOrUp { // wait for animation
+            if MacOSVersion.isAtLeast(.sequoia) { // wait for animation
                 Thread.sleep(forTimeInterval: 0.75)
             }
             
             if case let .custom(emoji) = reaction, on {
-                guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                guard MacOSVersion.isAtLeast(.sequoia) else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
                 // to react with a custom emoji, find the smile button and wrangle the character picker popover
                 // TODO: support being able to pick a skin tone
                 try elements.addCustomEmojiReactionButton.press()
@@ -846,7 +845,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             
             let btn = try {
-                if isSequoiaOrUp {
+                if MacOSVersion.isAtLeast(.sequoia) {
                     return try elements.tapbackPickerCollectionView.children()
                         .first {
                             // standard: "ha", "thumbsUp", etc. custom: emoji string
@@ -880,7 +879,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     
     // @available(macOS 13, *)
     func undoSend(threadID: String, messageCell: MessageCell) throws {
-        guard isVenturaOrUp else {
+        guard MacOSVersion.isAtLeast(.ventura) else {
             throw ErrorMessage("!isVenturaOrUp")
         }
         
@@ -899,7 +898,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // @available(macOS 13, *)
     // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
-        guard isVenturaOrUp else {
+        guard MacOSVersion.isAtLeast(.ventura) else {
             throw ErrorMessage("!isVenturaOrUp")
         }
         
@@ -1041,7 +1040,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         
         try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
-            if isVenturaOrUp {
+            if MacOSVersion.isAtLeast(.ventura) {
                 return try keyPresser.commandShiftU()
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
@@ -1160,7 +1159,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     
     private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String {
         do {
-            if isVenturaOrUp {
+            if MacOSVersion.isAtLeast(.ventura) {
                 let value = try (messageField.value() as? NSAttributedString)
                     .orThrow(ErrorMessage("couldn't cast message field value to NSAttributedString"))
                 return value.string
@@ -1293,7 +1292,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
-                    if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                    if !MacOSVersion.isAtLeast(.monterey) { // messages.app in big sur doesn't correctly paste the file
                         try OSA.send(threadID: threadID, filePath: filePath)
                         return
                     }
@@ -1495,7 +1494,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             default:
                 // pre-monterey, there can only be one <typing cell>
                 // post-monterey, there can be <typing cell>, "...has notifications silenced", "Notify Anyway"
-                let lastN = isMontereyOrUp ? 3 : 1
+                let lastN = MacOSVersion.isAtLeast(.monterey) ? 3 : 1
                 guard let elts = try? transcript.children(range: (count - lastN)..<count), elts.count == lastN else {
                     return [.unknown]
                 }
@@ -1504,7 +1503,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let dndFlag: ActivityStatus? = {
-            guard isMontereyOrUp else { return nil }
+            guard MacOSVersion.isAtLeast(.monterey) else { return nil }
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children[0] else { continue }
                 if (try? child.role()) == AXRole.button,

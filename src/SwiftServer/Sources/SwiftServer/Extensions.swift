@@ -4,7 +4,7 @@ import SwiftServerFoundation
 
 extension NSRunningApplication {
     // ???: (@skip) - why are we polling and using `Thread.sleep` here?
-    // FIXME: (@pmanot) - Replace polling with observation
+    // FIXME: (@pmanot) - replace polling with observation
     func _legacyWaitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) throws {
         let start = Date()
         
