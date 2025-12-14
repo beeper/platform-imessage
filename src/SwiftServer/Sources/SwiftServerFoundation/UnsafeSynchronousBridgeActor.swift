@@ -2,8 +2,6 @@ import Foundation
 import Dispatch
 
 // TODO: (@pmanot) - rename
-
-
 private final class DispatchQueueSerialExecutor: SerialExecutor {
     let queue: DispatchQueue
     

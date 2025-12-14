@@ -5,6 +5,7 @@ import Carbon.HIToolbox.Events
 import Combine
 import Contacts
 import EmojiSPI
+import Foundation
 import IMDatabase
 import Logging
 import PHTClient
@@ -142,7 +143,10 @@ private enum ConveyorEvent {
 final class MessagesController {
     private static let pollingInterval: TimeInterval = 1
     
-    private let app: NSRunningApplication
+    
+    private let publicApp: NSRunningApplication?
+    private let internalApp: NSRunningApplication
+    
     let elements: MessagesAppElements
     
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
@@ -215,6 +219,21 @@ final class MessagesController {
     }
     
     @discardableResult
+    static func _openDeepLinkLegacy(
+        _ url: URL,
+        activating: Bool = false,
+        hiding: Bool = true
+    ) throws -> NSRunningApplication {
+        log.log(level: .info, "_openDeepLinkLegacy")
+        
+        return try unsafeBlockCurrentThreadUntilComplete {
+            let openOptions = NSWorkspace.OpenConfiguration()
+            openOptions.activates = activating
+            openOptions.hides = hiding
+            return try await NSWorkspace.shared.open(url, configuration: openOptions)
+        }
+    }
+    
     static func openDeepLink(
         _ url: URL,
         activating: Bool = false,
@@ -224,13 +243,46 @@ final class MessagesController {
         
         return try unsafeBlockCurrentThreadUntilComplete {
             let openOptions = NSWorkspace.OpenConfiguration()
+            
             openOptions.activates = activating
             openOptions.hides = hiding
             openOptions.createsNewApplicationInstance = true
-            openOptions.allowsRunningApplicationSubstitution = true
-            openOptions.appleEvent
+            openOptions.launchesInBackground = true
+            openOptions.launchIsUserAction = true
+            
             return try await NSWorkspace.shared.open(url, configuration: openOptions)
         }
+    }
+    
+    @discardableResult
+    static func openDeepLink(
+        _ url: URL,
+        in runningApplication: NSRunningApplication,
+        shouldActivate: Bool = false,
+        shouldHide: Bool = true,
+        isBackgrounded: Bool = false,
+        timeout: TimeInterval = 0
+    ) throws -> NSRunningApplication {
+        log.log(level: .info, "openDeepLinkWithinHiddenApp pid: \(runningApplication.processIdentifier.description)")
+
+        let targetDescriptor: NSAppleEventDescriptor = NSAppleEventDescriptor(processIdentifier: runningApplication.processIdentifier)
+        
+        let eventDescriptor: NSAppleEventDescriptor = NSAppleEventDescriptor(
+            eventClass: AEEventClass(kInternetEventClass),
+            eventID: AEEventID(kAEGetURL),
+            targetDescriptor: targetDescriptor,
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+            
+        eventDescriptor.setParam(
+            NSAppleEventDescriptor(string: url.absoluteString),
+            forKeyword: AEKeyword(keyDirectObject)
+        )
+            
+        try eventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
+        
+        return runningApplication
     }
     
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -345,7 +397,7 @@ final class MessagesController {
     }
     
     private func openThread(_ threadID: String) throws {
-        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url(), in: internalApp)
         try ensureSelectedThread(threadID: threadID)
     }
     
@@ -371,47 +423,56 @@ final class MessagesController {
         }
         
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
-            // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
             log.info("launching messages... (without activation? \(withoutActivation))")
+            
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
         }
         
-        var messagesApps = Self.getRunningMessagesApps()
-        // FIXME: (@pmanot) - temporarily commented out
-        //        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-        //            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-        //            messagesApps.forEach { try? Self.terminateApp($0) }
-        //            messagesApps.removeAll()
-        //        }
+        var messagesApps: [NSRunningApplication] = Self.getRunningMessagesApps()
         
-        if let existingApp = messagesApps.first {
-            // if coordination is disabled, avoid unnecessarily terminating the app
-            if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
-                log.info("reusing existing messages...")
-                app = existingApp
-            } else {
-                log.info("terminating messages...")
-                try Self.terminateApp(existingApp)
-                // this is for markAsReadWithPressHack (monterey or lower)
-                // launch with activation because the hack doesn't work until the app is activated at least once
-                app = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
-            }
-        } else {
-            app = try launchMessages(false)
+        switch messagesApps.count {
+            case 0: // no public instance
+                self.publicApp = nil
+                
+//                if let existingApp = messagesApps.first {
+//                    // if coordination is disabled, avoid unnecessarily terminating the app
+//                    if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
+//                        log.info("reusing existing messages...")
+//                        self.internalApp = existingApp
+//                    } else {
+//                        log.info("terminating messages...")
+//                        try Self.terminateApp(existingApp)
+//                        // this is for markAsReadWithPressHack (monterey or lower)
+//                        // launch with activation because the hack doesn't work until the app is activated at least once
+//                        self.internalApp = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
+//                    }
+//                } else {
+//                    self.internalApp = try launchMessages(false)
+//                }
+                self.internalApp = try launchMessages(false)
+            case 1: // public instance
+                self.publicApp = messagesApps[0]
+                self.internalApp = try launchMessages(false)
+            default: // if there's more than one instance of messages app something weird happened, terminate all to be safe
+                if messagesApps.count > 1 {
+                    log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
+                    messagesApps.forEach { try? Self.terminateApp($0) }
+                    messagesApps.removeAll()
+                }
+                
+                self.publicApp = nil
+                self.internalApp = try launchMessages(false)
         }
         
-        windowCoordinator.app = app
+        windowCoordinator.app = internalApp
         
         // HACK: allows calling an async function synchronously, this should be removed soon
-        try unsafeBlockCurrentThreadUntilComplete { [app] in
-            try await app.waitForLaunch()
+        try unsafeBlockCurrentThreadUntilComplete { [internalApp] in
+            try await internalApp.waitForLaunch()
         }
         
-        elements = MessagesAppElements(runningApp: app)
-        keyPresser = KeyPresser(pid: app.processIdentifier)
+        elements = MessagesAppElements(runningApp: internalApp)
+        keyPresser = KeyPresser(pid: internalApp.processIdentifier)
         
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -428,13 +489,16 @@ final class MessagesController {
         
         guard isValid else {
             dispose() // since deinit isn't called when init throws
-            throw ErrorMessage("""
-Initialized MessagesController in an invalid state:
-appTerminated=\(app.isTerminated)
-mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
-isMessagesAppResponsive=\(isMessagesAppResponsive)
-""")
+            throw ErrorMessage(
+            """
+            Initialized MessagesController in an invalid state:
+            appTerminated=\(internalApp.isTerminated)
+            mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+            isMessagesAppResponsive=\(isMessagesAppResponsive)
+            """
+            )
         }
+        
         resetWindow()
     }
     
@@ -518,11 +582,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
     
     var isMessagesAppResponsive: Bool {
-        (try? Process.isUnresponsive(app.processIdentifier)) == false
+        (try? Process.isUnresponsive(internalApp.processIdentifier)) == false
     }
     
     var isValid: Bool {
-        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
+        !internalApp.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
     
     @inlinable func prepareForAutomation() throws {
@@ -652,7 +716,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
 #endif
-            try Self.openDeepLink(openBefore)
+            try Self.openDeepLink(openBefore, in: internalApp)
         }
         
         try perform()
@@ -662,7 +726,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 #if DEBUG
                 debugLog("withActivation: opening after performing: \(openAfter)")
 #endif
-                try Self.openDeepLink(openAfter)
+                try Self.openDeepLink(openAfter, in: internalApp)
             }
         }
     }
@@ -1436,7 +1500,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)
-                try windowCoordinator.userManuallyActivated(app)
+                try windowCoordinator.userManuallyActivated(internalApp)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
@@ -1456,7 +1520,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             if Defaults.shouldCoordinateWindow {
-                try windowCoordinator.userManuallyDeactivated(app)
+                try windowCoordinator.userManuallyDeactivated(internalApp)
             }
             try? closeAllNonMainWindows()
             if window != nil {
@@ -1602,7 +1666,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 try prepareForAutomation()
                 defer { finishedAutomation() }
                 
-                try Self.openDeepLink(url)
+                try Self.openDeepLink(url, in: internalApp)
                 log.debug("activity: opened deep link, waiting for layout change")
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                 waitForLayoutChange(timeout: 0.5)
@@ -1637,7 +1701,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         pollingConveyor?.cancel()
-        app.terminate()
+        internalApp.terminate()
     }
     
     deinit {

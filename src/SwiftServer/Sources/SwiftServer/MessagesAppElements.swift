@@ -130,7 +130,7 @@ final class MessagesAppElements {
             } onError: { attempt, _ in
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    try MessagesController.openDeepLink(MessagesDeepLink.compose.url())
+                    try MessagesController.openDeepLink(MessagesDeepLink.compose.url(), in: self.runningApp)
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
