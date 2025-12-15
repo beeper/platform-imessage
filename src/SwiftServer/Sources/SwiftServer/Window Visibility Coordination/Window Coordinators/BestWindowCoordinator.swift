@@ -15,9 +15,7 @@ func getBestWindowCoordinator() throws -> any WindowCoordinator {
         }
     }
 
-    let sequoiaOrLater = ProcessInfo.processInfo.isOperatingSystemAtLeast(.init(majorVersion: 15, minorVersion: 0, patchVersion: 0))
-
-    if sequoiaOrLater {
+    if MacOSVersion.isAtLeast(.sequoia) {
         log.debug("detected macOS 15 or later, using eclipsing window coordinator")
         return EclipsingWindowCoordinator()
     } else {

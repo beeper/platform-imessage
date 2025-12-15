@@ -6,6 +6,7 @@ import Logging
 
 private let log = Logger(swiftServerLabel: "spaces-window-coordinator")
 
+// NOTE: this is not at feature-parity with EclipsingWindowCoordinator and we cannot currently interact with the Messages app in a different space
 final class SpacesWindowCoordinator {
     var app: NSRunningApplication?
 

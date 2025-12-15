@@ -23,6 +23,7 @@ struct WithSynchronousWaitTests {
             
             let config = NSWorkspace.OpenConfiguration()
             config.createsNewApplicationInstance = true
+            config.allowsRunningApplicationSubstitution
 
             try await NSWorkspace.shared.openApplication(at: url, configuration: config)
             return 42

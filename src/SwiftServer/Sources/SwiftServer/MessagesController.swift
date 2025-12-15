@@ -240,16 +240,15 @@ final class MessagesController {
         hiding: Bool = true
     ) throws -> NSRunningApplication {
         log.log(level: .info, "openDeepLink")
+        let openOptions = NSWorkspace.OpenConfiguration()
         
+        openOptions.activates = activating
+        openOptions.hides = hiding
+        openOptions.createsNewApplicationInstance = true
+        openOptions.launchesInBackground = true
+        openOptions.launchIsUserAction = true
+
         return try unsafeBlockCurrentThreadUntilComplete {
-            let openOptions = NSWorkspace.OpenConfiguration()
-            
-            openOptions.activates = activating
-            openOptions.hides = hiding
-            openOptions.createsNewApplicationInstance = true
-            openOptions.launchesInBackground = true
-            openOptions.launchIsUserAction = true
-            
             return try await NSWorkspace.shared.open(url, configuration: openOptions)
         }
     }
@@ -422,7 +421,7 @@ final class MessagesController {
             }
         }
         
-        let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
+        let launchMessages = { (withoutActivation: Bool) throws -> NSRunningApplication in
             log.info("launching messages... (without activation? \(withoutActivation))")
             
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
@@ -432,7 +431,7 @@ final class MessagesController {
         
         switch messagesApps.count {
             case 0: // no public instance
-                self.publicApp = nil
+                self.publicApp = try launchMessages(false)
                 
 //                if let existingApp = messagesApps.first {
 //                    // if coordination is disabled, avoid unnecessarily terminating the app
@@ -460,7 +459,7 @@ final class MessagesController {
                     messagesApps.removeAll()
                 }
                 
-                self.publicApp = nil
+                self.publicApp = try launchMessages(false)
                 self.internalApp = try launchMessages(false)
         }
         
@@ -520,7 +519,8 @@ final class MessagesController {
                 func debuggingStatus() -> String {
                     // grab the running application again in case it has quit
                     // and relaunched since we last observed an event
-                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first else { return "<no app>" }
+                    // FIXME: (@pmanot) - this should update
+                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first(where: { $0 == self.internalApp }) else { return "<no app>" }
                     
                     do {
                         let window = try self.elements.mainWindow
@@ -543,7 +543,7 @@ final class MessagesController {
                             self.activateMessages()
                         case .appDeactivated:
                             printLifecycle(event: "APP deactivated")
-                            self.deactivateMessages()
+//                            self.deactivateMessages()
                         case .appHidden: printLifecycle(event: "APP hidden")
                         case .appShown: printLifecycle(event: "APP shown")
                         case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")

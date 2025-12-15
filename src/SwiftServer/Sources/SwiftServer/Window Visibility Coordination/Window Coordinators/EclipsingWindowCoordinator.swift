@@ -14,26 +14,27 @@ private let log = Logger(swiftServerLabel: "eclipsing-window-coordinator")
  * even if the user briefly takes manual control of Messages.
  */
 final class EclipsingWindowCoordinator: WindowCoordinator {
-    var app: NSRunningApplication? {
-        didSet {
-            if let app {
-                log.info("now coordinating \(app.processIdentifier), hiding it immediately")
+    var app: NSRunningApplication?
+//    {
+//        didSet {
+//            if let app {
+//                log.info("now coordinating \(app.processIdentifier), hiding it immediately")
 //                app.hide()
-            } else {
-                log.info("no longer coordinating")
-            }
-
-            hideDebouncer.app = app
-        }
-    }
+//            } else {
+//                log.info("no longer coordinating")
+//            }
+//
+//            hideDebouncer.app = app
+//        }
+//    }
 
     private var windowFramePreEclipse: NSRect?
-    private var hideDebouncer: HideDebouncer
+//    private var hideDebouncer: HideDebouncer
 
     var canReuseExtantInstance: Bool { true }
 
     init() {
-        hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
+//        hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
     }
 
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
@@ -111,7 +112,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         let targetRect = NSRect(origin: targetOrigin, size: targetSize)
         log.notice("eclipsing (\(originalMessagesFrame.formatted) -> \(targetRect.formatted))")
 
-        hideDebouncer.immediatelyUnhide()
+//        hideDebouncer.immediatelyUnhide()
         try messagesWindow.size(assign: targetSize)
         try messagesWindow.position(assign: targetOrigin)
 
@@ -134,7 +135,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func reset(_ window: Accessibility.Element) throws {
-        hideDebouncer.immediatelyUnhide()
+//        hideDebouncer.immediatelyUnhide()
 
         guard let originalFrame = windowFramePreEclipse else {
             log.warning("no last known frame, not setting a frame back")
@@ -151,7 +152,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func userManuallyActivated(_ app: NSRunningApplication) throws {
-        hideDebouncer.immediatelyUnhide()
+//        hideDebouncer.immediatelyUnhide()
     }
 
     func userManuallyDeactivated(_ app: NSRunningApplication) throws {
