@@ -32,6 +32,7 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attach
     id: a.attachmentID,
     fileName,
     srcURL: filePath,
+    fileSize: a.total_bytes,
     loading: a.transfer_state !== AttachmentTransferState.DOWNLOADED,
   } satisfies Partial<Attachment>
   if (filePath) common.srcURL = url.pathToFileURL(filePath).href

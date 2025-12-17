@@ -74,7 +74,7 @@ WHERE t.guid = ?`,
   createIndexes: 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
   // updateReadTimestamp: 'UPDATE message SET is_read = TRUE WHERE guid = ?',
 
-  getAttachments: (msgIDs: number[]) => `SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.is_sticker, a.guid AS attachmentID, a.transfer_state
+  getAttachments: (msgIDs: number[]) => `SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.total_bytes, a.is_sticker, a.guid AS attachmentID, a.transfer_state
 FROM message AS m
 LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
 LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
