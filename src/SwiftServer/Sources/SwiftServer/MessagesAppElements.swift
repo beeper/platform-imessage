@@ -9,7 +9,7 @@ private let log = Logger(swiftServerLabel: "app-elements")
 @available(macOS 11, *)
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
 /// aim to reduce side effects (like calling actions) here
-final class MessagesAppElements {
+public final class MessagesAppElements {
     static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
         (try? el.localizedDescription()) == nil
     }
@@ -42,7 +42,7 @@ final class MessagesAppElements {
     var cachedTranscriptView: Accessibility.Element?
     private var cachedMainWindow: Accessibility.Element?
 
-    func clearCachedElements() {
+    public func clearCachedElements() {
         // these are manually cleared because we aren't checking for validity on each property access
         // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
         // cachedConversationsList = nil
@@ -50,7 +50,7 @@ final class MessagesAppElements {
         cachedTranscriptView = nil
     }
 
-    init(runningApp: NSRunningApplication) {
+    public init(runningApp: NSRunningApplication) {
         self.runningApp = runningApp
         app = Accessibility.Element(pid: runningApp.processIdentifier)
     }
@@ -130,7 +130,8 @@ final class MessagesAppElements {
             } onError: { attempt, _ in
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    try MessagesController.openDeepLink(MessagesDeepLink.compose.url(), in: self.runningApp)
+                    // FIXME: (@pmanot) - code is temporarily commented out
+//                    try MessagesController.openDeepLink(MessagesDeepLink.compose.url(), in: self.runningApp)
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
@@ -278,7 +279,7 @@ final class MessagesAppElements {
         }
     }
 
-    var messageBodyField: Accessibility.Element {
+    public var messageBodyField: Accessibility.Element {
         get throws {
             let startTime = Date()
             defer { log.debug("messageBodyField took \(startTime.timeIntervalSinceNow * -1000)ms") }

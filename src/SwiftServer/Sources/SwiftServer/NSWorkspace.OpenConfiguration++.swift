@@ -40,7 +40,7 @@ extension NSWorkspace.OpenConfiguration {
     
     // MARK: - Public API (callable from any thread)
     
-    var launchesInBackground: Bool {
+    public var launchesInBackground: Bool {
         get {
             Self.onMainSync {
                 readAdditionalOptions_mainThread()[Self.backgroundLaunchKey] as? Bool ?? false
@@ -51,7 +51,7 @@ extension NSWorkspace.OpenConfiguration {
         }
     }
     
-    var launchIsUserAction: Bool {
+    public var launchIsUserAction: Bool {
         get {
             Self.onMainSync {
                 readAdditionalOptions_mainThread()[Self.launchIsUserActionKey] as? Bool ?? false

@@ -108,12 +108,12 @@ enum SwiftServerDefaults {
 }
 
 // TODO: cleanup
-enum Defaults {
+public enum Defaults {
     public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
     private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
 
-    static func registerDefaults() {
+    public static func registerDefaults() {
         var defaults: [String: Any] = [
             // (DESK-13231; removed until this actually works)
             DefaultsKeys.phtAllowConnection: false,

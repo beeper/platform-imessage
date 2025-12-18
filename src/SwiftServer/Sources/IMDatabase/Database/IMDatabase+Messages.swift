@@ -49,7 +49,7 @@ public extension IMDatabase {
         """).reset()
         try statement.bind(guid)
 
-        guard var (message, chatGUID) = try statement.compactMapRowsUntilDone({ row -> (Message, GUID<Chat>)? in
+        guard var components: (message: Message, chatGUID: GUID<Chat>) = try statement.compactMapRowsUntilDone({ row -> (message: Message, chatGUID: GUID<Chat>)? in
             guard let chatGUID = try row[0].optionalConverting(String.self) else {
                 // drop orphaned (not within a chat) messages
                 return nil
@@ -60,10 +60,10 @@ public extension IMDatabase {
         }
 
         if includeAttachments {
-            try hydrateAttachments(for: &message)
+            try hydrateAttachments(for: &components.message)
         }
 
-        return (message, chatGUID)
+        return (components.message, components.chatGUID)
     }
 
     func messages(

@@ -5,7 +5,6 @@ import Logging
 import SwiftServerFoundation
 
 private let log = Logger(swiftServerLabel: "menu-maintainer")
-
 /**
  * injects menu items into the main menu (technically owned by Electron, not us;
  * we just share a memory space), and makes sure they stay there

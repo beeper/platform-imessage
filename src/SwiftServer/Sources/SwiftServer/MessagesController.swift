@@ -27,13 +27,13 @@ private final class TimerBlockWatcher {
 
 let messagesBundleID = "com.apple.MobileSMS"
 
-enum MacOSVersion: Int, CaseIterable {
+public enum MacOSVersion: Int, CaseIterable {
     case monterey = 12
     case ventura = 13
     case sonoma = 14
     case sequoia = 15
     
-    static func isAtLeast(_ version: MacOSVersion) -> Bool {
+    public static func isAtLeast(_ version: MacOSVersion) -> Bool {
         ProcessInfo.processInfo.isOperatingSystemAtLeast(
             OperatingSystemVersion(
                 majorVersion: version.rawValue,
@@ -122,7 +122,7 @@ private enum ThreadAction {
     }
 }
 
-struct MessageCell: Codable {
+public struct MessageCell: Codable {
     let messageGUID: String
     let offset: Int
     let cellID: String?
@@ -140,14 +140,13 @@ private enum ConveyorEvent {
 
 // external API is thread safe
 @available(macOS 11, *)
-final class MessagesController {
+final public class MessagesController {
     private static let pollingInterval: TimeInterval = 1
+
+    private let publicApp: NSRunningApplication? = nil
+    private var internalApp: NSRunningApplication? = nil
     
-    
-    private let publicApp: NSRunningApplication?
-    private let internalApp: NSRunningApplication
-    
-    let elements: MessagesAppElements
+    public let elements: MessagesAppElements
     
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
     
@@ -159,7 +158,6 @@ final class MessagesController {
     
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
-    private let keyPresser: KeyPresser
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
     
@@ -240,21 +238,39 @@ final class MessagesController {
         hiding: Bool = true
     ) throws -> NSRunningApplication {
         log.log(level: .info, "openDeepLink")
-        let openOptions = NSWorkspace.OpenConfiguration()
+        guard let url: URL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID) else {
+            throw ErrorMessage("URL for \(messagesBundleID) not found")
+        }
         
+        let openOptions = NSWorkspace.OpenConfiguration()
+                
         openOptions.activates = activating
         openOptions.hides = hiding
         openOptions.createsNewApplicationInstance = true
         openOptions.launchesInBackground = true
         openOptions.launchIsUserAction = true
+        
+        let eventDescriptor: NSAppleEventDescriptor = NSAppleEventDescriptor(
+            eventClass: AEEventClass(kInternetEventClass),
+            eventID: AEEventID(kAEGetURL),
+            targetDescriptor: nil,
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+        eventDescriptor.setParam(
+            NSAppleEventDescriptor(string: url.absoluteString),
+            forKeyword: AEKeyword(keyDirectObject)
+        )
+        
+        openOptions.appleEvent = eventDescriptor
 
         return try unsafeBlockCurrentThreadUntilComplete {
-            return try await NSWorkspace.shared.open(url, configuration: openOptions)
+            return try await NSWorkspace.shared.openApplication(at: url, configuration: openOptions)
         }
     }
     
     @discardableResult
-    static func openDeepLink(
+    static func _openDeepLink(
         _ url: URL,
         in runningApplication: NSRunningApplication,
         shouldActivate: Bool = false,
@@ -280,7 +296,10 @@ final class MessagesController {
         )
             
         try eventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
+        let config = NSWorkspace.OpenConfiguration()
+        config.appleEvent = eventDescriptor
         
+        runningApplication.forceTerminate()
         return runningApplication
     }
     
@@ -396,7 +415,7 @@ final class MessagesController {
     }
     
     private func openThread(_ threadID: String) throws {
-        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url(), in: internalApp)
+        try self.internalApp = Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
         try ensureSelectedThread(threadID: threadID)
     }
     
@@ -404,7 +423,13 @@ final class MessagesController {
         NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     }
     
-    init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
+    public convenience init(runningApplication: NSRunningApplication) throws {
+        try self.init { txt in
+            
+        }
+    }
+    
+    public init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
         self.reportToSentry = reportToSentry
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
@@ -431,27 +456,11 @@ final class MessagesController {
         
         switch messagesApps.count {
             case 0: // no public instance
-                self.publicApp = try launchMessages(false)
-                
-//                if let existingApp = messagesApps.first {
-//                    // if coordination is disabled, avoid unnecessarily terminating the app
-//                    if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
-//                        log.info("reusing existing messages...")
-//                        self.internalApp = existingApp
-//                    } else {
-//                        log.info("terminating messages...")
-//                        try Self.terminateApp(existingApp)
-//                        // this is for markAsReadWithPressHack (monterey or lower)
-//                        // launch with activation because the hack doesn't work until the app is activated at least once
-//                        self.internalApp = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
-//                    }
-//                } else {
-//                    self.internalApp = try launchMessages(false)
-//                }
-                self.internalApp = try launchMessages(false)
+//                self.publicApp = try launchMessages(false)
+                self.internalApp = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
             case 1: // public instance
-                self.publicApp = messagesApps[0]
-                self.internalApp = try launchMessages(false)
+//                self.publicApp = messagesApps[0]
+                self.internalApp = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
             default: // if there's more than one instance of messages app something weird happened, terminate all to be safe
                 if messagesApps.count > 1 {
                     log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
@@ -459,19 +468,14 @@ final class MessagesController {
                     messagesApps.removeAll()
                 }
                 
-                self.publicApp = try launchMessages(false)
+//                self.publicApp = try launchMessages(false)
                 self.internalApp = try launchMessages(false)
         }
         
-        windowCoordinator.app = internalApp
+        windowCoordinator.app = nil
         
-        // HACK: allows calling an async function synchronously, this should be removed soon
-        try unsafeBlockCurrentThreadUntilComplete { [internalApp] in
-            try await internalApp.waitForLaunch()
-        }
-        
-        elements = MessagesAppElements(runningApp: internalApp)
-        keyPresser = KeyPresser(pid: internalApp.processIdentifier)
+        // FIXME: (@pmanot) - URGENT, REMOVE FORCE UNWRAPPING AND CORRECTLY SET UP `MessagesAppElements`
+        elements = MessagesAppElements(runningApp: internalApp!)
         
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -491,7 +495,7 @@ final class MessagesController {
             throw ErrorMessage(
             """
             Initialized MessagesController in an invalid state:
-            appTerminated=\(internalApp.isTerminated)
+            appTerminated=\(internalApp?.isTerminated)
             mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
             isMessagesAppResponsive=\(isMessagesAppResponsive)
             """
@@ -581,15 +585,19 @@ final class MessagesController {
         self.pollingConveyor = thread
     }
     
+    // FIXME: (@pmanot) - remove optional
     var isMessagesAppResponsive: Bool {
-        (try? Process.isUnresponsive(internalApp.processIdentifier)) == false
+        guard let id: pid_t = internalApp?.processIdentifier else { return true }
+        return (try? Process.isUnresponsive(id)) == false
     }
     
     var isValid: Bool {
-        !internalApp.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
+        guard let internalApp else { return true }
+        return !internalApp.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
     
-    @inlinable func prepareForAutomation() throws {
+//    @inlinable
+    func prepareForAutomation() throws {
         log.info("prepareForAutomation [OLD]")
         afterAutomationTask?.cancel()
         elements.clearCachedElements()
@@ -610,7 +618,8 @@ final class MessagesController {
         activityLock.lock()
     }
     
-    @inlinable func finishedAutomation() {
+//    @inlinable
+    func finishedAutomation() {
         log.info("finishedAutomation")
         activityLock.unlock()
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
@@ -663,7 +672,7 @@ final class MessagesController {
     private func selectNextThreadAndScroll() throws {
         let threadID = Defaults.getSelectedThreadID()
         // ctrlTab() acts differently, has no effect?
-        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
+        try internalApp?.press(.commandRightBracket) // scrolls to next thread cell, rare edge case: won't work for the last item
         try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
             guard Defaults.getSelectedThreadID() != threadID else { throw ErrorMessage("diff thread not selected") }
         }
@@ -716,7 +725,7 @@ final class MessagesController {
 #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
 #endif
-            try Self.openDeepLink(openBefore, in: internalApp)
+            self.internalApp = try Self.openDeepLink(openBefore)
         }
         
         try perform()
@@ -726,7 +735,7 @@ final class MessagesController {
 #if DEBUG
                 debugLog("withActivation: opening after performing: \(openAfter)")
 #endif
-                try Self.openDeepLink(openAfter, in: internalApp)
+                self.internalApp = try Self.openDeepLink(openAfter)
             }
         }
     }
@@ -893,18 +902,28 @@ final class MessagesController {
                 try elements.searchFieldWithinPopover.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
                 // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
-                try keyPresser.downArrow()
+                try internalApp?.press(.downArrow)
                 // 6 columns in the character picker matrix
                 let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
                 // navigate to the emoji
-                for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                for _ in 0..<downArrows {
+                    try internalApp?.press(.downArrow);
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+                
+                for _ in 0..<rightArrows {
+                    try internalApp?.press(.rightArrow);
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+                
                 Thread.sleep(forTimeInterval: 0.1) // wait for selection
-                try keyPresser.return() // select
+                try internalApp?.press(.return) // select
+                
                 if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
                     Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
-                    try keyPresser.return() // always select default skin tone
+                    try internalApp?.press(.return) // always select default skin tone
                 }
+                
                 return
             }
             
@@ -997,7 +1016,7 @@ final class MessagesController {
             focusMessageField(editableMessageField)
             
             Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
-            try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
+            try internalApp?.press(.return) // elements.editConfirmButton.press() works only after a 0.2s+ delay
             // todo: wait for it to disappear
         }
         
@@ -1105,7 +1124,7 @@ final class MessagesController {
         try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
             if MacOSVersion.isAtLeast(.ventura) {
-                return try keyPresser.commandShiftU()
+                try internalApp?.press(.commandShiftU)
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
@@ -1253,10 +1272,10 @@ final class MessagesController {
         }
     }
     
-    private func sendMessageInField(_ messageField: Accessibility.Element) throws {
+    public func sendMessageInField(_ messageField: Accessibility.Element) throws {
         log.debug("\(#function): focusing field and pressing return")
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
+        try internalApp?.press(.return) // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         log.debug("\(#function): completed initial attempt")
         
         do {
@@ -1277,12 +1296,12 @@ final class MessagesController {
                     log.debug("\(#function): focusing and pressing enter again")
                     
                     self.focusMessageField(messageField)
-                    try? self.keyPresser.return()
+                    try? self.internalApp?.press(.return)
                 } else if attempt == 6 {
                     log.debug("\(#function): focusing and pressing enter again (alt. strategy)")
                     
                     try? messageField.press()
-                    try? self.keyPresser.return()
+                    try? self.internalApp?.press(.return)
                 }
             }
             
@@ -1342,7 +1361,7 @@ final class MessagesController {
     var elideStopTyping = false
     
     // this method has a lot of combinations, test carefully
-    func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
+    public func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         log.info("TESTTEST")
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1423,7 +1442,7 @@ final class MessagesController {
         }
     }
     
-    func closeAllNonMainWindows() throws {
+    public func closeAllNonMainWindows() throws {
         try elements.app.appWindows().forEach { window in
             if !elements.isMainWindow(window: window) {
                 try window.closeWindow()
@@ -1432,18 +1451,18 @@ final class MessagesController {
     }
     
 #if DEBUG
-    func closeAllWindows() throws {
+    public func closeAllWindows() throws {
         try elements.mainWindow.closeWindow()
         try elements.app.appWindows().forEach { try $0.closeWindow() }
     }
     
-    func withAllWindowsClosed(perform: () throws -> Void) throws {
+    public func withAllWindowsClosed(perform: () throws -> Void) throws {
         try closeAllWindows()
         try perform()
         _ = try elements.mainWindow // accessing will open it
     }
     
-    func assignFileToBodyField(filePath: String) throws {
+    public func assignFileToBodyField(filePath: String) throws {
         let url = URL(fileURLWithPath: filePath)
         let data = try Data(contentsOf: url)
         print(data, url)
@@ -1463,7 +1482,7 @@ final class MessagesController {
     }
 #endif
     
-    func pasteFileInBodyFieldAndSend(_ messageField: Accessibility.Element, filePath: String) throws {
+    public func pasteFileInBodyFieldAndSend(_ messageField: Accessibility.Element, filePath: String) throws {
         let fileURL = URL(fileURLWithPath: filePath)
         var messageField = messageField
         try? messageField.value(assign: "")
@@ -1471,7 +1490,7 @@ final class MessagesController {
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
-            try keyPresser.commandV()
+            try internalApp?.press(.commandV)
             try retry(withTimeout: 2, interval: 0.05) {
                 let charCountResult = Result { try messageField.noOfChars() }
                 guard case let .success(charCount) = charCountResult else {
@@ -1500,7 +1519,8 @@ final class MessagesController {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)
-                try windowCoordinator.userManuallyActivated(internalApp)
+                // FIXME: (@pmanot) - remove force unwrapping
+                try windowCoordinator.userManuallyActivated(internalApp!)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
@@ -1520,7 +1540,8 @@ final class MessagesController {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             if Defaults.shouldCoordinateWindow {
-                try windowCoordinator.userManuallyDeactivated(internalApp)
+                // FIXME: (@pmanot) - remove force unwrapping
+                try windowCoordinator.userManuallyDeactivated(internalApp!)
             }
             try? closeAllNonMainWindows()
             if window != nil {
@@ -1531,7 +1552,7 @@ final class MessagesController {
         }
     }
     
-    func activityStatus() -> [ActivityStatus] {
+    public func activityStatus() -> [ActivityStatus] {
 #if DEBUG
         let startTime = Date()
         defer { log.debug("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1592,7 +1613,7 @@ final class MessagesController {
         return flags
     }
     
-    func notifyAnyway(threadID: String) throws {
+    public func notifyAnyway(threadID: String) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         
         try prepareForAutomation()
@@ -1636,7 +1657,7 @@ final class MessagesController {
     
     /// returns a callback meant to be assigned to a `PassivelyAwareDispatchQueue` that observes a single thread once
     /// the passively aware dispatch queue should call the returned callback repeatedly
-    func idleCallback(observingThreadID threadID: String, statusSender: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
+    public func idleCallback(observingThreadID threadID: String, statusSender: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         
         return { [weak self] quiescence in
@@ -1666,7 +1687,7 @@ final class MessagesController {
                 try prepareForAutomation()
                 defer { finishedAutomation() }
                 
-                try Self.openDeepLink(url, in: internalApp)
+                self.internalApp = try Self.openDeepLink(url)
                 log.debug("activity: opened deep link, waiting for layout change")
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                 waitForLayoutChange(timeout: 0.5)
@@ -1695,13 +1716,13 @@ final class MessagesController {
     
     private var isDisposed = false
     
-    func dispose() {
+    public func dispose() {
         log.info("disposing MessagesController")
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         pollingConveyor?.cancel()
-        internalApp.terminate()
+        internalApp?.terminate()
     }
     
     deinit {
