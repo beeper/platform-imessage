@@ -195,6 +195,7 @@ export type MappedAttachmentRow = {
   msgRowID: number
   filename: string
   transfer_name: string
+  total_bytes: number
   is_sticker: number
   attachmentID: string
   transfer_state: number
