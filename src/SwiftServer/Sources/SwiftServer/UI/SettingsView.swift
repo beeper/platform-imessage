@@ -6,22 +6,36 @@ import SwiftUI
 @available(macOS 13, *)
 struct SettingsView: View {
     @AppStorage(DefaultsKeys.misfirePreventionTracingPII, store: Defaults.swiftServer) var misfirePreventionTracingPII = false
-
+    
+    @AppStorage(DefaultsKeys.windowCoordination, store: Defaults.swiftServer) var windowCoordination = true
+    @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.swiftServer) var hidingCoordinatorDebounce = 0.75
+    
+    @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.swiftServer) var misfirePrevention = true
+    @AppStorage(DefaultsKeys.misfirePreventionAlwaysFallback, store: Defaults.swiftServer) var misfirePreventionAlwaysFallback = false
+    @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.swiftServer) var imCoreSPI = true
+    @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.swiftServer) var contactsAttemptFormattingWithShortStyle = true
+    @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.swiftServer) var predictionPredictsGroupChats = true
+    
+    @AppStorage(DefaultsKeys.eclipsingUsesLargestWindow, store: Defaults.swiftServer) var eclipsingUsesLargestWindow = true
+    @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer) var eclipsingDebug = false
+    
+    @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer) var spacesObserveDock = true
+    
     // help button popover
     @State private var presentingHelp = false
-
+    
     // "are you sure you want to enable logging?"
     @State private var presentingPrivacyAlert = false
     @State private var hasConsentedOnce = false
-
+    
     // when user tries to enable, ask them if they'd like to purge log files
     @State private var presentingPurgeAlert = false
     @State private var purgeError: Error?
-
+    
     static var windowTitle: String {
         "On-Device iMessage Connection Settings"
     }
-
+    
     var piiToggle: Binding<Bool> {
         Binding(get: {
             misfirePreventionTracingPII
@@ -29,7 +43,7 @@ struct SettingsView: View {
             guard intention != misfirePreventionTracingPII else {
                 return
             }
-
+            
             if intention {
                 // enabling
                 guard hasConsentedOnce else {
@@ -43,14 +57,17 @@ struct SettingsView: View {
                 // actually affect the default when handling the alert
                 return
             }
-
+            
             misfirePreventionTracingPII = intention
         })
     }
-
+    
     var body: some View {
         VStack {
             Form {
+                windowCoordinationSection
+                misfirePreventionSection
+                spacesSection
                 diagnosticsSection
                 
                 HStack {
@@ -95,24 +112,101 @@ struct SettingsView: View {
                 hasConsentedOnce = true
                 misfirePreventionTracingPII = true
             }
-
-            Button("Cancel", role: .cancel) {}
+            
+            Button("Cancel", role: .cancel) {
+                // FIXME: currently does nothing
+            }
         } message: {
             Text("""
             Contact names, email addresses, phone numbers, group chat names, and \
             group chat member names will be included in the diagnostic information sent \
             to Beeper when reporting a problem.
-
+            
             After you’ve collected the relevant data and sent a report, \
             you can stop logging personal data and choose to purge your logs \
             as to only send as much personal data is necessary.
-
+            
             Message content and attachments are never recorded.
             """)
         }
         .frame(width: 600, height: 400)
     }
-
+    
+    @ViewBuilder
+    private var windowCoordinationSection: some View {
+        Section {
+            Toggle(isOn: $windowCoordination) {
+                Text("Coordinate the Messages window")
+                Text("Allow Beeper to manage the Messages window when needed.")
+            }
+            
+            HStack {
+                Stepper("Debounce before hiding the Messages window", onIncrement: {
+                    hidingCoordinatorDebounce += 0.05
+                }, onDecrement: {
+                    hidingCoordinatorDebounce -= 0.05
+                })
+                Spacer()
+                TextField("", value: $hidingCoordinatorDebounce, format: .number.precision(.fractionLength(2)))
+                    .frame(width: 80)
+                Text("s")
+            }
+            
+            Toggle(isOn: $eclipsingUsesLargestWindow) {
+                Text("Use the largest window for eclipsing")
+            }
+            
+            Toggle(isOn: $eclipsingDebug) {
+                Text("Show eclipsing debug visualization")
+            }
+        } header: {
+            Text("Window Coordination")
+            Text("Controls whether window coordination happens at all. Changes take effect immediately.")
+        } footer: {
+        }
+    }
+    
+    @ViewBuilder
+    private var misfirePreventionSection: some View {
+        Section {
+            Toggle(isOn: $misfirePrevention) {
+                Text("Misfire prevention")
+                Text("Reduce the chance of acting on the wrong chat when selecting threads.")
+            }
+            
+            Toggle(isOn: $misfirePreventionAlwaysFallback) {
+                Text("Always use fallback strategy")
+            }
+            
+            Toggle(isOn: $imCoreSPI) {
+                Text("Use IMCore SPI for title prediction")
+            }
+            
+            Toggle(isOn: $contactsAttemptFormattingWithShortStyle) {
+                Text("Format contacts with private short style")
+            }
+            
+            Toggle(isOn: $predictionPredictsGroupChats) {
+                Text("Predict group chats")
+            }
+        } header: {
+            Text("Thread Selection Safety")
+        } footer: {
+        }
+    }
+    
+    @ViewBuilder
+    private var spacesSection: some View {
+        Section {
+            Toggle(isOn: $spacesObserveDock) {
+                Text("Observe Dock relaunches for hidden space behavior")
+            }
+        } header: {
+            Text("Spaces")
+        } footer: {
+        }
+    }
+    
     @ViewBuilder
     private var diagnosticsSection: some View {
         Section {
@@ -134,14 +228,14 @@ struct SettingsView: View {
         } footer: {
         }
     }
-
+    
     @ViewBuilder
     private var showLogFileInFinderButton: some View {
         Button("Show Log in Finder…") {
             Log.reveal()
         }
     }
-
+    
     @ViewBuilder
     private var helpButton: some View {
         HelpButton {
@@ -158,7 +252,7 @@ struct SettingsView: View {
                 choosing to include personal data relevant to the problem at hand may \
                 help with investigation.
                 """)
-
+                
                 Text("""
                 Note that any recorded personal information may be included in submitted problem reports, \
                 even after the relevant settings are turned off; historical diagnostic data is only deleted \
@@ -166,7 +260,7 @@ struct SettingsView: View {
                 press “Show Log in Finder…”, remove the selected log file, and completely restart \
                 the app. You are also prompted to do this when turning off personal data logging.
                 """)
-
+                
                 Text("For more information, visit [beeper.com/privacy](https://www.beeper.com/privacy).")
             }
             .multilineTextAlignment(.leading)
