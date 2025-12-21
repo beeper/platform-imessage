@@ -62,7 +62,7 @@ enum Reaction {
     init?(emoji: Character) {
         // NOTE: This is mapping actual emoji characters into the traditional set of iMessage Tapbacks.
         // This means it's impossible to react with an actual heart emoji character, because it gets mapped to the "iMessage heart".
-        // It's possible to choosen between either in actual iMessage.
+        // It's possible to choose between either in actual iMessage.
         //
         // (For robustness, also accept emojified codepoints even without U+FE0F.)
         switch emoji {
