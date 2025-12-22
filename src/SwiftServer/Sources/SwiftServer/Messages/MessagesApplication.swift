@@ -14,10 +14,11 @@ extension MessagesApplication {
     }
 }
 
-public final class MessagesApplication: @unchecked Sendable {
+public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     public static let bundleID: String = "com.apple.MobileSMS"
     public var publicInstance: NSRunningApplication? = nil
-    var pool: [NSRunningApplication] = []
+    
+    @Published var pool: [ID: NSRunningApplication] = [:]
     
     public init() { }
     
@@ -25,8 +26,20 @@ public final class MessagesApplication: @unchecked Sendable {
         _ id: MessagesApplication.ID,
         url: URL?,
         action: @escaping @Sendable (NSRunningApplication) async throws -> Void
-    ) {
+    ) async throws {
+        var application: NSRunningApplication? = self.pool[id]
         
+        if application == nil {
+            application = try await Self.open(
+                deepLink: url,
+                shouldActivate: false,
+                shouldHide: true
+            )
+            
+            self.pool[id] = application
+        }
+        
+        try await action(application!)
     }
     
     public func withHiddenRunningApplication(
@@ -34,7 +47,7 @@ public final class MessagesApplication: @unchecked Sendable {
         action: @escaping @Sendable (NSRunningApplication) async throws -> Void,
         terminationStatus: (@Sendable (NSRunningApplication, NSRunningApplication.TerminationResult) -> Void)? = nil
     ) async throws {
-        let application: NSRunningApplication = try await Self.openApplication(
+        let application: NSRunningApplication = try await Self.open(
             deepLink: url,
             shouldActivate: false,
             shouldHide: true
@@ -59,34 +72,49 @@ public final class MessagesApplication: @unchecked Sendable {
         }
     }
     
+    @discardableResult
+    public func terminateApplication(id: MessagesApplication.ID) async -> NSRunningApplication.TerminationResult {
+        defer {
+            pool.removeValue(forKey: id)
+        }
+        
+        return await pool[id]?.terminateAndWaitForTermination() ?? .alreadyTerminated
+    }
+    
     @MainActor
     public static func open(
         deepLink: URL?,
         withinRunningApplication runningApplication: NSRunningApplication? = nil,
         shouldActivate: Bool = false,
-        shouldHide: Bool = true
+        shouldHide: Bool = true,
+        timeout: TimeInterval = 5
     ) async throws -> NSRunningApplication {
-        if let runningApplication {
-            runningApplication.ownsMenuBar
-        }
-        
         guard let applicationURL: URL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) else {
             throw ErrorMessage("URL for \(bundleID) not found")
         }
         
-        let openOptions = NSWorkspace.OpenConfiguration()
-        
-        openOptions.activates = shouldActivate
-        openOptions.hides = shouldHide
-        openOptions.createsNewApplicationInstance = true
-        //        openOptions.launchesInBackground = true
-        openOptions.launchIsUserAction = true
-        
-        if let deepLink {
-            openOptions.appleEvent = Self.appleEventDescriptor(deepLink: deepLink, target: nil)
+        if let runningApplication, let deepLink {
+            let appleEventDescriptor: NSAppleEventDescriptor = Self.appleEventDescriptor(deepLink: deepLink, target: runningApplication)
+            try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
+            
+            return runningApplication
+        } else {
+            let openOptions = NSWorkspace.OpenConfiguration()
+            
+            openOptions.activates = shouldActivate
+            openOptions.hides = shouldHide
+            openOptions.createsNewApplicationInstance = (runningApplication == nil) ? true : false
+            openOptions.addsToRecentItems = false
+            openOptions.launchesInBackground = true
+            openOptions.launchIsUserAction = true
+            
+            if let deepLink {
+                openOptions.appleEvent = Self.appleEventDescriptor(deepLink: deepLink, target: runningApplication)
+            }
+            
+            // test NSWorkspace.shared.open(at:)
+            return try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: openOptions)
         }
-        
-        return try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: openOptions)
     }
     
     @MainActor
@@ -129,6 +157,7 @@ extension NSRunningApplication {
         let didTerminateGracefully = await waitForTerminationWithCombineTimeout(
             terminationTimeoutSeconds: terminationTimeoutSeconds
         )
+        
         if didTerminateGracefully { return .terminatedGracefully }
         
         await MainActor.run { _ = self.forceTerminate() }
@@ -136,6 +165,7 @@ extension NSRunningApplication {
         let didTerminateForcibly = await waitForTerminationWithCombineTimeout(
             terminationTimeoutSeconds: forceTerminationTimeoutSeconds
         )
+        
         if didTerminateForcibly { return .terminatedForcibly }
         
         return .failedToTerminate

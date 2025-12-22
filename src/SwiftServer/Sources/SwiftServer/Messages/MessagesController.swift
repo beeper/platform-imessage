@@ -15,82 +15,8 @@ import WindowControl
 private let log = Logger(swiftServerLabel: "messages-controller")
 private let lifecycleLog = Logger(swiftServerLabel: "lifecycle")
 
-private final class TimerBlockWatcher {
-    let block: () -> Void
-    init(_ block: @escaping () -> Void) {
-        self.block = block
-    }
-    @objc func timerFired() {
-        block()
-    }
-}
-
 let messagesBundleID = "com.apple.MobileSMS"
 
-public enum MacOSVersion: Int, CaseIterable {
-    case monterey = 12
-    case ventura = 13
-    case sonoma = 14
-    case sequoia = 15
-    
-    public static func isAtLeast(_ version: MacOSVersion) -> Bool {
-        ProcessInfo.processInfo.isOperatingSystemAtLeast(
-            OperatingSystemVersion(
-                majorVersion: version.rawValue,
-                minorVersion: 0,
-                patchVersion: 0
-            )
-        )
-    }
-}
-
-enum LocalizedStrings {
-    private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
-    private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
-    private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
-    
-    static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
-    static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")
-    
-    static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
-    static let markAsUnread = chatKitFramework.localizedString(forKey: "MARK_AS_UNREAD", value: nil, table: "ChatKit")
-    static let delete = chatKitFramework.localizedString(forKey: "DELETE", value: nil, table: "ChatKit")
-    static let pin = chatKitFramework.localizedString(forKey: "PIN", value: nil, table: "ChatKit")
-    static let unpin = chatKitFramework.localizedString(forKey: "UNPIN", value: nil, table: "ChatKit")
-    
-    static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
-    static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
-    
-    static let buddyTyping = chatKitFrameworkAxBundle.localizedString(forKey: "contact.typing.message", value: nil, table: "Accessibility")
-    
-    static let replyTranscript = chatKitFrameworkAxBundle.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility")
-    
-    static let showAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "show.alerts.collection.view.cell", value: nil, table: "Accessibility")
-    static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
-    
-    static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
-    static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
-    static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
-    
-    /// "Send edit"
-    static let editingConfirm = chatKitFrameworkAxBundle.localizedString(forKey: "editing.confirm.button", value: nil, table: "Accessibility")
-    /// "Cancel edit"
-    static let editingReject = chatKitFrameworkAxBundle.localizedString(forKey: "editing.reject.button", value: nil, table: "Accessibility")
-    /// "Edit"
-    static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
-    
-    static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
-    
-    static let whatsNewSyndicationDetailTitle = chatKitFramework.localizedString(forKey: "WHATS_NEW_SYNDICATION_DETAIL_TITLE", value: nil, table: nil)
-    
-    // "OK"
-    static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
-    // "OK"
-    static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
-    
-    // "Reply…"
-    static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
-}
 
 private enum MessageAction {
     case react, reply, undoSend
@@ -146,6 +72,8 @@ final public class MessagesController {
     private let publicApp: NSRunningApplication? = nil
     private var internalApp: NSRunningApplication? = nil
     
+    public let application: MessagesApplication = .init()
+    
     public let elements: MessagesAppElements
     
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
@@ -166,12 +94,12 @@ final public class MessagesController {
     class OcclusionMonitor {
         var visible: Bool = true
         
-        private var ncToken: NSObjectProtocol?
+        private var cancellable: AnyCancellable?
         
         init() {
-            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
-                log.trace("didChangeOcclusionStateNotification \(notif)")
-                guard let window = notif.object as? NSWindow else { return }
+            cancellable = NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification, object: nil).sink { notification in
+                log.trace("didChangeOcclusionStateNotification \(notification)")
+                guard let window = notification.object as? NSWindow else { return }
                 let className = NSStringFromClass(type(of: window))
                 guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
                 self.visible = window.occlusionState.contains(.visible)
@@ -179,7 +107,7 @@ final public class MessagesController {
         }
         
         deinit {
-            ncToken.map { NotificationCenter.default.removeObserver($0) }
+            cancellable?.cancel()
         }
     }
     
@@ -495,7 +423,7 @@ final public class MessagesController {
             throw ErrorMessage(
             """
             Initialized MessagesController in an invalid state:
-            appTerminated=\(internalApp?.isTerminated)
+            appTerminated=\(internalApp?.isTerminated.description ?? "unknown")
             mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
             isMessagesAppResponsive=\(isMessagesAppResponsive)
             """
@@ -609,11 +537,6 @@ final public class MessagesController {
         }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
-            if windowCoordinator is EclipsingWindowCoordinator {
-                log.debug("windowCoordinator: eclipse")
-            } else {
-                log.debug("windowCoordinator: other")
-            }
         }
         activityLock.lock()
     }
@@ -1362,7 +1285,6 @@ final public class MessagesController {
     
     // this method has a lot of combinations, test carefully
     public func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
-        log.info("TESTTEST")
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
         
