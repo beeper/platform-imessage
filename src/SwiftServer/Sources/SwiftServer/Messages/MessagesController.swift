@@ -31,53 +31,7 @@ let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSy
 let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
 let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
 
-enum LocalizedStrings {
-    private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
-    private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
-    private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
 
-    static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
-    static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")
-
-    static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
-    static let markAsUnread = chatKitFramework.localizedString(forKey: "MARK_AS_UNREAD", value: nil, table: "ChatKit")
-    static let delete = chatKitFramework.localizedString(forKey: "DELETE", value: nil, table: "ChatKit")
-    static let pin = chatKitFramework.localizedString(forKey: "PIN", value: nil, table: "ChatKit")
-    static let unpin = chatKitFramework.localizedString(forKey: "UNPIN", value: nil, table: "ChatKit")
-
-    static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
-    static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
-
-    static let buddyTyping = chatKitFrameworkAxBundle.localizedString(forKey: "contact.typing.message", value: nil, table: "Accessibility")
-
-    static let replyTranscript = chatKitFrameworkAxBundle.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility")
-
-    static let showAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "show.alerts.collection.view.cell", value: nil, table: "Accessibility")
-    static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
-
-    static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
-    static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
-    static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
-
-    /// "Send edit"
-    static let editingConfirm = chatKitFrameworkAxBundle.localizedString(forKey: "editing.confirm.button", value: nil, table: "Accessibility")
-    /// "Cancel edit"
-    static let editingReject = chatKitFrameworkAxBundle.localizedString(forKey: "editing.reject.button", value: nil, table: "Accessibility")
-    /// "Edit"
-    static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
-
-    static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
-    
-    static let whatsNewSyndicationDetailTitle = chatKitFramework.localizedString(forKey: "WHATS_NEW_SYNDICATION_DETAIL_TITLE", value: nil, table: nil)
-    
-    // "OK"
-    static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
-    // "OK"
-    static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
-    
-    // "Reply…"
-    static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
-}
 
 private enum MessageAction {
     case react, reply, undoSend
@@ -143,7 +97,7 @@ final class MessagesController {
 
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
-    private let keyPresser: KeyPresser
+    private let keyPresser: LegacyKeyPresser
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
 
@@ -396,7 +350,7 @@ final class MessagesController {
                 try Self.terminateApp(existingApp)
                 // this is for markAsReadWithPressHack (monterey or lower)
                 // launch with activation because the hack doesn't work until the app is activated at least once
-                app = try launchMessages(!isVenturaOrUp)
+                app = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
             }
         } else {
             app = try launchMessages(false)
@@ -407,7 +361,7 @@ final class MessagesController {
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
         elements = MessagesAppElements(runningApp: app)
-        keyPresser = KeyPresser(pid: app.processIdentifier)
+        keyPresser = LegacyKeyPresser(pid: app.processIdentifier)
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -801,12 +755,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let reactAction = try messageAction(messageCell: $0, action: .react)
             try reactAction() // performing this 2x will close reaction view
 
-            if isSequoiaOrUp { // wait for animation
+            if MacOSVersion.isAtLeast(.sequoia) { // wait for animation
                 Thread.sleep(forTimeInterval: 0.75)
             }
 
             if case let .custom(emoji) = reaction, on {
-                guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                guard MacOSVersion.isAtLeast(.sequoia) else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
                 // to react with a custom emoji, find the smile button and wrangle the character picker popover
                 // TODO: support being able to pick a skin tone
                 try elements.addCustomEmojiReactionButton.press()
@@ -836,7 +790,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             let btn = try {
-                if isSequoiaOrUp {
+                if MacOSVersion.isAtLeast(.sequoia) {
                     return try elements.tapbackPickerCollectionView.children()
                         .first {
                             // standard: "ha", "thumbsUp", etc. custom: emoji string
@@ -870,7 +824,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // @available(macOS 13, *)
     func undoSend(threadID: String, messageCell: MessageCell) throws {
-        guard isVenturaOrUp else {
+        guard MacOSVersion.isAtLeast(.ventura) else {
             throw ErrorMessage("!isVenturaOrUp")
         }
 
@@ -889,7 +843,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // @available(macOS 13, *)
     // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
-        guard isVenturaOrUp else {
+        guard MacOSVersion.isAtLeast(.ventura) else {
             throw ErrorMessage("!isVenturaOrUp")
         }
 
@@ -1031,7 +985,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
-            if isVenturaOrUp {
+            if MacOSVersion.isAtLeast(.ventura) {
                 return try keyPresser.commandShiftU()
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
@@ -1150,7 +1104,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String {
         do {
-            if isVenturaOrUp {
+            if MacOSVersion.isAtLeast(.ventura) {
                 let value = try (messageField.value() as? NSAttributedString)
                     .orThrow(ErrorMessage("couldn't cast message field value to NSAttributedString"))
                 return value.string
@@ -1282,7 +1236,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
-                    if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                    if !MacOSVersion.isAtLeast(.monterey) { // messages.app in big sur doesn't correctly paste the file
                         try OSA.send(threadID: threadID, filePath: filePath)
                         return
                     }
@@ -1484,7 +1438,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         default:
             // pre-monterey, there can only be one <typing cell>
             // post-monterey, there can be <typing cell>, "...has notifications silenced", "Notify Anyway"
-            let lastN = isMontereyOrUp ? 3 : 1
+            let lastN = MacOSVersion.isAtLeast(.monterey) ? 3 : 1
             guard let elts = try? transcript.children(range: (count - lastN)..<count), elts.count == lastN else {
                 return [.unknown]
             }
@@ -1493,7 +1447,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let dndFlag: ActivityStatus? = {
-            guard isMontereyOrUp else { return nil }
+            guard MacOSVersion.isAtLeast(.monterey) else { return nil }
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children[0] else { continue }
                 if (try? child.role()) == AXRole.button,

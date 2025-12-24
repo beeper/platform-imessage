@@ -9,7 +9,7 @@ private let log = Logger(swiftServerLabel: "app-elements")
 @available(macOS 11, *)
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
 /// aim to reduce side effects (like calling actions) here
-final class MessagesAppElements {
+public final class MessagesAppElements {
     static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
         (try? el.localizedDescription()) == nil
     }
@@ -495,5 +495,13 @@ final class MessagesAppElements {
             try iOSContentGroup.children[0].children().first { try $0.role() == AXRole.popUpButton }
                 .orThrow(ErrorMessage("toFieldPopupButton not found"))
         }
+    }
+}
+
+
+@available(macOS 11, *)
+extension NSRunningApplication {
+    public var elements: MessagesAppElements {
+        MessagesAppElements(runningApp: self)
     }
 }
