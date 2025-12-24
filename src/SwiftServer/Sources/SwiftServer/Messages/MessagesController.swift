@@ -68,9 +68,9 @@ private enum ConveyorEvent {
 @available(macOS 11, *)
 final public class MessagesController {
     private static let pollingInterval: TimeInterval = 1
-
-//    private let publicApp: NSRunningApplication? = nil
-//    private var internalApp: NSRunningApplication? = nil
+    
+    //    private let publicApp: NSRunningApplication? = nil
+    //    private var internalApp: NSRunningApplication? = nil
     
     public let application: MessagesApplication
     
@@ -105,7 +105,7 @@ final public class MessagesController {
         }
         
         let messagesApps: [NSRunningApplication] = Self.getRunningMessagesApps()
-
+        
         switch messagesApps.count {
             case 0, 1:
                 break
@@ -223,7 +223,7 @@ final public class MessagesController {
         }
         
         let openOptions = NSWorkspace.OpenConfiguration()
-                
+        
         openOptions.activates = activating
         openOptions.hides = hiding
         openOptions.createsNewApplicationInstance = true
@@ -243,7 +243,7 @@ final public class MessagesController {
         )
         
         openOptions.appleEvent = eventDescriptor
-
+        
         return try unsafeBlockCurrentThreadUntilComplete {
             return try await NSWorkspace.shared.openApplication(at: url, configuration: openOptions)
         }
@@ -259,7 +259,7 @@ final public class MessagesController {
         timeout: TimeInterval = 0
     ) throws -> NSRunningApplication {
         log.log(level: .info, "openDeepLinkWithinHiddenApp pid: \(runningApplication.processIdentifier.description)")
-
+        
         let targetDescriptor: NSAppleEventDescriptor = NSAppleEventDescriptor(processIdentifier: runningApplication.processIdentifier)
         
         let eventDescriptor: NSAppleEventDescriptor = NSAppleEventDescriptor(
@@ -269,12 +269,12 @@ final public class MessagesController {
             returnID: AEReturnID(kAutoGenerateReturnID),
             transactionID: AETransactionID(kAnyTransactionID)
         )
-            
+        
         eventDescriptor.setParam(
             NSAppleEventDescriptor(string: url.absoluteString),
             forKeyword: AEKeyword(keyDirectObject)
         )
-            
+        
         try eventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
         let config = NSWorkspace.OpenConfiguration()
         config.appleEvent = eventDescriptor
@@ -419,55 +419,55 @@ final public class MessagesController {
             
             // FIXME: (@pmanot) - uncomment
             // this task doesn't run on the thread with the run loop
-//            Task {
-//                func debuggingStatus() -> String {
-//                    // grab the running application again in case it has quit
-//                    // and relaunched since we last observed an event
-//                    // FIXME: (@pmanot) - this should update
-//                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first(where: { $0 == self.internalApp }) else { return "<no app>" }
-//                    
-//                    do {
-//                        let window = try self.elements.mainWindow
-//                        let frame = try window.frame()
-//                        let position = try window.position()
-//                        return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
-//                    } catch {
-//                        return "<failed to query: \(error)>"
-//                    }
-//                }
-//                
-//                for await event in observer.events.subscribe() {
-//                    func printLifecycle(event: String) {
-//                        lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
-//                    }
-//                    
-//                    switch event {
-//                        case .appActivated:
-//                            printLifecycle(event: "APP activated")
-//                            self.activateMessages()
-//                        case .appDeactivated:
-//                            printLifecycle(event: "APP deactivated")
-////                            self.deactivateMessages()
-//                        case .appHidden: printLifecycle(event: "APP hidden")
-//                        case .appShown: printLifecycle(event: "APP shown")
-//                        case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
-//                        case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
-//                        case .focusedUIElementChanged:
-//                            printLifecycle(event: "FOCUSED UI ELEMENT changed")
-//#if DEBUG
-//                            var focusedDescription = ""
-//                            try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
-//                            printLifecycle(event: "FOCUSED: \(focusedDescription)")
-//#endif
-//                        case .windowCreated:
-//                            printLifecycle(event: "WINDOW created")
-//                            // for now, reset our window-local observations whenever we
-//                            // see that a window was created (even if it was just e.g.
-//                            // the settings window).
-//                            rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
-//                    }
-//                }
-//            }
+            //            Task {
+            //                func debuggingStatus() -> String {
+            //                    // grab the running application again in case it has quit
+            //                    // and relaunched since we last observed an event
+            //                    // FIXME: (@pmanot) - this should update
+            //                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first(where: { $0 == self.internalApp }) else { return "<no app>" }
+            //
+            //                    do {
+            //                        let window = try self.elements.mainWindow
+            //                        let frame = try window.frame()
+            //                        let position = try window.position()
+            //                        return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
+            //                    } catch {
+            //                        return "<failed to query: \(error)>"
+            //                    }
+            //                }
+            //
+            //                for await event in observer.events.subscribe() {
+            //                    func printLifecycle(event: String) {
+            //                        lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
+            //                    }
+            //
+            //                    switch event {
+            //                        case .appActivated:
+            //                            printLifecycle(event: "APP activated")
+            //                            self.activateMessages()
+            //                        case .appDeactivated:
+            //                            printLifecycle(event: "APP deactivated")
+            ////                            self.deactivateMessages()
+            //                        case .appHidden: printLifecycle(event: "APP hidden")
+            //                        case .appShown: printLifecycle(event: "APP shown")
+            //                        case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
+            //                        case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
+            //                        case .focusedUIElementChanged:
+            //                            printLifecycle(event: "FOCUSED UI ELEMENT changed")
+            //#if DEBUG
+            //                            var focusedDescription = ""
+            //                            try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
+            //                            printLifecycle(event: "FOCUSED: \(focusedDescription)")
+            //#endif
+            //                        case .windowCreated:
+            //                            printLifecycle(event: "WINDOW created")
+            //                            // for now, reset our window-local observations whenever we
+            //                            // see that a window was created (even if it was just e.g.
+            //                            // the settings window).
+            //                            rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
+            //                    }
+            //                }
+            //            }
         }, handlingWorkItemsWithinRunLoop: { event in
             guard case let .observeWindow(window) = event else { return }
             do {
@@ -495,7 +495,7 @@ final public class MessagesController {
         return !application.puppetInstance.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
     
-//    @inlinable
+    //    @inlinable
     func prepareForAutomation() throws {
         log.info("prepareForAutomation [OLD]")
         afterAutomationTask?.cancel()
@@ -514,7 +514,7 @@ final public class MessagesController {
         activityLock.lock()
     }
     
-//    @inlinable
+    //    @inlinable
     func finishedAutomation() {
         log.info("finishedAutomation")
         activityLock.unlock()

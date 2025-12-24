@@ -20,14 +20,57 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     public var puppetInstance: NSRunningApplication
     public var puppetID: ID
     
+    public var alwaysKeepPublicInstanceAlive: Bool = true
+    
     @Published var pool: [ID: NSRunningApplication] = [:]
+    
+    private var cancellables: Set<AnyCancellable> = []
     
     public init() async throws {
         publicInstance = NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).first
+        
+        if publicInstance == nil {
+            publicInstance = try await MessagesApplication.launchPublicInstance()
+        }
+        
         puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: true)
         puppetID = ID()
         
         pool[puppetID] = puppetInstance
+        
+        if alwaysKeepPublicInstanceAlive {
+            relaunchPublicInstanceOnTermination()
+        }
+    }
+    
+    private static func launchPublicInstance() async throws -> NSRunningApplication {
+        let application = try await Self.open(deepLink: nil, shouldHide: true, launchesInBackgound: false)
+        
+        try? application.elements.mainWindow.setFrame(CGRect(x: 700, y: 700, width: 550, height: 500))
+        
+        return application
+    }
+    
+    public func relaunchPublicInstanceOnTermination() {
+        cancellables.removeAll()
+        
+        if let application = self.publicInstance, application.isTerminated {
+            Task { [weak self] in
+                self?.publicInstance = try await Self.launchPublicInstance()
+                
+                self?.relaunchPublicInstanceOnTermination()
+            }
+        } else {
+            self.publicInstance?.publisher(for: \.isTerminated)
+                .sink { [weak self] isTerminated in
+                    if isTerminated {
+                        self?.relaunchPublicInstanceOnTermination()
+                        
+                        self?.cancellables.removeAll()
+                    }
+                }
+                .store(in: &cancellables)
+        }
     }
     
     public func withPersistentRunningApplication(
@@ -96,6 +139,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         withinRunningApplication runningApplication: NSRunningApplication? = nil,
         shouldActivate: Bool = false,
         shouldHide: Bool = true,
+        launchesInBackgound: Bool = true,
         timeout: TimeInterval = 5
     ) async throws -> NSRunningApplication {
         guard let applicationURL: URL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) else {
@@ -113,8 +157,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             openOptions.activates = shouldActivate
             openOptions.hides = shouldHide
             openOptions.createsNewApplicationInstance = true
-//            openOptions.addsToRecentItems = false
-            openOptions.launchesInBackground = false
+            openOptions.addsToRecentItems = false
+            openOptions.launchesInBackground = launchesInBackgound
             openOptions.launchIsUserAction = true
             
             if let deepLink {

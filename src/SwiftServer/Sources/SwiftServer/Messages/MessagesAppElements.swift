@@ -498,3 +498,9 @@ public final class MessagesAppElements {
         }
     }
 }
+
+extension NSRunningApplication {
+    public var elements: MessagesAppElements {
+        MessagesAppElements(runningApp: self)
+    }
+}
