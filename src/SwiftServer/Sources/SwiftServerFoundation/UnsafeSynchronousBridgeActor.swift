@@ -60,7 +60,7 @@ public actor UnsafeSynchronousBridgeActor {
 ///   - The async operation must not require progress on the blocked thread/queue to complete.
 @discardableResult
 public func unsafeBlockCurrentThreadUntilComplete<T>(
-    _ operation: @escaping () async throws -> T
+    @_implicitSelfCapture _ operation: @escaping () async throws -> T
 ) throws -> T {
     precondition(!Thread.isMainThread, "unsafeBlockCurrentThreadUntilComplete must not be called on the main thread.")
     precondition(!UnsafeSynchronousBridgeActor.isOnActorQueue(),

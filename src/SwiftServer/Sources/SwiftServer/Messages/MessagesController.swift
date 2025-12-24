@@ -69,10 +69,10 @@ private enum ConveyorEvent {
 final public class MessagesController {
     private static let pollingInterval: TimeInterval = 1
 
-    private let publicApp: NSRunningApplication? = nil
-    private var internalApp: NSRunningApplication? = nil
+//    private let publicApp: NSRunningApplication? = nil
+//    private var internalApp: NSRunningApplication? = nil
     
-    public let application: MessagesApplication = .init()
+    public let application: MessagesApplication
     
     public let elements: MessagesAppElements
     
@@ -91,24 +91,76 @@ final public class MessagesController {
     
     let om = OcclusionMonitor()
     
-    class OcclusionMonitor {
-        var visible: Bool = true
+    // FIXME: Remove
+    public convenience init(runningApplication: NSRunningApplication) throws {
+        try self.init { txt in
+            
+        }
+    }
+    
+    public init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
+        self.reportToSentry = reportToSentry
+        guard Accessibility.isTrusted() else {
+            throw ErrorMessage("Beeper does not have Accessibility permissions")
+        }
         
-        private var cancellable: AnyCancellable?
+        let messagesApps: [NSRunningApplication] = Self.getRunningMessagesApps()
+
+        switch messagesApps.count {
+            case 0, 1:
+                break
+            default: // if there's more than one instance of messages app something weird happened, terminate all to be safe
+                if messagesApps.count > 1 {
+                    log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
+                    messagesApps.forEach { try? Self.terminateApp($0) }
+                }
+        }
         
-        init() {
-            cancellable = NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification, object: nil).sink { notification in
-                log.trace("didChangeOcclusionStateNotification \(notification)")
-                guard let window = notification.object as? NSWindow else { return }
-                let className = NSStringFromClass(type(of: window))
-                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
-                self.visible = window.occlusionState.contains(.visible)
+        windowCoordinator = try getBestWindowCoordinator()
+        
+        application = try unsafeBlockCurrentThreadUntilComplete {
+            return try await MessagesApplication()
+        }
+        
+        if Preferences.isPHTEnabled, Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowConnection) {
+            do {
+                let allowInstall = Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowInstallation)
+                phtConnection = try PHTConnection.create(allowInstall: allowInstall)
+            } catch {
+                log.error("failed to create PHT connection: \(String(reflecting: error))")
             }
         }
         
-        deinit {
-            cancellable?.cancel()
+        windowCoordinator.app = application.puppetInstance
+        
+        elements = MessagesAppElements(runningApp: application.puppetInstance)
+        
+        // if app.isHidden {
+        //     debugLog("Unhiding Messages...")
+        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
+        //         app.unhide()
+        //         if app.isHidden {
+        //             throw ErrorMessage("Could not launch Messages")
+        //         }
+        //     }
+        // }
+        let observer = LifecycleObserver()
+        lifecycleObserver = observer
+        setUpPollingConveyor(with: lifecycleObserver)
+        
+        guard isValid else {
+            dispose() // since deinit isn't called when init throws
+            throw ErrorMessage(
+            """
+            Initialized MessagesController in an invalid state:
+            appTerminated=\(application.puppetInstance.isTerminated.description ?? "unknown")
+            mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+            isMessagesAppResponsive=\(isMessagesAppResponsive)
+            """
+            )
         }
+        
+        resetWindow()
     }
     
     // this increases the viewport height so that mark as read works more reliably
@@ -343,94 +395,13 @@ final public class MessagesController {
     }
     
     private func openThread(_ threadID: String) throws {
-        try self.internalApp = Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try MessagesApplication._openSynchronously(deepLink: MessagesDeepLink(threadID: threadID, body: nil).url(), withinRunningApplication: self.application.puppetInstance)
+        
         try ensureSelectedThread(threadID: threadID)
     }
     
     private static func getRunningMessagesApps() -> [NSRunningApplication] {
         NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-    }
-    
-    public convenience init(runningApplication: NSRunningApplication) throws {
-        try self.init { txt in
-            
-        }
-    }
-    
-    public init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
-        self.reportToSentry = reportToSentry
-        guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Beeper does not have Accessibility permissions")
-        }
-        
-        windowCoordinator = try getBestWindowCoordinator()
-        
-        if Preferences.isPHTEnabled, Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowConnection) {
-            do {
-                let allowInstall = Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowInstallation)
-                phtConnection = try PHTConnection.create(allowInstall: allowInstall)
-            } catch {
-                log.error("failed to create PHT connection: \(String(reflecting: error))")
-            }
-        }
-        
-        let launchMessages = { (withoutActivation: Bool) throws -> NSRunningApplication in
-            log.info("launching messages... (without activation? \(withoutActivation))")
-            
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
-        }
-        
-        var messagesApps: [NSRunningApplication] = Self.getRunningMessagesApps()
-        
-        switch messagesApps.count {
-            case 0: // no public instance
-//                self.publicApp = try launchMessages(false)
-                self.internalApp = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
-            case 1: // public instance
-//                self.publicApp = messagesApps[0]
-                self.internalApp = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
-            default: // if there's more than one instance of messages app something weird happened, terminate all to be safe
-                if messagesApps.count > 1 {
-                    log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-                    messagesApps.forEach { try? Self.terminateApp($0) }
-                    messagesApps.removeAll()
-                }
-                
-//                self.publicApp = try launchMessages(false)
-                self.internalApp = try launchMessages(false)
-        }
-        
-        windowCoordinator.app = nil
-        
-        // FIXME: (@pmanot) - URGENT, REMOVE FORCE UNWRAPPING AND CORRECTLY SET UP `MessagesAppElements`
-        elements = MessagesAppElements(runningApp: internalApp!)
-        
-        // if app.isHidden {
-        //     debugLog("Unhiding Messages...")
-        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
-        //         app.unhide()
-        //         if app.isHidden {
-        //             throw ErrorMessage("Could not launch Messages")
-        //         }
-        //     }
-        // }
-        let observer = LifecycleObserver()
-        lifecycleObserver = observer
-        setUpPollingConveyor(with: lifecycleObserver)
-        
-        guard isValid else {
-            dispose() // since deinit isn't called when init throws
-            throw ErrorMessage(
-            """
-            Initialized MessagesController in an invalid state:
-            appTerminated=\(internalApp?.isTerminated.description ?? "unknown")
-            mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
-            isMessagesAppResponsive=\(isMessagesAppResponsive)
-            """
-            )
-        }
-        
-        resetWindow()
     }
     
     func setUpPollingConveyor(with observer: LifecycleObserver) {
@@ -446,56 +417,57 @@ final public class MessagesController {
                 log.error("unable to perform initial observation of main window: \(error)")
             }
             
+            // FIXME: (@pmanot) - uncomment
             // this task doesn't run on the thread with the run loop
-            Task {
-                func debuggingStatus() -> String {
-                    // grab the running application again in case it has quit
-                    // and relaunched since we last observed an event
-                    // FIXME: (@pmanot) - this should update
-                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first(where: { $0 == self.internalApp }) else { return "<no app>" }
-                    
-                    do {
-                        let window = try self.elements.mainWindow
-                        let frame = try window.frame()
-                        let position = try window.position()
-                        return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
-                    } catch {
-                        return "<failed to query: \(error)>"
-                    }
-                }
-                
-                for await event in observer.events.subscribe() {
-                    func printLifecycle(event: String) {
-                        lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
-                    }
-                    
-                    switch event {
-                        case .appActivated:
-                            printLifecycle(event: "APP activated")
-                            self.activateMessages()
-                        case .appDeactivated:
-                            printLifecycle(event: "APP deactivated")
-//                            self.deactivateMessages()
-                        case .appHidden: printLifecycle(event: "APP hidden")
-                        case .appShown: printLifecycle(event: "APP shown")
-                        case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
-                        case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
-                        case .focusedUIElementChanged:
-                            printLifecycle(event: "FOCUSED UI ELEMENT changed")
-#if DEBUG
-                            var focusedDescription = ""
-                            try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
-                            printLifecycle(event: "FOCUSED: \(focusedDescription)")
-#endif
-                        case .windowCreated:
-                            printLifecycle(event: "WINDOW created")
-                            // for now, reset our window-local observations whenever we
-                            // see that a window was created (even if it was just e.g.
-                            // the settings window).
-                            rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
-                    }
-                }
-            }
+//            Task {
+//                func debuggingStatus() -> String {
+//                    // grab the running application again in case it has quit
+//                    // and relaunched since we last observed an event
+//                    // FIXME: (@pmanot) - this should update
+//                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first(where: { $0 == self.internalApp }) else { return "<no app>" }
+//                    
+//                    do {
+//                        let window = try self.elements.mainWindow
+//                        let frame = try window.frame()
+//                        let position = try window.position()
+//                        return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
+//                    } catch {
+//                        return "<failed to query: \(error)>"
+//                    }
+//                }
+//                
+//                for await event in observer.events.subscribe() {
+//                    func printLifecycle(event: String) {
+//                        lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
+//                    }
+//                    
+//                    switch event {
+//                        case .appActivated:
+//                            printLifecycle(event: "APP activated")
+//                            self.activateMessages()
+//                        case .appDeactivated:
+//                            printLifecycle(event: "APP deactivated")
+////                            self.deactivateMessages()
+//                        case .appHidden: printLifecycle(event: "APP hidden")
+//                        case .appShown: printLifecycle(event: "APP shown")
+//                        case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
+//                        case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
+//                        case .focusedUIElementChanged:
+//                            printLifecycle(event: "FOCUSED UI ELEMENT changed")
+//#if DEBUG
+//                            var focusedDescription = ""
+//                            try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
+//                            printLifecycle(event: "FOCUSED: \(focusedDescription)")
+//#endif
+//                        case .windowCreated:
+//                            printLifecycle(event: "WINDOW created")
+//                            // for now, reset our window-local observations whenever we
+//                            // see that a window was created (even if it was just e.g.
+//                            // the settings window).
+//                            rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
+//                    }
+//                }
+//            }
         }, handlingWorkItemsWithinRunLoop: { event in
             guard case let .observeWindow(window) = event else { return }
             do {
@@ -515,13 +487,12 @@ final public class MessagesController {
     
     // FIXME: (@pmanot) - remove optional
     var isMessagesAppResponsive: Bool {
-        guard let id: pid_t = internalApp?.processIdentifier else { return true }
+        let id: pid_t = application.puppetInstance.processIdentifier
         return (try? Process.isUnresponsive(id)) == false
     }
     
     var isValid: Bool {
-        guard let internalApp else { return true }
-        return !internalApp.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
+        return !application.puppetInstance.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
     
 //    @inlinable
@@ -535,9 +506,11 @@ final public class MessagesController {
         } catch {
             log.error("failed to hide messages app via pht: \(error)")
         }
+        
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
+        
         activityLock.lock()
     }
     
@@ -595,7 +568,7 @@ final public class MessagesController {
     private func selectNextThreadAndScroll() throws {
         let threadID = Defaults.getSelectedThreadID()
         // ctrlTab() acts differently, has no effect?
-        try internalApp?.press(.commandRightBracket) // scrolls to next thread cell, rare edge case: won't work for the last item
+        try application.press(.commandRightBracket) // scrolls to next thread cell, rare edge case: won't work for the last item
         try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
             guard Defaults.getSelectedThreadID() != threadID else { throw ErrorMessage("diff thread not selected") }
         }
@@ -648,7 +621,7 @@ final public class MessagesController {
 #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
 #endif
-            self.internalApp = try Self.openDeepLink(openBefore)
+            try MessagesApplication._openSynchronously(deepLink: openBefore, withinRunningApplication: application.puppetInstance)
         }
         
         try perform()
@@ -658,7 +631,7 @@ final public class MessagesController {
 #if DEBUG
                 debugLog("withActivation: opening after performing: \(openAfter)")
 #endif
-                self.internalApp = try Self.openDeepLink(openAfter)
+                try MessagesApplication._openSynchronously(deepLink: openBefore, withinRunningApplication: application.puppetInstance)
             }
         }
     }
@@ -825,26 +798,26 @@ final public class MessagesController {
                 try elements.searchFieldWithinPopover.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
                 // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
-                try internalApp?.press(.downArrow)
+                try application.press(.downArrow)
                 // 6 columns in the character picker matrix
                 let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
                 // navigate to the emoji
                 for _ in 0..<downArrows {
-                    try internalApp?.press(.downArrow);
+                    try application.press(.downArrow);
                     Thread.sleep(forTimeInterval: 0.05)
                 }
                 
                 for _ in 0..<rightArrows {
-                    try internalApp?.press(.rightArrow);
+                    try application.press(.rightArrow);
                     Thread.sleep(forTimeInterval: 0.05)
                 }
                 
                 Thread.sleep(forTimeInterval: 0.1) // wait for selection
-                try internalApp?.press(.return) // select
+                try application.press(.return) // select
                 
                 if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
                     Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
-                    try internalApp?.press(.return) // always select default skin tone
+                    try application.press(.return) // always select default skin tone
                 }
                 
                 return
@@ -939,7 +912,7 @@ final public class MessagesController {
             focusMessageField(editableMessageField)
             
             Thread.sleep(forTimeInterval: Defaults.swiftServer.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
-            try internalApp?.press(.return) // elements.editConfirmButton.press() works only after a 0.2s+ delay
+            try application.press(.return) // elements.editConfirmButton.press() works only after a 0.2s+ delay
             // todo: wait for it to disappear
         }
         
@@ -1047,7 +1020,7 @@ final public class MessagesController {
         try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
             if MacOSVersion.isAtLeast(.ventura) {
-                try internalApp?.press(.commandShiftU)
+                try application.press(.commandShiftU)
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
@@ -1198,7 +1171,7 @@ final public class MessagesController {
     public func sendMessageInField(_ messageField: Accessibility.Element) throws {
         log.debug("\(#function): focusing field and pressing return")
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        try internalApp?.press(.return) // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
+        try application.press(.return) // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         log.debug("\(#function): completed initial attempt")
         
         do {
@@ -1219,12 +1192,12 @@ final public class MessagesController {
                     log.debug("\(#function): focusing and pressing enter again")
                     
                     self.focusMessageField(messageField)
-                    try? self.internalApp?.press(.return)
+                    try? self.application.press(.return)
                 } else if attempt == 6 {
                     log.debug("\(#function): focusing and pressing enter again (alt. strategy)")
                     
                     try? messageField.press()
-                    try? self.internalApp?.press(.return)
+                    try? self.application.press(.return)
                 }
             }
             
@@ -1412,7 +1385,7 @@ final public class MessagesController {
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
-            try internalApp?.press(.commandV)
+            try application.press(.commandV)
             try retry(withTimeout: 2, interval: 0.05) {
                 let charCountResult = Result { try messageField.noOfChars() }
                 guard case let .success(charCount) = charCountResult else {
@@ -1442,7 +1415,7 @@ final public class MessagesController {
             if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)
                 // FIXME: (@pmanot) - remove force unwrapping
-                try windowCoordinator.userManuallyActivated(internalApp!)
+                try windowCoordinator.userManuallyActivated(application.puppetInstance)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
@@ -1463,7 +1436,7 @@ final public class MessagesController {
             let window = elements.getMainWindow()
             if Defaults.shouldCoordinateWindow {
                 // FIXME: (@pmanot) - remove force unwrapping
-                try windowCoordinator.userManuallyDeactivated(internalApp!)
+                try windowCoordinator.userManuallyDeactivated(application.puppetInstance)
             }
             try? closeAllNonMainWindows()
             if window != nil {
@@ -1609,7 +1582,8 @@ final public class MessagesController {
                 try prepareForAutomation()
                 defer { finishedAutomation() }
                 
-                self.internalApp = try Self.openDeepLink(url)
+                try MessagesApplication._openSynchronously(deepLink: url, withinRunningApplication: self.application.puppetInstance)
+                
                 log.debug("activity: opened deep link, waiting for layout change")
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                 waitForLayoutChange(timeout: 0.5)
@@ -1644,11 +1618,33 @@ final public class MessagesController {
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         pollingConveyor?.cancel()
-        internalApp?.terminate()
+        application.terminate()
     }
     
     deinit {
         log.info("MessagesController deinit")
         dispose()
+    }
+}
+
+extension MessagesController {
+    class OcclusionMonitor {
+        var visible: Bool = true
+        
+        private var cancellable: AnyCancellable?
+        
+        init() {
+            cancellable = NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification, object: nil).sink { notification in
+                log.trace("didChangeOcclusionStateNotification \(notification)")
+                guard let window = notification.object as? NSWindow else { return }
+                let className = NSStringFromClass(type(of: window))
+                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
+                self.visible = window.occlusionState.contains(.visible)
+            }
+        }
+        
+        deinit {
+            cancellable?.cancel()
+        }
     }
 }

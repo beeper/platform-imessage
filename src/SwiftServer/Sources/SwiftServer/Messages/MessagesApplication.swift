@@ -17,10 +17,18 @@ extension MessagesApplication {
 public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     public static let bundleID: String = "com.apple.MobileSMS"
     public var publicInstance: NSRunningApplication? = nil
+    public var puppetInstance: NSRunningApplication
+    public var puppetID: ID
     
     @Published var pool: [ID: NSRunningApplication] = [:]
     
-    public init() { }
+    public init() async throws {
+        publicInstance = NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).first
+        puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: true)
+        puppetID = ID()
+        
+        pool[puppetID] = puppetInstance
+    }
     
     public func withPersistentRunningApplication(
         _ id: MessagesApplication.ID,
@@ -82,6 +90,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     }
     
     @MainActor
+    @discardableResult
     public static func open(
         deepLink: URL?,
         withinRunningApplication runningApplication: NSRunningApplication? = nil,
@@ -103,9 +112,9 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             
             openOptions.activates = shouldActivate
             openOptions.hides = shouldHide
-            openOptions.createsNewApplicationInstance = (runningApplication == nil) ? true : false
-            openOptions.addsToRecentItems = false
-            openOptions.launchesInBackground = true
+            openOptions.createsNewApplicationInstance = true
+//            openOptions.addsToRecentItems = false
+            openOptions.launchesInBackground = false
             openOptions.launchIsUserAction = true
             
             if let deepLink {
@@ -113,7 +122,20 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             }
             
             // test NSWorkspace.shared.open(at:)
-            return try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: openOptions)
+            return try await NSWorkspace.shared.open(applicationURL, configuration: openOptions)
+        }
+    }
+    
+    @discardableResult
+    public static func _openSynchronously(
+        deepLink: URL?,
+        withinRunningApplication runningApplication: NSRunningApplication? = nil,
+        shouldActivate: Bool = false,
+        shouldHide: Bool = true,
+        timeout: TimeInterval = 5
+    ) throws -> NSRunningApplication {
+        try unsafeBlockCurrentThreadUntilComplete {
+            try await open(deepLink: deepLink, withinRunningApplication: runningApplication, shouldActivate: shouldActivate, shouldHide: shouldHide, timeout: timeout)
         }
     }
     
@@ -133,6 +155,24 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         )
         
         return eventDescriptor
+    }
+    
+    // FIXME: (@pmanot) - this is temporary and fragile, replace with `terminateAndWaitForTermination` after testing
+    func terminate() {
+        self.puppetInstance.terminate()
+    }
+}
+
+
+// MARK: - Auxiliary
+
+extension MessagesApplication {
+    public func press(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
+        try self.puppetInstance.press(key: key, flags: flags)
+    }
+    
+    public func press(_ combo: KeyPresser.Combo) throws {
+        try puppetInstance.press(combo)
     }
 }
 

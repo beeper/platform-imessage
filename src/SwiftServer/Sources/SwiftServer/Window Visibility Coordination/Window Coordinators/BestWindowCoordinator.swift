@@ -5,6 +5,9 @@ private let log = Logger(swiftServerLabel: "best-window-coordinator")
 
 func getBestWindowCoordinator() throws -> any WindowCoordinator {
     let specifiedCoordinator = Defaults.swiftServer.string(forKey: DefaultsKeys.coordinator)
+    
+    // FIXME: (@pmanot) - this is temporary, remove
+    return EdgeWindowCoordinator()
 
     if let specifiedCoordinator {
         log.notice("coordinator overridden to \"\(specifiedCoordinator)\"")
