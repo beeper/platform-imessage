@@ -3,6 +3,7 @@ import Logging
 
 private let log = Logger(swiftServerLabel: "best-window-coordinator")
 
+@available(macOS 11, *)
 func getBestWindowCoordinator() throws -> any WindowCoordinator {
     let specifiedCoordinator = Defaults.swiftServer.string(forKey: DefaultsKeys.coordinator)
 
@@ -10,7 +11,8 @@ func getBestWindowCoordinator() throws -> any WindowCoordinator {
         log.notice("coordinator overridden to \"\(specifiedCoordinator)\"")
         switch specifiedCoordinator {
         case "eclipsing": return EclipsingWindowCoordinator()
-        case "spaces": return try SpacesWindowCoordinator()
+        case "spaces": return SpacesWindowCoordinator()
+        case "edge": return EdgeWindowCoordinator()
         default: log.warning("unknown forced coordinator, determining as usual")
         }
     }
@@ -22,6 +24,6 @@ func getBestWindowCoordinator() throws -> any WindowCoordinator {
         return EclipsingWindowCoordinator()
     } else {
         log.debug("using spaces window coordinator")
-        return try SpacesWindowCoordinator()
+        return SpacesWindowCoordinator()
     }
 }

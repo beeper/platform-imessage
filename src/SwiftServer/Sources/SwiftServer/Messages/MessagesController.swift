@@ -14,77 +14,23 @@ import WindowControl
 private let log = Logger(swiftServerLabel: "messages-controller")
 private let lifecycleLog = Logger(swiftServerLabel: "lifecycle")
 
-private final class TimerBlockWatcher {
-    let block: () -> Void
-    init(_ block: @escaping () -> Void) {
-        self.block = block
-    }
-    @objc func timerFired() {
-        block()
-    }
-}
-
-
 let messagesBundleID = "com.apple.MobileSMS"
-let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
-let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
-let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
-let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
-
-
-
-private enum MessageAction {
-    case react, reply, undoSend
-    /// might've been added around macOS 15; unknown
-    case edit
-
-    var localized: String {
-        switch self {
-            case .react: return LocalizedStrings.react
-            case .reply: return LocalizedStrings.reply
-            case .undoSend: return LocalizedStrings.undoSend
-            case .edit: return LocalizedStrings.editButton
-        }
-    }
-}
-private enum ThreadAction {
-    case markAsRead, markAsUnread, delete, pin, unpin, showAlerts, hideAlerts
-
-    var localized: String {
-        switch self {
-            case .markAsRead: return LocalizedStrings.markAsRead
-            case .markAsUnread: return LocalizedStrings.markAsUnread
-            case .delete: return LocalizedStrings.delete
-            case .pin: return LocalizedStrings.pin
-            case .unpin: return LocalizedStrings.unpin
-            case .showAlerts: return LocalizedStrings.showAlerts
-            case .hideAlerts: return LocalizedStrings.hideAlerts
-        }
-    }
-}
-
-struct MessageCell: Codable {
-    let messageGUID: String
-    let offset: Int
-    let cellID: String?
-    let cellRole: String?
-    let overlay: Bool
-}
-
-// used for outgoing communicate from observed AX events to `RunLoopConveyor`
-//
-// (we want to create window observations in response to windows being created,
-// but we need a stable thread with a run loop for that)
-private enum ConveyorEvent {
-    case observeWindow(window: Accessibility.Element)
-}
 
 // external API is thread safe
 @available(macOS 11, *)
 final class MessagesController {
     private static let pollingInterval: TimeInterval = 1
 
-    private let app: NSRunningApplication
+//    private let app: NSRunningApplication
+    public let application: MessagesApplication
+    
+    
+    // legacy stub
+    public var app: NSRunningApplication {
+        // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
+        application.controlledRunningApplication!
+    }
+
     let elements: MessagesAppElements
 
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
@@ -103,24 +49,74 @@ final class MessagesController {
 
     let om = OcclusionMonitor()
 
-    class OcclusionMonitor {
-        var visible: Bool = true
-
-        private var ncToken: NSObjectProtocol?
-
-        init() {
-            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
-                log.trace("didChangeOcclusionStateNotification \(notif)")
-                guard let window = notif.object as? NSWindow else { return }
-                let className = NSStringFromClass(type(of: window))
-                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
-                self.visible = window.occlusionState.contains(.visible)
+    
+    init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
+        self.reportToSentry = reportToSentry
+        guard Accessibility.isTrusted() else {
+            throw ErrorMessage("Beeper does not have Accessibility permissions")
+        }
+        
+        windowCoordinator = try getBestWindowCoordinator()
+        
+        if Preferences.isPHTEnabled, Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowConnection) {
+            do {
+                let allowInstall = Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowInstallation)
+                phtConnection = try PHTConnection.create(allowInstall: allowInstall)
+            } catch {
+                log.error("failed to create PHT connection: \(String(reflecting: error))")
             }
         }
-
-        deinit {
-            ncToken.map { NotificationCenter.default.removeObserver($0) }
+        
+        var messagesApps = Self.getRunningMessagesApps()
+        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
+            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
+            messagesApps.forEach { try? Self.terminateApp($0) }
+            messagesApps.removeAll()
         }
+        
+        let shouldUseExtantInstance: Bool = windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow
+        
+        if shouldUseExtantInstance {
+            log.info("reusing existing messages...")
+        } else {
+            log.info("terminating messages...")
+        }
+        
+        self.application = try unsafeBlockCurrentThreadUntilComplete {
+            try await MessagesApplication(strategy: .publicInstance, useExtantInstanceIfPossible: shouldUseExtantInstance)
+        }
+
+        // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
+        windowCoordinator.app = application.controlledRunningApplication!
+        
+        elements = application.controlledRunningApplication!.elements
+        keyPresser = LegacyKeyPresser(pid: application.controlledRunningApplication!.processIdentifier)
+        
+        // if app.isHidden {
+        //     debugLog("Unhiding Messages...")
+        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
+        //         app.unhide()
+        //         if app.isHidden {
+        //             throw ErrorMessage("Could not launch Messages")
+        //         }
+        //     }
+        // }
+        let observer = LifecycleObserver()
+        lifecycleObserver = observer
+        setUpPollingConveyor(with: lifecycleObserver)
+        
+        guard isValid else {
+            dispose() // since deinit isn't called when init throws
+            throw ErrorMessage(
+                """
+                Initialized MessagesController in an invalid state:
+                appTerminated=\(app.isTerminated)
+                mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+                isMessagesAppResponsive=\(isMessagesAppResponsive)
+                """
+            )
+        }
+        resetWindow()
     }
 
     // this increases the viewport height so that mark as read works more reliably
@@ -306,86 +302,6 @@ final class MessagesController {
 
     private static func getRunningMessagesApps() -> [NSRunningApplication] {
         NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-    }
-
-    init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
-        self.reportToSentry = reportToSentry
-        guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Beeper does not have Accessibility permissions")
-        }
-
-        windowCoordinator = try getBestWindowCoordinator()
-
-        if Preferences.isPHTEnabled, Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowConnection) {
-            do {
-                let allowInstall = Defaults.swiftServer.bool(forKey: DefaultsKeys.phtAllowInstallation)
-                phtConnection = try PHTConnection.create(allowInstall: allowInstall)
-            } catch {
-                log.error("failed to create PHT connection: \(String(reflecting: error))")
-            }
-        }
-
-        let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
-            // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
-            log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
-        }
-
-        var messagesApps = Self.getRunningMessagesApps()
-        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-            messagesApps.forEach { try? Self.terminateApp($0) }
-            messagesApps.removeAll()
-        }
-        if let existingApp = messagesApps.first {
-            // if coordination is disabled, avoid unnecessarily terminating the app
-            if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
-                log.info("reusing existing messages...")
-                app = existingApp
-            } else {
-                log.info("terminating messages...")
-                try Self.terminateApp(existingApp)
-                // this is for markAsReadWithPressHack (monterey or lower)
-                // launch with activation because the hack doesn't work until the app is activated at least once
-                app = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
-            }
-        } else {
-            app = try launchMessages(false)
-        }
-
-        windowCoordinator.app = app
-
-        // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        try app.waitForLaunch()
-        elements = MessagesAppElements(runningApp: app)
-        keyPresser = LegacyKeyPresser(pid: app.processIdentifier)
-
-        // if app.isHidden {
-        //     debugLog("Unhiding Messages...")
-        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
-        //         app.unhide()
-        //         if app.isHidden {
-        //             throw ErrorMessage("Could not launch Messages")
-        //         }
-        //     }
-        // }
-        let observer = LifecycleObserver()
-        lifecycleObserver = observer
-        setUpPollingConveyor(with: lifecycleObserver)
-
-        guard isValid else {
-            dispose() // since deinit isn't called when init throws
-            throw ErrorMessage("""
-Initialized MessagesController in an invalid state:
-appTerminated=\(app.isTerminated)
-mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
-isMessagesAppResponsive=\(isMessagesAppResponsive)
-""")
-        }
-        resetWindow()
     }
 
     func setUpPollingConveyor(with observer: LifecycleObserver) {
@@ -1589,3 +1505,81 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         dispose()
     }
 }
+
+@available(macOS 11, *)
+extension MessagesController {
+    class OcclusionMonitor {
+        var visible: Bool = true
+        
+        private var cancellable: AnyCancellable?
+        
+        init() {
+            cancellable = NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification, object: nil).sink { notification in
+                log.trace("didChangeOcclusionStateNotification \(notification)")
+                guard let window = notification.object as? NSWindow else { return }
+                let className = NSStringFromClass(type(of: window))
+                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
+                self.visible = window.occlusionState.contains(.visible)
+            }
+        }
+        
+        deinit {
+            cancellable?.cancel()
+        }
+    }
+}
+
+private enum MessageAction {
+    case react, reply, undoSend
+    /// might've been added around macOS 15; unknown
+    case edit
+    
+    var localized: String {
+        switch self {
+            case .react: return LocalizedStrings.react
+            case .reply: return LocalizedStrings.reply
+            case .undoSend: return LocalizedStrings.undoSend
+            case .edit: return LocalizedStrings.editButton
+        }
+    }
+}
+private enum ThreadAction {
+    case markAsRead, markAsUnread, delete, pin, unpin, showAlerts, hideAlerts
+    
+    var localized: String {
+        switch self {
+            case .markAsRead: return LocalizedStrings.markAsRead
+            case .markAsUnread: return LocalizedStrings.markAsUnread
+            case .delete: return LocalizedStrings.delete
+            case .pin: return LocalizedStrings.pin
+            case .unpin: return LocalizedStrings.unpin
+            case .showAlerts: return LocalizedStrings.showAlerts
+            case .hideAlerts: return LocalizedStrings.hideAlerts
+        }
+    }
+}
+
+struct MessageCell: Codable {
+    let messageGUID: String
+    let offset: Int
+    let cellID: String?
+    let cellRole: String?
+    let overlay: Bool
+}
+
+// used for outgoing communicate from observed AX events to `RunLoopConveyor`
+//
+// (we want to create window observations in response to windows being created,
+// but we need a stable thread with a run loop for that)
+private enum ConveyorEvent {
+    case observeWindow(window: Accessibility.Element)
+}
+
+
+// MARK: - Legacy
+
+let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
+let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
+let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
+let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
+

@@ -4,6 +4,7 @@ import Combine
 import Foundation
 import SwiftServerFoundation
 
+
 @available(macOS 11, *)
 extension MessagesApplication {
     public struct ID: Hashable, Sendable {
@@ -13,58 +14,119 @@ extension MessagesApplication {
             
         }
     }
+    
+    public class Instance: Identifiable, @unchecked Sendable {
+        public var id: ID
+        public var runningApplication: NSRunningApplication
+        
+        public var pid: pid_t {
+            runningApplication.processIdentifier
+        }
+        
+        init(id: ID? = nil, runningApplication: NSRunningApplication) {
+            self.id = id ?? ID()
+            self.runningApplication = runningApplication
+        }
+        
+        public static func createInstances() -> [Instance] {
+            NSRunningApplication.runningApplications(withBundleIdentifier: MessagesApplication.bundleID).map { Instance(runningApplication: $0) }
+        }
+    }
 }
 
 // TODO: (@pmanot) - Rename
 @available(macOS 11, *)
 public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     public static let bundleID: String = "com.apple.MobileSMS"
-    public var publicInstance: NSRunningApplication? = nil
-    public var puppetInstance: NSRunningApplication
-    public var puppetID: ID
     
+    public let strategy: Strategy = .publicInstance
+    
+    public var publicInstance: Instance? = nil
+    public var puppetInstance: Instance? = nil
     public var alwaysKeepPublicInstanceAlive: Bool = true
     
-    @Published var pool: [ID: NSRunningApplication] = [:]
+    @Published
+    var pool: [ID: Instance] = [:]
+    private var pidMap: [pid_t: ID] = [:]
     
-    private var cancellables: Set<AnyCancellable> = []
-    
-    public init() async throws {
-        publicInstance = NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).first
-        
-        if publicInstance == nil {
-            publicInstance = try await MessagesApplication.launchPublicInstance()
-        }
-        
-        puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: true)
-        puppetID = ID()
-        
-        pool[puppetID] = puppetInstance
-        
-        if alwaysKeepPublicInstanceAlive {
-            relaunchPublicInstanceOnTermination()
+    public var controlledRunningApplication: NSRunningApplication? {
+        switch strategy {
+            case .publicInstance:
+                publicInstance?.runningApplication
+            case .puppetInstance:
+                puppetInstance?.runningApplication
         }
     }
     
-    private static func launchPublicInstance() async throws -> NSRunningApplication {
-        let application = try await Self.open(deepLink: nil, shouldHide: true, launchesInBackgound: false)
+    public var runningApplications: [NSRunningApplication] {
+        return NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID)
+    }
+    
+    private var cancellables: Set<AnyCancellable> = []
+    
+    public init(strategy: Strategy = .publicInstance, useExtantInstanceIfPossible: Bool = true) async throws {
+        self.pool = [:]
         
-        try? application.elements.mainWindow.setFrame(CGRect(x: 700, y: 700, width: 550, height: 500))
+        // TODO: (@pmanot) - reduce code duplication and refactor
+        switch runningApplications.count {
+            case 1:
+                if useExtantInstanceIfPossible {
+                    assert(runningApplications.count == 1)
+                    let instance: Instance = Instance(runningApplication: runningApplications[0])
+                    pool[instance.id] = instance
+                } else {
+                    fallthrough
+                }
+            default:
+                for runningApp in runningApplications {
+                    // TODO: handle termination failures
+                    _ = await runningApp.terminateAndWaitForTermination()
+                }
+                
+                
+                let instance: Instance = try await MessagesApplication.launchPublicInstance()
+                pool[instance.id] = instance
+        }
         
-        return application
+        assert(pool.count == 1)
+        assert(runningApplications.count == 1)
+        publicInstance = pool.first!.value
+        
+//        if alwaysKeepPublicInstanceAlive {
+//            relaunchPublicInstanceOnTermination()
+//        }
+        
+        if strategy == .puppetInstance {
+            self.puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: true)
+            pool[puppetInstance!.id] = puppetInstance!
+        }
+        
+        assert(controlledRunningApplication != nil)
+    }
+    
+    deinit {
+        cancellables.removeAll()
+    }
+    
+    private static func launchPublicInstance() async throws -> Instance {
+        let instance: Instance = try await Self.open(deepLink: nil, shouldHide: true, launchesInBackgound: false)
+        
+        try? instance.runningApplication.elements.mainWindow.setFrame(CGRect(x: 700, y: 700, width: 550, height: 500))
+        
+        return instance
     }
     
     public func relaunchPublicInstanceOnTermination() {
         cancellables.removeAll()
         
-        if let application = self.publicInstance, application.isTerminated {
-            Task { [weak self] in
+        if let instance: Instance = self.publicInstance, instance.runningApplication.isTerminated {
+            Task { @MainActor [weak self] in
                 self?.publicInstance = try await Self.launchPublicInstance()
                 
                 self?.relaunchPublicInstanceOnTermination()
             }
         } else {
-            self.publicInstance?.publisher(for: \.isTerminated)
+            self.publicInstance?.runningApplication.publisher(for: \.isTerminated)
                 .sink { [weak self] isTerminated in
                     if isTerminated {
                         self?.relaunchPublicInstanceOnTermination()
@@ -76,12 +138,28 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         }
     }
     
+    private func observeRunningApplications() {
+        NSWorkspace.shared.publisher(for: \.runningApplications).sink { [weak self] _ in
+            guard let self else { return }
+            
+            for runningApplication in self.runningApplications {
+                if !self.pool.contains(where: { (key, value) in
+                    return value.runningApplication == runningApplication
+                }) {
+                    let instance: Instance = Instance(runningApplication: runningApplication)
+                    self.pool[instance.id] = instance
+                }
+            }
+        }
+        .store(in: &cancellables)
+    }
+    
     public func withPersistentRunningApplication(
         _ id: MessagesApplication.ID,
         url: URL?,
         action: @escaping @Sendable (NSRunningApplication) async throws -> Void
     ) async throws {
-        var application: NSRunningApplication? = self.pool[id]
+        var application: MessagesApplication.Instance? = self.pool[id]
         
         if application == nil {
             application = try await Self.open(
@@ -93,7 +171,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             self.pool[id] = application
         }
         
-        try await action(application!)
+        try await action(application!.runningApplication)
     }
     
     public func withHiddenRunningApplication(
@@ -101,7 +179,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         action: @escaping @Sendable (NSRunningApplication) async throws -> Void,
         terminationStatus: (@Sendable (NSRunningApplication, NSRunningApplication.TerminationResult) -> Void)? = nil
     ) async throws {
-        let application: NSRunningApplication = try await Self.open(
+        let instance: Instance = try await Self.open(
             deepLink: url,
             shouldActivate: false,
             shouldHide: true
@@ -110,15 +188,15 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         var thrownError: Error?
         
         do {
-            try await action(application)
+            try await action(instance.runningApplication)
         } catch {
             thrownError = error
         }
         
-        let result = await application.terminateAndWaitForTermination()
+        let result = await instance.runningApplication.terminateAndWaitForTermination()
         
         await MainActor.run {
-            terminationStatus?(application, result)
+            terminationStatus?(instance.runningApplication, result)
         }
         
         if let thrownError {
@@ -132,7 +210,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             pool.removeValue(forKey: id)
         }
         
-        return await pool[id]?.terminateAndWaitForTermination() ?? .alreadyTerminated
+        return await pool[id]?.runningApplication.terminateAndWaitForTermination() ?? .alreadyTerminated
     }
     
     @MainActor
@@ -144,16 +222,18 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         shouldHide: Bool = true,
         launchesInBackgound: Bool = true,
         timeout: TimeInterval = 5
-    ) async throws -> NSRunningApplication {
+    ) async throws -> MessagesApplication.Instance {
         guard let applicationURL: URL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) else {
             throw ErrorMessage("URL for \(bundleID) not found")
         }
+        
+        let finalRunningApplication: NSRunningApplication
         
         if let runningApplication, let deepLink {
             let appleEventDescriptor: NSAppleEventDescriptor = Self.appleEventDescriptor(deepLink: deepLink, target: runningApplication)
             try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
             
-            return runningApplication
+            finalRunningApplication = runningApplication
         } else {
             let openOptions = NSWorkspace.OpenConfiguration()
             
@@ -169,8 +249,10 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             }
             
             // test NSWorkspace.shared.open(at:)
-            return try await NSWorkspace.shared.open(applicationURL, configuration: openOptions)
+            finalRunningApplication = try await NSWorkspace.shared.open(applicationURL, configuration: openOptions)
         }
+                
+        return Instance(runningApplication: finalRunningApplication)
     }
     
     @discardableResult
@@ -180,7 +262,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         shouldActivate: Bool = false,
         shouldHide: Bool = true,
         timeout: TimeInterval = 5
-    ) throws -> NSRunningApplication {
+    ) throws -> MessagesApplication.Instance {
         try unsafeBlockCurrentThreadUntilComplete {
             try await open(deepLink: deepLink, withinRunningApplication: runningApplication, shouldActivate: shouldActivate, shouldHide: shouldHide, timeout: timeout)
         }
@@ -204,23 +286,30 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         return eventDescriptor
     }
     
-    // FIXME: (@pmanot) - this is temporary and fragile, replace with `terminateAndWaitForTermination` after testing
+    // FIXME: (@pmanot) - unimplemented
     func terminate() {
-        self.puppetInstance.terminate()
+        fatalError()
     }
 }
 
+@available(macOS 11, *)
+extension MessagesApplication {
+    public enum Strategy: String, Codable {
+        case publicInstance
+        case puppetInstance
+    }
+}
 
 // MARK: - Auxiliary
 
 @available(macOS 11, *)
-extension MessagesApplication {
+extension MessagesApplication.Instance {
     public func press(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
-        try self.puppetInstance.press(key: key, flags: flags)
+        try self.runningApplication.press(key: key, flags: flags)
     }
     
     public func press(_ combo: KeyPresser.Combo) throws {
-        try puppetInstance.press(combo)
+        try self.runningApplication.press(combo)
     }
 }
 

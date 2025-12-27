@@ -5,21 +5,41 @@ import SwiftUI
 
 @available(macOS 13, *)
 struct SettingsView: View {
-    @AppStorage(DefaultsKeys.misfirePreventionTracingPII, store: Defaults.swiftServer) var misfirePreventionTracingPII = false
+    @AppStorage(DefaultsKeys.coordinator, store: Defaults.swiftServer)
+    var coordinator: String = ""
     
-    @AppStorage(DefaultsKeys.windowCoordination, store: Defaults.swiftServer) var windowCoordination = true
-    @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.swiftServer) var hidingCoordinatorDebounce = 0.75
+    @AppStorage(DefaultsKeys.misfirePreventionTracingPII, store: Defaults.swiftServer)
+    var misfirePreventionTracingPII: Bool = false
     
-    @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.swiftServer) var misfirePrevention = true
-    @AppStorage(DefaultsKeys.misfirePreventionAlwaysFallback, store: Defaults.swiftServer) var misfirePreventionAlwaysFallback = false
-    @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.swiftServer) var imCoreSPI = true
-    @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.swiftServer) var contactsAttemptFormattingWithShortStyle = true
-    @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.swiftServer) var predictionPredictsGroupChats = true
+    @AppStorage(DefaultsKeys.windowCoordination, store: Defaults.swiftServer)
+    var windowCoordination: Bool = true
     
-    @AppStorage(DefaultsKeys.eclipsingUsesLargestWindow, store: Defaults.swiftServer) var eclipsingUsesLargestWindow = true
-    @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer) var eclipsingDebug = false
+    @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.swiftServer)
+    var hidingCoordinatorDebounce = 0.75
     
-    @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer) var spacesObserveDock = true
+    @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.swiftServer)
+    var misfirePrevention: Bool = true
+    
+    @AppStorage(DefaultsKeys.misfirePreventionAlwaysFallback, store: Defaults.swiftServer)
+    var misfirePreventionAlwaysFallback: Bool = false
+    
+    @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.swiftServer)
+    var imCoreSPI: Bool = true
+    
+    @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.swiftServer)
+    var contactsAttemptFormattingWithShortStyle: Bool = true
+    
+    @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.swiftServer)
+    var predictionPredictsGroupChats = true
+    
+    @AppStorage(DefaultsKeys.eclipsingUsesLargestWindow, store: Defaults.swiftServer)
+    var eclipsingUsesLargestWindow = true
+    
+    @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer)
+    var eclipsingDebug = false
+    
+    @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer)
+    var spacesObserveDock = true
     
     // help button popover
     @State private var presentingHelp = false
@@ -135,6 +155,17 @@ struct SettingsView: View {
     @ViewBuilder
     private var windowCoordinationSection: some View {
         Section {
+            Picker("Window Coordinator Override", selection: $coordinator) {
+                Text("Edge Coordinator")
+                    .tag("edge")
+                Text("Eclipsing Coordinator")
+                    .tag("eclipsing")
+                Text("Spaces Coordinator")
+                    .tag("spaces")
+                Text("Default")
+                    .tag("")
+            }
+            
             Toggle(isOn: $windowCoordination) {
                 Text("Coordinate the Messages window")
                 Text("Allow Beeper to manage the Messages window when needed.")

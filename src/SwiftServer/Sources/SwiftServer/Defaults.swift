@@ -21,7 +21,7 @@ enum DefaultsKeys {
 
     /** controls whether window coordination happens at all, respected on the fly */
     static let windowCoordination = "BEEPWindowCoordination"
-    /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
+    /** forces a specific coordinator (`eclipsing`, `edge` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
     /** whether to respect calls to `onThreadSelected`/`watchThreadActivity` */
@@ -98,6 +98,7 @@ enum DefaultsKeys {
     static let pollerTraceChangeListening = "BEEPPollerTraceChangeListening"
     static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
+    
 }
 
 enum SwiftServerDefaults {

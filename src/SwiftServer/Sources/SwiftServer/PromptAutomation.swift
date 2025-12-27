@@ -72,7 +72,11 @@ enum PromptAutomation {
             options: [.withoutActivation], // .andHide shows a gray background and doesn't render the UI
             configuration: [:]
         )
-        try app.waitForLaunch()
+        
+        try unsafeBlockCurrentThreadUntilComplete {
+            try await app.waitForLaunch()
+        }
+        
         return try retry(withTimeout: 3, interval: 0.1) {
             let appElement = Accessibility.Element(pid: app.processIdentifier)
             let windows = try appElement.appWindows()

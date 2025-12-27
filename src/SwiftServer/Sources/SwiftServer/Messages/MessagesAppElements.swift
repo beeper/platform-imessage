@@ -498,7 +498,6 @@ public final class MessagesAppElements {
     }
 }
 
-
 @available(macOS 11, *)
 extension NSRunningApplication {
     public var elements: MessagesAppElements {
