@@ -114,7 +114,7 @@ struct SettingsView: View {
             }
             
             Button("Cancel", role: .cancel) {
-                // FIXME: currently does nothing
+                presentingPrivacyAlert = false
             }
         } message: {
             Text("""
