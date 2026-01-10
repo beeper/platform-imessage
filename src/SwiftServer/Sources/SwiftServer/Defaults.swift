@@ -77,6 +77,12 @@ enum DefaultsKeys {
     /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 
+    /** show colored borders around Messages windows to identify public vs puppet instances */
+    static let showInstanceBorders = "BEEPShowInstanceBorders"
+
+    /** whether the puppet Messages instance should be hidden (default: true) */
+    static let hidePuppetInstance = "BEEPHidePuppetInstance"
+
     /** always use `.unknown` space instead of `.user` */
     static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
     /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */
@@ -309,5 +315,9 @@ enum Defaults {
 
     static var misfirePreventionTracingPII: Bool {
         Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionTracingPII)
+    }
+    
+    static var shouldHidePuppetInstance: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.hidePuppetInstance)
     }
 }

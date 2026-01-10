@@ -24,7 +24,6 @@ final class MessagesController {
 //    private let app: NSRunningApplication
     public let application: MessagesApplication
     
-    
     // legacy stub
     public var app: NSRunningApplication {
         // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
@@ -83,13 +82,16 @@ final class MessagesController {
         }
         
         self.application = try unsafeBlockCurrentThreadUntilComplete {
-            try await MessagesApplication(strategy: .publicInstance, useExtantInstanceIfPossible: shouldUseExtantInstance)
+            try await MessagesApplication(strategy: .puppetInstance, useExtantInstanceIfPossible: shouldUseExtantInstance)
         }
 
         // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
         windowCoordinator.app = application.controlledRunningApplication!
         
         elements = application.controlledRunningApplication!.elements
+        elements.openDeepLink = { [application] url in
+            try application.openDeepLink(url)
+        }
         keyPresser = LegacyKeyPresser(pid: application.controlledRunningApplication!.processIdentifier)
         
         // if app.isHidden {
@@ -150,38 +152,6 @@ final class MessagesController {
                 app.forceTerminate()
             }
         }
-    }
-
-    @discardableResult
-    static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-         let openOptions = NSWorkspace.OpenConfiguration()
-         openOptions.activates = activating
-         openOptions.hides = hiding
-
-         let horribleWaiter = DispatchSemaphore(value: 0)
-         var result: Result<NSRunningApplication, Error>?
-         NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
-#if DEBUG
-            let builtForDebugging = true
-#else
-            let builtForDebugging = false
-#endif
-            if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
-                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
-            } else {
-                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
-            }
-
-            if let error {
-                result = .failure(error)
-            } else {
-                result = .success(running!)
-            }
-            horribleWaiter.signal()
-        }
-        horribleWaiter.wait()
-
-        return try result!.get()
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -296,7 +266,7 @@ final class MessagesController {
     }
 
     private func openThread(_ threadID: String) throws {
-        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try application.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
         try ensureSelectedThread(threadID: threadID)
     }
 
@@ -513,7 +483,7 @@ final class MessagesController {
 #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
 #endif
-            try Self.openDeepLink(openBefore)
+            try application.openDeepLink(openBefore)
         }
 
         try perform()
@@ -523,7 +493,7 @@ final class MessagesController {
 #if DEBUG
             debugLog("withActivation: opening after performing: \(openAfter)")
 #endif
-                try Self.openDeepLink(openAfter)
+                try application.openDeepLink(openAfter)
             }
         }
     }
@@ -1462,7 +1432,7 @@ final class MessagesController {
                 try prepareForAutomation()
                 defer { finishedAutomation() }
 
-                try Self.openDeepLink(url)
+                try application.openDeepLink(url)
                 log.debug("activity: opened deep link, waiting for layout change")
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                 waitForLayoutChange(timeout: 0.5)

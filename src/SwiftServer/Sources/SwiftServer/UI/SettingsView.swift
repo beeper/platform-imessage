@@ -37,10 +37,16 @@ struct SettingsView: View {
     
     @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer)
     var eclipsingDebug = false
-    
+
     @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer)
     var spacesObserveDock = true
-    
+
+    @AppStorage(DefaultsKeys.showInstanceBorders, store: Defaults.swiftServer)
+    var showInstanceBorders = false
+
+    @AppStorage(DefaultsKeys.hidePuppetInstance, store: Defaults.swiftServer)
+    var hidePuppetInstance = true
+
     // help button popover
     @State private var presentingHelp = false
     
@@ -189,6 +195,16 @@ struct SettingsView: View {
             
             Toggle(isOn: $eclipsingDebug) {
                 Text("Show eclipsing debug visualization")
+            }
+
+            Toggle(isOn: $showInstanceBorders) {
+                Text("Show instance borders")
+                Text("Display colored borders around Messages windows (green = public, blue = puppet)")
+            }
+
+            Toggle(isOn: $hidePuppetInstance) {
+                Text("Hide puppet instance")
+                Text("Hide the puppet Messages application from the dock. Disable to debug automation. Requires restart.")
             }
         } header: {
             Text("Window Coordination")

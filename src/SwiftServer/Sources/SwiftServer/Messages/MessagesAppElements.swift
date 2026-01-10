@@ -42,6 +42,9 @@ public final class MessagesAppElements {
     var cachedTranscriptView: Accessibility.Element?
     private var cachedMainWindow: Accessibility.Element?
 
+    /// Closure to open a deep link. Set by MessagesController to use the correct Messages instance.
+    var openDeepLink: ((_ url: URL) throws -> Void)?
+
     func clearCachedElements() {
         // these are manually cleared because we aren't checking for validity on each property access
         // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
@@ -127,10 +130,10 @@ public final class MessagesAppElements {
             }
             let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
-            } onError: { attempt, _ in
+            } onError: { [self] attempt, _ in
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    try MessagesController.openDeepLink(MessagesDeepLink.compose.url())
+                    try openDeepLink?(MessagesDeepLink.compose.url())
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")

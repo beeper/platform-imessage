@@ -2,8 +2,10 @@ import AppKit
 import ApplicationServices
 import Combine
 import Foundation
+import Logging
 import SwiftServerFoundation
 
+private let log = Logger(swiftServerLabel: "messages-application")
 
 @available(macOS 11, *)
 extension MessagesApplication {
@@ -39,7 +41,7 @@ extension MessagesApplication {
 public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     public static let bundleID: String = "com.apple.MobileSMS"
     
-    public let strategy: Strategy = .publicInstance
+    public let strategy: Strategy
     
     public var publicInstance: Instance? = nil
     public var puppetInstance: Instance? = nil
@@ -63,9 +65,11 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     }
     
     private var cancellables: Set<AnyCancellable> = []
-    
-    public init(strategy: Strategy = .publicInstance, useExtantInstanceIfPossible: Bool = true) async throws {
+    private var instanceBorderOverlay: InstanceBorderOverlay?
+
+    public init(strategy: Strategy = .puppetInstance, useExtantInstanceIfPossible: Bool = true) async throws {
         self.pool = [:]
+        self.strategy = strategy
         
         // TODO: (@pmanot) - reduce code duplication and refactor
         switch runningApplications.count {
@@ -97,19 +101,27 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 //        }
         
         if strategy == .puppetInstance {
-            self.puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: true)
+            // Default to hiding the puppet instance unless explicitly set to false
+            self.puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: Defaults.shouldHidePuppetInstance, launchesInBackground: Defaults.shouldHidePuppetInstance)
             pool[puppetInstance!.id] = puppetInstance!
         }
-        
+
         assert(controlledRunningApplication != nil)
+
+        // Start instance border overlay - it will check the defaults setting itself
+        await MainActor.run {
+            instanceBorderOverlay = InstanceBorderOverlay(messagesApplication: self)
+            instanceBorderOverlay?.start()
+        }
     }
-    
+
     deinit {
+        instanceBorderOverlay?.stop()
         cancellables.removeAll()
     }
     
     private static func launchPublicInstance() async throws -> Instance {
-        let instance: Instance = try await Self.open(deepLink: nil, shouldHide: true, launchesInBackgound: false)
+        let instance: Instance = try await Self.open(deepLink: nil, shouldHide: false, launchesInBackground: false)
         
         try? instance.runningApplication.elements.mainWindow.setFrame(CGRect(x: 700, y: 700, width: 550, height: 500))
         
@@ -165,7 +177,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             application = try await Self.open(
                 deepLink: url,
                 shouldActivate: false,
-                shouldHide: true
+                shouldHide: true,
+                launchesInBackground: false
             )
             
             self.pool[id] = application
@@ -182,7 +195,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         let instance: Instance = try await Self.open(
             deepLink: url,
             shouldActivate: false,
-            shouldHide: true
+            shouldHide: true,
+            launchesInBackground: false
         )
         
         var thrownError: Error?
@@ -220,7 +234,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         withinRunningApplication runningApplication: NSRunningApplication? = nil,
         shouldActivate: Bool = false,
         shouldHide: Bool = true,
-        launchesInBackgound: Bool = true,
+        launchesInBackground: Bool,
         timeout: TimeInterval = 5
     ) async throws -> MessagesApplication.Instance {
         guard let applicationURL: URL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) else {
@@ -241,7 +255,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             openOptions.hides = shouldHide
             openOptions.createsNewApplicationInstance = true
             openOptions.addsToRecentItems = false
-            openOptions.launchesInBackground = launchesInBackgound
+            openOptions.launchesInBackground = launchesInBackground
             openOptions.launchIsUserAction = true
             
             if let deepLink {
@@ -261,14 +275,14 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         withinRunningApplication runningApplication: NSRunningApplication? = nil,
         shouldActivate: Bool = false,
         shouldHide: Bool = true,
+        launchesInBackground: Bool = false,
         timeout: TimeInterval = 5
     ) throws -> MessagesApplication.Instance {
         try unsafeBlockCurrentThreadUntilComplete {
-            try await open(deepLink: deepLink, withinRunningApplication: runningApplication, shouldActivate: shouldActivate, shouldHide: shouldHide, timeout: timeout)
+            try await open(deepLink: deepLink, withinRunningApplication: runningApplication, shouldActivate: shouldActivate, shouldHide: shouldHide, launchesInBackground: launchesInBackground, timeout: timeout)
         }
     }
     
-    @MainActor
     static func appleEventDescriptor(deepLink url: URL, target application: NSRunningApplication?) -> NSAppleEventDescriptor {
         let eventDescriptor: NSAppleEventDescriptor = NSAppleEventDescriptor(
             eventClass: AEEventClass(kInternetEventClass),
@@ -289,6 +303,33 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     // FIXME: (@pmanot) - unimplemented
     func terminate() {
         fatalError()
+    }
+
+    @discardableResult
+    public func openDeepLink(
+        _ url: URL,
+        activating: Bool = false,
+        hiding: Bool = true
+    ) throws -> NSRunningApplication {
+        guard let runningApplication = controlledRunningApplication else {
+            throw ErrorMessage("No controlled running application")
+        }
+
+#if DEBUG
+        let builtForDebugging = true
+#else
+        let builtForDebugging = false
+#endif
+        if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
+            log.debug("OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+        } else {
+            log.debug("OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
+        }
+
+        let appleEventDescriptor = Self.appleEventDescriptor(deepLink: url, target: runningApplication)
+        try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: 5)
+
+        return runningApplication
     }
 }
 
