@@ -69,7 +69,11 @@ final class MessagesController {
         var messagesApps = Self.getRunningMessagesApps()
         if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
             log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-            messagesApps.forEach { try? Self.terminateApp($0) }
+            try messagesApps.forEach { message in
+                try unsafeBlockCurrentThreadUntilComplete {
+                    _ = await message.terminateAndWaitForTermination()
+                }
+            }
             messagesApps.removeAll()
         }
         
@@ -140,18 +144,6 @@ final class MessagesController {
         try? elements.searchField.cancel()
         try? expandSplitter()
         try? closeReplyTranscriptView(wait: false)
-    }
-
-    private static func terminateApp(_ app: NSRunningApplication) throws {
-        app.terminate()
-        try retry(withTimeout: 2, interval: 0.1) {
-            guard app.isTerminated else { throw ErrorMessage("App couldn't be terminated") }
-        } onError: { attempt, _ in
-            if attempt == 19 {
-                log.debug("Force terminating app")
-                app.forceTerminate()
-            }
-        }
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
