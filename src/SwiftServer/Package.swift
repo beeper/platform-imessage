@@ -22,6 +22,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
+        .package(name: "LSLauncher", path: "Sources/LSLauncherTool"),
     ],
     targets: [
         .target(
@@ -37,6 +38,7 @@ let package = Package(
                 "IMDatabase",
                 "BetterSwiftAXAdditions",
                 .product(name: "Collections", package: "swift-collections"),
+                .product(name: "LSLauncher", package: "LSLauncher"),
             ],
 
             // `node-swift`'s build scripts pass some flags that enable dynamic

@@ -3,6 +3,7 @@ import ApplicationServices
 import Combine
 import Foundation
 import Logging
+import LSLauncher
 import SwiftServerFoundation
 
 private let log = Logger(swiftServerLabel: "messages-application")
@@ -328,6 +329,15 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 
         let appleEventDescriptor = Self.appleEventDescriptor(deepLink: url, target: runningApplication)
         try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: 5)
+
+        // Suppress the puppet instance after opening deeplink to keep it hidden from the dock
+        if strategy == .puppetInstance && Defaults.shouldHidePuppetInstance {
+            do {
+                try runningApplication.suppress()
+            } catch {
+                log.warning("Failed to suppress puppet instance after deeplink: \(error)")
+            }
+        }
 
         return runningApplication
     }

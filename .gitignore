@@ -37,3 +37,4 @@ headless.mjs
 headless-config.json
 .headless-history.json
 *.resolved
+.claude
