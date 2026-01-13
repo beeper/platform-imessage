@@ -43,6 +43,8 @@ public final class LSApplicationLauncher: @unchecked Sendable {
     private let _LSCopyRunningApplicationArray: LSCopyRunningApplicationArrayFn
     private let _LSCopyFrontApplication: LSCopyFrontApplicationFn
     private let _LSOpenURLsWithCompletionHandler: LSOpenURLsWithCompletionHandlerFn
+    private let _LSOpenURLsUsingASNWithCompletionHandler: LSOpenURLsUsingASNWithCompletionHandlerFn
+    private let _LSOpenURLsUsingBundleIdentifierWithCompletionHandler: LSOpenURLsUsingBundleIdentifierWithCompletionHandlerFn
 
     private let kLSApplicationTypeKey: CFString
     private let kLSApplicationTypeToRestoreKey: CFString
@@ -80,6 +82,8 @@ public final class LSApplicationLauncher: @unchecked Sendable {
         _LSCopyRunningApplicationArray = loadFunc("_LSCopyRunningApplicationArray")
         _LSCopyFrontApplication = loadFunc("_LSCopyFrontApplication")
         _LSOpenURLsWithCompletionHandler = loadFunc("_LSOpenURLsWithCompletionHandler")
+        _LSOpenURLsUsingASNWithCompletionHandler = loadFunc("_LSOpenURLsUsingASNWithCompletionHandler")
+        _LSOpenURLsUsingBundleIdentifierWithCompletionHandler = loadFunc("_LSOpenURLsUsingBundleIdentifierWithCompletionHandler")
 
         func loadString(_ name: String) -> CFString {
             if let str = Self.loadCFStringGlobal(bundle: b, symbol: "_\(name)") {
@@ -423,6 +427,105 @@ public final class LSApplicationLauncher: @unchecked Sendable {
             wasAlreadyRunning: wasAlreadyRunning,
             isFinishedLaunching: app.isFinishedLaunching
         )
+    }
+
+    // MARK: - Open URLs with Specific Target
+
+    /// Open URLs using a specific running application (by ASN)
+    /// - Parameters:
+    ///   - urls: The URLs to open
+    ///   - targetASN: The ASN of the target running application
+    ///   - activate: Whether to activate (bring to front) the target application
+    ///   - preferRunningInstance: Whether to prefer the running instance
+    public func openURLs(
+        _ urls: [URL],
+        targetASN: LSASN,
+        activate: Bool = false,
+        preferRunningInstance: Bool = true
+    ) {
+        var options: [String: Any] = [:]
+
+        // Don't bring to front unless requested
+        if let activateKey = optionKeys["kLSOpenOptionActivateKey"] {
+            options[activateKey as String] = activate
+        }
+
+        // Don't promote to foreground
+        if let fgKey = optionKeys["kLSOpenOptionForegroundLaunchKey"] {
+            options[fgKey as String] = false
+        }
+
+        // Prefer the running instance we're targeting
+        if let preferKey = optionKeys["kLSOpenOptionPreferRunningInstanceKey"] {
+            options[preferKey as String] = preferRunningInstance ? 1 : 0
+        }
+
+        _LSOpenURLsUsingASNWithCompletionHandler(
+            urls as CFArray,
+            targetASN,
+            options as CFDictionary,
+            nil
+        )
+    }
+
+    /// Open URLs using a specific running application (by NSRunningApplication)
+    /// - Parameters:
+    ///   - urls: The URLs to open
+    ///   - app: The target running application
+    ///   - activate: Whether to activate (bring to front) the target application
+    public func openURLs(
+        _ urls: [URL],
+        in app: NSRunningApplication,
+        activate: Bool = false
+    ) throws {
+        guard let asn = getASN(for: app) else {
+            throw LaunchError.asnCreationFailed(app.processIdentifier)
+        }
+        openURLs(urls, targetASN: asn, activate: activate)
+    }
+
+    /// Open URLs using a specific bundle identifier
+    /// - Parameters:
+    ///   - urls: The URLs to open
+    ///   - bundleIdentifier: The bundle identifier of the target application
+    ///   - activate: Whether to activate (bring to front) the target application
+    public func openURLs(
+        _ urls: [URL],
+        bundleIdentifier: String,
+        activate: Bool = false
+    ) {
+        var options: [String: Any] = [:]
+
+        if let activateKey = optionKeys["kLSOpenOptionActivateKey"] {
+            options[activateKey as String] = activate
+        }
+
+        if let fgKey = optionKeys["kLSOpenOptionForegroundLaunchKey"] {
+            options[fgKey as String] = false
+        }
+
+        _LSOpenURLsUsingBundleIdentifierWithCompletionHandler(
+            urls as CFArray,
+            bundleIdentifier as CFString,
+            options as CFDictionary,
+            nil
+        )
+    }
+
+    /// Lock an application to UIElement mode, preventing it from self-promoting to foreground
+    /// This sets both the current type and the "restore" type to UIElement
+    /// - Parameter app: The running application to lock
+    /// - Throws: `LaunchError` if the ASN cannot be created
+    public func lockToUIElement(_ app: NSRunningApplication) throws {
+        guard let asn = getASN(for: app) else {
+            throw LaunchError.asnCreationFailed(app.processIdentifier)
+        }
+
+        // Set current type to UIElement
+        setApplicationInfo(asn: asn, key: kLSApplicationTypeKey, value: "UIElement" as CFString)
+
+        // Set restore type to UIElement - this prevents apps from promoting themselves back
+        setApplicationInfo(asn: asn, key: kLSApplicationTypeToRestoreKey, value: "UIElement" as CFString)
     }
 
     // MARK: - Running Applications

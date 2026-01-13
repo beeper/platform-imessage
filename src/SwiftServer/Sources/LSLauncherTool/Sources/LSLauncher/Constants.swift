@@ -22,3 +22,19 @@ typealias LSSetApplicationInformationItemFn = @convention(c) (Int32, LSASN, CFSt
 typealias LSCopyRunningApplicationArrayFn = @convention(c) (Int32) -> CFArray?
 typealias LSCopyFrontApplicationFn = @convention(c) (Int32) -> LSASN?
 typealias LSOpenURLsWithCompletionHandlerFn = @convention(c) (CFArray?, CFURL?, CFDictionary?, UnsafeRawPointer?) -> Void
+
+// Open URLs targeting a specific ASN (running application)
+typealias LSOpenURLsUsingASNWithCompletionHandlerFn = @convention(c) (
+    CFArray?,      // URLs to open
+    CFTypeRef,     // Target ASN
+    CFDictionary?, // Options dictionary
+    UnsafeRawPointer? // Completion handler (nullable)
+) -> Void
+
+// Open URLs targeting a specific bundle identifier
+typealias LSOpenURLsUsingBundleIdentifierWithCompletionHandlerFn = @convention(c) (
+    CFArray?,      // URLs to open
+    CFString,      // Bundle identifier
+    CFDictionary?, // Options dictionary
+    UnsafeRawPointer? // Completion handler
+) -> Void

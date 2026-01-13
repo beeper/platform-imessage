@@ -52,6 +52,8 @@ class InteractiveCLI {
             case "10": demoteToBackground()
             case "11": runTimingComparison()
             case "12": showAllRunningApps()
+            case "13": openURLInApp()
+            case "14": lockAppToUIElement()
             case "q", "quit", "exit":
                 print("\n\u{001B}[1;33mGoodbye!\u{001B}[0m\n")
                 return
@@ -117,6 +119,9 @@ class InteractiveCLI {
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[11]\u{001B}[0m Run NSWorkspace vs LSLauncher Timing Test")
         print("\u{001B}[1;36m[12]\u{001B}[0m Show All Running Applications")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;36m[13]\u{001B}[0m Open URL in Running App (via ASN)")
+        print("\u{001B}[1;36m[14]\u{001B}[0m Lock App to UIElement (prevent foreground)")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[q]\u{001B}[0m  Quit")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
@@ -562,6 +567,116 @@ class InteractiveCLI {
             let name = app.localizedName ?? "Unknown"
             print("\(modeColor)*\u{001B}[0m \(name)")
             print("  \u{001B}[90mPID: \(app.processIdentifier) | Mode: \(modeColor)\(mode)\u{001B}[0m")
+        }
+    }
+
+    func openURLInApp() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[1mEnter URL to open (or press Enter for default test URL):\u{001B}[0m ", terminator: "")
+        guard let urlInput = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        let urlString: String
+        if urlInput.isEmpty {
+            // Use a sensible default based on the app
+            if app.bundleIdentifier.contains("Messages") || app.bundleIdentifier.contains("messages") {
+                urlString = "imessage://test"
+            } else if app.bundleIdentifier.contains("Safari") || app.bundleIdentifier.contains("safari") {
+                urlString = "https://apple.com"
+            } else if app.bundleIdentifier.contains("Mail") || app.bundleIdentifier.contains("mail") {
+                urlString = "mailto:test@example.com"
+            } else {
+                urlString = "https://apple.com"
+            }
+            print("\u{001B}[90mUsing default URL: \(urlString)\u{001B}[0m")
+        } else {
+            urlString = urlInput
+        }
+
+        guard let url = URL(string: urlString) else {
+            print("\u{001B}[31mInvalid URL: \(urlString)\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[1mActivate (bring to front) the app? [y/N]:\u{001B}[0m ", terminator: "")
+        let activateInput = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? "n"
+        let activate = activateInput == "y" || activateInput == "yes"
+
+        let instance: NSRunningApplication
+        if instances.count == 1 {
+            instance = instances[0]
+        } else {
+            guard let selected = selectInstance(from: instances, action: "open URL in") else { return }
+            instance = selected
+        }
+
+        print("\n\u{001B}[33mOpening URL via _LSOpenURLsUsingASNWithCompletionHandler...\u{001B}[0m")
+        print("  Target: \(app.name) (PID: \(instance.processIdentifier))")
+        print("  URL: \(url)")
+        print("  Activate: \(activate)")
+
+        do {
+            try launcher.openURLs([url], in: instance, activate: activate)
+            print("\u{001B}[32m> URL dispatch sent successfully\u{001B}[0m")
+
+            // Check if the app mode changed after a short delay
+            Thread.sleep(forTimeInterval: 0.5)
+            if let newMode = instance.applicationMode {
+                print("  Current mode: \(newMode.rawValue)")
+            }
+        } catch {
+            print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
+        }
+    }
+
+    func lockAppToUIElement() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance: NSRunningApplication
+        if instances.count == 1 {
+            instance = instances[0]
+        } else {
+            guard let selected = selectInstance(from: instances, action: "lock to UIElement") else { return }
+            instance = selected
+        }
+
+        print("\n\u{001B}[33mLocking \(app.name) to UIElement mode...\u{001B}[0m")
+        print("  This sets both kLSApplicationTypeKey AND kLSApplicationTypeToRestoreKey")
+        print("  The app should not be able to promote itself back to foreground")
+
+        do {
+            try launcher.lockToUIElement(instance)
+            print("\u{001B}[32m> Locked to UIElement successfully\u{001B}[0m")
+
+            // Verify the change
+            Thread.sleep(forTimeInterval: 0.3)
+            if let mode = instance.applicationMode {
+                print("  Current mode: \(mode.rawValue)")
+            }
+
+            print("\n\u{001B}[90mTry opening a deep link now - the app should stay hidden.\u{001B}[0m")
+        } catch {
+            print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
         }
     }
 }
