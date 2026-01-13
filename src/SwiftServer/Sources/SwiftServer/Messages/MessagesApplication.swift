@@ -52,7 +52,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     var pool: [ID: Instance] = [:]
     private var pidMap: [pid_t: ID] = [:]
     
-    public var controlledRunningApplication: NSRunningApplication? {
+    public var controlledRunningApplication: NSRunningApplication! {
         switch strategy {
             case .publicInstance:
                 publicInstance?.runningApplication

@@ -19,16 +19,13 @@ let messagesBundleID = "com.apple.MobileSMS"
 // external API is thread safe
 @available(macOS 11, *)
 final class MessagesController {
-    private static let pollingInterval: TimeInterval = 1
-
-//    private let app: NSRunningApplication
     public let application: MessagesApplication
     
-    // legacy stub
-    public var app: NSRunningApplication {
-        // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
-        application.controlledRunningApplication!
-    }
+//     legacy stub
+//    public var app: NSRunningApplication {
+//        // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
+//        application.controlledRunningApplication!
+//    }
 
     let elements: MessagesAppElements
 
@@ -46,8 +43,7 @@ final class MessagesController {
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
 
-    let om = OcclusionMonitor()
-
+    let occlusionMonitor = OcclusionMonitor()
     
     init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
         self.reportToSentry = reportToSentry
@@ -90,13 +86,13 @@ final class MessagesController {
         }
 
         // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
-        windowCoordinator.app = application.controlledRunningApplication!
+        windowCoordinator.app = application.controlledRunningApplication
         
-        elements = application.controlledRunningApplication!.elements
+        elements = application.controlledRunningApplication.elements
         elements.openDeepLink = { [application] url in
             try application.openDeepLink(url)
         }
-        keyPresser = LegacyKeyPresser(pid: application.controlledRunningApplication!.processIdentifier)
+        keyPresser = LegacyKeyPresser(pid: application.controlledRunningApplication.processIdentifier)
         
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -116,7 +112,7 @@ final class MessagesController {
             throw ErrorMessage(
                 """
                 Initialized MessagesController in an invalid state:
-                appTerminated=\(app.isTerminated)
+                appTerminated=\(application.controlledRunningApplication.isTerminated)
                 mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
                 isMessagesAppResponsive=\(isMessagesAppResponsive)
                 """
@@ -346,11 +342,11 @@ final class MessagesController {
     }
 
     var isMessagesAppResponsive: Bool {
-        (try? Process.isUnresponsive(app.processIdentifier)) == false
+        (try? Process.isUnresponsive(application.controlledRunningApplication.processIdentifier)) == false
     }
 
     var isValid: Bool {
-        !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
+        !application.controlledRunningApplication.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
 
     @inlinable func prepareForAutomation() throws {
@@ -1258,7 +1254,7 @@ final class MessagesController {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)
-                try windowCoordinator.userManuallyActivated(app)
+                try windowCoordinator.userManuallyActivated(application.controlledRunningApplication)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
@@ -1278,7 +1274,7 @@ final class MessagesController {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
             if Defaults.shouldCoordinateWindow {
-                try windowCoordinator.userManuallyDeactivated(app)
+                try windowCoordinator.userManuallyDeactivated(application.controlledRunningApplication)
             }
             try? closeAllNonMainWindows()
             if window != nil {
@@ -1405,7 +1401,7 @@ final class MessagesController {
                 return
             }
 
-            guard om.visible else {
+            guard occlusionMonitor.visible else {
 #if DEBUG
             log.debug("not observing activity, window occluded")
 #endif
@@ -1456,10 +1452,9 @@ final class MessagesController {
     func dispose() {
         log.info("disposing MessagesController")
         guard !isDisposed else { return }
-        NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         pollingConveyor?.cancel()
-        app.terminate()
+        application.controlledRunningApplication.terminate()
     }
 
     deinit {

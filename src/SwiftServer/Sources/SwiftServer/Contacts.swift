@@ -1,4 +1,5 @@
 import Contacts
+import Combine
 import ExceptionCatcher
 import SwiftServerFoundation
 import Logging
@@ -24,15 +25,24 @@ extension CNContactFormatterStyle {
 
 final class Contacts {
     private let store = CNContactStore()
-
     private var cache = [String: String?]()
+    private var cancellables: Set<AnyCancellable> = []
 
     init?() {
         guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
             log.notice("contacts access not authorized")
             return nil
         }
-        NotificationCenter.default.addObserver(self, selector: #selector(self.contactStoreDidChange), name: .CNContactStoreDidChange, object: nil)
+        NotificationCenter.default.publisher(for: .CNContactStoreDidChange)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                contactStoreDidChange()
+            }
+            .store(in: &cancellables)
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     private lazy var standardFormatter = CNContactFormatter()
@@ -100,7 +110,7 @@ final class Contacts {
         return keys
     }
 
-    @objc private func contactStoreDidChange() {
+    private func contactStoreDidChange() {
         cache.removeAll()
     }
 }
