@@ -256,7 +256,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             openOptions.hides = shouldHide
             openOptions.createsNewApplicationInstance = true
             openOptions.addsToRecentItems = false
-            openOptions.launchesInBackground = launchesInBackground
+            openOptions.uiElementLaunch = launchesInBackground
             openOptions.launchIsUserAction = true
             
             if let deepLink {
@@ -265,6 +265,9 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             
             // test NSWorkspace.shared.open(at:)
             finalRunningApplication = try await NSWorkspace.shared.open(applicationURL, configuration: openOptions)
+        }
+        if launchesInBackground {
+            try finalRunningApplication.suppress()
         }
                 
         return Instance(runningApplication: finalRunningApplication)
@@ -280,7 +283,14 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         timeout: TimeInterval = 5
     ) throws -> MessagesApplication.Instance {
         try unsafeBlockCurrentThreadUntilComplete {
-            try await open(deepLink: deepLink, withinRunningApplication: runningApplication, shouldActivate: shouldActivate, shouldHide: shouldHide, launchesInBackground: launchesInBackground, timeout: timeout)
+            try await open(
+                deepLink: deepLink,
+                withinRunningApplication: runningApplication,
+                shouldActivate: shouldActivate,
+                shouldHide: shouldHide,
+                launchesInBackground: launchesInBackground,
+                timeout: timeout
+            )
         }
     }
     
