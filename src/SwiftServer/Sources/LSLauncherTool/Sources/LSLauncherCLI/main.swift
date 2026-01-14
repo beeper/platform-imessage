@@ -54,6 +54,16 @@ class InteractiveCLI {
             case "12": showAllRunningApps()
             case "13": openURLInApp()
             case "14": lockAppToUIElement()
+            case "15": openURLSuppressed()
+            case "16": testSuppressionMethods()
+            case "17": togglePostLaunchBringForward()
+            case "18": showSessionFlags()
+            case "19": blockFromFrontSkyLight()
+            case "20": allowToFrontSkyLight()
+            case "21": removeFromPermittedFrontASNs()
+            case "22": runSkyLightTest()
+            case "23": openURLWithWatchdog()
+            case "24": toggleWatchdog()
             case "q", "quit", "exit":
                 print("\n\u{001B}[1;33mGoodbye!\u{001B}[0m\n")
                 return
@@ -122,6 +132,25 @@ class InteractiveCLI {
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[13]\u{001B}[0m Open URL in Running App (via ASN)")
         print("\u{001B}[1;36m[14]\u{001B}[0m Lock App to UIElement (prevent foreground)")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;33m         FOREGROUND SUPPRESSION EXPERIMENTS                  \u{001B}[0m")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;36m[15]\u{001B}[0m Open URL Suppressed (full options)")
+        print("\u{001B}[1;36m[16]\u{001B}[0m Test All Suppression Methods")
+        print("\u{001B}[1;36m[17]\u{001B}[0m Toggle Post-Launch Bring Forward Flag")
+        print("\u{001B}[1;36m[18]\u{001B}[0m Show Session Flags")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;31m         SKYLIGHT (NUCLEAR) OPTIONS                          \u{001B}[0m")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;36m[19]\u{001B}[0m Block from Front (SkyLight)")
+        print("\u{001B}[1;36m[20]\u{001B}[0m Allow to Front (SkyLight)")
+        print("\u{001B}[1;36m[21]\u{001B}[0m Remove from Permitted Front ASNs")
+        print("\u{001B}[1;36m[22]\u{001B}[0m Run SkyLight Test (block + URL + check)")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;32m         MODE WATCHDOG (CONTINUOUS RESET)                    \u{001B}[0m")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;36m[23]\u{001B}[0m Open URL with Watchdog (auto-reset mode)")
+        print("\u{001B}[1;36m[24]\u{001B}[0m Toggle Watchdog (start/stop)")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[q]\u{001B}[0m  Quit")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
@@ -677,6 +706,632 @@ class InteractiveCLI {
             print("\n\u{001B}[90mTry opening a deep link now - the app should stay hidden.\u{001B}[0m")
         } catch {
             print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
+        }
+    }
+
+    // MARK: - Foreground Suppression Experiments
+
+    func openURLSuppressed() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[1mEnter URL to open (or press Enter for default):\u{001B}[0m ", terminator: "")
+        guard let urlInput = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        let urlString = urlInput.isEmpty ? getDefaultURL(for: app) : urlInput
+        print("\u{001B}[90mUsing URL: \(urlString)\u{001B}[0m")
+
+        guard let url = URL(string: urlString) else {
+            print("\u{001B}[31mInvalid URL: \(urlString)\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "open URL in")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[1mSelect suppression options:\u{001B}[0m")
+        print("\u{001B}[1;36m[1]\u{001B}[0m Minimal (noActivate only)")
+        print("\u{001B}[1;36m[2]\u{001B}[0m Standard (activate + notUserAction + noForeground)")
+        print("\u{001B}[1;36m[3]\u{001B}[0m Strong (+ launch modifiers)")
+        print("\u{001B}[1;36m[4]\u{001B}[0m Maximum (+ session flag + lock UIElement)")
+        print("\u{001B}[1;36m[5]\u{001B}[0m Custom (select individual options)")
+        print("\u{001B}[1mChoice:\u{001B}[0m ", terminator: "")
+
+        guard let choice = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        var options: ForegroundSuppressionOptions
+
+        switch choice {
+        case "1": options = .minimal
+        case "2": options = .standard
+        case "3": options = .strong
+        case "4": options = .maximum
+        case "5": options = selectCustomOptions()
+        default:
+            print("\u{001B}[31mInvalid choice\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[33mOpening URL with suppression options: \(options)\u{001B}[0m")
+
+        // Capture state before
+        let modeBefore = inst.applicationMode?.rawValue ?? "Unknown"
+        let frontBefore = NSWorkspace.shared.frontmostApplication
+        let wasFrontBefore = frontBefore?.processIdentifier == inst.processIdentifier
+
+        print("  Before: mode=\(modeBefore), isFront=\(wasFrontBefore)")
+
+        do {
+            let tester = ForegroundSuppressionTester.shared
+            let result = try tester.openURL(url, in: inst, options: options)
+
+            print("\n\u{001B}[1mResult:\u{001B}[0m")
+            print("  Dispatched: \(result.dispatched)")
+            print("  Mode before: \(result.modeBeforeOpen?.rawValue ?? "?")")
+            print("  Mode after: \(result.modeAfterOpen?.rawValue ?? "?")")
+            print("  Was front before: \(result.wasFrontmostBefore)")
+            print("  Became front: \(result.becameFrontmost)")
+
+            if result.suppressionEffective {
+                print("\n\u{001B}[32m✓ SUPPRESSION EFFECTIVE - App did NOT come to foreground!\u{001B}[0m")
+            } else {
+                print("\n\u{001B}[31m✗ SUPPRESSION FAILED - App came to foreground\u{001B}[0m")
+            }
+        } catch {
+            print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
+        }
+    }
+
+    func selectCustomOptions() -> ForegroundSuppressionOptions {
+        var options: ForegroundSuppressionOptions = []
+
+        let allOptions: [(String, ForegroundSuppressionOptions)] = [
+            ("noActivate", .noActivate),
+            ("notUserAction", .notUserAction),
+            ("uiElementLaunch", .uiElementLaunch),
+            ("noForegroundLaunch", .noForegroundLaunch),
+            ("doNotBringFrontmost", .doNotBringFrontmost),
+            ("noWindowBringForward", .noWindowBringForward),
+            ("disablePostLaunchBringForward", .disablePostLaunchBringForward),
+            ("lockToUIElement", .lockToUIElement),
+            ("hide", .hide),
+        ]
+
+        print("\n\u{001B}[1mSelect options (space-separated numbers, e.g., '1 2 5'):\u{001B}[0m")
+        for (idx, (name, _)) in allOptions.enumerated() {
+            print("\u{001B}[1;36m[\(idx + 1)]\u{001B}[0m \(name)")
+        }
+        print("\u{001B}[1mChoices:\u{001B}[0m ", terminator: "")
+
+        guard let input = readLine()?.trimmingCharacters(in: .whitespaces) else { return options }
+
+        let selections = input.split(separator: " ").compactMap { Int($0) }
+        for num in selections {
+            if num >= 1 && num <= allOptions.count {
+                options.insert(allOptions[num - 1].1)
+            }
+        }
+
+        return options
+    }
+
+    func testSuppressionMethods() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "test suppression on")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[1mEnter test URL (or press Enter for default):\u{001B}[0m ", terminator: "")
+        guard let urlInput = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        let urlString = urlInput.isEmpty ? getDefaultURL(for: app) : urlInput
+        guard let url = URL(string: urlString) else {
+            print("\u{001B}[31mInvalid URL\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[1;35m          FOREGROUND SUPPRESSION COMPREHENSIVE TEST            \u{001B}[0m")
+        print("\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[90mApp: \(app.name) (PID: \(inst.processIdentifier))\u{001B}[0m")
+        print("\u{001B}[90mURL: \(url)\u{001B}[0m")
+        print("")
+
+        let testCases: [(String, ForegroundSuppressionOptions)] = [
+            ("Baseline (no suppression)", []),
+            ("Minimal (noActivate)", .minimal),
+            ("Standard", .standard),
+            ("Strong (+ modifiers)", .strong),
+            ("Lock UIElement only", [.lockToUIElement]),
+            ("Session flag only", [.disablePostLaunchBringForward]),
+            ("Maximum", .maximum),
+        ]
+
+        let tester = ForegroundSuppressionTester.shared
+
+        print("\u{001B}[1mTest                              Mode→Mode   Front?  Result\u{001B}[0m")
+        print("\u{001B}[90m---------------------------------------------------------------\u{001B}[0m")
+
+        for (name, options) in testCases {
+            // Reset to UIElement between tests
+            try? launcher.lockToUIElement(inst)
+            Thread.sleep(forTimeInterval: 0.3)
+
+            // Click away to ensure app isn't front
+            // (This simulates user being in another app)
+
+            do {
+                let result = try tester.openURL(url, in: inst, options: options, waitTime: 0.5)
+
+                let modeBefore = result.modeBeforeOpen?.rawValue.prefix(3) ?? "?"
+                let modeAfter = result.modeAfterOpen?.rawValue.prefix(3) ?? "?"
+                let frontStatus = result.becameFrontmost ? "\u{001B}[31mYES\u{001B}[0m" : "\u{001B}[32mno\u{001B}[0m"
+                let resultStatus = result.suppressionEffective ? "\u{001B}[32m✓ OK\u{001B}[0m" : "\u{001B}[31m✗ FAIL\u{001B}[0m"
+
+                let paddedName = name.padding(toLength: 32, withPad: " ", startingAt: 0)
+                print("\(paddedName)  \(modeBefore)→\(modeAfter)     \(frontStatus)   \(resultStatus)")
+
+            } catch {
+                let paddedName = name.padding(toLength: 32, withPad: " ", startingAt: 0)
+                print("\(paddedName)  \u{001B}[31mERROR: \(error.localizedDescription)\u{001B}[0m")
+            }
+
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+
+        print("\u{001B}[90m---------------------------------------------------------------\u{001B}[0m")
+        print("\n\u{001B}[90mNote: 'Front?' = Did app become frontmost after URL open\u{001B}[0m")
+    }
+
+    func togglePostLaunchBringForward() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "toggle flag on")
+        guard let inst = instance else { return }
+
+        let currentValue = launcher.getDisablePostLaunchBringForward(for: inst)
+        print("\n\u{001B}[1mLSDisableAllPostLaunchBringForwardRequests\u{001B}[0m")
+        print("  Current value: \(currentValue.map { $0 ? "true (disabled)" : "false (enabled)" } ?? "not set")")
+
+        print("\n\u{001B}[1mSet to:\u{001B}[0m")
+        print("\u{001B}[1;36m[1]\u{001B}[0m true (disable bring-forward)")
+        print("\u{001B}[1;36m[2]\u{001B}[0m false (enable bring-forward)")
+        print("\u{001B}[1mChoice:\u{001B}[0m ", terminator: "")
+
+        guard let choice = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        let newValue: Bool
+        switch choice {
+        case "1": newValue = true
+        case "2": newValue = false
+        default:
+            print("\u{001B}[31mInvalid choice\u{001B}[0m")
+            return
+        }
+
+        let status = launcher.setDisablePostLaunchBringForward(for: inst, disabled: newValue)
+
+        if status == noErr {
+            print("\u{001B}[32m✓ Set LSDisableAllPostLaunchBringForwardRequests = \(newValue)\u{001B}[0m")
+        } else {
+            print("\u{001B}[31m✗ Failed to set flag: OSStatus \(status)\u{001B}[0m")
+        }
+    }
+
+    func showSessionFlags() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "show flags for")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[1;35m                    SESSION FLAGS STATUS                        \u{001B}[0m")
+        print("\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[90mApp: \(app.name) (PID: \(inst.processIdentifier))\u{001B}[0m\n")
+
+        guard let asn = launcher.getASN(for: inst) else {
+            print("\u{001B}[31mFailed to get ASN\u{001B}[0m")
+            return
+        }
+
+        // Query various flags
+        let flagsToQuery: [(String, String)] = [
+            ("LSApplicationTypeKey", "kLSApplicationTypeKey"),
+            ("LSApplicationTypeToRestoreKey", "kLSApplicationTypeToRestoreKey"),
+            (LSMetaInfoKey.disableAllPostLaunchBringForwardRequests, "DisablePostLaunchBringForward"),
+        ]
+
+        print("\u{001B}[1mFlag                                    Value\u{001B}[0m")
+        print("\u{001B}[90m---------------------------------------------------------------\u{001B}[0m")
+
+        for (key, displayName) in flagsToQuery {
+            let value = launcher.getApplicationInfo(asn: asn, key: key as CFString)
+            let valueStr: String
+            if let v = value {
+                if CFGetTypeID(v) == CFBooleanGetTypeID() {
+                    valueStr = CFBooleanGetValue(v as! CFBoolean) ? "true" : "false"
+                } else if let str = v as? String {
+                    valueStr = str
+                } else {
+                    valueStr = String(describing: v)
+                }
+            } else {
+                valueStr = "(not set)"
+            }
+            let paddedName = displayName.padding(toLength: 38, withPad: " ", startingAt: 0)
+            print("\(paddedName)  \(valueStr)")
+        }
+
+        print("\u{001B}[90m---------------------------------------------------------------\u{001B}[0m")
+
+        // Also show current mode via our API
+        if let mode = inst.applicationMode {
+            print("\nCurrent Application Mode: \u{001B}[1;33m\(mode.rawValue)\u{001B}[0m")
+        }
+
+        let asnValue = launcher.asnToUInt64(asn)
+        print("ASN: 0x\(String(asnValue, radix: 16))")
+    }
+
+    func getDefaultURL(for app: AppInfo) -> String {
+        if app.bundleIdentifier.contains("Messages") || app.bundleIdentifier.contains("messages") {
+            return "imessage://test"
+        } else if app.bundleIdentifier.contains("Safari") || app.bundleIdentifier.contains("safari") {
+            return "https://apple.com"
+        } else if app.bundleIdentifier.contains("Mail") || app.bundleIdentifier.contains("mail") {
+            return "mailto:test@example.com"
+        } else if app.bundleIdentifier.contains("Slack") || app.bundleIdentifier.contains("slack") {
+            return "slack://open"
+        } else if app.bundleIdentifier.contains("Discord") || app.bundleIdentifier.contains("discord") {
+            return "discord://open"
+        } else {
+            return "https://apple.com"
+        }
+    }
+
+    // MARK: - SkyLight (Nuclear) Options
+
+    func blockFromFrontSkyLight() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "block from front")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[33mBlocking \(app.name) from becoming frontmost via SkyLight...\u{001B}[0m")
+
+        let skylight = SkyLightBridge.shared
+        print("  SkyLight available: \(skylight.isAvailable)")
+
+        if let psn = skylight.extractPSN(for: inst) {
+            print("  PSN: high=\(psn.high), low=\(psn.low)")
+        }
+
+        let success = skylight.blockFromFront(inst)
+        if success {
+            print("\u{001B}[32m✓ Blocked from front successfully\u{001B}[0m")
+        } else {
+            print("\u{001B}[31m✗ Failed to block from front\u{001B}[0m")
+        }
+    }
+
+    func allowToFrontSkyLight() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "allow to front")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[33mAllowing \(app.name) to become frontmost via SkyLight...\u{001B}[0m")
+
+        let success = SkyLightBridge.shared.allowToFront(inst)
+        if success {
+            print("\u{001B}[32m✓ Allowed to front successfully\u{001B}[0m")
+        } else {
+            print("\u{001B}[31m✗ Failed to allow to front\u{001B}[0m")
+        }
+    }
+
+    func removeFromPermittedFrontASNs() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "remove from permitted")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[33mRemoving \(app.name) from permitted front ASNs...\u{001B}[0m")
+
+        let status = launcher.removeFromPermittedFrontASNs(inst)
+        if status == noErr {
+            print("\u{001B}[32m✓ Removed from permitted front ASNs (status: \(status))\u{001B}[0m")
+        } else {
+            print("\u{001B}[31m✗ Failed to remove (status: \(status))\u{001B}[0m")
+        }
+    }
+
+    func runSkyLightTest() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "test SkyLight on")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[1;35m              SKYLIGHT FOREGROUND BLOCK TEST                   \u{001B}[0m")
+        print("\u{001B}[1;35m===============================================================\u{001B}[0m")
+
+        print("\n\u{001B}[1mEnter test URL (or press Enter for default):\u{001B}[0m ", terminator: "")
+        guard let urlInput = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        let urlString = urlInput.isEmpty ? getDefaultURL(for: app) : urlInput
+        guard let url = URL(string: urlString) else {
+            print("\u{001B}[31mInvalid URL\u{001B}[0m")
+            return
+        }
+
+        print("\u{001B}[90mApp: \(app.name) (PID: \(inst.processIdentifier))\u{001B}[0m")
+        print("\u{001B}[90mURL: \(url)\u{001B}[0m")
+
+        let skylight = SkyLightBridge.shared
+        print("\nSkyLight available: \(skylight.isAvailable)")
+
+        if let psn = skylight.extractPSN(for: inst) {
+            print("PSN: high=\(psn.high), low=\(psn.low)")
+        }
+
+        // Step 1: Lock to UIElement
+        print("\n\u{001B}[1mStep 1: Lock to UIElement\u{001B}[0m")
+        do {
+            try launcher.lockToUIElement(inst)
+            print("  \u{001B}[32m✓ Locked to UIElement\u{001B}[0m")
+        } catch {
+            print("  \u{001B}[31m✗ Failed: \(error)\u{001B}[0m")
+        }
+        Thread.sleep(forTimeInterval: 0.3)
+        print("  Mode: \(inst.applicationMode?.rawValue ?? "?")")
+
+        // Step 2: Block from front via SkyLight
+        print("\n\u{001B}[1mStep 2: Block from front (SkyLight)\u{001B}[0m")
+        let blocked = skylight.blockFromFront(inst)
+        print("  \(blocked ? "\u{001B}[32m✓" : "\u{001B}[31m✗") blockFromFront: \(blocked)\u{001B}[0m")
+
+        // Step 3: Also try the ASN approach
+        print("\n\u{001B}[1mStep 3: Remove from permitted front ASNs\u{001B}[0m")
+        let asnStatus = launcher.removeFromPermittedFrontASNs(inst)
+        print("  Status: \(asnStatus)")
+
+        // Step 4: Set session flag
+        print("\n\u{001B}[1mStep 4: Set LSDisableAllPostLaunchBringForwardRequests\u{001B}[0m")
+        let flagStatus = launcher.setDisablePostLaunchBringForward(for: inst, disabled: true)
+        print("  Status: \(flagStatus)")
+
+        // Capture state before URL
+        let wasFrontBefore = NSWorkspace.shared.frontmostApplication?.processIdentifier == inst.processIdentifier
+        let modeBefore = inst.applicationMode?.rawValue ?? "?"
+
+        print("\n\u{001B}[1mStep 5: Open URL\u{001B}[0m")
+        print("  Before: mode=\(modeBefore), isFront=\(wasFrontBefore)")
+
+        // Open the URL with all suppression
+        var options: [String: Any] = [
+            LSFrontBoardOptionKey.activate: false,
+            LSFrontBoardOptionKey.launchIsUserAction: false,
+            LSFrontBoardOptionKey.foregroundLaunch: false,
+            LSLaunchModifierKey.doNotBringFrontmost: true,
+            LSLaunchModifierKey.doNotBringAnyWindowsForward: true,
+        ]
+
+        if let asn = launcher.getASN(for: inst) {
+            launcher.openURLsWithOptions([url], targetASN: asn, options: options)
+        }
+
+        // Wait and check
+        Thread.sleep(forTimeInterval: 1.0)
+
+        let isFrontAfter = NSWorkspace.shared.frontmostApplication?.processIdentifier == inst.processIdentifier
+        let modeAfter = inst.applicationMode?.rawValue ?? "?"
+
+        print("  After:  mode=\(modeAfter), isFront=\(isFrontAfter)")
+
+        print("\n\u{001B}[1;35m---------------------------------------------------------------\u{001B}[0m")
+        if !isFrontAfter && modeAfter != "Foreground" {
+            print("\u{001B}[32m✓ SUCCESS: App stayed suppressed!\u{001B}[0m")
+        } else if isFrontAfter {
+            print("\u{001B}[31m✗ FAILED: App became frontmost\u{001B}[0m")
+        } else if modeAfter == "Foreground" {
+            print("\u{001B}[31m✗ FAILED: App mode changed to Foreground\u{001B}[0m")
+        }
+        print("\u{001B}[1;35m---------------------------------------------------------------\u{001B}[0m")
+
+        // Cleanup - allow back to front
+        print("\n\u{001B}[90mCleaning up - restoring front permission...\u{001B}[0m")
+        skylight.allowToFront(inst)
+        launcher.setDisablePostLaunchBringForward(for: inst, disabled: false)
+    }
+
+    // MARK: - Watchdog Methods
+
+    func openURLWithWatchdog() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "open URL with watchdog")
+        guard let inst = instance else { return }
+
+        print("\n\u{001B}[1mEnter URL (or press Enter for default):\u{001B}[0m ", terminator: "")
+        guard let urlInput = readLine()?.trimmingCharacters(in: .whitespaces) else { return }
+
+        let urlString = urlInput.isEmpty ? getDefaultURL(for: app) : urlInput
+        guard let url = URL(string: urlString) else {
+            print("\u{001B}[31mInvalid URL\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[1;35m              WATCHDOG URL OPEN TEST                           \u{001B}[0m")
+        print("\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[90mApp: \(app.name) (PID: \(inst.processIdentifier))\u{001B}[0m")
+        print("\u{001B}[90mURL: \(url)\u{001B}[0m")
+
+        print("\n\u{001B}[1mWatchdog interval (ms, default 50):\u{001B}[0m ", terminator: "")
+        let intervalInput = readLine()?.trimmingCharacters(in: .whitespaces) ?? ""
+        let intervalMs = Double(intervalInput) ?? 50
+        let interval = intervalMs / 1000.0
+
+        print("\n\u{001B}[33mStarting watchdog with \(intervalMs)ms interval...\u{001B}[0m")
+
+        do {
+            // Open with permanent watchdog
+            try launcher.openURLsWithPermanentWatchdog([url], in: inst, watchInterval: interval)
+
+            print("\u{001B}[32m✓ URL dispatched with watchdog active\u{001B}[0m")
+
+            // Monitor for a few seconds
+            print("\n\u{001B}[33mMonitoring for 5 seconds...\u{001B}[0m")
+
+            for i in 1...10 {
+                Thread.sleep(forTimeInterval: 0.5)
+                let mode = inst.applicationMode?.rawValue ?? "?"
+                let isFront = NSWorkspace.shared.frontmostApplication?.processIdentifier == inst.processIdentifier
+                print("  [\(i * 500)ms] mode=\(mode), isFront=\(isFront)")
+            }
+
+            let finalMode = inst.applicationMode?.rawValue ?? "?"
+            let finalIsFront = NSWorkspace.shared.frontmostApplication?.processIdentifier == inst.processIdentifier
+
+            print("\n\u{001B}[1;35m---------------------------------------------------------------\u{001B}[0m")
+            if finalMode == "UIElement" && !finalIsFront {
+                print("\u{001B}[32m✓ SUCCESS: App stayed as UIElement!\u{001B}[0m")
+            } else {
+                print("\u{001B}[31m✗ FAILED: mode=\(finalMode), isFront=\(finalIsFront)\u{001B}[0m")
+            }
+            print("\u{001B}[1;35m---------------------------------------------------------------\u{001B}[0m")
+
+            // Stop watchdog
+            print("\n\u{001B}[90mStopping watchdog...\u{001B}[0m")
+            launcher.stopWatchdog(for: inst)
+
+        } catch {
+            print("\u{001B}[31m✗ Error: \(error)\u{001B}[0m")
+        }
+    }
+
+    func toggleWatchdog() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        let instances = app.runningInstances
+        if instances.isEmpty {
+            print("\n\u{001B}[33mNo running instances of \(app.name). Launch it first.\u{001B}[0m")
+            return
+        }
+
+        let instance = instances.count == 1 ? instances[0] : selectInstance(from: instances, action: "toggle watchdog")
+        guard let inst = instance else { return }
+
+        let isWatching = ModeWatchdog.shared.isWatching(inst)
+
+        if isWatching {
+            print("\n\u{001B}[33mStopping watchdog for \(app.name)...\u{001B}[0m")
+            ModeWatchdog.shared.stopWatching(inst)
+            print("\u{001B}[32m✓ Watchdog stopped\u{001B}[0m")
+        } else {
+            print("\n\u{001B}[1mWatchdog interval (ms, default 50):\u{001B}[0m ", terminator: "")
+            let intervalInput = readLine()?.trimmingCharacters(in: .whitespaces) ?? ""
+            let intervalMs = Double(intervalInput) ?? 50
+            let interval = intervalMs / 1000.0
+
+            print("\n\u{001B}[33mStarting watchdog for \(app.name)...\u{001B}[0m")
+
+            do {
+                try launcher.lockToUIElementWithWatchdog(inst, watchInterval: interval)
+                print("\u{001B}[32m✓ Watchdog started - app locked to UIElement\u{001B}[0m")
+                print("\u{001B}[90mThe watchdog will continuously reset the mode if the app tries to change it.\u{001B}[0m")
+                print("\u{001B}[90mRun option 24 again to stop the watchdog.\u{001B}[0m")
+            } catch {
+                print("\u{001B}[31m✗ Error: \(error)\u{001B}[0m")
+            }
         }
     }
 }

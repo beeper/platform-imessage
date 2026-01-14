@@ -528,6 +528,118 @@ public final class LSApplicationLauncher: @unchecked Sendable {
         setApplicationInfo(asn: asn, key: kLSApplicationTypeToRestoreKey, value: "UIElement" as CFString)
     }
 
+    // MARK: - Advanced URL Opening with Full Options
+
+    /// Open URLs with a custom options dictionary (for advanced use cases)
+    /// - Parameters:
+    ///   - urls: URLs to open
+    ///   - targetASN: Target application ASN
+    ///   - options: Full options dictionary including bring-forward modifiers
+    public func openURLsWithOptions(
+        _ urls: [URL],
+        targetASN: LSASN,
+        options: [String: Any]
+    ) {
+        _LSOpenURLsUsingASNWithCompletionHandler(
+            urls as CFArray,
+            targetASN,
+            options as CFDictionary,
+            nil
+        )
+    }
+
+    /// Open URLs with suppression - prevents target app from coming to foreground
+    /// - Parameters:
+    ///   - urls: URLs to open
+    ///   - app: Target running application
+    ///   - suppressForeground: Whether to suppress foreground activation
+    ///   - lockToUIElement: Whether to lock app to UIElement mode first
+    /// - Throws: `LaunchError` if ASN creation fails
+    public func openURLsSuppressed(
+        _ urls: [URL],
+        in app: NSRunningApplication,
+        suppressForeground: Bool = true,
+        lockToUIElement: Bool = false
+    ) throws {
+        guard let asn = getASN(for: app) else {
+            throw LaunchError.asnCreationFailed(app.processIdentifier)
+        }
+
+        // Optionally lock to UIElement first
+        if lockToUIElement {
+            try self.lockToUIElement(app)
+        }
+
+        // Build options dictionary with suppression flags
+        var options: [String: Any] = [:]
+
+        // Load the CFString constants from bundle
+        if let activateKey = optionKeys["kLSOpenOptionActivateKey"] {
+            options[activateKey as String] = !suppressForeground
+        }
+
+        if let fgKey = optionKeys["kLSOpenOptionForegroundLaunchKey"] {
+            options[fgKey as String] = !suppressForeground
+        }
+
+        if let preferKey = optionKeys["kLSOpenOptionPreferRunningInstanceKey"] {
+            options[preferKey as String] = 1
+        }
+
+        // Add launch modifier keys if suppressing
+        if suppressForeground {
+            options[LSLaunchModifierKey.doNotBringFrontmost] = true
+            options[LSLaunchModifierKey.doNotBringAnyWindowsForward] = true
+        }
+
+        _LSOpenURLsUsingASNWithCompletionHandler(
+            urls as CFArray,
+            asn,
+            options as CFDictionary,
+            nil
+        )
+    }
+
+    // MARK: - Session-Level Bring Forward Control
+
+    /// Set the session-level flag to disable all post-launch bring-forward requests
+    /// WARNING: This affects ALL apps in the session until cleared
+    /// - Parameters:
+    ///   - app: The application to set the flag on
+    ///   - disabled: Whether post-launch bring-forward should be disabled
+    /// - Returns: OSStatus (noErr on success)
+    @discardableResult
+    public func setDisablePostLaunchBringForward(
+        for app: NSRunningApplication,
+        disabled: Bool
+    ) -> OSStatus {
+        guard let asn = getASN(for: app) else {
+            return OSStatus(kLSApplicationNotFoundErr)
+        }
+        return setApplicationInfo(
+            asn: asn,
+            key: LSMetaInfoKey.disableAllPostLaunchBringForwardRequests as CFString,
+            value: disabled ? kCFBooleanTrue : kCFBooleanFalse
+        )
+    }
+
+    /// Get the current state of the post-launch bring-forward disable flag
+    /// - Parameter app: The application to query
+    /// - Returns: true if disabled, false if enabled, nil if unknown
+    public func getDisablePostLaunchBringForward(for app: NSRunningApplication) -> Bool? {
+        guard let asn = getASN(for: app) else { return nil }
+        let value = getApplicationInfo(
+            asn: asn,
+            key: LSMetaInfoKey.disableAllPostLaunchBringForwardRequests as CFString
+        )
+        if let boolRef = value {
+            if CFGetTypeID(boolRef) == CFBooleanGetTypeID() {
+                return CFBooleanGetValue(boolRef as! CFBoolean)
+            }
+        }
+        return nil
+    }
+
     // MARK: - Running Applications
 
     /// Get all running applications from LaunchServices
