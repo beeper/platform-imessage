@@ -103,7 +103,12 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         
         if strategy == .puppetInstance {
             // Default to hiding the puppet instance unless explicitly set to false
-            self.puppetInstance = try await Self.open(deepLink: nil, shouldActivate: false, shouldHide: Defaults.shouldHidePuppetInstance, launchesInBackground: Defaults.shouldHidePuppetInstance)
+            self.puppetInstance = try await Self.open(
+                deepLink: nil,
+                shouldActivate: false,
+                shouldHide: Defaults.shouldHidePuppetInstance,
+                launchesInBackground: Defaults.shouldHidePuppetInstance
+            )
             pool[puppetInstance!.id] = puppetInstance!
         }
 
@@ -230,7 +235,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     
     @MainActor
     @discardableResult
-    public static func open(
+    private static func open(
         deepLink: URL?,
         withinRunningApplication runningApplication: NSRunningApplication? = nil,
         shouldActivate: Bool = false,
@@ -337,20 +342,13 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             log.debug("OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
         }
 
-        let appleEventDescriptor = Self.appleEventDescriptor(deepLink: url, target: runningApplication)
-        try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: 5)
-
-        // Suppress the puppet instance after opening deeplink to keep it hidden from the dock
-        if strategy == .puppetInstance && Defaults.shouldHidePuppetInstance {
-            do {
-                try runningApplication.suppress()
-            } catch {
-                log.warning("Failed to suppress puppet instance after deeplink: \(error)")
-            }
-        }
-
-        return runningApplication
-    }
+        Self.open(
+            deepLink: url,
+            withinRunningApplication: controlledRunningApplication,
+            shouldActivate: false,
+            shouldHide: Defaults.shouldHidePuppetInstance,
+            launchesInBackground: hiding
+        )
 }
 
 @available(macOS 11, *)
