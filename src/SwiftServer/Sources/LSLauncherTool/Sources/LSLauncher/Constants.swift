@@ -13,6 +13,19 @@ public let kLSAnySessionID: Int32 = -1
 /// Application Serial Number - opaque reference to a running application
 public typealias LSASN = CFTypeRef
 
+/// Notification code type for LaunchServices notifications
+public typealias LSNotificationCode = Int32
+
+/// Session ID type alias
+public typealias LSSessionID = Int32
+
+// MARK: - Notification Constants
+
+public enum LSNotificationConstants {
+    /// Notification code for application type changes (e.g., Foreground -> UIElement)
+    public static let applicationTypeChanged: LSNotificationCode = 0x231
+}
+
 // MARK: - Private Function Types
 
 typealias LSASNCreateWithPidFn = @convention(c) (CFAllocator?, pid_t) -> LSASN?
@@ -37,4 +50,40 @@ typealias LSOpenURLsUsingBundleIdentifierWithCompletionHandlerFn = @convention(c
     CFString,      // Bundle identifier
     CFDictionary?, // Options dictionary
     UnsafeRawPointer? // Completion handler
+) -> Void
+
+// MARK: - Notification Function Types
+
+/// Block type for LaunchServices notifications
+public typealias LSNotificationBlock = @convention(block) (
+    LSNotificationCode,    // Notification code
+    Double,                // Timestamp
+    UnsafeRawPointer?,     // Info
+    UnsafeRawPointer?,     // ASN pointer
+    LSSessionID,           // Session ID
+    UnsafeRawPointer?      // Context
+) -> Void
+
+/// Schedule a notification callback on a dispatch queue
+typealias LSScheduleNotificationOnQueueWithBlockFn = @convention(c) (
+    LSSessionID,           // Session ID
+    LSASN?,                // Optional ASN to filter for
+    DispatchQueue?,        // Queue to receive notifications on
+    @escaping LSNotificationBlock  // Callback block
+) -> UnsafeMutableRawPointer?  // Returns notification ID
+
+/// Modify notification subscription (add/remove notification codes)
+typealias LSModifyNotificationFn = @convention(c) (
+    UnsafeMutableRawPointer,       // Notification ID
+    Int,                           // Number of codes to add
+    UnsafePointer<LSNotificationCode>?,  // Codes to add
+    Int,                           // Number of codes to remove
+    UnsafePointer<LSNotificationCode>?,  // Codes to remove
+    CFArray?,                      // Unknown
+    CFArray?                       // Unknown
+) -> Int32
+
+/// Unschedule/cancel a notification subscription
+typealias LSUnscheduleNotificationFunctionFn = @convention(c) (
+    UnsafeMutableRawPointer  // Notification ID
 ) -> Void

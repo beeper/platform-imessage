@@ -22,8 +22,10 @@ struct AppInfo {
 
 class InteractiveCLI {
     let launcher = LSApplicationLauncher.shared
+    let observer = LSTypeObserver()
     var installedApps: [AppInfo] = []
     var selectedApp: AppInfo?
+    var isObserving = false
 
     func run() {
         print("\n\u{001B}[1;36m+============================================================+\u{001B}[0m")
@@ -54,7 +56,11 @@ class InteractiveCLI {
             case "12": showAllRunningApps()
             case "13": openURLInApp()
             case "14": lockAppToUIElement()
+            case "15": toggleTypeObserver()
+            case "16": toggleAutoSuppress()
+            case "17": showAutoSuppressList()
             case "q", "quit", "exit":
+                observer.stopObserving()
                 print("\n\u{001B}[1;33mGoodbye!\u{001B}[0m\n")
                 return
             default:
@@ -122,6 +128,11 @@ class InteractiveCLI {
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[13]\u{001B}[0m Open URL in Running App (via ASN)")
         print("\u{001B}[1;36m[14]\u{001B}[0m Lock App to UIElement (prevent foreground)")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        let observerStatus = isObserving ? "\u{001B}[32mON\u{001B}[0m" : "\u{001B}[90mOFF\u{001B}[0m"
+        print("\u{001B}[1;36m[15]\u{001B}[0m Toggle Type Observer [\(observerStatus)]")
+        print("\u{001B}[1;36m[16]\u{001B}[0m Toggle Auto-Suppress for Selected App")
+        print("\u{001B}[1;36m[17]\u{001B}[0m Show Auto-Suppress List")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[q]\u{001B}[0m  Quit")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
@@ -590,7 +601,7 @@ class InteractiveCLI {
         if urlInput.isEmpty {
             // Use a sensible default based on the app
             if app.bundleIdentifier.contains("Messages") || app.bundleIdentifier.contains("messages") {
-                urlString = "imessage://test"
+                urlString = "imessage://+15551234567"
             } else if app.bundleIdentifier.contains("Safari") || app.bundleIdentifier.contains("safari") {
                 urlString = "https://apple.com"
             } else if app.bundleIdentifier.contains("Mail") || app.bundleIdentifier.contains("mail") {
@@ -620,22 +631,44 @@ class InteractiveCLI {
             instance = selected
         }
 
-        print("\n\u{001B}[33mOpening URL via _LSOpenURLsUsingASNWithCompletionHandler...\u{001B}[0m")
+        print("\n\u{001B}[33mSending URL via Apple Events (GURL) directly to process...\u{001B}[0m")
         print("  Target: \(app.name) (PID: \(instance.processIdentifier))")
         print("  URL: \(url)")
         print("  Activate: \(activate)")
 
-        do {
-            try launcher.openURLs([url], in: instance, activate: activate)
-            print("\u{001B}[32m> URL dispatch sent successfully\u{001B}[0m")
+        // Use Apple Events to send directly to the target process
+        // This bypasses LaunchServices URL scheme handler resolution
+        let status = launcher.sendURL(url, to: instance)
 
-            // Check if the app mode changed after a short delay
+        if status == noErr {
+            print("\u{001B}[32m> Apple Event sent successfully (status: \(status))\u{001B}[0m")
+
+            // Optionally activate the app
+            if activate {
+                instance.activate()
+            }
+
+            // Check the app mode after a short delay
             Thread.sleep(forTimeInterval: 0.5)
             if let newMode = instance.applicationMode {
                 print("  Current mode: \(newMode.rawValue)")
             }
-        } catch {
-            print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
+        } else {
+            print("\u{001B}[31m> Failed with OSStatus: \(status)\u{001B}[0m")
+
+            // Provide some common error explanations
+            switch status {
+            case -600:
+                print("  \u{001B}[90m(procNotFound - process not found)\u{001B}[0m")
+            case -903:
+                print("  \u{001B}[90m(noPortErr - can't find target port)\u{001B}[0m")
+            case -905:
+                print("  \u{001B}[90m(destPortErr - destination port error)\u{001B}[0m")
+            case -1712:
+                print("  \u{001B}[90m(errAEEventNotPermitted - event not permitted by sandbox)\u{001B}[0m")
+            default:
+                break
+            }
         }
     }
 
@@ -678,6 +711,107 @@ class InteractiveCLI {
         } catch {
             print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
         }
+    }
+
+    // MARK: - Type Observer
+
+    func toggleTypeObserver() {
+        if isObserving {
+            observer.stopObserving()
+            isObserving = false
+            print("\n\u{001B}[33mType observer stopped.\u{001B}[0m")
+        } else {
+            print("\n\u{001B}[33mStarting type observer...\u{001B}[0m")
+            print("\u{001B}[90mYou will see notifications when any app changes its type.\u{001B}[0m\n")
+
+            observer.startObserving { [weak self] bundleID, pid, oldType, newType in
+                let bundle = bundleID ?? "Unknown"
+                let old = oldType?.rawValue ?? "nil"
+                let new = newType?.rawValue ?? "nil"
+
+                let timestamp = self?.formatTimestamp() ?? ""
+                print("\n\u{001B}[1;35m[\(timestamp)] TYPE CHANGE:\u{001B}[0m \(bundle) (PID: \(pid))")
+                print("  \u{001B}[90m\(old)\u{001B}[0m -> \u{001B}[1;33m\(new)\u{001B}[0m")
+
+                // Check if this app is being auto-suppressed
+                if let bundleID = bundleID, self?.observer.isAutoSuppressing(bundleID: bundleID) == true {
+                    if newType != .uiElement {
+                        print("  \u{001B}[36m(auto-suppressing to UIElement)\u{001B}[0m")
+                    }
+                }
+                print("")
+            }
+
+            isObserving = true
+            print("\u{001B}[32mType observer started.\u{001B}[0m")
+        }
+    }
+
+    func toggleAutoSuppress() {
+        guard let app = selectedApp else {
+            print("\u{001B}[31mNo app selected. Press 1 to select an app first.\u{001B}[0m")
+            return
+        }
+
+        if observer.isAutoSuppressing(bundleID: app.bundleIdentifier) {
+            observer.removeAutoSuppress(bundleID: app.bundleIdentifier)
+            print("\n\u{001B}[33mAuto-suppress disabled for \(app.name)\u{001B}[0m")
+        } else {
+            observer.addAutoSuppress(bundleID: app.bundleIdentifier)
+            print("\n\u{001B}[32mAuto-suppress enabled for \(app.name)\u{001B}[0m")
+            print("\u{001B}[90mThe app will be automatically suppressed to UIElement whenever it tries to become foreground.\u{001B}[0m")
+
+            // Make sure observer is running
+            if !isObserving {
+                print("\u{001B}[90mNote: Starting type observer to enable auto-suppress...\u{001B}[0m")
+                toggleTypeObserver()
+            }
+        }
+    }
+
+    func showAutoSuppressList() {
+        let bundleIDs = observer.autoSuppressedBundleIDs
+
+        if bundleIDs.isEmpty {
+            print("\n\u{001B}[33mNo apps are being auto-suppressed.\u{001B}[0m")
+            print("\u{001B}[90mUse option 16 to add apps to the auto-suppress list.\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[1mAuto-Suppressed Apps (\(bundleIDs.count)):\u{001B}[0m")
+        print("\u{001B}[90m-------------------------------------------------------------\u{001B}[0m")
+
+        for bundleID in bundleIDs.sorted() {
+            let isRunning = NSRunningApplication.isRunning(bundleIdentifier: bundleID)
+            let status = isRunning ? "\u{001B}[32m* Running\u{001B}[0m" : "\u{001B}[90mo Not running\u{001B}[0m"
+
+            // Try to find the app name
+            var appName = bundleID
+            if let app = installedApps.first(where: { $0.bundleIdentifier == bundleID }) {
+                appName = app.name
+            }
+
+            print("\u{001B}[1;33m\(appName)\u{001B}[0m \(status)")
+            print("  \u{001B}[90m\(bundleID)\u{001B}[0m")
+
+            // Show current mode if running
+            if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
+               let mode = runningApp.applicationMode {
+                let modeColor: String
+                switch mode {
+                case .foreground: modeColor = "\u{001B}[32m"
+                case .uiElement: modeColor = "\u{001B}[33m"
+                case .backgroundOnly: modeColor = "\u{001B}[90m"
+                }
+                print("  Current mode: \(modeColor)\(mode.rawValue)\u{001B}[0m")
+            }
+        }
+    }
+
+    func formatTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter.string(from: Date())
     }
 }
 

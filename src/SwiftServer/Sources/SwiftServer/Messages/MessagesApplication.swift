@@ -67,6 +67,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     
     private var cancellables: Set<AnyCancellable> = []
     private var instanceBorderOverlay: InstanceBorderOverlay?
+    private var typeObserver: LSTypeObserver?
 
     public init(strategy: Strategy = .puppetInstance, useExtantInstanceIfPossible: Bool = true) async throws {
         self.pool = [:]
@@ -110,6 +111,11 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
                 launchesInBackground: Defaults.shouldHidePuppetInstance
             )
             pool[puppetInstance!.id] = puppetInstance!
+
+            // Start auto-suppress to keep puppet instance hidden when it tries to become foreground
+            if Defaults.shouldHidePuppetInstance {
+                startAutoSuppress()
+            }
         }
 
         assert(controlledRunningApplication != nil)
@@ -122,11 +128,13 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     }
 
     deinit {
+        stopAutoSuppress()
         instanceBorderOverlay?.stop()
         cancellables.removeAll()
     }
     
     private static func launchPublicInstance() async throws -> Instance {
+        
         let instance: Instance = try await Self.open(deepLink: nil, shouldHide: false, launchesInBackground: false)
         
         try? instance.runningApplication.elements.mainWindow.setFrame(CGRect(x: 700, y: 700, width: 550, height: 500))
@@ -233,6 +241,130 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         return await pool[id]?.runningApplication.terminateAndWaitForTermination() ?? .alreadyTerminated
     }
     
+    // MARK: - Auto Suppress
+
+    /// Whether the puppet instance is currently being auto-suppressed
+    public var isAutoSuppressing: Bool {
+        typeObserver?.isObserving ?? false
+    }
+
+    /// Starts observing application mode changes and automatically suppresses the puppet instance
+    /// when it tries to become a foreground application.
+    public func startAutoSuppress() {
+        guard strategy == .puppetInstance else {
+            log.warning("Auto-suppress is only available when using puppet instance strategy")
+            return
+        }
+
+        guard typeObserver == nil else {
+            log.debug("Auto-suppress already active")
+            return
+        }
+
+        let observer = LSTypeObserver()
+        observer.startObserving { [weak self] bundleID, pid, oldType, newType in
+            log.debug("CHANGE IN MODE")
+            
+            guard let self else { return }
+
+            log.debug("Puppet instance (pid: \(pid)) mode changed: \(oldType?.rawValue ?? "nil") -> \(newType?.rawValue ?? "nil")")
+
+            // If it changed to foreground, suppress it back
+            log.debug("Puppet instance attempted to become foreground, suppressing...")
+            do {
+                try controlledRunningApplication.suppress()
+                log.debug("Successfully suppressed puppet instance")
+            } catch {
+                log.error("Failed to suppress puppet instance: \(error)")
+            }
+        }
+
+        typeObserver = observer
+        log.info("Started auto-suppress for puppet instance")
+    }
+
+    /// Stops auto-suppressing the puppet instance
+    public func stopAutoSuppress() {
+        guard let observer = typeObserver else {
+            return
+        }
+
+        observer.stopObserving()
+        typeObserver = nil
+        log.info("Stopped auto-suppress for puppet instance")
+    }
+
+    /// Executes an action while continuously suppressing the puppet instance at a high frequency.
+    ///
+    /// This is useful for operations that may cause the puppet instance to repeatedly try to
+    /// become a foreground application, where the LSTypeObserver callback may not be fast enough.
+    ///
+    /// - Parameters:
+    ///   - interval: The interval between suppress calls (default: 50ms)
+    ///   - action: The action to execute while suppressing
+    /// - Returns: The result of the action
+    public func withContinuousSuppression<T>(
+        interval: TimeInterval = 0.01,
+        action: () throws -> T
+    ) rethrows -> T {
+        guard let runningApplication = controlledRunningApplication else {
+            return try action()
+        }
+
+        let timer = DispatchSource.makeTimerSource(queue: .global())
+        timer.schedule(deadline: .now(), repeating: interval)
+        timer.setEventHandler { [weak self] in
+            try? self?.controlledRunningApplication?.suppress()
+        }
+        timer.resume()
+
+        defer {
+            timer.cancel()
+        }
+
+        // Initial suppress before starting the action
+        try? runningApplication.suppress()
+
+        return try action()
+    }
+
+    // MARK: - Deep Link Handling
+
+    /// Sends a deep link to an existing running application (synchronous)
+    private static func sendDeepLink(
+        _ url: URL,
+        to runningApplication: NSRunningApplication,
+        timeout: TimeInterval = 5
+    ) throws {
+        let appleEventDescriptor = appleEventDescriptor(deepLink: url, target: runningApplication)
+        try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
+    }
+
+    /// Launches a new application instance (async)
+    @MainActor
+    private static func launchNewInstance(
+        applicationURL: URL,
+        deepLink: URL?,
+        shouldActivate: Bool,
+        shouldHide: Bool,
+        launchesInBackground: Bool
+    ) async throws -> NSRunningApplication {
+        let openOptions = NSWorkspace.OpenConfiguration()
+
+        openOptions.activates = shouldActivate
+        openOptions.hides = shouldHide
+        openOptions.createsNewApplicationInstance = true
+        openOptions.addsToRecentItems = false
+        openOptions.launchesInBackground = launchesInBackground
+        openOptions.launchIsUserAction = true
+
+        if let deepLink {
+            openOptions.appleEvent = appleEventDescriptor(deepLink: deepLink, target: nil)
+        }
+
+        return try await NSWorkspace.shared.open(applicationURL, configuration: openOptions)
+    }
+
     @MainActor
     @discardableResult
     private static func open(
@@ -243,38 +375,30 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         launchesInBackground: Bool,
         timeout: TimeInterval = 5
     ) async throws -> MessagesApplication.Instance {
-        guard let applicationURL: URL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) else {
+        log.debug("MessagesApplication.open [launchesInBackground: \(launchesInBackground)]")
+        guard let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
             throw ErrorMessage("URL for \(bundleID) not found")
         }
-        
+
         let finalRunningApplication: NSRunningApplication
-        
+
         if let runningApplication, let deepLink {
-            let appleEventDescriptor: NSAppleEventDescriptor = Self.appleEventDescriptor(deepLink: deepLink, target: runningApplication)
-            try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
-            
+            try sendDeepLink(deepLink, to: runningApplication, timeout: timeout)
             finalRunningApplication = runningApplication
         } else {
-            let openOptions = NSWorkspace.OpenConfiguration()
-            
-            openOptions.activates = shouldActivate
-            openOptions.hides = shouldHide
-            openOptions.createsNewApplicationInstance = true
-            openOptions.addsToRecentItems = false
-            openOptions.uiElementLaunch = launchesInBackground
-            openOptions.launchIsUserAction = true
-            
-            if let deepLink {
-                openOptions.appleEvent = Self.appleEventDescriptor(deepLink: deepLink, target: runningApplication)
-            }
-            
-            // test NSWorkspace.shared.open(at:)
-            finalRunningApplication = try await NSWorkspace.shared.open(applicationURL, configuration: openOptions)
+            finalRunningApplication = try await launchNewInstance(
+                applicationURL: applicationURL,
+                deepLink: deepLink,
+                shouldActivate: shouldActivate,
+                shouldHide: shouldHide,
+                launchesInBackground: launchesInBackground
+            )
         }
+
         if launchesInBackground {
             try finalRunningApplication.suppress()
         }
-                
+
         return Instance(runningApplication: finalRunningApplication)
     }
     
@@ -325,7 +449,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     public func openDeepLink(
         _ url: URL,
         activating: Bool = false,
-        hiding: Bool = true
+        hiding: Bool = true,
+        timeout: TimeInterval = 5
     ) throws -> NSRunningApplication {
         guard let runningApplication = controlledRunningApplication else {
             throw ErrorMessage("No controlled running application")
@@ -342,13 +467,19 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             log.debug("OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
         }
 
-        Self.open(
-            deepLink: url,
-            withinRunningApplication: controlledRunningApplication,
-            shouldActivate: false,
-            shouldHide: Defaults.shouldHidePuppetInstance,
-            launchesInBackground: hiding
-        )
+        try Self.sendDeepLink(url, to: runningApplication, timeout: timeout)
+
+        if activating {
+            runningApplication.activate()
+        }
+        
+        if hiding {
+            runningApplication.hide()
+            try runningApplication.suppress()
+        }
+
+        return runningApplication
+    }
 }
 
 @available(macOS 11, *)

@@ -18,7 +18,7 @@ final class EdgeWindowCoordinator: WindowCoordinator {
     
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
         var windowFrame: CGRect = try messagesWindow.frame()
-        originalWindowFrame = windowFrame
+//        originalWindowFrame = windowFrame
         
         windowFrame.origin.x = -windowFrame.size.width + 1
         windowFrame.origin.y = (NSScreen.main?.frame.size.height ?? 10000)
@@ -36,12 +36,12 @@ final class EdgeWindowCoordinator: WindowCoordinator {
     }
     
     func userManuallyActivated(_ app: NSRunningApplication) throws {
-        guard let originalWindowFrame else { return }
-        try app.elements.mainWindow.setFrame(originalWindowFrame)
+//        guard let originalWindowFrame else { return }
+//        try app.elements.mainWindow.setFrame(originalWindowFrame)
     }
     
     func userManuallyDeactivated(_ app: NSRunningApplication) throws {
-        originalWindowFrame = (try? app.elements.mainWindow.frame()) ?? originalWindowFrame
+//        originalWindowFrame = (try? app.elements.mainWindow.frame()) ?? originalWindowFrame
     }
 }
 

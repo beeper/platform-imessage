@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Darwin
+import Carbon.HIToolbox
 
 // MARK: - LSApplicationLauncher
 
@@ -46,9 +47,14 @@ public final class LSApplicationLauncher: @unchecked Sendable {
     private let _LSOpenURLsUsingASNWithCompletionHandler: LSOpenURLsUsingASNWithCompletionHandlerFn
     private let _LSOpenURLsUsingBundleIdentifierWithCompletionHandler: LSOpenURLsUsingBundleIdentifierWithCompletionHandlerFn
 
+    // Notification functions
+    let _LSScheduleNotificationOnQueueWithBlock: LSScheduleNotificationOnQueueWithBlockFn
+    let _LSModifyNotification: LSModifyNotificationFn
+    let _LSUnscheduleNotificationFunction: LSUnscheduleNotificationFunctionFn
+
     private let kLSApplicationTypeKey: CFString
     private let kLSApplicationTypeToRestoreKey: CFString
-    private let kLSApplicationUIElementTypeKey: CFString
+    let kLSApplicationUIElementTypeKey: CFString
 
     private var optionKeys: [String: CFString] = [:]
 
@@ -84,6 +90,11 @@ public final class LSApplicationLauncher: @unchecked Sendable {
         _LSOpenURLsWithCompletionHandler = loadFunc("_LSOpenURLsWithCompletionHandler")
         _LSOpenURLsUsingASNWithCompletionHandler = loadFunc("_LSOpenURLsUsingASNWithCompletionHandler")
         _LSOpenURLsUsingBundleIdentifierWithCompletionHandler = loadFunc("_LSOpenURLsUsingBundleIdentifierWithCompletionHandler")
+
+        // Notification functions
+        _LSScheduleNotificationOnQueueWithBlock = loadFunc("_LSScheduleNotificationOnQueueWithBlock")
+        _LSModifyNotification = loadFunc("_LSModifyNotification")
+        _LSUnscheduleNotificationFunction = loadFunc("_LSUnscheduleNotificationFunction")
 
         func loadString(_ name: String) -> CFString {
             if let str = Self.loadCFStringGlobal(bundle: b, symbol: "_\(name)") {
@@ -478,10 +489,11 @@ public final class LSApplicationLauncher: @unchecked Sendable {
         in app: NSRunningApplication,
         activate: Bool = false
     ) throws {
-        guard let asn = getASN(for: app) else {
+        // Use bundle identifier approach - more reliable than ASN for scheme URLs
+        guard let bundleID = app.bundleIdentifier else {
             throw LaunchError.asnCreationFailed(app.processIdentifier)
         }
-        openURLs(urls, targetASN: asn, activate: activate)
+        openURLs(urls, bundleIdentifier: bundleID, activate: activate)
     }
 
     /// Open URLs using a specific bundle identifier
@@ -489,10 +501,12 @@ public final class LSApplicationLauncher: @unchecked Sendable {
     ///   - urls: The URLs to open
     ///   - bundleIdentifier: The bundle identifier of the target application
     ///   - activate: Whether to activate (bring to front) the target application
+    ///   - preferRunningInstance: Whether to prefer a running instance over launching new
     public func openURLs(
         _ urls: [URL],
         bundleIdentifier: String,
-        activate: Bool = false
+        activate: Bool = false,
+        preferRunningInstance: Bool = true
     ) {
         var options: [String: Any] = [:]
 
@@ -500,8 +514,14 @@ public final class LSApplicationLauncher: @unchecked Sendable {
             options[activateKey as String] = activate
         }
 
-        if let fgKey = optionKeys["kLSOpenOptionForegroundLaunchKey"] {
+        // Only set foreground launch key if we don't want activation
+        // Setting this to false can interfere with URL handling
+        if !activate, let fgKey = optionKeys["kLSOpenOptionForegroundLaunchKey"] {
             options[fgKey as String] = false
+        }
+
+        if let preferKey = optionKeys["kLSOpenOptionPreferRunningInstanceKey"] {
+            options[preferKey as String] = preferRunningInstance ? 1 : 0
         }
 
         _LSOpenURLsUsingBundleIdentifierWithCompletionHandler(
@@ -510,6 +530,94 @@ public final class LSApplicationLauncher: @unchecked Sendable {
             options as CFDictionary,
             nil
         )
+    }
+
+    // MARK: - Direct Apple Event URL Sending
+
+    /// Send a URL directly to a specific running application via Apple Events.
+    /// This bypasses LaunchServices' URL scheme handler resolution and sends
+    /// the GetURL (GURL) event directly to the target process.
+    /// - Parameters:
+    ///   - url: The URL to send
+    ///   - app: The target running application
+    /// - Returns: OSStatus indicating success (noErr) or failure
+    @discardableResult
+    public func sendURL(_ url: URL, to app: NSRunningApplication) -> OSStatus {
+        return sendURLViaAppleEvent(url.absoluteString, toProcessID: app.processIdentifier)
+    }
+
+    /// Send a URL string directly to a specific process via Apple Events.
+    /// - Parameters:
+    ///   - urlString: The URL string to send
+    ///   - pid: The process ID of the target application
+    /// - Returns: OSStatus indicating success (noErr) or failure
+    @discardableResult
+    public func sendURLViaAppleEvent(_ urlString: String, toProcessID pid: pid_t) -> OSStatus {
+        // Internet event class (GURL) and event ID
+        let kInternetEventClass: AEEventClass = 0x4755524C  // 'GURL'
+        let kAEGetURL: AEEventID = 0x4755524C               // 'GURL'
+
+        // Create address descriptor targeting the specific process by PID
+        var targetAddress = AEAddressDesc()
+        var pidValue = pid
+        var err = AECreateDesc(
+            typeKernelProcessID,
+            &pidValue,
+            MemoryLayout<pid_t>.size,
+            &targetAddress
+        )
+        guard err == noErr else {
+            return OSStatus(err)
+        }
+        defer { AEDisposeDesc(&targetAddress) }
+
+        // Create the Apple Event
+        var event = AppleEvent()
+        err = AECreateAppleEvent(
+            kInternetEventClass,
+            kAEGetURL,
+            &targetAddress,
+            AEReturnID(kAutoGenerateReturnID),
+            AETransactionID(kAnyTransactionID),
+            &event
+        )
+        guard err == noErr else {
+            return OSStatus(err)
+        }
+        defer { AEDisposeDesc(&event) }
+
+        // Add the URL as the direct parameter
+        var urlDesc = AEDesc()
+        let urlData = urlString.data(using: .utf8)!
+        err = urlData.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSErr in
+            AECreateDesc(
+                typeUTF8Text,
+                bytes.baseAddress,
+                urlData.count,
+                &urlDesc
+            )
+        }
+        guard err == noErr else {
+            return OSStatus(err)
+        }
+        defer { AEDisposeDesc(&urlDesc) }
+
+        err = AEPutParamDesc(&event, keyDirectObject, &urlDesc)
+        guard err == noErr else {
+            return OSStatus(err)
+        }
+
+        // Send the event (no reply needed)
+        var reply = AppleEvent()
+        let sendStatus = AESendMessage(
+            &event,
+            &reply,
+            AESendMode(kAENoReply),
+            kAEDefaultTimeout
+        )
+        AEDisposeDesc(&reply)
+
+        return sendStatus
     }
 
     /// Lock an application to UIElement mode, preventing it from self-promoting to foreground
