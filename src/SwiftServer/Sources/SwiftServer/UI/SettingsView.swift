@@ -47,8 +47,12 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.hidePuppetInstance, store: Defaults.swiftServer)
     var hidePuppetInstance = true
 
+    @AppStorage(DefaultsKeys.showDeepLinkDebugOnLaunch, store: Defaults.swiftServer)
+    var showDeepLinkDebugOnLaunch = false
+
     // help button popover
     @State private var presentingHelp = false
+
     
     // "are you sure you want to enable logging?"
     @State private var presentingPrivacyAlert = false
@@ -98,6 +102,7 @@ struct SettingsView: View {
                 
                 HStack {
                     showLogFileInFinderButton
+                    debugViewButton
                     Spacer()
                     helpButton
                 }
@@ -206,6 +211,13 @@ struct SettingsView: View {
                 Text("Hide puppet instance")
                 Text("Hide the puppet Messages application from the dock. Disable to debug automation. Requires restart.")
             }
+
+            if #available(macOS 14, *) {
+                Toggle(isOn: $showDeepLinkDebugOnLaunch) {
+                    Text("Show deep link debug on launch")
+                    Text("Automatically open the deep link debug view when settings opens.")
+                }
+            }
         } header: {
             Text("Window Coordination")
             Text("Controls whether window coordination happens at all. Changes take effect immediately.")
@@ -280,6 +292,15 @@ struct SettingsView: View {
     private var showLogFileInFinderButton: some View {
         Button("Show Log in Finder…") {
             Log.reveal()
+        }
+    }
+
+    @ViewBuilder
+    private var debugViewButton: some View {
+        if #available(macOS 14, *) {
+            Button("Deep Link Debug…") {
+                DeepLinkDebugWindowController.shared.show()
+            }
         }
     }
     

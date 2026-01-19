@@ -83,6 +83,9 @@ enum DefaultsKeys {
     /** whether the puppet Messages instance should be hidden (default: true) */
     static let hidePuppetInstance = "BEEPHidePuppetInstance"
 
+    /** whether to show the deep link debug view automatically on launch */
+    static let showDeepLinkDebugOnLaunch = "BEEPShowDeepLinkDebugOnLaunch"
+
     /** always use `.unknown` space instead of `.user` */
     static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
     /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */

@@ -59,6 +59,7 @@ class InteractiveCLI {
             case "15": toggleTypeObserver()
             case "16": toggleAutoSuppress()
             case "17": showAutoSuppressList()
+            case "18": testNSWorkspaceLaunchesInBackground()
             case "q", "quit", "exit":
                 observer.stopObserving()
                 print("\n\u{001B}[1;33mGoodbye!\u{001B}[0m\n")
@@ -133,6 +134,8 @@ class InteractiveCLI {
         print("\u{001B}[1;36m[15]\u{001B}[0m Toggle Type Observer [\(observerStatus)]")
         print("\u{001B}[1;36m[16]\u{001B}[0m Toggle Auto-Suppress for Selected App")
         print("\u{001B}[1;36m[17]\u{001B}[0m Show Auto-Suppress List")
+        print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1;36m[18]\u{001B}[0m Test NSWorkspace.launchesInBackground (Messages)")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1;36m[q]\u{001B}[0m  Quit")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
@@ -812,6 +815,122 @@ class InteractiveCLI {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss.SSS"
         return formatter.string(from: Date())
+    }
+
+    /// Test NSWorkspace.OpenConfiguration.launchesInBackground
+    /// This replicates exactly what MessagesApplication.launchNewInstance() does
+    func testNSWorkspaceLaunchesInBackground() {
+        let bundleID = "com.apple.MobileSMS"
+
+        print("\n\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\u{001B}[1;35m   NSWorkspace.OpenConfiguration.launchesInBackground Test      \u{001B}[0m")
+        print("\u{001B}[1;35m===============================================================\u{001B}[0m")
+        print("\n\u{001B}[90mThis test replicates MessagesApplication.launchNewInstance()")
+        print("to verify if launchesInBackground actually suppresses the dock icon.\u{001B}[0m\n")
+
+        // Get the app URL
+        guard let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            print("\u{001B}[31m> Failed: Could not find Messages.app\u{001B}[0m")
+            return
+        }
+
+        print("\n\u{001B}[33m[2/4] Launching Messages with NSWorkspace.OpenConfiguration...\u{001B}[0m")
+        print("  Configuration:")
+        print("    activates = false")
+        print("    hides = true")
+        print("    createsNewApplicationInstance = true")
+        print("    addsToRecentItems = false")
+        print("    \u{001B}[1;33mlaunchesInBackground = true\u{001B}[0m  <-- This is what we're testing")
+
+        // Create configuration exactly like MessagesApplication.launchNewInstance()
+        let openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = false
+        openOptions.hides = true
+        openOptions.createsNewApplicationInstance = true
+        openOptions.addsToRecentItems = false
+        openOptions.launchesInBackground = true
+        openOptions.launchIsUserAction = true
+
+        let semaphore = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var launchedApp: NSRunningApplication?
+        nonisolated(unsafe) var launchError: Error?
+
+        let startTime = Date()
+
+        NSWorkspace.shared.open(applicationURL, configuration: openOptions) { app, error in
+            launchedApp = app
+            launchError = error
+            semaphore.signal()
+        }
+
+        let waitResult = semaphore.wait(timeout: .now() + 30)
+        let launchDuration = Date().timeIntervalSince(startTime)
+
+        if waitResult == .timedOut {
+            print("\u{001B}[31m> Failed: Launch timed out\u{001B}[0m")
+            return
+        }
+
+        if let error = launchError {
+            print("\u{001B}[31m> Failed: \(error.localizedDescription)\u{001B}[0m")
+            return
+        }
+
+        guard let app = launchedApp else {
+            print("\u{001B}[31m> Failed: No running application returned\u{001B}[0m")
+            return
+        }
+
+        print("  \u{001B}[32m> Launched in \(String(format: "%.3f", launchDuration))s\u{001B}[0m")
+        print("  PID: \(app.processIdentifier)")
+
+        print("\n\u{001B}[33m[3/4] Checking application mode IMMEDIATELY after launch...\u{001B}[0m")
+        print("  (NO suppress() call - checking raw launch state)")
+
+        // Check mode immediately
+        if let mode = app.applicationMode {
+            let modeColor: String
+            switch mode {
+            case .foreground: modeColor = "\u{001B}[31m"  // Red = bad, dock icon visible
+            case .uiElement: modeColor = "\u{001B}[32m"   // Green = good, no dock icon
+            case .backgroundOnly: modeColor = "\u{001B}[33m"
+            }
+            print("  Application mode: \(modeColor)\(mode.rawValue)\u{001B}[0m")
+
+            if mode == .foreground {
+                print("\n  \u{001B}[1;31m⚠️  DOCK ICON IS VISIBLE!\u{001B}[0m")
+                print("  \u{001B}[90mlaunchesInBackground does NOT suppress the dock icon.\u{001B}[0m")
+                print("  \u{001B}[90mThe app launches as Foreground, dock icon appears briefly.\u{001B}[0m")
+            } else {
+                print("\n  \u{001B}[1;32m✓ No dock icon (launched as \(mode.rawValue))\u{001B}[0m")
+            }
+        } else {
+            print("  \u{001B}[33mCould not determine application mode\u{001B}[0m")
+        }
+
+        print("\n\u{001B}[33m[4/4] Additional diagnostics...\u{001B}[0m")
+        print("  isHidden: \(app.isHidden)")
+        print("  isActive: \(app.isActive)")
+        print("  isFinishedLaunching: \(app.isFinishedLaunching)")
+        print("  activationPolicy: \(app.activationPolicy.rawValue)")
+
+        print("\n\u{001B}[1;35m---------------------------------------------------------------\u{001B}[0m")
+        print("\u{001B}[1m                         CONCLUSION                             \u{001B}[0m")
+        print("\u{001B}[1;35m---------------------------------------------------------------\u{001B}[0m")
+
+        if let mode = app.applicationMode, mode == .foreground {
+            print("\n\u{001B}[1;31mNSWorkspace.launchesInBackground does NOT prevent dock icon.\u{001B}[0m")
+            print("\u{001B}[90mThe app still launches as a Foreground app.")
+            print("To prevent dock icon, you must either:")
+            print("  1. Use LSApplicationLauncher with .uiElement mode")
+            print("  2. Call suppress() after launch (race condition)\u{001B}[0m")
+        } else {
+            print("\n\u{001B}[1;32mlaunchesInBackground successfully suppressed dock icon.\u{001B}[0m")
+        }
+
+        print("\n\u{001B}[90mPress Enter to terminate Messages and return to menu...\u{001B}[0m")
+        _ = readLine()
+        app.terminate()
     }
 }
 

@@ -17,6 +17,7 @@ final class EdgeWindowCoordinator: WindowCoordinator {
     }
     
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
+        logger.debug("makeAutomatable")
         var windowFrame: CGRect = try messagesWindow.frame()
 //        originalWindowFrame = windowFrame
         

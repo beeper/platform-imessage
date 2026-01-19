@@ -29,6 +29,10 @@ final class MessagesController {
     
     let elements: MessagesAppElements
     
+    var axApplication: Accessibility.Element {
+        self.elements.app
+    }
+    
     private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
     
     var cachedDatabase: IMDatabase?
@@ -90,21 +94,17 @@ final class MessagesController {
         
         elements = application.controlledRunningApplication.elements
         elements.openDeepLink = { [application] url in
+            let priorApplicationMode = application.controlledRunningApplication.applicationMode?.rawValue ?? ""
             try application.openDeepLink(url)
+            let laterApplicationMode = application.controlledRunningApplication.applicationMode?.rawValue ?? ""
+            log.debug("opened deep link, prior: \(priorApplicationMode); later: \(laterApplicationMode)")
         }
-        keyPresser = LegacyKeyPresser(pid: application.controlledRunningApplication.processIdentifier)
         
-        // if app.isHidden {
-        //     debugLog("Unhiding Messages...")
-        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
-        //         app.unhide()
-        //         if app.isHidden {
-        //             throw ErrorMessage("Could not launch Messages")
-        //         }
-        //     }
-        // }
+        keyPresser = LegacyKeyPresser(pid: application.controlledRunningApplication.processIdentifier)
+
         let observer = LifecycleObserver()
         lifecycleObserver = observer
+        print("setting up conveyor")
         setUpPollingConveyor(with: lifecycleObserver)
         
         guard isValid else {
@@ -265,7 +265,7 @@ final class MessagesController {
     func setUpPollingConveyor(with observer: LifecycleObserver) {
         let thread = RunLoopConveyor<ConveyorEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
             do {
-                try observer.beginObserving(app: self.elements.app)
+                try observer.beginObserving(app: self.axApplication)
             } catch {
                 log.error("unable to perform initial observation of app: \(error)")
             }
@@ -313,7 +313,9 @@ final class MessagesController {
 #if DEBUG
                             var focusedDescription = ""
                             try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
-                            printLifecycle(event: "FOCUSED: \(focusedDescription)")
+                            if let filename = Log.writeAXDump(focusedDescription, prefix: "focused-element") {
+                                printLifecycle(event: "FOCUSED: ax-dumps/\(filename)")
+                            }
 #endif
                         case .windowCreated:
                             printLifecycle(event: "WINDOW created")
@@ -354,14 +356,11 @@ final class MessagesController {
         afterAutomationTask?.cancel()
         elements.clearCachedElements()
         log.debug("prepareForAutomation: making the app automatable")
-        do {
-            try phtConnection?.setMessagesHidden(true)
-        } catch {
-            log.error("failed to hide messages app via pht: \(error)")
-        }
+        
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
+        
         activityLock.lock()
     }
     

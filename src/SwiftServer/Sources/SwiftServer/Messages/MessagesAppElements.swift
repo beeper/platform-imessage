@@ -167,7 +167,11 @@ public final class MessagesAppElements {
         var buffer = ""
         // 10 should be plenty
         try app.dumpXML(to: &buffer, maxDepth: 10, excludingPII: true, includeActions: false, includeSections: true)
-        log.info("\(buffer)")
+        if let filename = Log.writeAXDump(buffer, prefix: "app-tree") {
+            log.info("AX tree dump saved to: ax-dumps/\(filename)")
+        } else {
+            log.warning("failed to write AX tree dump to file")
+        }
     }
     
     private func dumpAndLogApplicationTreeIfNeeded() throws {
