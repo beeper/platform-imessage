@@ -156,7 +156,7 @@ final class MessagesController {
     
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     // TODO: rename to `assertSelectedThread`, which better describes its behavior
-    private func ensureSelectedThread(threadID: String) throws {
+    private func assertSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
@@ -169,7 +169,7 @@ final class MessagesController {
             log.debug("ensuring selected thread: \(hashedThreadID)")
         }
         
-        func ensureSelectedThreadViaDefault(value selectedThreadID: String) throws {
+        func assertSelectedThreadViaDefault(value selectedThreadID: String) throws {
             guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
                 throw ErrorMessage("misfire prevention: compose thread is selected")
             }
@@ -185,7 +185,7 @@ final class MessagesController {
             }
         }
         
-        func ensureSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
+        func assertSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
             guard let lastChange = date.read() else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
@@ -207,7 +207,7 @@ final class MessagesController {
             do {
                 // always prefer reading the default if we can (impossible on recent macOS; see DESK-10725)
                 if !SwiftServerDefaults[\.misfirePreventionAlwaysFallback], let selectedThreadID = Defaults.getSelectedThreadID() {
-                    return try ensureSelectedThreadViaDefault(value: selectedThreadID)
+                    return try assertSelectedThreadViaDefault(value: selectedThreadID)
                 }
                 
                 let strategy = Defaults.swiftServer.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy)
@@ -229,12 +229,12 @@ final class MessagesController {
                         return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
                     case "focus-waiter":
                         // wait until Accessibility posts a notification staging that the focused element has changed.
-                        try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastFocusedUIElementChange, type: "focus", emoji: "👆")
+                        try assertSelectedThreadViaLastChange(of: lifecycleObserver.lastFocusedUIElementChange, type: "focus", emoji: "👆")
                     case "layout-waiter":
                         // wait until Accessibility posts a notification stating that the layout has changed.
                         // this happens very frequently, for example after changing the active chat (what we specifically want to know about)
                         // or even scrolling the chat list
-                        try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastLayoutChange, type: "layout", emoji: "📐")
+                        try assertSelectedThreadViaLastChange(of: lifecycleObserver.lastLayoutChange, type: "layout", emoji: "📐")
                     default:
                         var sleepInterval = Defaults.swiftServer.double(forKey: DefaultsKeys.misfirePreventionSleepInterval)
                         if sleepInterval <= 0.0 { sleepInterval = 0.5 }
@@ -255,7 +255,7 @@ final class MessagesController {
     
     private func openThread(_ threadID: String) throws {
         try application.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
-        try ensureSelectedThread(threadID: threadID)
+        try assertSelectedThread(threadID: threadID)
     }
     
     private static func getRunningMessagesApps() -> [NSRunningApplication] {
@@ -557,7 +557,7 @@ final class MessagesController {
         }
         
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
@@ -796,7 +796,7 @@ final class MessagesController {
         
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             try threadCell.showMenu()
@@ -836,7 +836,7 @@ final class MessagesController {
         // scrollToVisible is needed since sometimes the thread cell can be behind the search input field causing .press() to focus the input field instead
         try threadCell.scrollToVisible()
         try threadCell.press()
-        try? ensureSelectedThread(threadID: threadID)
+        try? assertSelectedThread(threadID: threadID)
     }
     
     /*
@@ -857,7 +857,7 @@ final class MessagesController {
         defer { finishedAutomation() }
         
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             if MacOSVersion.isAtLeast(.ventura) {
                 return try keyPresser.commandShiftU()
             }
@@ -901,7 +901,7 @@ final class MessagesController {
         defer { finishedAutomation() }
         
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
             // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
             let action = muted || Defaults.isSelectedThreadCellPinned() ? ThreadAction.hideAlerts : ThreadAction.showAlerts
@@ -921,7 +921,7 @@ final class MessagesController {
         defer { finishedAutomation() }
         
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             try triggerThreadCellAction(threadID: threadID, action: .delete)
             try elements.alertSheetDeleteButton.press()
         }
@@ -941,7 +941,7 @@ final class MessagesController {
         try withActivation(openBefore: url) {
             if isTyping { return } // no further action required
             
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             
             try elements.messageBodyField.value(assign: "")
         }
@@ -1150,7 +1150,7 @@ final class MessagesController {
         if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
         
         try withActivation(openBefore: url) {
-            if let threadID { try ensureSelectedThread(threadID: threadID) }
+            if let threadID { try assertSelectedThread(threadID: threadID) }
             
             if quotedMessage != nil {
                 if #available(macOS 26, *) {
@@ -1352,7 +1352,7 @@ final class MessagesController {
         defer { finishedAutomation() }
         
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             try elements.notifyAnywayButton.press()
         }
     }

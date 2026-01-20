@@ -47,8 +47,11 @@ public final class DeepLinkDebugManager: ObservableObject {
     /// Time window to display (in seconds)
     @Published public var timeWindowSeconds: Double = 30
 
-    /// Whether the view is currently visible (controls event recording)
-    @Published public var isActive: Bool = false
+    /// Whether deep link debug is active (controls event recording)
+    /// Reads from UserDefaults to allow toggling from Settings
+    public var isActive: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.deepLinkDebugActive)
+    }
 
     /// Maximum duration seen across all events (for stable Y-axis)
     @Published public var maxDurationMs: Double = 50
@@ -80,48 +83,54 @@ public final class DeepLinkDebugManager: ObservableObject {
     }
 
     /// Record a new deep link being opened
-    public func recordDeepLinkOpened(instancePID: pid_t, url: URL?) {
-        guard isActive else { return }
-
-        let event = DeepLinkEvent(
-            instancePID: instancePID,
-            startTime: Date(),
-            endTime: nil,
-            url: url
-        )
-
-        events.append(event)
-        activeEvents[instancePID] = event.id
-
-        // Trigger flash animation
-        triggerFlash(for: instancePID)
-
-        // Trim old events to prevent memory growth
-        trimOldEvents()
+    public nonisolated func recordDeepLinkOpened(instancePID: pid_t, url: URL?) {
+        Task { @MainActor in
+            guard isActive else { return }
+            
+            let event = DeepLinkEvent(
+                instancePID: instancePID,
+                startTime: Date(),
+                endTime: nil,
+                url: url
+            )
+            
+            events.append(event)
+            activeEvents[instancePID] = event.id
+            
+            // Trigger flash animation
+            triggerFlash(for: instancePID)
+            
+            // Trim old events to prevent memory growth
+            trimOldEvents()
+        }
     }
 
     /// Record that an instance was suppressed (ends the active event)
-    public func recordSuppression(instancePID: pid_t) {
-        guard isActive else { return }
-
-        if let activeEventID = activeEvents[instancePID],
-           let index = events.firstIndex(where: { $0.id == activeEventID }) {
-            events[index].endTime = Date()
-            activeEvents.removeValue(forKey: instancePID)
-
-            // Update max duration for stable Y-axis scaling
-            let durationMs = events[index].duration * 1000
-            if durationMs > maxDurationMs {
-                maxDurationMs = durationMs
+    public nonisolated func recordSuppression(instancePID: pid_t) {
+        Task { @MainActor in
+            guard isActive else { return }
+            
+            if let activeEventID = activeEvents[instancePID],
+               let index = events.firstIndex(where: { $0.id == activeEventID }) {
+                events[index].endTime = Date()
+                activeEvents.removeValue(forKey: instancePID)
+                
+                // Update max duration for stable Y-axis scaling
+                let durationMs = events[index].duration * 1000
+                if durationMs > maxDurationMs {
+                    maxDurationMs = durationMs
+                }
             }
         }
     }
 
     /// Update instance tracking info
-    public func updateInstances(publicPID: pid_t?, puppetPID: pid_t?, totalCount: Int) {
-        publicInstancePID = publicPID
-        puppetInstancePID = puppetPID
-        instanceCount = totalCount
+    public nonisolated func updateInstances(publicPID: pid_t?, puppetPID: pid_t?, totalCount: Int) {
+        Task { @MainActor in
+            publicInstancePID = publicPID
+            puppetInstancePID = puppetPID
+            instanceCount = totalCount
+        }
     }
 
     /// Clear all recorded events

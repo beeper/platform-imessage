@@ -50,6 +50,9 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.showDeepLinkDebugOnLaunch, store: Defaults.swiftServer)
     var showDeepLinkDebugOnLaunch = false
 
+    @AppStorage(DefaultsKeys.deepLinkDebugActive, store: Defaults.swiftServer)
+    var deepLinkDebugActive = false
+
     // help button popover
     @State private var presentingHelp = false
 
@@ -216,6 +219,11 @@ struct SettingsView: View {
                 Toggle(isOn: $showDeepLinkDebugOnLaunch) {
                     Text("Show deep link debug on launch")
                     Text("Automatically open the deep link debug view when settings opens.")
+                }
+
+                Toggle(isOn: $deepLinkDebugActive) {
+                    Text("Record deep link events")
+                    Text("When enabled, deep link open/suppression events are recorded for debugging.")
                 }
             }
         } header: {

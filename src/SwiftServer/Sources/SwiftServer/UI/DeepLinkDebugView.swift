@@ -1,10 +1,14 @@
 import Charts
+import SwiftServerFoundation
 import SwiftUI
 
 @available(macOS 14, *)
 struct DeepLinkDebugView: View {
     @ObservedObject var manager = DeepLinkDebugManager.shared
     @State private var timer: Timer?
+
+    @AppStorage(DefaultsKeys.deepLinkDebugActive, store: Defaults.swiftServer)
+    var isActive: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -16,11 +20,9 @@ struct DeepLinkDebugView: View {
         .padding()
         .frame(minWidth: 500, minHeight: 400)
         .onAppear {
-            manager.isActive = true
             startRefreshTimer()
         }
         .onDisappear {
-            manager.isActive = false
             stopRefreshTimer()
         }
     }
@@ -31,6 +33,8 @@ struct DeepLinkDebugView: View {
             Text("Deep Link Debug")
                 .font(.headline)
             Spacer()
+            Toggle("Recording", isOn: $isActive)
+                .toggleStyle(.switch)
             Button("Clear") {
                 manager.clearEvents()
             }

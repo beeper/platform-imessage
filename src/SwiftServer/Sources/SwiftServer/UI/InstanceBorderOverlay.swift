@@ -1,3 +1,4 @@
+import AccessibilityControl
 import AppKit
 import Combine
 import SwiftServerFoundation
@@ -9,12 +10,22 @@ import SwiftServerFoundation
 @available(macOS 11, *)
 public final class InstanceBorderOverlay {
     private var overlayWindows: [pid_t: NSWindow] = [:]
-    private var updateTimer: Timer?
     private weak var messagesApplication: MessagesApplication?
 
+    /// Observer tokens for window events, keyed by pid
+    private var windowMovedTokens: [pid_t: Accessibility.Observer.Token] = [:]
+    private var windowResizedTokens: [pid_t: Accessibility.Observer.Token] = [:]
+    private var windowCreatedTokens: [pid_t: Accessibility.Observer.Token] = [:]
+
+    /// Track which PIDs we're currently observing
+    private var observedPids: Set<pid_t> = []
+
+    private var isRunning = false
+
     private static let borderWidth: CGFloat = 4
-    private static let publicColor = NSColor.systemGreen
-    private static let puppetColor = NSColor.systemBlue
+    private static let borderAlpha: CGFloat = 0.85
+    private static let publicColor = NSColor.systemGreen.withAlphaComponent(borderAlpha)
+    private static let puppetColor = NSColor.systemBlue.withAlphaComponent(borderAlpha)
 
     public init(messagesApplication: MessagesApplication) {
         self.messagesApplication = messagesApplication
@@ -25,20 +36,21 @@ public final class InstanceBorderOverlay {
     }
 
     public func start() {
-        guard updateTimer == nil else { return }
+        guard !isRunning else { return }
+        isRunning = true
 
-        // Update immediately
+        // Update immediately and set up observers
         updateOverlays()
-
-        // Then update periodically to track window movements
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.updateOverlays()
-        }
     }
 
     public func stop() {
-        updateTimer?.invalidate()
-        updateTimer = nil
+        isRunning = false
+
+        // Cancel all observer tokens
+        windowMovedTokens.removeAll()
+        windowResizedTokens.removeAll()
+        windowCreatedTokens.removeAll()
+        observedPids.removeAll()
 
         // Remove all overlay windows
         for window in overlayWindows.values {
@@ -48,7 +60,7 @@ public final class InstanceBorderOverlay {
     }
 
     private func updateOverlays() {
-        guard let app = messagesApplication else { return }
+        guard let app = messagesApplication, isRunning else { return }
 
         // Check if borders should be shown
         let shouldShow = Defaults.swiftServer.bool(forKey: DefaultsKeys.showInstanceBorders)
@@ -71,20 +83,65 @@ public final class InstanceBorderOverlay {
         if let pid = publicPid, let runningApp = app.publicInstance?.runningApplication {
             activePids.insert(pid)
             updateOverlay(for: pid, runningApplication: runningApp, color: Self.publicColor, label: "PUBLIC")
+            setupObservers(for: pid)
         }
 
         // Update or create overlay for puppet instance
         if let pid = puppetPid, let runningApp = app.puppetInstance?.runningApplication {
             activePids.insert(pid)
             updateOverlay(for: pid, runningApplication: runningApp, color: Self.puppetColor, label: "PUPPET")
+            setupObservers(for: pid)
         }
 
-        // Remove overlays for instances that no longer exist
+        // Remove overlays and observers for instances that no longer exist
         let staleKeys = overlayWindows.keys.filter { !activePids.contains($0) }
         for key in staleKeys {
             overlayWindows[key]?.orderOut(nil)
             overlayWindows.removeValue(forKey: key)
+            removeObservers(for: key)
         }
+    }
+
+    private func setupObservers(for pid: pid_t) {
+        guard !observedPids.contains(pid) else { return }
+        observedPids.insert(pid)
+
+        let appElement = Accessibility.Element(pid: pid)
+
+        do {
+            // Observe window creation on the app element
+            windowCreatedTokens[pid] = try appElement.observe(.windowCreated) { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.updateOverlays()
+                }
+            }
+
+            // Try to get the main window and observe it
+            let windowsAttr: Accessibility.Attribute<[Accessibility.Element]> = appElement.attribute(.init("AXWindows"))
+            if let windowElement = try? windowsAttr[0] {
+                windowMovedTokens[pid] = try windowElement.observe(.windowMoved) { [weak self] _ in
+                    DispatchQueue.main.async {
+                        self?.updateOverlays()
+                    }
+                }
+
+                windowResizedTokens[pid] = try windowElement.observe(.windowResized) { [weak self] _ in
+                    DispatchQueue.main.async {
+                        self?.updateOverlays()
+                    }
+                }
+            }
+        } catch {
+            // If observation fails, we'll just rely on window creation events
+            // or the initial update
+        }
+    }
+
+    private func removeObservers(for pid: pid_t) {
+        observedPids.remove(pid)
+        windowMovedTokens.removeValue(forKey: pid)
+        windowResizedTokens.removeValue(forKey: pid)
+        windowCreatedTokens.removeValue(forKey: pid)
     }
 
     private func updateOverlay(for pid: pid_t, runningApplication: NSRunningApplication, color: NSColor, label: String) {
@@ -171,9 +228,41 @@ public final class InstanceBorderOverlay {
         AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
 
         // Convert from screen coordinates (top-left origin) to Cocoa coordinates (bottom-left origin)
-        guard let mainScreen = NSScreen.main else { return nil }
-        let screenHeight = mainScreen.frame.height
-        let cocoaY = screenHeight - position.y - size.height
+        // Find the screen that contains this window
+        let windowTopLeft = position
+
+        // Find which screen contains the window (check screen frames in global coordinates)
+        // NSScreen.screens is ordered with main screen first, then others
+        var containingScreen: NSScreen?
+        for screen in NSScreen.screens {
+            // Convert screen frame to global coordinates (top-left origin)
+            // screen.frame is in Cocoa coordinates (bottom-left origin relative to main screen)
+            // We need to find the screen that contains the window's top-left corner in global coords
+            let screenFrame = screen.frame
+            let mainScreenHeight = NSScreen.screens.first?.frame.height ?? screenFrame.height
+
+            // Screen's top-left in global coordinates
+            let screenMinY = mainScreenHeight - screenFrame.maxY
+            let screenMaxY = mainScreenHeight - screenFrame.minY
+
+            // Check if window's top-left is within this screen's bounds (in global coords)
+            if windowTopLeft.x >= screenFrame.minX &&
+               windowTopLeft.x < screenFrame.maxX &&
+               windowTopLeft.y >= screenMinY &&
+               windowTopLeft.y < screenMaxY {
+                containingScreen = screen
+                break
+            }
+        }
+
+        // Fall back to main screen if we can't find containing screen
+        guard let screen = containingScreen ?? NSScreen.main else { return nil }
+        let mainScreen = NSScreen.screens.first ?? screen
+        let mainScreenHeight = mainScreen.frame.height
+
+        // Convert from global (top-left origin) to Cocoa (bottom-left origin)
+        // In Cocoa coordinates, y=0 is at the bottom of the main screen
+        let cocoaY = mainScreenHeight - position.y - size.height
 
         return NSRect(x: position.x, y: cocoaY, width: size.width, height: size.height)
     }

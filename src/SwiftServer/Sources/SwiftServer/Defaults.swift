@@ -86,6 +86,9 @@ enum DefaultsKeys {
     /** whether to show the deep link debug view automatically on launch */
     static let showDeepLinkDebugOnLaunch = "BEEPShowDeepLinkDebugOnLaunch"
 
+    /** whether deep link debugging is active (recording events) */
+    static let deepLinkDebugActive = "BEEPDeepLinkDebugActive"
+
     /** always use `.unknown` space instead of `.user` */
     static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
     /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */

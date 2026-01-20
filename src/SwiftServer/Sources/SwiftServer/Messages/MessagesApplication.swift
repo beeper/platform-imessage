@@ -55,7 +55,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             case .publicInstance:
                 return publicInstance?.runningApplication
             case .puppetInstance:
-                print("accessed, state: \(puppetInstance!.runningApplication.applicationMode)")
+//                print("accessed, state: \(puppetInstance!.runningApplication.applicationMode)")
                 return puppetInstance?.runningApplication
         }
     }
@@ -140,7 +140,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     }
 
     deinit {
-//        stopAutoSuppress()
+        stopAutoSuppress()
         instanceBorderOverlay?.stop()
         cancellables.removeAll()
     }
@@ -478,7 +478,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         }
         
         if hiding {
-            controlledRunningApplication.suppress()
+            try controlledRunningApplication.suppress()
         }
 
 #if DEBUG
