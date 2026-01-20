@@ -423,24 +423,37 @@ export default class AppleiMessage implements PlatformAPI {
     const hashedThreadID = options?.threadID
     const threadID = hashedThreadID ? originalThreadID(hashedThreadID) : hashedThreadID
 
-    const mediaOnly = Boolean(options?.mediaType)
-    const msgRows = await db.searchMessages(typed, threadID, mediaOnly, pagination, options?.sender)
-    const msgRowIDs = msgRows.map(m => m.ROWID)
-    const msgGUIDs = msgRows.map(m => m.guid)
-    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
+    // Use Swift to search - it properly decodes attributedBody and filters by actual message text
+    // This avoids false positives from binary plist metadata (e.g., "NSString" matching "string")
+    const matchingRowIDs = await swiftServer.searchMessages(typed, MESSAGES_LIMIT)
+
+    if (matchingRowIDs.length === 0) {
+      return { items: [], hasMore: false, oldestCursor: '' }
+    }
+
+    // Fetch full message data for the matching ROWIDs
+    const msgRows = await db.getMessagesByRowIDs(matchingRowIDs)
+
+    // Filter by threadID and other options if specified
+    const filteredRows = msgRows.filter(m => {
+      if (threadID && m.threadID !== threadID) return false
+      if (options?.mediaType && !m.cache_has_attachments) return false
+      if (options?.sender === 'me' && !m.is_from_me) return false
+      return true
+    })
+
+    const msgRowIDs = filteredRows.map(m => m.ROWID)
+    const msgGUIDs = filteredRows.map(m => m.guid)
+    const [attachmentRows, reactionRows] = filteredRows.length === 0 ? [[], []] : await Promise.all([
       db.getAttachments(msgRowIDs),
       threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
-    const mappedItems = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
-    // Post-filter: SQL search on attributedBody may match binary plist metadata (e.g., "NSString"),
-    // so we filter to only include messages where the decoded text actually contains the search term
-    const searchLower = typed.toLowerCase()
-    const items = mappedItems.filter(m => m.text?.toLowerCase().includes(searchLower))
+    const items = mapMessages(filteredRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],
-      hasMore: msgRows.length === MESSAGES_LIMIT,
-      oldestCursor: msgRows[0]?.date?.toString(),
+      hasMore: matchingRowIDs.length === MESSAGES_LIMIT,
+      oldestCursor: filteredRows[0]?.date?.toString(),
     }
   }
 

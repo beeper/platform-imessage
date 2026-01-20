@@ -3,6 +3,7 @@ import Foundation
 import WindowControl
 import SwiftServerFoundation
 import Logging
+import IMDatabase
 
 private let log = Logger(swiftServerLabel: "swift-server")
 
@@ -194,6 +195,22 @@ enum Preferences {
                 "text": "\($0.text)",
                 "attributes": $0.attributes.mapValues { "\($0)" }
             ] }
+        },
+
+        "searchMessages": NodeFunction { (query: String, limit: Int?) in
+            let queue = try NodeAsyncQueue(label: "search-messages")
+            return try NodePromise { deferred in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        let db = try IMDatabase()
+                        let rowIDs = try db.searchMessages(query: query, limit: limit ?? 20)
+                        return rowIDs as [NodeValueConvertible]
+                    }
+                    try? queue.run {
+                        try deferred(result)
+                    }
+                }
+            }
         },
 
         "confirmUNCPrompt": NodeFunction {

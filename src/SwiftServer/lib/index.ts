@@ -11,6 +11,7 @@ export interface Fragment {
   attributes: { [key: string]: string }
 }
 
+
 export const enum ActivityStatus {
   DND = 'DND',
   DNDCanNotify = 'DND_CAN_NOTIFY',
@@ -101,6 +102,8 @@ export type SwiftServer = {
   isNotificationsEnabledForMessages: boolean
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
+  /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
+  searchMessages: (query: string, limit?: number) => Promise<number[]>
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>

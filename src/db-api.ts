@@ -114,6 +114,12 @@ ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE m.guid = ?`,
+  getMessagesByRowIDs: (rowIDs: number[]) => `SELECT
+${MAP_MESSAGES_COLS}
+FROM message AS m
+${MESSAGE_JOINS}
+WHERE m.ROWID IN (${new Array(rowIDs.length).fill('?').join(', ')})
+ORDER BY date DESC`,
   threadUnreadCount: `SELECT COUNT(m.ROWID)
 FROM message AS m
 INNER JOIN chat_message_join AS cmj ON m.ROWID = cmj.message_id
@@ -125,8 +131,7 @@ AND m.is_from_me == 0`,
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
-WHERE (m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
-       OR instr(lower(m.attributedBody), lower(?)) > 0)
+WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
 ${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
 ${chatGUID ? 'AND t.guid = ?' : ''}
 ${mediaOnly ? 'AND cache_has_attachments = 1' : ''}
@@ -313,6 +318,11 @@ export default class DatabaseAPI {
   getMessage = (messageGUID: string): Promise<MappedMessageRow | undefined> =>
     this.db.get<string[], MappedMessageRow>(SQLS.getMessage, messageGUID)
 
+  getMessagesByRowIDs(rowIDs: number[]): Promise<MappedMessageRow[]> {
+    if (rowIDs.length === 0) return Promise.resolve([])
+    return this.db.all<number[], MappedMessageRow>(SQLS.getMessagesByRowIDs(rowIDs), ...rowIDs)
+  }
+
   private imageSizeMemoized = memoize(imageSizeAsync)
 
   async getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
@@ -371,8 +381,7 @@ export default class DatabaseAPI {
   async searchMessages(typed: string, chatGUID?: string, mediaOnly?: boolean, pagination?: PaginationArg, sender?: string): Promise<MappedMessageRow[]> {
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     // FIXME: this shouldn't be parsing to a number due to precision loss
-    // Note: first binding is for text LIKE (needs %), second is for attributedBody instr (no %)
-    const bindings = pagination ? [typedEscaped, typed, Number.parseInt(pagination.cursor, 10)] : [typedEscaped, typed]
+    const bindings = pagination ? [typedEscaped, Number.parseInt(pagination.cursor, 10)] : [typedEscaped]
     if (chatGUID) bindings.push(chatGUID)
     const msgRows = await this.db.all<typeof bindings, MappedMessageRow>(
       SQLS.searchMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined, chatGUID, mediaOnly, sender === 'me'),
