@@ -431,7 +431,11 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments(msgRowIDs),
       threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
+    const mappedItems = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
+    // Post-filter: SQL search on attributedBody may match binary plist metadata (e.g., "NSString"),
+    // so we filter to only include messages where the decoded text actually contains the search term
+    const searchLower = typed.toLowerCase()
+    const items = mappedItems.filter(m => m.text?.toLowerCase().includes(searchLower))
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],

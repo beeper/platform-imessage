@@ -125,7 +125,8 @@ AND m.is_from_me == 0`,
 ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
-WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
+WHERE (m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
+       OR instr(lower(m.attributedBody), lower(?)) > 0)
 ${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
 ${chatGUID ? 'AND t.guid = ?' : ''}
 ${mediaOnly ? 'AND cache_has_attachments = 1' : ''}
@@ -370,7 +371,8 @@ export default class DatabaseAPI {
   async searchMessages(typed: string, chatGUID?: string, mediaOnly?: boolean, pagination?: PaginationArg, sender?: string): Promise<MappedMessageRow[]> {
     const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
     // FIXME: this shouldn't be parsing to a number due to precision loss
-    const bindings = pagination ? [typedEscaped, Number.parseInt(pagination.cursor, 10)] : [typedEscaped]
+    // Note: first binding is for text LIKE (needs %), second is for attributedBody instr (no %)
+    const bindings = pagination ? [typedEscaped, typed, Number.parseInt(pagination.cursor, 10)] : [typedEscaped, typed]
     if (chatGUID) bindings.push(chatGUID)
     const msgRows = await this.db.all<typeof bindings, MappedMessageRow>(
       SQLS.searchMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined, chatGUID, mediaOnly, sender === 'me'),
