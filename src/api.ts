@@ -439,6 +439,7 @@ export default class AppleiMessage implements PlatformAPI {
       if (threadID && m.threadID !== threadID) return false
       if (options?.mediaType && !m.cache_has_attachments) return false
       if (options?.sender === 'me' && !m.is_from_me) return false
+      if (options?.sender === 'others' && m.is_from_me) return false
       return true
     })
 
