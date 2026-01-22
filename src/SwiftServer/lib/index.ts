@@ -103,7 +103,7 @@ export type SwiftServer = {
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
-  searchMessages: (query: string, limit?: number) => Promise<number[]>
+  searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>

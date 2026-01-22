@@ -3,37 +3,74 @@ import Foundation
 import SQLite
 import SwiftServerFoundation
 
-/// Search result containing the message ROWID for fetching full data
-public struct SearchMatchedMessage {
-    public let rowID: Int
-}
-
-private let searchQuerySQL = """
-SELECT m.ROWID, m.text, m.attributedBody
-FROM message m
-WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
-ORDER BY m.date DESC
-LIMIT ?
-"""
-
 public extension IMDatabase {
     /// Searches messages by text content, properly decoding attributedBody.
     /// Returns ROWIDs of matching messages that can be used to fetch full message data.
     /// - Parameters:
     ///   - query: The search term (case-insensitive)
+    ///   - chatGUID: Optional chat GUID to filter messages by conversation
+    ///   - mediaOnly: If true, only return messages with attachments
+    ///   - sender: Optional sender filter - "me" for sent messages, "others" for received messages
     ///   - limit: Maximum number of results to return
     /// - Returns: Array of ROWIDs for messages that match the search query
     func searchMessages(
         query: String,
+        chatGUID: String? = nil,
+        mediaOnly: Bool = false,
+        sender: String? = nil,
         limit: Int = 20
     ) throws -> [Int] {
         let queryLower = query.lowercased()
 
+        // Build SQL query with optional filters
+        var sql = """
+        SELECT m.ROWID, m.text, m.attributedBody
+        FROM message m
+        """
+
+        // Add chat join if filtering by chatGUID
+        if chatGUID != nil {
+            sql += """
+
+            LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+            LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+            """
+        }
+
+        sql += """
+
+        WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
+        """
+
+        if chatGUID != nil {
+            sql += "\nAND t.guid = ?"
+        }
+        if mediaOnly {
+            sql += "\nAND m.cache_has_attachments = 1"
+        }
+        if sender == "me" {
+            sql += "\nAND m.is_from_me = 1"
+        } else if sender == "others" {
+            sql += "\nAND m.is_from_me = 0"
+        }
+
+        sql += """
+
+        ORDER BY m.date DESC
+        LIMIT ?
+        """
+
         // Fetch more than limit to account for filtering - we'll filter in Swift after decoding
         let fetchLimit = limit * 20
 
-        let statement = try cachedStatement(forEscapedSQL: searchQuerySQL).reset()
-        try statement.bind(fetchLimit)
+        let statement = try cachedStatement(forEscapedSQL: sql).reset()
+
+        // Bind parameters in order
+        if let chatGUID = chatGUID {
+            try statement.bind(chatGUID, fetchLimit)
+        } else {
+            try statement.bind(fetchLimit)
+        }
 
         var matchingRowIDs: [Int] = []
 

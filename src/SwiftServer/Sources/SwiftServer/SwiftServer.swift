@@ -197,13 +197,19 @@ enum Preferences {
             ] }
         },
 
-        "searchMessages": NodeFunction { (query: String, limit: Int?) in
+        "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) in
             let queue = try NodeAsyncQueue(label: "search-messages")
             return try NodePromise { deferred in
                 DispatchQueue.global(qos: .userInitiated).async {
                     let result = Result<NodeValueConvertible, Error> {
                         let db = try IMDatabase()
-                        let rowIDs = try db.searchMessages(query: query, limit: limit ?? 20)
+                        let rowIDs = try db.searchMessages(
+                            query: query,
+                            chatGUID: chatGUID,
+                            mediaOnly: mediaOnly ?? false,
+                            sender: sender,
+                            limit: limit ?? 20
+                        )
                         return rowIDs as [NodeValueConvertible]
                     }
                     try? queue.run {
