@@ -40,6 +40,21 @@ enum Reaction {
         }
     }
 
+    /// The custom action name as exposed by Messages accessibility API.
+    /// Custom actions on message elements (with identifier "Sticker") have format:
+    /// "Name:<action_name>\nTarget:0x0\nSelector:(null)"
+    var customActionName: String {
+        switch self {
+        case .heart: "Heart"
+        case .like: "Thumbs up"
+        case .dislike: "Thumbs down"
+        case .laugh: "Ha ha!"
+        case .emphasize: "Exclamation mark"
+        case .question: "Question mark"
+        case let .custom(emoji): String(emoji)
+        }
+    }
+
     /// Creates a reaction from a reaction key (as vended to clients via the object keys in `PlatformInfo.reactions`).
     ///
     /// These are only effectively used when running under macOS Sonoma and earlier, because Sequoia introduces

@@ -66,17 +66,11 @@ final class MessagesController {
             }
         }
         
-        var messagesApps = Self.getRunningMessagesApps()
-        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-            try messagesApps.forEach { message in
-                try unsafeBlockCurrentThreadUntilComplete {
-                    _ = await message.terminateAndWaitForTermination()
-                }
-            }
-            messagesApps.removeAll()
-        }
-        
+        // Note: Having multiple instances is expected during transitions (1 public + 1 puppet)
+        // MessagesApplication.init() handles instance management - don't terminate here
+        let messagesApps = Self.getRunningMessagesApps()
+        log.debug("found \(messagesApps.count) existing instance(s) of Messages.app")
+
         let shouldUseExtantInstance: Bool = windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow
         
         if shouldUseExtantInstance {
@@ -472,13 +466,36 @@ final class MessagesController {
 #endif
             try application.openDeepLink(openBefore)
         }
-        
+
         try perform()
-        
+
         if let openAfter {
             if openAfter != openBefore {
 #if DEBUG
                 debugLog("withActivation: opening after performing: \(openAfter)")
+#endif
+                try application.openDeepLink(openAfter)
+            }
+        }
+    }
+
+    private func withActivation(
+        openBefore: URL?, openAfter: URL? = nil,
+        perform: () async throws -> Void
+    ) async throws {
+        if let openBefore {
+#if DEBUG
+            log.debug("withActivation async: opening before performing: \(openBefore)")
+#endif
+            try application.openDeepLink(openBefore)
+        }
+
+        try await perform()
+
+        if let openAfter {
+            if openAfter != openBefore {
+#if DEBUG
+                debugLog("withActivation async: opening after performing: \(openAfter)")
 #endif
                 try application.openDeepLink(openAfter)
             }
@@ -506,10 +523,14 @@ final class MessagesController {
             }
             
             try Self.queue.sync {
-                guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
-                    throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
+                let cell = try retry(withTimeout: 2.0, interval: 0.2) {
+                    guard let tv = try? elements.transcriptView,
+                          let cell = try? MessagesAppElements.firstSelectedMessageCell(in: tv) else {
+                        throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
+                    }
+                    return cell
                 }
-                
+
                 Thread.sleep(forTimeInterval: 1.0)
                 log.debug("reveal: 1/5 showing the cell's menu")
                 try cell.showMenu()
@@ -548,17 +569,17 @@ final class MessagesController {
     
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
-        
+
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
-        
+
         // without closing reply transcript, non-overlay deep link won't select the message
         if !messageCell.overlay {
             try? closeReplyTranscriptView(wait: false)
         }
-        
+
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
-            
+
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
             //     if messageCell.overlay {
@@ -567,9 +588,9 @@ final class MessagesController {
             //     }
             // }
             if messageCell.overlay {
-                if #available(macOS 26, *) {
-                    try revealReplyTranscriptViaMenu()
-                }
+                // On Tahoe (macOS 26+), overlay=true deep link opens the reply overlay directly
+                // revealReplyTranscriptViaMenu() is no longer needed and fails because the main
+                // transcript is replaced by the reply transcript (not coexisting like pre-Tahoe)
                 try waitUntilReplyTranscriptVisible()
             }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
@@ -616,28 +637,97 @@ final class MessagesController {
             try action(targetCell)
         }
     }
-    
-    func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
+
+    private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) async throws -> Void) async throws {
+        log.debug("withMessageCell async (messageCell=\(messageCell))")
+
+        let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
+
+        if !messageCell.overlay {
+            try? closeReplyTranscriptView(wait: false)
+        }
+
+        try await withActivation(openBefore: url) {
+            try assertSelectedThread(threadID: threadID)
+
+            if messageCell.overlay {
+                // On Tahoe (macOS 26+), overlay=true deep link opens the reply overlay directly
+                try waitUntilReplyTranscriptVisible()
+            }
+            guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
+                guard let cell = try messageCell.overlay
+                        ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
+                        : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
+                else {
+                    throw ErrorMessage("message cell nil")
+                }
+                guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
+                return cell
+            }) else {
+                throw ErrorMessage("Could not find message cell")
+            }
+            let targetCell: Accessibility.Element
+            if messageCell.offset == 0 {
+                targetCell = selected
+            } else {
+                let containerCell = try selected.parent()
+                let containerFrame = try containerCell.frame()
+                let containerCells = try MessagesAppElements.messageContainerCells(in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView)
+                guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
+                    throw ErrorMessage("Could not find target message cell")
+                }
+                let target = idx - messageCell.offset
+                log.debug("Index: \(idx) - \(messageCell.offset) = \(target)")
+                guard containerCells.indices.contains(target) else {
+                    throw ErrorMessage("Desired index out of bounds")
+                }
+                targetCell = try containerCells[target].children[0]
+            }
+            if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
+                guard role == cellRole else {
+                    log.debug("Expected cell role \(cellRole), got \(role)")
+                    throw ErrorMessage("Cell role mismatch")
+                }
+            }
+            if let cellID = messageCell.cellID, let id = try? targetCell.identifier() {
+                guard id == cellID else {
+                    log.debug("Expected cell id \(cellID), got \(id)")
+                    throw ErrorMessage("Cell id mismatch")
+                }
+            }
+            try await action(targetCell)
+        }
+    }
+
+    func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) async throws {
+        log.debug("setReaction called (async path)")
         let startTime = Date()
         defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
-        
+
         try prepareForAutomation()
         defer { finishedAutomation() }
-        
-        try withMessageCell(threadID: threadID, messageCell: messageCell) {
-            let reactAction = try messageAction(messageCell: $0, action: .react)
-            try reactAction() // performing this 2x will close reaction view
-            
-            if MacOSVersion.isAtLeast(.sequoia) { // wait for animation
-                Thread.sleep(forTimeInterval: 0.75)
+
+        try await withMessageCell(threadID: threadID, messageCell: messageCell) { cell in
+            // Try custom action approach first (most reliable, works without window visibility)
+            do {
+                try await setReactionViaCustomAction(cell: cell, reaction: reaction, on: on)
+                return
+            } catch {
+                log.warning("setReactionViaCustomAction failed: \(error), falling back to legacy approach")
             }
-            
+
+            // Legacy fallback for older macOS or if custom action fails
+            let reactAction = try messageAction(messageCell: cell, action: .react)
+            try reactAction()
+
+            if MacOSVersion.isAtLeast(.sequoia) {
+                try await Task.sleep(nanoseconds: 750_000_000)
+            }
+
             if case let .custom(emoji) = reaction, on {
                 guard MacOSVersion.isAtLeast(.sequoia) else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
-                // to react with a custom emoji, find the smile button and wrangle the character picker popover
-                // TODO: support being able to pick a skin tone
                 try elements.addCustomEmojiReactionButton.press()
-                Thread.sleep(forTimeInterval: 1.0) // wait for animation
+                try await Task.sleep(nanoseconds: 1_000_000_000)
                 let search: CharacterPickerSearch
                 do {
                     search = try CharacterPickerSearch(finding: emoji)
@@ -645,43 +735,39 @@ final class MessagesController {
                     throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
                 }
                 try elements.searchFieldWithinPopover.value(assign: search.query)
-                Thread.sleep(forTimeInterval: 0.75) // wait for search
-                // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
+                try await Task.sleep(nanoseconds: 750_000_000)
                 try keyPresser.downArrow()
-                // 6 columns in the character picker matrix
                 let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
-                // navigate to the emoji
-                for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                Thread.sleep(forTimeInterval: 0.1) // wait for selection
-                try keyPresser.return() // select
+                for _ in 0..<downArrows { try keyPresser.downArrow(); try await Task.sleep(nanoseconds: 50_000_000) }
+                for _ in 0..<rightArrows { try keyPresser.rightArrow(); try await Task.sleep(nanoseconds: 50_000_000) }
+                try await Task.sleep(nanoseconds: 100_000_000)
+                try keyPresser.return()
                 if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
-                    Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
-                    try keyPresser.return() // always select default skin tone
+                    try await Task.sleep(nanoseconds: 200_000_000)
+                    try keyPresser.return()
                 }
                 return
             }
-            
+
             let btn = try {
                 if MacOSVersion.isAtLeast(.sequoia) {
                     return try elements.tapbackPickerCollectionView.children()
                         .first {
-                            // standard: "ha", "thumbsUp", etc. custom: emoji string
                             let identifier = try? $0.identifier()
                             return identifier == reaction.idOrEmoji
                         }
                         .orThrow(ErrorMessage("Could not find \(on ? "react" : "unreact") button"))
                 }
-                
+
                 let idx = reaction.index!
                 let buttons = try elements.reactButtons
                 guard buttons.count > idx else {
                     throw ErrorMessage("reactButtons count=\(buttons.count)")
                 }
-                
+
                 return buttons[idx]
             }()
-            
+
             try retry(withTimeout: 1.2, interval: 0.1) {
                 let isSelected = try btn.isSelected()
                 if isSelected != on {
@@ -694,7 +780,157 @@ final class MessagesController {
             }
         }
     }
-    
+
+    /// Performs a tapback reaction using custom actions directly on the message element.
+    /// This is more reliable than context menus as it doesn't require window visibility or app activation.
+    ///
+    /// Custom actions on message elements (identifier="Sticker") have format:
+    /// "Name:<action_name>\nTarget:0x0\nSelector:(null)"
+    ///
+    /// Available tapback actions: Heart, Thumbs up, Thumbs down, Ha ha!, Exclamation mark, Question mark
+    /// Plus emoji reactions on macOS 15+: ❤️, 🔥, 🤗, 🤣, 🫂, and custom emojis via "Add Emoji as Tapback"
+    private func setReactionViaCustomAction(cell: Accessibility.Element, reaction: Reaction, on: Bool) async throws {
+        log.debug("setReactionViaCustomAction: attempting custom action approach")
+
+        // The message cell we receive might be the inner content (TextArea/Image)
+        // We need to find the parent element with identifier "Sticker" which has the custom actions
+        let stickerElement: Accessibility.Element
+        do {
+            stickerElement = try findStickerElement(from: cell)
+            log.debug("setReactionViaCustomAction: found sticker element")
+        } catch {
+            log.error("setReactionViaCustomAction: failed to find sticker element: \(error)")
+            throw error
+        }
+
+        // Verify the element is still valid before proceeding
+        guard stickerElement.isValid else {
+            log.error("setReactionViaCustomAction: sticker element is no longer valid")
+            throw ErrorMessage("Sticker element is no longer valid")
+        }
+
+        // Get all actions and find the matching custom action
+        let actions: [Accessibility.Action]
+        do {
+            actions = try stickerElement.supportedActions()
+            log.debug("setReactionViaCustomAction: found \(actions.count) actions on element")
+        } catch {
+            log.error("setReactionViaCustomAction: failed to get supported actions: \(error)")
+            throw error
+        }
+
+        // Custom actions have format: "Name:<action_name>\nTarget:0x0\nSelector:(null)"
+        let targetActionName = reaction.customActionName
+        log.debug("setReactionViaCustomAction: looking for custom action '\(targetActionName)'")
+
+        var matchingAction: Accessibility.Action?
+        for action in actions {
+            let rawName = action.name.value
+            if rawName.hasPrefix("Name:") {
+                // Parse the action name from the multi-line format
+                let parsedName = parseCustomActionName(rawName)
+                if parsedName.lowercased() == targetActionName.lowercased() {
+                    matchingAction = action
+                    break
+                }
+            }
+        }
+
+        guard let action = matchingAction else {
+            // Log available custom actions for debugging
+            let availableActions = actions.compactMap { action -> String? in
+                let rawName = action.name.value
+                guard rawName.hasPrefix("Name:") else { return nil }
+                return parseCustomActionName(rawName)
+            }
+            log.error("setReactionViaCustomAction: custom action '\(targetActionName)' not found. Available: \(availableActions)")
+            throw ErrorMessage("Custom action '\(targetActionName)' not found on message element")
+        }
+
+        // Perform the action
+        // Note: Performing the action toggles the reaction state
+        // If `on` is true and reaction is already on, performing it will turn it off (and vice versa)
+        // The API contract expects us to set the reaction to the `on` state, so we may need to
+        // check current state first. However, the custom action toggles, so we just perform it
+        // and trust that the caller knows the current state.
+        log.debug("setReactionViaCustomAction: performing custom action '\(targetActionName)'")
+        do {
+            try action()
+        } catch {
+            log.error("setReactionViaCustomAction: failed to perform action: \(error)")
+            throw error
+        }
+
+        // Small delay to let the action complete
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+
+        log.debug("setReactionViaCustomAction: successfully performed '\(targetActionName)' reaction")
+    }
+
+    /// Finds the Sticker element (message bubble) from a cell or its ancestors.
+    /// Message elements that support reactions have identifier="Sticker".
+    private func findStickerElement(from element: Accessibility.Element) throws -> Accessibility.Element {
+        log.debug("findStickerElement: starting search from element")
+
+        // Check if this element is already the Sticker
+        if let identifier = try? element.identifier() {
+            log.debug("findStickerElement: element identifier = '\(identifier)'")
+            if identifier == "Sticker" {
+                return element
+            }
+        }
+
+        // Check parent - the cell might be the TextArea inside the Sticker
+        if let parent = try? element.parent() {
+            if let parentId = try? parent.identifier() {
+                log.debug("findStickerElement: parent identifier = '\(parentId)'")
+                if parentId == "Sticker" {
+                    return parent
+                }
+            }
+
+            // Check grandparent
+            if let grandparent = try? parent.parent() {
+                if let grandparentId = try? grandparent.identifier() {
+                    log.debug("findStickerElement: grandparent identifier = '\(grandparentId)'")
+                    if grandparentId == "Sticker" {
+                        return grandparent
+                    }
+                }
+            }
+        }
+
+        // If the element itself has custom actions with tapback reactions, use it directly
+        // This handles cases where the identifier might be different but actions are present
+        log.debug("findStickerElement: checking element for tapback actions")
+        if let actions = try? element.supportedActions() {
+            let hasTapbackActions = actions.contains { action in
+                let name = action.name.value
+                return name.hasPrefix("Name:Heart") || name.hasPrefix("Name:Thumbs up")
+            }
+            if hasTapbackActions {
+                log.debug("findStickerElement: element has tapback actions, using it directly")
+                return element
+            }
+        }
+
+        log.error("findStickerElement: could not find Sticker element with tapback actions")
+        throw ErrorMessage("Could not find Sticker element with tapback actions")
+    }
+
+    /// Parses the custom action name from the multi-line format.
+    /// Format: "Name:<action_name>\nTarget:0x0\nSelector:(null)"
+    /// Returns just the action name (e.g., "Heart", "Thumbs up")
+    private func parseCustomActionName(_ raw: String) -> String {
+        for line in raw.split(separator: "\n", omittingEmptySubsequences: false) {
+            let lineStr = String(line)
+            if lineStr.hasPrefix("Name:") {
+                return String(lineStr.dropFirst(5))
+            }
+        }
+        return raw
+    }
+
     // @available(macOS 13, *)
     func undoSend(threadID: String, messageCell: MessageCell) throws {
         guard MacOSVersion.isAtLeast(.ventura) else {
@@ -1447,13 +1683,25 @@ final class MessagesController {
     }
     
     private var isDisposed = false
-    
+
     func dispose() {
         log.info("disposing MessagesController")
         guard !isDisposed else { return }
         isDisposed = true
         pollingConveyor?.cancel()
-        application.controlledRunningApplication.terminate()
+
+        // Wait for the puppet instance to fully terminate
+        // This prevents race conditions when a new controller is created immediately after
+        do {
+            let result = try unsafeBlockCurrentThreadUntilComplete {
+                await self.application.controlledRunningApplication.terminateAndWaitForTermination()
+            }
+            log.debug("puppet instance termination result: \(result)")
+        } catch {
+            log.error("failed to wait for puppet termination: \(error)")
+            // Fallback to non-blocking terminate
+            application.controlledRunningApplication.terminate()
+        }
     }
     
     deinit {

@@ -61,6 +61,21 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
+    private func returnAsync(
+        _ action: @escaping () async throws -> NodeValueConvertible
+    ) throws -> NodePromise {
+        try NodePromise { try await action() }
+    }
+
+    private func performAsync(
+        _ action: @escaping () async throws -> Void
+    ) throws -> NodePromise {
+        try returnAsync {
+            try await action()
+            return undefined
+        }
+    }
+
     @NodeMethod static func create() throws -> NodeValueConvertible {
         addBreadcrumb("Creating async queue")
         let q = try NodeAsyncQueue(label: "create-messages-controller")
@@ -111,7 +126,11 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
     }
 
     @NodeMethod func isValid() throws -> NodeValueConvertible {
-        try returnAsync { self.controller.isValid }
+        try returnAsync { () async in
+            let result = self.controller.isValid
+            log.debug("isValid called (async path), returning \(result)")
+            return result
+        }
     }
 
     @NodeMethod func toggleThreadRead(threadID: String, read: Bool) throws -> NodeValueConvertible {
@@ -218,7 +237,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
         return try performAsync { [self] in
-            try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
+            try await controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
         }
     }
 
