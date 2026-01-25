@@ -1,0 +1,18 @@
+{
+  "id": "chatdb-filter-constants",
+  "type": "data",
+  "subtype": "constants",
+  "created": "2026-01-25",
+  "entries": {
+    "IS_FILTERED_UNKNOWN_SENDER": "1 (bit 0)",
+    "IS_FILTERED_PROMOTION": "4 (bit 2)",
+    "IS_FILTERED_TRANSACTION": "32 (bit 5)",
+    "SMS_CATEGORY_ALLOW": 0,
+    "SMS_CATEGORY_FILTERED": 3,
+    "SMS_SUBCATEGORY_PROMOTIONAL_GENERIC": 0,
+    "SMS_SUBCATEGORY_TRANSACTIONAL_FINANCE": 2,
+    "SMS_SUBCATEGORY_TRANSACTIONAL_ORDERS": 3,
+    "SMS_SUBCATEGORY_TRANSACTIONAL_PUBLIC_SERVICES": 4
+  },
+  "modified": "2026-01-25"
+}

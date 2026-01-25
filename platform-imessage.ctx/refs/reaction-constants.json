@@ -1,0 +1,40 @@
+{
+  "id": "reaction-constants",
+  "type": "data",
+  "created": "2026-01-24",
+  "entries": {
+    "associated_message_types": {
+      "2000": "reacted_heart",
+      "2001": "reacted_like",
+      "2002": "reacted_dislike",
+      "2003": "reacted_laugh",
+      "2004": "reacted_emphasize",
+      "2005": "reacted_question",
+      "2006": "reacted_emoji",
+      "3000": "unreacted_heart",
+      "3001": "unreacted_like",
+      "3002": "unreacted_dislike",
+      "3003": "unreacted_laugh",
+      "3004": "unreacted_emphasize",
+      "3005": "unreacted_question",
+      "3006": "unreacted_emoji"
+    },
+    "ax_action_names": {
+      "heart": "Heart",
+      "like": "Thumbs up",
+      "dislike": "Thumbs down",
+      "laugh": "Ha ha!",
+      "emphasize": "Exclamation mark",
+      "question": "Question mark"
+    },
+    "swiftserver_reaction_ids": {
+      "heart": "heart",
+      "like": "thumbsUp",
+      "dislike": "thumbsDown",
+      "laugh": "ha",
+      "emphasize": "exclamation",
+      "question": "questionMark"
+    }
+  },
+  "modified": "2026-01-24"
+}

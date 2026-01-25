@@ -1,0 +1,24 @@
+{
+  "id": "hiservices-api-addresses",
+  "type": "data",
+  "subtype": "addresses",
+  "created": "2026-01-25",
+  "entries": {
+    "AXUIElementCopyHierarchy": "0x187b77280",
+    "AXUIElementCopyMultipleAttributeValues": "0x187b741f0",
+    "AXObserverCreateWithInfoCallback": "0x187b76110",
+    "_AXUIElementRemoteTokenCreate": "0x187b5a8ec",
+    "_AXUIElementCreateWithRemoteToken": "0x187b5c008",
+    "_AXUIElementGetData": "0x187b79350",
+    "_AXUIElementSetGlobalTimeout": "0x187b86684",
+    "_AXUIElementUseSecondaryAXThread": "0x187b79d58",
+    "_AXUIElementCopyElementAtPositionIncludeIgnored": "0x187b759b0",
+    "_AXCopyChildrenHash": "0x187b8eae4",
+    "_AXCopyChildrenHashWithRelativeFrame": "0x187b8eaec",
+    "_AXUIElementGetWindow": "0x187b770b8",
+    "_AXUIElementPostNotificationWithInfo": "0x187b79114",
+    "AXTextMarkerCreate": "0x187b966b8",
+    "_AXUIElementRegisterServerWithRunLoop": "0x187b58e84"
+  },
+  "modified": "2026-01-25"
+}

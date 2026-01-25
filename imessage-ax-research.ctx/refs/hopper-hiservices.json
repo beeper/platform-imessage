@@ -1,0 +1,12 @@
+{
+  "id": "hopper-hiservices",
+  "type": "data",
+  "created": "2026-01-25",
+  "entries": {
+    "_AXUIElementCreateInternal": "Creates AXUIElement with PID (arg0), element ID (arg1), CFData (arg2), flags (arg3). Stores at offsets 0x10, 0x30, 0x20, 0x14 respectively.",
+    "_AXUIElementGetData": "Extracts internal data: element[0x4] → data pointer, element[0x6] → element ID",
+    "_AXUIElementRemoteTokenCreate": "Creates serializable token from element: bytes at 0x10, 0x14, 0x18 + CFData at 0x4",
+    "___AXUIElementHash": "Hash = CFHash(element[0x4]) + element[0x6] + element[0x4]"
+  },
+  "modified": "2026-01-25"
+}

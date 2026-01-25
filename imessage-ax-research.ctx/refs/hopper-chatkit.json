@@ -1,0 +1,22 @@
+{
+  "id": "hopper-chatkit",
+  "type": "data",
+  "created": "2026-01-25",
+  "entries": {
+    "CKChatItem": "UI wrapper for IMChatItem. Has .IMChatItem property to access backing data model.",
+    "CKTranscriptBalloonCell": "Main cell class for message bubbles. Receives CKChatItem via configureForChatItem:context:animated:animationDuration:animationCurve:",
+    "CKTranscriptCollectionViewController": "Manages the message list. Has chatItemForGUID: method to look up items by GUID.",
+    "CKAssociatedStickerTranscriptCell": "Has _chatItemGUID ivar - stores GUID directly. Accessible via chatItemGUID getter.",
+    "IMChatItem.guid": "The actual message GUID from chat.db. Accessed via [CKChatItem IMChatItem].guid",
+    "CKChatItem.commSafetyMessageGUID": "Returns the GUID from underlying IMChatItem. Calls [self IMChatItem].guid - address 0x1d549a280",
+    "indexPathForChatItemGUID:": "CKTranscriptCollectionViewController method at 0x1d556fe3c - maps GUID to NSIndexPath",
+    "chatItemAtIndexPath:": "CKTranscriptCollectionViewController method at 0x1d5556504 - returns CKChatItem for given index",
+    "balloonViewForChatItemGUID:getChatItem:": "CKTranscriptCollectionViewController method at 0x1d557407c - gets balloon view and chat item for GUID",
+    "CKIMDaemonController": "IPC controller for communicating with imagent daemon. Methods include deleteMessageWithGUIDs:queryID:, sendBalloonPayload:attachments:withMessageGUID:bundleID:",
+    "GUID_CHAIN": "IMChatItem.guid → CKChatItem.commSafetyMessageGUID → stored in _chatItemGUID ivar on some cells (e.g. CKAssociatedStickerTranscriptCell)",
+    "NO_AX_GUID_EXPOSURE": "Accessibility identifiers are static strings like 'CKBalloonTextView', 'BigEmojiIdentifier' - NOT dynamic GUIDs. No custom AX attribute exposes the message GUID.",
+    "indexPathForAssociatedChatItemGUID:": "CKTranscriptCollectionViewController at 0x1d556fe44 - for associated messages (reactions, etc)",
+    "scrollToMessageGUID:partIndex:highlight:": "CKTranscriptCollectionViewController at 0x1d6098d6b - scrolls to specific message, useful for correlation"
+  },
+  "modified": "2026-01-25"
+}

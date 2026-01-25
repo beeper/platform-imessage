@@ -1,0 +1,20 @@
+{
+  "id": "chatdb-filtering-refs",
+  "type": "links",
+  "created": "2026-01-25",
+  "items": [
+    {
+      "url": "https://developer.apple.com/videos/play/wwdc2022/110341/",
+      "note": "WWDC22: Explore SMS message filters"
+    },
+    {
+      "url": "https://developer.apple.com/documentation/sms_and_call_reporting/ilmessagefiltersubaction",
+      "note": "Apple Docs: ILMessageFilterSubAction enum"
+    },
+    {
+      "url": "https://9to5mac.com/2022/06/15/sms-filtering-api-more-categories-ios-16/",
+      "note": "iOS 16 SMS filtering API updates"
+    }
+  ],
+  "modified": "2026-01-25"
+}
