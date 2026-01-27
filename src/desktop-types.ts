@@ -73,6 +73,8 @@ export interface BeeperThreadExtra {
   lastNotifiableMessageHsOrder?: number
   replacementRoomID?: string | null // tombstone event
   isSMS?: true | undefined
+  /** iMessage filter bucket based on Apple's SMS filtering (transactions, promotions, spam, unknownSenders) */
+  filterBucket?: 'unknownSenders' | 'transactions' | 'promotions' | 'spam'
 }
 
 // (2025-07-04)

@@ -2,7 +2,7 @@
 id: hiservices-private-apis
 title: HIServices Private Accessibility APIs
 created: 2026-01-25
-summary: Private APIs in HIServices for efficient AX tree querying, element identification, and enhanced notifications
+summary: Private APIs in HIServices for AX threading, interface settings control, tree querying, element identification, enhanced notifications, debug options, and process suspension handling
 modified: 2026-01-25
 ---
 
@@ -376,3 +376,334 @@ let fn = unsafeBitCast(sym, to: AXUIElementCopyHierarchyFunc.self)
 - Test thoroughly on target macOS versions
 - Have fallbacks to public APIs where possible
 - The element internal structure and token format may vary
+
+## 16. Secondary AX Thread - Deep Dive
+
+The `_AXUIElementUseSecondaryAXThread` API provides a way to offload AX request handling to a dedicated thread.
+
+### How It Works (from decompilation)
+
+```c
+int _AXUIElementUseSecondaryAXThread(bool enable) {
+    // Must be registered as AX server first
+    if (!(gRegistered & 0x1)) {
+        os_log_error(...);
+        return kAXErrorNotImplemented; // 0xffff9d8c (-25204)
+    }
+    
+    if (enable) {
+        if (gSecondaryThreadInfo->runloop != NULL) {
+            return kAXErrorCannotComplete; // 0xffff9d87 (-25209) - already running
+        }
+        
+        _spawnAXThread(gSecondaryThreadInfo);
+        
+        if (gSecondaryThreadInfo->runloop != NULL) {
+            gShouldRunSecondaryThread = true;
+            return kAXErrorSuccess;
+        }
+        return kAXErrorFailure; // 0xffff9d90 (-25200)
+    } else {
+        // Disable - stop thread if running
+        if (gShouldRunSecondaryThread && gSecondaryThreadInfo->runloop) {
+            _stopAXThread(gSecondaryThreadInfo);
+            gShouldRunSecondaryThread = false;
+        }
+        return kAXErrorSuccess;
+    }
+}
+```
+
+### Thread Spawning Mechanism
+
+`_spawnAXThread` does the following:
+1. Removes `gRunLoopSource` from `gAXServicingRunLoop` on both `kAXServerRunLoopMode` and `kCFRunLoopCommonModes`
+2. Creates a new pthread via `pthread_create` with entry point `_axThreadEntry`
+3. Uses pthread condition variable to wait (up to 2 seconds) for thread to initialize
+4. Once thread signals ready, adds `CFRunLoopSource` to the new threads runloop
+
+### Thread Entry Point
+
+```c
+void* _axThreadEntry(ThreadInfo* info) {
+    pthread_setname_np(info->threadName);  // "com.apple.accessibility.secondary"
+    
+    pthread_mutex_lock(&info->mutex);
+    int generation = info->generation;
+    
+    info->runloop = CFRunLoopGetCurrent();
+    if (info->runloop) {
+        CFRetain(info->runloop);
+    }
+    pthread_mutex_unlock(&info->mutex);
+    pthread_cond_signal(&info->cond);  // Signal spawner we are ready
+    
+    if (info->runloop == NULL) {
+        pthread_exit(NULL);
+    }
+    
+    // Run until generation changes (indicating stop requested)
+    do {
+        CFRunLoopRunSpecific(...);
+    } while (generation == info->generation);
+    
+    pthread_exit(NULL);
+}
+```
+
+### Related Global Variables
+- `gSecondaryThreadInfo` - ThreadInfo struct for secondary thread
+- `gSuspendThreadInfo` - ThreadInfo struct for suspend-related thread  
+- `gShouldRunSecondaryThread` - bool flag
+- `gAXServicingRunLoop` - main runloop handling AX requests
+- `gRunLoopSource` - CFRunLoopSource for AX MIG messages
+- `kAXServerRunLoopMode` - custom runloop mode for AX
+- `kAXSecondaryPthreadName` - "com.apple.accessibility.secondary"
+- `kAXResumePthreadName` - thread name for resume operations
+
+### Use Case: VoiceOver Optimization
+The code checks `gHasVoiceOverEverCalled` before certain operations. This suggests the secondary thread is used when VoiceOver is active to prevent UI blocking while serving its AX requests.
+
+## 17. Accessibility Interface Settings APIs
+
+These private APIs allow **programmatic control** of system accessibility preferences, writing to `com.apple.universalaccess` and posting distributed notifications.
+
+### Visual Settings
+```c
+// Toggle Reduce Motion (codename: "Richmond")
+void __AXInterfaceSetReduceMotionEnabled(bool enabled);
+void __AXInterfaceSetReduceMotionEnabledOverride(bool enabled);  // temporary override
+bool __AXInterfaceGetReduceMotionEnabled(void);
+
+// Toggle Reduce Transparency  
+void __AXInterfaceSetReduceTransparencyEnabled(bool enabled);
+void __AXInterfaceSetReduceTransparencyEnabledOverride(bool enabled);
+bool __AXInterfaceGetReduceTransparencyEnabled(void);
+
+// Toggle Increase Contrast
+void __AXInterfaceSetIncreaseContrastEnabled(bool enabled);
+void __AXInterfaceSetIncreaseContrastEnabledOverride(bool enabled);
+bool __AXInterfaceGetIncreaseContrastEnabled(void);
+
+// Toggle Classic Invert Colors
+void __AXInterfaceSetClassicInvertColorEnabled(bool enabled);
+bool __AXInterfaceGetClassicInvertColorEnabled(void);
+
+// Toggle Differentiate Without Color
+void __AXInterfaceSetDifferentiateWithoutColorEnabled(bool enabled);
+void __AXInterfaceSetDifferentiateWithoutColorEnabledOverride(bool enabled);
+bool __AXInterfaceGetDifferentiateWithoutColorEnabled(void);
+
+// Text insertion point modulation (cursor blinking)
+void __AXInterfaceSetReduceTextInsertionPointModulationEnabled(bool enabled);
+void __AXInterfaceSetReduceTextInsertionPointModulationEnabledOverride(bool enabled);
+bool __AXInterfaceGetReduceTextInsertionPointModulationEnabled(void);
+```
+
+### UI Element Settings
+```c
+// Button shapes in toolbars
+void __AXInterfaceSetShowToolbarButtonShapesEnabled(bool enabled);
+void __AXInterfaceSetShowToolbarButtonShapesEnabledOverride(bool enabled);
+bool __AXInterfaceGetShowToolbarButtonShapesEnabled(void);
+
+// Window titlebar icons
+void __AXInterfaceSetShowWindowTitlebarIconsEnabled(bool enabled);
+void __AXInterfaceSetShowWindowTitlebarIconsEnabledOverride(bool enabled);
+bool __AXInterfaceGetShowWindowTitlebarIconsEnabled(void);
+```
+
+### Cursor Customization
+```c
+// Custom cursor colors
+void __AXInterfaceSetCursorColorFill(CFTypeRef color);
+void __AXInterfaceSetCursorColorOutline(CFTypeRef color);
+CFTypeRef __AXInterfaceCopyCursorColorFill(void);
+CFTypeRef __AXInterfaceCopyCursorColorOutline(void);
+bool __AXInterfaceGetCursorIsOverridden(void);
+void __AXInterfaceSetCursorIsOverridden(bool overridden);
+int __AXInterfaceCursorSetAndReturnSeed(void);  // returns version seed
+```
+
+### Generic Preference Helper
+```c
+// Internal helper used by all the above
+void _axSetPreferenceBool(CFStringRef key, bool value, CFStringRef notificationName);
+// Writes to com.apple.universalaccess
+// Posts distributed notification via CFNotificationCenterGetDistributedCenter()
+
+// Color preferences
+void __AXSetPreferenceColor(CFStringRef key, CFTypeRef color);
+CFTypeRef __AXCopyPreferenceColor(CFStringRef key);
+```
+
+### Posted Notifications
+When settings change, these distributed notifications are posted:
+- `kAXInterfaceReduceMotionStatusDidChangeNotification`
+- `kAXInterfaceReduceTransparencyStatusDidChangeNotification`
+- `kAXInterfaceIncreaseContrastStatusDidChangeNotification`
+- etc.
+
+## 18. Debug Options & TCC Logging
+
+Hidden debug preferences in `com.apple.universalaccess`:
+
+| Key | Type | Effect |
+|-----|------|--------|
+| `_Debug_SecurityLog_1` | bool | Enables logging when TCC dialogs would be shown |
+| `_Debug_SecurityAbortOnTCCShow_1` | bool | **Abort the process** when TCC dialog would appear (for testing) |
+
+### Debug Logging Output
+When `_Debug_SecurityLog_1` is enabled, logs are written via os_log:
+```
+HIServicesAXDebug: Making request to show TCC dialog Pid:%i ResponsiblePid:%i File:%s Line:%i Function:%s
+```
+
+Uses `responsibility_get_pid_responsible_for_pid()` to determine the responsible process.
+
+### Setting Debug Options
+```bash
+# Enable TCC logging
+defaults write com.apple.universalaccess _Debug_SecurityLog_1 -bool true
+
+# Enable abort on TCC (dangerous - will crash your app\!)
+defaults write com.apple.universalaccess _Debug_SecurityAbortOnTCCShow_1 -bool true
+
+# Disable
+defaults delete com.apple.universalaccess _Debug_SecurityLog_1
+```
+
+## 19. Process Suspension Handling
+
+APIs for handling suspended/resumed process states:
+
+### Check Suspension Status
+```c
+AXError __AXUIElementGetIsProcessSuspended(
+    AXUIElementRef element,
+    bool *outIsSuspended
+);
+```
+Checks `gSuspendedPids` set (protected by nospin lock) to see if target process PID is suspended.
+
+### Notify Suspension Status (Server-Side)
+```c
+AXError __AXUIElementNotifyProcessSuspendStatus(bool isSuspended);
+```
+
+When called:
+1. If `isSuspended == true`:
+   - Sets `gAXProcessSuspendStatus = true`
+   - Spawns suspend thread if secondary thread not running
+2. If `isSuspended == false`:
+   - Stops suspend thread
+   - Sets `gAXProcessSuspendStatus = false`
+3. Posts `AXProcessSuspendStatusChanged` notification to all observers with info dict containing `{"status": <0 or 1>}`
+
+Only works if `gHasVoiceOverEverCalled == true` and process is registered as AX server.
+
+### Distributed Notification
+- `com.apple.accessibility.suspend` - notification name for suspension events
+
+## 20. Async Observer APIs
+
+Non-blocking variants of observer APIs for better performance:
+
+### Async Add Notification
+```c
+void AXObserverAddNotificationAsync(
+    AXObserverRef observer,
+    AXUIElementRef element,
+    CFStringRef notification,
+    void *refcon
+);
+// Internally calls __AXObserverAddNotificationAndCheckRemote with async flag
+```
+
+### Async Remove Notification  
+```c
+void AXObserverRemoveNotificationAsync(
+    AXObserverRef observer,
+    AXUIElementRef element,
+    CFStringRef notification
+);
+```
+
+### Internal MIG Async Functions
+- `__AXMIGAddNotificationAsync` - MIG call for async add
+- `__AXMIGRemoveNotificationAsync` - MIG call for async remove
+- `__AXXMIGAddNotificationAsync` - XPC variant
+- `__AXXMIGRemoveNotificationAsync` - XPC variant
+
+These allow registering/unregistering for notifications without blocking on the target process response.
+
+## 21. Internal Apple Codenames
+
+Discovered codenames for accessibility features:
+
+| Codename | Feature | Key/API |
+|----------|---------|---------|
+| **Richmond** | Reduce Motion | `_kAXInterfaceReduceMotionKey`, `__AXInterfaceGetRichmondEnabled()` |
+| **Bristol** | Unknown feature | `_kAXInterfaceBristolKey`, `__AXInterfaceGetBristolEnabled()` |
+
+Bristol appears to be a separate bool preference in `com.apple.universalaccess` but its purpose is unclear from the binary alone.
+
+## 22. Client Identification & Security APIs
+
+### Override Client Identification
+```c
+void __AXSetClientIdentificationOverride(int clientId);
+int __AXGetClientIdentificationOverride(void);
+```
+Sets `_AXClientForCurrentRequestOverride` global. May affect how requests are authenticated.
+
+### Security Check APIs
+```c
+// Check if current Apple client is untrusted
+bool __AXIsAppleClientForCurrentRequestUntrusted(void);
+
+// Check if client is untrusted
+void* __AXGetClientForCurrentRequestUntrusted(void);
+
+// Check if current request can access protected content
+bool __AXCurrentRequestCanReturnProtectedContent(void);
+// Returns gCurrentRequestCanAccessProtectedContent
+
+// Check if current request can return inspection content  
+bool __AXCurrentRequestCanReturnInspectionContent(void);
+
+// Check remote device access
+bool __AXCurrentRequestCanAccessRemoteDeviceContent(void);
+
+// Check if any clients have remote device access
+bool __AXHasClientsWithAccessRemoteDeviceContent(void);
+
+// Set callback for audit token authentication
+void __AXSetAuditTokenIsAuthenticatedCallback(void* callback);
+```
+
+### Trust Check with Control Computer Access
+```c
+void __AXRegisterControlComputerAccess(void* unused, bool shouldRegister);
+```
+Registers for "control computer" access - triggers TCC prompt if needed.
+
+## 23. IPC & Distributed Notifications
+
+### MIG Subsystem
+The accessibility framework uses MIG (Mach Interface Generator) for IPC:
+- `_AXXMIGAccessibilityClientDefs_subsystem` - main MIG subsystem
+- Server port obtained via `task_get_special_port(task, 0x4, &port)` (bootstrap port)
+- Registered via `bootstrap_register2()`
+
+### Distributed Notification Names
+| Notification | Purpose |
+|--------------|---------|
+| `com.apple.accessibility.api` | API status changes |
+| `com.apple.accessibility.secondary` | Secondary thread events |
+| `com.apple.accessibility.suspend` | Process suspension events |
+| `com.apple.accessibilityServerIPC` | Server IPC events |
+
+### RunLoop Modes
+- `kAXServerRunLoopMode` - Custom mode for AX server operations
+- Also uses `kCFRunLoopCommonModes` for general delivery

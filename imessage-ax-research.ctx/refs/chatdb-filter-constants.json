@@ -12,7 +12,18 @@
     "SMS_SUBCATEGORY_PROMOTIONAL_GENERIC": 0,
     "SMS_SUBCATEGORY_TRANSACTIONAL_FINANCE": 2,
     "SMS_SUBCATEGORY_TRANSACTIONAL_ORDERS": 3,
-    "SMS_SUBCATEGORY_TRANSACTIONAL_PUBLIC_SERVICES": 4
+    "SMS_SUBCATEGORY_TRANSACTIONAL_PUBLIC_SERVICES": 4,
+    "SMS_SUBCATEGORY_TRANSACTIONAL_REMINDERS": "4 (suffix: smsft_rm, displayed as 'Reminders' in Messages.app)",
+    "IS_FILTERED_PROMOTION_CORRECTED": "3 (bits 0+1, suffix: smsfp) - NOT bit 2 as previously thought",
+    "SUFFIX_smsfp": "SMS Filtered Promotional (Promotions bucket)",
+    "SUFFIX_smsft": "SMS Filtered Transactional (generic Transactions)",
+    "SUFFIX_smsft_fi": "SMS Filtered Transactional Finance",
+    "SUFFIX_smsft_or": "SMS Filtered Transactional Orders",
+    "SUFFIX_smsft_rm": "SMS Filtered Transactional Reminders",
+    "IS_FILTERED_BIT_ORDERS": "16 (bit 4) - verified",
+    "IS_FILTERED_BIT_FINANCE": "32 (bit 5) - when bits 4,6 not set",
+    "IS_FILTERED_BIT_REMINDERS": "64 (bit 6) - verified",
+    "IS_FILTERED_PROMOTIONS": "3 (bits 0+1) - verified, NOT bit 2"
   },
-  "modified": "2026-01-25"
+  "modified": "2026-01-26"
 }

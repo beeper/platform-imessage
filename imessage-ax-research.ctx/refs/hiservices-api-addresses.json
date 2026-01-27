@@ -18,7 +18,15 @@
     "_AXUIElementGetWindow": "0x187b770b8",
     "_AXUIElementPostNotificationWithInfo": "0x187b79114",
     "AXTextMarkerCreate": "0x187b966b8",
-    "_AXUIElementRegisterServerWithRunLoop": "0x187b58e84"
+    "_AXUIElementRegisterServerWithRunLoop": "0x187b58e84",
+    "_AXUIElementRequestServicedBySecondaryAXThread": "0x187b79d4c",
+    "__AXInterfaceSetReduceMotionEnabled": "0x187b7dcd8",
+    "__AXInterfaceSetReduceTransparencyEnabled": "0x187b7df34",
+    "__AXInterfaceSetIncreaseContrastEnabled": "0x187b7e020",
+    "__AXUIElementGetIsProcessSuspended": "0x187b777c8",
+    "__AXUIElementNotifyProcessSuspendStatus": "0x187b79e2c",
+    "__AXSetClientIdentificationOverride": "0x187b79d1c",
+    "_AXObserverAddNotificationAsync": "0x187b76b68"
   },
   "modified": "2026-01-25"
 }

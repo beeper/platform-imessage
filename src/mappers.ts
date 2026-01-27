@@ -11,12 +11,66 @@ import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
 import type ThreadReadStore from './thread-read-store'
-import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo, FilterBucket, ChatPropertiesFiltering } from './types'
+import { FilterCategory, SMSSubCategory } from './types'
 import { roomFeatures } from './capabilities'
 import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
 import { ThreadArchivalState } from './persistence'
 import { BeeperThread, BeeperMessage } from './desktop-types'
 import { likelyAlphanumericSenderID } from './heuristics'
+
+/**
+ * Computes the filter bucket for a chat based on is_filtered bitmask and properties blob.
+ * Matches the logic in Chat+Filtering.swift
+ */
+function computeFilterBucket(isFiltered: number, props: ChatPropertiesFiltering | null): FilterBucket {
+  // Check spam first
+  if (props?.wasDetectedAsSMSSpam) {
+    return 'spam'
+  }
+
+  // Check transactions (higher priority than promotions)
+  if (isFiltered & FilterCategory.TRANSACTION) {
+    return 'transactions'
+  }
+  if (props?.SMSSubCategory != null) {
+    const subCat = props.SMSSubCategory
+    if (
+      subCat === SMSSubCategory.TRANSACTIONAL_FINANCE ||
+      subCat === SMSSubCategory.TRANSACTIONAL_ORDERS ||
+      subCat === SMSSubCategory.TRANSACTIONAL_PUBLIC_SERVICES ||
+      subCat === SMSSubCategory.TRANSACTIONAL_HEALTH ||
+      subCat === SMSSubCategory.TRANSACTIONAL_WEATHER ||
+      subCat === SMSSubCategory.TRANSACTIONAL_CARRIER ||
+      subCat === SMSSubCategory.TRANSACTIONAL_REWARDS ||
+      subCat === SMSSubCategory.TRANSACTIONAL_REMINDERS
+    ) {
+      return 'transactions'
+    }
+  }
+
+  // Check promotions
+  if (isFiltered & FilterCategory.PROMOTION) {
+    return 'promotions'
+  }
+  if (props?.SMSSubCategory != null) {
+    const subCat = props.SMSSubCategory
+    if (
+      subCat === SMSSubCategory.PROMOTIONAL_OTHERS ||
+      subCat === SMSSubCategory.PROMOTIONAL_OFFERS ||
+      subCat === SMSSubCategory.PROMOTIONAL_COUPONS
+    ) {
+      return 'promotions'
+    }
+  }
+
+  // Check unknown senders
+  if (isFiltered & FilterCategory.UNKNOWN_SENDER) {
+    return 'unknownSenders'
+  }
+
+  return 'primary'
+}
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
@@ -728,6 +782,10 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const archivedAt = context.archivalStates?.[chat.guid]?.archivedAt
   const isArchivedUpToOrder = archivedAt ? appleDateToMillisSinceEpoch(archivedAt) : undefined
 
+  // Compute filter bucket from is_filtered bitmask and properties
+  const filterProps = props as ChatPropertiesFiltering | null
+  const filterBucket = computeFilterBucket(chat.is_filtered ?? 0, filterProps)
+
   const thread: BeeperThread = {
     _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
@@ -765,6 +823,7 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     extra: {
       isArchivedUpToOrder,
       isSMS: (chat.guid.startsWith('SMS;') || chat.guid.startsWith('RCS;')) ? true : undefined,
+      filterBucket: filterBucket !== 'primary' ? filterBucket : undefined,
     },
     isPinned: context.pinStates?.[chat.guid] === true,
     isLowPriority: context.lowPriorityStates?.[chat.guid] === true,

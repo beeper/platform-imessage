@@ -137,7 +137,10 @@ export type ChatRow = {
   last_addressed_handle: string
   display_name: string
   group_id: string
-  is_filtered: NumberBool
+  /** Bitmask indicating message filtering category. Bit 0 = unknown sender, Bit 2 = promotion, Bit 5 = transaction */
+  is_filtered: number
+  /** Whether the chat is pending review (unknown sender needing verification) */
+  is_pending_review: NumberBool
   successful_query: NumberBool
   engram_id: string
   server_change_token: string
@@ -275,3 +278,39 @@ export interface MessageSummaryInfo {
 // custom
 
 export type AXMessageSelection = Omit<MessageCell, 'overlay'>
+
+// Filter bucket types - matches Chat.Bucket in Swift
+export type FilterBucket = 'primary' | 'unknownSenders' | 'transactions' | 'promotions' | 'spam'
+
+// Bitmask constants for is_filtered column
+export const FilterCategory = {
+  UNKNOWN_SENDER: 1 << 0,  // 1
+  PROMOTION: 1 << 2,       // 4
+  TRANSACTION: 1 << 5,     // 32
+} as const
+
+// Chat properties blob fields for SMS filtering
+export interface ChatPropertiesFiltering {
+  SMSCategory?: number
+  SMSSubCategory?: number
+  wasDetectedAsSMSSpam?: boolean
+  hasOTPCode?: boolean
+  isMergedBusinessThread?: boolean
+  smsSpamExtensionName?: string
+}
+
+// SMS sub-category values (maps to Apple's ILMessageFilterSubAction)
+export const SMSSubCategory = {
+  NONE: 0,
+  PROMOTIONAL_OTHERS: 1,
+  TRANSACTIONAL_FINANCE: 2,
+  TRANSACTIONAL_ORDERS: 3,
+  TRANSACTIONAL_PUBLIC_SERVICES: 4,
+  TRANSACTIONAL_HEALTH: 5,
+  TRANSACTIONAL_WEATHER: 6,
+  TRANSACTIONAL_CARRIER: 7,
+  TRANSACTIONAL_REWARDS: 8,
+  TRANSACTIONAL_REMINDERS: 9,
+  PROMOTIONAL_OFFERS: 10,
+  PROMOTIONAL_COUPONS: 11,
+} as const

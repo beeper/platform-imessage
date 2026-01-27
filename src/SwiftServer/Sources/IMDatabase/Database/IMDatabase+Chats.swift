@@ -1,3 +1,4 @@
+import Foundation
 import Logging
 
 private let log = Logger(label: "imdb.chats")
@@ -6,7 +7,7 @@ public extension IMDatabase {
     // TODO: replace with overload that takes `GUID`
     func chat(withGUID chatGUID: String) throws -> Chat? {
         let statement = try cachedStatement(forEscapedSQL: """
-        SELECT ROWID, display_name, service_name
+        SELECT ROWID, display_name, service_name, is_filtered, is_pending_review, properties
         FROM chat
         WHERE guid = ?
         """)
@@ -17,7 +18,18 @@ public extension IMDatabase {
         let chats = try statement.mapRowsUntilDone { row in
             let displayName = try row[1].optional(String.self)?.nonEmpty
             let serviceName = try Chat.ServiceName(rawValue: row[2].expect(String.self))
-            return try Chat(id: row[0].expect(Int.self), guid: GUID(chatGUID), displayName: displayName, serviceName: serviceName)
+            let filterCategory = Chat.FilterCategory(rawValue: try row[3].optional(Int.self) ?? 0)
+            let isPendingReview = (try row[4].optional(Int.self) ?? 0) != 0
+            let properties = try row[5].optional(Data.self).flatMap { try? Chat.Properties(blob: $0) }
+            return try Chat(
+                id: row[0].expect(Int.self),
+                guid: GUID(chatGUID),
+                displayName: displayName,
+                serviceName: serviceName,
+                filterCategory: filterCategory,
+                isPendingReview: isPendingReview,
+                properties: properties
+            )
         }
 
         if chats.count > 1 {
@@ -32,7 +44,7 @@ public extension IMDatabase {
 
     func chats() throws -> [Chat] {
         let statement = try cachedStatement(forEscapedSQL: """
-        SELECT ROWID, guid, display_name, service_name
+        SELECT ROWID, guid, display_name, service_name, is_filtered, is_pending_review, properties
         FROM chat
         """)
 
@@ -46,8 +58,30 @@ public extension IMDatabase {
             }
             let displayName = try row[2].optional(String.self)?.nonEmpty
             let serviceName = try Chat.ServiceName(rawValue: row[3].optional(String.self) ?? "NONE")
-            return Chat(id: id, guid: GUID(guid), displayName: displayName, serviceName: serviceName)
+            let filterCategory = Chat.FilterCategory(rawValue: try row[4].optional(Int.self) ?? 0)
+            let isPendingReview = (try row[5].optional(Int.self) ?? 0) != 0
+            let properties = try row[6].optional(Data.self).flatMap { try? Chat.Properties(blob: $0) }
+            return Chat(
+                id: id,
+                guid: GUID(guid),
+                displayName: displayName,
+                serviceName: serviceName,
+                filterCategory: filterCategory,
+                isPendingReview: isPendingReview,
+                properties: properties
+            )
         }.compactMap(\.self)
+    }
+
+    /// Returns all chats grouped by their filter bucket.
+    func chatsByBucket() throws -> [Chat.Bucket: [Chat]] {
+        let allChats = try chats()
+        return Dictionary(grouping: allChats, by: \.bucket)
+    }
+
+    /// Returns chats matching a specific bucket.
+    func chats(inBucket bucket: Chat.Bucket) throws -> [Chat] {
+        try chats().filter { $0.bucket == bucket }
     }
 
     // this doesn't include the user themselves, just everyone else in the group chat,
