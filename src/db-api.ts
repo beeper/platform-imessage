@@ -114,6 +114,12 @@ ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE m.guid = ?`,
+  getMessagesByRowIDs: (rowIDs: number[]) => `SELECT
+${MAP_MESSAGES_COLS}
+FROM message AS m
+${MESSAGE_JOINS}
+WHERE m.ROWID IN (${new Array(rowIDs.length).fill('?').join(', ')})
+ORDER BY date DESC`,
   threadUnreadCount: `SELECT COUNT(m.ROWID)
 FROM message AS m
 INNER JOIN chat_message_join AS cmj ON m.ROWID = cmj.message_id
@@ -311,6 +317,11 @@ export default class DatabaseAPI {
 
   getMessage = (messageGUID: string): Promise<MappedMessageRow | undefined> =>
     this.db.get<string[], MappedMessageRow>(SQLS.getMessage, messageGUID)
+
+  getMessagesByRowIDs(rowIDs: number[]): Promise<MappedMessageRow[]> {
+    if (rowIDs.length === 0) return Promise.resolve([])
+    return this.db.all<number[], MappedMessageRow>(SQLS.getMessagesByRowIDs(rowIDs), ...rowIDs)
+  }
 
   private imageSizeMemoized = memoize(imageSizeAsync)
 

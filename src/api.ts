@@ -422,12 +422,22 @@ export default class AppleiMessage implements PlatformAPI {
     const db = await this.ensureDB()
     const hashedThreadID = options?.threadID
     const threadID = hashedThreadID ? originalThreadID(hashedThreadID) : hashedThreadID
-
     const mediaOnly = Boolean(options?.mediaType)
-    const msgRows = await db.searchMessages(typed, threadID, mediaOnly, pagination, options?.sender)
+
+    // Use Swift to search - it properly decodes attributedBody and filters by actual message text
+    // This avoids false positives from binary plist metadata (e.g., "NSString" matching "string")
+    const matchingRowIDs = await swiftServer.searchMessages(typed, threadID, mediaOnly, options?.sender, MESSAGES_LIMIT)
+
+    if (matchingRowIDs.length === 0) {
+      return { items: [], hasMore: false, oldestCursor: '' }
+    }
+
+    // Fetch full message data for the matching ROWIDs
+    const msgRows = await db.getMessagesByRowIDs(matchingRowIDs)
+
     const msgRowIDs = msgRows.map(m => m.ROWID)
     const msgGUIDs = msgRows.map(m => m.guid)
-    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [] : await Promise.all([
+    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [[], []] : await Promise.all([
       db.getAttachments(msgRowIDs),
       threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
@@ -435,7 +445,7 @@ export default class AppleiMessage implements PlatformAPI {
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],
-      hasMore: msgRows.length === MESSAGES_LIMIT,
+      hasMore: matchingRowIDs.length === MESSAGES_LIMIT,
       oldestCursor: msgRows[0]?.date?.toString(),
     }
   }
