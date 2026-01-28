@@ -85,8 +85,11 @@ final class MessagesController {
             log.info("terminating messages...")
         }
         
+        let strategy: MessagesApplication.Strategy = Defaults.useExperimentalPuppetInstance ? .puppetInstance : .publicInstance
+        log.info("using MessagesApplication strategy: \(strategy.rawValue)")
+
         self.application = try unsafeBlockCurrentThreadUntilComplete {
-            try await MessagesApplication(strategy: .puppetInstance, useExtantInstanceIfPossible: shouldUseExtantInstance)
+            try await MessagesApplication(strategy: strategy, useExtantInstanceIfPossible: shouldUseExtantInstance)
         }
         
         // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)

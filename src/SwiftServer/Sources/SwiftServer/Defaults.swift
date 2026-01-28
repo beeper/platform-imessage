@@ -89,6 +89,9 @@ enum DefaultsKeys {
     /** whether deep link debugging is active (recording events) */
     static let deepLinkDebugActive = "BEEPDeepLinkDebugActive"
 
+    /** whether to use the experimental puppet instance strategy (default: false) */
+    static let useExperimentalPuppetInstance = "BEEPUseExperimentalPuppetInstance"
+
     /** always use `.unknown` space instead of `.user` */
     static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
     /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */
@@ -325,5 +328,9 @@ enum Defaults {
     
     static var shouldHidePuppetInstance: Bool {
         Defaults.swiftServer.bool(forKey: DefaultsKeys.hidePuppetInstance)
+    }
+
+    static var useExperimentalPuppetInstance: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.useExperimentalPuppetInstance)
     }
 }

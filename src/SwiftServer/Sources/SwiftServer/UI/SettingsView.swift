@@ -53,6 +53,9 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.deepLinkDebugActive, store: Defaults.swiftServer)
     var deepLinkDebugActive = false
 
+    @AppStorage(DefaultsKeys.useExperimentalPuppetInstance, store: Defaults.swiftServer)
+    var useExperimentalPuppetInstance = false
+
     // help button popover
     @State private var presentingHelp = false
 
@@ -98,6 +101,7 @@ struct SettingsView: View {
     var body: some View {
         VStack {
             Form {
+                experimentalSection
                 windowCoordinationSection
                 misfirePreventionSection
                 spacesSection
@@ -167,17 +171,31 @@ struct SettingsView: View {
     }
     
     @ViewBuilder
+    private var experimentalSection: some View {
+        Section {
+            Toggle(isOn: $useExperimentalPuppetInstance) {
+                Text("Use experimental MessagesApplication")
+                Text("Uses a separate puppet instance of Messages.app for automation. Requires restart.")
+            }
+        } header: {
+            Text("Experimental")
+        }
+    }
+
+    @ViewBuilder
     private var windowCoordinationSection: some View {
         Section {
             Picker("Window Coordinator Override", selection: $coordinator) {
+                Text("Default")
+                    .tag("")
+                Text("Puppet Coordinator")
+                    .tag("puppet")
                 Text("Edge Coordinator")
                     .tag("edge")
                 Text("Eclipsing Coordinator")
                     .tag("eclipsing")
                 Text("Spaces Coordinator")
                     .tag("spaces")
-                Text("Default")
-                    .tag("")
             }
             
             Toggle(isOn: $windowCoordination) {

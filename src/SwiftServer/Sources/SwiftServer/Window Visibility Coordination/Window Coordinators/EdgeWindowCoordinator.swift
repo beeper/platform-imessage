@@ -21,8 +21,8 @@ final class EdgeWindowCoordinator: WindowCoordinator {
         var windowFrame: CGRect = try messagesWindow.frame()
 //        originalWindowFrame = windowFrame
         
-        windowFrame.origin.x = -windowFrame.size.width + 1
-        windowFrame.origin.y = (NSScreen.main?.frame.size.height ?? 10000)
+        windowFrame.origin.x = -windowFrame.size.width + 2
+        windowFrame.origin.y = (NSScreen.main?.frame.size.height ?? 10000) - windowFrame.size.height
         
         try messagesWindow.setFrame(windowFrame)
     }
