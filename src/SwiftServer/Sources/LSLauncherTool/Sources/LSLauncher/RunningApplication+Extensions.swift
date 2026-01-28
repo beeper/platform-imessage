@@ -46,6 +46,26 @@ extension NSRunningApplication {
     public func setApplicationMode(_ mode: ApplicationMode) -> OSStatus {
         LSApplicationLauncher.shared.setApplicationMode(for: self, to: mode)
     }
+
+    /// Lock this application to UIElement mode, preventing self-promotion to foreground.
+    /// Sets both the current type and restore type to UIElement.
+    /// - Throws: An error if the operation fails
+    public func lockToUIElement() throws {
+        try LSApplicationLauncher.shared.lockToUIElement(self)
+    }
+
+    /// Check if this application is responsive by sending a ping AppleEvent.
+    /// - Parameter timeout: Timeout in seconds (default 2 seconds)
+    /// - Returns: true if the application responds within the timeout
+    public func isResponsive(timeout: TimeInterval = 2.0) -> Bool {
+        LSApplicationLauncher.shared.isResponsive(self, timeout: timeout)
+    }
+
+    /// Whether this application appears to be a zombie (running but unresponsive).
+    /// Uses a 2-second timeout by default.
+    public var isZombie: Bool {
+        !isResponsive(timeout: 2.0)
+    }
 }
 
 // MARK: - Array Extensions for Running Applications

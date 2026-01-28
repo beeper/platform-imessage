@@ -13,6 +13,10 @@ let package = Package(
             name: "lslauncher-cli",
             targets: ["LSLauncherCLI"]
         ),
+        .executable(
+            name: "messages-deeplink-tester",
+            targets: ["MessagesDeepLinkTester"]
+        ),
     ],
     targets: [
         .target(
@@ -24,6 +28,14 @@ let package = Package(
         ),
         .executableTarget(
             name: "LSLauncherCLI",
+            dependencies: ["LSLauncher"],
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("CoreServices")
+            ]
+        ),
+        .executableTarget(
+            name: "MessagesDeepLinkTester",
             dependencies: ["LSLauncher"],
             linkerSettings: [
                 .linkedFramework("AppKit"),

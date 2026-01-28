@@ -60,14 +60,13 @@ public final class LSTypeObserver {
 
     /// Start observing application type changes.
     /// - Parameter handler: Called whenever an app's type changes
-    // FIXME: (@pmanot) - Handler is currently broken, sometimes does not return the right type or pid
     public func startObserving(handler: @escaping TypeChangeHandler) {
         guard !isObserving else { return }
 
         self.typeChangeHandler = handler
 
         let block: LSNotificationBlock = { [weak self] code, timestamp, info, asnPtr, sessionID, context in
-            self?.handleNotification(code: code, asnPtr: asnPtr)
+            self?.handleNotification(code: code, info: info, asnPtr: asnPtr)
         }
 
         guard let notifID = launcher._LSScheduleNotificationOnQueueWithBlock(
@@ -143,27 +142,52 @@ public final class LSTypeObserver {
         return launcher.setApplicationMode(for: app, to: .uiElement) == noErr
     }
 
-    private func handleNotification(code: LSNotificationCode, asnPtr: UnsafeRawPointer?) {
+    private func handleNotification(code: LSNotificationCode, info: UnsafeRawPointer?, asnPtr: UnsafeRawPointer?) {
         guard code == LSNotificationConstants.applicationTypeChanged else { return }
 
         var pid: pid_t = 0
         var newType: ApplicationMode?
+        var oldType: ApplicationMode?
         var bundleID: String?
 
-        if let asnPtr = asnPtr {
-            let asn = Unmanaged<CFTypeRef>.fromOpaque(asnPtr).takeUnretainedValue()
+        // Try to extract type information from the info dictionary
+        if let info = info {
+            let infoDict = Unmanaged<CFDictionary>.fromOpaque(info).takeUnretainedValue() as NSDictionary
 
-            // Get the new type
-            if let app = findApp(forASN: asn) {
-                pid = app.processIdentifier
-                bundleID = app.bundleIdentifier
-                newType = launcher.getApplicationMode(for: app)
+            // Extract old type from LSPreviousValue key
+            if let oldTypeStr = infoDict["LSPreviousValue"] as? String {
+                oldType = ApplicationMode(rawValue: oldTypeStr)
+            }
+
+            // Extract new type from ApplicationType key
+            if let newTypeStr = infoDict["ApplicationType"] as? String {
+                newType = ApplicationMode(rawValue: newTypeStr)
             }
         }
 
-        // Get old type and update tracking
+        // Fall back to ASN-based lookup if we couldn't get info from the dictionary
+        if let asnPtr = asnPtr {
+            let asn = Unmanaged<CFTypeRef>.fromOpaque(asnPtr).takeUnretainedValue()
+
+            if let app = findApp(forASN: asn) {
+                if pid == 0 {
+                    pid = app.processIdentifier
+                }
+                if bundleID == nil {
+                    bundleID = app.bundleIdentifier
+                }
+                // If we didn't get new type from info dict, query it from the app
+                if newType == nil {
+                    newType = launcher.getApplicationMode(for: app)
+                }
+            }
+        }
+
+        // Fall back to cached old type if not obtained from info dictionary
         lock.lock()
-        let oldType = lastKnownTypes[pid]
+        if oldType == nil {
+            oldType = lastKnownTypes[pid]
+        }
         if let newType = newType {
             lastKnownTypes[pid] = newType
         }

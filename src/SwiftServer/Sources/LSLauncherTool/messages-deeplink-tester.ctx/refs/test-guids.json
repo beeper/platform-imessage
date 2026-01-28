@@ -1,0 +1,27 @@
+{
+  "id": "test-guids",
+  "type": "data",
+  "subtype": "config",
+  "created": "2026-01-27",
+  "entries": {
+    "hello": {
+      "guid": "2D1F1B9E-9677-4BF2-BB29-30DF7DD02904",
+      "text": "hello",
+      "date": "2025-12-13 02:39:35",
+      "url": "imessage://open?message-guid=2D1F1B9E-9677-4BF2-BB29-30DF7DD02904"
+    },
+    "test": {
+      "guid": "2AD5DA82-0DEF-4A12-B35D-09093AF6261A",
+      "text": "test",
+      "date": "2025-12-13 02:37:20",
+      "url": "imessage://open?message-guid=2AD5DA82-0DEF-4A12-B35D-09093AF6261A"
+    },
+    "attachment1": {
+      "guid": "B19E7C73-77BA-424C-AB1B-DE2C9A856D42",
+      "text": null,
+      "date": "2026-01-27 17:01:13",
+      "url": "imessage://open?message-guid=B19E7C73-77BA-424C-AB1B-DE2C9A856D42"
+    }
+  },
+  "modified": "2026-01-27"
+}

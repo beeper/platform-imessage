@@ -636,6 +636,307 @@ public final class LSApplicationLauncher: @unchecked Sendable {
         setApplicationInfo(asn: asn, key: kLSApplicationTypeToRestoreKey, value: "UIElement" as CFString)
     }
 
+    // MARK: - NSAppleEventDescriptor-based URL Sending
+
+    /// Send a URL to an application using NSAppleEventDescriptor (higher-level API).
+    /// This is an alternative to `sendURLViaAppleEvent` which uses the lower-level C API.
+    ///
+    /// - Parameters:
+    ///   - urlString: The URL string to send
+    ///   - pid: The process ID of the target application
+    ///   - options: Send options (default: .neverInteract to avoid activation)
+    ///   - timeout: Timeout in seconds (default: 30)
+    /// - Throws: Error if the send fails
+    public func sendURLViaNSAppleEventDescriptor(
+        _ urlString: String,
+        toProcessID pid: pid_t,
+        options: NSAppleEventDescriptor.SendOptions = [.neverInteract],
+        timeout: TimeInterval = 30
+    ) throws {
+        let event = NSAppleEventDescriptor(
+            eventClass: AEEventClass(kInternetEventClass),
+            eventID: AEEventID(kAEGetURL),
+            targetDescriptor: NSAppleEventDescriptor(processIdentifier: pid),
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+
+        event.setParam(
+            NSAppleEventDescriptor(string: urlString),
+            forKeyword: AEKeyword(keyDirectObject)
+        )
+
+        // sendEvent returns the reply descriptor, or throws on error
+        _ = try event.sendEvent(options: options, timeout: timeout)
+    }
+
+    /// Send a URL to an application using NSAppleEventDescriptor (async version).
+    ///
+    /// - Parameters:
+    ///   - urlString: The URL string to send
+    ///   - pid: The process ID of the target application
+    ///   - options: Send options
+    ///   - timeout: Timeout in seconds
+    /// - Throws: Error if the send fails
+    @available(macOS 10.15, *)
+    public func sendURLViaNSAppleEventDescriptorAsync(
+        _ urlString: String,
+        toProcessID pid: pid_t,
+        options: NSAppleEventDescriptor.SendOptions = [.neverInteract],
+        timeout: TimeInterval = 30
+    ) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try self.sendURLViaNSAppleEventDescriptor(
+                        urlString,
+                        toProcessID: pid,
+                        options: options,
+                        timeout: timeout
+                    )
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    // MARK: - Async Deep Link Sending
+
+    /// Method to use for sending deep links
+    public enum DeepLinkSendMethod: String, CaseIterable, Sendable {
+        case cAPI = "C API (AESendMessage)"
+        case nsAppleEventDescriptor = "NSAppleEventDescriptor"
+    }
+
+    /// Result of sending a deep link, including diagnostic information
+    public struct DeepLinkSendResult: Sendable {
+        public let status: OSStatus
+        public let targetPID: pid_t
+        public let sendDurationMs: Double
+        public let isFinishedLaunchingBefore: Bool
+        public let isFinishedLaunchingAfter: Bool
+        public let pidExistsAfter: Bool
+        public let instanceCountBefore: Int
+        public let instanceCountAfter: Int
+        public let method: String
+        public let error: String?
+
+        public var success: Bool { status == noErr && error == nil }
+        public var newInstanceSpawned: Bool { instanceCountAfter > instanceCountBefore }
+    }
+
+    /// Send a URL to an application asynchronously on a background thread.
+    /// This prevents blocking the main thread and allows proper await semantics.
+    ///
+    /// - Parameters:
+    ///   - urlString: The URL string to send
+    ///   - app: The target running application
+    ///   - bundleIdentifier: Bundle ID for monitoring instance count changes
+    ///   - method: Which API to use for sending (default: C API)
+    /// - Returns: DeepLinkSendResult with diagnostic information
+    @available(macOS 10.15, *)
+    public func sendURLAsync(
+        _ urlString: String,
+        to app: NSRunningApplication,
+        bundleIdentifier: String,
+        method: DeepLinkSendMethod = .cAPI
+    ) async -> DeepLinkSendResult {
+        let pid = app.processIdentifier
+
+        // Capture state before sending
+        let isFinishedLaunchingBefore = app.isFinishedLaunching
+        let instanceCountBefore = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).count
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async { [self] in
+                let startTime = CFAbsoluteTimeGetCurrent()
+
+                var status: OSStatus = noErr
+                var errorMessage: String? = nil
+
+                // Send using the selected method
+                switch method {
+                case .cAPI:
+                    status = sendURLViaAppleEvent(urlString, toProcessID: pid)
+
+                case .nsAppleEventDescriptor:
+                    do {
+                        try sendURLViaNSAppleEventDescriptor(urlString, toProcessID: pid)
+                    } catch {
+                        status = OSStatus(errAEEventFailed)
+                        errorMessage = error.localizedDescription
+                    }
+                }
+
+                let endTime = CFAbsoluteTimeGetCurrent()
+                let durationMs = (endTime - startTime) * 1000
+
+                // Check state after sending
+                let appStillExists = NSRunningApplication(processIdentifier: pid) != nil
+                let isFinishedLaunchingAfter = app.isFinishedLaunching
+                let instanceCountAfter = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).count
+
+                let result = DeepLinkSendResult(
+                    status: status,
+                    targetPID: pid,
+                    sendDurationMs: durationMs,
+                    isFinishedLaunchingBefore: isFinishedLaunchingBefore,
+                    isFinishedLaunchingAfter: isFinishedLaunchingAfter,
+                    pidExistsAfter: appStillExists,
+                    instanceCountBefore: instanceCountBefore,
+                    instanceCountAfter: instanceCountAfter,
+                    method: method.rawValue,
+                    error: errorMessage
+                )
+
+                continuation.resume(returning: result)
+            }
+        }
+    }
+
+    /// Send a URL to an application synchronously but with detailed monitoring.
+    /// Returns diagnostic information about what happened during the send.
+    ///
+    /// - Parameters:
+    ///   - urlString: The URL string to send
+    ///   - app: The target running application
+    ///   - bundleIdentifier: Bundle ID for monitoring instance count changes
+    /// - Returns: DeepLinkSendResult with diagnostic information
+    public func sendURLWithMonitoring(
+        _ urlString: String,
+        to app: NSRunningApplication,
+        bundleIdentifier: String
+    ) -> DeepLinkSendResult {
+        let pid = app.processIdentifier
+
+        // Capture state before sending
+        let isFinishedLaunchingBefore = app.isFinishedLaunching
+        let instanceCountBefore = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).count
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // Send the AppleEvent
+        let status = sendURLViaAppleEvent(urlString, toProcessID: pid)
+
+        let endTime = CFAbsoluteTimeGetCurrent()
+        let durationMs = (endTime - startTime) * 1000
+
+        // Check state after sending
+        let appStillExists = NSRunningApplication(processIdentifier: pid) != nil
+        let isFinishedLaunchingAfter = app.isFinishedLaunching
+        let instanceCountAfter = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).count
+
+        return DeepLinkSendResult(
+            status: status,
+            targetPID: pid,
+            sendDurationMs: durationMs,
+            isFinishedLaunchingBefore: isFinishedLaunchingBefore,
+            isFinishedLaunchingAfter: isFinishedLaunchingAfter,
+            pidExistsAfter: appStillExists,
+            instanceCountBefore: instanceCountBefore,
+            instanceCountAfter: instanceCountAfter,
+            method: DeepLinkSendMethod.cAPI.rawValue,
+            error: nil
+        )
+    }
+
+    // MARK: - Application Health Checks
+
+    /// Check if an application is responsive by sending a null AppleEvent and waiting for a response.
+    /// This is useful for detecting "zombie" applications that are running but not responding.
+    ///
+    /// - Parameters:
+    ///   - pid: The process ID of the target application
+    ///   - timeout: Timeout in seconds (default 2 seconds)
+    /// - Returns: true if the application responds within the timeout, false otherwise
+    public func isResponsive(pid: pid_t, timeout: TimeInterval = 2.0) -> Bool {
+        // Create address descriptor targeting the specific process by PID
+        var targetAddress = AEAddressDesc()
+        var pidValue = pid
+        var err = AECreateDesc(
+            typeKernelProcessID,
+            &pidValue,
+            MemoryLayout<pid_t>.size,
+            &targetAddress
+        )
+        guard err == noErr else { return false }
+        defer { AEDisposeDesc(&targetAddress) }
+
+        // Create a null AppleEvent (kCoreEventClass / kAENull)
+        // This is a simple "ping" that any app should respond to
+        let kCoreEventClass: AEEventClass = 0x61657674  // 'aevt'
+        let kAENull: AEEventID = 0x6E756C6C            // 'null'
+
+        var event = AppleEvent()
+        err = AECreateAppleEvent(
+            kCoreEventClass,
+            kAENull,
+            &targetAddress,
+            AEReturnID(kAutoGenerateReturnID),
+            AETransactionID(kAnyTransactionID),
+            &event
+        )
+        guard err == noErr else { return false }
+        defer { AEDisposeDesc(&event) }
+
+        // Send the event and wait for a reply with timeout
+        var reply = AppleEvent()
+        let timeoutTicks = Int(timeout * 60.0)  // Convert seconds to ticks (60 ticks per second)
+        let sendStatus = AESendMessage(
+            &event,
+            &reply,
+            AESendMode(kAEWaitReply),
+            timeoutTicks
+        )
+        AEDisposeDesc(&reply)
+
+        // If we get noErr or errAEEventNotHandled, the app is responsive
+        // errAETimeout means the app didn't respond in time
+        return sendStatus == noErr || sendStatus == OSErr(errAEEventNotHandled)
+    }
+
+    /// Check if a running application is responsive.
+    /// - Parameters:
+    ///   - app: The running application to check
+    ///   - timeout: Timeout in seconds (default 2 seconds)
+    /// - Returns: true if the application responds within the timeout, false otherwise
+    public func isResponsive(_ app: NSRunningApplication, timeout: TimeInterval = 2.0) -> Bool {
+        isResponsive(pid: app.processIdentifier, timeout: timeout)
+    }
+
+    /// Find all unresponsive (zombie) instances of an application.
+    /// - Parameters:
+    ///   - bundleIdentifier: The bundle identifier to search for
+    ///   - timeout: Timeout in seconds per instance (default 2 seconds)
+    /// - Returns: Array of unresponsive running applications
+    public func findZombieInstances(bundleIdentifier: String, timeout: TimeInterval = 2.0) -> [NSRunningApplication] {
+        let instances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+        return instances.filter { !isResponsive($0, timeout: timeout) }
+    }
+
+    /// Kill all unresponsive (zombie) instances of an application.
+    /// - Parameters:
+    ///   - bundleIdentifier: The bundle identifier to search for
+    ///   - timeout: Timeout in seconds per instance (default 2 seconds)
+    ///   - force: If true, use forceTerminate() instead of terminate()
+    /// - Returns: Number of instances killed
+    @discardableResult
+    public func killZombieInstances(bundleIdentifier: String, timeout: TimeInterval = 2.0, force: Bool = true) -> Int {
+        let zombies = findZombieInstances(bundleIdentifier: bundleIdentifier, timeout: timeout)
+        var killed = 0
+
+        for app in zombies {
+            let success = force ? app.forceTerminate() : app.terminate()
+            if success {
+                killed += 1
+            }
+        }
+
+        return killed
+    }
+
     // MARK: - Running Applications
 
     /// Get all running applications from LaunchServices

@@ -67,6 +67,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var instanceBorderOverlay: InstanceBorderOverlay?
     private var typeObserver: LSTypeObserver?
+    private var suppressionSubject: PassthroughSubject<pid_t, Never>?
+    private var suppressionCancellable: AnyCancellable?
 
     public init(strategy: Strategy = .puppetInstance, useExtantInstanceIfPossible: Bool = true) async throws {
         self.pool = [:]
@@ -273,33 +275,61 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             return
         }
 
+        // Create a subject for suppression events, debounced to coalesce rapid transitions
+        let subject = PassthroughSubject<pid_t, Never>()
+        suppressionSubject = subject
+
+        // Set up debounced suppression handler (10ms debounce)
+        suppressionCancellable = subject
+            .debounce(for: .milliseconds(1000), scheduler: DispatchQueue.main)
+            .sink { [weak self] pid in
+                guard let self else { return }
+
+                Self.logger.debug("[Suppression] Debounced suppression triggered for pid=\(pid)")
+
+                // Suppress the controlled running application
+                do {
+                    try self.controlledRunningApplication.suppress()
+                    Self.logger.debug("[Suppression] Successfully suppressed controlledRunningApplication")
+
+                    // Record suppression for debug view
+                    if #available(macOS 14, *) {
+                        Task { @MainActor in
+                            DeepLinkDebugManager.shared.recordSuppression(instancePID: pid)
+                        }
+                    }
+                } catch {
+                    Self.logger.error("[Suppression] Failed to suppress puppet instance: \(error)")
+                }
+            }
+
         let observer = LSTypeObserver()
         observer.startObserving { [weak self] bundleID, pid, oldType, newType in
-            Self.logger.debug("CHANGE IN MODE")
-            
             guard let self else { return }
 
-            Self.logger.debug("Puppet instance (pid: \(pid)) mode changed: \(oldType?.rawValue ?? "nil") -> \(newType?.rawValue ?? "nil")")
+            // Log all type change events for debugging
+            Self.logger.debug("[TypeChange] bundleID=\(bundleID ?? "nil") pid=\(pid) oldType=\(oldType?.rawValue ?? "nil") newType=\(newType?.rawValue ?? "nil") publicPID=\(self.publicInstance?.pid ?? -1) puppetPID=\(self.puppetInstance?.pid ?? -1)")
 
-            // If it changed to foreground, suppress it back
-            Self.logger.debug("Puppet instance attempted to become foreground, suppressing...")
-            do {
-                try controlledRunningApplication.suppress()
-                Self.logger.debug("Successfully suppressed puppet instance")
-
-                // Record suppression for debug view
-                if #available(macOS 14, *) {
-                    Task { @MainActor in
-                        DeepLinkDebugManager.shared.recordSuppression(instancePID: pid)
-                    }
-                }
-            } catch {
-                Self.logger.error("Failed to suppress puppet instance: \(error)")
+            // Only handle transitions TO Foreground
+            guard newType == .foreground else {
+                Self.logger.debug("[TypeChange] Ignoring: newType is \(newType?.rawValue ?? "nil"), not Foreground")
+                return
             }
+
+            // Never suppress the public instance
+            guard pid != self.publicInstance?.pid else {
+                Self.logger.debug("[TypeChange] Ignoring foreground transition for public instance (pid: \(pid))")
+                return
+            }
+
+            Self.logger.debug("[TypeChange] Puppet instance (pid: \(pid)) became foreground, sending to suppression subject...")
+
+            // Send to debounced subject instead of suppressing immediately
+            self.suppressionSubject?.send(pid)
         }
 
         typeObserver = observer
-        Self.logger.info("Started auto-suppress for puppet instance")
+        Self.logger.info("Started auto-suppress for puppet instance (public pid: \(self.publicInstance?.pid ?? -1), debounce: 10ms)")
     }
 
     /// Stops auto-suppressing the puppet instance
@@ -310,39 +340,13 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 
         observer.stopObserving()
         typeObserver = nil
+
+        // Clean up suppression publisher
+        suppressionCancellable?.cancel()
+        suppressionCancellable = nil
+        suppressionSubject = nil
+
         Self.logger.info("Stopped auto-suppress for puppet instance")
-    }
-
-    /// Executes an action while continuously suppressing the puppet instance at a high frequency.
-    /// This is useful for operations that may cause the puppet instance to repeatedly try to become a foreground application, where the LSTypeObserver callback may not be fast enough.
-    public func withContinuousSuppression<T>(
-        interval: TimeInterval = 0.01,
-        action: () throws -> T
-    ) rethrows -> T {
-        guard let runningApplication = controlledRunningApplication else {
-            return try action()
-        }
-
-        Self.logger.info("[withContinuousSuppression] starting")
-        Self.logStatus(runningApplication, context: "withContinuousSuppression.before")
-
-        let timer = DispatchSource.makeTimerSource(queue: .global())
-        timer.schedule(deadline: .now(), repeating: interval)
-        timer.setEventHandler { [weak self] in
-            try? self?.controlledRunningApplication?.suppress()
-        }
-        timer.resume()
-
-        defer {
-            timer.cancel()
-            Self.logStatus(runningApplication, context: "withContinuousSuppression.after")
-        }
-
-        // Initial suppress before starting the action
-        try? runningApplication.suppress()
-        Self.logStatus(runningApplication, context: "withContinuousSuppression.afterInitialSuppress")
-
-        return try action()
     }
 
     private static func sendDeepLink(
@@ -416,7 +420,6 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 
         if launchesInBackground {
             Self.logStatus(finalRunningApplication, context: "open.beforeSuppress")
-            try finalRunningApplication.suppress()
             Self.logStatus(finalRunningApplication, context: "open.afterSuppress")
         }
 
@@ -476,10 +479,6 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         guard let runningApplication = controlledRunningApplication else {
             throw ErrorMessage("No controlled running application")
         }
-        
-        if hiding {
-            try controlledRunningApplication.suppress()
-        }
 
 #if DEBUG
         let builtForDebugging = true
@@ -517,8 +516,6 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         if hiding {
             runningApplication.hide()
             Self.logStatus(runningApplication, context: "openDeepLink.afterHide")
-            try runningApplication.suppress()
-            Self.logStatus(runningApplication, context: "openDeepLink.afterSuppress")
 
             // Record suppression for debug view
             if #available(macOS 14, *) {
