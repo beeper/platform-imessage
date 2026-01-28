@@ -103,10 +103,13 @@ struct SettingsView: View {
             Form {
                 experimentalSection
                 windowCoordinationSection
+                if useExperimentalPuppetInstance {
+                    secondaryInstanceSection
+                }
                 misfirePreventionSection
                 spacesSection
                 diagnosticsSection
-                
+
                 HStack {
                     showLogFileInFinderButton
                     debugViewButton
@@ -170,39 +173,60 @@ struct SettingsView: View {
         .frame(width: 600, height: 400)
     }
     
+    /// Binding that controls the experimental secondary instance mode.
+    /// When enabled, sets both useExperimentalPuppetInstance and coordinator to "puppet".
+    /// When disabled, clears the coordinator override.
+    private var secondaryInstanceMode: Binding<Bool> {
+        Binding(
+            get: { useExperimentalPuppetInstance },
+            set: { enabled in
+                useExperimentalPuppetInstance = enabled
+                if enabled {
+                    coordinator = "puppet"
+                } else {
+                    coordinator = ""
+                }
+            }
+        )
+    }
+
     @ViewBuilder
     private var experimentalSection: some View {
         Section {
-            Toggle(isOn: $useExperimentalPuppetInstance) {
-                Text("Use experimental MessagesApplication")
-                Text("Uses a separate puppet instance of Messages.app for automation. Requires restart.")
+            Toggle(isOn: secondaryInstanceMode) {
+                Text("Use secondary Messages instance")
+                Text("Automates a separate Messages app in the background, leaving your main Messages app untouched. You may occasionally see a second Messages icon appear in your dock.")
             }
         } header: {
             Text("Experimental")
+        } footer: {
+            if useExperimentalPuppetInstance {
+                Text("Restart Beeper for changes to take effect.")
+            }
         }
     }
 
     @ViewBuilder
     private var windowCoordinationSection: some View {
         Section {
-            Picker("Window Coordinator Override", selection: $coordinator) {
-                Text("Default")
-                    .tag("")
-                Text("Puppet Coordinator")
-                    .tag("puppet")
-                Text("Edge Coordinator")
-                    .tag("edge")
-                Text("Eclipsing Coordinator")
-                    .tag("eclipsing")
-                Text("Spaces Coordinator")
-                    .tag("spaces")
+            if !useExperimentalPuppetInstance {
+                Picker("Window Coordinator Override", selection: $coordinator) {
+                    Text("Default")
+                        .tag("")
+                    Text("Edge Coordinator")
+                        .tag("edge")
+                    Text("Eclipsing Coordinator")
+                        .tag("eclipsing")
+                    Text("Spaces Coordinator")
+                        .tag("spaces")
+                }
             }
-            
+
             Toggle(isOn: $windowCoordination) {
                 Text("Coordinate the Messages window")
                 Text("Allow Beeper to manage the Messages window when needed.")
             }
-            
+
             HStack {
                 Stepper("Debounce before hiding the Messages window", onIncrement: {
                     hidingCoordinatorDebounce += 0.05
@@ -214,23 +238,13 @@ struct SettingsView: View {
                     .frame(width: 80)
                 Text("s")
             }
-            
+
             Toggle(isOn: $eclipsingUsesLargestWindow) {
                 Text("Use the largest window for eclipsing")
             }
-            
+
             Toggle(isOn: $eclipsingDebug) {
                 Text("Show eclipsing debug visualization")
-            }
-
-            Toggle(isOn: $showInstanceBorders) {
-                Text("Show instance borders")
-                Text("Display colored borders around Messages windows (green = public, blue = puppet)")
-            }
-
-            Toggle(isOn: $hidePuppetInstance) {
-                Text("Hide puppet instance")
-                Text("Hide the puppet Messages application from the dock. Disable to debug automation. Requires restart.")
             }
 
             if #available(macOS 14, *) {
@@ -247,7 +261,23 @@ struct SettingsView: View {
         } header: {
             Text("Window Coordination")
             Text("Controls whether window coordination happens at all. Changes take effect immediately.")
-        } footer: {
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryInstanceSection: some View {
+        Section {
+            Toggle(isOn: $hidePuppetInstance) {
+                Text("Hide secondary instance from dock")
+                Text("Keep the secondary Messages app hidden. Disable this to debug automation issues.")
+            }
+
+            Toggle(isOn: $showInstanceBorders) {
+                Text("Show instance borders")
+                Text("Display colored borders around Messages windows to identify which instance is which.")
+            }
+        } header: {
+            Text("Secondary Instance Options")
         }
     }
     

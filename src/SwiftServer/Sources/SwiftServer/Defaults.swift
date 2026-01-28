@@ -179,6 +179,10 @@ enum Defaults {
             DefaultsKeys.editingDelayBeforeReplacing: 0.5,
 
             DefaultsKeys.pollerTraceUnreads: true,
+
+            // Puppet instance defaults
+            DefaultsKeys.hidePuppetInstance: true,
+            DefaultsKeys.showInstanceBorders: false,
         ]
 
 #if DEBUG
