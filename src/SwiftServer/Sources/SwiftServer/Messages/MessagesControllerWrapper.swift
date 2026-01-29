@@ -139,8 +139,6 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             return undefined
         }
 
-        let controllerArgs: (String, ([ActivityStatus]) -> Void)?
-
         // reset the idle callback in case we fail and bail out
         Self.queue.setIdleCallback(nil)
 

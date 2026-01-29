@@ -287,7 +287,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         }
 
         suppressionCancellable = suppressionSubject
-            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(10000), scheduler: DispatchQueue.main)
             .sink { [weak self] pid in
                 guard let self else { return }
 
