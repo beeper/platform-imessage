@@ -119,7 +119,7 @@ private extension Message {
 }
 
 private func unarchiveAttributedString(from data: Data) throws -> NSAttributedString {
-    guard let unarchiver = try NSUnarchiver(forReadingWith: data) else {
+    guard let unarchiver = NSUnarchiver(forReadingWith: data) else {
         throw ErrorMessage("couldn't create NSUnarchiver")
     }
 

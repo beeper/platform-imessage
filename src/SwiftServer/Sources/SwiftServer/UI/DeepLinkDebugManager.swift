@@ -22,7 +22,6 @@ public struct DeepLinkEvent: Identifiable, Sendable {
 
 /// Manages deep link debug state and events for visualization
 @available(macOS 14, *)
-@MainActor
 public final class DeepLinkDebugManager: ObservableObject {
     public static let shared = DeepLinkDebugManager()
 
@@ -30,18 +29,23 @@ public final class DeepLinkDebugManager: ObservableObject {
     @Published public var events: [DeepLinkEvent] = []
 
     /// Currently active (unsuppressed) events by instance PID
+    @MainActor
     @Published public var activeEvents: [pid_t: UUID] = [:]
 
     /// Flash state for each instance (true = currently flashing)
+    @MainActor
     @Published public var flashingInstances: Set<pid_t> = []
 
     /// Number of Messages instances currently tracked
+    @MainActor
     @Published public var instanceCount: Int = 0
 
     /// Public instance PID (if available)
+    @MainActor
     @Published public var publicInstancePID: pid_t?
 
     /// Puppet instance PID (if available)
+    @MainActor
     @Published public var puppetInstancePID: pid_t?
 
     /// Time window to display (in seconds)
@@ -49,11 +53,13 @@ public final class DeepLinkDebugManager: ObservableObject {
 
     /// Whether deep link debug is active (controls event recording)
     /// Reads from UserDefaults to allow toggling from Settings
+    @MainActor
     public var isActive: Bool {
         Defaults.swiftServer.bool(forKey: DefaultsKeys.deepLinkDebugActive)
     }
 
     /// Maximum duration seen across all events (for stable Y-axis)
+    @MainActor
     @Published public var maxDurationMs: Double = 50
 
     private var flashTimers: [pid_t: Timer] = [:]
@@ -68,19 +74,17 @@ public final class DeepLinkDebugManager: ObservableObject {
         NSWorkspace.shared.publisher(for: \.runningApplications)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] runningApps in
-                self?.updateInstancesFromWorkspace(runningApps)
+                MainActor.assumeIsolated {
+                    self?.instanceCount = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MobileSMS").count
+                }
             }
             .store(in: &cancellables)
-
-        // Initial update
-        updateInstancesFromWorkspace(NSWorkspace.shared.runningApplications)
+        
+        Task { @MainActor in
+            instanceCount = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MobileSMS").count
+        }
     }
 
-    /// Update instance tracking from workspace running applications
-    private func updateInstancesFromWorkspace(_ runningApps: [NSRunningApplication]) {
-        let messagesApps = runningApps.filter { $0.bundleIdentifier == "com.apple.MobileSMS" }
-        instanceCount = messagesApps.count
-    }
 
     /// Record a new deep link being opened
     public nonisolated func recordDeepLinkOpened(instancePID: pid_t, url: URL?) {
@@ -135,9 +139,11 @@ public final class DeepLinkDebugManager: ObservableObject {
 
     /// Clear all recorded events
     public func clearEvents() {
-        events.removeAll()
-        activeEvents.removeAll()
-        maxDurationMs = 50  // Reset to default minimum
+        Task { @MainActor in
+            events.removeAll()
+            activeEvents.removeAll()
+            maxDurationMs = 50  // Reset to default minimum
+        }
     }
 
     /// Get events within the current time window for display
@@ -157,26 +163,30 @@ public final class DeepLinkDebugManager: ObservableObject {
 
 
     private func triggerFlash(for pid: pid_t) {
-        // Cancel existing flash timer
-        flashTimers[pid]?.invalidate()
-
-        // Set flashing state
-        flashingInstances.insert(pid)
-
-        // Clear flash after 300ms
-        flashTimers[pid] = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.flashingInstances.remove(pid)
+        Task { @MainActor in
+            // Cancel existing flash timer
+            flashTimers[pid]?.invalidate()
+            
+            // Set flashing state
+            flashingInstances.insert(pid)
+            
+            // Clear flash after 300ms
+            flashTimers[pid] = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                Task { @MainActor in
+                    self?.flashingInstances.remove(pid)
+                }
             }
         }
     }
 
     private func trimOldEvents() {
-        // Keep events from the last 5 minutes max
-        let cutoff = Date().addingTimeInterval(-300)
-        events.removeAll { event in
-            guard let endTime = event.endTime else { return false }
-            return endTime < cutoff
+        Task { @MainActor in
+            let cutoff = Date().addingTimeInterval(-300)
+
+            events.removeAll { event in
+                guard let endTime = event.endTime else { return false }
+                return endTime < cutoff
+            }
         }
     }
 }

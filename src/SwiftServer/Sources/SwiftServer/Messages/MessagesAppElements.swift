@@ -86,6 +86,19 @@ public final class MessagesAppElements {
         Self.getConversationList(window: window, useFastPath: false) != nil || Self.getCKConversationListCollectionView(window: window) != nil
     }
 
+    // MARK: - Experimental: Fast main window detection
+    // TODO: Test this approach - checking SceneWindow identifier is O(1) and avoids hitting the recursive traversal complexity limit (3600) when Messages has a large accessibility tree (4000+ elements). If reliable, replace isMainWindow above.
+    /*
+    func isMainWindow_experimental(window: Accessibility.Element) -> Bool {
+        // Fast path: Check window identifier directly (O(1), no tree traversal)
+        if (try? window.identifier()) == "SceneWindow" {
+            return true
+        }
+        // Fallback: recursive search (may hit complexity limits with large trees)
+        return Self.getConversationList(window: window, useFastPath: false) != nil || Self.getCKConversationListCollectionView(window: window) != nil
+    }
+    */
+
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
         let startTime = Date()
         defer { log.debug("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }

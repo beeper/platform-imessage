@@ -66,7 +66,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
     
     var cancellables: Set<AnyCancellable> = []
     private var typeObserver: LSTypeObserver?
-    private var suppressionSubject: PassthroughSubject<pid_t, Never>?
+    private var suppressionSubject: PassthroughSubject<pid_t, Never> = .init()
     private var suppressionCancellable: AnyCancellable?
 
     // Border overlay windows for debugging
@@ -286,13 +286,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             return
         }
 
-        // Create a subject for suppression events, debounced to coalesce rapid transitions
-        let subject = PassthroughSubject<pid_t, Never>()
-        suppressionSubject = subject
-
-        // Set up debounced suppression handler (10ms debounce)
-        suppressionCancellable = subject
-            .debounce(for: .milliseconds(1000), scheduler: DispatchQueue.main)
+        suppressionCancellable = suppressionSubject
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
             .sink { [weak self] pid in
                 guard let self else { return }
 
@@ -305,9 +300,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 
                     // Record suppression for debug view
                     if #available(macOS 14, *) {
-                        Task { @MainActor in
-                            DeepLinkDebugManager.shared.recordSuppression(instancePID: pid)
-                        }
+                        DeepLinkDebugManager.shared.recordSuppression(instancePID: pid)
                     }
                 } catch {
                     Self.logger.error("[Suppression] Failed to suppress puppet instance: \(error)")
@@ -318,7 +311,6 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         observer.startObserving { [weak self] bundleID, pid, oldType, newType in
             guard let self else { return }
 
-            // Log all type change events for debugging
             Self.logger.debug("[TypeChange] bundleID=\(bundleID ?? "nil") pid=\(pid) oldType=\(oldType?.rawValue ?? "nil") newType=\(newType?.rawValue ?? "nil") publicPID=\(self.publicInstance?.pid ?? -1) puppetPID=\(self.puppetInstance?.pid ?? -1)")
 
             // Only handle transitions TO Foreground
@@ -336,7 +328,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
             Self.logger.debug("[TypeChange] Puppet instance (pid: \(pid)) became foreground, sending to suppression subject...")
 
             // Send to debounced subject instead of suppressing immediately
-            self.suppressionSubject?.send(pid)
+            self.suppressionSubject.send(pid)
         }
 
         typeObserver = observer
@@ -352,10 +344,8 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         observer.stopObserving()
         typeObserver = nil
 
-        // Clean up suppression publisher
         suppressionCancellable?.cancel()
         suppressionCancellable = nil
-        suppressionSubject = nil
 
         Self.logger.info("Stopped auto-suppress for puppet instance")
     }
@@ -379,7 +369,6 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
                 currentValue = newValue
 
                 if newValue {
-                    // Hiding enabled: start auto-suppression and suppress immediately
                     Self.logger.info("Hide puppet instance enabled, starting auto-suppress")
                     self.startAutoSuppress()
                     do {

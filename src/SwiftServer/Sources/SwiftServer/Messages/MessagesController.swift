@@ -21,12 +21,6 @@ let messagesBundleID = "com.apple.MobileSMS"
 final class MessagesController {
     public let application: MessagesApplication
     
-    //     legacy stub
-    //    public var app: NSRunningApplication {
-    //        // FIXME: (@pmanot) - remove force unwrap even though this is okay to use right now (because we ensure `controlledRunningApplication` is non-nil after initializing `MessagesApplication`)
-    //        application.controlledRunningApplication!
-    //    }
-    
     let elements: MessagesAppElements
     
     var axApplication: Accessibility.Element {
@@ -1418,14 +1412,17 @@ final class MessagesController {
             }
             
             if quiescence == .began || lastThreadIDOpenedForObservation.read() != threadID {
-                log.debug("activity: entered idle state or thread id changed, opening deep link")
-                try prepareForAutomation()
-                defer { finishedAutomation() }
-                
-                try application.openDeepLink(url)
-                log.debug("activity: opened deep link, waiting for layout change")
+                // Skip deep link when using puppet instance - it's already dedicated to this thread
+                if !Defaults.useExperimentalPuppetInstance {
+                    log.debug("activity: entered idle state or thread id changed, opening deep link")
+                    try prepareForAutomation()
+                    defer { finishedAutomation() }
+
+                    try application.openDeepLink(url)
+                    log.debug("activity: opened deep link, waiting for layout change")
+                    waitForLayoutChange(timeout: 0.5)
+                }
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
-                waitForLayoutChange(timeout: 0.5)
             }
             
             guard activityLock.tryLock() else { return }

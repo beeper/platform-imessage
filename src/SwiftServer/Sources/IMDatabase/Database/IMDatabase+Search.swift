@@ -86,8 +86,8 @@ public extension IMDatabase {
             var messageText: String? = nil
 
             if let data = attributedBodyData,
-               let unarchiver = try? NSUnarchiver(forReadingWith: data),
-               let decoded = try? ExceptionCatcher.catch { unarchiver.decodeObject() },
+               let unarchiver = NSUnarchiver(forReadingWith: data),
+               let decoded = try? ExceptionCatcher.catch(callback: unarchiver.decodeObject),
                let attributedString = decoded as? NSAttributedString {
                 messageText = attributedString.string
             }
