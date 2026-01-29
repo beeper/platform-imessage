@@ -59,7 +59,6 @@ struct SettingsView: View {
     // help button popover
     @State private var presentingHelp = false
 
-    
     // "are you sure you want to enable logging?"
     @State private var presentingPrivacyAlert = false
     @State private var hasConsentedOnce = false
@@ -170,7 +169,7 @@ struct SettingsView: View {
             Message content and attachments are never recorded.
             """)
         }
-        .frame(width: 600, height: 400)
+        .frame(minWidth: 500, idealWidth: 600, minHeight: 300, idealHeight: 500)
     }
     
     /// Binding that controls the experimental secondary instance mode.
@@ -190,6 +189,8 @@ struct SettingsView: View {
         )
     }
 
+    @State private var needsRestart = false
+
     @ViewBuilder
     private var experimentalSection: some View {
         Section {
@@ -197,13 +198,41 @@ struct SettingsView: View {
                 Text("Use secondary Messages instance")
                 Text("Automates a separate Messages app in the background, leaving your main Messages app untouched. You may occasionally see a second Messages icon appear in your dock.")
             }
+            .onChange(of: useExperimentalPuppetInstance) { _ in
+                needsRestart = true
+            }
+
+            if needsRestart {
+                Button("Restart Beeper") {
+                    restartBeeper()
+                }
+                .buttonStyle(.borderedProminent)
+            }
         } header: {
             Text("Experimental")
-        } footer: {
-            if useExperimentalPuppetInstance {
-                Text("Restart Beeper for changes to take effect.")
-            }
         }
+    }
+
+    private func restartBeeper() {
+        guard let bundleURL = NSRunningApplication.current.bundleURL else {
+            return
+        }
+
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let path = bundleURL.path
+
+        // Shell script that:
+        // 1. Waits for the current process to terminate (using kill -0 to check if PID exists)
+        // 2. Relaunches the app using /usr/bin/open
+        // 3. Runs in background with &
+        let script = "(while /bin/kill -0 \(pid) >&/dev/null; do /bin/sleep 0.1; done; /usr/bin/open \"\(path)\") &"
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", script]
+        try? task.run()
+
+        NSApplication.shared.terminate(nil)
     }
 
     @ViewBuilder
