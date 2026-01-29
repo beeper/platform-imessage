@@ -1,4 +1,6 @@
 import ApplicationServices
+import AppKit
+import AccessibilityControl
 
 // https://developer.apple.com/documentation/applicationservices/carbon_accessibility/roles
 public enum AXRole {

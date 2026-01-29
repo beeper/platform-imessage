@@ -83,6 +83,14 @@ let package = Package(
                 "SwiftServerFoundation",
             ]
         ),
+        .executableTarget(
+            name: "axdump",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "BetterSwiftAX",
+                "BetterSwiftAXAdditions",
+            ]
+        ),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
         .testTarget(name: "SwiftServerTests", dependencies: ["SwiftServer"]),
         .target(
