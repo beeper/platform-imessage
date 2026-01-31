@@ -21,7 +21,7 @@ enum DefaultsKeys {
 
     /** controls whether window coordination happens at all, respected on the fly */
     static let windowCoordination = "BEEPWindowCoordination"
-    /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
+    /** forces a specific coordinator (`eclipsing`, `edge` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
     /** whether to respect calls to `onThreadSelected`/`watchThreadActivity` */
@@ -77,6 +77,21 @@ enum DefaultsKeys {
     /** (only used with `eclipsing`) debouncing period for hiding the messages app when we don't need it "onscreen" anymore */
     static let hidingCoordinatorDebounce = "BEEPHidingCoordinatorDebounce"
 
+    /** show colored borders around Messages windows to identify public vs puppet instances */
+    static let showInstanceBorders = "BEEPShowInstanceBorders"
+
+    /** whether the puppet Messages instance should be hidden (default: true) */
+    static let hidePuppetInstance = "BEEPHidePuppetInstance"
+
+    /** whether to show the deep link debug view automatically on launch */
+    static let showDeepLinkDebugOnLaunch = "BEEPShowDeepLinkDebugOnLaunch"
+
+    /** whether deep link debugging is active (recording events) */
+    static let deepLinkDebugActive = "BEEPDeepLinkDebugActive"
+
+    /** whether to use the experimental puppet instance strategy (default: false) */
+    static let useExperimentalPuppetInstance = "BEEPUseExperimentalPuppetInstance"
+
     /** always use `.unknown` space instead of `.user` */
     static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
     /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */
@@ -98,6 +113,7 @@ enum DefaultsKeys {
     static let pollerTraceChangeListening = "BEEPPollerTraceChangeListening"
     static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
+    
 }
 
 enum SwiftServerDefaults {
@@ -163,6 +179,11 @@ enum Defaults {
             DefaultsKeys.editingDelayBeforeReplacing: 0.5,
 
             DefaultsKeys.pollerTraceUnreads: true,
+
+            // Puppet instance defaults
+            DefaultsKeys.useExperimentalPuppetInstance: false,
+            DefaultsKeys.hidePuppetInstance: true,
+            DefaultsKeys.showInstanceBorders: false,
         ]
 
 #if DEBUG
@@ -308,5 +329,13 @@ enum Defaults {
 
     static var misfirePreventionTracingPII: Bool {
         Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionTracingPII)
+    }
+    
+    static var shouldHidePuppetInstance: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.hidePuppetInstance)
+    }
+
+    static var useExperimentalPuppetInstance: Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.useExperimentalPuppetInstance)
     }
 }

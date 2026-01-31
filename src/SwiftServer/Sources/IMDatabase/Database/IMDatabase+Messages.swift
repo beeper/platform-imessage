@@ -48,8 +48,8 @@ public extension IMDatabase {
         WHERE m.guid = ?
         """).reset()
         try statement.bind(guid)
-
-        guard var (message, chatGUID) = try statement.compactMapRowsUntilDone({ row -> (Message, GUID<Chat>)? in
+        
+        guard var components: (message: Message, chatGUID: GUID<Chat>) = try statement.compactMapRowsUntilDone({ row -> (message: Message, chatGUID: GUID<Chat>)? in
             guard let chatGUID = try row[0].optionalConverting(String.self) else {
                 // drop orphaned (not within a chat) messages
                 return nil
@@ -58,14 +58,14 @@ public extension IMDatabase {
         }).first else {
             return nil
         }
-
+        
         if includeAttachments {
-            try hydrateAttachments(for: &message)
+            try hydrateAttachments(for: &components.message)
         }
-
-        return (message, chatGUID)
+        
+        return (components.message, components.chatGUID)
     }
-
+    
     func messages(
         in chatGUID: GUID<Chat>,
         filter: MessageQueryFilter? = nil,
@@ -81,20 +81,21 @@ public extension IMDatabase {
         LIMIT ?
         """).reset()
         try statement.bind(chatGUID, limit)
-
+        
         var messages = OrderedDictionary<Message.ID, Message>()
         try statement.stepUntilDone { row in
             let message = try Message(row: row)
             messages[message.id] = message
         }
-
+        
         if includeAttachments {
             try hydrateAttachments(for: &messages)
         }
-
+        
         return messages.values
     }
 }
+
 
 private extension Message {
     init(row: borrowing Row) throws {
@@ -118,7 +119,7 @@ private extension Message {
 }
 
 private func unarchiveAttributedString(from data: Data) throws -> NSAttributedString {
-    guard let unarchiver = try NSUnarchiver(forReadingWith: data) else {
+    guard let unarchiver = NSUnarchiver(forReadingWith: data) else {
         throw ErrorMessage("couldn't create NSUnarchiver")
     }
 

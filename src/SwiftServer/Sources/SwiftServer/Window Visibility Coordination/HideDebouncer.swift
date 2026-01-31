@@ -9,14 +9,13 @@ private let log = Logger(swiftServerLabel: "hiding-coordinator")
  * rapidly hidden and unhidden, causing unwanted flickering.
  */
 final class HideDebouncer {
-    private var stream = CurrentValueSubject<Request, Never>(.noop)
+    private var stream: CurrentValueSubject<Request?, Never> = CurrentValueSubject<Request?, Never>(nil)
     var app: NSRunningApplication?
     private var requestHandler: AnyCancellable?
     private var debouncingDelay: RunLoop.SchedulerTimeType.Stride
 
     private enum Request: CaseIterable, Hashable {
         case hide
-        case noop
     }
 
     init(debouncingFor delay: RunLoop.SchedulerTimeType.Stride) {
@@ -63,7 +62,7 @@ extension HideDebouncer {
         }
 
         log.debug(stream.value == .hide ? "immediately unhiding, overriding a previous hide request" : "immediately unhiding")
-        stream.send(.noop)
+        stream.send(nil)
         app.unhide()
     }
 }
@@ -74,7 +73,7 @@ extension HideDebouncer {
             .debounce(for: debouncingDelay, scheduler: RunLoop.main)
             .sink { [weak self] latestRequest in
                 guard let self else { return }
-                log.debug("servicing hide request: \(latestRequest) (debounce: \(debouncingDelay.magnitude))")
+                log.debug("servicing hide request: \(latestRequest.debugDescription) (debounce: \(self.debouncingDelay.magnitude))")
 
                 switch latestRequest {
                 case .hide: app?.hide()

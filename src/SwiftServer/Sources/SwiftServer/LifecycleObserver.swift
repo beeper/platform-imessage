@@ -1,6 +1,7 @@
-import OSLog
 import AccessibilityControl
+import AppKit
 import Logging
+import OSLog
 import SwiftServerFoundation
 
 private let log = Logger(swiftServerLabel: "lifecycle.observer")

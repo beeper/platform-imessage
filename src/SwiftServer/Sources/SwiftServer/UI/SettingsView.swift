@@ -5,25 +5,60 @@ import SwiftUI
 
 @available(macOS 13, *)
 struct SettingsView: View {
-    @AppStorage(DefaultsKeys.misfirePreventionTracingPII, store: Defaults.swiftServer) var misfirePreventionTracingPII = false
+    @AppStorage(DefaultsKeys.coordinator, store: Defaults.swiftServer)
+    var coordinator: String = ""
     
-    @AppStorage(DefaultsKeys.windowCoordination, store: Defaults.swiftServer) var windowCoordination = true
-    @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.swiftServer) var hidingCoordinatorDebounce = 0.75
+    @AppStorage(DefaultsKeys.misfirePreventionTracingPII, store: Defaults.swiftServer)
+    var misfirePreventionTracingPII: Bool = false
     
-    @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.swiftServer) var misfirePrevention = true
-    @AppStorage(DefaultsKeys.misfirePreventionAlwaysFallback, store: Defaults.swiftServer) var misfirePreventionAlwaysFallback = false
-    @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.swiftServer) var imCoreSPI = true
-    @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.swiftServer) var contactsAttemptFormattingWithShortStyle = true
-    @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.swiftServer) var predictionPredictsGroupChats = true
+    @AppStorage(DefaultsKeys.windowCoordination, store: Defaults.swiftServer)
+    var windowCoordination: Bool = true
     
-    @AppStorage(DefaultsKeys.eclipsingUsesLargestWindow, store: Defaults.swiftServer) var eclipsingUsesLargestWindow = true
-    @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer) var eclipsingDebug = false
+    @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.swiftServer)
+    var hidingCoordinatorDebounce = 0.75
     
-    @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer) var spacesObserveDock = true
+    @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.swiftServer)
+    var misfirePrevention: Bool = true
     
+    @AppStorage(DefaultsKeys.misfirePreventionAlwaysFallback, store: Defaults.swiftServer)
+    var misfirePreventionAlwaysFallback: Bool = false
+    
+    @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.swiftServer)
+    var imCoreSPI: Bool = true
+    
+    @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.swiftServer)
+    var contactsAttemptFormattingWithShortStyle: Bool = true
+    
+    @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.swiftServer)
+    var predictionPredictsGroupChats = true
+    
+    @AppStorage(DefaultsKeys.eclipsingUsesLargestWindow, store: Defaults.swiftServer)
+    var eclipsingUsesLargestWindow = true
+    
+    @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer)
+    var eclipsingDebug = false
+
+    @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer)
+    var spacesObserveDock = true
+
+    @AppStorage(DefaultsKeys.showInstanceBorders, store: Defaults.swiftServer)
+    var showInstanceBorders = false
+
+    @AppStorage(DefaultsKeys.hidePuppetInstance, store: Defaults.swiftServer)
+    var hidePuppetInstance = true
+
+    @AppStorage(DefaultsKeys.showDeepLinkDebugOnLaunch, store: Defaults.swiftServer)
+    var showDeepLinkDebugOnLaunch = false
+
+    @AppStorage(DefaultsKeys.deepLinkDebugActive, store: Defaults.swiftServer)
+    var deepLinkDebugActive = false
+
+    @AppStorage(DefaultsKeys.useExperimentalPuppetInstance, store: Defaults.swiftServer)
+    var useExperimentalPuppetInstance = false
+
     // help button popover
     @State private var presentingHelp = false
-    
+
     // "are you sure you want to enable logging?"
     @State private var presentingPrivacyAlert = false
     @State private var hasConsentedOnce = false
@@ -65,13 +100,18 @@ struct SettingsView: View {
     var body: some View {
         VStack {
             Form {
+                experimentalSection
                 windowCoordinationSection
+                if useExperimentalPuppetInstance {
+                    secondaryInstanceSection
+                }
                 misfirePreventionSection
                 spacesSection
                 diagnosticsSection
-                
+
                 HStack {
                     showLogFileInFinderButton
+                    debugViewButton
                     Spacer()
                     helpButton
                 }
@@ -114,7 +154,7 @@ struct SettingsView: View {
             }
             
             Button("Cancel", role: .cancel) {
-                presentingPrivacyAlert = false
+                // FIXME: currently does nothing
             }
         } message: {
             Text("""
@@ -129,17 +169,93 @@ struct SettingsView: View {
             Message content and attachments are never recorded.
             """)
         }
-        .frame(width: 600, height: 400)
+        .frame(minWidth: 500, idealWidth: 600, minHeight: 300, idealHeight: 500)
     }
     
+    /// Binding that controls the experimental secondary instance mode.
+    /// When enabled, sets both useExperimentalPuppetInstance and coordinator to "puppet".
+    /// When disabled, clears the coordinator override.
+    private var secondaryInstanceMode: Binding<Bool> {
+        Binding(
+            get: { useExperimentalPuppetInstance },
+            set: { enabled in
+                useExperimentalPuppetInstance = enabled
+                if enabled {
+                    coordinator = "puppet"
+                } else {
+                    coordinator = ""
+                }
+            }
+        )
+    }
+
+    @State private var needsRestart = false
+
+    @ViewBuilder
+    private var experimentalSection: some View {
+        Section {
+            Toggle(isOn: secondaryInstanceMode) {
+                Text("Use secondary Messages instance")
+                Text("Automates a separate Messages app in the background, leaving your main Messages app untouched. You may occasionally see a second Messages icon appear in your dock.")
+            }
+            .onChange(of: useExperimentalPuppetInstance) { _ in
+                needsRestart = true
+            }
+
+            if needsRestart {
+                Button("Restart Beeper") {
+                    restartBeeper()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        } header: {
+            Text("Experimental")
+        }
+    }
+
+    private func restartBeeper() {
+        guard let bundleURL = NSRunningApplication.current.bundleURL else {
+            return
+        }
+
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let path = bundleURL.path
+
+        // Shell script that:
+        // 1. Waits for the current process to terminate (using kill -0 to check if PID exists)
+        // 2. Relaunches the app using /usr/bin/open
+        // 3. Runs in background with &
+        let script = "(while /bin/kill -0 \(pid) >&/dev/null; do /bin/sleep 0.1; done; /usr/bin/open \"\(path)\") &"
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", script]
+        try? task.run()
+
+        NSApplication.shared.terminate(nil)
+    }
+
     @ViewBuilder
     private var windowCoordinationSection: some View {
         Section {
+            if !useExperimentalPuppetInstance {
+                Picker("Window Coordinator Override", selection: $coordinator) {
+                    Text("Default")
+                        .tag("")
+                    Text("Edge Coordinator")
+                        .tag("edge")
+                    Text("Eclipsing Coordinator")
+                        .tag("eclipsing")
+                    Text("Spaces Coordinator")
+                        .tag("spaces")
+                }
+            }
+
             Toggle(isOn: $windowCoordination) {
                 Text("Coordinate the Messages window")
                 Text("Allow Beeper to manage the Messages window when needed.")
             }
-            
+
             HStack {
                 Stepper("Debounce before hiding the Messages window", onIncrement: {
                     hidingCoordinatorDebounce += 0.05
@@ -151,18 +267,46 @@ struct SettingsView: View {
                     .frame(width: 80)
                 Text("s")
             }
-            
+
             Toggle(isOn: $eclipsingUsesLargestWindow) {
                 Text("Use the largest window for eclipsing")
             }
-            
+
             Toggle(isOn: $eclipsingDebug) {
                 Text("Show eclipsing debug visualization")
+            }
+
+            if #available(macOS 14, *) {
+                Toggle(isOn: $showDeepLinkDebugOnLaunch) {
+                    Text("Show deep link debug on launch")
+                    Text("Automatically open the deep link debug view when settings opens.")
+                }
+
+                Toggle(isOn: $deepLinkDebugActive) {
+                    Text("Record deep link events")
+                    Text("When enabled, deep link open/suppression events are recorded for debugging.")
+                }
             }
         } header: {
             Text("Window Coordination")
             Text("Controls whether window coordination happens at all. Changes take effect immediately.")
-        } footer: {
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryInstanceSection: some View {
+        Section {
+            Toggle(isOn: $hidePuppetInstance) {
+                Text("Hide secondary instance from dock")
+                Text("Keep the secondary Messages app hidden. Disable this to debug automation issues.")
+            }
+
+            Toggle(isOn: $showInstanceBorders) {
+                Text("Show instance borders")
+                Text("Display colored borders around Messages windows to identify which instance is which.")
+            }
+        } header: {
+            Text("Secondary Instance Options")
         }
     }
     
@@ -233,6 +377,15 @@ struct SettingsView: View {
     private var showLogFileInFinderButton: some View {
         Button("Show Log in Finder…") {
             Log.reveal()
+        }
+    }
+
+    @ViewBuilder
+    private var debugViewButton: some View {
+        if #available(macOS 14, *) {
+            Button("Deep Link Debug…") {
+                DeepLinkDebugWindowController.shared.show()
+            }
         }
     }
     

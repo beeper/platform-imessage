@@ -27,11 +27,11 @@ final class SpacesWindowCoordinator {
     private var notificationCenterObserver: NSObjectProtocol?
     private var lastManualActivation: Date?
 
-    init() throws {
+    init() {
         log.debug(Self.canUseUnknownSpace ? "can use known spaces" : "can't use unknown spaces")
 
         if Self.canUseUnknownSpace || Defaults.swiftServer.bool(forKey: DefaultsKeys.spacesAlwaysUseUnknownSpace) {
-            unknownSpace = try Space(newSpaceOfKind: .unknown)
+            unknownSpace = Space(newSpaceOfKind: .unknown)
         } else {
             // have to use a .user space, which behaves differently. observe various things on the system to improve ux
             self.beginObservationsForUserSpace()
@@ -72,7 +72,7 @@ extension SpacesWindowCoordinator: WindowCoordinator {
     }
 
     func reset(_ window: Accessibility.Element) throws {
-        guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), let lastKnownWindow else {
+        guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), lastKnownWindow != nil else {
             log.debug("can't reset, the last known window or current space was missing")
             return
         }
@@ -121,7 +121,7 @@ private extension SpacesWindowCoordinator {
             return false
         }.first
         if let existing { log.debug("reusing existing space \(existing.raw)") }
-        return try existing ?? Space(newSpaceOfKind: kind)
+        return existing ?? Space(newSpaceOfKind: kind)
     }
 
     func moveLastKnownWindowToHiddenSpace() throws {

@@ -9,7 +9,7 @@ private let log = Logger(swiftServerLabel: "app-elements")
 @available(macOS 11, *)
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
 /// aim to reduce side effects (like calling actions) here
-final class MessagesAppElements {
+public final class MessagesAppElements {
     static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
         (try? el.localizedDescription()) == nil
     }
@@ -41,6 +41,9 @@ final class MessagesAppElements {
     // private var cachedReplyTranscriptView: Accessibility.Element?
     var cachedTranscriptView: Accessibility.Element?
     private var cachedMainWindow: Accessibility.Element?
+
+    /// Closure to open a deep link. Set by MessagesController to use the correct Messages instance.
+    var openDeepLink: ((_ url: URL) throws -> Void)?
 
     func clearCachedElements() {
         // these are manually cleared because we aren't checking for validity on each property access
@@ -82,6 +85,19 @@ final class MessagesAppElements {
         // 2. using getConversationList with useFastPath=true
         Self.getConversationList(window: window, useFastPath: false) != nil || Self.getCKConversationListCollectionView(window: window) != nil
     }
+
+    // MARK: - Experimental: Fast main window detection
+    // TODO: Test this approach - checking SceneWindow identifier is O(1) and avoids hitting the recursive traversal complexity limit (3600) when Messages has a large accessibility tree (4000+ elements). If reliable, replace isMainWindow above.
+    /*
+    func isMainWindow_experimental(window: Accessibility.Element) -> Bool {
+        // Fast path: Check window identifier directly (O(1), no tree traversal)
+        if (try? window.identifier()) == "SceneWindow" {
+            return true
+        }
+        // Fallback: recursive search (may hit complexity limits with large trees)
+        return Self.getConversationList(window: window, useFastPath: false) != nil || Self.getCKConversationListCollectionView(window: window) != nil
+    }
+    */
 
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
         let startTime = Date()
@@ -127,10 +143,10 @@ final class MessagesAppElements {
             }
             let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
-            } onError: { attempt, _ in
+            } onError: { [self] attempt, _ in
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    try MessagesController.openDeepLink(MessagesDeepLink.compose.url())
+                    try openDeepLink?(MessagesDeepLink.compose.url())
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
@@ -164,7 +180,11 @@ final class MessagesAppElements {
         var buffer = ""
         // 10 should be plenty
         try app.dumpXML(to: &buffer, maxDepth: 10, excludingPII: true, includeActions: false, includeSections: true)
-        log.info("\(buffer)")
+        if let filename = Log.writeAXDump(buffer, prefix: "app-tree") {
+            log.info("AX tree dump saved to: ax-dumps/\(filename)")
+        } else {
+            log.warning("failed to write AX tree dump to file")
+        }
     }
     
     private func dumpAndLogApplicationTreeIfNeeded() throws {
@@ -495,5 +515,12 @@ final class MessagesAppElements {
             try iOSContentGroup.children[0].children().first { try $0.role() == AXRole.popUpButton }
                 .orThrow(ErrorMessage("toFieldPopupButton not found"))
         }
+    }
+}
+
+@available(macOS 11, *)
+extension NSRunningApplication {
+    public var elements: MessagesAppElements {
+        MessagesAppElements(runningApp: self)
     }
 }

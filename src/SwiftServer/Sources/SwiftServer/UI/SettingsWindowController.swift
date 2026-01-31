@@ -3,6 +3,8 @@ import SwiftUI
 
 @available(macOS 13, *)
 final class SettingsWindowController: NSWindowController {
+    private static let windowFrameAutosaveName = "BEEPSettingsWindow"
+
     private var settingsController: NSHostingController<SettingsView>?
 
     static let shared = SettingsWindowController()
@@ -17,11 +19,12 @@ final class SettingsWindowController: NSWindowController {
             return controller
         }()
         let window = NSWindow(contentViewController: settingsController)
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         // the window is sometimes titled "Untitled" for some reason, even
         // though the SwiftUI view has a `navigationTitle` and we want to bridge
         // everything
         window.title = SettingsView.windowTitle
+        window.setFrameAutosaveName(Self.windowFrameAutosaveName)
         super.init(window: window)
     }
 
