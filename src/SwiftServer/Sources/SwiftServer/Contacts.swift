@@ -42,7 +42,7 @@ final class Contacts {
     }
     
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        cancellables.removeAll()
     }
     
     private lazy var standardFormatter = CNContactFormatter()

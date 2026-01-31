@@ -181,6 +181,7 @@ enum Defaults {
             DefaultsKeys.pollerTraceUnreads: true,
 
             // Puppet instance defaults
+            DefaultsKeys.useExperimentalPuppetInstance: false,
             DefaultsKeys.hidePuppetInstance: true,
             DefaultsKeys.showInstanceBorders: false,
         ]
