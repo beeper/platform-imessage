@@ -332,7 +332,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         }
 
         typeObserver = observer
-        Self.logger.info("Started auto-suppress for puppet instance (public pid: \(self.publicInstance?.pid ?? -1), debounce: 10ms)")
+        Self.logger.info("Started auto-suppress for puppet instance (public pid: \(self.publicInstance?.pid ?? -1))")
     }
 
     /// Stops auto-suppressing the puppet instance
