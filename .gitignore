@@ -37,3 +37,4 @@ headless.mjs
 headless-config.json
 .headless-history.json
 .claude
+src/SwiftServer/Sources/LSLauncherTool/type_changes.json

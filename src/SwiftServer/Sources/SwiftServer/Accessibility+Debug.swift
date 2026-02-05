@@ -3,7 +3,6 @@ import AccessibilityControl
 import SwiftServerFoundation
 
 public extension Accessibility.Element {
-
     struct Properties {
         var actions: [(Accessibility.Action.Name, String)] = []
         var attributes: [(Accessibility.Attribute<Any>.Name, Any)] = []

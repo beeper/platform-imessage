@@ -64,6 +64,22 @@ public final class MessagesAppElements {
             (((try? app.appWindows()) ?? []) + [try? app.appMainWindow(), try? app.appFocusedWindow()]).compactMap { $0 }
         }
     }
+    
+    private func summarizeWindow(_ window: Accessibility.Element) -> String {
+        let role = (try? window.role()).map { String(describing: $0) } ?? "<nil>"
+        let subrole = (try? window.subrole()) ?? "<nil>"
+        let identifier = (try? window.identifier()) ?? "<nil>"
+        return "role=\(role) subrole=\(subrole) id=\(identifier)"
+    }
+    
+    private func summarizeAllWindows() -> String {
+        let windows = allWindows
+        guard !windows.isEmpty else { return "windows=0" }
+        let summaries = windows.enumerated().map { index, window in
+            "\(index):\(summarizeWindow(window))"
+        }
+        return "windows=\(windows.count) [\(summaries.joined(separator: "; "))]"
+    }
 
     private static func getSectionObjects(window: Accessibility.Element) throws -> LazyMapCollection<LazyFilterSequence<LazyMapSequence<LazySequence<[[String: CFTypeRef]]>.Elements, Accessibility.Element?>>, Accessibility.Element> {
         try window.sections().lazy.compactMap { $0["SectionObject"].flatMap { Accessibility.Element(erased: $0) } }
@@ -143,10 +159,19 @@ public final class MessagesAppElements {
             }
             let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
-            } onError: { [self] attempt, _ in
+            } onError: { [self] attempt, error in
+                if attempt == 0 {
+                    let errorDescription = error.map { String(describing: $0) } ?? "<nil>"
+                    log.debug("mainWindow retry attempt \(attempt) failed: \(errorDescription); \(summarizeAllWindows())")
+                }
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    try openDeepLink?(MessagesDeepLink.compose.url())
+                    do {
+                        try openDeepLink?(MessagesDeepLink.compose.url())
+                    } catch {
+                        log.error("mainWindow: compose deep link failed: \(error)")
+                        throw error
+                    }
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
@@ -170,6 +195,7 @@ public final class MessagesAppElements {
 //            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
             // clearCachedElements()
             cachedMainWindow = mainWindow
+            log.debug("mainWindow: resolved \(summarizeWindow(mainWindow))")
             return mainWindow
         }
     }

@@ -69,7 +69,6 @@ class BorderView: NSView {
 
 @available(macOS 11, *)
 extension MessagesApplication {
-    @MainActor
     func startBorderOverlays() {
         Self.logger.info("Starting border overlays")
 
@@ -92,7 +91,6 @@ extension MessagesApplication {
         }
     }
 
-    @MainActor
     func stopBorderOverlays() {
         // First, hide the windows to stop any visual updates
         publicBorderWindow?.orderOut(nil)
@@ -113,7 +111,6 @@ extension MessagesApplication {
         Self.logger.info("Stopped border overlays")
     }
 
-    @MainActor
     func observeBorderOverlaySetting() {
         // Track current state to detect changes
         var currentValue = Defaults.swiftServer.bool(forKey: DefaultsKeys.showInstanceBorders)
@@ -141,7 +138,6 @@ extension MessagesApplication {
             .store(in: &cancellables)
     }
 
-    @MainActor
     private func createBorderWindow(color: NSColor, label: String) -> NSWindow {
         let window = NSWindow(
             contentRect: .zero,
@@ -181,7 +177,6 @@ extension MessagesApplication {
         )
     }
 
-    @MainActor
     private func updateBorderWindow(_ borderWindow: NSWindow?, forWindowElement windowElement: Accessibility.Element) {
         guard let borderWindow else { return }
 

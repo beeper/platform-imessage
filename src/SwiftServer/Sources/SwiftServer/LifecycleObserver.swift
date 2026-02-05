@@ -26,14 +26,17 @@ final class LifecycleObserver {
     private var layoutChangedToken: Accessibility.Observer.Token?
     private var focusedUIElementChangedToken: Accessibility.Observer.Token?
 
-    init() {}
+    init() {
+        
+    }
 }
 
 extension LifecycleObserver {
     /// Observations are registered on the current `RunLoop`, so this method
     /// should only be called from a thread with a valid `RunLoop`.
     func beginObserving(app: Accessibility.Element) throws {
-        log.debug("going to observe app AX events for element: \(app)")
+        let observingPID = (try? app.pid()) ?? -1
+        log.info("beginObserving: setting up AX observers for PID=\(observingPID)")
 
         activateToken = try app.observe(.applicationActivated) { [weak events] _ in
             // (this can be called even if the app is already activated, e.g.
@@ -59,8 +62,10 @@ extension LifecycleObserver {
             lastLayoutChange?.withLock { $0 = Date() }
         }
         focusedUIElementChangedToken = try app.observe(.focusedUIElementChanged) { [weak lastFocusedUIElementChange, weak events] _ in
+            let now = Date()
+            log.info("@@ AX CALLBACK: focusedUIElementChanged at \(now.iso8601Formatted)")
             events?.broadcast(.focusedUIElementChanged)
-            lastFocusedUIElementChange?.withLock { $0 = Date() }
+            lastFocusedUIElementChange?.withLock { $0 = now }
         }
 #if DEBUG
         titleChangedToken = try app.observe(.titleChanged) { info in

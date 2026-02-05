@@ -7,35 +7,6 @@ import Logging
 import LSLauncher
 import SwiftServerFoundation
 
-@available(macOS 11, *)
-extension MessagesApplication {
-    public struct ID: Hashable, Sendable {
-        var rawValue = UUID()
-        
-        init() {
-            
-        }
-    }
-    
-    public class Instance: Identifiable, @unchecked Sendable {
-        public var id: ID
-        public var runningApplication: NSRunningApplication
-        
-        public var pid: pid_t {
-            runningApplication.processIdentifier
-        }
-        
-        init(id: ID? = nil, runningApplication: NSRunningApplication) {
-            self.id = id ?? ID()
-            self.runningApplication = runningApplication
-        }
-        
-        public static func createInstances() -> [Instance] {
-            NSRunningApplication.runningApplications(withBundleIdentifier: MessagesApplication.bundleID).map { Instance(runningApplication: $0) }
-        }
-    }
-}
-
 // TODO: (@pmanot) - Rename
 @available(macOS 11, *)
 public final class MessagesApplication: @unchecked Sendable, ObservableObject {
@@ -131,29 +102,20 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 
         assert(controlledRunningApplication != nil)
 
-        // Observe settings changes for live updates
-        await MainActor.run {
-            observeBorderOverlaySetting()
-        }
-        observeHidePuppetInstanceSetting()
+//        observeBorderOverlaySetting()
+//        observeHidePuppetInstanceSetting()
+//        puppetInstance?.forwardActivation(to: publicInstance!)
 
-        // Show deep link debug window on launch if enabled
-        if #available(macOS 14, *) {
-            await MainActor.run {
-                DeepLinkDebugWindowController.showOnLaunchIfNeeded()
-            }
-        }
     }
 
     deinit {
         stopAutoSuppress()
-        // Clean up border windows - needs to be done on main thread
         let publicWindow = publicBorderWindow
         let puppetWindow = puppetBorderWindow
-        DispatchQueue.main.async {
-            publicWindow?.close()
-            puppetWindow?.close()
-        }
+        
+        publicWindow?.close()
+        puppetWindow?.close()
+        
         cancellables.removeAll()
         windowEventCancellables.removeAll()
     }
@@ -398,7 +360,7 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         timeout: TimeInterval = 5
     ) throws {
         let appleEventDescriptor = appleEventDescriptor(deepLink: url, target: runningApplication)
-        try appleEventDescriptor.sendEvent(options: [.neverInteract, .waitForReply], timeout: timeout)
+        try appleEventDescriptor.sendEvent(options: [.neverInteract, .noReply], timeout: timeout)
     }
 
     /// Launches a new application instance (async)
@@ -538,17 +500,31 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
 
         // Record deep link event for debug view
         let pid = runningApplication.processIdentifier
-        
-        if #available(macOS 14, *) {
-            DeepLinkDebugManager.shared.recordDeepLinkOpened(instancePID: pid, url: url)
-            DeepLinkDebugManager.shared.updateInstances(
-                publicPID: self.publicInstance?.pid,
-                puppetPID: self.puppetInstance?.pid,
-                totalCount: self.pool.count
-            )
-        }
 
-        try Self.sendDeepLink(url, to: runningApplication, timeout: timeout)
+        do {
+            switch strategy {
+                case .publicInstance:
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.activates = activating
+                    configuration.hides = hiding
+                    
+                    try unsafeBlockCurrentThreadUntilComplete {
+                        try await NSWorkspace.shared.open(url, configuration: configuration)
+                    }
+                case .puppetInstance:
+                    try Self.sendDeepLink(url, to: controlledRunningApplication!, timeout: timeout)
+            }
+        } catch {
+            let urlDescription: String
+            if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
+                urlDescription = url.absoluteString
+            } else {
+                urlDescription = "<redacted>"
+            }
+            Self.logger.error("openDeepLink failed to send (pid=\(pid) url=\(urlDescription) activating=\(activating) hiding=\(hiding) timeout=\(timeout)): \(error)")
+            throw error
+        }
+        
         Self.logStatus(runningApplication, context: "openDeepLink.afterSend")
 
         if activating {
@@ -559,11 +535,6 @@ public final class MessagesApplication: @unchecked Sendable, ObservableObject {
         if hiding {
             runningApplication.hide()
             Self.logStatus(runningApplication, context: "openDeepLink.afterHide")
-
-            // Record suppression for debug view
-            if #available(macOS 14, *) {
-                DeepLinkDebugManager.shared.recordSuppression(instancePID: pid)
-            }
         }
 
         return runningApplication
@@ -690,5 +661,42 @@ extension MessagesApplication {
         let isFinished = app.isFinishedLaunching
         
         logger.info("[\(context)] pid=\(pid) mode=\(mode) hidden=\(isHidden) active=\(isActive) finished=\(isFinished)")
+    }
+}
+
+@available(macOS 11, *)
+extension MessagesApplication {
+    public struct ID: Hashable, Sendable {
+        var rawValue = UUID()
+        
+        init() {
+            
+        }
+    }
+    
+    public class Instance: Identifiable, @unchecked Sendable {
+        public var id: ID
+        public var runningApplication: NSRunningApplication
+        
+        public var pid: pid_t {
+            runningApplication.processIdentifier
+        }
+        
+        init(id: ID? = nil, runningApplication: NSRunningApplication) {
+            self.id = id ?? ID()
+            self.runningApplication = runningApplication
+        }
+        
+        public static func createInstances() -> [Instance] {
+            NSRunningApplication.runningApplications(withBundleIdentifier: MessagesApplication.bundleID).map { Instance(runningApplication: $0) }
+        }
+        
+//        public func forwardActivation(to instance: Instance) {
+//            self.runningApplication._publisher().sink { event in
+//                if (event.notification.name == NSWorkspace.didActivateApplicationNotification) {
+//                    instance.runningApplication.activate()
+//                }
+//            }
+//        }
     }
 }

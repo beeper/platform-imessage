@@ -157,6 +157,7 @@ final class MessagesDeepLinkTester {
             case "p": pingInstances()
             case "m": toggleSendMethod()
             case "o": toggleResponsivenessCheck()
+            case "g": testLSOpenURLsUsingASN()
             case "q", "quit", "exit":
                 observer.stopObserving()
                 saveLog()
@@ -201,6 +202,7 @@ final class MessagesDeepLinkTester {
         print("  \u{001B}[1;36m[t]\u{001B}[0m Stress Test (sync)  \u{001B}[1;36m[a]\u{001B}[0m Stress Test (async)")
         print("  \u{001B}[1;36m[s]\u{001B}[0m Status  \u{001B}[1;36m[l]\u{001B}[0m Log  \u{001B}[1;36m[k]\u{001B}[0m Cleanup Extras")
         print("  \u{001B}[1;36m[r]\u{001B}[0m Refresh  \u{001B}[1;36m[p]\u{001B}[0m Ping  \u{001B}[1;36m[x]\u{001B}[0m Suppress  \u{001B}[1;36m[m]\u{001B}[0m Method  \u{001B}[1;36m[o]\u{001B}[0m Resp.Check")
+        print("  \u{001B}[1;36m[g]\u{001B}[0m \u{001B}[1;33mLS ASN Test\u{001B}[0m (LaunchServices _LSOpenURLsUsingASN)")
         print("  \u{001B}[1;36m[q]\u{001B}[0m Quit")
         print("\u{001B}[1;35m-------------------------------------------------------------\u{001B}[0m")
         print("\u{001B}[1mChoice:\u{001B}[0m ", terminator: "")
@@ -321,6 +323,126 @@ final class MessagesDeepLinkTester {
         }
 
         print("")
+    }
+
+    // MARK: - LaunchServices ASN Test
+
+    func testLSOpenURLsUsingASN() {
+        print("\n\u{001B}[1;33m=== LaunchServices _LSOpenURLsUsingASN Test ===\u{001B}[0m")
+        print("\u{001B}[90mThis uses _LSOpenURLsUsingASNWithCompletionHandler to send URLs\u{001B}[0m")
+        print("\u{001B}[90mvia LaunchServices to a specific running instance (by ASN).\u{001B}[0m\n")
+
+        let instances = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
+
+        if instances.isEmpty {
+            print("\u{001B}[31mNo Messages instances running. Launch Messages first.\u{001B}[0m")
+            return
+        }
+
+        print("\u{001B}[1mSelect target instance:\u{001B}[0m")
+        for (idx, app) in instances.enumerated() {
+            let mode = app.applicationMode?.rawValue ?? "Unknown"
+            let role = app.processIdentifier == publicInstancePID ? " (public)" : " (puppet)"
+            print("  [\(idx + 1)] PID: \(app.processIdentifier) - \(mode)\(role)")
+        }
+        print("  [0] Cancel")
+        print("\u{001B}[1mChoice:\u{001B}[0m ", terminator: "")
+
+        guard let input = readLine()?.trimmingCharacters(in: .whitespaces),
+              let choice = Int(input), choice > 0, choice <= instances.count else {
+            print("\u{001B}[33mCancelled.\u{001B}[0m")
+            return
+        }
+
+        let targetApp = instances[choice - 1]
+        let targetPID = targetApp.processIdentifier
+
+        // Get ASN for the target
+        guard let targetASN = launcher.createASN(pid: targetPID) else {
+            print("\u{001B}[31mFailed to create ASN for PID \(targetPID)\u{001B}[0m")
+            return
+        }
+
+        let asnValue = launcher.asnToUInt64(targetASN)
+        print("\n\u{001B}[32mTarget ASN created:\u{001B}[0m 0x\(String(asnValue, radix: 16))")
+        print("  PID: \(targetPID)")
+        print("  Mode: \(targetApp.applicationMode?.rawValue ?? "Unknown")")
+
+        // Select URL to send
+        print("\n\u{001B}[1mSelect URL to send:\u{001B}[0m")
+        for (idx, testURL) in testURLs.enumerated() {
+            print("  [\(idx + 1)] \(testURL.desc)")
+        }
+        print("  [c] Custom URL")
+        print("  [0] Cancel")
+        print("\u{001B}[1mChoice:\u{001B}[0m ", terminator: "")
+
+        guard let urlInput = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() else {
+            print("\u{001B}[33mCancelled.\u{001B}[0m")
+            return
+        }
+
+        let urlToSend: URL
+        if urlInput == "c" {
+            print("\u{001B}[1mEnter URL:\u{001B}[0m ", terminator: "")
+            guard let customURL = readLine()?.trimmingCharacters(in: .whitespaces),
+                  let url = URL(string: customURL) else {
+                print("\u{001B}[31mInvalid URL.\u{001B}[0m")
+                return
+            }
+            urlToSend = url
+        } else if let urlIndex = Int(urlInput), urlIndex > 0, urlIndex <= testURLs.count {
+            guard let url = URL(string: testURLs[urlIndex - 1].url) else {
+                print("\u{001B}[31mInvalid URL.\u{001B}[0m")
+                return
+            }
+            urlToSend = url
+        } else {
+            print("\u{001B}[33mCancelled.\u{001B}[0m")
+            return
+        }
+
+        // Record state before
+        let modeBefore = targetApp.applicationMode?.rawValue ?? "Unknown"
+        let instanceCountBefore = instances.count
+
+        print("\n\u{001B}[1;36mSending via _LSOpenURLsUsingASNWithCompletionHandler...\u{001B}[0m")
+        print("  URL: \(urlToSend.absoluteString)")
+        print("  Target ASN: 0x\(String(asnValue, radix: 16)) (PID \(targetPID))")
+
+        deepLinkStartTime = Date()
+        lastOpenedURL = urlToSend
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // Use the LaunchServices ASN API
+        launcher.openURLs([urlToSend], targetASN: targetASN, activate: false, preferRunningInstance: true)
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+
+        print("\n\u{001B}[32mCall completed in \(String(format: "%.2f", elapsed))ms\u{001B}[0m")
+
+        // Wait a moment for any type changes
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // Check state after
+        let modeAfter = targetApp.applicationMode?.rawValue ?? "Unknown"
+        let instanceCountAfter = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).count
+        let pidStillExists = NSRunningApplication(processIdentifier: targetPID) != nil
+
+        print("\n\u{001B}[1mResults:\u{001B}[0m")
+        print("  Mode before: \(modeBefore)")
+        print("  Mode after:  \(modeAfter)")
+        if modeBefore != modeAfter {
+            print("  \u{001B}[1;33m>>> MODE CHANGED! <<<\u{001B}[0m")
+        }
+        print("  Instance count: \(instanceCountBefore) -> \(instanceCountAfter)")
+        if instanceCountAfter > instanceCountBefore {
+            print("  \u{001B}[1;31m>>> NEW INSTANCE SPAWNED! <<<\u{001B}[0m")
+        }
+        print("  Target PID exists: \(pidStillExists ? "Yes" : "No")")
+
+        print("\n\u{001B}[90mWatch for type change notifications above...\u{001B}[0m")
     }
 
     func handleTypeChange(bundleID: String?, pid: pid_t, oldType: ApplicationMode?, newType: ApplicationMode?) {

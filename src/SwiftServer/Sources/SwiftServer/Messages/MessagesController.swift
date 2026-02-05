@@ -101,6 +101,7 @@ final class MessagesController {
 
         let observer = LifecycleObserver()
         lifecycleObserver = observer
+        
         print("setting up conveyor")
         setUpPollingConveyor(with: lifecycleObserver)
         
@@ -152,13 +153,19 @@ final class MessagesController {
     }
     
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
-    // TODO: rename to `assertSelectedThread`, which better describes its behavior
     private func assertSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
             return
         }
+        
+        let fallbackStrategy = Defaults.swiftServer.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy) ?? "<nil>"
+        let lastFocus = lifecycleObserver.lastFocusedUIElementChange.read()?.iso8601Formatted ?? "<nil>"
+        let lastLayout = lifecycleObserver.lastLayoutChange.read()?.iso8601Formatted ?? "<nil>"
+        let observedPID = (try? elements.app.pid()) ?? -1
+        let deepLinkPID = application.controlledRunningApplication?.processIdentifier ?? -1
+        log.debug("misfire prevention: start ensureSelectedThread \(hashedThreadID) strategy=\(fallbackStrategy) lastFocus=\(lastFocus) lastLayout=\(lastLayout) observedPID=\(observedPID) deepLinkPID=\(deepLinkPID)")
         
         let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
         
@@ -183,12 +190,20 @@ final class MessagesController {
         }
         
         func assertSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
-            guard let lastChange = date.read() else {
+            let lastChange = date.read()
+            if Defaults.misfirePreventionTracing {
+                log.debug("misfire prevention: \(type) lastChange=\(lastChange?.iso8601Formatted ?? "<nil>") started=\(beganEnsuringThreadSelection.iso8601Formatted)")
+            }
+            
+            guard let lastChange else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
             
             let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
             guard lastChange > beganEnsuringThreadSelection else {
+                if Defaults.misfirePreventionTracing {
+                    log.debug("misfire prevention: \(type) change not after start (last=\(lastChange.iso8601Formatted), started=\(beganEnsuringThreadSelection.iso8601Formatted))")
+                }
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
             }
             
@@ -252,6 +267,10 @@ final class MessagesController {
     
     private func openThread(_ threadID: String) throws {
         try application.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        // Small yield to allow the RunLoop to process the accessibility event
+        // before we start polling. In release builds, without this delay, the
+        // assertion check can start before Messages has processed the deep link.
+        Thread.sleep(forTimeInterval: 0.01)  // 10ms
         try assertSelectedThread(threadID: threadID)
     }
     
@@ -261,11 +280,13 @@ final class MessagesController {
     
     func setUpPollingConveyor(with observer: LifecycleObserver) {
         let thread = RunLoopConveyor<ConveyorEvent>(name: "SwiftServer Polling RunLoop", oneTimeInitialization: { rlt in
+            
             do {
                 try observer.beginObserving(app: self.axApplication)
             } catch {
                 log.error("unable to perform initial observation of app: \(error)")
             }
+            
             do {
                 try observer.beginObserving(window: try self.elements.mainWindow)
             } catch {
@@ -1097,22 +1118,35 @@ final class MessagesController {
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
         
+        let hashedThreadID = threadID.map { Hasher.thread.tokenizeRemembering(pii: $0) } ?? "<nil>"
+        let addressCount = addresses?.count ?? 0
+        let textSummary = text.map { "len=\($0.count)" } ?? "nil"
+        let hasFile = filePath != nil
+        let hasQuote = quotedMessage != nil
+        let quoteOverlay = quotedMessage?.overlay ?? false
+        log.debug("sendMessage: start thread=\(hashedThreadID) addresses=\(addressCount) text=\(textSummary) file=\(hasFile) quoted=\(hasQuote) overlay=\(quoteOverlay)")
+        
         if let threadID, quotedMessage == nil { // fast path using OSA
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links
+                        log.debug("sendMessage: attempting OSA fast path (text)")
                         try OSA.send(threadID: threadID, text: text)
+                        log.debug("sendMessage: OSA fast path succeeded")
                         return
                     }
                 } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
                     if !MacOSVersion.isAtLeast(.monterey) { // messages.app in big sur doesn't correctly paste the file
+                        log.debug("sendMessage: attempting OSA fast path (file)")
                         try OSA.send(threadID: threadID, filePath: filePath)
+                        log.debug("sendMessage: OSA fast path succeeded")
                         return
                     }
                 }
             } catch {
                 reportToSentry?("osa err: \(error)")
+                log.warning("sendMessage: OSA fast path failed, falling back: \(error)")
                 // fall back to regular send
             }
         }
@@ -1120,15 +1154,21 @@ final class MessagesController {
         elideStopTyping = true
         
         let url: URL
+        let deepLinkKind: String
         if let quotedMessage {
             url = try MessagesDeepLink.message(guid: quotedMessage.messageGUID, overlay: quotedMessage.overlay).url()
+            deepLinkKind = "quotedMessage"
         } else if let threadID {
             url = try MessagesDeepLink(threadID: threadID, body: text).url()
+            deepLinkKind = "thread"
         } else if let addresses {
             url = try MessagesDeepLink.addresses(addresses, body: text).url()
+            deepLinkKind = "addresses"
         } else {
             throw ErrorMessage("not implemented")
         }
+        
+        log.debug("sendMessage: using deep link kind=\(deepLinkKind)")
         
         try prepareForAutomation()
         defer { finishedAutomation() }
