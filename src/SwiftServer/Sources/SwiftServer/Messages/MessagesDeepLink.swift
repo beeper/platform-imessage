@@ -1,9 +1,6 @@
 import Foundation
 import SwiftServerFoundation
 
-let singleThreadType = "-"
-let groupThreadType = "+"
-
 enum MessagesDeepLink {
     case addresses([String], body: String?)
     case group(chatID: String, body: String?)
@@ -15,9 +12,9 @@ enum MessagesDeepLink {
     init(threadID: String, body: String?) throws {
         let (_, type, id) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID: \(threadID)"))
         switch type {
-        case singleThreadType:
+        case MessagesDeepLink.singleThreadType:
             self = .addresses([String(id)], body: body)
-        case groupThreadType:
+        case MessagesDeepLink.groupThreadType:
             self = .group(chatID: String(id), body: body)
         default:
             throw ErrorMessage("invalid threadID: \(threadID)")
@@ -58,4 +55,9 @@ enum MessagesDeepLink {
             return try components.url.orThrow(ErrorMessage("Invalid message GUID: \(guid)"))
         }
     }
+}
+
+extension MessagesDeepLink {
+    static let singleThreadType = "-"
+    static let groupThreadType = "+"
 }
