@@ -105,7 +105,7 @@ extension MessagesController {
 
         let (_, type, address) = try splitThreadID(guid).orThrow(ErrorMessage("couldn't predict window titles: invalid thread id"))
 
-        if type == groupThreadType || address.hasPrefix("urn:biz:") {
+        if type == MessagesDeepLink.groupThreadType || address.hasPrefix("urn:biz:") {
             log.debug("misfire prevention: predicting for a group or business")
 
             return try predictFromDisplayName(forChatGUID: guid)

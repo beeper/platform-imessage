@@ -2,29 +2,50 @@ import AppKit
 import AccessibilityControl
 import SwiftServerFoundation
 import Logging
-import BetterSwiftAXAdditions
 
 private let log = Logger(swiftServerLabel: "app-elements")
 
-@available(macOS 11, *)
+struct ElementSearchError: Error, CustomStringConvertible {
+    /// What was being searched for
+    let name: String
+    /// All errors encountered during the search
+    let underlyingErrors: [Error]
+    /// Identifier for finding the AX tree dump in the log file, if one was produced
+    let dumpID: String?
+
+    var description: String {
+        var desc = "\(name) not found"
+        if !underlyingErrors.isEmpty {
+            desc += " — underlying: " + underlyingErrors.map(String.init(describing:)).joined(separator: "; ")
+        }
+        if let dumpID {
+            desc += " (AX dump ID: \(dumpID))"
+        }
+        return desc
+    }
+}
+
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
 /// aim to reduce side effects (like calling actions) here
+@available(macOS 11, *)
 final class MessagesAppElements {
-    static func isThreadCellCompose(_ el: Accessibility.Element) -> Bool {
-        (try? el.localizedDescription()) == nil
-    }
-
-    static func isMessageContainerCell(_ el: Accessibility.Element) -> Bool {
-        (try? el.localizedDescription())?.isEmpty == false &&
-            (try? el.children[0].supportedActions().contains(where: { $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)") })) == true
+    static func isMessageContainerCell(_ element: Accessibility.Element) throws -> Bool {
+        let containsReactPrefix: ([Accessibility.Action]) -> Bool = { actions in
+            actions.contains {
+                $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)")
+            }
+        }
+        
+        return try element.localizedDescription().isEmpty
+        && containsReactPrefix(element.children[0].supportedActions())
     }
 
     static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
-        try tv.children().filter(Self.isMessageContainerCell)
+        try tv.children().lazy.filter { (try? Self.isMessageContainerCell($0)) ?? false }
     }
 
     static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
-        try tv.children().first(where: Self.isMessageContainerCell)?.children[0]
+        try messageContainerCells(in: tv).first?.children[0]
     }
 
     static func firstSelectedMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
@@ -37,22 +58,58 @@ final class MessagesAppElements {
 
     let app: Accessibility.Element
 
-    // private var cachedConversationsList: Accessibility.Element?
-    // private var cachedReplyTranscriptView: Accessibility.Element?
-    var cachedTranscriptView: Accessibility.Element?
     private var cachedMainWindow: Accessibility.Element?
-
-    func clearCachedElements() {
-        // these are manually cleared because we aren't checking for validity on each property access
-        // for cachedConversationsList, isValid/isFrameValid/isInViewport all return true even after the main window is closed
-        // cachedConversationsList = nil
-        // cachedReplyTranscriptView = nil
-        cachedTranscriptView = nil
-    }
 
     init(runningApp: NSRunningApplication) {
         self.runningApp = runningApp
         app = Accessibility.Element(pid: runningApp.processIdentifier)
+    }
+
+    /// Search for an element by name, capturing underlying errors instead of swallowing them.
+    /// - Parameters:
+    ///   - name: Human-readable name of the element being searched for (used in the error message)
+    ///   - dumpOnError: If true, dumps the AX tree from `root` into the log when the element is not found
+    ///   - root: The element to dump from on failure. Defaults to `app`.
+    ///   - search: Closure that performs the actual lookup. Return `nil` or throw to indicate not found.
+    func find(
+        _ name: String,
+        logTime: Bool = false,
+        dumpOnError: Bool = false,
+        in root: Accessibility.Element? = nil,
+        _ search: () throws -> Accessibility.Element?
+    ) throws -> Accessibility.Element {
+        let startTime = logTime ? Date() : nil
+        
+        defer {
+            if let startTime {
+                log.debug("\(name) took \(startTime.timeIntervalSinceNow * -1000)ms")
+            }
+        }
+
+        var errors: [Error] = []
+        do {
+            if let result = try search() {
+                return result
+            }
+        } catch {
+            errors.append(error)
+        }
+
+        var dumpID: String?
+        if dumpOnError {
+            let id = String(UUID().uuidString.prefix(8)).lowercased()
+            dumpID = id
+            do {
+                var buffer = ""
+                try (root ?? app).dumpXML(to: &buffer, maxDepth: 10, excludingPII: true, includeActions: false, includeSections: true)
+                log.error("[\(id)] AX dump for \(name):\n\(buffer)")
+            } catch {
+                log.error("[\(id)] failed to dump AX tree for \(name): \(error)")
+                errors.append(error)
+            }
+        }
+
+        throw ElementSearchError(name: name, underlyingErrors: errors, dumpID: dumpID)
     }
 
     var allWindows: [Accessibility.Element] { // takes ~0ms
@@ -221,11 +278,6 @@ final class MessagesAppElements {
         }
     }
 
-    var composeCell: Accessibility.Element? {
-        get {
-            try? conversationsList.children().first(where: Self.isThreadCellCompose)
-        }
-    }
 
     var selectedThreadCell: Accessibility.Element? {
         get {
@@ -258,12 +310,7 @@ final class MessagesAppElements {
 
     var transcriptView: Accessibility.Element {
         get throws {
-            // if let cached = cachedTranscriptView, cached.isInViewport {
-            //     return cached
-            // }
-            let tcv = try getTranscriptView(replyTranscript: false)
-            cachedTranscriptView = tcv
-            return tcv
+            try getTranscriptView(replyTranscript: false)
         }
     }
 
@@ -300,7 +347,7 @@ final class MessagesAppElements {
             return try retry(withTimeout: 1, interval: 0.1) {
                 let CKConversationListCollectionView = try Self.getCKConversationListCollectionView(window: mainWindow)
                     .orThrow(ErrorMessage("CKConversationListCollectionView not found"))
-                return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == AXRole.searchField }
+                return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == Accessibility.Subrole.searchField }
                     .orThrow(ErrorMessage("searchField not found"))
             }
         }
@@ -308,17 +355,18 @@ final class MessagesAppElements {
 
     var iOSContentGroup: Accessibility.Element { // className=UINSSceneView
         get throws {
-            return try mainWindow.children().first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == AXRole.group })
-                .orThrow(ErrorMessage("iOSContentGroup not found"))
+            try find("iOSContentGroup") {
+                try mainWindow.children()
+                    .first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == NSAccessibility.Role.group.rawValue })
+            }
         }
     }
 
     var iOSContentGroupFirstChild: Accessibility.Element { // className= CKUIWindow_60754894 or CKPresentationControllerWindow (when reactions are open)
         get throws {
-            let startTime = Date()
-            defer { log.debug("iOSContentGroupFirstChild took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            return try (try? iOSContentGroup.children[0])
-                .orThrow(ErrorMessage("iOSContentGroupFirstChild not found"))
+            try find("iOSContentGroupFirstChild", logTime: true) {
+                try iOSContentGroup.children[0]
+            }
         }
     }
 
@@ -357,25 +405,30 @@ final class MessagesAppElements {
     /// the first popover in the main window
     var popover: Accessibility.Element {
         get throws {
-            try mainWindow.recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "popover") ?? false })
-                .orThrow(ErrorMessage("couldn't find a popover in the main window"))
+            try find("popover") {
+                try mainWindow
+                    .recursiveChildren()
+                    .lazy
+                    .first(where: { (try? $0.roleDescription() == "popover") ?? false })
+            }
         }
     }
 
     /// the first search field within the first popover in the main window
     var searchFieldWithinPopover: Accessibility.Element {
         get throws {
-            try popover.recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "search text field") ?? false })
-                .orThrow(ErrorMessage("couldn't find search field within the first popover"))
+            try find("searchFieldWithinPopover") {
+                try popover
+                    .recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "search text field") ?? false })
+            }
         }
     }
 
     var splitter: Accessibility.Element {
         get throws {
-            let startTime = Date()
-            defer { log.debug("splitter took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            return try iOSContentGroupFirstChild.children().first(where: { (try? $0.role()) == AXRole.splitter })
-                .orThrow(ErrorMessage("splitter not found"))
+            try find("splitter", logTime: true) {
+                try iOSContentGroupFirstChild.children().first(where: { (try? $0.role()) == Accessibility.Role.splitter })
+            }
         }
     }
 
@@ -408,7 +461,7 @@ final class MessagesAppElements {
             Reply -- only shows up when not in overlay mode
             Pin -- only shows up for links/tweets in Monterey or above
             */
-            guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == AXRole.button }) else {
+            guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == Accessibility.Role.button }) else {
                 throw ErrorMessage("reactButtons not found")
             }
             return buttons
@@ -428,13 +481,17 @@ final class MessagesAppElements {
 
     var alertSheet: Accessibility.Element {
         get throws {
-            try mainWindow.children().first(where: { try $0.role() == AXRole.sheet }).orThrow(ErrorMessage("alertSheet not found"))
+            try find("alertSheet") {
+                try mainWindow.children().first(where: { try $0.role() == Accessibility.Role.sheet })
+            }
         }
     }
 
     var alertSheetDeleteButton: Accessibility.Element {
         get throws {
-            try alertSheet.children().first(where: { try $0.role() == AXRole.button }).orThrow(ErrorMessage("deleteButton not found"))
+            try find("alertSheetDeleteButton") {
+                try alertSheet.children().first(where: { try $0.role() == Accessibility.Role.button })
+            }
         }
     }
 
@@ -446,7 +503,7 @@ final class MessagesAppElements {
             let count = try tv.children.count()
             return try transcriptView.children(range: (count - 2)..<count).first(where: {
                 let child = try $0.children[0]
-                return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == AXRole.button
+                return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == Accessibility.Role.button
             }).orThrow(ErrorMessage("notifyAnywayButton not found"))
         }
     }
@@ -457,7 +514,7 @@ final class MessagesAppElements {
                 (try? $0.localizedDescription()) == LocalizedStrings.editingConfirm
             }).orThrow(ErrorMessage("editingConfirmButton not found"))
             return try editingConfirmButton.parent().recursiveChildren().lazy.first(where: {
-                (try? $0.role()) == AXRole.textField
+                (try? $0.role()) == Accessibility.Role.textField
             }).orThrow(ErrorMessage("editableMessageField not found"))
         }
     }
@@ -465,7 +522,7 @@ final class MessagesAppElements {
     var menu: Accessibility.Element {
         get throws {
             try retry(withTimeout: 2, interval: 0.1) {
-                try iOSContentGroup.children().first { try $0.role() == AXRole.menu }
+                try iOSContentGroup.children().first { try $0.role() == Accessibility.Role.menu }
                     .orThrow(ErrorMessage("menu not found"))
             }
         }
@@ -482,18 +539,20 @@ final class MessagesAppElements {
 
     var cancelEditButton: Accessibility.Element {
         get throws {
-            try iOSContentGroupFirstChild.recursiveChildren()
-                .first(where: {
-                    (try? $0.localizedDescription()) == LocalizedStrings.editingReject
-                })
-                .orThrow(ErrorMessage("Couldn't find reject edit button"))
+            try find("cancelEditButton") {
+                try iOSContentGroupFirstChild.recursiveChildren()
+                    .first(where: {
+                        (try? $0.localizedDescription()) == LocalizedStrings.editingReject
+                    })
+            }
         }
     }
 
     var toFieldPopupButton: Accessibility.Element {
         get throws {
-            try iOSContentGroup.children[0].children().first { try $0.role() == AXRole.popUpButton }
-                .orThrow(ErrorMessage("toFieldPopupButton not found"))
+            try find("toFieldPopupButton") {
+                try iOSContentGroup.children[0].children().first { try $0.role() == Accessibility.Role.popUpButton }
+            }
         }
     }
 }

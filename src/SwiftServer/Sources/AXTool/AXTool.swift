@@ -1,7 +1,6 @@
 import AccessibilityControl
 import AppKit
 import ArgumentParser
-import BetterSwiftAXAdditions
 import Foundation
 import Logging
 import SwiftServerFoundation

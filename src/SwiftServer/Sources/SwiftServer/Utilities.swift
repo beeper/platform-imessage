@@ -35,7 +35,7 @@ func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -
 }
 
 func threadIDIsForGroup(_ id: String) -> Bool {
-    splitThreadID(id).map { $0.1 == groupThreadType } == true
+    splitThreadID(id).map { $0.1 == MessagesDeepLink.groupThreadType } == true
 }
 
 func containsLink(_ text: String) -> Bool {

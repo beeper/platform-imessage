@@ -1,6 +1,5 @@
 import AccessibilityControl
 import AppKit
-import BetterSwiftAXAdditions
 import Carbon.HIToolbox.Events
 import Combine
 import Contacts
@@ -270,7 +269,7 @@ final class MessagesController {
                 .orThrow(ErrorMessage("misfire prevention: cannot extract address from selected thread id"))
 
             guard selectedAddress == addressToMatch ||
-                (type == singleThreadType && isSameContact(selectedAddress, addressToMatch))
+                    (type == MessagesDeepLink.singleThreadType && isSameContact(selectedAddress, addressToMatch))
             else {
                 log.error("ensureSelectedThread: failed to select thread")
                 throw ErrorMessage("misfire prevention: desired thread is not selected")
@@ -524,7 +523,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     @inlinable func prepareForAutomation() throws {
         log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
-        elements.clearCachedElements()
         log.debug("prepareForAutomation: making the app automatable")
         do {
             try phtConnection?.setMessagesHidden(true)
@@ -1463,9 +1461,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
         func getTV() -> Accessibility.Element? {
-            if let cached = elements.cachedTranscriptView, cached.isInViewport {
-                return cached
-            }
             return try? elements.transcriptView
         }
         guard let transcript = getTV(),
@@ -1496,10 +1491,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             guard isMontereyOrUp else { return nil }
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children[0] else { continue }
-                if (try? child.role()) == AXRole.button,
+                if (try? child.role()) == Accessibility.Role.button,
                    (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify
-                } else if (try? child.role()) == AXRole.staticText,
+                } else if (try? child.role()) == Accessibility.Role.staticText,
                           (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
