@@ -970,18 +970,6 @@ export default class AppleiMessage implements PlatformAPI {
         persistedArchivedAt = latestMessage.dateString
 
         texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${latestMessage.dateString})`)
-
-        if (!(await db.isThreadRead(chatGUID))) {
-          texts.log(`imsg/archive/${hashedThreadID}: being archived but is unread, marking it as read first`)
-          // NOTE(skip): marking the thread as read might cause the Swift poller
-          // to detect unread changes and state sync
-
-          await this.toggleThreadRead(true)(hashedThreadID)
-
-          texts.log(`imsg/archive/${hashedThreadID}: successfully marked as read in preparation for archive`)
-        } else {
-          texts.log(`imsg/archive/${hashedThreadID}: is already read, proceeding with archival`)
-        }
       } else {
         // chat is empty or we can't fetch the latest message for whatever reason;
         // just synthesize an HS order & timestamp to use
