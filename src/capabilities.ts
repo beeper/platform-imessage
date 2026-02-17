@@ -1,4 +1,4 @@
-import { supportedReactions } from './common-constants'
+import { supportedReactions, IS_TAHOE_OR_UP } from './common-constants'
 // 100 MB as of macOS Monterey 12.2; big media files are automatically
 // compressed
 const maxFileSizeBytes = 100 * 1_024 * 1_024
@@ -50,9 +50,9 @@ export const roomFeatures = {
   delete: CapabilitySupportLevel.FullySupported,
   delete_max_age: 60 * 2,
 
-  reaction: CapabilitySupportLevel.FullySupported,
-  reaction_count: 1,
-  allowed_reactions: [
+  reaction: IS_TAHOE_OR_UP ? CapabilitySupportLevel.Unsupported : CapabilitySupportLevel.FullySupported,
+  reaction_count: IS_TAHOE_OR_UP ? 0 : 1,
+  allowed_reactions: IS_TAHOE_OR_UP ? [] : [
     supportedReactions.heart.render,
     supportedReactions.like.render,
     supportedReactions.dislike.render,
