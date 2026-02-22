@@ -1,72 +1,30 @@
 # platform-imessage
 
-This repo uses [Git LFS](https://git-lfs.github.com/) to host compiled binaries.
+`platform-imessage` is the iMessage integration in Beeper Desktop on macOS. It's built on the deprecated [Platform SDK](https://github.com/textshq/platform-sdk).
 
 ## Getting Started
 
-Please see
-[the instructions in the desktop repo's README](https://github.com/beeper/beeper-desktop-new#platform-imessage).
-Old instructions kept here for posterity:
-
-[beeper-desktop-new]: https://github.com/beeper/beeper-desktop-new/
-[bdn-imsg-dependency]: https://github.com/beeper/beeper-desktop-new/
-[xcode-mas]: https://apps.apple.com/us/app/xcode/id497799835
-[platformapi-subclass]:
-  https://github.com/beeper/platform-imessage/blob/a53a113e599b122c8119041d57cbb5de1d8ae348/src/api.ts#L44
-[applescriptserver]: ./src/AppleScriptServer/
-[swiftserver]: ./src/SwiftServer/
+**It is not possible to use local builds with Beeper Desktop.** You can still interact with this project as a library, see [texthsq/platform-test-lib](https://github.com/textshq/platform-test-lib) as an example how Platform SDK can be used.
 
 <details>
-  <summary>Old Instructions</summary>
+<summary>Instructions excerpt</summary>
 
-<!-- prettier-ignore-->
-> [!TIP]
-> `yarn` may be freely substituted for `bun` in the commands below, as we're
-> merely interested in delegating to `package.json` scripts.
+> **Note**
+>
+> This is a snippet from our internal documentation shared as a reference.
+> You won't be able to run this project with Beeper Desktop.
 
-1. Make sure you have [Xcode][xcode-mas] installed.
-
-2. **In `beeper-desktop-new`'s `package.json`,** re-point [the
-   `@beeper/platform-imessage` entry][bdn-imsg-dependency] in
-   `optionalDependencies` to link to your local clone of this repository (don't
-   forget to `yarn` after):
-
-   ```json
-   "@beeper/platform-imessage": "link:../platform-imessage",
-   ```
-
-   (Running `yarn link ../platform-imessage` (or similar) doesn't work at the
-   moment.)
-
-3. **In `beeper-desktop-new`,** run:
-
-   ```
-   bun _ symlink-platform-binaries
-   ```
-
-   This symlinks `app/build/platform-imessage` to
-   `node_modules/@beeper/platform-imessage` (both of these paths are relative to
-   the desktop repo). But because we re-pointed the dependency above, it
-   ultimately ends up pointing to your local clone of `platform-imessage`.
-
-   (`bun _ copy-platform-binaries`, alternatively spelled
-   `bun copy:platform-binaries`, copies instead of symlinking.)
-
-### Building and Using
-
-<!-- prettier-ignore-->
-> [!IMPORTANT]
-> Adding the account might crash at first
-> ([DESK-5684](https://linear.app/beeper/issue/DESK-5684/mattwondra-app-crashed-while-adding-local-imessage)).
-> However, subsequent attempts should succeed.
+`platform-imessage` implements local iMessage support on macOS. This requires
+various permissions that must be granted to the app. There are various pitfalls
+with this:
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
 > When adding a local iMessage account to Beeper, you'll be prompted for
-> several permissions. One of them is "Accessibility", which is done in a
-> System Settings window that the app opens for you. **In development, grant
-> this permission to your terminal program, text editor, or wherever you're
-> running `yarn dev` from instead of Beeper or Electron.**
+> several permissions. One of them is "Accessibility", which you need to grant
+> in a System Settings window that the app opens for you. **In development,
+> grant this permission to your terminal program, text editor, or wherever
+> you're running `yarn dev` from INSTEAD of Beeper or Electron.**
 
 <!-- prettier-ignore-->
 > [!TIP]
@@ -89,80 +47,15 @@ Old instructions kept here for posterity:
 >    * Cursor: `com.todesktop.230313mzl4w4u92` (yes, actually)
 > * Try running any relevant `tccutil` commands, completely quitting and
 >   restarting all apps involved, and trying again.
-> * Try rebooting. <sub>(ol' reliable)</sub>
+> * Try rebooting after running the `tccutil` command.
 
-4. **If you're only interested in running from source,** perform a one-shot
-   build of everything ([AppleScriptServer], [SwiftServer], [the
-   TypeScript code][platformapi-subclass], and the SCSS) **(in this
-   repository)**:
-
-   ```
-   bun build
-   ```
-
-   Upon success, native binaries and CSS should be present in `./binaries`.
-   Because of the linking that occurred above, `app/build/platform-imessage` (in
-   `beeper-desktop-new`) should point there.
-
-5. **If you're interested in developing `platform-imessage`**, then run this
-   command **in this repository**:
-
-   ```sh
-   bun dev
-   ```
-
-   This command watches for changes in Swift, CSS, or JS files, continuously
-   rebuilding as necessary.
-
-   `--debug` is automatically passed to `yarn build-swift`. This disables
-   compiler optimizations, symbol stripping, and it only builds for your current
-   architecture. Additional parameters that may be passed to `build-swift` (and
-   therefore `dev`):
-
-   - `--no-spaces` defines the `NO_SPACES` compilation condition
-     (`#if NO_SPACES`) for the Swift code, which disables
-     [the behaviors involved in attempting to hide the Messages app](https://github.com/beeper/platform-imessage/blob/c670583e642d7a4df45f9a9d499720768d454370/src/SwiftServer/Sources/SwiftServer/SpacesWindowHidingManager.swift#L108)
-     in an invalid Mission Control space. This is useful for testing and
-     debugging as it keeps the Messages app visible.
-   - `--clean` will purge build artifacts before building.
-   - `--all-archs` forces the building of all architectures (`arm64` and `x64`).
-
-   For CSS changes to take effect, you may need to re-copy platform binaries in
-   `beeper-desktop-new` (the CSS file is in the "binaries" directory):
-
-   ```
-   yarn copy:platform-binaries
-   ```
-
-6. At this point, you should be able to simultaneously run `yarn dev`/`bun dev`
-   in [`beeper-desktop-new`][beeper-desktop-new] and add a local iMessage
-   account to your development instance of Beeper Desktop.
-
-   If you have an instance of `yarn dev`/`bun dev` already running for desktop,
-   you'll have to interrupt the command and re-run.
+macOS examines the ultimately "responsible" process when deciding whether
+permissions are granted or not. Because `yarn dev` (and therefore Electron) are
+subprocesses of your terminal/text editor and the kernel is unable to know that
+you ran the command yourself, the permissions must be granted there instead of
+Electron itself. (This is only relevant in a development environment.)
 
 </details>
-
-## Logs
-
-Logs are persisted to:
-
-- `~/Library/Application Support/BeeperTexts/logs/platform-imessage.log`
-
-<!-- prettier-ignore -->
-> [!IMPORTANT]
-> This path respects `BEEPER_PROFILE`, so the directory name is `BeeperTexts-dev`
-> instead of `BeeperTexts` in development, and so on.
-
-Keep in mind that the previous logging location was:
-
-- `~/Library/Application Support/jack/platform-imessage.log`
-
-It's worth checking this path if you can't locate a log at the aforementioned
-path in `BeeperTexts`, because for a short period of time, this path was being
-used with Beeper Desktop.
-
----
 
 ## SwiftServer
 
@@ -211,3 +104,7 @@ bun run build:swift
 node src/SwiftServer/test-script.js
 electron src/SwiftServer/test-script.js
 ```
+
+## License
+
+[MIT](./license.txt)
