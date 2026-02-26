@@ -1,10 +1,10 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, Participant } from '@textshq/platform-sdk'
-import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP, IS_SEQUOIA_15_5_OR_UP, IS_TAHOE_OR_UP } from './common-constants'
+import { supportedReactions, IS_BIG_SUR_OR_UP, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP, IS_SEQUOIA_15_5_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import { BeeperMessage } from './desktop-types'
 
-const canQuote = IS_TAHOE_OR_UP ? (() => false) : !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part
-const canReact = IS_TAHOE_OR_UP ? (() => false) : !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part && (message.linkedMessageID ? isSelectable(message) : true)
+const canQuote = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part
+const canReact = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part && (message.linkedMessageID ? isSelectable(message) : true)
 
 // (DESK-13231; removed until this actually works)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -55,7 +55,7 @@ const info: PlatformInfo = {
         Attribute.SUPPORTS_STOP_TYPING_INDICATOR,
         Attribute.SINGLE_THREAD_CREATION_REQUIRES_MESSAGE,
         Attribute.GROUP_THREAD_CREATION_REQUIRES_MESSAGE,
-        ...(!IS_TAHOE_OR_UP ? [Attribute.SUPPORTS_QUOTED_MESSAGES] : []),
+        Attribute.SUPPORTS_QUOTED_MESSAGES,
         Attribute.SUPPORTS_DELETE_THREAD,
       ] : [
         Attribute.NO_SUPPORT_TYPING_INDICATOR,
@@ -68,7 +68,7 @@ const info: PlatformInfo = {
       ].filter(Boolean) : []
     ),
   ]),
-  reactions: IS_TAHOE_OR_UP ? undefined : IS_SEQUOIA_OR_UP && !IS_SEQUOIA_15_5_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
+  reactions: IS_SEQUOIA_OR_UP && !IS_SEQUOIA_15_5_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
     gifMimeType: 'image/gif',
     maxSize: {
@@ -91,7 +91,6 @@ const info: PlatformInfo = {
       'The Messages app needs to stay open in the background.',
       'The Messages app might briefly appear onscreen as you interact with iMessage chats.',
       ...[(() => {
-        if (IS_TAHOE_OR_UP) return "Reacting and replying to messages isn't supported on macOS Tahoe."
         if (IS_MONTEREY_OR_UP) return "Reacting/replying to some types of messages isn't supported."
         return "On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."
       })()],

@@ -738,9 +738,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             //     }
             // }
             if messageCell.overlay {
-                if #available(macOS 26, *) {
-                    try revealReplyTranscriptViaMenu()
-                }
                 try waitUntilReplyTranscriptVisible()
             }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
@@ -1324,9 +1321,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if let threadID { try ensureSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
-                if #available(macOS 26, *) {
-                    try revealReplyTranscriptViaMenu()
-                }
                 try waitUntilReplyTranscriptVisible()
             }
             if Defaults.isSelectedThreadCellCompose() {
