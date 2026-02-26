@@ -16,25 +16,24 @@ public actor LogFileCoordinator {
     private var handle: FileHandle
 
     public init(url: URL) throws {
-        handle = try Self.handleFor(url)
+        handle = try Self.fileHandle(for: url)
         fileURL = url
 
         handle.seekToEndOfFile()
     }
 
-    private static func handleFor(_ url: URL) throws -> FileHandle {
-        do {
-            return try FileHandle(forUpdating: url)
-        } catch {
-            // try creating the file first
-            try? "".write(to: url, atomically: false, encoding: .utf8)
-            return try FileHandle(forUpdating: url)
+    private static func fileHandle(for url: URL) throws -> FileHandle {
+        // create the file if it doesn't already exist
+        if !(FileManager.default.fileExists(atPath: url.path)) {
+            try String("").write(to: url, atomically: false, encoding: .utf8)
         }
+        
+        return try FileHandle(forUpdating: url)
     }
 
     func reviveFileHandle() throws {
         print("imsg: reviving file handle")
-        handle = try Self.handleFor(fileURL)
+        handle = try Self.fileHandle(for: fileURL)
     }
 
     public func emit(line: String) {
@@ -58,7 +57,7 @@ public actor LogFileCoordinator {
         // wait until twice the file size limit so we aren't constantly trimming
         // after every message
         if handle.offsetInFile > Self.fileSizeLimit * 2 {
-            try? tryTrimming(approximatelyPreservingBytesAtEnd: Self.fileSizeLimit)
+            try? trim(approximatelyPreservingBytesAtEnd: Self.fileSizeLimit)
         }
     }
 
@@ -88,7 +87,7 @@ extension LogFileCoordinator {
         }
     }
 
-    public func tryTrimming(approximatelyPreservingBytesAtEnd preserved: Int = LogFileCoordinator.fileSizeLimit) throws {
+    public func trim(approximatelyPreservingBytesAtEnd preserved: Int = LogFileCoordinator.fileSizeLimit) throws {
         let newlineDiscoveryBufferLength = 1_024
         handle.seekToEndOfFile()
 

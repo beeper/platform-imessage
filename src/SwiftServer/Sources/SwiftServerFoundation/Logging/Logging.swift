@@ -38,6 +38,10 @@ public enum Log {
             .appendingPathComponent("platform-imessage.log")
     }()
 
+    public static var replyDiagnosticsFile: URL? = {
+        file?.deletingLastPathComponent().appendingPathComponent("reply-diagnostics.log")
+    }()
+
     public static func purge() throws {
         guard let file else {
             throw ErrorMessage("unable to determine log file URL")

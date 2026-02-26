@@ -20,7 +20,10 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer) var eclipsingDebug = false
     
     @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer) var spacesObserveDock = true
-    
+
+    @AppStorage(DefaultsKeys.replyDiagnostics, store: Defaults.swiftServer) var replyDiagnostics = false
+    @AppStorage(DefaultsKeys.replyDiagnosticsInspectionHold, store: Defaults.swiftServer) var replyDiagnosticsInspectionHold = false
+
     // help button popover
     @State private var presentingHelp = false
     
@@ -215,6 +218,22 @@ struct SettingsView: View {
                 Text("""
                 Record identifying information such as contact names, phone numbers, \
                 group names, and group chat members.
+                """)
+            }
+
+            Toggle(isOn: $replyDiagnostics) {
+                Text("Reply diagnostics")
+                Text("""
+                When a reply overlay fails, log transcript child states, \
+                dump the AX tree, and capture a screenshot to a dedicated log file.
+                """)
+            }
+
+            Toggle(isOn: $replyDiagnosticsInspectionHold) {
+                Text("Reply diagnostics inspection hold")
+                Text("""
+                On reply failure, keep Messages visible so you can manually \
+                inspect the AX state with Accessibility Inspector or AXTool.
                 """)
             }
         } header: {

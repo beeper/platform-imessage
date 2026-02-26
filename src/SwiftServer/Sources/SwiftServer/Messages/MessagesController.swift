@@ -12,6 +12,7 @@ import WindowControl
 
 private let log = Logger(swiftServerLabel: "messages-controller")
 private let lifecycleLog = Logger(swiftServerLabel: "lifecycle")
+private let replyDiagnosticsLog = Logger(label: "sws.reply-diag", factory: { _ in ReplyDiagnosticsLogHandler(identifier: "reply-diag") })
 
 private final class TimerBlockWatcher {
     let block: () -> Void
@@ -145,6 +146,7 @@ final class MessagesController {
     private let keyPresser: KeyPresser
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
+    private var inspectionHoldActive = false
 
     let om = OcclusionMonitor()
 
@@ -522,6 +524,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     @inlinable func prepareForAutomation() throws {
         log.info("prepareForAutomation")
+        inspectionHoldActive = false
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
         do {
@@ -538,6 +541,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     @inlinable func finishedAutomation() {
         log.info("finishedAutomation")
         activityLock.unlock()
+
+        if inspectionHoldActive {
+            replyDiagnosticsLog.warning("inspection hold is active — skipping window hide and reply transcript close")
+            return
+        }
+
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             do {
@@ -677,8 +686,110 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             
             try Self.queue.sync {
-                guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
-                    throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
+                let tv = try elements.transcriptView
+                let cell: Accessibility.Element
+
+                if let found = try? MessagesAppElements.firstSelectedMessageCell(in: tv) {
+                    cell = found
+                } else {
+                    let diagEnabled = SwiftServerDefaults[\.replyDiagnostics]
+                    var dumpID = ""
+
+                    if diagEnabled {
+                        dumpID = String(UUID().uuidString.prefix(8)).lowercased()
+                        let logsDir = Log.file?.deletingLastPathComponent()
+
+                        replyDiagnosticsLog.error("[\(dumpID)] firstSelectedMessageCell returned nil — no child of transcriptView had isSelected=true on its first child")
+                        replyDiagnosticsLog.info("[\(dumpID)] walking transcriptView children to understand why...")
+
+                        // walk each child, classifying it and logging its selected state
+                        do {
+                            let children = try tv.children()
+                            var selectedCount = 0
+                            var messageCellCount = 0
+                            var errorCount = 0
+
+                            for (i, child) in children.enumerated() {
+                                let role = (try? child.role()) ?? "<unknown role>"
+                                let desc = (try? child.localizedDescription()) ?? ""
+                                let childCount = (try? child.children.count()) ?? 0
+                                let isMessageCell = (try? MessagesAppElements.isMessageContainerCell(child)) ?? false
+                                if isMessageCell { messageCellCount += 1 }
+
+                                let identifier: String = {
+                                    guard childCount > 0, let inner = try? child.children[0] else { return "" }
+                                    return (try? inner.identifier()) ?? ""
+                                }()
+
+                                // check isSelected on the inner child (what firstSelectedMessageCell checks)
+                                let selectedResult: String
+                                if childCount > 0, let inner = try? child.children[0] {
+                                    do {
+                                        let sel = try inner.isSelected()
+                                        if sel { selectedCount += 1 }
+                                        selectedResult = sel ? "YES" : "no"
+                                    } catch {
+                                        errorCount += 1
+                                        selectedResult = "ERROR (\(error))"
+                                    }
+                                } else {
+                                    selectedResult = "n/a (no inner child)"
+                                }
+
+                                let cellLabel = isMessageCell ? "MESSAGE" : role
+                                let identifierStr = identifier.isEmpty ? "" : " id=\"\(identifier)\""
+                                let descStr = desc.isEmpty ? "" : " desc=\"\(desc)\""
+                                replyDiagnosticsLog.info("[\(dumpID)]   [\(i)] \(cellLabel)\(identifierStr)\(descStr) — isSelected=\(selectedResult)")
+                            }
+
+                            // summary
+                            replyDiagnosticsLog.info("[\(dumpID)] summary: \(children.count) children, \(messageCellCount) are message cells, \(selectedCount) had isSelected=true, \(errorCount) threw errors on isSelected")
+                            if selectedCount == 0 && messageCellCount > 0 {
+                                replyDiagnosticsLog.warning("[\(dumpID)] PROBLEM: message cells exist but none report isSelected=true — the deep link may not be setting selection on macOS 26")
+                            } else if messageCellCount == 0 {
+                                replyDiagnosticsLog.warning("[\(dumpID)] PROBLEM: no message cells found in transcript at all (only date separators / spacers)")
+                            }
+                        } catch {
+                            replyDiagnosticsLog.error("[\(dumpID)] couldn't enumerate transcript children: \(error)")
+                        }
+
+                        // AX tree dump — written to a separate file, referenced by dump ID
+                        if let logsDir {
+                            do {
+                                var buffer = ""
+                                try tv.dumpXML(to: &buffer, maxDepth: 5, excludingPII: true, includeActions: false, includeSections: false)
+                                let dumpFile = logsDir.appendingPathComponent("reply-diag-\(dumpID)-ax-dump.xml")
+                                try buffer.write(to: dumpFile, atomically: true, encoding: .utf8)
+                                replyDiagnosticsLog.info("[\(dumpID)] AX tree dump saved to \(dumpFile.path)")
+                            } catch {
+                                replyDiagnosticsLog.error("[\(dumpID)] failed to write AX tree dump: \(error)")
+                            }
+                        }
+
+                        // screenshot
+                        if let logsDir {
+                            if let screenshotURL = ScreenshotCapture.captureMessagesWindow(
+                                processIdentifier: app.processIdentifier,
+                                dumpID: dumpID,
+                                logsDirectory: logsDir
+                            ) {
+                                replyDiagnosticsLog.info("[\(dumpID)] screenshot saved to \(screenshotURL.path) (may be blank without Screen Recording permission)")
+                            } else {
+                                replyDiagnosticsLog.warning("[\(dumpID)] screenshot capture failed (window not found or CGWindowListCreateImage returned nil)")
+                            }
+                        }
+                    }
+
+                    // inspection hold (separate flag — can be enabled independently)
+                    if SwiftServerDefaults[\.replyDiagnosticsInspectionHold] {
+                        inspectionHoldActive = true
+                        replyDiagnosticsLog.warning("[\(dumpID.isEmpty ? "no-diag-id" : dumpID)] inspection hold activated — Messages will stay visible for manual AX inspection")
+                    }
+
+                    let errorMsg = diagEnabled
+                        ? "reveal: couldn't find selected message cell to show overlay with [\(dumpID)]"
+                        : "reveal: couldn't find selected message cell to show overlay with"
+                    throw ErrorMessage(errorMsg)
                 }
 
                 Thread.sleep(forTimeInterval: 1.0)
@@ -730,17 +841,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try withActivation(openBefore: url) {
             try ensureSelectedThread(threadID: threadID)
 
-            // we don't close transcript view here because when reacting, closing it will undo the reaction
-            // defer {
-            //     if messageCell.overlay {
-            //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
-            //         closeReplyTranscriptView(wait: true)
-            //     }
-            // }
             if messageCell.overlay {
-                if #available(macOS 26, *) {
-                    try revealReplyTranscriptViaMenu()
-                }
+                // TODO: (@pmanot) - figure out when overlay=1 was patched and warn users to update if they're on a prior version of Tahoe
+//                if #available(macOS 26, *) {
+//                    try revealReplyTranscriptViaMenu()
+//                }
                 try waitUntilReplyTranscriptVisible()
             }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
@@ -1324,9 +1429,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if let threadID { try ensureSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
-                if #available(macOS 26, *) {
-                    try revealReplyTranscriptViaMenu()
-                }
+                // TODO: (@pmanot) - figure out when overlay=1 was patched and warn users to update if they're on a prior version of Tahoe
+//                if #available(macOS 26, *) {
+//                    try revealReplyTranscriptViaMenu()
+//                }
                 try waitUntilReplyTranscriptVisible()
             }
             if Defaults.isSelectedThreadCellCompose() {

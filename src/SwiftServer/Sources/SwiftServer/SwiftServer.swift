@@ -57,7 +57,7 @@ enum Preferences {
 
     Task {
         // we trim as we log (within reason), but always try to do it on startup
-        try? await LogFileCoordinator.shared?.tryTrimming()
+        try? await LogFileCoordinator.shared?.trim()
     }
 
     let greeting = "howdy from SwiftServer!"

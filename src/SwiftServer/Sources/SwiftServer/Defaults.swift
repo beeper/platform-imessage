@@ -98,6 +98,11 @@ enum DefaultsKeys {
     static let pollerTraceChangeListening = "BEEPPollerTraceChangeListening"
     static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
+
+    /** gates reply diagnostics: targeted logging, AX dump, screenshot capture, dedicated log file */
+    static let replyDiagnostics = "BEEPReplyDiagnostics"
+    /** on reply failure, keeps Messages visible for manual AX inspection */
+    static let replyDiagnosticsInspectionHold = "BEEPReplyDiagnosticsInspectionHold"
 }
 
 enum SwiftServerDefaults {

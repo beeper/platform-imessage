@@ -2,7 +2,7 @@ import Logging
 import Foundation
 import os
 
-private var dateFormatter: DateFormatter {
+public var sharedLogDateFormatter: DateFormatter {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS Z"
     formatter.timeZone = TimeZone(abbreviation: "UTC")
@@ -33,7 +33,7 @@ public struct SwiftServerLogHandler: LogHandler {
         function: String,
         line: UInt
     ) {
-        let timestamp = dateFormatter.string(from: Date())
+        let timestamp = sharedLogDateFormatter.string(from: Date())
 
         let formattedMessage = "\(timestamp) [\(level):\(identifier)] \(message)"
         print(formattedMessage)
