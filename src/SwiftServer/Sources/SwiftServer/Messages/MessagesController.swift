@@ -1075,7 +1075,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func _sendTypingStatus(threadID: String, isTyping: Bool) throws {
+    func sendTypingStatus(threadID: String, isTyping: Bool, skipOpeningDeepLink: Bool = false) throws {
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
         // (since Messages special-cases space-only messages). The NUL byte
@@ -1086,30 +1086,15 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url) {
+        try withActivation(openBefore: skipOpeningDeepLink ? nil : url) {
             if isTyping { return } // no further action required
 
-            try ensureSelectedThread(threadID: threadID)
+            if !skipOpeningDeepLink {
+                try assertSelectedThread(threadID: threadID)
+            }
 
             try elements.messageBodyField.value(assign: "")
         }
-    }
-
-    func sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        if !isTyping {
-            elideStopTyping = false
-            Task {
-                try await Task.sleep(nanoseconds: 100 * 1_000_000)
-                if self.elideStopTyping {
-                    log.debug("Stop typing elided")
-                    self.elideStopTyping = false
-                    return
-                }
-                try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
-            }
-            return
-        }
-        try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) {
@@ -1241,8 +1226,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    var elideStopTyping = false
-
     // this method has a lot of combinations, test carefully
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         let startTime = Date()
@@ -1252,12 +1235,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links
+                        // skipping the deeplink and thread ID check is safe since we're simply clearing the textfield.
+                        // there are two possible scenarios:
+                        // A. [expected] we're in the correct chat (same thread ID as the one we're sending a message to using OSA). we can safely clear the textfield since we've sent the message and we don't need to show a typing indicator.
+                        // B. [unexpected] we're in a different chat than the one we're sending the message in, in which case we should clear the textfield anyway since we don't want to send a typing indicator.
+                        // in both cases, it is necessary to clear the typing indicator.
+                        try? sendTypingStatus(threadID: threadID, isTyping: false, skipOpeningDeepLink: true)
                         try OSA.send(threadID: threadID, text: text)
                         return
                     }
                 } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
                     if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                        // safe for the same reasons as the message above
+                        try? sendTypingStatus(threadID: threadID, isTyping: false, skipOpeningDeepLink: true)
                         try OSA.send(threadID: threadID, filePath: filePath)
                         return
                     }
@@ -1267,8 +1258,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 // fall back to regular send
             }
         }
-
-        elideStopTyping = true
 
         let url: URL
         if let quotedMessage {
