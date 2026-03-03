@@ -318,12 +318,14 @@ final class MessagesController {
                         return
                     }
                 }
+                
                 throw error
             }
         }
     }
 
     private func openThread(_ threadID: String) throws {
+        try? self.clearTypingStatus()
         try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
         try assertSelectedThread(threadID: threadID)
     }
@@ -503,15 +505,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
+        
+        defer {
+            activityLock.lock()
+        }
+        
         do {
             try phtConnection?.setMessagesHidden(true)
         } catch {
             log.error("failed to hide messages app via pht: \(error)")
         }
+        
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
-        activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
@@ -1075,26 +1082,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func sendTypingStatus(threadID: String, isTyping: Bool, skipOpeningDeepLink: Bool = false) throws {
+    func sendTypingStatus(threadID: String) throws {
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
         // (since Messages special-cases space-only messages). The NUL byte
         // is another option that doesn't get sent to the server, but it
         // shows up client-side as a ghost message.
-        let url = try MessagesDeepLink(threadID: threadID, body: isTyping ? " " : nil).url()
+        let url = try MessagesDeepLink(threadID: threadID, body: " ").url()
 
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: skipOpeningDeepLink ? nil : url) {
-            if isTyping { return } // no further action required
-
-            if !skipOpeningDeepLink {
-                try assertSelectedThread(threadID: threadID)
-            }
-
-            try elements.messageBodyField.value(assign: "")
-        }
+        try Self.openDeepLink(url)
+    }
+    
+    func clearTypingStatus() throws {
+        try elements.messageBodyField.value(assign: "")
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) {
@@ -1240,7 +1243,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         // A. [expected] we're in the correct chat (same thread ID as the one we're sending a message to using OSA). we can safely clear the textfield since we've sent the message and we don't need to show a typing indicator.
                         // B. [unexpected] we're in a different chat than the one we're sending the message in, in which case we should clear the textfield anyway since we don't want to send a typing indicator.
                         // in both cases, it is necessary to clear the typing indicator.
-                        try? sendTypingStatus(threadID: threadID, isTyping: false, skipOpeningDeepLink: true)
+                        try? clearTypingStatus()
                         try OSA.send(threadID: threadID, text: text)
                         return
                     }
@@ -1248,7 +1251,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     // we don't always use OSA for files bc send file is randomly unreliable
                     if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
                         // safe for the same reasons as the message above
-                        try? sendTypingStatus(threadID: threadID, isTyping: false, skipOpeningDeepLink: true)
+                        try? clearTypingStatus()
                         try OSA.send(threadID: threadID, filePath: filePath)
                         return
                     }

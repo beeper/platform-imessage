@@ -127,7 +127,13 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
     }
 
     @NodeMethod func sendTypingStatus(threadID: String, isTyping: Bool) throws -> NodeValueConvertible {
-        try performAsync { try self.controller.sendTypingStatus(threadID: threadID, isTyping: isTyping) }
+        try performAsync {
+            if isTyping {
+                try self.controller.sendTypingStatus(threadID: threadID)
+            } else {
+                try self.controller.clearTypingStatus()
+            }
+        }
     }
 
     @NodeMethod func notifyAnyway(threadID: String) throws -> NodeValueConvertible {
@@ -138,8 +144,6 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.watchThreadActivity) else {
             return undefined
         }
-
-        let controllerArgs: (String, ([ActivityStatus]) -> Void)?
 
         // reset the idle callback in case we fail and bail out
         Self.queue.setIdleCallback(nil)
