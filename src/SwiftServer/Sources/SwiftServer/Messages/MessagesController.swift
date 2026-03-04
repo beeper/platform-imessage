@@ -705,69 +705,173 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
+        let diag = WithMessageCellDiagnostics(messageCell: messageCell)
 
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
+        diag.step("built deep link: \(url)")
 
         // without closing reply transcript, non-overlay deep link won't select the message
         if !messageCell.overlay {
+            diag.step("non-overlay mode: closing any open reply transcript first")
             try? closeReplyTranscriptView(wait: false)
         }
 
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
+        diag.step("opening deep link and entering withActivation")
+        diag.screenshot("before-deep-link")
 
-            // we don't close transcript view here because when reacting, closing it will undo the reaction
-            // defer {
-            //     if messageCell.overlay {
-            //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
-            //         closeReplyTranscriptView(wait: true)
-            //     }
-            // }
+        try withActivation(openBefore: url) {
+            diag.screenshot("after-deep-link")
+
+            diag.step("assertSelectedThread")
+            diag.assumption("the deep link navigated Messages to the correct thread")
+            try assertSelectedThread(threadID: threadID)
+            diag.outcome("assertSelectedThread passed")
+
             if messageCell.overlay {
-                try waitUntilReplyTranscriptVisible()
+                diag.step("waiting for reply transcript to become visible")
+                diag.assumption("opening deep link with overlay=1 should show the reply transcript, detectable by messageBodyField placeholder changing from 'iMessage'/'Text Message' to something else")
+                do {
+                    try waitUntilReplyTranscriptVisible()
+                    diag.outcome("reply transcript is visible")
+                } catch {
+                    diag.violation("reply transcript never became visible: \(error)")
+                    diag.screenshot("reply-transcript-not-visible")
+                    diag.dumpAXTree(elements.app, label: "app-after-reply-transcript-wait-failed")
+                    throw error
+                }
             }
-            guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
-                guard let cell = try messageCell.overlay
-                    ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
-                    : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
-                else {
+
+            // --- find the message cell ---
+            diag.step("searching for message cell (retry loop: timeout=1s, interval=0.2s)")
+            if messageCell.overlay {
+                diag.assumption("overlay mode: using firstMessageCell(in: replyTranscriptView) which finds the first child of the first container cell whose first child has a 'Name:React' action prefix")
+            } else {
+                diag.assumption("non-overlay mode: using firstSelectedMessageCell(in: transcriptView) which finds the first child whose isSelected() == true")
+            }
+
+            let transcriptForSearch: Accessibility.Element
+            do {
+                transcriptForSearch = try messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView
+            } catch {
+                diag.violation("could not get \(messageCell.overlay ? "replyTranscriptView" : "transcriptView"): \(error)")
+                diag.screenshot("transcript-view-missing")
+                diag.dumpAXTree(elements.app, label: "app-when-transcript-view-missing")
+                throw error
+            }
+
+            diag.step("got transcript view, dumping its AX tree before searching for cells")
+            let preSearchID = diag.dumpAXTree(transcriptForSearch, label: "transcript-before-cell-search")
+            diag.detail("see \(preSearchID) for the transcript tree we are about to search")
+
+            var retryAttempt = 0
+            guard let selected = (try retry(withTimeout: 1, interval: 0.2) { [self] () -> Accessibility.Element? in
+                retryAttempt += 1
+                diag.step("cell search attempt \(retryAttempt)")
+
+                let cell: Accessibility.Element?
+                do {
+                    cell = try messageCell.overlay
+                        ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
+                        : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
+                } catch {
+                    diag.violation("error while searching for cell: \(error)")
+                    throw error
+                }
+
+                guard let cell else {
+                    diag.violation("message cell is nil — no container cell matched isMessageContainerCell (empty localizedDescription + first child has 'Name:React' action)")
+                    if retryAttempt == 1 {
+                        // dump on first failure to capture the state
+                        do {
+                            let tv = try messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView
+                            diag.dumpAXTree(tv, label: "transcript-on-first-nil-cell")
+                        } catch {
+                            diag.detail("could not re-fetch transcript view for dump: \(error)")
+                        }
+                    }
                     throw ErrorMessage("message cell nil")
                 }
-                guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
+
+                guard cell.isInViewport else {
+                    diag.violation("found a cell but it is not in viewport (frame is offscreen or zero)")
+                    throw ErrorMessage("message cell not in viewport")
+                }
+
+                diag.outcome("found cell in viewport")
                 return cell
             }) else {
+                diag.violation("all retry attempts exhausted, could not find message cell")
+                diag.screenshot("cell-search-exhausted")
+                diag.dumpAXTree(elements.app, label: "app-after-cell-search-exhausted")
                 throw ErrorMessage("Could not find message cell")
             }
+
+            diag.step("message cell found, dumping it")
+            diag.dumpAXTree(selected, label: "selected-cell")
+
+            // --- resolve offset ---
             let targetCell: Accessibility.Element
             if messageCell.offset == 0 {
+                diag.step("offset is 0, using selected cell directly")
                 targetCell = selected
             } else {
+                diag.step("offset is \(messageCell.offset), resolving via container cells")
+                diag.assumption("selected cell's parent is a container cell; we find it by matching frames among all container cells, then index by offset")
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
                 let containerCells = try MessagesAppElements.messageContainerCells(in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView)
                 guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
+                    diag.violation("could not find container cell by frame match (frame=\(containerFrame))")
+                    diag.screenshot("container-frame-mismatch")
                     throw ErrorMessage("Could not find target message cell")
                 }
                 let target = idx - messageCell.offset
+                diag.detail("container index: \(idx), offset: \(messageCell.offset), target index: \(target), total containers: \(containerCells.count)")
                 log.debug("Index: \(idx) - \(messageCell.offset) = \(target)")
                 guard containerCells.indices.contains(target) else {
+                    diag.violation("target index \(target) is out of bounds (valid: \(containerCells.startIndex)..<\(containerCells.endIndex))")
                     throw ErrorMessage("Desired index out of bounds")
                 }
                 targetCell = try containerCells[target].children[0]
+                diag.outcome("resolved target cell at index \(target)")
             }
+
+            // --- verify cell role and ID ---
             if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
+                diag.step("verifying cell role")
+                diag.assumption("cell role should be '\(cellRole)'")
                 guard role == cellRole else {
+                    diag.violation("cell role mismatch: expected '\(cellRole)', got '\(role)'")
+                    diag.dumpAXTree(targetCell, label: "cell-role-mismatch")
                     log.debug("Expected cell role \(cellRole), got \(role)")
                     throw ErrorMessage("Cell role mismatch")
                 }
+                diag.outcome("cell role matches: '\(role)'")
             }
             if let cellID = messageCell.cellID, let id = try? targetCell.identifier() {
+                diag.step("verifying cell ID")
+                diag.assumption("cell identifier should be '\(cellID)'")
                 guard id == cellID else {
+                    diag.violation("cell ID mismatch: expected '\(cellID)', got '\(id)'")
+                    diag.dumpAXTree(targetCell, label: "cell-id-mismatch")
                     log.debug("Expected cell id \(cellID), got \(id)")
                     throw ErrorMessage("Cell id mismatch")
                 }
+                diag.outcome("cell ID matches: '\(id)'")
             }
-            try action(targetCell)
+
+            // --- perform the action ---
+            diag.step("all checks passed, performing action")
+            diag.screenshot("before-action")
+            do {
+                try action(targetCell)
+                diag.screenshot("after-action")
+                diag.step("action completed successfully")
+            } catch {
+                diag.screenshot("after-action-failed")
+                diag.violation("action threw: \(error)")
+                throw error
+            }
         }
     }
 
