@@ -1,0 +1,8 @@
+# Path to the Node.js runtime that should execute the BridgeV2 JS sidecar.
+node_path: node
+
+# Path to the compiled JS CLI produced by `yarn build:typescript`.
+cli_path: dist/bridgev2/cli.js
+
+# Directory used by the JS sidecar for bridge-local state.
+data_dir: ~/Library/Application Support/mautrix-imessage
