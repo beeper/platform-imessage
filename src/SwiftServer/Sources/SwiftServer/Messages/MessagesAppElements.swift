@@ -35,9 +35,7 @@ final class MessagesAppElements {
                 $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)")
             }
         }
-
-        let hasDescription: Bool = try !(element.localizedDescription().isEmpty)
-
+        let hasDescription = try !(element.localizedDescription().isEmpty)
         return hasDescription && try containsReactPrefix(element.children[0].supportedActions())
     }
 
@@ -80,7 +78,7 @@ final class MessagesAppElements {
         _ search: () throws -> Accessibility.Element?
     ) throws -> Accessibility.Element {
         let startTime = logTime ? Date() : nil
-        
+
         defer {
             if let startTime {
                 log.debug("\(name) took \(startTime.timeIntervalSinceNow * -1000)ms")
@@ -150,7 +148,7 @@ final class MessagesAppElements {
     private func isPromptVisibleInMessagesApp() -> Bool {
         allWindows.contains(where: { (try? $0.windowCloseButton().isEnabled()) == false })
     }
-    
+
     // TODO: move to extension method on ax element
     private func dismissAnyPresentedSheet() throws {
         // TODO: a sheet can be potentially "primed" to appear but not actually appear until the window is actually created and _focused_ for whatever
@@ -161,7 +159,7 @@ final class MessagesAppElements {
             log.debug("(found no sheet to dismiss)")
             return
         }
-        
+
         let startTime = Date()
         guard let okButton = sheet.recursiveChildren().lazy.first(where: { child in
             let description = try? child.localizedDescription()
@@ -215,16 +213,16 @@ final class MessagesAppElements {
             return mainWindow
         }
     }
-    
+
     private var lastDumpedApplicationTree: Date?
-    
+
     private func dumpAndLogApplicationTree() throws {
         var buffer = ""
         // 10 should be plenty
         try app.dumpXML(to: &buffer, maxDepth: 10, excludingPII: true, includeActions: false, includeSections: true)
         log.info("\(buffer)")
     }
-    
+
     private func dumpAndLogApplicationTreeIfNeeded() throws {
         if let lastDumpedApplicationTree {
             guard lastDumpedApplicationTree.timeIntervalSinceNow * -1 >= 60 else {
@@ -236,7 +234,7 @@ final class MessagesAppElements {
         defer { lastDumpedApplicationTree = Date() }
         try dumpAndLogApplicationTree()
     }
-    
+
     var mainWindow: Accessibility.Element {
         get throws {
             do {
