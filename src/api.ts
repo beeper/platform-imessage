@@ -77,40 +77,6 @@ export default class AppleiMessage implements PlatformAPI {
 
   private onEvent: OnServerEventCallback | undefined
 
-  // Local reaction sends produce a fresh DB row, but unlike Matrix-backed
-  // platforms we don't get a transaction ID echoed back over sync. Track the
-  // row GUIDs we observe immediately after sending so future refreshes can
-  // reattach the original pending reaction ID as `extra.echoID`.
-  private readonly reactionEchoIDs = new Map<string, string>()
-
-  private getReactionEchoID(messageID: string): string | undefined {
-    const [baseMessageID] = messageID.split('_', 1)
-    return this.reactionEchoIDs.get(baseMessageID)
-  }
-
-  private applyReactionEchoID(message: BeeperMessage): BeeperMessage {
-    const echoID = this.getReactionEchoID(message.id)
-    if (!echoID) return message
-    message.extra = {
-      ...message.extra,
-      echoID,
-    }
-    return message
-  }
-
-  private applyReactionEchoIDs(messages: BeeperMessage[]): BeeperMessage[] {
-    messages.forEach(message => this.applyReactionEchoID(message))
-    return messages
-  }
-
-  private rememberReactionEchoID(messages: true | Array<Pick<Message, 'id'>>, transactionID?: string) {
-    if (!transactionID || messages === true) return
-    messages.forEach(message => {
-      const [baseMessageID] = message.id.split('_', 1)
-      this.reactionEchoIDs.set(baseMessageID, transactionID)
-    })
-  }
-
   private async ensureDB(): Promise<DatabaseAPI> {
     if (this.cachedDB) {
       return this.cachedDB
@@ -257,7 +223,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getUnreadCounts(),
       getDNDState(),
     ])
-    const thread = mapThread(
+    return hashThread(mapThread(
       chatRow,
       {
         handleRowsMap: { [chatRow.guid]: handleRows },
@@ -271,9 +237,7 @@ export default class AppleiMessage implements PlatformAPI {
         pinStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'pin') },
         lowPriorityStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'lowPriority') },
       },
-    )
-    this.applyReactionEchoIDs(thread.messages.items)
-    return hashThread(thread) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+    )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
   }
 
   private catalinaCreateThread = async (userIDs: string[]) => {
@@ -408,9 +372,6 @@ export default class AppleiMessage implements PlatformAPI {
       pinStates: this.batchGetThreadPropForChatRows(chatRows, 'pin'),
       lowPriorityStates: this.batchGetThreadPropForChatRows(chatRows, 'lowPriority'),
     })
-    items.forEach(thread => {
-      this.applyReactionEchoIDs(thread.messages.items)
-    })
     if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
     if (!cursor) db.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
@@ -433,7 +394,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments(msgRowIDs),
       db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }),
     ])
-    const items = this.applyReactionEchoIDs(mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id))
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],
@@ -451,7 +412,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments([msgRow.ROWID]),
       db.getMessageReactions([msgRow.guid], { type: 'guid', guid: threadID }),
     ])
-    const items = this.applyReactionEchoIDs(mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser!.id))
+    const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser!.id)
     const message = items.find(i => i.id === messageID)
     // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
     return (message ? hashMessage(message) : message) as Message
@@ -480,7 +441,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments(msgRowIDs),
       threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
-    const items = this.applyReactionEchoIDs(mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id))
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],
@@ -697,7 +658,7 @@ export default class AppleiMessage implements PlatformAPI {
     return { ...closestMessage, overlay } as MessageCell
   }
 
-  private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean, transactionID?: string) => {
+  private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
     // if (IS_TAHOE_OR_UP) throw Error('reactions are not supported on macOS Tahoe')
     if (!IS_BIG_SUR_OR_UP) throw Error('only supported on big sur and above')
     await pRetry(async () => {
@@ -710,7 +671,6 @@ export default class AppleiMessage implements PlatformAPI {
         () => controller.setReaction(threadID, JSON.stringify(messageCell), reactionKey, on),
         5_000,
       )
-      this.rememberReactionEchoID(result, on ? transactionID : undefined)
       if (!result) throw Error('setReaction unknown error')
     }, {
       onFailedAttempt: error => {
@@ -722,14 +682,33 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string, transactionID?: string) => {
+  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
     const threadID = originalThreadID(hashedThreadID)
-    return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true, transactionID))
+    try {
+      await this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true))
+    } finally {
+      this.deleteReactionEcho(hashedThreadID, messageID)
+    }
   }
 
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
     const threadID = originalThreadID(hashedThreadID)
-    return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
+    try {
+      await this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
+    } finally {
+      this.deleteReactionEcho(hashedThreadID, messageID)
+    }
+  }
+
+  private deleteReactionEcho(hashedThreadID: ThreadID, messageID: MessageID) {
+    const reactionID = hashParticipantID(this.currentUser!.id)
+    this.onEvent?.([{
+      type: ServerEventType.STATE_SYNC,
+      objectName: 'message_reaction',
+      mutationType: 'delete',
+      entries: [reactionID],
+      objectIDs: { threadID: hashedThreadID, messageID },
+    }])
   }
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
