@@ -36,7 +36,8 @@ final class MessagesAppElements {
             }
         }
         let hasDescription = try !(element.localizedDescription().isEmpty)
-        return hasDescription && try containsReactPrefix(element.children[0].supportedActions())
+        let hasReactAction = try containsReactPrefix(element.children[0].supportedActions())
+        return hasDescription && hasReactAction
     }
 
     static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
