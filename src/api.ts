@@ -682,32 +682,32 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string, transactionID?: string) => {
     const threadID = originalThreadID(hashedThreadID)
     try {
       await this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true))
     } finally {
-      this.deleteReactionEcho(hashedThreadID, messageID)
+      this.deleteReactionEcho(hashedThreadID, transactionID)
     }
   }
 
-  removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+  removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string, transactionID?: string) => {
     const threadID = originalThreadID(hashedThreadID)
     try {
       await this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
     } finally {
-      this.deleteReactionEcho(hashedThreadID, messageID)
+      this.deleteReactionEcho(hashedThreadID, transactionID)
     }
   }
 
-  private deleteReactionEcho(hashedThreadID: ThreadID, messageID: MessageID) {
-    const reactionID = hashParticipantID(this.currentUser!.id)
+  private deleteReactionEcho(hashedThreadID: ThreadID, transactionID?: string) {
+    if (!transactionID) return
     this.onEvent?.([{
       type: ServerEventType.STATE_SYNC,
-      objectName: 'message_reaction',
+      objectName: 'message',
       mutationType: 'delete',
-      entries: [reactionID],
-      objectIDs: { threadID: hashedThreadID, messageID },
+      entries: [transactionID],
+      objectIDs: { threadID: hashedThreadID },
     }])
   }
 
