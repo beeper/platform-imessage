@@ -35,8 +35,10 @@ final class MessagesAppElements {
                 $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)")
             }
         }
-        
-        return try containsReactPrefix(element.children[0].supportedActions())
+
+        let hasDescription: Bool = try !(element.localizedDescription().isEmpty)
+
+        return hasDescription && try containsReactPrefix(element.children[0].supportedActions())
     }
 
     static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
