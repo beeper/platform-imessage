@@ -391,9 +391,13 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   const expressiveSendStyleIsValid = (style: string): style is keyof typeof EXPRESSIVE_MSGS =>
     Object.keys(EXPRESSIVE_MSGS).includes(String(style))
   const expressiveSendStyleID = msgRow.expressive_send_style_id
+  const serviceFooters: Record<string, string> = {
+    iMessageLite: 'iMessage · Satellite',
+    SatelliteSMS: 'SMS · Satellite',
+  }
   const partialFooter: Pick<Message, 'textFooter'> = expressiveSendStyleIsValid(expressiveSendStyleID)
     ? { textFooter: `(Sent with ${(EXPRESSIVE_MSGS[expressiveSendStyleID] || expressiveSendStyleID)} effect)` }
-    : {}
+    : (serviceFooters[msgRow.service] ? { textFooter: serviceFooters[msgRow.service] } : {})
 
   const payloadData = getPayloadData(msgRow)
   Object.assign(partialMessage, getPayloadProps(payloadData, attachments, msgRow.balloon_bundle_id))
