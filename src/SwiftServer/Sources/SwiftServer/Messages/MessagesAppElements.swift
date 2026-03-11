@@ -40,8 +40,47 @@ final class MessagesAppElements {
         return try containsReactPrefix(element.children[0].supportedActions())
     }
 
-    static func messageContainerCells(in tv: Accessibility.Element) throws -> [Accessibility.Element] {
-        try tv.children().lazy.filter { (try? Self.isMessageContainerCell($0)) ?? false }
+    static func messageContainerCells(in tv: Accessibility.Element) throws -> LazyFilterSequence<[Accessibility.Element]> {
+        return try tv.children().lazy.filter { (try? Self.isMessageContainerCell($0)) ?? false }
+    }
+
+    /// Returns message container cells using `copyHierarchy` to minimize IPC round-trips.
+    /// One bulk call fetches descriptions and children for all cells, then `supportedActions()`
+    /// is called lazily only on cells that pass the description filter.
+    static func _messageContainerCells(in tv: Accessibility.Element) throws -> AnySequence<Accessibility.Element> {
+        let hierarchy = try tv.copyHierarchy(
+            requesting: [kAXDescriptionAttribute, kAXChildrenAttribute],
+            options: .init(
+                arrayAttributes: [kAXChildrenAttribute],
+                maxDepth: 2
+            )
+        )
+
+        guard let tvSnapshot = hierarchy.snapshot(for: tv),
+              let childrenEntry = tvSnapshot.entry(for: kAXChildrenAttribute),
+              let cells = childrenEntry.elementValues else {
+            return AnySequence([])
+        }
+
+        let reactPrefix = "Name:\(LocalizedStrings.react)"
+
+        return AnySequence(cells.lazy.filter { cell in
+            guard let snapshot = hierarchy.snapshot(for: cell),
+                  let descEntry = snapshot.entry(for: kAXDescriptionAttribute),
+                  let desc = descEntry.stringValue,
+                  !desc.isEmpty else {
+                return false
+            }
+
+            guard let childrenEntry = snapshot.entry(for: kAXChildrenAttribute),
+                  let children = childrenEntry.elementValues,
+                  let firstChild = children.first else {
+                return false
+            }
+
+            let actions = (try? firstChild.supportedActions()) ?? []
+            return actions.contains { $0.name.value.hasPrefix(reactPrefix) }
+        })
     }
 
     static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
