@@ -146,27 +146,7 @@ final class MessagesController {
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
 
-    let om = OcclusionMonitor()
-
-    class OcclusionMonitor {
-        var visible: Bool = true
-
-        private var ncToken: NSObjectProtocol?
-
-        init() {
-            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
-                log.trace("didChangeOcclusionStateNotification \(notif)")
-                guard let window = notif.object as? NSWindow else { return }
-                let className = NSStringFromClass(type(of: window))
-                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
-                self.visible = window.occlusionState.contains(.visible)
-            }
-        }
-
-        deinit {
-            ncToken.map { NotificationCenter.default.removeObserver($0) }
-        }
-    }
+    let occlusionMonitor = OcclusionMonitor()
 
     // this increases the viewport height so that mark as read works more reliably
     static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
@@ -246,8 +226,7 @@ final class MessagesController {
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
-    // TODO: rename to `assertSelectedThread`, which better describes its behavior
-    private func ensureSelectedThread(threadID: String) throws {
+    private func assertSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
@@ -260,7 +239,7 @@ final class MessagesController {
             log.debug("ensuring selected thread: \(hashedThreadID)")
         }
 
-        func ensureSelectedThreadViaDefault(value selectedThreadID: String) throws {
+        func assertSelectedThreadViaDefault(value selectedThreadID: String) throws {
             guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
                 throw ErrorMessage("misfire prevention: compose thread is selected")
             }
@@ -271,12 +250,12 @@ final class MessagesController {
             guard selectedAddress == addressToMatch ||
                     (type == MessagesDeepLink.singleThreadType && isSameContact(selectedAddress, addressToMatch))
             else {
-                log.error("ensureSelectedThread: failed to select thread")
+                log.error("assertSelectedThread: failed to select thread")
                 throw ErrorMessage("misfire prevention: desired thread is not selected")
             }
         }
         
-        func ensureSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
+        func assertSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
             guard let lastChange = date.read() else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
@@ -298,7 +277,7 @@ final class MessagesController {
             do {
                 // always prefer reading the default if we can (impossible on recent macOS; see DESK-10725)
                 if !SwiftServerDefaults[\.misfirePreventionAlwaysFallback], let selectedThreadID = Defaults.getSelectedThreadID() {
-                    return try ensureSelectedThreadViaDefault(value: selectedThreadID)
+                    return try assertSelectedThreadViaDefault(value: selectedThreadID)
                 }
 
                 let strategy = Defaults.swiftServer.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy)
@@ -320,12 +299,12 @@ final class MessagesController {
                     return try assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: threadID, currentWindowTitle: windowTitle)
                 case "focus-waiter":
                     // wait until Accessibility posts a notification staging that the focused element has changed.
-                    try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastFocusedUIElementChange, type: "focus", emoji: "👆")
+                    try assertSelectedThreadViaLastChange(of: lifecycleObserver.lastFocusedUIElementChange, type: "focus", emoji: "👆")
                 case "layout-waiter":
                     // wait until Accessibility posts a notification stating that the layout has changed.
                     // this happens very frequently, for example after changing the active chat (what we specifically want to know about)
                     // or even scrolling the chat list
-                    try ensureSelectedThreadViaLastChange(of: lifecycleObserver.lastLayoutChange, type: "layout", emoji: "📐")
+                    try assertSelectedThreadViaLastChange(of: lifecycleObserver.lastLayoutChange, type: "layout", emoji: "📐")
                 default:
                     var sleepInterval = Defaults.swiftServer.double(forKey: DefaultsKeys.misfirePreventionSleepInterval)
                     if sleepInterval <= 0.0 { sleepInterval = 0.5 }
@@ -335,18 +314,20 @@ final class MessagesController {
             } catch {
                 if attempt > 5 { // 250ms
                     if let addresses = getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
-                        log.error("ensureSelectedThread: resorted to fallback in order to assert selection")
+                        log.error("assertSelectedThread: resorted to fallback in order to assert selection")
                         return
                     }
                 }
+                
                 throw error
             }
         }
     }
 
     private func openThread(_ threadID: String) throws {
+        try? self.clearTypingStatus()
         try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
-        try ensureSelectedThread(threadID: threadID)
+        try assertSelectedThread(threadID: threadID)
     }
 
     private static func getRunningMessagesApps() -> [NSRunningApplication] {
@@ -447,7 +428,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             // this task doesn't run on the thread with the run loop
-            Task {
+            Task.detached {
                 func debuggingStatus() -> String {
                     // grab the running application again in case it has quit
                     // and relaunched since we last observed an event
@@ -524,15 +505,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
+        
+        defer {
+            activityLock.lock()
+        }
+        
         do {
             try phtConnection?.setMessagesHidden(true)
         } catch {
             log.error("failed to hide messages app via pht: \(error)")
         }
+        
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
-        activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
@@ -728,7 +714,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
 
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
@@ -930,6 +916,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         tryPressingCancelEditButton()
+        
         try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
             if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                 log.debug("found \"Edit\" message action")
@@ -964,7 +951,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
 
             let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             try threadCell.showMenu()
@@ -1004,7 +991,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // scrollToVisible is needed since sometimes the thread cell can be behind the search input field causing .press() to focus the input field instead
         try threadCell.scrollToVisible()
         try threadCell.press()
-        try? ensureSelectedThread(threadID: threadID)
+        try? assertSelectedThread(threadID: threadID)
     }
 
     /*
@@ -1025,7 +1012,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }
@@ -1069,7 +1056,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             // at least on Monterey: for pinned thread cells, this should be
             // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
             let action = muted || Defaults.isSelectedThreadCellPinned() ? ThreadAction.hideAlerts : ThreadAction.showAlerts
@@ -1089,47 +1076,28 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             try triggerThreadCellAction(threadID: threadID, action: .delete)
             try elements.alertSheetDeleteButton.press()
         }
     }
 
-    func _sendTypingStatus(threadID: String, isTyping: Bool) throws {
+    func sendTypingStatus(threadID: String) throws {
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
         // (since Messages special-cases space-only messages). The NUL byte
         // is another option that doesn't get sent to the server, but it
         // shows up client-side as a ghost message.
-        let url = try MessagesDeepLink(threadID: threadID, body: isTyping ? " " : nil).url()
+        let url = try MessagesDeepLink(threadID: threadID, body: " ").url()
 
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try withActivation(openBefore: url) {
-            if isTyping { return } // no further action required
-
-            try ensureSelectedThread(threadID: threadID)
-
-            try elements.messageBodyField.value(assign: "")
-        }
+        try Self.openDeepLink(url)
     }
-
-    func sendTypingStatus(threadID: String, isTyping: Bool) throws {
-        if !isTyping {
-            elideStopTyping = false
-            Task {
-                try await Task.sleep(nanoseconds: 100 * 1_000_000)
-                if self.elideStopTyping {
-                    log.debug("Stop typing elided")
-                    self.elideStopTyping = false
-                    return
-                }
-                try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
-            }
-            return
-        }
-        try _sendTypingStatus(threadID: threadID, isTyping: isTyping)
+    
+    func clearTypingStatus() throws {
+        try elements.messageBodyField.value(assign: "")
     }
 
     private func focusMessageField(_ messageField: Accessibility.Element) {
@@ -1261,8 +1229,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    var elideStopTyping = false
-
     // this method has a lot of combinations, test carefully
     func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
         let startTime = Date()
@@ -1272,12 +1238,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links
+                        // skipping the deeplink and thread ID check is safe since we're simply clearing the textfield.
+                        // there are two possible scenarios:
+                        // A. [expected] we're in the correct chat (same thread ID as the one we're sending a message to using OSA). we can safely clear the textfield since we've sent the message and we don't need to show a typing indicator.
+                        // B. [unexpected] we're in a different chat than the one we're sending the message in, in which case we should clear the textfield anyway since we don't want to send a typing indicator.
+                        // in both cases, it is necessary to clear the typing indicator.
+                        try? clearTypingStatus()
                         try OSA.send(threadID: threadID, text: text)
                         return
                     }
                 } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
                     if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                        // safe for the same reasons as the message above
+                        try? clearTypingStatus()
                         try OSA.send(threadID: threadID, filePath: filePath)
                         return
                     }
@@ -1287,8 +1261,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 // fall back to regular send
             }
         }
-
-        elideStopTyping = true
 
         let url: URL
         if let quotedMessage {
@@ -1318,7 +1290,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
 
         try withActivation(openBefore: url) {
-            if let threadID { try ensureSelectedThread(threadID: threadID) }
+            if let threadID { try assertSelectedThread(threadID: threadID) }
 
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
@@ -1514,7 +1486,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         try withActivation(openBefore: url) {
-            try ensureSelectedThread(threadID: threadID)
+            try assertSelectedThread(threadID: threadID)
             try elements.notifyAnywayButton.press()
         }
     }
@@ -1562,7 +1534,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 return
             }
 
-            guard om.visible else {
+            guard occlusionMonitor.visible else {
 #if DEBUG
             log.debug("not observing activity, window occluded")
 #endif
@@ -1622,5 +1594,28 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     deinit {
         log.info("MessagesController deinit")
         dispose()
+    }
+}
+
+@available(macOS 11, *)
+extension MessagesController {
+    class OcclusionMonitor {
+        var visible: Bool = true
+        
+        private var ncToken: NSObjectProtocol?
+        
+        init() {
+            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
+                log.trace("didChangeOcclusionStateNotification \(notif)")
+                guard let window = notif.object as? NSWindow else { return }
+                let className = NSStringFromClass(type(of: window))
+                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
+                self.visible = window.occlusionState.contains(.visible)
+            }
+        }
+        
+        deinit {
+            ncToken.map { NotificationCenter.default.removeObserver($0) }
+        }
     }
 }
