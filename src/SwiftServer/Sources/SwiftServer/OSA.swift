@@ -15,7 +15,7 @@ enum OSA {
     static func send(threadID: String, text: String) throws {
         try run("""
         const [tid, txt] = \(try jsonStringify([threadID, text]))
-        const Messages = Application('Messages')
+        const Messages = Application('/System/Applications/Messages.app')
         const to = Messages.chats.byId(tid)()
         Messages.send(txt, { to })
         """)
@@ -24,7 +24,7 @@ enum OSA {
     static func send(threadID: String, filePath: String) throws {
         try run("""
         const [tid, fp] = \(try jsonStringify([threadID, filePath]))
-        const Messages = Application('Messages')
+        const Messages = Application('/System/Applications/Messages.app')
         const to = Messages.chats.byId(tid)()
         Messages.send(Path(fp), { to })
         """)
