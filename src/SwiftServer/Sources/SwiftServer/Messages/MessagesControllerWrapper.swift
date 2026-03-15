@@ -145,41 +145,24 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             return undefined
         }
 
-        // reset the idle callback in case we fail and bail out
-        Self.queue.setIdleCallback(nil)
+        if args.count == 1, try args[0].as(NodeNull.self) != nil {
+            Self.queue.setIdleCallback(nil)
+            threadObserveRequestTokenLock.lock()
+            threadObserveRequestToken = nil
+            threadObserveRequestTokenLock.unlock()
+            return undefined
+        }
 
         guard args.count == 2,
               let threadID = try args[0].as(String.self),
               let sendStatus = try args[1].as(NodeFunction.self)
         else {
             log.error("invalid args passed to watchThreadActivity")
+            Self.queue.setIdleCallback(nil)
+            threadObserveRequestTokenLock.lock()
+            threadObserveRequestToken = nil
+            threadObserveRequestTokenLock.unlock()
             return undefined
-        }
-
-        // only watch thread activity for iMessage chats
-        // TODO: implement this for groups
-        if !threadID.hasPrefix("iMessage;-;") {
-            guard threadID.hasPrefix("any;-;") else {
-            // only bother checking the database if the GUID can't tell us what service the chat is for
-            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-#if DEBUG
-            log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-#endif
-                return undefined
-            }
-
-            let chat = try self.controller.db.chat(withGUID: threadID)
-            guard let chat else {
-                log.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                return undefined
-            }
-
-            guard chat.serviceName == .imessage else {
-#if DEBUG
-            log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-#endif
-                return undefined
-            }
         }
 
         let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
@@ -189,19 +172,68 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             return
         }
 
-        // it's okay that we aren't using `performAsync`/`returnAsync` here -
-        // the idle callback is itself submitted onto the queue, so everything's
-        // still serial
-        let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
-        Self.queue.setIdleCallback { quiescence in
-            do {
-                try observe(quiescence)
-            } catch {
-                log.error("failed to observe activity: \(error)")
+        let shouldWatchActivity: Bool = {
+            if threadID.hasPrefix("iMessage;-;") {
+                return true
             }
+
+            guard threadID.hasPrefix("any;-;") else {
+#if DEBUG
+                log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+#endif
+                return false
+            }
+
+            let chat = try? self.controller.db.chat(withGUID: threadID)
+            guard let chat else {
+                log.error("watchThreadActivity: couldn't locate the chat to watch in the database")
+                return false
+            }
+
+            guard chat.serviceName == .imessage else {
+#if DEBUG
+                log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+#endif
+                return false
+            }
+
+            return true
+        }()
+
+        let immediateObservation: () throws -> Void
+        if shouldWatchActivity {
+            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
+            Self.queue.setIdleCallback { quiescence in
+                do {
+                    try observe(quiescence)
+                } catch {
+                    log.error("failed to observe activity: \(error)")
+                }
+            }
+            immediateObservation = { try observe(.began) }
+        } else {
+            // Mirror thread selection immediately even when we aren't going to
+            // keep observing activity for the thread (for example groups/SMS).
+            Self.queue.setIdleCallback(nil)
+            immediateObservation = { try self.controller.openThreadForObservation(threadID: threadID) }
         }
 
-        return undefined
+        let req = UUID()
+        do {
+            threadObserveRequestTokenLock.lock()
+            defer { threadObserveRequestTokenLock.unlock() }
+            threadObserveRequestToken = req
+        }
+
+        return try performAsync { [self] in
+            do {
+                threadObserveRequestTokenLock.lock()
+                defer { threadObserveRequestTokenLock.unlock() }
+                guard threadObserveRequestToken == req else { return }
+            }
+
+            try immediateObservation()
+        }
     }
 
     @NodeMethod func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {

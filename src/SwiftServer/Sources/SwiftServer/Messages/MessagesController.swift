@@ -1295,6 +1295,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
             }
+            
             if Defaults.isSelectedThreadCellCompose() {
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                 log.debug("waiting 3s for address to resolve")
@@ -1491,6 +1492,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
+    func openThreadForObservation(threadID: String) throws {
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        try prepareForAutomation()
+        defer { finishedAutomation() }
+
+        try Self.openDeepLink(url)
+        lastThreadIDOpenedForObservation.withLock { $0 = threadID }
+    }
+
     /*
         activityLock.lock() called by:
         MessagesController.observe()
@@ -1548,8 +1559,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 return
             }
 
-            if quiescence == .began || lastThreadIDOpenedForObservation.read() != threadID {
-                log.debug("activity: entered idle state or thread id changed, opening deep link")
+            if lastThreadIDOpenedForObservation.read() != threadID {
+                log.debug("activity: thread id changed, opening deep link")
                 try prepareForAutomation()
                 defer { finishedAutomation() }
 
