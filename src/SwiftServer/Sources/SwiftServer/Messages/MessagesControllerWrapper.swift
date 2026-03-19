@@ -201,7 +201,24 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             }
         }
 
-        return undefined
+        // restored from old TextsHQ implementation
+        // https://github.com/TextsHQ/platform-imessage/blob/main/src/SwiftServer/Sources/SwiftServer/SwiftServer.swift#L123-L158
+        let requestID: UUID = UUID()
+        threadObserveRequestTokenLock.lock()
+        threadObserveRequestToken = requestID
+        threadObserveRequestTokenLock.unlock()
+
+        return try performAsync {
+            // if another watchThreadActivity request has been enqueued
+            // after our current one (but before this performAsync block
+            // began executing), then this check will fail and therefore
+            // prevent the current block from unnecessarily running
+            self.threadObserveRequestTokenLock.lock()
+            defer { self.threadObserveRequestTokenLock.unlock() }
+            guard self.threadObserveRequestToken == requestID else { return }
+
+            try observe(.began)
+        }
     }
 
     @NodeMethod func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {

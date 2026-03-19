@@ -1548,7 +1548,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 return
             }
 
-            if quiescence == .began || lastThreadIDOpenedForObservation.read() != threadID {
+            if lastThreadIDOpenedForObservation.read() != threadID {
                 log.debug("activity: entered idle state or thread id changed, opening deep link")
                 try prepareForAutomation()
                 defer { finishedAutomation() }
