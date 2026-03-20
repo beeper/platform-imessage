@@ -195,7 +195,7 @@ final class MessagesController {
 #else
             let builtForDebugging = false
 #endif
-            if SwiftServerDefaults[\.deepLinkTracingPII] || builtForDebugging {
+            if Defaults.deepLinkTracingPII || builtForDebugging {
                 log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
             } else {
                 log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
@@ -276,7 +276,7 @@ final class MessagesController {
             attempt += 1
             do {
                 // always prefer reading the default if we can (impossible on recent macOS; see DESK-10725)
-                if !SwiftServerDefaults[\.misfirePreventionAlwaysFallback], let selectedThreadID = Defaults.getSelectedThreadID() {
+                if !Defaults.misfirePreventionAlwaysFallback, let selectedThreadID = Defaults.getSelectedThreadID() {
                     return try assertSelectedThreadViaDefault(value: selectedThreadID)
                 }
 
@@ -1234,7 +1234,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        if let threadID, quotedMessage == nil { // fast path using OSA
+        if !Defaults.disableOSAFastPath, let threadID, quotedMessage == nil { // fast path using OSA
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links

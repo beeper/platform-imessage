@@ -92,6 +92,8 @@ enum DefaultsKeys {
     static let editingDelayBeforeReplacing = "BEEPEditingDelayBeforeReplacing"
     static let editingDelayBeforeFocusing = "BEEPEditingDelayBeforeFocusing"
     static let editingDelayPressingReturn = "BEEPEditingDelayBeforePressingReturn"
+    /** force all sends through the regular UI automation path instead of the OSA shortcut */
+    static let disableOSAFastPath = "BEEPDisableOSAFastPath"
 
     static let pollerTraceUnreads = "BEEPPollerTraceUnreads"
     // debugging for FSEvents, waking up when the iMessage SQLite file changes, etc.
@@ -100,14 +102,8 @@ enum DefaultsKeys {
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
 }
 
-enum SwiftServerDefaults {
-    @inline(__always)
-    static subscript(_ key: KeyPath<DefaultsKeys.Type, String>) -> Bool {
-        Defaults.swiftServer.bool(forKey: DefaultsKeys.self[keyPath: key])
-    }
-}
-
 // TODO: cleanup
+@dynamicMemberLookup
 enum Defaults {
     public static let swiftServer = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
     private static let dock = UserDefaults(suiteName: "com.apple.dock")
@@ -161,6 +157,7 @@ enum Defaults {
             DefaultsKeys.spacesObserveCurrentSpaceChanges: true,
 
             DefaultsKeys.editingDelayBeforeReplacing: 0.5,
+            DefaultsKeys.disableOSAFastPath: false,
 
             DefaultsKeys.pollerTraceUnreads: true,
         ]
@@ -301,12 +298,11 @@ enum Defaults {
         }
         return dict as? [String: Int]
     }
+}
 
-    static var misfirePreventionTracing: Bool {
-        Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionTracing)
-    }
-
-    static var misfirePreventionTracingPII: Bool {
-        Defaults.swiftServer.bool(forKey: DefaultsKeys.misfirePreventionTracingPII)
+extension Defaults {
+    @inline(__always)
+    static subscript(dynamicMember keyPath: KeyPath<DefaultsKeys.Type, String>) -> Bool {
+        Defaults.swiftServer.bool(forKey: DefaultsKeys.self[keyPath: keyPath])
     }
 }

@@ -27,7 +27,7 @@ final class Poller {
 
     init(serverEventSender sender: @escaping ServerEventSender, initialUpdatesCursor: MessageUpdatesCursor) throws {
         self.db = try IMDatabase()
-        if SwiftServerDefaults[\.pollerTraceChangeListening] {
+        if Defaults.pollerTraceChangeListening {
             log.debug("tracing change listening, telling IMDatabase to be noisy")
             self.db.noisy = true
         }
@@ -47,7 +47,7 @@ final class Poller {
                 return
             }
 
-            if SwiftServerDefaults[\.pollerTraceChangeListening] {
+            if Defaults.pollerTraceChangeListening {
                 log.debug("poller was informed about database change")
             }
 

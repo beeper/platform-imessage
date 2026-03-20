@@ -5,7 +5,7 @@ import Logging
 private let log = Logger(swiftServerLabel: "poller.unreads")
 
 private func traceUnreads(_ message: @autoclosure () -> Logger.Message) {
-    guard SwiftServerDefaults[\.pollerTraceUnreads] else { return }
+    guard Defaults.pollerTraceUnreads else { return }
     log.debug(message())
 }
 

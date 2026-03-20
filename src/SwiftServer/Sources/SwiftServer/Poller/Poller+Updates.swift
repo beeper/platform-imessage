@@ -5,7 +5,7 @@ import Logging
 private let log = Logger(swiftServerLabel: "poller.updates")
 
 private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
-    guard SwiftServerDefaults[\.pollerTraceMessageUpdates] else { return }
+    guard Defaults.pollerTraceMessageUpdates else { return }
     log.debug(message())
 }
 

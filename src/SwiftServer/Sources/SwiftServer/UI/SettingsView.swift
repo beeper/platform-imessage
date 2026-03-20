@@ -20,6 +20,7 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.swiftServer) var eclipsingDebug = false
     
     @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.swiftServer) var spacesObserveDock = true
+    @AppStorage(DefaultsKeys.disableOSAFastPath, store: Defaults.swiftServer) var disableOSAFastPath = false
     
     // help button popover
     @State private var presentingHelp = false
@@ -68,6 +69,7 @@ struct SettingsView: View {
                 windowCoordinationSection
                 misfirePreventionSection
                 spacesSection
+                testingSection
                 diagnosticsSection
                 
                 HStack {
@@ -203,6 +205,19 @@ struct SettingsView: View {
             }
         } header: {
             Text("Spaces")
+        } footer: {
+        }
+    }
+
+    @ViewBuilder
+    private var testingSection: some View {
+        Section {
+            Toggle(isOn: $disableOSAFastPath) {
+                Text("Disable OSA message send fast path")
+                Text("Force all messages and file sends through the regular UI automation path.")
+            }
+        } header: {
+            Text("Testing")
         } footer: {
         }
     }
