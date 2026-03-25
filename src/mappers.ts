@@ -373,7 +373,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         break
       case 5:
         m.behavior = MessageBehavior.SILENT
-        m.text = '{{sender}} kept an audio message from you.'
+        m.text = msgRow.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH
+          ? '{{sender}} kept Digital Touch Message from you.'
+          : '{{sender}} kept an audio message from you.'
         break
       case 6:
         m.text = 'FaceTime Call'
