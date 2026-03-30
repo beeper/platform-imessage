@@ -10,6 +10,9 @@ enum PASEvent {
     /// A PAS event with type `state_sync` that is used to `update` a
     /// `thread`.
     case stateSyncThread(id: String, patch: [String: any NodePropertyConvertible])
+    /// A PAS event with type `state_sync` that is used to `delete`
+    /// one or more threads.
+    case deleteThreads(ids: [String])
 }
 
 extension PASEvent: NodeValueConvertible {
@@ -34,6 +37,14 @@ extension PASEvent: NodeValueConvertible {
                 "objectName": "thread",
                 "mutationType": "update",
                 "entries": [entry].nodeValue()
+            ])
+        case let .deleteThreads(ids):
+            return try NodeObject([
+                "type": "state_sync",
+                "objectIDs": ["threadID": null, "messageID": null],
+                "objectName": "thread",
+                "mutationType": "delete",
+                "entries": (ids as [NodeValueConvertible]).nodeValue()
             ])
         }
     }

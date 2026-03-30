@@ -963,6 +963,20 @@ export default class AppleiMessage implements PlatformAPI {
     if (archived) {
       const chatGUID = originalThreadID(hashedThreadID)
 
+      const chat = await db.getThread(chatGUID)
+      if (!chat) {
+        texts.log(`imsg/archive/${hashedThreadID}: chat not found in iMessage, deleting from Beeper`)
+        this.persistence?.deleteThreadProp(hashedThreadID, 'archive')
+        this.onEvent?.([{
+          type: ServerEventType.STATE_SYNC,
+          objectName: 'thread',
+          mutationType: 'delete',
+          entries: [hashedThreadID],
+          objectIDs: {},
+        }])
+        return
+      }
+
       let newArchivalOrder: number | undefined
       let persistedArchivedAt: AppleDate | undefined
       const latestMessage = await db.getLatestMessage(chatGUID)

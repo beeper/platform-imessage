@@ -10,29 +10,31 @@ private func traceUnreads(_ message: @autoclosure () -> Logger.Message) {
 }
 
 extension Poller {
-    func pollUnreads() throws -> [PASEvent] {
+    /// Diffs current chat states against the previous snapshot and returns events for any changes.
+    func diffChatStates() throws -> [PASEvent] {
         // Grab the latest set, and remember them for the next poll.
-        let currentStates = try db.queryUnreadStates()
+        let currentChatStates: [ChatRef: ChatState] = try db.chatStates()
 
         var eventsToSend = [PASEvent]()
         var changes = 0
 
-        for (chat, currentState) in currentStates {
-            guard unreadStates[chat]?.state != currentState else {
+        for (chatRef, currentState) in currentChatStates {
+            guard chatStates[chatRef]?.state != currentState else {
                 // Unread state didn't change, so a state sync is unnecessary.
                 continue
             }
+            
             defer { changes += 1 }
 
-            guard let guid = chat.guid else {
+            guard let guid = chatRef.guid else {
                 log.error("didn't receive a guid for chat that underwent an unread state change")
                 continue
             }
 
-            // Minting a new timestamped unread state like this also ensures
+            // Minting a new timestamped chat state like this also ensures
             // that we handle new (not just updated) chats correctly.
-            let fresh = TimestampedUnreadState(minting: currentState)
-            unreadStates[chat] = fresh
+            let fresh = TimestampedChatState(minting: currentState)
+            chatStates[chatRef] = fresh
 
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
             let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1_000).rounded()
@@ -72,7 +74,7 @@ extension Poller {
                 "markedUnreadUpdatedAt": markedUnreadUpdatedAt,
             ]
 
-            traceUnreads("chat \(chat) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")
+            traceUnreads("chat \(chatRef) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")
 
             if currentState.unreadCount == 0 {
                 // Sync the fact that the thread became read. This is especially
@@ -88,10 +90,30 @@ extension Poller {
 
             eventsToSend.append(PASEvent.stateSyncThread(id: hashedThreadID, patch: patch))
 
-            traceUnreads("chat \(chat) unread state changed to: \(fresh)")
+            traceUnreads("chat \(chatRef) unread state changed to: \(fresh)")
         }
 
         traceUnreads("\(changes) unread state(s) changed this time around")
+
+        // Detect chats that were deleted from iMessage since the last poll.
+        let deletedChats = chatStates.keys.filter { currentChatStates[$0] == nil }
+        let deletedThreadIDs = deletedChats.compactMap { chat -> String? in
+            chatStates.removeValue(forKey: chat)
+            guard let guid = chat.guid else {
+                log.error("deleted chat didn't have a guid, can't emit a delete event")
+                return nil
+            }
+            log.info("chat \(guid) was deleted from iMessage")
+            return Hasher.thread.tokenizeRemembering(pii: guid)
+        }
+        
+        if !deletedThreadIDs.isEmpty {
+            eventsToSend.append(
+                PASEvent.deleteThreads(
+                    ids: deletedThreadIDs
+                )
+            )
+        }
 
         return eventsToSend
     }

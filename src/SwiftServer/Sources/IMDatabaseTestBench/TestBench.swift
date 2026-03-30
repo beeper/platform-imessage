@@ -186,7 +186,7 @@ extension TestBench {
             bootstrap(logLevel: options.logLevel)
 
             let db = try IMDatabase()
-            let states = try Dictionary(uniqueKeysWithValues: db.queryUnreadStates().map { chatRef, state in
+            let states = try Dictionary(uniqueKeysWithValues: db.chatStates().map { chatRef, state in
                 (chatRef.rowID!, state)
             })
 
@@ -244,18 +244,18 @@ extension TestBench {
 
             let db = try IMDatabase()
             try db.beginListeningForChanges()
-            var states = try db.queryUnreadStates()
+            var states = try db.chatStates()
 
             for try await _ in db.changes.subscribe() {
-                let newStates = try db.queryUnreadStates()
+                let newStates = try db.chatStates()
                 defer { states = newStates }
 
-                var changedStates = IMDatabase.UnreadStates()
-                for (chatId, newState) in newStates where states[chatId] != newState {
-                    changedStates[chatId] = newState
+                var changedChatStates: [ChatRef: ChatState] = [:]
+                for (chatID, newState) in newStates where states[chatID] != newState {
+                    changedChatStates[chatID] = newState
                 }
 
-                print("changed unread states:", changedStates)
+                print("changed unread states:", changedChatStates)
             }
         }
     }

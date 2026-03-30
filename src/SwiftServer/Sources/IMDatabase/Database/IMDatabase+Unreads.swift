@@ -25,14 +25,16 @@ LEFT JOIN
     message m ON m.ROWID = cm.message_id
 GROUP BY
     c.ROWID
+HAVING
+    COUNT(cm.message_id) > 0
 """
 
-public struct UnreadState: Equatable {
+public struct ChatState: Equatable {
     public var unreadCount: Int
     public var lastReadMessageTimestamp: Date
 }
 
-extension UnreadState: CustomStringConvertible {
+extension ChatState: CustomStringConvertible {
     public var description: String {
         let unreadDescription = if unreadCount == 0 {
             "read"
@@ -46,23 +48,25 @@ extension UnreadState: CustomStringConvertible {
 }
 
 public extension IMDatabase {
-    typealias UnreadStates = [ChatRef: UnreadState]
-
-    func queryUnreadStates() throws -> UnreadStates {
+    func chatStates() throws -> [ChatRef: ChatState] {
         let statement = try cachedStatement(forEscapedSQL: unreadStatesQuery)
         try statement.reset()
 
-        var unreadStates = UnreadStates()
+        var chatStates: [ChatRef: ChatState] = [:]
+        
         try statement.stepUntilDone { row in
-            let chat = try ChatRef(rowID: row[0].optional(Int.self), guid: row[1].optional(String.self))
-            guard let chat else {
+            guard let chatRef: ChatRef = try ChatRef(rowID: row[0].optional(Int.self), guid: row[1].optional(String.self)) else {
                 log.warning("while querying unread states: some chat had neither a rowid nor a guid. can't really do much with this")
                 return
             }
+            
             let lastReadMessageTimestamp = try Date(nanosecondsSinceReferenceDate: row[3].expect(Int.self))
-            let unreadCount = try row[2].expect(Int.self)
-            unreadStates[chat] = UnreadState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
+            
+            let unreadCount: Int = try row[2].expect(Int.self)
+            
+            chatStates[chatRef] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
         }
-        return unreadStates
+        
+        return chatStates
     }
 }

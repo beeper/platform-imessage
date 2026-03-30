@@ -4,11 +4,11 @@ import Logging
 
 private let log = Logger(swiftServerLabel: "poller")
 
-struct TimestampedUnreadState {
+struct TimestampedChatState {
     var lastUpdated: Date
-    var state: UnreadState
+    var state: ChatState
 
-    init(minting state: UnreadState) {
+    init(minting state: ChatState) {
         lastUpdated = Date()
         self.state = state
     }
@@ -19,8 +19,8 @@ final class Poller {
 
     var db: IMDatabase
 
-    /// Tracks the last known unread state of every chat.
-    var unreadStates = [ChatRef: TimestampedUnreadState]()
+    /// Tracks the last known state of every chat.
+    var chatStates = [ChatRef: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
 
     private var sender: ServerEventSender
@@ -36,8 +36,8 @@ final class Poller {
     }
 
     func pollForever() async throws {
-        unreadStates = try db.queryUnreadStates().mapValues { state in
-            TimestampedUnreadState(minting: state)
+        chatStates = try db.chatStates().mapValues { state in
+            TimestampedChatState(minting: state)
         }
         try db.beginListeningForChanges()
 
@@ -55,7 +55,7 @@ final class Poller {
 
             do {
                 // Query unread states, compare to the previous set, and persist them.
-                try eventsToSend.append(contentsOf: pollUnreads())
+                try eventsToSend.append(contentsOf: diffChatStates())
 
                 // Ditto, but for any new messages/read state changes.
                 try eventsToSend.append(contentsOf: pollMessageUpdates())
