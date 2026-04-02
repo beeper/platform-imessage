@@ -46,6 +46,7 @@ export const roomFeatures = {
   edit_max_age: 60 * 15,
   edit_max_count: 5,
   edit: CapabilitySupportLevel.FullySupported,
+  reply: CapabilitySupportLevel.FullySupported,
 
   delete: CapabilitySupportLevel.FullySupported,
   delete_max_age: 60 * 2,
