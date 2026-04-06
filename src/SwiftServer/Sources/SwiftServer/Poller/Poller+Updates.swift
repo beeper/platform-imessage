@@ -30,13 +30,14 @@ extension Poller {
     struct MessageUpdatesCursor {
         let lastRowID: Int
         let lastDateRead: Date
+        let lastDateEdited: Date
     }
 
     func pollMessageUpdates() throws -> [PASEvent] {
         let lastRowID = updatesCursor.lastRowID
         let lastDateRead = updatesCursor.lastDateRead
 
-        let queryResult = try db.chats(withMessagesNewerThanRowID: lastRowID, orReadSince: lastDateRead)
+        let queryResult = try db.chats(withMessagesNewerThanRowID: lastRowID, orReadSince: lastDateRead, orEditedSince: updatesCursor.lastDateEdited)
         traceMessageUpdates("updated messages query returned \(queryResult.updatedChats.count) updated chat(s)")
         guard !queryResult.updatedChats.isEmpty else {
             traceMessageUpdates("no chats updated this time around")
@@ -51,7 +52,8 @@ extension Poller {
             let newCursor = MessageUpdatesCursor(
                 lastRowID: newLastRowID,
                 // Inherit the `lastDateRead` if it hasn't changed.
-                lastDateRead: queryResult.latestMessageDateRead ?? updatesCursor.lastDateRead
+                lastDateRead: queryResult.latestMessageDateRead ?? updatesCursor.lastDateRead,
+                lastDateEdited: queryResult.latestDateEdited ?? updatesCursor.lastDateEdited
             )
             traceMessageUpdates("done computing refreshes, updating the messages updates cursor to: \(newCursor)")
             updatesCursor = newCursor

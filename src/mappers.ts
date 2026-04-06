@@ -298,7 +298,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   // (ostensibly most recent) unsend occurred. If this is the case, don't show
   // the last unsend timestamp to the user as a last edited timestamp, as that's
   // somewhat misleading.
-  if (!unsendDataPresent && dateStringIsTruthy(msgRow.dateRetractedString) && msgRow.dateEditedString) {
+  if (!unsendDataPresent && dateStringIsTruthy(msgRow.dateEditedString)) {
     partialMessage.editedTimestamp = regularlizeAppleDate(msgRow.dateEditedString) ?? new Date(0)
   }
 

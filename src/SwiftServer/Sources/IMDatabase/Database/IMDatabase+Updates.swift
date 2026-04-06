@@ -7,6 +7,7 @@ let updatedChatsSinceQuery = """
 SELECT
     m.ROWID,
     m.date_read,
+    m.date_edited,
     c.ROWID,
     c.guid
 FROM
@@ -14,7 +15,7 @@ FROM
 LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
 WHERE
-    m.ROWID > ? OR m.date_read > ?
+    m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
 GROUP BY
     c.guid
 ORDER BY
@@ -27,17 +28,19 @@ public struct UpdatedChatsQueryResult {
     public var latestMessageRowID: Int?
     /// This maximum is local to the set of updated chats.
     public var latestMessageDateRead: Date?
+    public var latestDateEdited: Date?
 }
 
 public extension IMDatabase {
-    func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date) throws -> UpdatedChatsQueryResult {
+    func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedChatsQueryResult {
         let statement = try cachedStatement(forEscapedSQL: updatedChatsSinceQuery)
 
         try statement.reset()
-        try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate)
+        try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
 
         var newestMessageRowID: Int?
         var latestMessageDateRead: Date?
+        var latestDateEdited: Date?
         var timesWarnedAboutOrphanedMessage = 0
 
         let updatedChats: [ChatRef] = try statement.compactMapRowsUntilDone { row in
@@ -66,7 +69,18 @@ public extension IMDatabase {
                 }
             }
 
-            guard let rowID = try row[2].optional(Int.self), let guid = try row[3].optional(String.self) else {
+            dateEdited: do {
+                let nanoseconds = try row[2].optional(Int.self) ?? 0
+                guard nanoseconds > 0, nanoseconds < .max else { break dateEdited }
+                let dateEdited = Date(nanosecondsSinceReferenceDate: nanoseconds)
+                latestDateEdited = if let latestDateEdited, dateEdited < .distantFuture {
+                    max(dateEdited, latestDateEdited)
+                } else {
+                    dateEdited
+                }
+            }
+
+            guard let rowID = try row[3].optional(Int.self), let guid = try row[4].optional(String.self) else {
                 // For whatever reason it's possible for messages to not be
                 // joinable with chats. Right now I have one of these for a SMS
                 // TOTP verification code, which might've been automatically
@@ -87,7 +101,8 @@ public extension IMDatabase {
         return UpdatedChatsQueryResult(
             updatedChats: updatedChats,
             latestMessageRowID: newestMessageRowID,
-            latestMessageDateRead: latestMessageDateRead
+            latestMessageDateRead: latestMessageDateRead,
+            latestDateEdited: latestDateEdited
         )
     }
 }

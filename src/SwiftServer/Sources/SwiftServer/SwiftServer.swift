@@ -156,7 +156,7 @@ enum Preferences {
                 log.debug("handing over \(values.count) value(s) to the event callback")
 #endif
                 try await onEvent.call([values])
-            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead))
+            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()))
 
             pollingTask = Task {
                 log.debug("going to poll forever")

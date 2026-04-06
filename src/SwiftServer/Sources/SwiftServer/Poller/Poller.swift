@@ -61,8 +61,6 @@ final class Poller {
                 try eventsToSend.append(contentsOf: pollMessageUpdates())
             }
 
-            // TODO: Handle unsends and edits that occur from outside of Beeper.
-
             guard !eventsToSend.isEmpty else { continue }
             do {
                 guard !Task.isCancelled else {
