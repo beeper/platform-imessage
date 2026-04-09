@@ -131,7 +131,6 @@ struct SettingsView: View {
             Message content and attachments are never recorded.
             """)
         }
-        .frame(width: 600, height: 400)
     }
     
     @ViewBuilder

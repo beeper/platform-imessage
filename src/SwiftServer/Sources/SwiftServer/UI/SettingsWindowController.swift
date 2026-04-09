@@ -17,7 +17,9 @@ final class SettingsWindowController: NSWindowController {
             return controller
         }()
         let window = NSWindow(contentViewController: settingsController)
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 600, height: 400))
+        window.contentMinSize = NSSize(width: 600, height: 400)
         // the window is sometimes titled "Untitled" for some reason, even
         // though the SwiftUI view has a `navigationTitle` and we want to bridge
         // everything
