@@ -46,6 +46,8 @@ CAST(m.date_edited AS TEXT) AS dateEditedString,
 CAST(m.date_retracted AS TEXT) AS dateRetractedString`
 }
 
+const dateExpr = (op?: '<' | '>') => op === '>' && IS_VENTURA_OR_UP ? 'MAX(m.date, COALESCE(m.date_edited, 0))' : 'm.date'
+
 const SQLS = {
   getThreads: (dateComparisonOperator?: '<' | '>') => `SELECT *,
 (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
@@ -98,7 +100,7 @@ ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE cmj.chat_id = ?
-${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
+${dateComparisonOperator ? `AND ${dateExpr(dateComparisonOperator)} ${dateComparisonOperator} ?` : ''}
 ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
   getMessages: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
@@ -106,7 +108,7 @@ ${MAP_MESSAGES_COLS}
 FROM message AS m
 ${MESSAGE_JOINS}
 WHERE t.guid = ?
-${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
+${dateComparisonOperator ? `AND ${dateExpr(dateComparisonOperator)} ${dateComparisonOperator} ?` : ''}
 ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
   getMessage: `SELECT
