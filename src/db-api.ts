@@ -73,7 +73,9 @@ FROM message AS m
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 WHERE t.guid = ?`,
-  createIndexes: 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
+  createIndexes: IS_VENTURA_OR_UP
+    ? 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read); CREATE INDEX IF NOT EXISTS message_idx_date_edited ON message (date_edited)'
+    : 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
   // updateReadTimestamp: 'UPDATE message SET is_read = TRUE WHERE guid = ?',
 
   getAttachments: (msgIDs: number[]) => `SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.total_bytes, a.is_sticker, a.guid AS attachmentID, a.transfer_state
