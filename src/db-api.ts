@@ -80,7 +80,7 @@ FROM message AS m
 LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
 LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
 WHERE m.ROWID IN (${new Array(msgIDs.length).fill('?').join(', ')})`,
-  getMessageReactions: (msgGUIDs: string[]) => `SELECT is_from_me, handle_id, associated_message_type, associated_message_guid, ${IS_SEQUOIA_OR_UP ? 'associated_message_emoji,' : ''} h.id AS participantID
+  getMessageReactions: (msgGUIDs: string[]) => `SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, ${IS_SEQUOIA_OR_UP ? 'associated_message_emoji,' : ''} h.id AS participantID
 FROM message AS m
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -411,7 +411,7 @@ WHERE m.ROWID = ?`, rowID)
   private getMappedMessagesWithoutExtraRows = async (chatGUID: string, pagination?: PaginationArg) => {
     const msgRows = await this.getMessages(chatGUID, pagination)
     if (pagination?.direction !== 'after') msgRows.reverse()
-    const items = mapMessages(msgRows, [], [], this.papi.currentUser!.id)
+    const items = mapMessages(msgRows, [], [], this.papi.currentUser!.id, this.papi.accountID)
     return {
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,

@@ -47,9 +47,9 @@ function getDNDState() {
   return new Set(arr)
 }
 export default class AppleiMessage implements PlatformAPI {
-  currentUser: CurrentUser | undefined
+  constructor(public readonly accountID: string) {}
 
-  // private accountID: string
+  currentUser: CurrentUser | undefined
 
   private threadReadStore?: ThreadReadStore
 
@@ -148,7 +148,6 @@ export default class AppleiMessage implements PlatformAPI {
 
   init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs?: Record<string, any>) => {
     this.session = session || {}
-    // this.accountID = accountID
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
@@ -359,6 +358,7 @@ export default class AppleiMessage implements PlatformAPI {
       texts.error(`imsg/getThreads: couldn't log hashed ids: ${err}`)
     }
     const items = mapThreads(chatRows, {
+      accountID: this.accountID,
       mapMessageArgsMap,
       handleRowsMap,
       chatImagesMap,
@@ -393,7 +393,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments(msgRowIDs),
       db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }),
     ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id, this.accountID)
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],
@@ -411,7 +411,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments([msgRow.ROWID]),
       db.getMessageReactions([msgRow.guid], { type: 'guid', guid: threadID }),
     ])
-    const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser!.id)
+    const items = mapMessages([msgRow], attachmentRows, reactionRows, this.currentUser!.id, this.accountID)
     const message = items.find(i => i.id === messageID)
     // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
     return (message ? hashMessage(message) : message) as Message
@@ -440,7 +440,7 @@ export default class AppleiMessage implements PlatformAPI {
       db.getAttachments(msgRowIDs),
       threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
     ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id)
+    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id, this.accountID)
     return {
       // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
       items: items.map(hashMessage) as Message[],
@@ -682,11 +682,13 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+    if (reactionKey === 'sticker') throw Error("Adding sticker reactions isn't supported")
     const threadID = originalThreadID(hashedThreadID)
     return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true))
   }
 
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+    if (reactionKey === 'sticker') throw Error("Removing sticker reactions isn't supported")
     const threadID = originalThreadID(hashedThreadID)
     return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
   }
@@ -884,6 +886,16 @@ export default class AppleiMessage implements PlatformAPI {
         const filePath = path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)
         await waitForFileToExist(filePath, 5_000)
         return url.pathToFileURL(filePath).href
+      }
+
+      case 'reaction-sticker': {
+        if (!/^\d+$/.test(methodName)) throw new Error("invalid reaction sticker row ID")
+        const reactionRowID = Number(methodName)
+        if (!Number.isSafeInteger(reactionRowID)) throw new Error("invalid reaction sticker row ID")
+        const db = await this.ensureDB()
+        const attachment = (await db.getAttachments([reactionRowID])).find(a => a.filePath)
+        if (!attachment?.filePath) throw new Error("couldn't resolve sticker attachment for reaction row")
+        return url.pathToFileURL(attachment.filePath).href
       }
 
       default: {

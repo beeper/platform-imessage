@@ -4,11 +4,14 @@ import path from 'path'
 
 import { mapMessage } from '../mappers'
 
+type MapMessageFixture = Parameters<typeof mapMessage>
+
 async function testMessageMapFixture(fixturePath: string) {
   const pathRelativeToTests = path.join(__dirname, fixturePath)
 
   test(path.basename(fixturePath), async () => {
-    const parameters: Parameters<typeof mapMessage> = JSON.parse(await fs.readFile(pathRelativeToTests, 'utf8'))
+    const parameters = JSON.parse(await fs.readFile(pathRelativeToTests, 'utf8')) as MapMessageFixture
+    expect(parameters).toHaveLength(5)
 
     type Row = typeof parameters[0]
     type MessageRowBufferKeys = { [Key in keyof Row]: Row[Key] extends Buffer ? Key : never }[keyof Row]

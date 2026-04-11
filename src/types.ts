@@ -175,6 +175,7 @@ export type MappedMessageRow = MessageRow & {
 // db-api.ts -> SQLS
 export type MappedReactionMessageRow = Pick<
 MappedMessageRow,
+'ROWID' |
 'is_from_me' |
 'handle_id' |
 'associated_message_type' |
