@@ -619,7 +619,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           type: reactionType,
           messageID: m.linkedMessageID,
           participantID: m.senderID,
-          imgURL: assocMsgType === 'reacted_sticker' ? attachmentRows[0]?.filename : undefined,
+          imgURL: assocMsgType === 'reacted_sticker' ? reactionStickerAssetURL(accountID, msgRow.ROWID) : undefined,
           reactionKey: actionKey === 'emoji' ? msgRow.associated_message_emoji : actionKey,
         }
         if (actionKey === 'emoji' || actionKey === 'sticker' || actionKey in supportedReactions) {
