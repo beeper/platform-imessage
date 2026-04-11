@@ -3,7 +3,7 @@ import { groupBy, omit } from 'lodash'
 import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
-import { replaceTilde, stringifyWithArrayBuffers } from './util'
+import { stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
 import IMAGE_EXTS from './image-exts.json'
@@ -684,8 +684,6 @@ type Context = {
   threadReadStore: ThreadReadStore | undefined
   unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
-  // todo this shouldnt be optional
-  chatImagesMap?: { [attachmentID: string]: string }
   reminders?: { [chatGUID: string]: ThreadReminder | undefined }
   archivalStates?: { [chatGUID: string]: ThreadArchivalState | undefined }
   pinStates?: { [chatGUID: string]: boolean | undefined }
@@ -734,7 +732,7 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     if (!(typeof props === 'object' && props != null && 'groupPhotoGuid' in props)) return undefined
     const value = props.groupPhotoGuid
     if (typeof value !== 'string') return undefined
-    return replaceTilde(context.chatImagesMap?.[value])
+    return `asset://${accountID}/thread-image/${value}`
   }
 
   const archivedAt = context.archivalStates?.[chat.guid]?.archivedAt
@@ -781,7 +779,6 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     isPinned: context.pinStates?.[chat.guid] === true,
     isLowPriority: context.lowPriorityStates?.[chat.guid] === true,
   }
-  if (thread.imgURL) thread.imgURL = url.pathToFileURL(thread.imgURL).href
   return thread
 }
 

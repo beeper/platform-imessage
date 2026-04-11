@@ -62,7 +62,7 @@ WHERE chat.guid = ?`,
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
 LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
 WHERE chat_id = ?`,
-  getChatImages: "SELECT guid,filename FROM attachment WHERE transfer_name = 'GroupPhotoImage' OR transfer_name = 'BrandLogoImage'",
+  getChatImageByGUID: `SELECT filename FROM attachment WHERE guid = ?`,
 
   getAccountLogins: 'SELECT DISTINCT account_login FROM chat',
   getMsgCount: `SELECT count(*)
@@ -294,8 +294,10 @@ export default class DatabaseAPI {
     return chats
   }
 
-  getChatImages = (): Promise<[string, string][]> =>
-    this.db.raw_all<void[], [string, string]>(SQLS.getChatImages)
+  async getChatImageByGUID(attachmentGUID: string): Promise<string | undefined> {
+    const fileName = await this.db.pluck_get<string[], string>(SQLS.getChatImageByGUID, attachmentGUID)
+    return fileName ? replaceTilde(fileName) : undefined
+  }
 
   // getMessagesWithChatRowID(chatGUID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
   //   const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]

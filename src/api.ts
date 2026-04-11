@@ -327,7 +327,7 @@ export default class AppleiMessage implements PlatformAPI {
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
-    const [, , chatImagesRows, unreadCounts, dndState] = await Promise.all([
+    const [, , unreadCounts, dndState] = await Promise.all([
       Promise.all(chatRows.map(async chat => {
         const [msgRows, attachmentRows, reactionRows] = await db.fetchLastMessageRows(chat.ROWID)
         if (!cursor) allMsgRows.push(...msgRows)
@@ -336,15 +336,10 @@ export default class AppleiMessage implements PlatformAPI {
       Promise.all(chatRows.map(async chat => {
         handleRowsMap[chat.guid] = await db.getThreadParticipants(chat.ROWID)
       })),
-      IS_BIG_SUR_OR_UP ? db.getChatImages() : [],
       db.getUnreadCounts(),
       getDNDState(),
     ])
     if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
-    const chatImagesMap: { [attachmentID: string]: string } = {}
-    chatImagesRows?.forEach(([attachmentID, fileName]) => {
-      chatImagesMap[attachmentID] = fileName
-    })
     if (texts.isLoggingEnabled) console.time('imsg mapThreads')
 
     const archivalStates = this.batchGetThreadPropForChatRows(chatRows, 'archive')
@@ -363,7 +358,6 @@ export default class AppleiMessage implements PlatformAPI {
       accountID: this.accountID,
       mapMessageArgsMap,
       handleRowsMap,
-      chatImagesMap,
       dndState,
       unreadCounts,
       currentUserID: this.currentUser!.id,
@@ -898,6 +892,13 @@ export default class AppleiMessage implements PlatformAPI {
         const attachment = (await db.getAttachments([reactionRowID])).find(a => a.filePath)
         if (!attachment?.filePath) throw new Error("couldn't resolve sticker attachment for reaction row")
         return url.pathToFileURL(attachment.filePath).href
+      }
+
+      case 'thread-image': {
+        const db = await this.ensureDB()
+        const filePath = await db.getChatImageByGUID(methodName)
+        if (!filePath) throw new Error("couldn't resolve chat image attachment")
+        return url.pathToFileURL(filePath).href
       }
 
       default: {
