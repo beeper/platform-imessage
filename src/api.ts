@@ -224,6 +224,7 @@ export default class AppleiMessage implements PlatformAPI {
     return hashThread(mapThread(
       chatRow,
       {
+        accountID: this.accountID,
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUser!.id,
         threadReadStore: this.threadReadStore,
@@ -254,6 +255,7 @@ export default class AppleiMessage implements PlatformAPI {
     const thread = mapThread(
       chatRow,
       {
+        accountID: this.accountID,
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUser!.id,
         threadReadStore: this.threadReadStore,
