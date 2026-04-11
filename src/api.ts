@@ -682,11 +682,13 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+    if (reactionKey === 'sticker') throw Error("Adding sticker reactions isn't supported")
     const threadID = originalThreadID(hashedThreadID)
     return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true))
   }
 
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
+    if (reactionKey === 'sticker') throw Error("Removing sticker reactions isn't supported")
     const threadID = originalThreadID(hashedThreadID)
     return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
   }
