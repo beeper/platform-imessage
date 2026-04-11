@@ -59,7 +59,9 @@ const removeObjReplacementChar = (text: string): string => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-function assignReactions(currentUserID: string, message: BeeperMessage, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
+const reactionStickerAssetURL = (accountID: string, rowID: MappedReactionMessageRow['ROWID']) => `asset://${accountID}/reaction-sticker/${rowID}`
+
+function assignReactions(currentUserID: string, accountID: string, message: BeeperMessage, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
   const reactions: MessageReaction[] = []
   const reactionRows = filterIndex != null
     ? _reactionRows.filter(r => r.associated_message_guid.startsWith(`p:${filterIndex}/`))
@@ -75,6 +77,7 @@ function assignReactions(currentUserID: string, message: BeeperMessage, _reactio
           id: participantID,
           reactionKey: actionKey === 'emoji' ? reaction.associated_message_emoji : actionKey,
           participantID,
+          imgURL: actionKey === 'sticker' ? reactionStickerAssetURL(accountID, reaction.ROWID) : undefined,
         })
       } else if (actionType === 'unreacted') {
         const index = reactions.findIndex(r => r.id === participantID)
@@ -241,7 +244,7 @@ const UUID_START = 11
 const UUID_LENGTH = 36
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string): BeeperMessage[] {
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, accountID: string): BeeperMessage[] {
   const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
   const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
   const isGroup = !!msgRow.room_name
@@ -615,9 +618,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
           type: reactionType,
           messageID: m.linkedMessageID,
           participantID: m.senderID,
+          imgURL: assocMsgType === 'reacted_sticker' ? attachmentRows[0]?.filename : undefined,
           reactionKey: actionKey === 'emoji' ? msgRow.associated_message_emoji : actionKey,
         }
-        if (actionKey === 'emoji' || actionKey in supportedReactions) {
+        if (actionKey === 'emoji' || actionKey === 'sticker' || actionKey in supportedReactions) {
           m.parseTemplate = true
           m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} ${msi?.ams ? `"${msi?.ams}"` : 'a message'}`
           m.isHidden = true
@@ -629,7 +633,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
 
   return messages.map(msg => {
     // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
-    assignReactions(currentUserID, msg, reactionRows, messages.length === 1 ? undefined : msg.extra?.part)
+    assignReactions(currentUserID, accountID, msg, reactionRows, messages.length === 1 ? undefined : msg.extra?.part)
     return msg
   })
 }
@@ -672,6 +676,7 @@ function mapParticipant({ participantID: id, uncanonicalized_id }: MappedHandleR
 export const mapAccountLogin = (al: string) => al?.replace(/^(E|P):/, '')
 
 type Context = {
+  accountID: string
   currentUserID: string
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
@@ -688,16 +693,16 @@ type Context = {
 
 // @ts-expect-error FIXME(skip): argument ordering
 // eslint-disable-next-line @typescript-eslint/default-param-last
-export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string): BeeperMessage[] {
+export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, accountID: string): BeeperMessage[] {
   const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
   const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
   return messages
-    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.ROWID], groupedReactionRows[message.guid], currentUserID))
+    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.ROWID], groupedReactionRows[message.guid], currentUserID, accountID))
     .filter(Boolean)
 }
 
 export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
-  const { currentUserID } = context
+  const { currentUserID, accountID } = context
   const handleRows = context.handleRowsMap[chat.guid]
   const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]
   const selfID = chat.last_addressed_handle || mapAccountLogin(chat.account_login) || currentUserID
@@ -707,7 +712,7 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(participant => participant != null)
   const isGroup = !!chat.room_name
   const isReadOnly = chat.state === 0 && chat.properties != null
-  const messages = mapMessageArgs ? mapMessages(...mapMessageArgs, currentUserID) : []
+  const messages = mapMessageArgs ? mapMessages(...mapMessageArgs, currentUserID, accountID) : []
   /*
     props = {
       "com.apple.iChat.LastArchivedMessageID": [ 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', 101010 ],
