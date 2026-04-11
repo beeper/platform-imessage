@@ -1,7 +1,6 @@
 import path from 'path'
-import { promisify } from 'util'
 import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
-import imageSizeCallback from 'image-size'
+import { imageSizeFromFile } from 'image-size/fromFile'
 import { OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
@@ -14,8 +13,6 @@ import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, Map
 import type PAPI from './api'
 import swiftServer from './SwiftServer/lib'
 import { BeeperMessage } from './desktop-types'
-
-const imageSizeAsync = promisify(imageSizeCallback)
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -327,7 +324,7 @@ export default class DatabaseAPI {
     return this.db.all<number[], MappedMessageRow>(SQLS.getMessagesByRowIDs(rowIDs), ...rowIDs)
   }
 
-  private imageSizeMemoized = memoize(imageSizeAsync)
+  private imageSizeMemoized = memoize(imageSizeFromFile)
 
   async getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
     const attachments = await this.db.all<number[], MappedAttachmentRow>(SQLS.getAttachments(msgRowIDs), ...msgRowIDs)
