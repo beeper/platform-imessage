@@ -59,7 +59,8 @@ const removeObjReplacementChar = (text: string): string => {
   return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
 }
 
-const reactionStickerAssetURL = (accountID: string, rowID: MappedReactionMessageRow['ROWID']) => `asset://${accountID}/reaction-sticker/${rowID}`
+const reactionStickerAssetURL = (accountID: string, rowID: MappedReactionMessageRow['ROWID']) =>
+  `asset://${accountID}/reaction-sticker/${rowID}.heic`
 
 function assignReactions(currentUserID: string, accountID: string, message: BeeperMessage, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
   const reactions: MessageReaction[] = []
