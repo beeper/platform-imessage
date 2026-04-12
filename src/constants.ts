@@ -66,12 +66,17 @@ export const EXPRESSIVE_MSGS = {
   'com.apple.MobileSMS.expressivesend.invisibleink': 'Invisible Ink text',
 } as const
 
-export const enum AttachmentTransferState {
-  NOT_DOWNLOADED = 0,
-  UNKNOWN_1 = 1,
-  DOWNLOADING = 3,
-  DOWNLOADED = 5,
-  UNKNOWN_2 = 6,
+export const enum IMFileTransferState {
+  WAITING_FOR_ACCEPT = 0,
+  ACCEPTED = 1,
+  PREPARING = 2,
+  TRANSFERRING = 3,
+  FINALIZING = 4,
+  FINISHED = 5,
+  ERROR = 6,
+  RECOVERABLE_ERROR = 7,
+  REJECTED = 8,
+  THUMBNAIL = 9,
 }
 
 // /System/Library/Messages/iMessageBalloons/

@@ -2,7 +2,7 @@ import url from 'url'
 import { groupBy, omit } from 'lodash'
 import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, AttachmentTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, IMFileTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
 import { stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
@@ -33,7 +33,7 @@ function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attach
     fileName,
     srcURL: filePath,
     fileSize: a.total_bytes,
-    loading: a.transfer_state !== AttachmentTransferState.DOWNLOADED,
+    loading: a.transfer_state !== IMFileTransferState.FINISHED,
   } satisfies Partial<Attachment>
   if (filePath) common.srcURL = url.pathToFileURL(filePath).href
   if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
