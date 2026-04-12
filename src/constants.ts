@@ -2,8 +2,7 @@
 // on desktop
 import os from 'os'
 import path from 'path'
-import { texts } from '@textshq/platform-sdk'
-import { IS_BIG_SUR_OR_UP } from './common-constants'
+import { IS_BIG_SUR_OR_UP, BINARIES_DIR_PATH } from './common-constants'
 
 export * from './common-constants'
 
@@ -97,8 +96,6 @@ export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
 export const CHAT_DB_PATH = path.join(homedir, 'Library/Messages/chat.db')
 export const TMP_MOBILE_SMS_PATH = IS_BIG_SUR_OR_UP ? path.join(os.tmpdir(), MESSAGES_APP_BUNDLE_ID) : undefined
 
-export const BINARIES_DIR_PATH = texts?.getBinariesDirPath('imessage')
-  ?? path.join(process.cwd(), 'binaries')
 export const ARCH_BINARIES_DIR_PATH = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`)
 
 // Date.distantFuture === January 1, 4001 at 12:00:00 AM GMT

@@ -1,13 +1,19 @@
 // NOTE: DO NOT PREFIX THESE IMPORTS WITH `node:`, it doesn't bundle correctly
 // on desktop
 import os from 'os'
+import path from 'path'
+import url from 'url'
+import { texts } from '@textshq/platform-sdk'
 import type { SupportedReaction } from '@textshq/platform-sdk'
+
+export const BINARIES_DIR_PATH = texts?.getBinariesDirPath('imessage')
+  ?? path.join(process.cwd(), 'binaries')
 
 export const supportedReactions = {
   heart: { title: 'Heart', render: '❤️' },
   like: { title: 'Like', render: '👍' },
   dislike: { title: 'Dislike', render: '👎' },
-  laugh: { title: 'Laugh', render: '😂' },
+  laugh: { title: 'Laugh', render: 'HAHA', imgURL: url.pathToFileURL(path.join(BINARIES_DIR_PATH, 'haha.svg')).href },
   emphasize: { title: 'Emphasize', render: '‼️' },
   question: { title: 'Question', render: '❓' },
 } as const satisfies Record<string, SupportedReaction>
