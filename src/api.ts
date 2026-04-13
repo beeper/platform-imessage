@@ -608,9 +608,8 @@ export default class AppleiMessage implements PlatformAPI {
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
     if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
-    const participantID = getSingleParticipantAddress(threadID)
-    // Tahoe+ can send typing indicators to group chats; older macOS releases are still 1:1-only here.
-    if (!IS_TAHOE_OR_UP && !participantID) return
+    // group chat typing indicators require Tahoe+
+    if (!IS_TAHOE_OR_UP && !getSingleParticipantAddress(threadID)) return
     const isTyping = type === ActivityType.TYPING
     return (await MessagesControllerWrapper.get()).sendTypingStatus(threadID, isTyping)
   }
