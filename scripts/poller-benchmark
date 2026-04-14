@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -eu -o pipefail
+
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+swift_server_dir="$here/../src/SwiftServer"
+configuration="${CONFIGURATION:-release}"
+product="$swift_server_dir/.build/$configuration/IMDatabaseTestBench"
+
+cd "$swift_server_dir"
+
+if [[ "${BUILD:-auto}" == "1" || ! -x "$product" ]]; then
+  xcrun swift build -c "$configuration" --product IMDatabaseTestBench
+fi
+
+"$product" poll-benchmark "$@"

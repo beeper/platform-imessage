@@ -1,4 +1,5 @@
 import ArgumentParser
+import Darwin
 import Foundation
 import IMDatabase
 import Logging
@@ -22,7 +23,7 @@ struct TestBench: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
-        subcommands: [Watch.self, Messages.self, Chats.self, FSEventsCommand.self, TestIdleAware.self, ClosestSelectable.self],
+        subcommands: [Watch.self, Messages.self, Chats.self, PollBenchmark.self, FSEventsCommand.self, TestIdleAware.self, ClosestSelectable.self],
     )
 
     mutating func run() async throws {}
@@ -259,6 +260,441 @@ extension TestBench {
             }
         }
     }
+}
+
+// MARK: - Poll Benchmark
+
+extension TestBench {
+    struct PollBenchmark: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "poll-benchmark",
+            abstract: "Benchmarks the hot IMDatabase queries used by SwiftServer polling.",
+            aliases: ["bench-poll"],
+        )
+
+        @Option(name: .long, help: "Specify the log level.")
+        var logLevel: Logger.Level = .critical
+
+        @Option(name: .long, help: "Use this Messages data directory instead of ~/Library/Messages.")
+        var messagesDir: String?
+
+        @Option(name: .shortAndLong, help: "Run for this many seconds. Ignored after --iterations is reached.")
+        var duration: Double = 30
+
+        @Option(name: .shortAndLong, help: "Stop after this many total poll cycles across all workers.")
+        var iterations: Int?
+
+        @Option(name: .shortAndLong, help: "Number of concurrent independent IMDatabase connections.")
+        var concurrency: Int = 1
+
+        @Option(name: .long, help: "Sleep this many milliseconds between poll cycles per worker. 0 means tight loop.")
+        var intervalMs: Double = 0
+
+        @Option(name: .long, help: "Number of unmeasured poll cycles to run per worker before collecting stats.")
+        var warmupIterations: Int = 2
+
+        @Flag(name: .long, help: "Also run the pollMessageUpdates-style query after unread-state polling.")
+        var includeUpdates = false
+
+        @Flag(name: .long, help: "Keep the updates cursor stale so --include-updates performs a worst-case scan each cycle.")
+        var staleUpdatesCursor = false
+
+        mutating func validate() throws {
+            guard duration > 0 || iterations != nil else {
+                throw ValidationError("Specify a positive --duration or --iterations.")
+            }
+            guard concurrency > 0 else {
+                throw ValidationError("--concurrency must be greater than 0.")
+            }
+            if let iterations {
+                guard iterations > 0 else {
+                    throw ValidationError("--iterations must be greater than 0.")
+                }
+            }
+            guard intervalMs >= 0 else {
+                throw ValidationError("--interval-ms cannot be negative.")
+            }
+            guard warmupIterations >= 0 else {
+                throw ValidationError("--warmup-iterations cannot be negative.")
+            }
+            guard !staleUpdatesCursor || includeUpdates else {
+                throw ValidationError("--stale-updates-cursor only applies with --include-updates.")
+            }
+        }
+
+        mutating func run() async throws {
+            bootstrap(logLevel: logLevel)
+
+            let benchmark = PollBenchmarkRunner(
+                messagesDir: messagesDir,
+                duration: duration,
+                iterations: iterations,
+                concurrency: concurrency,
+                intervalMs: intervalMs,
+                warmupIterations: warmupIterations,
+                includeUpdates: includeUpdates,
+                staleUpdatesCursor: staleUpdatesCursor
+            )
+            try await benchmark.run()
+        }
+    }
+}
+
+private struct PollBenchmarkRunner {
+    struct Cursor {
+        var lastRowID = 0
+        var lastDateRead = Date(nanosecondsSinceReferenceDate: 0)
+        var lastDateEdited = Date()
+    }
+
+    let messagesDir: String?
+    let duration: Double
+    let iterations: Int?
+    let concurrency: Int
+    let intervalMs: Double
+    let warmupIterations: Int
+    let includeUpdates: Bool
+    let staleUpdatesCursor: Bool
+
+    func run() async throws {
+        let coordinator = PollBenchmarkCoordinator(
+            duration: duration,
+            maxIterations: iterations
+        )
+        let startGate = PollBenchmarkStartGate(workerCount: concurrency)
+        let results = PollBenchmarkResults()
+
+        print("poll benchmark")
+        print("- query: IMDatabase.chatStates()" + (includeUpdates ? " + chats(withMessagesNewerThanRowID:orReadSince:orEditedSince:)" : ""))
+        print("- messages dir: \(databaseDirectoryPath)")
+        print("- duration: \(formatSeconds(duration))")
+        print("- iterations cap: \(iterations.map(String.init) ?? "none")")
+        print("- concurrency: \(concurrency)")
+        print("- interval: \(formatMilliseconds(intervalMs))")
+        print("- stale updates cursor: \(staleUpdatesCursor)")
+        print()
+
+        var cpuStart = ResourceUsage.now()
+        var wallStart = DispatchTime.now().uptimeNanoseconds
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for workerID in 0..<concurrency {
+                group.addTask {
+                    try await runWorker(
+                        id: workerID,
+                        coordinator: coordinator,
+                        startGate: startGate,
+                        results: results
+                    )
+                }
+            }
+
+            await startGate.waitUntilReady()
+            cpuStart = ResourceUsage.now()
+            wallStart = DispatchTime.now().uptimeNanoseconds
+            await coordinator.start()
+            await startGate.start()
+
+            try await group.waitForAll()
+        }
+
+        let wallSeconds = secondsSince(wallStart)
+        let cpuDelta = ResourceUsage.now() - cpuStart
+        let snapshot = await results.snapshot()
+
+        print()
+        print(snapshot.summary(wallSeconds: wallSeconds, cpu: cpuDelta))
+    }
+
+    private var databaseDirectoryPath: String {
+        guard let messagesDir else {
+            return "~/Library/Messages"
+        }
+        return NSString(string: messagesDir).expandingTildeInPath
+    }
+
+    private func makeDatabase() throws -> IMDatabase {
+        guard let messagesDir else {
+            return try IMDatabase()
+        }
+        let url = URL(fileURLWithPath: NSString(string: messagesDir).expandingTildeInPath)
+        return try IMDatabase(messagesDataBaseURL: url)
+    }
+
+    private func runWorker(
+        id: Int,
+        coordinator: PollBenchmarkCoordinator,
+        startGate: PollBenchmarkStartGate,
+        results: PollBenchmarkResults
+    ) async throws {
+        let db: IMDatabase
+        var cursor = Cursor()
+
+        do {
+            db = try makeDatabase()
+            for _ in 0..<warmupIterations {
+                _ = try runPollCycle(db: db, cursor: &cursor)
+            }
+        } catch {
+            await startGate.workerFailedBeforeStart()
+            throw error
+        }
+
+        await startGate.workerReadyAndWait()
+
+        let sleepNanoseconds = UInt64(intervalMs * 1_000_000)
+        while let sequence = await coordinator.nextSequence() {
+            do {
+                let start = DispatchTime.now().uptimeNanoseconds
+                let sample = try runPollCycle(db: db, cursor: &cursor)
+                let elapsed = secondsSince(start)
+                await results.record(workerID: id, sequence: sequence, duration: elapsed, sample: sample)
+            } catch {
+                await results.recordFailure()
+                throw error
+            }
+
+            if sleepNanoseconds > 0 {
+                try await Task.sleep(nanoseconds: sleepNanoseconds)
+            }
+        }
+    }
+
+    private func runPollCycle(db: IMDatabase, cursor: inout Cursor) throws -> PollBenchmarkSample {
+        let states = try db.chatStates()
+        var updatedChatCount = 0
+
+        if includeUpdates {
+            let queryResult = try db.chats(
+                withMessagesNewerThanRowID: cursor.lastRowID,
+                orReadSince: cursor.lastDateRead,
+                orEditedSince: cursor.lastDateEdited
+            )
+            updatedChatCount = queryResult.updatedChats.count
+
+            if !staleUpdatesCursor {
+                if let latestMessageRowID = queryResult.latestMessageRowID {
+                    cursor.lastRowID = latestMessageRowID
+                }
+                if let latestMessageDateRead = queryResult.latestMessageDateRead {
+                    cursor.lastDateRead = latestMessageDateRead
+                }
+                if let latestDateEdited = queryResult.latestDateEdited {
+                    cursor.lastDateEdited = latestDateEdited
+                }
+            }
+        }
+
+        return PollBenchmarkSample(
+            chatCount: states.count,
+            unreadChatCount: states.values.filter { $0.unreadCount > 0 }.count,
+            totalUnreadCount: states.values.reduce(0) { $0 + $1.unreadCount },
+            updatedChatCount: updatedChatCount
+        )
+    }
+}
+
+private actor PollBenchmarkStartGate {
+    private let workerCount: Int
+    private var readyWorkers = 0
+    private var readyContinuation: CheckedContinuation<Void, Never>?
+    private var startContinuations = [CheckedContinuation<Void, Never>]()
+    private var hasStarted = false
+
+    init(workerCount: Int) {
+        self.workerCount = workerCount
+    }
+
+    func workerReadyAndWait() async {
+        workerReady()
+
+        await withCheckedContinuation { continuation in
+            if hasStarted {
+                continuation.resume()
+            } else {
+                startContinuations.append(continuation)
+            }
+        }
+    }
+
+    func workerFailedBeforeStart() {
+        workerReady()
+    }
+
+    func waitUntilReady() async {
+        guard readyWorkers < workerCount else { return }
+
+        await withCheckedContinuation { continuation in
+            readyContinuation = continuation
+        }
+    }
+
+    func start() {
+        hasStarted = true
+        let continuations = startContinuations
+        startContinuations.removeAll()
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+
+    private func workerReady() {
+        readyWorkers += 1
+        if readyWorkers >= workerCount {
+            readyContinuation?.resume()
+            readyContinuation = nil
+        }
+    }
+}
+
+private actor PollBenchmarkCoordinator {
+    private let duration: Double
+    private var deadline: UInt64?
+    private let maxIterations: Int?
+    private var issuedIterations = 0
+
+    init(duration: Double, maxIterations: Int?) {
+        self.duration = duration
+        self.maxIterations = maxIterations
+    }
+
+    func start() {
+        guard deadline == nil, duration > 0 else { return }
+        deadline = DispatchTime.now().uptimeNanoseconds + UInt64(duration * 1_000_000_000)
+    }
+
+    func nextSequence() -> Int? {
+        start()
+
+        if let maxIterations, issuedIterations >= maxIterations {
+            return nil
+        }
+
+        if let deadline, DispatchTime.now().uptimeNanoseconds >= deadline {
+            return nil
+        }
+
+        issuedIterations += 1
+        return issuedIterations
+    }
+}
+
+private actor PollBenchmarkResults {
+    private var durations: [Double] = []
+    private var failures = 0
+    private var lastSample: PollBenchmarkSample?
+
+    func record(workerID _: Int, sequence _: Int, duration: Double, sample: PollBenchmarkSample) {
+        durations.append(duration)
+        lastSample = sample
+    }
+
+    func recordFailure() {
+        failures += 1
+    }
+
+    func snapshot() -> PollBenchmarkSnapshot {
+        PollBenchmarkSnapshot(
+            durations: durations,
+            failures: failures,
+            lastSample: lastSample
+        )
+    }
+}
+
+private struct PollBenchmarkSample {
+    let chatCount: Int
+    let unreadChatCount: Int
+    let totalUnreadCount: Int
+    let updatedChatCount: Int
+}
+
+private struct PollBenchmarkSnapshot {
+    let durations: [Double]
+    let failures: Int
+    let lastSample: PollBenchmarkSample?
+
+    func summary(wallSeconds: Double, cpu: ResourceUsage) -> String {
+        guard !durations.isEmpty else {
+            return "no poll cycles completed; failures: \(failures)"
+        }
+
+        let sorted = durations.sorted()
+        let totalDuration = durations.reduce(0, +)
+        let mean = totalDuration / Double(durations.count)
+        let cyclesPerSecond = Double(durations.count) / wallSeconds
+        let cpuSeconds = cpu.userSeconds + cpu.systemSeconds
+        let cpuCores = wallSeconds > 0 ? cpuSeconds / wallSeconds : 0
+
+        var lines = [
+            "results",
+            "- poll cycles: \(durations.count)",
+            "- failures: \(failures)",
+            "- wall time: \(formatSeconds(wallSeconds))",
+            "- throughput: \(formatDouble(cyclesPerSecond)) cycles/s",
+            "- duration mean: \(formatMilliseconds(mean * 1_000))",
+            "- duration p50: \(formatMilliseconds(percentile(0.50, in: sorted) * 1_000))",
+            "- duration p95: \(formatMilliseconds(percentile(0.95, in: sorted) * 1_000))",
+            "- duration p99: \(formatMilliseconds(percentile(0.99, in: sorted) * 1_000))",
+            "- duration max: \(formatMilliseconds((sorted.last ?? 0) * 1_000))",
+            "- cpu user/system/total: \(formatSeconds(cpu.userSeconds)) / \(formatSeconds(cpu.systemSeconds)) / \(formatSeconds(cpuSeconds))",
+            "- approx cpu cores consumed: \(formatDouble(cpuCores))",
+        ]
+
+        if let lastSample {
+            lines.append("- last sample: \(lastSample.chatCount) chats, \(lastSample.unreadChatCount) unread chats, \(lastSample.totalUnreadCount) unread messages, \(lastSample.updatedChatCount) updated chats")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+}
+
+private struct ResourceUsage {
+    let userSeconds: Double
+    let systemSeconds: Double
+
+    static func now() -> ResourceUsage {
+        var usage = rusage()
+        getrusage(RUSAGE_SELF, &usage)
+        return ResourceUsage(
+            userSeconds: seconds(from: usage.ru_utime),
+            systemSeconds: seconds(from: usage.ru_stime)
+        )
+    }
+
+    private static func seconds(from time: timeval) -> Double {
+        Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000
+    }
+
+    static func - (lhs: ResourceUsage, rhs: ResourceUsage) -> ResourceUsage {
+        ResourceUsage(
+            userSeconds: lhs.userSeconds - rhs.userSeconds,
+            systemSeconds: lhs.systemSeconds - rhs.systemSeconds
+        )
+    }
+}
+
+private func percentile(_ percentile: Double, in sorted: [Double]) -> Double {
+    guard !sorted.isEmpty else { return 0 }
+    let clampedPercentile = min(max(percentile, 0), 1)
+    let index = Int((Double(sorted.count - 1) * clampedPercentile).rounded(.up))
+    return sorted[min(index, sorted.count - 1)]
+}
+
+private func secondsSince(_ start: UInt64) -> Double {
+    Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000_000
+}
+
+private func formatSeconds(_ seconds: Double) -> String {
+    "\(formatDouble(seconds))s"
+}
+
+private func formatMilliseconds(_ milliseconds: Double) -> String {
+    "\(formatDouble(milliseconds))ms"
+}
+
+private func formatDouble(_ value: Double) -> String {
+    String(format: "%.3f", value)
 }
 
 // MARK: - FSEvents
