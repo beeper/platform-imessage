@@ -68,7 +68,7 @@ export const roomFeatures = {
       mime_types: {
         '*/*': CapabilitySupportLevel.FullySupported,
       },
-      caption: CapabilitySupportLevel.FullySupported,
+      caption: CapabilitySupportLevel.Unsupported,
       max_size: maxFileSizeBytes,
     },
     [CapabilityMsgType.Image]: {
@@ -78,7 +78,7 @@ export const roomFeatures = {
         'image/gif': CapabilitySupportLevel.FullySupported,
         'image/webp': CapabilitySupportLevel.FullySupported,
       },
-      caption: CapabilitySupportLevel.FullySupported,
+      caption: CapabilitySupportLevel.Unsupported,
       max_size: maxFileSizeBytes,
     },
     [CapabilityMsgType.Audio]: {
@@ -90,7 +90,7 @@ export const roomFeatures = {
         'audio/webm': CapabilitySupportLevel.FullySupported,
         'audio/aac': CapabilitySupportLevel.FullySupported,
       },
-      caption: CapabilitySupportLevel.FullySupported,
+      caption: CapabilitySupportLevel.Unsupported,
       max_size: maxFileSizeBytes,
     },
     [CapabilityMsgType.Video]: {
@@ -99,14 +99,14 @@ export const roomFeatures = {
         'video/webm': CapabilitySupportLevel.FullySupported,
         'video/ogg': CapabilitySupportLevel.FullySupported,
       },
-      caption: CapabilitySupportLevel.FullySupported,
+      caption: CapabilitySupportLevel.Unsupported,
       max_size: maxFileSizeBytes,
     },
     [CapabilityMsgType.GIF]: {
       mime_types: {
         'image/gif': CapabilitySupportLevel.FullySupported,
       },
-      caption: CapabilitySupportLevel.FullySupported,
+      caption: CapabilitySupportLevel.Unsupported,
       max_size: maxFileSizeBytes,
     },
   },
