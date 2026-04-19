@@ -250,7 +250,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
 
     @NodeMethod func editMessage(threadID: String, messageGUID: String, partIndex: Int?, newText: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
-            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex)
+            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex, allowOverlay: false)
             try controller.editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
         }
     }

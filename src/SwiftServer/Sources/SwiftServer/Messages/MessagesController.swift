@@ -771,13 +771,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func resolveMessageCell(threadID: String, messageGUID: String, partIndex: Int?) throws -> MessageCell {
+    func resolveMessageCell(threadID: String, messageGUID: String, partIndex: Int?, allowOverlay: Bool = true) throws -> MessageCell {
         let guid = GUID<Message>(stringLiteral: messageGUID)
         guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
             throw ErrorMessage("Could not find message \(messageGUID)")
         }
         let cellID = isSonomaOrUp ? nil : message.balloonBundleID
-        let overlay = isMontereyOrUp && (partIndex == nil || partIndex == 0) && message.parts.count <= 1
+        let overlay = allowOverlay && isMontereyOrUp && (partIndex == nil || partIndex == 0)
         func makeCell(messageGUID: String, offset: Int, overlay: Bool) -> MessageCell {
             MessageCell(messageGUID: messageGUID, offset: offset, cellID: cellID, cellRole: nil, overlay: overlay)
         }
