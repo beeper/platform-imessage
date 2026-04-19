@@ -771,6 +771,53 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
+    func resolveMessageCell(threadID: String, messageGUID: String, partIndex: Int?) throws -> MessageCell {
+        let guid = GUID<Message>(stringLiteral: messageGUID)
+        guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
+            throw ErrorMessage("Could not find message \(messageGUID)")
+        }
+
+        let overlay = isMontereyOrUp && (partIndex == nil || partIndex == 0) && message.parts.count <= 1
+        let cellID = isSonomaOrUp ? nil : message.balloonBundleID
+
+        if overlay {
+            return MessageCell(
+                messageGUID: messageGUID,
+                offset: 0,
+                cellID: cellID,
+                cellRole: nil,
+                overlay: true
+            )
+        }
+
+        let parts = message.parts
+        guard !parts.isEmpty else {
+            return MessageCell(
+                messageGUID: messageGUID,
+                offset: 0,
+                cellID: cellID,
+                cellRole: nil,
+                overlay: false
+            )
+        }
+
+        let targetPartIndex = Message.Part.Index(rawValue: partIndex ?? 0)
+        let fallbackTarget = parts.first(where: { $0.index.rawValue == 0 }) ?? parts[0]
+        let targetPart = parts.first(where: { $0.index == targetPartIndex }) ?? fallbackTarget
+
+        if let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) {
+            return MessageCell(
+                messageGUID: String(describing: closest.closestSelectable.parentMessageGUID),
+                offset: closest.offsetFromTarget,
+                cellID: cellID,
+                cellRole: nil,
+                overlay: false
+            )
+        }
+
+        throw ErrorMessage("Could not resolve selectable message cell")
+    }
+
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
         let startTime = Date()
         defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }

@@ -221,11 +221,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
-        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
-            throw ErrorMessage("Invalid messageCellJSON arg")
-        }
-
+    @NodeMethod func setReaction(threadID: String, messageGUID: String, partIndex: Int?, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
             // try the "legacy" reactions first (keyed by `supported` in platform info)
             reaction
@@ -239,25 +235,22 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
         return try performAsync { [self] in
+            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex)
             try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
         }
     }
 
     // @available(macOS 13, *)
-    @NodeMethod func undoSend(threadID: String, messageCellJSON: String) throws -> NodeValueConvertible {
-        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
-            throw ErrorMessage("Invalid messageCellJSON arg")
-        }
+    @NodeMethod func undoSend(threadID: String, messageGUID: String, partIndex: Int?) throws -> NodeValueConvertible {
         return try performAsync { [self] in
+            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex)
             try controller.undoSend(threadID: threadID, messageCell: messageCell)
         }
     }
 
-    @NodeMethod func editMessage(threadID: String, messageCellJSON: String, newText: String) throws -> NodeValueConvertible {
-        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
-            throw ErrorMessage("Invalid messageCellJSON arg")
-        }
+    @NodeMethod func editMessage(threadID: String, messageGUID: String, partIndex: Int?, newText: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
+            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex)
             try controller.editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
         }
     }
@@ -273,9 +266,15 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
-        let quotedMessage = try quotedMessageCellJSON?.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }
-        return try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage) }
+    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageGUID: String?, quotedPartIndex: Int?) throws -> NodeValueConvertible {
+        return try performAsync {
+            let quotedMessage: MessageCell? = if let quotedMessageGUID {
+                try self.controller.resolveMessageCell(threadID: threadID, messageGUID: quotedMessageGUID, partIndex: quotedPartIndex)
+            } else {
+                nil
+            }
+            try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
+        }
     }
 
     @NodeMethod func isSameContact(_ a: String?, _ b: String?) -> Bool {

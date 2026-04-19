@@ -3,6 +3,7 @@ import Foundation
 public struct Message: Identifiable {
     public var id: Int
     public var guid: GUID<Message>
+    public var balloonBundleID: String?
 
     // NOTE: This will often be `nil`, especially if there's an attributed body instead.
     public var text: Sensitive<String>?

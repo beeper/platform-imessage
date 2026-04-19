@@ -47,9 +47,9 @@ export declare class MessagesController {
 
   deleteThread: (threadID: ThreadID) => Promise<void>
 
-  undoSend: (threadID: ThreadID, messageCellJSON: string) => Promise<void>
+  undoSend: (threadID: ThreadID, messageGUID: string, partIndex?: number) => Promise<void>
 
-  editMessage: (threadID: ThreadID, messageCellJSON: string, newText: string) => Promise<void>
+  editMessage: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined, newText: string) => Promise<void>
 
   notifyAnyway: (threadID: ThreadID) => Promise<void>
 
@@ -57,9 +57,15 @@ export declare class MessagesController {
 
   watchThreadActivity: (threadID?: ThreadID, onTyping?: (status: ActivityStatus[]) => void) => Promise<void>
 
-  sendMessage: (threadID: ThreadID, text?: string, filePath?: string, quotedMessageCellJSON?: string) => Promise<void>
+  sendMessage: (
+    threadID: ThreadID,
+    text?: string,
+    filePath?: string,
+    quotedMessageGUID?: string,
+    quotedPartIndex?: number,
+  ) => Promise<void>
 
-  setReaction: (threadID: ThreadID, messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
+  setReaction: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined, reaction: string, on: boolean) => Promise<void>
 
   isSameContact: (addressA: string, addressB: string) => boolean
 

@@ -10,18 +10,18 @@ import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
-import { BeeperMessage, BeeperThread } from './desktop-types'
+import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
 import ThreadReadStore from './thread-read-store'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SONOMA_OR_UP, IS_TAHOE_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
-import swiftServer, { ActivityStatus, MessageCell } from './SwiftServer/lib'
+import swiftServer, { ActivityStatus } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import type { AXMessageSelection, ChatRow, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import type { ChatRow, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
 import { AppleDate, appleDateNow, appleDateToMillisSinceEpoch } from './time'
@@ -40,6 +40,13 @@ function canAccessMessagesDir() {
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
 const linkRegex = urlRegex()
+
+function parseMessageTarget(messageID: MessageID): { messageGUID: string, partIndex: number | undefined } {
+  const [messageGUID, partString] = messageID.split('_', 2)
+  if (!partString) return { messageGUID, partIndex: undefined }
+  const parsed = Number(partString)
+  return { messageGUID, partIndex: Number.isNaN(parsed) ? undefined : parsed }
+}
 
 function getDNDState() {
   if (!IS_BIG_SUR_OR_UP) return new Set<string>()
@@ -453,15 +460,12 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
         const controller = await MessagesControllerWrapper.get()
-        const [messageGUID, offset] = quotedMessageID ? quotedMessageID.split('_') : []
-        await controller.sendMessage(threadID, text, filePath, quotedMessageID ? JSON.stringify({
-          messageGUID,
-          offset: +offset || 0,
-          // TODO: specify id/role
-          cellID: null,
-          cellRole: null,
-          overlay: IS_MONTEREY_OR_UP,
-        } as MessageCell) : undefined)
+        if (quotedMessageID) {
+          const { messageGUID, partIndex } = parseMessageTarget(quotedMessageID)
+          await controller.sendMessage(threadID, text, filePath, messageGUID, partIndex)
+          return
+        }
+        await controller.sendMessage(threadID, text, filePath, undefined, undefined)
       }, {
         onFailedAttempt: error => {
           texts.Sentry.captureException(error)
@@ -568,9 +572,9 @@ export default class AppleiMessage implements PlatformAPI {
     if (!IS_VENTURA_OR_UP) throw Error('Only supported on macOS Ventura or later')
     const { text } = content
     if (!text) throw new Error('Tried to edit message to have empty content')
-    const messageCell = await this.getMessageCell(threadID, messageID, false)
     const controller = await MessagesControllerWrapper.get()
-    await controller.editMessage(threadID, JSON.stringify(messageCell), text)
+    const { messageGUID, partIndex } = parseMessageTarget(messageID)
+    await controller.editMessage(threadID, messageGUID, partIndex, text)
     return true
   }
 
@@ -614,55 +618,17 @@ export default class AppleiMessage implements PlatformAPI {
     return (await MessagesControllerWrapper.get()).sendTypingStatus(threadID, isTyping)
   }
 
-  private getMessageCell = async (threadID: ThreadID, messageID: MessageID, useOverlay = true): Promise<MessageCell> => {
-    const db = await this.ensureDB()
-    // ogMessageJSON is
-    // const [msgID, part] = messageID.split('_', 2)
-    // const ogMessageJSON = texts.getOriginalObject?.('imessage', this.accountID!, ['message', msgID])
-    // if (!ogMessageJSON) throw Error('og message not found')
-    // const [msgRow, attachmentRows, currentUserID]: [MappedMessageRow, MappedAttachmentRow[], string] = JSON.parse(ogMessageJSON)
-    // const messages = mapMessage(msgRow, attachmentRows, [], currentUserID)
-    // const message = messages[part || 0]
-    const message = await this.getMessage(hashThreadID(threadID), messageID) as BeeperMessage
-    if (!message) throw Error("couldn't find message")
-    if (!message._original) throw Error("couldn't find original message")
-
-    let parsed: unknown
-    if (!('_original' in message && typeof message._original === 'string')) {
-      throw new Error("imsg: can't recover cell from message without original data")
-    }
-    try {
-      parsed = JSON.parse(message._original) as unknown
-    } catch (error) {
-      throw new Error("imsg: can't recover cell from message, malformed original JSON", { cause: error })
-    }
-    if (!Array.isArray(parsed)) {
-      throw new Error("imsg: can't recover cell from message; original data isn't an array")
-    }
-    const msgRow = parsed[0]
-    if (!msgRow) {
-      throw new Error("imsg: can't recover cell from message; no associated row")
-    }
-
-    // use overlay mode only when the message is not in a thread
-    const overlay = useOverlay && IS_MONTEREY_OR_UP && !message.linkedMessageID && !message.extra?.part
-    const closestMessage: AXMessageSelection = overlay
-      ? { messageGUID: messageID, offset: 0, cellID: IS_SONOMA_OR_UP ? null : msgRow.balloon_bundle_id, cellRole: null }
-      : await db.findClosestTextMessage(threadID, messageID, message, msgRow) // todo optimize by calling only if needed
-    return { ...closestMessage, overlay } as MessageCell
-  }
-
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
     // if (IS_TAHOE_OR_UP) throw Error('reactions are not supported on macOS Tahoe')
     if (!IS_BIG_SUR_OR_UP) throw Error('only supported on big sur and above')
     await pRetry(async () => {
-      const messageCell = await this.getMessageCell(threadID, messageID)
       const controller = await MessagesControllerWrapper.get()
+      const { messageGUID, partIndex } = parseMessageTarget(messageID)
       const result = await this.waitForMessageSend(
         threadID,
         messageID,
         undefined,
-        () => controller.setReaction(threadID, JSON.stringify(messageCell), reactionKey, on),
+        () => controller.setReaction(threadID, messageGUID, partIndex, reactionKey, on),
         5_000,
       )
       if (!result) throw Error('setReaction unknown error')
@@ -691,9 +657,9 @@ export default class AppleiMessage implements PlatformAPI {
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     const threadID = originalThreadID(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
-    const messageCell = await this.getMessageCell(threadID, messageID)
     const controller = await MessagesControllerWrapper.get()
-    await controller.undoSend(threadID, JSON.stringify(messageCell))
+    const { messageGUID, partIndex } = parseMessageTarget(messageID)
+    await controller.undoSend(threadID, messageGUID, partIndex)
   }
 
   // eslint-disable-next-line class-methods-use-this
