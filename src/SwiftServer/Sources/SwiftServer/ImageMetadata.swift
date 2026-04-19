@@ -5,27 +5,20 @@ import ImageIO
 struct ImageMetadata {
     let width: Int
     let height: Int
-    let orientation: Int?
 
     func nodeValue() -> [String: NodePropertyConvertible] {
-        var value: [String: NodePropertyConvertible] = [
-            "width": width,
-            "height": height,
-        ]
-        if let orientation {
-            value["orientation"] = orientation
-        }
-        return value
+        ["width": width, "height": height]
     }
 }
 
 enum ImageMetadataReader {
-    static func read(from filePath: String) throws -> ImageMetadata? {
+    static func read(from filePath: String) -> ImageMetadata? {
         let url = URL(fileURLWithPath: filePath)
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, options) else {
             return nil
         }
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, options) as? [CFString: Any] else {
             return nil
         }
         guard
@@ -34,7 +27,11 @@ enum ImageMetadataReader {
         else {
             return nil
         }
-        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue
-        return ImageMetadata(width: width, height: height, orientation: orientation)
+        // EXIF orientations 5–8 indicate a 90°/270° rotation, so width/height are swapped.
+        // https://exiftool.org/TagNames/EXIF.html
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+        return (5...8).contains(orientation)
+            ? ImageMetadata(width: height, height: width)
+            : ImageMetadata(width: width, height: height)
     }
 }

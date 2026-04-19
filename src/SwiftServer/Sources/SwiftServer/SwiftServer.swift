@@ -224,7 +224,7 @@ enum Preferences {
             return try NodePromise { deferred in
                 DispatchQueue.global(qos: .userInitiated).async {
                     let result = Result<NodeValueConvertible, Error> {
-                        guard let metadata = try ImageMetadataReader.read(from: filePath) else {
+                        guard let metadata = ImageMetadataReader.read(from: filePath) else {
                             return undefined
                         }
                         return metadata.nodeValue()

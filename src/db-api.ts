@@ -342,24 +342,12 @@ export default class DatabaseAPI {
             texts.error("couldn't determine image size")
             return a
           }
-          const { width, height, orientation } = imageSize
+          const { width, height } = imageSize
           if (!width || !height) {
             texts.error('image size had bogus dimensions')
             return a
           }
-          /*
-            orientation:
-            https://exiftool.org/TagNames/EXIF.html#:~:text=0x0112,8%20=%20Rotate%20270%20CW
-            1 = Horizontal (normal)
-            2 = Mirror horizontal
-            3 = Rotate 180
-            4 = Mirror vertical
-            5 = Mirror horizontal and rotate 270 CW
-            6 = Rotate 90 CW
-            7 = Mirror horizontal and rotate 90 CW
-            8 = Rotate 270 CW
-          */
-          a.size = orientation && [5, 6, 7, 8].includes(orientation) ? { width: height, height: width } : { width, height }
+          a.size = { width, height }
         } catch (err) { texts.error(err) }
       }
       return a
