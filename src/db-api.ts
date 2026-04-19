@@ -1,6 +1,5 @@
 import path from 'path'
 import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
-import { imageSizeFromFile } from 'image-size/fromFile'
 import { OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 
@@ -326,7 +325,7 @@ export default class DatabaseAPI {
     return this.db.all<number[], MappedMessageRow>(SQLS.getMessagesByRowIDs(rowIDs), ...rowIDs)
   }
 
-  private imageSizeMemoized = memoize(imageSizeFromFile)
+  private imageSizeMemoized = memoize(swiftServer.getImageMetadata)
 
   async getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
     const attachments = await this.db.all<number[], MappedAttachmentRow>(SQLS.getAttachments(msgRowIDs), ...msgRowIDs)

@@ -11,6 +11,12 @@ export interface Fragment {
   attributes: { [key: string]: string }
 }
 
+export interface ImageMetadata {
+  width: number
+  height: number
+  orientation?: number
+}
+
 
 export const enum ActivityStatus {
   DND = 'DND',
@@ -102,6 +108,7 @@ export type SwiftServer = {
   isNotificationsEnabledForMessages: boolean
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
+  getImageMetadata: (filePath: string) => Promise<ImageMetadata | undefined>
   /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
   searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>
   messagesControllerClass: typeof MessagesController
