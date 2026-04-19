@@ -126,6 +126,10 @@ async function main() {
           const bound = (method as Function).bind(mc) as (...arg: unknown[]) => unknown
           const transformed: unknown[] = args.map(arg => {
             if (arg === '_') return undefined
+            if (arg === 'true') return true
+            if (arg === 'false') return false
+            if (arg === 'undefined') return undefined
+            if (arg === 'null') return null
             return arg.replaceAll('%date%', new Date().toLocaleString())
           })
           const result = await bound(...transformed)
