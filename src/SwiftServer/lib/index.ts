@@ -1,6 +1,6 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
+import type { OnServerEventCallback, Size, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
@@ -10,7 +10,6 @@ export interface Fragment {
   text: string
   attributes: { [key: string]: string }
 }
-
 
 export const enum ActivityStatus {
   DND = 'DND',
@@ -100,6 +99,7 @@ export type SwiftServer = {
   isNotificationsEnabledForMessages: boolean
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
+  getImageMetadata: (filePath: string) => Promise<Size | undefined>
   /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
   searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>
   messagesControllerClass: typeof MessagesController

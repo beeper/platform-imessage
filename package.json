@@ -34,7 +34,6 @@
     "concurrently": "^9.1.2",
     "conf": "^13",
     "crc": "^4.1.1",
-    "image-size": "^2.0.2",
     "lodash": "^4.17.21",
     "url-regex": "^5.0.0"
   },

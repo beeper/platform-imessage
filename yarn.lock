@@ -1993,7 +1993,6 @@ __metadata:
     crc: "npm:^4.1.1"
     esbuild: "npm:^0.25.9"
     eslint: "npm:^8.30.0"
-    image-size: "npm:^2.0.2"
     jest: "npm:^28.1.3"
     lodash: "npm:^4.17.21"
     node-gyp: "npm:^11.0.0"
@@ -5410,15 +5409,6 @@ __metadata:
   version: 5.2.0
   resolution: "ignore@npm:5.2.0"
   checksum: 10/30283f05fb7d867ee0e08faebb3e69caba2c6c55092042cd061eac1b37a3e78db72bfcfbb08b3598999344fba3d93a9c693b5401da5faaecc0fb7c2dce87beb4
-  languageName: node
-  linkType: hard
-
-"image-size@npm:^2.0.2":
-  version: 2.0.2
-  resolution: "image-size@npm:2.0.2"
-  bin:
-    image-size: bin/image-size.js
-  checksum: 10/d15203279fe7ada01252d8c56ba97516385d6d5ac2cbf3d734580fc88db4f5272b9b3f7f378ad63abc7d06b5500c43b90d9f84626e2bda1cab403c16eb469592
   languageName: node
   linkType: hard
 
