@@ -1,9 +1,8 @@
 import os from 'os'
 import fs from 'fs/promises'
-import * as stream from 'stream'
-import childProcess from 'child_process'
-import * as rl from 'readline/promises'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
+
+export { shellExec } from './shell-exec'
 
 const HOMEDIR = os.homedir()
 export function replaceTilde(str: string): string
@@ -28,38 +27,6 @@ export const stringifyWithArrayBuffers = <T>(obj: T, space?: string | number) =>
 export function parseTweetURL(url: string) {
   const [,, username, tweetID] = /https?:\/\/(?:[a-z]+\.)?(twitter|x)\.com\/(.+?)\/status\/(\d+)/.exec(url) || []
   if (tweetID) return { username, tweetID }
-}
-
-async function* concatStreams<T>(readables: stream.Readable[]): AsyncIterable<T> {
-  for (const readable of readables) {
-    for await (const chunk of readable) {
-      yield chunk
-    }
-  }
-}
-
-export async function shellExec(command: string, ...args: readonly string[]): Promise<string> {
-  const cp = childProcess.spawn(command, args)
-  const lineInterface = rl.createInterface({
-    input: stream.Readable.from(concatStreams([cp.stdout, cp.stderr])),
-    crlfDelay: Infinity,
-  })
-  const lines: string[] = [];
-  (async () => {
-    for await (const line of lineInterface) {
-      console.log(`\x1b[1m${command}\x1b[0m: ${line}`)
-      lines.push(line)
-    }
-  })()
-  return new Promise<string>((resolve, reject) => {
-    cp.on('exit', code => {
-      if (code) {
-        reject(new Error(`${command} exited with status code ${code}`))
-      } else {
-        resolve(lines.join('\n'))
-      }
-    })
-  })
 }
 
 export const pathExists = (fp: string) =>
