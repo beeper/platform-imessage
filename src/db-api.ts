@@ -1,5 +1,5 @@
 import path from 'path'
-import { maxBy, memoize, findIndex, findLastIndex } from 'lodash'
+import { maxBy, memoize } from 'lodash'
 import { imageSizeFromFile } from 'image-size/fromFile'
 import { OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
@@ -8,11 +8,9 @@ import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
 import { mapMessages } from './mappers'
 import IMAGE_EXTS from './image-exts.json'
-import { isSelectable } from './common-util'
-import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow, AXMessageSelection } from './types'
+import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
 import type PAPI from './api'
 import swiftServer from './SwiftServer/lib'
-import { BeeperMessage } from './desktop-types'
 
 const MAP_DIRECTION_TO_SQL_OP = {
   after: '>',
@@ -418,41 +416,6 @@ WHERE m.ROWID = ?`, rowID)
       items,
       hasMore: msgRows.length === MESSAGES_LIMIT,
     }
-  }
-
-  private findClosestTextInDirection = async (direction: 'before' | 'after', threadID: string, mapped: BeeperMessage, msgRow: MappedMessageRow): Promise<AXMessageSelection | undefined> => {
-    texts.log('[imessage] searching for neighboring message', direction, threadID, mapped.id, mapped.cursor)
-    if (!mapped.cursor) throw new Error('while trying to find closest text: message has no cursor')
-    const messages = await this.getMappedMessagesWithoutExtraRows(threadID, { cursor: mapped.cursor, direction }) // todo handle message splitting, optimize
-    const unhiddenMessages = messages.items.filter(m => !m.isHidden)
-    // texts.log(direction, messages.items.map((m, mIndex) => [m.timestamp, direction === 'before' ? -(messages.items.length - mIndex) : mIndex + 1]))
-    const find = direction === 'before' ? findLastIndex : findIndex
-    const mIndex = find(unhiddenMessages as BeeperMessage[], isSelectable)
-    if (mIndex > -1) {
-      const m = unhiddenMessages[mIndex]
-      return { messageGUID: m.id, offset: direction === 'before' ? -(unhiddenMessages.length - mIndex) : mIndex + 1, cellID: msgRow.balloon_bundle_id, cellRole: null }
-    }
-  }
-
-  findClosestTextMessage = async (threadID: string, messageGUIDWithPart: string, mapped: BeeperMessage, msgRow: MappedMessageRow): Promise<AXMessageSelection> => {
-    const [messageGUID, partString] = messageGUIDWithPart.split('_', 2)
-    const part = +partString || 0
-    texts.log('[imessage] findClosestTextMessage', messageGUID, part)
-    // const message = await this.db.get('SELECT m.ROWID, m.guid AS msgID, m.* FROM message AS m WHERE guid = ?', messageGUID)
-    // if (!message) throw Error('message not found')
-    // const [mapped] = mapMessage(message, [], [], this.papi.currentUser.id) // todo optimize mapping not needed
-    if (isSelectable(mapped)) return { messageGUID: mapped.id, offset: 0, cellID: msgRow.balloon_bundle_id, cellRole: null }
-    // todo loop over more pages if not found
-    const [before, after] = await Promise.all([
-      this.findClosestTextInDirection('before', threadID, mapped, msgRow),
-      this.findClosestTextInDirection('after', threadID, mapped, msgRow),
-    ])
-    if (before) before.offset -= part
-    if (after) after.offset += part
-    if (before && after) return after.offset < -before.offset ? after : before
-    if (before) return before
-    if (after) return after
-    throw new Error('closest text message not found')
   }
 
   isMessageRead = (messageGUID: string): Promise<number> =>

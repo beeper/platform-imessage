@@ -1,6 +1,6 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { MessageID, OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
+import type { OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
@@ -18,14 +18,6 @@ export const enum ActivityStatus {
   Typing = 'TYPING',
   NotTyping = 'NOT_TYPING',
   Unknown = 'UNKNOWN',
-}
-
-export interface MessageCell {
-  messageGUID: MessageID
-  offset: number
-  cellID: string | null
-  cellRole: string | null
-  overlay: boolean
 }
 
 export interface Hasher {

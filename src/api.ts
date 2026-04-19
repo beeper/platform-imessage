@@ -460,12 +460,8 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
         const controller = await MessagesControllerWrapper.get()
-        if (quotedMessageID) {
-          const { messageGUID, partIndex } = parseMessageTarget(quotedMessageID)
-          await controller.sendMessage(threadID, text, filePath, messageGUID, partIndex)
-          return
-        }
-        await controller.sendMessage(threadID, text, filePath, undefined, undefined)
+        const quoted = quotedMessageID ? parseMessageTarget(quotedMessageID) : undefined
+        await controller.sendMessage(threadID, text, filePath, quoted?.messageGUID, quoted?.partIndex)
       }, {
         onFailedAttempt: error => {
           texts.Sentry.captureException(error)

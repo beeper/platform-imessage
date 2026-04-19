@@ -776,46 +776,26 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
             throw ErrorMessage("Could not find message \(messageGUID)")
         }
-
-        let overlay = isMontereyOrUp && (partIndex == nil || partIndex == 0) && message.parts.count <= 1
         let cellID = isSonomaOrUp ? nil : message.balloonBundleID
-
-        if overlay {
-            return MessageCell(
-                messageGUID: messageGUID,
-                offset: 0,
-                cellID: cellID,
-                cellRole: nil,
-                overlay: true
-            )
+        let overlay = isMontereyOrUp && (partIndex == nil || partIndex == 0) && message.parts.count <= 1
+        func makeCell(messageGUID: String, offset: Int, overlay: Bool) -> MessageCell {
+            MessageCell(messageGUID: messageGUID, offset: offset, cellID: cellID, cellRole: nil, overlay: overlay)
         }
-
+        if overlay {
+            return makeCell(messageGUID: messageGUID, offset: 0, overlay: true)
+        }
         let parts = message.parts
         guard !parts.isEmpty else {
-            return MessageCell(
-                messageGUID: messageGUID,
-                offset: 0,
-                cellID: cellID,
-                cellRole: nil,
-                overlay: false
-            )
+            return makeCell(messageGUID: messageGUID, offset: 0, overlay: false)
         }
-
         let targetPartIndex = Message.Part.Index(rawValue: partIndex ?? 0)
-        let fallbackTarget = parts.first(where: { $0.index.rawValue == 0 }) ?? parts[0]
-        let targetPart = parts.first(where: { $0.index == targetPartIndex }) ?? fallbackTarget
-
-        if let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) {
-            return MessageCell(
-                messageGUID: String(describing: closest.closestSelectable.parentMessageGUID),
-                offset: closest.offsetFromTarget,
-                cellID: cellID,
-                cellRole: nil,
-                overlay: false
-            )
+        let targetPart = parts.first(where: { $0.index == targetPartIndex })
+            ?? parts.first(where: { $0.index.rawValue == 0 })
+            ?? parts[0]
+        guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
+            throw ErrorMessage("Could not resolve selectable message cell")
         }
-
-        throw ErrorMessage("Could not resolve selectable message cell")
+        return makeCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, overlay: false)
     }
 
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
