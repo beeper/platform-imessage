@@ -66,14 +66,14 @@ enum LocalizedStrings {
     static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
-    
+
     static let whatsNewSyndicationDetailTitle = chatKitFramework.localizedString(forKey: "WHATS_NEW_SYNDICATION_DETAIL_TITLE", value: nil, table: nil)
-    
+
     // "OK"
     static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
     // "OK"
     static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
-    
+
     // "Reply…"
     static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
 }
@@ -254,12 +254,12 @@ final class MessagesController {
                 throw ErrorMessage("misfire prevention: desired thread is not selected")
             }
         }
-        
+
         func assertSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
             guard let lastChange = date.read() else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
-            
+
             let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
             guard lastChange > beganEnsuringThreadSelection else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
@@ -318,7 +318,7 @@ final class MessagesController {
                         return
                     }
                 }
-                
+
                 throw error
             }
         }
@@ -505,17 +505,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
-        
+
         defer {
             activityLock.lock()
         }
-        
+
         do {
             try phtConnection?.setMessagesHidden(true)
         } catch {
             log.error("failed to hide messages app via pht: \(error)")
         }
-        
+
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
@@ -641,7 +641,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
         }
     }
-    
+
     private func revealReplyTranscriptViaMenu() throws {
         do {
             let window = NSApp.largestElectronWindow
@@ -661,7 +661,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 }
             }
-            
+
             try Self.queue.sync {
                 guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
                     throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
@@ -671,10 +671,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.debug("reveal: 1/5 showing the cell's menu")
                 try cell.showMenu()
                 Thread.sleep(forTimeInterval: 0.1)
-                
+
                 let targetTitle = LocalizedStrings.inlineReplyMenu
                 log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
-                
+
                 guard let menuItems = try? elements.menu.children() else {
                     throw ErrorMessage("reveal: couldn't query menu item children")
                 }
@@ -682,21 +682,21 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     guard let title = try? menuItem.title() else {
                         return false
                     }
-                    
+
                     let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
                     log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
                     return title == targetTitle
                 }) else {
                     throw ErrorMessage("reveal: couldn't find reply menu item")
                 }
-                
+
                 log.debug("reveal: 3/5 found, pressing")
                 try replyMenuItem.press()
 
             }
 
         }
-        
+
         log.debug("reveal: 4/5 sleeping for a bit")
         Thread.sleep(forTimeInterval: 0.4)
 
@@ -744,12 +744,15 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let containerCells = try MessagesAppElements.messageContainerCells(in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView)
+                let containerCells = Array(
+                    try MessagesAppElements.messageContainerCells(
+                        in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView
+                    )
+                )
                 guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
                     throw ErrorMessage("Could not find target message cell")
                 }
                 let target = idx - messageCell.offset
-                log.debug("Index: \(idx) - \(messageCell.offset) = \(target)")
                 guard containerCells.indices.contains(target) else {
                     throw ErrorMessage("Desired index out of bounds")
                 }
@@ -944,7 +947,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         tryPressingCancelEditButton()
-        
+
         try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
             if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                 log.debug("found \"Edit\" message action")
@@ -1123,7 +1126,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try Self.openDeepLink(url)
     }
-    
+
     func clearTypingStatus() throws {
         try elements.messageBodyField.value(assign: "")
     }
@@ -1176,10 +1179,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         log.debug("\(#function): completed initial attempt")
-        
+
         do {
             log.debug("\(#function): will now attempt to verify the send")
-            
+
             try retry(withTimeout: 1.5, interval: 0.1) {
                 let message = try messageFieldValue(messageField)
                 if !message.isEmpty {
@@ -1203,7 +1206,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     try? self.keyPresser.return()
                 }
             }
-            
+
             log.debug("\(#function): successfully verified the send")
         } catch {
             // if we can't verify the message send, then blindly swallow the error and assume that the send went through; don't let
@@ -1589,7 +1592,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             guard activityLock.tryLock() else { return }
             defer { activityLock.unlock() }
-            
+
             let statusToSend = activityStatus()
             guard lastSentActivityStatus != statusToSend || (statusToSend.contains(.typing) && lastSentActivityStatusTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
 #if DEBUG
@@ -1629,9 +1632,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 extension MessagesController {
     class OcclusionMonitor {
         var visible: Bool = true
-        
+
         private var ncToken: NSObjectProtocol?
-        
+
         init() {
             ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
                 log.trace("didChangeOcclusionStateNotification \(notif)")
@@ -1641,7 +1644,7 @@ extension MessagesController {
                 self.visible = window.occlusionState.contains(.visible)
             }
         }
-        
+
         deinit {
             ncToken.map { NotificationCenter.default.removeObserver($0) }
         }
