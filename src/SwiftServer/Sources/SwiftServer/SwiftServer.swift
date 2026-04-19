@@ -219,6 +219,23 @@ enum Preferences {
             }
         },
 
+        "getImageMetadata": NodeFunction { (filePath: String) in
+            let queue = try NodeAsyncQueue(label: "image-metadata")
+            return try NodePromise { deferred in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        guard let metadata = ImageMetadataReader.read(from: filePath) else {
+                            return undefined
+                        }
+                        return metadata.nodeValue()
+                    }
+                    try? queue.run {
+                        try deferred(result)
+                    }
+                }
+            }
+        },
+
         "confirmUNCPrompt": NodeFunction {
             let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
             return try NodePromise { deferred in
