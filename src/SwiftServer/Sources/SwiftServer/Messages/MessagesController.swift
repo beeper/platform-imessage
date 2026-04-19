@@ -796,7 +796,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
             throw ErrorMessage("Could not resolve selectable message cell")
         }
-        return makeCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, overlay: false)
+        return makeCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: -closest.offsetFromTarget, overlay: false)
     }
 
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
