@@ -19,6 +19,7 @@ const Config = z.object({
     watching: z.string().optional(),
   }),
 })
+type Config = z.infer<typeof Config>
 
 swiftServer.isLoggingEnabled = true
 const state: { mc: MessagesController | null } = { mc: null }
@@ -49,14 +50,20 @@ rl.on('history', history => {
   }, 0)
 })
 
-async function main() {
-  let config: z.infer<typeof Config>
+async function loadConfig(): Promise<Config | undefined> {
   try {
     const text = await readFile('./headless-config.json', 'utf8')
-    config = Config.parse(JSON.parse(text))
+    return Config.parse(JSON.parse(text))
   } catch (error) {
-    throw new Error("can't load config", { cause: error })
+    const notFound = (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+    console.log(c.yellow(`headless-config.json ${notFound ? 'not found' : 'is invalid'}; continuing without config-backed shortcuts`))
+    if (!notFound) console.error(error)
+    return undefined
   }
+}
+
+async function main() {
+  const config = await loadConfig()
 
   const { messagesControllerClass } = swiftServer
   console.log(c.bold.blue('creating messages controller'))
@@ -103,6 +110,10 @@ async function main() {
 
     switch (command) {
       case 'stress': {
+        if (!config) {
+          console.log(c.bold.red('stress requires headless-config.json with guids.first and guids.second'))
+          break
+        }
         console.log(c.bold.green('stressing...'))
         await Promise.all([
           call('toggleThreadRead', config.guids.first, true),
@@ -168,7 +179,7 @@ async function main() {
   for (const command of cliCommands) {
     await run(command)
   }
-  if (config.guids.watching) await watch(config.guids.watching)
+  if (config?.guids.watching) await watch(config.guids.watching)
 
   const running = true
   while (running) {

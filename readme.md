@@ -1,6 +1,8 @@
 # platform-imessage
 
-`platform-imessage` is the iMessage integration in Beeper Desktop on macOS. It's built on the deprecated [Platform SDK](https://github.com/textshq/platform-sdk).
+`platform-imessage` is the iMessage integration in Beeper Desktop on macOS. Designed to run with [System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled. 
+
+Built on an extended version of [Platform SDK](https://github.com/textshq/platform-sdk).
 
 ## Getting Started
 
@@ -100,10 +102,22 @@ bun run build:swift
 
 ### Testing
 
+For local testing without the main Beeper app, use the headless Electron harness in `src/SwiftServer/headless/index.ts`.
+
 ```sh
-node src/SwiftServer/test-script.js
-electron src/SwiftServer/test-script.js
+yarn headless:build
+yarn headless:run
 ```
+
+This starts an interactive `imsg>` prompt that lets you call `MessagesController` methods directly.
+
+You can also run a single command without entering the REPL:
+
+```sh
+yarn headless:run "editMessage any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _ hello-world"
+```
+
+The headless harness currently splits command arguments on spaces, so message text containing spaces is not preserved correctly yet.
 
 ## License
 
