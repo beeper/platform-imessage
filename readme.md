@@ -4,6 +4,39 @@
 
 Built on an extended version of [Platform SDK](https://github.com/textshq/platform-sdk).
 
+## Testing
+
+For local testing without the main Beeper app, use the headless Electron harness in `src/SwiftServer/headless/index.ts`.
+
+```sh
+yarn headless:build
+yarn headless:run
+```
+
+This starts an interactive `imsg>` prompt that lets you call `MessagesController` methods directly.
+
+You can also run a single command without entering the REPL:
+
+```sh
+yarn headless:run "sendMessage any;-;sjobs@apple.com hello-world"
+yarn headless:run "editMessage any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _ hello-world"
+```
+
+Other REPL commands:
+```sh
+imsg> undoSend any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _
+imsg> setReaction any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _ heart true
+imsg> toggleThreadRead any;-;sjobs@apple.com true
+imsg> muteThread any;-;sjobs@apple.com true
+imsg> notifyAnyway any;-;sjobs@apple.com
+imsg> sendTypingStatus any;-;sjobs@apple.com true
+imsg> watch any;-;sjobs@apple.com
+```
+
+Use `_` for arguments that should be passed through as nil/undefined.
+
+The REPL currently splits command arguments on spaces, so message text containing spaces is not preserved correctly yet.
+
 ## Getting Started
 
 **It is not possible to use local builds with Beeper Desktop.** You can still interact with this project as a library, see [texthsq/platform-test-lib](https://github.com/textshq/platform-test-lib) as an example how Platform SDK can be used.
@@ -59,6 +92,17 @@ Electron itself. (This is only relevant in a development environment.)
 
 </details>
 
+### Building
+
+```sh
+# for debugging:
+rm binaries/*/libNodeAPI.dylib # needed only when you get ENOENT
+bun run build:swift --debug --watch
+
+# for shipping to prod:
+bun run build:swift
+```
+
 ## SwiftServer
 
 SwiftServer exposes Swift functions to JS via
@@ -88,36 +132,6 @@ invocation of native Apple methods.
   nil, selected item in sidebar will not always be reflective of the messages
   list, calling a deep link will not update sidebar but only the messages list,
   `CKLastSelectedItemIdentifier` won't be updated.
-
-### Building
-
-```sh
-# for debugging:
-rm binaries/*/libNodeAPI.dylib # needed only when you get ENOENT
-bun run build:swift --debug --watch
-
-# for shipping to prod:
-bun run build:swift
-```
-
-### Testing
-
-For local testing without the main Beeper app, use the headless Electron harness in `src/SwiftServer/headless/index.ts`.
-
-```sh
-yarn headless:build
-yarn headless:run
-```
-
-This starts an interactive `imsg>` prompt that lets you call `MessagesController` methods directly.
-
-You can also run a single command without entering the REPL:
-
-```sh
-yarn headless:run "editMessage any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _ hello-world"
-```
-
-The headless harness currently splits command arguments on spaces, so message text containing spaces is not preserved correctly yet.
 
 ## License
 
