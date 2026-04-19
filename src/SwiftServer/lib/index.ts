@@ -38,7 +38,7 @@ export declare class MessagesController {
 
   deleteThread: (threadID: ThreadID) => Promise<void>
 
-  undoSend: (threadID: ThreadID, messageGUID: string, partIndex?: number) => Promise<void>
+  undoSend: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined) => Promise<void>
 
   editMessage: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined, newText: string) => Promise<void>
 
