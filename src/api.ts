@@ -41,13 +41,6 @@ const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
 const linkRegex = urlRegex()
 
-function parseMessageTarget(messageID: MessageID): { messageGUID: string, partIndex: number | undefined } {
-  const [messageGUID, partString] = messageID.split('_', 2)
-  if (!partString) return { messageGUID, partIndex: undefined }
-  const parsed = Number(partString)
-  return { messageGUID, partIndex: Number.isNaN(parsed) ? undefined : parsed }
-}
-
 function getDNDState() {
   if (!IS_BIG_SUR_OR_UP) return new Set<string>()
   const arr = swiftServer.getDNDList()
@@ -460,8 +453,7 @@ export default class AppleiMessage implements PlatformAPI {
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
         const controller = await MessagesControllerWrapper.get()
-        const quoted = quotedMessageID ? parseMessageTarget(quotedMessageID) : undefined
-        await controller.sendMessage(threadID, text, filePath, quoted?.messageGUID, quoted?.partIndex)
+        await controller.sendMessage(threadID, text, filePath, quotedMessageID)
       }, {
         onFailedAttempt: error => {
           texts.Sentry.captureException(error)
@@ -569,8 +561,7 @@ export default class AppleiMessage implements PlatformAPI {
     const { text } = content
     if (!text) throw new Error('Tried to edit message to have empty content')
     const controller = await MessagesControllerWrapper.get()
-    const { messageGUID, partIndex } = parseMessageTarget(messageID)
-    await controller.editMessage(threadID, messageGUID, partIndex, text)
+    await controller.editMessage(threadID, messageID, text)
     return true
   }
 
@@ -619,12 +610,11 @@ export default class AppleiMessage implements PlatformAPI {
     if (!IS_BIG_SUR_OR_UP) throw Error('only supported on big sur and above')
     await pRetry(async () => {
       const controller = await MessagesControllerWrapper.get()
-      const { messageGUID, partIndex } = parseMessageTarget(messageID)
       const result = await this.waitForMessageSend(
         threadID,
         messageID,
         undefined,
-        () => controller.setReaction(threadID, messageGUID, partIndex, reactionKey, on),
+        () => controller.setReaction(threadID, messageID, reactionKey, on),
         5_000,
       )
       if (!result) throw Error('setReaction unknown error')
@@ -654,8 +644,7 @@ export default class AppleiMessage implements PlatformAPI {
     const threadID = originalThreadID(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
     const controller = await MessagesControllerWrapper.get()
-    const { messageGUID, partIndex } = parseMessageTarget(messageID)
-    await controller.undoSend(threadID, messageGUID, partIndex)
+    await controller.undoSend(threadID, messageID)
   }
 
   // eslint-disable-next-line class-methods-use-this

@@ -221,7 +221,26 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func setReaction(threadID: String, messageGUID: String, partIndex: Int?, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    private func parseMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
+        let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
+        let messageGUID = String(components[0])
+        guard components.count > 1 else {
+            return (messageGUID, nil)
+        }
+        return (messageGUID, Int(components[1]))
+    }
+
+    private func resolveMessageCell(threadID: String, messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
+        let (messageGUID, partIndex) = parseMessageID(messageID)
+        return try controller.resolveMessageCell(
+            threadID: threadID,
+            messageGUID: messageGUID,
+            partIndex: partIndex,
+            allowOverlay: allowOverlay
+        )
+    }
+
+    @NodeMethod func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
             // try the "legacy" reactions first (keyed by `supported` in platform info)
             reaction
@@ -235,22 +254,22 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
         return try performAsync { [self] in
-            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex)
+            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
             try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
         }
     }
 
     // @available(macOS 13, *)
-    @NodeMethod func undoSend(threadID: String, messageGUID: String, partIndex: Int?) throws -> NodeValueConvertible {
+    @NodeMethod func undoSend(threadID: String, messageID: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
-            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex)
+            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
             try controller.undoSend(threadID: threadID, messageCell: messageCell)
         }
     }
 
-    @NodeMethod func editMessage(threadID: String, messageGUID: String, partIndex: Int?, newText: String) throws -> NodeValueConvertible {
+    @NodeMethod func editMessage(threadID: String, messageID: String, newText: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
-            let messageCell = try controller.resolveMessageCell(threadID: threadID, messageGUID: messageGUID, partIndex: partIndex, allowOverlay: false)
+            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID, allowOverlay: false)
             try controller.editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
         }
     }
@@ -266,10 +285,10 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageGUID: String?, quotedPartIndex: Int?) throws -> NodeValueConvertible {
+    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws -> NodeValueConvertible {
         return try performAsync {
-            let quotedMessage: MessageCell? = if let quotedMessageGUID {
-                try self.controller.resolveMessageCell(threadID: threadID, messageGUID: quotedMessageGUID, partIndex: quotedPartIndex)
+            let quotedMessage: MessageCell? = if let quotedMessageID {
+                try self.resolveMessageCell(threadID: threadID, messageID: quotedMessageID)
             } else {
                 nil
             }

@@ -38,9 +38,9 @@ export declare class MessagesController {
 
   deleteThread: (threadID: ThreadID) => Promise<void>
 
-  undoSend: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined) => Promise<void>
+  undoSend: (threadID: ThreadID, messageID: string) => Promise<void>
 
-  editMessage: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined, newText: string) => Promise<void>
+  editMessage: (threadID: ThreadID, messageID: string, newText: string) => Promise<void>
 
   notifyAnyway: (threadID: ThreadID) => Promise<void>
 
@@ -52,11 +52,10 @@ export declare class MessagesController {
     threadID: ThreadID,
     text?: string,
     filePath?: string,
-    quotedMessageGUID?: string,
-    quotedPartIndex?: number,
+    quotedMessageID?: string,
   ) => Promise<void>
 
-  setReaction: (threadID: ThreadID, messageGUID: string, partIndex: number | undefined, reaction: string, on: boolean) => Promise<void>
+  setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
 
   isSameContact: (addressA: string, addressB: string) => boolean
 
