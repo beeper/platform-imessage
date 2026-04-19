@@ -777,7 +777,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             throw ErrorMessage("Could not find message \(messageGUID)")
         }
         let cellID = isSonomaOrUp ? nil : message.balloonBundleID
-        let overlay = allowOverlay && isMontereyOrUp && (partIndex == nil || partIndex == 0)
+        let isReply = message.threadOriginatorGUID != nil
+        let overlay = allowOverlay && isMontereyOrUp && !isReply && (partIndex == nil || partIndex == 0)
         func makeCell(messageGUID: String, offset: Int, overlay: Bool) -> MessageCell {
             MessageCell(messageGUID: messageGUID, offset: offset, cellID: cellID, cellRole: nil, overlay: overlay)
         }

@@ -32,7 +32,7 @@ public struct MessageQueryFilter {
 }
 
 let messagesQuerySharedPrelude = """
-SELECT c.guid, m.ROWID, m.guid, m.balloon_bundle_id, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
+SELECT c.guid, m.ROWID, m.guid, m.balloon_bundle_id, m.thread_originator_guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
 FROM message m
 LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
@@ -103,17 +103,18 @@ private extension Message {
             id: row[1].expect(Int.self),
             guid: GUID<Message>(row[2].expect(String.self)),
             balloonBundleID: try row[3].optional(String.self),
-            text: row[4].optional(String.self).map {
+            threadOriginatorGUID: try row[4].optional(String.self).map(GUID<Message>.init(stringLiteral:)),
+            text: row[5].optional(String.self).map {
                 Sensitive(.messageText, hiding: $0)
             },
-            attributedBody: row[5].optional(Data.self).flatMap {
+            attributedBody: row[6].optional(Data.self).flatMap {
                 try Sensitive(.messageAttributedBody, hiding: unarchiveAttributedString(from: $0))
             },
-            isFromMe: row[6].looseBool(),
-            isSent: row[7].looseBool(),
-            date: row[8].imCoreDate(),
-            dateRead: row[9].imCoreDate(),
-            summaryInfo: row[10].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
+            isFromMe: row[7].looseBool(),
+            isSent: row[8].looseBool(),
+            date: row[9].imCoreDate(),
+            dateRead: row[10].imCoreDate(),
+            summaryInfo: row[11].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
         )
     }
 }
