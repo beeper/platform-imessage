@@ -334,7 +334,7 @@ export default class DatabaseAPI {
       const ext = _ext.slice(1).toLowerCase()
       const fileName = a.transfer_name || base
       Object.assign(a, { ext, fileName, filePath })
-      if ((IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') && ext !== 'heic') { // heic isn't supported yet
+      if ((IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment')) {
         try {
           const imageSize = await this.imageSizeMemoized(filePath)
           if (!imageSize) {
