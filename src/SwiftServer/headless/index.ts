@@ -2,24 +2,14 @@ import { app } from 'electron'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { inspect } from 'node:util'
-import { readFile } from 'node:fs/promises'
 import readline from 'node:readline/promises'
+import { setTimeout as sleep } from 'node:timers/promises'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import c from 'ansi-colors'
-// eslint-disable-next-line import/no-extraneous-dependencies
-import * as z from 'zod'
 import swiftServer, { messageControllerDebuggingAvailable, MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController, MessagesControllerDebugging } from '../lib/index'
+import { runStress } from './stress'
 import { measure } from './util'
 /* eslint-disable no-inner-declarations */
-
-const Config = z.object({
-  guids: z.object({
-    first: z.string(),
-    second: z.string(),
-    watching: z.string().optional(),
-  }),
-})
-type Config = z.infer<typeof Config>
 
 swiftServer.isLoggingEnabled = true
 const state: { mc: MessagesController | null } = { mc: null }
@@ -34,6 +24,7 @@ const completer: readline.Completer = linePartial => {
 const historyFilePath = path.resolve(import.meta.dirname, '.headless-history.json')
 const readHistory = async (): Promise<string[]> => JSON.parse(await fs.readFile(historyFilePath, 'utf8'))
 const writeHistory = (history: string[]): Promise<void> => fs.writeFile(historyFilePath, JSON.stringify(history))
+const KEEP_ALIVE_FLAG = '--stay-open'
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -50,21 +41,7 @@ rl.on('history', history => {
   }, 0)
 })
 
-async function loadConfig(): Promise<Config | undefined> {
-  try {
-    const text = await readFile('./headless-config.json', 'utf8')
-    return Config.parse(JSON.parse(text))
-  } catch (error) {
-    const notFound = (error as NodeJS.ErrnoException)?.code === 'ENOENT'
-    console.log(c.yellow(`headless-config.json ${notFound ? 'not found' : 'is invalid'}; continuing without config-backed shortcuts`))
-    if (!notFound) console.error(error)
-    return undefined
-  }
-}
-
 async function main() {
-  const config = await loadConfig()
-
   const { messagesControllerClass } = swiftServer
   console.log(c.bold.blue('creating messages controller'))
   const [mc, creationLatency] = await measure(messagesControllerClass.create)
@@ -110,24 +87,12 @@ async function main() {
 
     switch (command) {
       case 'stress': {
-        if (!config) {
-          console.log(c.bold.red('stress requires headless-config.json with guids.first and guids.second'))
+        if (args.length < 2) {
+          console.log(c.bold.red('stress requires two thread IDs'))
           break
         }
         console.log(c.bold.green('stressing...'))
-        await Promise.all([
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.second, true),
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.second, true),
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.second, true),
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.first, true),
-          call('toggleThreadRead', config.guids.first, true),
-        ])
+        await runStress(mc, args[0], args[1])
         console.log(c.bold.cyan('done!'))
         break
       }
@@ -175,11 +140,22 @@ async function main() {
     }
   }
 
-  const cliCommands = process.argv.slice(2)
-  for (const command of cliCommands) {
-    await run(command)
+  const cliArgs = process.argv.slice(2)
+  if (cliArgs.length > 0) {
+    const keepAliveRequested = cliArgs.includes(KEEP_ALIVE_FLAG)
+    const commandArgs = cliArgs.filter(arg => arg !== KEEP_ALIVE_FLAG)
+    const cliCommand = commandArgs.join(' ')
+    await run(cliCommand)
+    const commandName = commandArgs[0]
+    const shouldKeepAlive = keepAliveRequested
+      || commandName === 'watch'
+      || commandName === 'watchThreadActivity'
+    if (!shouldKeepAlive) {
+      await sleep(1000)
+      mc.dispose()
+      process.exit()
+    }
   }
-  if (config?.guids.watching) await watch(config.guids.watching)
 
   const running = true
   while (running) {
