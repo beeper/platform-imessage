@@ -204,7 +204,19 @@ extension Message.Part {
         }
 
         let onlyConsistsOfWhitespaceOrEmojis = body.allSatisfy { character in
-            character.isWhitespace || character.unicodeScalars.allSatisfy(\.properties.isEmoji)
+            if character.isWhitespace {
+                return true
+            }
+
+            // `UnicodeScalar.Properties.isEmoji` is true for ASCII digits
+            // because they can participate in keycap emoji sequences. We do
+            // not want to treat ordinary alphanumeric text like "123123" as
+            // emoji-only content.
+            if character.isLetter || character.isNumber {
+                return false
+            }
+
+            return character.unicodeScalars.contains(where: \.properties.isEmoji)
         }
         guard !onlyConsistsOfWhitespaceOrEmojis else {
 #if DEBUG
