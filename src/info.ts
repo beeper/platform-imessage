@@ -33,8 +33,6 @@ const info: PlatformInfo = {
   },
   loginMode: 'custom',
   deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,
-  // NOTE: this is unrespected by Beeper Desktop, which prefers Matrix room features
-  editMessageTimeLimit: 15 * 60,
   // typingDurationMs: 3000,
   // @ts-expect-error - convert 'can_receive_otp' to an Attribute
   attributes: new Set([
@@ -70,7 +68,6 @@ const info: PlatformInfo = {
   ]),
   reactions: IS_SEQUOIA_OR_UP && !IS_SEQUOIA_15_5_OR_UP && !IS_TAHOE_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : IS_BIG_SUR_OR_UP ? { supported: supportedReactions } : undefined,
   attachments: {
-    gifMimeType: 'image/gif',
     maxSize: {
       /*
         100 MB as of macOS Monterey 12.2
