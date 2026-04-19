@@ -7,6 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import c from 'ansi-colors'
 import swiftServer, { messageControllerDebuggingAvailable, MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController, MessagesControllerDebugging } from '../lib/index'
+import { getLastMessageID } from './last-message'
 import { runStress } from './stress'
 import { measure } from './util'
 /* eslint-disable no-inner-declarations */
@@ -25,6 +26,7 @@ const historyFilePath = path.resolve(import.meta.dirname, '.headless-history.jso
 const readHistory = async (): Promise<string[]> => JSON.parse(await fs.readFile(historyFilePath, 'utf8'))
 const writeHistory = (history: string[]): Promise<void> => fs.writeFile(historyFilePath, JSON.stringify(history))
 const KEEP_ALIVE_FLAG = '--stay-open'
+const LAST_MESSAGE_ARG = 'last-message'
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -40,6 +42,30 @@ rl.on('history', history => {
     writeHistory(history)
   }, 0)
 })
+
+const LAST_MESSAGE_ARG_INDEX_BY_COMMAND: Record<string, number | undefined> = {
+  undoSend: 1,
+  editMessage: 1,
+  setReaction: 1,
+  sendMessage: 3,
+}
+
+async function resolveMagicArgs(command: string, args: string[]): Promise<string[]> {
+  const position = args.indexOf(LAST_MESSAGE_ARG)
+  if (position === -1) return args
+
+  const expected = LAST_MESSAGE_ARG_INDEX_BY_COMMAND[command]
+  if (expected !== position) {
+    throw new Error(`${LAST_MESSAGE_ARG} is not supported at argument ${position + 1} for ${command}`)
+  }
+
+  const threadID = args[0]
+  if (!threadID) throw new Error(`${LAST_MESSAGE_ARG} requires a thread ID`)
+
+  const resolved = [...args]
+  resolved[position] = await getLastMessageID(threadID)
+  return resolved
+}
 
 async function main() {
   const { messagesControllerClass } = swiftServer
@@ -83,7 +109,8 @@ async function main() {
   }
 
   async function run(input: string): Promise<void> {
-    const [command, ...args] = input.split(' ')
+    const [command, ...rawArgs] = input.split(' ')
+    const args = await resolveMagicArgs(command, rawArgs)
 
     switch (command) {
       case 'stress': {
@@ -126,6 +153,10 @@ async function main() {
           const bound = (method as Function).bind(mc) as (...arg: unknown[]) => unknown
           const transformed: unknown[] = args.map(arg => {
             if (arg === '_') return undefined
+            if (arg === 'true') return true
+            if (arg === 'false') return false
+            if (arg === 'undefined') return undefined
+            if (arg === 'null') return null
             return arg.replaceAll('%date%', new Date().toLocaleString())
           })
           const result = await bound(...transformed)

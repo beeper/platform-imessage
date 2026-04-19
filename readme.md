@@ -19,13 +19,13 @@ You can also run a single command without entering the REPL:
 
 ```sh
 yarn headless:run "sendMessage any;-;sjobs@apple.com hello-world"
-yarn headless:run "editMessage any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _ hello-world"
+yarn headless:run "editMessage any;-;sjobs@apple.com last-message hello-world"
 ```
 
 Other REPL commands:
 ```sh
-imsg> undoSend any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _
-imsg> setReaction any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD _ heart true
+imsg> undoSend any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD
+imsg> setReaction any;-;sjobs@apple.com last-message heart true
 imsg> toggleThreadRead any;-;sjobs@apple.com true
 imsg> muteThread any;-;sjobs@apple.com true
 imsg> notifyAnyway any;-;sjobs@apple.com
@@ -33,7 +33,7 @@ imsg> sendTypingStatus any;-;sjobs@apple.com true
 imsg> watch any;-;sjobs@apple.com
 ```
 
-Use `_` for arguments that should be passed through as nil/undefined.
+Use `_` for arguments that should be passed through as nil/undefined. `last-message` resolves to the latest message ID in that thread.
 
 The REPL currently splits command arguments on spaces, so message text containing spaces is not preserved correctly yet.
 
