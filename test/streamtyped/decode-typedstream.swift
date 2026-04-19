@@ -28,18 +28,12 @@ func streamTypedNSAttributedStringToJSON(_ data: Data) -> String {
   return String(data: json, encoding: .utf8)!
 }
 
-
-for filePath in [
-  "closed-rings-1.bin", // NSConcreteAttributedString
-  "closed-rings-2.bin", // NSConcreteAttributedString
-  "completed-workout-1.bin", // NSConcreteAttributedString
-  "completed-workout-2.bin", // NSConcreteAttributedString
-  "regular-text.bin", // NSConcreteAttributedString
-  "user-mention.bin", // NSConcreteMutableAttributedString
-  "tweet.bin",
-] {
-  let data = try! Data(contentsOf: URL(fileURLWithPath: filePath))
-  let jsonString = streamTypedNSAttributedStringToJSON(data)
-  print(jsonString)
-  print()
+guard CommandLine.arguments.count > 1 else {
+  fputs("usage: decode-typedstream.swift <file>\n", stderr)
+  exit(1)
 }
+
+let filePath = CommandLine.arguments[1]
+let data = try! Data(contentsOf: URL(fileURLWithPath: filePath))
+let jsonString = streamTypedNSAttributedStringToJSON(data)
+print(jsonString)
