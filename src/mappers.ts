@@ -114,6 +114,13 @@ interface MessagePartUnsent {
 }
 
 type MessagePart = MessagePartText | MessagePartAttachment | MessagePartUnsent
+interface MappedOutputPart {
+  index: number
+  text?: string
+  attributes?: TextAttributes
+  attachmentIDs?: string[]
+  isUnsent?: boolean
+}
 
 function mapTextEntity(attr: Record<string, string>): Omit<TextEntity, 'from' | 'to'> {
   const entity: Omit<TextEntity, 'from' | 'to'> = {}
@@ -125,6 +132,69 @@ function mapTextEntity(attr: Record<string, string>): Omit<TextEntity, 'from' | 
   if (typeof attr.__kIMMentionConfirmedMention === 'string') entity.mentionedUser = { id: attr.__kIMMentionConfirmedMention }
   return entity
 }
+
+function mergeTextAttributes(existing: TextAttributes | undefined, incoming: TextAttributes | undefined, textOffset: number): TextAttributes | undefined {
+  const entities = [
+    ...(existing?.entities || []),
+    ...(incoming?.entities || []).map(entity => ({
+      ...entity,
+      from: entity.from + textOffset,
+      to: entity.to + textOffset,
+    })),
+  ]
+  return entities.length > 0 ? { entities } : undefined
+}
+
+function collapseMessageParts(parts: MessagePart[], attachmentsByID: Map<string, Attachment>): MappedOutputPart[] {
+  const collapsed: MappedOutputPart[] = []
+  const partsByIndex = new Map<number, MappedOutputPart>()
+  const partHasText = new Set(parts.filter((part): part is MessagePartText => part.kind === MessagePartKind.TEXT).map(part => part.index))
+
+  for (const part of parts) {
+    if (part.kind === MessagePartKind.UNSENT) {
+      collapsed.push({
+        index: part.index,
+        isUnsent: true,
+      })
+      continue
+    }
+
+    let mappedPart = partsByIndex.get(part.index)
+    if (!mappedPart) {
+      mappedPart = { index: part.index }
+      partsByIndex.set(part.index, mappedPart)
+      collapsed.push(mappedPart)
+    }
+
+    if (part.kind === MessagePartKind.ATTACHMENT) {
+      const attachment = attachmentsByID.get(part.attachmentID)
+      if (partHasText.has(part.index) && attachment?.isSticker && attachment.type === AttachmentType.IMG && attachment.srcURL) {
+        const textOffset = mappedPart.text?.length ?? 0
+        mappedPart.text = `${mappedPart.text || ''}${OBJ_REPLACEMENT_CHAR}`
+        mappedPart.attributes = mergeTextAttributes(mappedPart.attributes, {
+          entities: [{
+            from: 0,
+            to: 1,
+            replaceWithMedia: {
+              mediaType: 'img',
+              srcURL: attachment.srcURL,
+            },
+          }],
+        }, textOffset)
+        continue
+      }
+      ;(mappedPart.attachmentIDs ||= []).push(part.attachmentID)
+      continue
+    }
+
+    const textOffset = mappedPart.text?.length ?? 0
+    mappedPart.text = `${mappedPart.text || ''}${part.text}`
+    mappedPart.attributes = mergeTextAttributes(mappedPart.attributes, part.attributes, textOffset)
+  }
+
+  return collapsed
+}
+
 function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageSummaryInfo): MessagePart[] {
   const parts: MessagePart[] = []
 
@@ -138,6 +208,7 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
 
     const part: string | null = frag.attributes.__kIMMessagePartAttributeName
     const partNumber: number | null = part != null ? parseInt(part, 10) : null
+    const mappedPartIndex = partNumber ?? parts.length
 
     if (partNumber != null) {
       // Check for any unsent parts before this one by detecting jumps in the
@@ -180,7 +251,7 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
     if (typeof attachmentID === 'string') {
       parts.push({
         kind: MessagePartKind.ATTACHMENT,
-        index: parts.length,
+        index: mappedPartIndex,
         end,
         attachmentID,
       })
@@ -189,10 +260,10 @@ function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageS
       // the last part. Insert a new text part if there's no part attribute,
       // we're on the first part, or the last part wasn't a text one (which
       // means that we can't just update it).
-      if (typeof part === 'undefined' || parts.length === 0 || parts.at(-1)?.kind !== MessagePartKind.TEXT) {
+      if (typeof part === 'undefined' || parts.length === 0 || parts.at(-1)?.kind !== MessagePartKind.TEXT || parts.at(-1)?.index !== mappedPartIndex) {
         parts.push({
           kind: MessagePartKind.TEXT,
-          index: parts.length,
+          index: mappedPartIndex,
           end: 0, // Continuously updated by the code below.
           text: '',
         })
@@ -247,6 +318,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
 export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, accountID: string): BeeperMessage[] {
   const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
+  const attachmentsByID = new Map(attachments.map(attachment => [attachment.id, attachment]))
   const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
   const isGroup = !!msgRow.room_name
 
@@ -497,13 +569,12 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       })) as MessagePartAttachment[]))
     }
   }
+  const mappedMessageParts = collapseMessageParts(messageParts, attachmentsByID)
 
-  const addSubjectInline = msgRow.subject && messageParts[0].kind === MessagePartKind.TEXT && messageParts[0].text.length
+  const addSubjectInline = msgRow.subject && typeof mappedMessageParts[0]?.text === 'string' && mappedMessageParts[0].text.length
   if (msgRow.subject && !addSubjectInline) {
-    messageParts.unshift({
-      kind: MessagePartKind.TEXT,
+    mappedMessageParts.unshift({
       index: -1,
-      end: 0,
       text: msgRow.subject,
       attributes: {
         entities: [{
@@ -516,9 +587,9 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   }
 
   // messageParts will always be non-empty
-  const messages = messageParts.map<BeeperMessage>((part, partIdx) => {
+  const messages = mappedMessageParts.map<BeeperMessage>((part, partIdx) => {
     const message = { ...partialMessage }
-    if (messageParts.length > 1) {
+    if (mappedMessageParts.length > 1) {
       // we have to copy message.extra, otherwise it shares the object
       // among different message parts
       message.extra = {
@@ -530,28 +601,23 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     }
     // we mean idx, not part number
     if (partIdx === 0) Object.assign(message, partialHeader)
-    if (partIdx === messageParts.length - 1) Object.assign(message, partialFooter)
+    if (partIdx === mappedMessageParts.length - 1) Object.assign(message, partialFooter)
     if (part.index !== 0) message.id = `${message.id}_${part.index}`
-    switch (part.kind) {
-      case MessagePartKind.TEXT: {
-        message.text = part.text
-        message.textAttributes = part.attributes
-        break
-      }
-      case MessagePartKind.ATTACHMENT: {
-        // TODO: make this faster if necessary
-        const att = attachments.find(a => a.id === part.attachmentID)
-        if (att) message.attachments = [att]
-        break
-      }
-      case MessagePartKind.UNSENT: {
-        message.isAction = true
-        message.parseTemplate = true
-        message.editedTimestamp = undefined
-        message.text = '{{sender}} unsent a message'
-        break
-      }
-      default:
+    if (part.isUnsent) {
+      message.isAction = true
+      message.parseTemplate = true
+      message.editedTimestamp = undefined
+      message.text = '{{sender}} unsent a message'
+      return message
+    }
+    if (typeof part.text === 'string') {
+      message.text = part.text
+      message.textAttributes = part.attributes
+    }
+    if (part.attachmentIDs?.length) {
+      message.attachments = part.attachmentIDs
+        .map(attachmentID => attachmentsByID.get(attachmentID))
+        .filter((attachment): attachment is Attachment => attachment != null)
     }
     return message
   }).filter(m => m.attachments?.length || m.text || m.textHeading)
