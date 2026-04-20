@@ -132,7 +132,7 @@ async function main() {
             await fsp.mkdir(archOutDir, { recursive: true })
             const archDest = path.join(archOutDir, 'SwiftServer.node')
             await lipoThin(arch, binaryPath, archDest)
-            await strip(binaryPath, binaryPath)
+            await strip(archDest, archDest)
             if (STANDALONE) await makeStandalone(archDest, frameworkSrc)
           }),
       )
