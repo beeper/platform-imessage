@@ -18,7 +18,9 @@ public extension Message {
                 return
             }
 
-            parts.append(Message.Part(of: self, in: body, at: range, index: Message.Part.Index(rawValue: index)))
+            parts.append(
+                Message.Part(of: self, in: body, at: range, index: Message.Part.Index(rawValue: index))
+            )
         }
 
         return parts.sorted(by: { $0.index < $1.index })

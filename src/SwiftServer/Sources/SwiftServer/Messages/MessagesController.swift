@@ -799,9 +799,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         
         let targetPartIndex: Int = Int(partIndex ?? 0)
         
-        let targetPart = message.parts.first(where: { $0.index.rawValue == targetPartIndex })
-            ?? message.parts.first(where: { $0.index.rawValue == 0 })
-            ?? message.parts[0]
+        guard let targetPart: Message.Part = message.parts.first(where: { $0.index.rawValue == targetPartIndex }) else {
+            throw ErrorMessage("Could not find the target part")
+        }
+        
+//            ?? message.parts.first(where: { $0.index.rawValue == 0 })
+//            ?? message.parts[0]
         
         guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
             throw ErrorMessage("Could not resolve selectable message cell")
