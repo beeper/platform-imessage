@@ -9,7 +9,7 @@ Built on an extended version of [Platform SDK](https://github.com/textshq/platfo
 For local testing without the main Beeper app, use the headless Electron harness in `src/SwiftServer/headless/index.ts`.
 
 ```sh
-yarn build:swift --debug --standalone  # see Building § Standalone builds
+yarn build:swift --debug --standalone
 yarn headless:build
 yarn headless:run
 ```
