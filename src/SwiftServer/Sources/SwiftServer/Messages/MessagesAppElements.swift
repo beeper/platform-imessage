@@ -45,7 +45,7 @@ final class MessagesAppElements {
     }
 
     static func firstMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
-        try transcriptView.children().first { (try? Self.isMessageContainerCell($0)) ?? false }
+        try transcriptView.children().first { (try? Self.isMessageContainerCell($0)) ?? false }?.children[0]
         // try messageContainerCells(in: transcriptView).first?.children[0]
     }
 

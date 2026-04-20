@@ -1498,7 +1498,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     return .dndCanNotify
                 }
                 if (try? child.role()) == Accessibility.Role.staticText,
-                          (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
+                   (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
             }
