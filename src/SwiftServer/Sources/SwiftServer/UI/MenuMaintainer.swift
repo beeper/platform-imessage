@@ -40,7 +40,7 @@ extension MenuMaintainer {
                 } catch {
                     log.warning("couldn't ensure all menu items are present: \(error)")
                 }
-                let ms = 1_000 * Defaults.swiftServer.double(forKey: DefaultsKeys.settingsMenuItemInjectionMaintenanceInterval)
+                let ms = 1000 * Defaults.swiftServer.double(forKey: DefaultsKeys.settingsMenuItemInjectionMaintenanceInterval)
                 try? await Task.sleep(nanoseconds: 1_000_000 * UInt64(ms.rounded()))
             }
 
@@ -177,7 +177,7 @@ private func findSuitableInjectionTarget(in mainMenu: NSMenu) throws(InjectionEr
 
 @MainActor
 private func dumpMainMenu(reason: String? = nil) {
-#if DEBUG
+    #if DEBUG
     let prefix = if let reason {
         "main menu dump (\(reason))"
     } else {
@@ -193,5 +193,5 @@ private func dumpMainMenu(reason: String? = nil) {
     for (itemIndex, item) in mainMenu.items.enumerated() {
         log.debug("\(prefix): item \(itemIndex + 1)/\(mainMenu.numberOfItems). \(item)")
     }
-#endif
+    #endif
 }

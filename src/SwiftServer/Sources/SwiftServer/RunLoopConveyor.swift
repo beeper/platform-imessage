@@ -110,23 +110,23 @@ private final class RunLoopSource<WorkItem> {
     }
 
     func enqueue(_ item: WorkItem) {
-#if DEBUG
+        #if DEBUG
         log.debug("adding work item \(item) to run loop source")
-#endif
+        #endif
         pendingWorkItems.append(item)
         signalAndWakeUpRunLoop()
     }
 
     private func signalAndWakeUpRunLoop() {
-#if DEBUG
+        #if DEBUG
         log.debug("signalling run loop source")
-#endif
+        #endif
         CFRunLoopSourceSignal(guts)
 
         if let associatedRunLoop {
-#if DEBUG
+            #if DEBUG
             log.debug("run loop source is going to wake up associated run loop")
-#endif
+            #endif
             CFRunLoopWakeUp(associatedRunLoop.getCFRunLoop())
         }
     }

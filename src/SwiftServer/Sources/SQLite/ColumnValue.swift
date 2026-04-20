@@ -13,7 +13,7 @@ extension String: ColumnValue {
     public static func readNonNullConverting(
         from statement: OpaquePointer,
         at index: Column.Index,
-    ) throws(Column.Error) -> String {
+        ) throws(Column.Error) -> String {
         guard let ptr = sqlite3_column_text(statement, index) else { throw .outOfMemory }
         return String(cString: ptr)
     }
@@ -25,7 +25,7 @@ extension Int: ColumnValue {
     public static func readNonNullConverting(
         from statement: OpaquePointer,
         at index: Column.Index,
-    ) throws(Column.Error) -> Int {
+        ) throws(Column.Error) -> Int {
         Int(sqlite3_column_int64(statement, index))
     }
 }
@@ -36,7 +36,7 @@ extension Double: ColumnValue {
     public static func readNonNullConverting(
         from statement: OpaquePointer,
         at index: Column.Index,
-    ) throws(Column.Error) -> Double {
+        ) throws(Column.Error) -> Double {
         sqlite3_column_double(statement, index)
     }
 }
@@ -47,7 +47,7 @@ extension Data: ColumnValue {
     public static func readNonNullConverting(
         from statement: OpaquePointer,
         at index: Column.Index,
-    ) throws(Column.Error) -> Data {
+        ) throws(Column.Error) -> Data {
         let length = sqlite3_column_bytes(statement, index)
 
         // `sqlite3_column_blob` returns `NULL` for zero-length BLOBs; take care

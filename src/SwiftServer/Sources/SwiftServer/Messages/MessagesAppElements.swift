@@ -241,13 +241,13 @@ final class MessagesAppElements {
                     }
                 } else if attempt > 3 {
                     do {
-                       try self.dismissAnyPresentedSheet()
+                        try self.dismissAnyPresentedSheet()
                     } catch {
                         log.error("couldn't try dismissing any presented sheet: \(error)")
                     }
                 }
             }
-//            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
+            //            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
             // clearCachedElements()
             cachedMainWindow = mainWindow
             return mainWindow
@@ -297,7 +297,8 @@ final class MessagesAppElements {
             // }
             let startTime = Date()
             defer { log.debug("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            let cl = try retry(withTimeout: 1, interval: 0.1) {
+            // cachedConversationsList = cl
+            return try retry(withTimeout: 1, interval: 0.1) {
                 try Self.getConversationList(window: mainWindow, useFastPath: true).orThrow(ErrorMessage("ConversationList not found"))
             } onError: { _, _ in
                 let searchField = try self.searchField
@@ -305,8 +306,6 @@ final class MessagesAppElements {
                 // this will close the search results if active
                 try searchField.cancel()
             }
-            // cachedConversationsList = cl
-            return cl
         }
     }
 
@@ -316,7 +315,6 @@ final class MessagesAppElements {
             try Self.getSectionObjects(window: mainWindow)
         }
     }
-
 
     var selectedThreadCell: Accessibility.Element? {
         get {
@@ -332,10 +330,10 @@ final class MessagesAppElements {
             // alternative: (localizedDescription == "Messages" when main transcript)
             (try? el.localizedDescription()) == LocalizedStrings.replyTranscript
             /*
-              when it's replyTranscript/overlay=true, linkedElements.count == 1 (the sole linked element is messageBodyField),
-              BUT only when it's not a compose cell
-              so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
-            */
+             when it's replyTranscript/overlay=true, linkedElements.count == 1 (the sole linked element is messageBodyField),
+             BUT only when it's not a compose cell
+             so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
+             */
         }
         let predicate = { (el: Accessibility.Element) -> Bool in
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
@@ -358,9 +356,8 @@ final class MessagesAppElements {
             // if let cached = cachedReplyTranscriptView, cached.isInViewport {
             //     return cached
             // }
-            let tcv = try getTranscriptView(replyTranscript: true)
             // cachedReplyTranscriptView = tcv
-            return tcv
+            return try getTranscriptView(replyTranscript: true)
         }
     }
 
@@ -430,7 +427,7 @@ final class MessagesAppElements {
     }
 
     // TODO: leverage to implement sticker avoidance (DESK-7141)
-#if false
+    #if false
     var customEmojiPopoverCharacters: [Accessibility.Element] {
         get throws {
             let popover = try popover
@@ -439,7 +436,7 @@ final class MessagesAppElements {
                 .orThrow(ErrorMessage("couldn't find table view containing emoji results"))
         }
     }
-#endif
+    #endif
 
     /// the first popover in the main window
     var popover: Accessibility.Element {
@@ -490,16 +487,16 @@ final class MessagesAppElements {
             let startTime = Date()
             defer { log.debug("reactButtons took \(startTime.timeIntervalSinceNow * -1000)ms") }
             /*
-            8 `AXButton`s
-            Heart
-            Thumbs up
-            Thumbs down
-            Ha ha!
-            Exclamation mark
-            Question mark
-            Reply -- only shows up when not in overlay mode
-            Pin -- only shows up for links/tweets in Monterey or above
-            */
+             8 `AXButton`s
+             Heart
+             Thumbs up
+             Thumbs down
+             Ha ha!
+             Exclamation mark
+             Question mark
+             Reply -- only shows up when not in overlay mode
+             Pin -- only shows up for links/tweets in Monterey or above
+             */
             guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == Accessibility.Role.button }) else {
                 throw ErrorMessage("reactButtons not found")
             }

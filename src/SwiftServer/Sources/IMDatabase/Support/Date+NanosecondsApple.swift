@@ -7,11 +7,11 @@ public extension Date {
     }
 
     var millisecondsSinceReferenceDate: Int {
-        Int(timeIntervalSinceReferenceDate * 1_000)
+        Int(timeIntervalSinceReferenceDate * 1000)
     }
 
     init(millisecondsSinceReferenceDate millis: Int) {
-        self = Date(timeIntervalSinceReferenceDate: Double(millis) / 1_000)
+        self = Date(timeIntervalSinceReferenceDate: Double(millis) / 1000)
     }
 
     init(nanosecondsSinceReferenceDate nanos: Int) {

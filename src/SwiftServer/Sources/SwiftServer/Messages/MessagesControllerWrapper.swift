@@ -11,7 +11,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
 @available(macOS 11, *)
 @NodeActor @NodeClass final class MessagesControllerWrapper {
     static let name = "MessagesController"
-    
+
     // not depending on swift-atomics for now
     private static let queueCounter = Protected<Int>(0)
 
@@ -160,11 +160,11 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         // TODO: implement this for groups
         if !threadID.hasPrefix("iMessage;-;") {
             guard threadID.hasPrefix("any;-;") else {
-            // only bother checking the database if the GUID can't tell us what service the chat is for
-            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-#if DEBUG
-            log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-#endif
+                // only bother checking the database if the GUID can't tell us what service the chat is for
+                // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+                #if DEBUG
+                log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+                #endif
                 return undefined
             }
 
@@ -175,9 +175,9 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             }
 
             guard chat.serviceName == .imessage else {
-#if DEBUG
-            log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-#endif
+                #if DEBUG
+                log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+                #endif
                 return undefined
             }
         }
@@ -203,7 +203,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
 
         // restored from old TextsHQ implementation
         // https://github.com/TextsHQ/platform-imessage/blob/main/src/SwiftServer/Sources/SwiftServer/SwiftServer.swift#L123-L158
-        let requestID: UUID = UUID()
+        let requestID = UUID()
         threadObserveRequestTokenLock.lock()
         threadObserveRequestToken = requestID
         threadObserveRequestTokenLock.unlock()

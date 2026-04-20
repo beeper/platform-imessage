@@ -8,17 +8,17 @@ private let log = Logger(swiftServerLabel: "contacts")
 extension CNContactFormatterStyle {
     // seemingly used by Messages; prefers nickname, then given name
     static var short: Self? {
-      CNContactFormatterStyle(rawValue: 1000)
+        CNContactFormatterStyle(rawValue: 1000)
     }
 
     // similar to `short`? identical?
     static var abbreviated: Self? {
-      CNContactFormatterStyle(rawValue: 1001)
+        CNContactFormatterStyle(rawValue: 1001)
     }
 
     // returns e.g. "JD" for "John Doe"
     static var monogram: Self? {
-      CNContactFormatterStyle(rawValue: 1002)
+        CNContactFormatterStyle(rawValue: 1002)
     }
 }
 

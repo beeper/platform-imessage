@@ -16,7 +16,7 @@ private let log = Logger(swiftServerLabel: "prompt-automation")
 enum PromptAutomation {
     static func confirmUNCPrompt() throws {
         log.debug("confirmUNCPrompt")
-        try retry(withTimeout: 2.5, interval: 0.05) { () throws -> Void in
+        try retry(withTimeout: 2.5, interval: 0.05) { () throws in
             log.debug("confirmUNCPrompt attempt")
             guard let uncApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.UserNotificationCenter").first else {
                 throw ErrorMessage("unc app not found")
@@ -24,7 +24,7 @@ enum PromptAutomation {
             let appElement = Accessibility.Element(pid: uncApp.processIdentifier)
 
             let windows = try appElement.appWindows()
-            guard windows.count > 0 else { throw ErrorMessage("no windows found") }
+            guard !windows.isEmpty else { throw ErrorMessage("no windows found") }
 
             #if DEBUG
             let checkString = "iTerm"
@@ -48,11 +48,11 @@ enum PromptAutomation {
 
     static func confirmDirectoryAccess(buttonTitle: String) throws {
         log.debug("confirmDirectoryAccess")
-        try retry(withTimeout: 2.5, interval: 0.05) { () throws -> Void in
+        try retry(withTimeout: 2.5, interval: 0.05) { () throws in
             log.debug("confirmDirectoryAccess attempt")
             let appElement = Accessibility.Element(pid: NSRunningApplication.current.processIdentifier)
             let windows = try appElement.appWindows()
-            guard windows.count > 0 else { throw ErrorMessage("no windows found") }
+            guard !windows.isEmpty else { throw ErrorMessage("no windows found") }
 
             let isGrantButton = { (el: Accessibility.Element) in (try? el.role()) == Accessibility.Role.button && (try? el.title()) == buttonTitle }
             guard let window = windows.first(where: {
