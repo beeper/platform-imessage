@@ -114,7 +114,7 @@ async function main() {
     const frameworkSrc = path.join(path.dirname(binaryPath), 'NodeAPI.framework')
     if (specificArch) {
       const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${specificArch}`)
-      fsp.mkdir(outdir, { recursive: true })
+      await fsp.mkdir(outdir, { recursive: true })
       const dest = `${outdir}/SwiftServer.node`
       if (config === 'release') {
         await strip(binaryPath, dest)
