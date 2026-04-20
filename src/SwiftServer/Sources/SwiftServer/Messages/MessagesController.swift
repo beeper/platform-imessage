@@ -153,6 +153,7 @@ final class MessagesController {
         var frame = try window.frame()
         frame.origin.y = 0
         frame.size.height = Double.infinity
+        
         try window.setFrame(frame)
     }
 
@@ -744,20 +745,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let containerCells = Array(
-                    try MessagesAppElements.messageContainerCells(
+                let containerCells = try MessagesAppElements.messageContainerCells(
                         in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView
                     )
-                )
-                guard let idx = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
+                
+                guard let idx: Int = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
                     throw ErrorMessage("Could not find target message cell")
                 }
-                let target = idx - messageCell.offset
-                guard containerCells.indices.contains(target) else {
-                    throw ErrorMessage("Desired index out of bounds")
+                
+                let targetIndex: Int = (idx - messageCell.offset)
+                
+                guard targetIndex >= 0, targetIndex < containerCells.count else {
+                    throw ErrorMessage("Desired index \(targetIndex) is out of bounds (array count: \(containerCells.count))")
                 }
-                targetCell = try containerCells[target].children[0]
+                
+                targetCell = try containerCells[targetIndex].children[0]
             }
+            
             if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
                 guard role == cellRole else {
                     log.debug("Expected cell role \(cellRole), got \(role)")
@@ -776,30 +780,34 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     func resolveMessageCell(threadID: String, messageGUID: String, partIndex: Int?, allowOverlay: Bool = true) throws -> MessageCell {
         let guid = GUID<Message>(stringLiteral: messageGUID)
+        
         guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
             throw ErrorMessage("Could not find message \(messageGUID)")
         }
-        let cellID = isSonomaOrUp ? nil : message.balloonBundleID
-        let isReply = message.threadOriginatorGUID != nil
-        let overlay = allowOverlay && isMontereyOrUp && !isReply && (partIndex == nil || partIndex == 0)
-        func makeCell(messageGUID: String, offset: Int, overlay: Bool) -> MessageCell {
-            MessageCell(messageGUID: messageGUID, offset: offset, cellID: cellID, cellRole: nil, overlay: overlay)
-        }
+        
+        let cellID: String? = isSonomaOrUp ? nil : message.balloonBundleID
+        let isReply: Bool = message.threadOriginatorGUID != nil
+        let overlay: Bool = allowOverlay && isMontereyOrUp && !isReply && (partIndex == nil || partIndex == 0)
+        
         if overlay {
-            return makeCell(messageGUID: messageGUID, offset: 0, overlay: true)
+            return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
         }
-        let parts = message.parts
-        guard !parts.isEmpty else {
-            return makeCell(messageGUID: messageGUID, offset: 0, overlay: false)
+        
+        guard !message.parts.isEmpty else {
+            return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
         }
-        let targetPartIndex = Message.Part.Index(rawValue: partIndex ?? 0)
-        let targetPart = parts.first(where: { $0.index == targetPartIndex })
-            ?? parts.first(where: { $0.index.rawValue == 0 })
-            ?? parts[0]
+        
+        let targetPartIndex: Int = Int(partIndex ?? 0)
+        
+        let targetPart = message.parts.first(where: { $0.index.rawValue == targetPartIndex })
+            ?? message.parts.first(where: { $0.index.rawValue == 0 })
+            ?? message.parts[0]
+        
         guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
             throw ErrorMessage("Could not resolve selectable message cell")
         }
-        return makeCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, overlay: false)
+        
+        return MessageCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, cellID: cellID, cellRole: nil, overlay: false)
     }
 
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
@@ -880,7 +888,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    // @available(macOS 13, *)
     func undoSend(threadID: String, messageCell: MessageCell) throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("!isVenturaOrUp")
@@ -898,7 +905,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    // @available(macOS 13, *)
     // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
         guard isVenturaOrUp else {
@@ -1632,15 +1638,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 extension MessagesController {
     class OcclusionMonitor {
         var visible: Bool = true
-
         private var ncToken: NSObjectProtocol?
-
+        
         init() {
-            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
-                log.trace("didChangeOcclusionStateNotification \(notif)")
-                guard let window = notif.object as? NSWindow else { return }
+            ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notification in
+                log.trace("didChangeOcclusionStateNotification \(notification)")
+                guard let window = notification.object as? NSWindow else { return }
+                
                 let className = NSStringFromClass(type(of: window))
-                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else { return }
+                
+                guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else {
+                    return
+                }
+                
                 self.visible = window.occlusionState.contains(.visible)
             }
         }

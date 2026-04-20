@@ -221,26 +221,8 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    private func parseMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
-        let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
-        let messageGUID = String(components[0])
-        guard components.count > 1 else {
-            return (messageGUID, nil)
-        }
-        return (messageGUID, Int(components[1]))
-    }
-
-    private func resolveMessageCell(threadID: String, messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
-        let (messageGUID, partIndex) = parseMessageID(messageID)
-        return try controller.resolveMessageCell(
-            threadID: threadID,
-            messageGUID: messageGUID,
-            partIndex: partIndex,
-            allowOverlay: allowOverlay
-        )
-    }
-
-    @NodeMethod func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+    @NodeMethod
+    func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
             // try the "legacy" reactions first (keyed by `supported` in platform info)
             reaction
@@ -253,6 +235,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             log.error("couldn't create reaction from provided name: \(reactionName)")
             throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
+        
         return try performAsync { [self] in
             let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
             try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
@@ -260,21 +243,24 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
     }
 
     // @available(macOS 13, *)
-    @NodeMethod func undoSend(threadID: String, messageID: String) throws -> NodeValueConvertible {
+    @NodeMethod
+    func undoSend(threadID: String, messageID: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
             let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
             try controller.undoSend(threadID: threadID, messageCell: messageCell)
         }
     }
 
-    @NodeMethod func editMessage(threadID: String, messageID: String, newText: String) throws -> NodeValueConvertible {
+    @NodeMethod
+    func editMessage(threadID: String, messageID: String, newText: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
             let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID, allowOverlay: false)
             try controller.editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
         }
     }
 
-    @NodeMethod func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
+    @NodeMethod
+    func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
         guard args.count == 2,
               let addresses = try args[0].as([String].self),
               let message = try args[1].as(String.self) else {
@@ -285,7 +271,8 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws -> NodeValueConvertible {
+    @NodeMethod
+    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws -> NodeValueConvertible {
         return try performAsync {
             let quotedMessage: MessageCell? = if let quotedMessageID {
                 try self.resolveMessageCell(threadID: threadID, messageID: quotedMessageID)
@@ -296,11 +283,13 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func isSameContact(_ a: String?, _ b: String?) -> Bool {
+    @NodeMethod
+    func isSameContact(_ a: String?, _ b: String?) -> Bool {
         return self.controller.isSameContact(a, b)
     }
 
-    @NodeMethod func dispose() throws {
+    @NodeMethod
+    func dispose() throws {
         guard !hasBeenDisposed else {
             // NOTE(skip): Guard against `dispose` being called more than once, which triggers a UAF via napi_remove_env_cleanup_hook. (DESK-7237)
             Log.default.warning("[MessagesControllerWrapper] dispose called when already disposed, ignoring")
@@ -311,5 +300,30 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         Log.default.notice("[MessagesControllerWrapper] disposing")
         Self.queue.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
+    }
+}
+
+@available(macOS 11, *)
+extension MessagesControllerWrapper {
+    private func splitMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
+        let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
+        let messageGUID = String(components[0])
+        
+        guard components.count > 1 else {
+            return (messageGUID, nil)
+        }
+        
+        return (messageGUID, Int(components[1]))
+    }
+    
+    private func resolveMessageCell(threadID: String, messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
+        let (messageGUID, partIndex) = splitMessageID(messageID)
+        
+        return try controller.resolveMessageCell(
+            threadID: threadID,
+            messageGUID: messageGUID,
+            partIndex: partIndex,
+            allowOverlay: allowOverlay
+        )
     }
 }
