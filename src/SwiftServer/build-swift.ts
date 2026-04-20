@@ -104,6 +104,20 @@ async function main() {
         await strip(binaryPath, dest)
       } else {
         await fsp.copyFile(binaryPath, dest)
+        // Debug SwiftServer.node has an @rpath pointing into DerivedData's
+        // PackageFrameworks dir, but Xcode only populates that during the
+        // link step and it's empty by the time the .node is loaded. Symlink
+        // the built NodeAPI.framework into that rpath so the .node can be
+        // dlopen'd standalone (e.g. via `yarn headless:run`).
+        const frameworksDir = path.join(
+          buildOptions.buildPath!,
+          'DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/SwiftServer/BuildProductsPath/Debug/PackageFrameworks',
+        )
+        await fsp.mkdir(frameworksDir, { recursive: true })
+        const linkPath = path.join(frameworksDir, 'NodeAPI.framework')
+        const sourcePath = path.join(path.dirname(binaryPath), 'NodeAPI.framework')
+        await fsp.rm(linkPath, { force: true })
+        await fsp.symlink(sourcePath, linkPath)
       }
       // await codesign(dest)
     } else {
