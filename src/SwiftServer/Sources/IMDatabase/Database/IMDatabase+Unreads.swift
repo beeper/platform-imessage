@@ -53,20 +53,20 @@ public extension IMDatabase {
         try statement.reset()
 
         var chatStates: [ChatRef: ChatState] = [:]
-        
+
         try statement.stepUntilDone { row in
             guard let chatRef: ChatRef = try ChatRef(rowID: row[0].optional(Int.self), guid: row[1].optional(String.self)) else {
                 log.warning("while querying unread states: some chat had neither a rowid nor a guid. can't really do much with this")
                 return
             }
-            
+
             let lastReadMessageTimestamp = try Date(nanosecondsSinceReferenceDate: row[3].expect(Int.self))
-            
+
             let unreadCount: Int = try row[2].expect(Int.self)
-            
+
             chatStates[chatRef] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
         }
-        
+
         return chatStates
     }
 }

@@ -12,7 +12,7 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
 private func threadRefreshEvents(forUpdatedChats latest: UpdatedChatsQueryResult) throws -> [PASEvent] {
     guard !latest.updatedChats.isEmpty else { return [] }
 
-    let events: [PASEvent] = latest.updatedChats.compactMap { chat in
+    return latest.updatedChats.compactMap { chat in
         guard let guid = chat.guid else {
             log.error("updated chat didn't have a guid, not vending refresh event")
             return nil
@@ -20,9 +20,7 @@ private func threadRefreshEvents(forUpdatedChats latest: UpdatedChatsQueryResult
         traceMessageUpdates("chat \(chat) had message updates, queueing a refresh")
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
         return PASEvent.refreshMessagesInThread(id: hashedThreadID)
-    }
-
-    return events
+    } as [PASEvent]
 }
 
 extension Poller {

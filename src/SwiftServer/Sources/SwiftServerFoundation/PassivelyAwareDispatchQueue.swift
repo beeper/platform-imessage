@@ -44,9 +44,9 @@ public final class PassivelyAwareDispatchQueue {
                 $0 -= 1
                 return $0
             }
-#if DEBUG
+            #if DEBUG
             log.debug("\(queue.label): ✅ finished work, pending is now \(pendingPostDecrement)")
-#endif
+            #endif
             if pendingPostDecrement == 0 {
                 // There isn't any work left in the queue, so arm the passive
                 // work to potentially execute soon.
@@ -64,9 +64,9 @@ private extension PassivelyAwareDispatchQueue {
         passiveWorkItem?.cancel()
         passiveWorkItem = nil
         let newCount = pending.withLock { $0 += 1; return $0 }
-#if DEBUG
+        #if DEBUG
         log.debug("\(queue.label): 🔄 enqueuing work, pending is now \(newCount)")
-#endif
+        #endif
         return (newEpoch, newCount)
     }
 
@@ -76,16 +76,16 @@ private extension PassivelyAwareDispatchQueue {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-#if DEBUG
+            #if DEBUG
             // log.debug("\(queue.label): 💭 running passive work now")
-#endif
+            #endif
 
             let isQuiet = pending.read() == 0
             let epochUnchanged = activityEpoch.read() == expectedEpoch
             guard isQuiet, epochUnchanged else {
-#if DEBUG
+                #if DEBUG
                 log.debug("\(queue.label): 🚫 backing out of passive work (quiet? \(isQuiet), epoch unchanged? \(epochUnchanged))")
-#endif
+                #endif
                 return
             }
 

@@ -21,7 +21,7 @@ public final class FSEventsWatcher {
         includingFiles: Bool = false,
         latency: TimeInterval = 1.0 / 60.0,
         onEvent callback: @escaping Callback,
-    ) throws(Error) {
+        ) throws(Error) {
         var flags = FSEventStreamCreateFlags(
             kFSEventStreamCreateFlagUseCFTypes
                 | kFSEventStreamCreateFlagWatchRoot
@@ -40,7 +40,7 @@ public final class FSEventsWatcher {
             retain: nil,
             release: { $0.flatMap(Unmanaged<FSEventsWatcher>.fromOpaque)?.release() },
             copyDescription: nil,
-        )
+            )
 
         guard let stream = FSEventStreamCreate(
             kCFAllocatorDefault,
@@ -50,7 +50,7 @@ public final class FSEventsWatcher {
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             latency,
             flags,
-        ) else {
+            ) else {
             throw .creatingStream
         }
 
@@ -201,9 +201,9 @@ private func fsEventsCallback(
     let eventsFlags = UnsafeBufferPointer(start: eventsFlags, count: numberOfEvents)
     let eventsIDs = UnsafeBufferPointer(start: eventsIDs, count: numberOfEvents)
 
-#if DEBUG
+    #if DEBUG
     log.debug("fsevent callback: \(numberOfEvents) event(s)")
-#endif
+    #endif
     for (id, (path, flags)) in zip(eventsIDs, zip(eventsPaths, eventsFlags)) {
         let flags = FSEventsWatcher.Flags(rawValue: flags)
         let event = FSEventsWatcher.Event(id: id, path: path, flags: flags)

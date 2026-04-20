@@ -23,7 +23,7 @@ extension Poller {
                 // Unread state didn't change, so a state sync is unnecessary.
                 continue
             }
-            
+
             defer { changes += 1 }
 
             guard let guid = chatRef.guid else {
@@ -37,7 +37,7 @@ extension Poller {
             chatStates[chatRef] = fresh
 
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
-            let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1_000).rounded()
+            let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1000).rounded()
             let isUnread = currentState.unreadCount > 0
             let markedUnreadUpdatedAt = Int(fresh.lastUpdated.timeIntervalSince1970 * 1000)
             var patch: [String: any NodePropertyConvertible] = [
@@ -106,7 +106,7 @@ extension Poller {
             log.info("chat \(guid) was deleted from iMessage")
             return Hasher.thread.tokenizeRemembering(pii: guid)
         }
-        
+
         if !deletedThreadIDs.isEmpty {
             eventsToSend.append(
                 PASEvent.deleteThreads(

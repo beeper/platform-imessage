@@ -162,10 +162,10 @@ enum Defaults {
             DefaultsKeys.pollerTraceUnreads: true,
         ]
 
-#if DEBUG
+        #if DEBUG
         defaults[DefaultsKeys.pollerTraceUnreads] = true
         defaults[DefaultsKeys.pollerTraceMessageUpdates] = true
-#endif
+        #endif
 
         swiftServer.register(defaults: defaults)
     }
@@ -243,8 +243,8 @@ enum Defaults {
         }
         for app in persistentApps {
             if let td = app["tile-data"] as? [String: Any],
-                let bi = td["bundle-identifier"] as? String,
-                bundleID == bi {
+               let bi = td["bundle-identifier"] as? String,
+               bundleID == bi {
                 return true
             }
         }
@@ -258,7 +258,7 @@ enum Defaults {
         }
         let appIndex = persistentApps.firstIndex { app in
             guard let tileData = app["tile-data"] as? [String: Any],
-                let bundleIdentifier = tileData["bundle-identifier"] as? String else {
+                  let bundleIdentifier = tileData["bundle-identifier"] as? String else {
                 return false
             }
             return bundleIdentifier == bundleID
@@ -272,8 +272,8 @@ enum Defaults {
 
     static func isNotificationsEnabledForApp(bundleID: String) -> Bool {
         guard let apps = ncPrefs?.array(forKey: "apps") as? [[String: Any]],
-            let app = apps.first(where: { ($0["bundle-id"] as? String) == bundleID }),
-            let flags = app["flags"] as? Int else {
+              let app = apps.first(where: { ($0["bundle-id"] as? String) == bundleID }),
+              let flags = app["flags"] as? Int else {
             return false
         }
         // 25th bit is the notifications enabled bit
@@ -282,17 +282,17 @@ enum Defaults {
 
     static func getDNDList() -> [String: Int]? {
         /*
-            {
-            CatalystDNDMigrationVersion: 2,
-            CKDNDMigrationKey: 2,
-            CKDNDListKey: {
-                'hi@kishan.info': 64092211200,
-                // chat.group_id
-                '2B4EFF7E-3F26-4251-8902-F7062096CCCC: 64092211200,
-                '+15551231234': 64092211200
-            }
-            }
-        */
+         {
+         CatalystDNDMigrationVersion: 2,
+         CKDNDMigrationKey: 2,
+         CKDNDListKey: {
+         'hi@kishan.info': 64092211200,
+         // chat.group_id
+         '2B4EFF7E-3F26-4251-8902-F7062096CCCC: 64092211200,
+         '+15551231234': 64092211200
+         }
+         }
+         */
         guard let dict = getUserDefaults(bundleID: dndBundleID)?.dictionary(forKey: "CKDNDListKey") else {
             return nil
         }

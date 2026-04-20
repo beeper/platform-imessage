@@ -23,7 +23,6 @@ private final class TimerBlockWatcher {
     }
 }
 
-
 let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
@@ -85,10 +84,10 @@ private enum MessageAction {
 
     var localized: String {
         switch self {
-            case .react: return LocalizedStrings.react
-            case .reply: return LocalizedStrings.reply
-            case .undoSend: return LocalizedStrings.undoSend
-            case .edit: return LocalizedStrings.editButton
+        case .react: return LocalizedStrings.react
+        case .reply: return LocalizedStrings.reply
+        case .undoSend: return LocalizedStrings.undoSend
+        case .edit: return LocalizedStrings.editButton
         }
     }
 }
@@ -97,13 +96,13 @@ private enum ThreadAction {
 
     var localized: String {
         switch self {
-            case .markAsRead: return LocalizedStrings.markAsRead
-            case .markAsUnread: return LocalizedStrings.markAsUnread
-            case .delete: return LocalizedStrings.delete
-            case .pin: return LocalizedStrings.pin
-            case .unpin: return LocalizedStrings.unpin
-            case .showAlerts: return LocalizedStrings.showAlerts
-            case .hideAlerts: return LocalizedStrings.hideAlerts
+        case .markAsRead: return LocalizedStrings.markAsRead
+        case .markAsUnread: return LocalizedStrings.markAsUnread
+        case .delete: return LocalizedStrings.delete
+        case .pin: return LocalizedStrings.pin
+        case .unpin: return LocalizedStrings.unpin
+        case .showAlerts: return LocalizedStrings.showAlerts
+        case .hideAlerts: return LocalizedStrings.hideAlerts
         }
     }
 }
@@ -153,7 +152,7 @@ final class MessagesController {
         var frame = try window.frame()
         frame.origin.y = 0
         frame.size.height = Double.infinity
-        
+
         try window.setFrame(frame)
     }
 
@@ -184,18 +183,18 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-         let openOptions = NSWorkspace.OpenConfiguration()
-         openOptions.activates = activating
-         openOptions.hides = hiding
+        let openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = hiding
 
-         let horribleWaiter = DispatchSemaphore(value: 0)
-         var result: Result<NSRunningApplication, Error>?
-         NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
-#if DEBUG
+        let horribleWaiter = DispatchSemaphore(value: 0)
+        var result: Result<NSRunningApplication, Error>?
+        NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
+            #if DEBUG
             let builtForDebugging = true
-#else
+            #else
             let builtForDebugging = false
-#endif
+            #endif
             if Defaults.deepLinkTracingPII || builtForDebugging {
                 log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
             } else {
@@ -215,15 +214,14 @@ final class MessagesController {
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
-        guard let contacts = contacts, let a = a, let b = b else { return false }
+        guard let contacts, let a, let b else { return false }
         return contacts.fetchID(for: a) == contacts.fetchID(for: b)
     }
 
     private func getToFieldAddresses() -> LazyMapSequence<ReversedCollection<LazySequence<[Substring]>>, String>? {
         let desc = try? elements.toFieldPopupButton.localizedDescription()
         // unknown if other locales also use , as a separator
-        let elements = desc?.split(separator: ",").lazy.reversed().map { String($0).trimmingCharacters(in: .whitespaces) }
-        return elements
+        return desc?.split(separator: ",").lazy.reversed().map { String($0).trimmingCharacters(in: .whitespaces) }
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
@@ -261,7 +259,7 @@ final class MessagesController {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
 
-            let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
+            let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1000).rounded())ms"
             guard lastChange > beganEnsuringThreadSelection else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
             }
@@ -463,11 +461,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
                     case .focusedUIElementChanged:
                         printLifecycle(event: "FOCUSED UI ELEMENT changed")
-#if DEBUG
+                        #if DEBUG
                         var focusedDescription = ""
                         try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
                         printLifecycle(event: "FOCUSED: \(focusedDescription)")
-#endif
+                        #endif
                     case .windowCreated:
                         printLifecycle(event: "WINDOW created")
                         // for now, reset our window-local observations whenever we
@@ -556,9 +554,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
         let allActions = try messageCell.supportedActions()
-        let action = try allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
+        return try allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
             .orThrow(ErrorMessage("MessageAction.\(action) not found"))
-        return action
     }
 
     private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
@@ -582,24 +579,24 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        other approaches tried here:
-        #1:
-            1. select not-in-viewport thread by opening deep link
-            2. close all windows
-            3. open deep link, thread will be in viewport but only when `.withoutActivation` isn't included in options
-            ofc can't use bc can't activate app
+     other approaches tried here:
+     #1:
+     1. select not-in-viewport thread by opening deep link
+     2. close all windows
+     3. open deep link, thread will be in viewport but only when `.withoutActivation` isn't included in options
+     ofc can't use bc can't activate app
 
-        #2:
-            try elements.selectedThreadCell?.scrollToVisible()
-            only works for thread cells that are slightly offscreen/fully visible and for thread cells whose reference was taken _when_ they were in viewport
-            elements.selectedThreadCell is an invalid reference if selected cell is offscreen
+     #2:
+     try elements.selectedThreadCell?.scrollToVisible()
+     only works for thread cells that are slightly offscreen/fully visible and for thread cells whose reference was taken _when_ they were in viewport
+     elements.selectedThreadCell is an invalid reference if selected cell is offscreen
 
-        #3
-            1. keyPresser.command1
-            2. open and get compose cell
-            3. open target thread
-            4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
-    */
+     #3
+     1. keyPresser.command1
+     2. open and get compose cell
+     3. open target thread
+     4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
+     */
     private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
         #if DEBUG
         let startTime = Date()
@@ -625,9 +622,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         perform: () throws -> Void
     ) throws {
         if let openBefore {
-#if DEBUG
+            #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
-#endif
+            #endif
             try Self.openDeepLink(openBefore)
         }
 
@@ -635,9 +632,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         if let openAfter {
             if openAfter != openBefore {
-#if DEBUG
-            debugLog("withActivation: opening after performing: \(openAfter)")
-#endif
+                #if DEBUG
+                debugLog("withActivation: opening after performing: \(openAfter)")
+                #endif
                 try Self.openDeepLink(openAfter)
             }
         }
@@ -693,9 +690,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
                 log.debug("reveal: 3/5 found, pressing")
                 try replyMenuItem.press()
-
             }
-
         }
 
         log.debug("reveal: 4/5 sleeping for a bit")
@@ -729,8 +724,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try messageCell.overlay
-                    ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
-                    : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
+                        ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
+                        : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
                 else {
                     throw ErrorMessage("message cell nil")
                 }
@@ -746,22 +741,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
                 let containerCells = try MessagesAppElements.messageContainerCells(
-                        in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView
-                    )
-                
+                    in: messageCell.overlay ? elements.replyTranscriptView : elements.transcriptView
+                )
+
                 guard let idx: Int = containerCells.firstIndex(where: { (try? $0.frame()) == containerFrame }) else {
                     throw ErrorMessage("Could not find target message cell")
                 }
-                
+
                 let targetIndex: Int = (idx - messageCell.offset)
-                
+
                 guard targetIndex >= 0, targetIndex < containerCells.count else {
                     throw ErrorMessage("Desired index \(targetIndex) is out of bounds (array count: \(containerCells.count))")
                 }
-                
+
                 targetCell = try containerCells[targetIndex].children[0]
             }
-            
+
             if let cellRole = messageCell.cellRole, let role = try? targetCell.role() {
                 guard role == cellRole else {
                     log.debug("Expected cell role \(cellRole), got \(role)")
@@ -780,36 +775,36 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     func resolveMessageCell(threadID: String, messageGUID: String, partIndex: Int?, allowOverlay: Bool = true) throws -> MessageCell {
         let guid = GUID<Message>(stringLiteral: messageGUID)
-        
+
         guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
             throw ErrorMessage("Could not find message \(messageGUID)")
         }
-        
+
         let cellID: String? = isSonomaOrUp ? nil : message.balloonBundleID
         let isReply: Bool = message.threadOriginatorGUID != nil
         let overlay: Bool = allowOverlay && isMontereyOrUp && !isReply && (partIndex == nil || partIndex == 0)
-        
+
         if overlay {
             return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
         }
-        
+
         guard !message.parts.isEmpty else {
             return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
         }
-        
-        let targetPartIndex: Int = Int(partIndex ?? 0)
-        
+
+        let targetPartIndex = Int(partIndex ?? 0)
+
         guard let targetPart: Message.Part = message.parts.first(where: { $0.index.rawValue == targetPartIndex }) else {
             throw ErrorMessage("Could not find the target part")
         }
-        
-//            ?? message.parts.first(where: { $0.index.rawValue == 0 })
-//            ?? message.parts[0]
-        
+
+        //            ?? message.parts.first(where: { $0.index.rawValue == 0 })
+        //            ?? message.parts[0]
+
         guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
             throw ErrorMessage("Could not resolve selectable message cell")
         }
-        
+
         return MessageCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, cellID: cellID, cellRole: nil, overlay: false)
     }
 
@@ -1035,13 +1030,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        uses 5 methods:
-        1. for ventura and up: hotkey                                           (reliable)
-        lower than ventura:
-        2. for pinned threads: mark-read action                                 (reliable)
-        3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
-        4. threadCell.press() action hack                                       (unreliable)
-    */
+     uses 5 methods:
+     1. for ventura and up: hotkey                                           (reliable)
+     lower than ventura:
+     2. for pinned threads: mark-read action                                 (reliable)
+     3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
+     4. threadCell.press() action hack                                       (unreliable)
+     */
     func toggleThreadRead(threadID: String, read: Bool) throws {
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1174,9 +1169,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let atCount = text.filter { $0 == "@" }.count
             log.debug("assignToMessageField: \(charCountResult) \(atCount) \(text.count)")
             guard case let .success(charCount) = charCountResult,
-                charCount > 0,
-                // the assigned value could have X fewer characters than `text`, where X = the number of occurrences of "@"
-                (text.count - charCount) <= atCount
+                  charCount > 0,
+                  // the assigned value could have X fewer characters than `text`, where X = the number of occurrences of "@"
+                  (text.count - charCount) <= atCount
             else {
                 throw ErrorMessage("Could not assign value to message field")
             }
@@ -1236,7 +1231,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         func waitForReplyTranscriptsClose() throws {
             try retry(withTimeout: 1.2, interval: 0.1) {
                 guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                    pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                      pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
                     throw ErrorMessage("replyTranscriptView visible")
                 }
             }
@@ -1249,7 +1244,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.debug("waitUntilReplyTranscriptVisible")
         try retry(withTimeout: 1.2, interval: 0.1) {
             guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
+                  pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
                 throw ErrorMessage("replyTranscriptView not visible")
             }
         }
@@ -1323,8 +1318,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
         //     }
         // }
-        if let quotedMessage, !quotedMessage.overlay, let threadID = threadID {
-            return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+        if let quotedMessage, !quotedMessage.overlay, let threadID {
+            try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+            return
         }
 
         if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
@@ -1500,7 +1496,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 if (try? child.role()) == Accessibility.Role.button,
                    (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify
-                } else if (try? child.role()) == Accessibility.Role.staticText,
+                }
+                if (try? child.role()) == Accessibility.Role.staticText,
                           (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
@@ -1515,8 +1512,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
             return (try? elt.roleDescription().isEmpty) != false
         }
-        let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? [])
-        return flags
+        return (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? []) as [ActivityStatus]
     }
 
     func notifyAnyway(threadID: String) throws {
@@ -1532,16 +1528,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        activityLock.lock() called by:
-        MessagesController.observe()
-        MessagesController.sendMessage()
-        MessagesController.setReaction()
-        MessagesController.sendTypingStatus()
-        MessagesController.notifyAnyway()
-        MessagesController.toggleThreadRead()
-        MessagesController.muteThread()
-        MessagesController.deleteThread()
-    */
+     activityLock.lock() called by:
+     MessagesController.observe()
+     MessagesController.sendMessage()
+     MessagesController.setReaction()
+     MessagesController.sendTypingStatus()
+     MessagesController.notifyAnyway()
+     MessagesController.toggleThreadRead()
+     MessagesController.muteThread()
+     MessagesController.deleteThread()
+     */
     private let activityLock = UnfairLock()
 
     private func waitForLayoutChange(timeout: TimeInterval) {
@@ -1575,16 +1571,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             guard occlusionMonitor.visible else {
-#if DEBUG
-            log.debug("not observing activity, window occluded")
-#endif
+                #if DEBUG
+                log.debug("not observing activity, window occluded")
+                #endif
                 return
             }
 
             guard isValid else {
-#if DEBUG
-            log.debug("not observing activity, controller is invalid")
-#endif
+                #if DEBUG
+                log.debug("not observing activity, controller is invalid")
+                #endif
                 return
             }
 
@@ -1604,18 +1600,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             let statusToSend = activityStatus()
             guard lastSentActivityStatus != statusToSend || (statusToSend.contains(.typing) && lastSentActivityStatusTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
-#if DEBUG
+                #if DEBUG
                 log.debug("activity: same activity or too recent, skipping activity update")
-#endif
+                #endif
                 return
             }
             defer {
                 lastSentActivityStatus = statusToSend
                 lastSentActivityStatusTime = Date()
             }
-#if DEBUG
+            #if DEBUG
             log.debug("activity: sending: \(statusToSend)")
-#endif
+            #endif
             statusSender(statusToSend)
         }
     }
@@ -1642,18 +1638,18 @@ extension MessagesController {
     class OcclusionMonitor {
         var visible: Bool = true
         private var ncToken: NSObjectProtocol?
-        
+
         init() {
             ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notification in
                 log.trace("didChangeOcclusionStateNotification \(notification)")
                 guard let window = notification.object as? NSWindow else { return }
-                
+
                 let className = NSStringFromClass(type(of: window))
-                
+
                 guard className == "ElectronNSWindow" || className == "TextsSwift.CustomWindow" else {
                     return
                 }
-                
+
                 self.visible = window.occlusionState.contains(.visible)
             }
         }

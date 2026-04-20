@@ -26,7 +26,7 @@ extension MessagesControllerWrapper {
 
 @available(macOS 10.15, *)
 enum SysPrefsOnboarding {
-    static var onboardingManager: OnboardingManager? = nil
+    static var onboardingManager: OnboardingManager?
 
     static func start() {
         guard onboardingManager == nil else { return }
@@ -152,9 +152,9 @@ enum Preferences {
                 for event in events {
                     values.append(try await event.nodeValue())
                 }
-#if DEBUG
+                #if DEBUG
                 log.debug("handing over \(values.count) value(s) to the event callback")
-#endif
+                #endif
                 try await onEvent.call([values])
             }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()))
 
@@ -194,7 +194,8 @@ enum Preferences {
                 "to": Double($0.scalarRange.upperBound),
                 "text": "\($0.text)",
                 "attributes": $0.attributes.mapValues { "\($0)" }
-            ] }
+            ]
+            }
         },
 
         "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) in

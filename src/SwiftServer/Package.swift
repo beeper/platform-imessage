@@ -46,7 +46,7 @@ let package = Package(
             // the actual build uses `xcodebuild`, so these settings in
             // particular get ignored
             linkerSettings: [.unsafeFlags(["-Xlinker", "-undefined", "-Xlinker", "dynamic_lookup"])],
-        ),
+            ),
         .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
         .target(name: "SQLite", dependencies: [
             .product(name: "Logging", package: "swift-log"),
@@ -62,7 +62,7 @@ let package = Package(
                 "ExceptionCatcher",
                 "SwiftServerFoundation",
             ],
-        ),
+            ),
         .executableTarget(
             name: "IMDatabaseTestBench",
             dependencies: [

@@ -41,7 +41,7 @@ final class Poller {
         }
         try db.beginListeningForChanges()
 
-        poll: for try await _ in db.changes.subscribe() {
+        for try await _ in db.changes.subscribe() {
             guard !Task.isCancelled else {
                 log.info("woke up in response to db change but poller task was canceled, bailing")
                 return
@@ -67,9 +67,9 @@ final class Poller {
                     log.info("had \(eventsToSend.count) event(s) to send but poller task was canceled, bailing")
                     return
                 }
-#if DEBUG
+                #if DEBUG
                 log.debug("sending \(eventsToSend.count) event(s) to PAS")
-#endif
+                #endif
                 try await sender(eventsToSend)
             } catch {
                 log.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")

@@ -42,7 +42,7 @@ public extension IMDatabase {
     func message(
         with guid: GUID<Message>,
         withAttachments includeAttachments: Bool = true,
-    ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
+        ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
         let statement = try cachedStatement(forEscapedSQL: """
         \(messagesQuerySharedPrelude)
         WHERE m.guid = ?
@@ -72,7 +72,7 @@ public extension IMDatabase {
         order: DateOrdering = .newestFirst,
         limit: Int = 50,
         withAttachments includeAttachments: Bool = true,
-    ) throws -> some Collection<Message> {
+        ) throws -> some Collection<Message> {
         let statement = try cachedStatement(forEscapedSQL: """
         \(messagesQuerySharedPrelude)
         WHERE c.guid = ?
@@ -115,7 +115,7 @@ private extension Message {
             date: row[9].imCoreDate(),
             dateRead: row[10].imCoreDate(),
             summaryInfo: row[11].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
-        )
+            )
     }
 }
 

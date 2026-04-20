@@ -23,7 +23,7 @@ struct TestBench: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
         subcommands: [Watch.self, Messages.self, Chats.self, FSEventsCommand.self, TestIdleAware.self, ClosestSelectable.self],
-    )
+        )
 
     mutating func run() async throws {}
 }
@@ -47,7 +47,7 @@ extension TestBench {
         static let configuration = CommandConfiguration(
             abstract: "Queries the database for messages.",
             aliases: ["m"],
-        )
+            )
 
         @OptionGroup var options: TestBench.Options
 
@@ -58,7 +58,7 @@ extension TestBench {
         var limit: Int = 50
 
         @Option(name: .shortAndLong, help: "Only fetches before or after the specified date.", transform: MessageQueryFilter.parse)
-        var filter: MessageQueryFilter? = nil
+        var filter: MessageQueryFilter?
 
         @Option(name: .shortAndLong, help: "Order the query results.")
         var order: DateOrdering = .newestFirst
@@ -100,13 +100,13 @@ private extension Message {
             print("  attributed body: \(attributedBody)")
         }
 
-        if let attachments = attachments {
+        if let attachments {
             for (index, attachment) in attachments.enumerated() {
                 print("  attachment \(index + 1)/\(attachments.count): \(attachment)")
             }
         }
 
-        if let summaryInfo = summaryInfo {
+        if let summaryInfo {
             print("  summary info:", summaryInfo)
         }
         print()
@@ -118,7 +118,7 @@ extension TestBench {
         static let configuration = CommandConfiguration(
             abstract: "Finds the closest selectable message relative to another message.",
             aliases: ["closest"],
-        )
+            )
 
         @OptionGroup var options: TestBench.Options
 
@@ -175,7 +175,7 @@ extension TestBench {
         static let configuration = CommandConfiguration(
             abstract: "Queries the database for chats.",
             aliases: ["c"],
-        )
+            )
 
         @OptionGroup var options: TestBench.Options
 
@@ -235,7 +235,7 @@ extension TestBench {
         static let configuration = CommandConfiguration(
             abstract: "Watches the database for changes and prints changes.",
             aliases: ["w"],
-        )
+            )
 
         @OptionGroup var options: TestBench.Options
 
@@ -268,7 +268,7 @@ extension TestBench {
         static let configuration = CommandConfiguration(
             commandName: "fs-watch",
             abstract: "Tests file system watcher implementations.",
-        )
+            )
 
         @OptionGroup var options: TestBench.Options
 
@@ -379,7 +379,7 @@ extension TestBench {
 
             Task {
                 while true {
-                    let ms = Int.random(in: 500...4_000)
+                    let ms = Int.random(in: 500...4000)
                     try! await Task.sleep(nanoseconds: UInt64(1_000_000 * ms))
 
                     queue.async {

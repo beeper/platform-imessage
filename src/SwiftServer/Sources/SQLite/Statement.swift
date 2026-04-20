@@ -21,9 +21,9 @@ public final class Statement {
             preconditionFailure("sqlite3_prepare_v3 didn't give us a statement")
         }
 
-#if DEBUG
+        #if DEBUG
         log.debug("PREPARED\n\n\(sql)\n\n")
-#endif
+        #endif
 
         return Statement(handle: statement, database: database)
     }

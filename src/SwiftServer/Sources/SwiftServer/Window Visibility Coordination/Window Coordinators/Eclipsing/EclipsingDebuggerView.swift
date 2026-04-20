@@ -23,7 +23,7 @@ public struct EclipsingPoint: Identifiable {
     public var id = UUID()
     var position: CGPoint
     var label: String = ""
-    var color: CGColor = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+    var color = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
 
     func reoriented(displayingOn screen: NSScreen) -> CGPoint {
         let origin = screen.frame.origin
@@ -98,7 +98,7 @@ struct EclipsingPointView: View {
             .position(
                 x: position.x,
                 y: position.y,
-            )
+                )
             .onAppear {
                 guard !beingPreviewed else { return }
                 withAnimation(.debuggerVisualization) { hidden = true }
@@ -112,7 +112,7 @@ public struct EclipsingRect: Identifiable {
     public var id = UUID()
     var rect: CGRect
     var label: String = ""
-    var color: CGColor = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+    var color = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
 
     public init(at source: CGRect, label: String, color: CGColor) {
         self.rect = source
@@ -164,7 +164,7 @@ struct EclipsingRectView: View {
             .position(
                 x: rect.origin.x + rect.width / 2,
                 y: rect.origin.y + rect.height / 2,
-            )
+                )
             .opacity(hidden ? 0 : 1)
             .onAppear {
                 guard !beingPreviewed else { return }
@@ -214,5 +214,5 @@ struct EclipsingDebuggerView: View {
     ])
 
     EclipsingDebuggerView(state: state)
-        .frame(width: 1920/4, height: 1080/4)
+        .frame(width: 1920 / 4, height: 1080 / 4)
 }
