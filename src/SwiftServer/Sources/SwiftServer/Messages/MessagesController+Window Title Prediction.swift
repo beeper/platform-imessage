@@ -122,11 +122,10 @@ extension MessagesController {
 
                 contacts.format(contact: contact, style: .standard),
             ].compactMap(\.self))
-        } else {
-            log.debug("misfire prevention: could not find contact with address, predicting with plain and formatted address")
-
-            return Set([address.tryFormattingIfPhoneNumber])
         }
+        log.debug("misfire prevention: could not find contact with address, predicting with plain and formatted address")
+
+        return Set([address.tryFormattingIfPhoneNumber])
     }
 
     func assertSelectedThreadByPredictingWindowTitle(desiredChatGUID: String, currentWindowTitle: String) throws {

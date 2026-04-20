@@ -18,7 +18,7 @@ import Testing
     let hasher = Hasher(kind: "test")
 
     let groups = 10
-    let tokenizationsPerGroup = 10000
+    let tokenizationsPerGroup = 10_000
 
     await withTaskGroup { group in
         for _ in 0 ..< groups {

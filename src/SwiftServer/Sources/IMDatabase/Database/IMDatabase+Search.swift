@@ -66,7 +66,7 @@ public extension IMDatabase {
         let statement = try cachedStatement(forEscapedSQL: sql).reset()
 
         // Bind parameters in order
-        if let chatGUID = chatGUID {
+        if let chatGUID {
             try statement.bind(chatGUID, fetchLimit)
         } else {
             try statement.bind(fetchLimit)
@@ -83,7 +83,7 @@ public extension IMDatabase {
             let attributedBodyData = try row[2].optional(Data.self)
 
             // Try to get text from attributedBody first (more complete), fall back to text column
-            var messageText: String? = nil
+            var messageText: String?
 
             if let data = attributedBodyData,
                let unarchiver = try? NSUnarchiver(forReadingWith: data),

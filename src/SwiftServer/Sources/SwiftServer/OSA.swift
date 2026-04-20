@@ -8,7 +8,7 @@ enum OSA {
     private static func run(_ source: String, language: OSALanguage? = .init(forName: "JavaScript")) throws {
         let script = OSAScript(source: source, language: language)
         var scriptError: NSDictionary?
-        let _ = script.executeAndReturnError(&scriptError)
+        _ = script.executeAndReturnError(&scriptError)
         if let scriptError { throw ErrorMessage(String(describing: scriptError)) }
     }
 

@@ -52,16 +52,16 @@ extension LifecycleObserver {
             events?.broadcast(.windowCreated)
         }
         layoutChangedToken = try app.observe(.layoutChanged) { [weak lastLayoutChange] _ in
-#if DEBUG
+            #if DEBUG
             log.debug("@@ AX: layoutChanged")
-#endif
+            #endif
             lastLayoutChange?.withLock { $0 = Date() }
         }
         focusedUIElementChangedToken = try app.observe(.focusedUIElementChanged) { [weak lastFocusedUIElementChange, weak events] _ in
             events?.broadcast(.focusedUIElementChanged)
             lastFocusedUIElementChange?.withLock { $0 = Date() }
         }
-#if DEBUG
+        #if DEBUG
         titleChangedToken = try app.observe(.titleChanged) { info in
             do {
                 let windows = try app.appWindows().compactMap { try? $0.title() }
@@ -70,7 +70,7 @@ extension LifecycleObserver {
                 log.error("failed to check windows after title changed: \(error)")
             }
         }
-#endif
+        #endif
     }
 
     /// Observations are registered on the current `RunLoop`, so this method

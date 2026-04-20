@@ -2,7 +2,7 @@
 // allocation, but it's probably ok. our platform target doesn't let us use
 // `OSAllocatedUnfairLock` nor `Mutex`
 public final class Protected<Protecting>: @unchecked Sendable {
-    private nonisolated(unsafe) var guts: Protecting
+    nonisolated(unsafe) private var guts: Protecting
     private var lock = UnfairLock()
 
     public init(_ initialValue: Protecting) {

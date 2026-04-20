@@ -128,4 +128,3 @@ public final class EMFEmojiSearchEngine {
         return results.takeUnretainedValue() as? [String] ?? []
     }
 }
-

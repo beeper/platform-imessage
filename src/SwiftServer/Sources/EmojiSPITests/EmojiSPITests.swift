@@ -14,7 +14,6 @@ let locale = Locale(identifier: "en-US")
     #expect(disguised == "disguised face")
 }
 
-
 @Test func searchEngine() throws {
     let engine = try EMFEmojiSearchEngine(locale: locale)
     let results = try engine.query("smile")

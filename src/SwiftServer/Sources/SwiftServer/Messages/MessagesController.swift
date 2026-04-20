@@ -23,7 +23,6 @@ private final class TimerBlockWatcher {
     }
 }
 
-
 let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
@@ -66,14 +65,14 @@ enum LocalizedStrings {
     static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
-    
+
     static let whatsNewSyndicationDetailTitle = chatKitFramework.localizedString(forKey: "WHATS_NEW_SYNDICATION_DETAIL_TITLE", value: nil, table: nil)
-    
+
     // "OK"
     static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
     // "OK"
     static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
-    
+
     // "Reply…"
     static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
 }
@@ -85,10 +84,10 @@ private enum MessageAction {
 
     var localized: String {
         switch self {
-            case .react: return LocalizedStrings.react
-            case .reply: return LocalizedStrings.reply
-            case .undoSend: return LocalizedStrings.undoSend
-            case .edit: return LocalizedStrings.editButton
+        case .react: return LocalizedStrings.react
+        case .reply: return LocalizedStrings.reply
+        case .undoSend: return LocalizedStrings.undoSend
+        case .edit: return LocalizedStrings.editButton
         }
     }
 }
@@ -97,13 +96,13 @@ private enum ThreadAction {
 
     var localized: String {
         switch self {
-            case .markAsRead: return LocalizedStrings.markAsRead
-            case .markAsUnread: return LocalizedStrings.markAsUnread
-            case .delete: return LocalizedStrings.delete
-            case .pin: return LocalizedStrings.pin
-            case .unpin: return LocalizedStrings.unpin
-            case .showAlerts: return LocalizedStrings.showAlerts
-            case .hideAlerts: return LocalizedStrings.hideAlerts
+        case .markAsRead: return LocalizedStrings.markAsRead
+        case .markAsUnread: return LocalizedStrings.markAsUnread
+        case .delete: return LocalizedStrings.delete
+        case .pin: return LocalizedStrings.pin
+        case .unpin: return LocalizedStrings.unpin
+        case .showAlerts: return LocalizedStrings.showAlerts
+        case .hideAlerts: return LocalizedStrings.hideAlerts
         }
     }
 }
@@ -183,18 +182,18 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-         let openOptions = NSWorkspace.OpenConfiguration()
-         openOptions.activates = activating
-         openOptions.hides = hiding
+        let openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = hiding
 
-         let horribleWaiter = DispatchSemaphore(value: 0)
-         var result: Result<NSRunningApplication, Error>?
-         NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
-#if DEBUG
+        let horribleWaiter = DispatchSemaphore(value: 0)
+        var result: Result<NSRunningApplication, Error>?
+        NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
+            #if DEBUG
             let builtForDebugging = true
-#else
+            #else
             let builtForDebugging = false
-#endif
+            #endif
             if Defaults.deepLinkTracingPII || builtForDebugging {
                 log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
             } else {
@@ -214,15 +213,14 @@ final class MessagesController {
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
-        guard let contacts = contacts, let a = a, let b = b else { return false }
+        guard let contacts, let a, let b else { return false }
         return contacts.fetchID(for: a) == contacts.fetchID(for: b)
     }
 
     private func getToFieldAddresses() -> LazyMapSequence<ReversedCollection<LazySequence<[Substring]>>, String>? {
         let desc = try? elements.toFieldPopupButton.localizedDescription()
         // unknown if other locales also use , as a separator
-        let elements = desc?.split(separator: ",").lazy.reversed().map { String($0).trimmingCharacters(in: .whitespaces) }
-        return elements
+        return desc?.split(separator: ",").lazy.reversed().map { String($0).trimmingCharacters(in: .whitespaces) }
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
@@ -254,13 +252,13 @@ final class MessagesController {
                 throw ErrorMessage("misfire prevention: desired thread is not selected")
             }
         }
-        
+
         func assertSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
             guard let lastChange = date.read() else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed at all")
             }
-            
-            let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1_000).rounded())ms"
+
+            let waitingTime = "\((Date().timeIntervalSince(beganEnsuringThreadSelection) * 1000).rounded())ms"
             guard lastChange > beganEnsuringThreadSelection else {
                 throw ErrorMessage("misfire prevention: \(type) hasn't changed yet since we started (\(beganEnsuringThreadSelection.iso8601Formatted)) (waited \(waitingTime) so far)")
             }
@@ -318,7 +316,7 @@ final class MessagesController {
                         return
                     }
                 }
-                
+
                 throw error
             }
         }
@@ -462,11 +460,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     case .anyObservedWindowResized: printLifecycle(event: "WINDOW resized")
                     case .focusedUIElementChanged:
                         printLifecycle(event: "FOCUSED UI ELEMENT changed")
-#if DEBUG
+                        #if DEBUG
                         var focusedDescription = ""
                         try? self.elements.app.focusedElement().dumpXML(to: &focusedDescription, shallow: true)
                         printLifecycle(event: "FOCUSED: \(focusedDescription)")
-#endif
+                        #endif
                     case .windowCreated:
                         printLifecycle(event: "WINDOW created")
                         // for now, reset our window-local observations whenever we
@@ -505,17 +503,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
-        
+
         defer {
             activityLock.lock()
         }
-        
+
         do {
             try phtConnection?.setMessagesHidden(true)
         } catch {
             log.error("failed to hide messages app via pht: \(error)")
         }
-        
+
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
@@ -555,9 +553,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
         let allActions = try messageCell.supportedActions()
-        let action = try allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
+        return try allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
             .orThrow(ErrorMessage("MessageAction.\(action) not found"))
-        return action
     }
 
     private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
@@ -581,24 +578,24 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        other approaches tried here:
-        #1:
-            1. select not-in-viewport thread by opening deep link
-            2. close all windows
-            3. open deep link, thread will be in viewport but only when `.withoutActivation` isn't included in options
-            ofc can't use bc can't activate app
+     other approaches tried here:
+     #1:
+     1. select not-in-viewport thread by opening deep link
+     2. close all windows
+     3. open deep link, thread will be in viewport but only when `.withoutActivation` isn't included in options
+     ofc can't use bc can't activate app
 
-        #2:
-            try elements.selectedThreadCell?.scrollToVisible()
-            only works for thread cells that are slightly offscreen/fully visible and for thread cells whose reference was taken _when_ they were in viewport
-            elements.selectedThreadCell is an invalid reference if selected cell is offscreen
+     #2:
+     try elements.selectedThreadCell?.scrollToVisible()
+     only works for thread cells that are slightly offscreen/fully visible and for thread cells whose reference was taken _when_ they were in viewport
+     elements.selectedThreadCell is an invalid reference if selected cell is offscreen
 
-        #3
-            1. keyPresser.command1
-            2. open and get compose cell
-            3. open target thread
-            4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
-    */
+     #3
+     1. keyPresser.command1
+     2. open and get compose cell
+     3. open target thread
+     4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
+     */
     private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
         #if DEBUG
         let startTime = Date()
@@ -624,9 +621,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         perform: () throws -> Void
     ) throws {
         if let openBefore {
-#if DEBUG
+            #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
-#endif
+            #endif
             try Self.openDeepLink(openBefore)
         }
 
@@ -634,14 +631,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         if let openAfter {
             if openAfter != openBefore {
-#if DEBUG
-            debugLog("withActivation: opening after performing: \(openAfter)")
-#endif
+                #if DEBUG
+                debugLog("withActivation: opening after performing: \(openAfter)")
+                #endif
                 try Self.openDeepLink(openAfter)
             }
         }
     }
-    
+
     private func revealReplyTranscriptViaMenu() throws {
         do {
             let window = NSApp.largestElectronWindow
@@ -661,7 +658,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 }
             }
-            
+
             try Self.queue.sync {
                 guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
                     throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
@@ -671,10 +668,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.debug("reveal: 1/5 showing the cell's menu")
                 try cell.showMenu()
                 Thread.sleep(forTimeInterval: 0.1)
-                
+
                 let targetTitle = LocalizedStrings.inlineReplyMenu
                 log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
-                
+
                 guard let menuItems = try? elements.menu.children() else {
                     throw ErrorMessage("reveal: couldn't query menu item children")
                 }
@@ -682,21 +679,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     guard let title = try? menuItem.title() else {
                         return false
                     }
-                    
+
                     let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
                     log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
                     return title == targetTitle
                 }) else {
                     throw ErrorMessage("reveal: couldn't find reply menu item")
                 }
-                
+
                 log.debug("reveal: 3/5 found, pressing")
                 try replyMenuItem.press()
-
             }
-
         }
-        
+
         log.debug("reveal: 4/5 sleeping for a bit")
         Thread.sleep(forTimeInterval: 0.4)
 
@@ -728,8 +723,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try messageCell.overlay
-                    ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
-                    : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
+                        ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
+                        : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
                 else {
                     throw ErrorMessage("message cell nil")
                 }
@@ -916,7 +911,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         tryPressingCancelEditButton()
-        
+
         try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
             if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                 log.debug("found \"Edit\" message action")
@@ -995,13 +990,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        uses 5 methods:
-        1. for ventura and up: hotkey                                           (reliable)
-        lower than ventura:
-        2. for pinned threads: mark-read action                                 (reliable)
-        3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
-        4. threadCell.press() action hack                                       (unreliable)
-    */
+     uses 5 methods:
+     1. for ventura and up: hotkey                                           (reliable)
+     lower than ventura:
+     2. for pinned threads: mark-read action                                 (reliable)
+     3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
+     4. threadCell.press() action hack                                       (unreliable)
+     */
     func toggleThreadRead(threadID: String, read: Bool) throws {
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1095,7 +1090,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try Self.openDeepLink(url)
     }
-    
+
     func clearTypingStatus() throws {
         try elements.messageBodyField.value(assign: "")
     }
@@ -1134,9 +1129,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let atCount = text.filter { $0 == "@" }.count
             log.debug("assignToMessageField: \(charCountResult) \(atCount) \(text.count)")
             guard case let .success(charCount) = charCountResult,
-                charCount > 0,
-                // the assigned value could have X fewer characters than `text`, where X = the number of occurrences of "@"
-                (text.count - charCount) <= atCount
+                  charCount > 0,
+                  // the assigned value could have X fewer characters than `text`, where X = the number of occurrences of "@"
+                  (text.count - charCount) <= atCount
             else {
                 throw ErrorMessage("Could not assign value to message field")
             }
@@ -1148,10 +1143,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         log.debug("\(#function): completed initial attempt")
-        
+
         do {
             log.debug("\(#function): will now attempt to verify the send")
-            
+
             try retry(withTimeout: 1.5, interval: 0.1) {
                 let message = try messageFieldValue(messageField)
                 if !message.isEmpty {
@@ -1175,7 +1170,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     try? self.keyPresser.return()
                 }
             }
-            
+
             log.debug("\(#function): successfully verified the send")
         } catch {
             // if we can't verify the message send, then blindly swallow the error and assume that the send went through; don't let
@@ -1196,7 +1191,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         func waitForReplyTranscriptsClose() throws {
             try retry(withTimeout: 1.2, interval: 0.1) {
                 guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                    pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                      pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
                     throw ErrorMessage("replyTranscriptView visible")
                 }
             }
@@ -1209,7 +1204,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.debug("waitUntilReplyTranscriptVisible")
         try retry(withTimeout: 1.2, interval: 0.1) {
             guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
+                  pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
                 throw ErrorMessage("replyTranscriptView not visible")
             }
         }
@@ -1283,8 +1278,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
         //     }
         // }
-        if let quotedMessage, !quotedMessage.overlay, let threadID = threadID {
-            return try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+        if let quotedMessage, !quotedMessage.overlay, let threadID {
+            try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+            return
         }
 
         if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
@@ -1460,7 +1456,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 if (try? child.role()) == Accessibility.Role.button,
                    (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify
-                } else if (try? child.role()) == Accessibility.Role.staticText,
+                }
+                if (try? child.role()) == Accessibility.Role.staticText,
                           (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
@@ -1475,8 +1472,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
             return (try? elt.roleDescription().isEmpty) != false
         }
-        let flags: [ActivityStatus] = (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? [])
-        return flags
+        return (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? []) as [ActivityStatus]
     }
 
     func notifyAnyway(threadID: String) throws {
@@ -1492,16 +1488,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     /*
-        activityLock.lock() called by:
-        MessagesController.observe()
-        MessagesController.sendMessage()
-        MessagesController.setReaction()
-        MessagesController.sendTypingStatus()
-        MessagesController.notifyAnyway()
-        MessagesController.toggleThreadRead()
-        MessagesController.muteThread()
-        MessagesController.deleteThread()
-    */
+     activityLock.lock() called by:
+     MessagesController.observe()
+     MessagesController.sendMessage()
+     MessagesController.setReaction()
+     MessagesController.sendTypingStatus()
+     MessagesController.notifyAnyway()
+     MessagesController.toggleThreadRead()
+     MessagesController.muteThread()
+     MessagesController.deleteThread()
+     */
     private let activityLock = UnfairLock()
 
     private func waitForLayoutChange(timeout: TimeInterval) {
@@ -1535,16 +1531,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             guard occlusionMonitor.visible else {
-#if DEBUG
-            log.debug("not observing activity, window occluded")
-#endif
+                #if DEBUG
+                log.debug("not observing activity, window occluded")
+                #endif
                 return
             }
 
             guard isValid else {
-#if DEBUG
-            log.debug("not observing activity, controller is invalid")
-#endif
+                #if DEBUG
+                log.debug("not observing activity, controller is invalid")
+                #endif
                 return
             }
 
@@ -1561,21 +1557,21 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             guard activityLock.tryLock() else { return }
             defer { activityLock.unlock() }
-            
+
             let statusToSend = activityStatus()
             guard lastSentActivityStatus != statusToSend || (statusToSend.contains(.typing) && lastSentActivityStatusTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
-#if DEBUG
+                #if DEBUG
                 log.debug("activity: same activity or too recent, skipping activity update")
-#endif
+                #endif
                 return
             }
             defer {
                 lastSentActivityStatus = statusToSend
                 lastSentActivityStatusTime = Date()
             }
-#if DEBUG
+            #if DEBUG
             log.debug("activity: sending: \(statusToSend)")
-#endif
+            #endif
             statusSender(statusToSend)
         }
     }
@@ -1601,9 +1597,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 extension MessagesController {
     class OcclusionMonitor {
         var visible: Bool = true
-        
+
         private var ncToken: NSObjectProtocol?
-        
+
         init() {
             ncToken = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: nil) { notif in
                 log.trace("didChangeOcclusionStateNotification \(notif)")
@@ -1613,7 +1609,7 @@ extension MessagesController {
                 self.visible = window.occlusionState.contains(.visible)
             }
         }
-        
+
         deinit {
             ncToken.map { NotificationCenter.default.removeObserver($0) }
         }
