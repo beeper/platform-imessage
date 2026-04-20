@@ -40,57 +40,19 @@ final class MessagesAppElements {
         return try containsReactPrefix(element.children[0].supportedActions())
     }
 
-    static func messageContainerCells(in tv: Accessibility.Element) throws -> LazyFilterSequence<[Accessibility.Element]> {
-        return try tv.children().lazy.filter { (try? Self.isMessageContainerCell($0)) ?? false }
+    static func messageContainerCells(in transcriptView: Accessibility.Element) throws -> [Accessibility.Element] {
+        return try transcriptView.children().filter { (try? Self.isMessageContainerCell($0)) ?? false }
     }
 
-    /// Returns message container cells using `copyHierarchy` to minimize IPC round-trips.
-    /// One bulk call fetches descriptions and children for all cells, then `supportedActions()`
-    /// is called lazily only on cells that pass the description filter.
-    static func _messageContainerCells(in tv: Accessibility.Element) throws -> AnySequence<Accessibility.Element> {
-        let hierarchy = try tv.copyHierarchy(
-            requesting: [kAXDescriptionAttribute, kAXChildrenAttribute],
-            options: .init(
-                arrayAttributes: [kAXChildrenAttribute],
-                maxDepth: 2
-            )
-        )
-
-        guard let tvSnapshot = hierarchy.snapshot(for: tv),
-              let childrenEntry = tvSnapshot.entry(for: kAXChildrenAttribute),
-              let cells = childrenEntry.elementValues else {
-            return AnySequence([])
-        }
-
-        let reactPrefix = "Name:\(LocalizedStrings.react)"
-
-        return AnySequence(cells.lazy.filter { cell in
-            guard let snapshot = hierarchy.snapshot(for: cell),
-                  let descEntry = snapshot.entry(for: kAXDescriptionAttribute),
-                  let desc = descEntry.stringValue,
-                  !desc.isEmpty else {
-                return false
-            }
-
-            guard let childrenEntry = snapshot.entry(for: kAXChildrenAttribute),
-                  let children = childrenEntry.elementValues,
-                  let firstChild = children.first else {
-                return false
-            }
-
-            let actions = (try? firstChild.supportedActions()) ?? []
-            return actions.contains { $0.name.value.hasPrefix(reactPrefix) }
-        })
+    static func firstMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
+        try transcriptView.children().first { (try? Self.isMessageContainerCell($0)) ?? false }?.children[0]
+        // try messageContainerCells(in: transcriptView).first?.children[0]
     }
 
-    static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
-        try messageContainerCells(in: tv).first?.children[0]
-    }
-
-    static func firstSelectedMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
+    static func firstSelectedMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
         // selectedChildren wont work here
-        // tv.children().first { (try? $0.selectedChildren[0]) != nil }?.children[0]
-        try tv.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
+        // transcriptView.children().first { (try? $0.selectedChildren[0]) != nil }?.children[0]
+        try transcriptView.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
     }
 
     private let runningApp: NSRunningApplication
@@ -339,9 +301,9 @@ final class MessagesAppElements {
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
         // takes ~8ms
-        if let tv = try? mainWindowSections.first(where: predicate) { return tv }
+        if let transcriptView = try? mainWindowSections.first(where: predicate) { return transcriptView }
         // takes ~19ms
-        if let tv = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return tv }
+        if let transcriptView = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return transcriptView }
         throw ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found")
     }
 
@@ -535,8 +497,8 @@ final class MessagesAppElements {
         get throws {
             let startTime = Date()
             defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            let tv = try transcriptView
-            let count = try tv.children.count()
+            let transcriptView = try self.transcriptView
+            let count = try transcriptView.children.count()
             return try transcriptView.children(range: (count - 2)..<count).first(where: {
                 let child = try $0.children[0]
                 return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == Accessibility.Role.button
@@ -590,5 +552,48 @@ final class MessagesAppElements {
                 try iOSContentGroup.children[0].children().first { try $0.role() == Accessibility.Role.popUpButton }
             }
         }
+    }
+}
+
+@available(macOS 11, *)
+extension MessagesAppElements {
+    // MARK: Experimental
+    /// Returns message container cells using `copyHierarchy` to minimize IPC round-trips.
+    /// One bulk call fetches descriptions and children for all cells, then `supportedActions()`
+    /// is called lazily only on cells that pass the description filter.
+    static func snapshotBackedMessageContainerCells(in transcriptView: Accessibility.Element) throws -> AnySequence<Accessibility.Element> {
+        let hierarchy = try transcriptView.copyHierarchy(
+            requesting: [kAXDescriptionAttribute, kAXChildrenAttribute],
+            options: .init(
+                arrayAttributes: [kAXChildrenAttribute],
+                maxDepth: 2
+            )
+        )
+
+        guard let transcriptViewSnapshot = hierarchy.snapshot(for: transcriptView),
+              let childrenEntry = transcriptViewSnapshot.entry(for: kAXChildrenAttribute),
+              let cells = childrenEntry.elementValues else {
+            return AnySequence([])
+        }
+
+        let reactPrefix = "Name:\(LocalizedStrings.react)"
+
+        return AnySequence(cells.lazy.filter { cell in
+            guard let snapshot = hierarchy.snapshot(for: cell),
+                  let descEntry = snapshot.entry(for: kAXDescriptionAttribute),
+                  let desc = descEntry.stringValue,
+                  !desc.isEmpty else {
+                return false
+            }
+
+            guard let childrenEntry = snapshot.entry(for: kAXChildrenAttribute),
+                  let children = childrenEntry.elementValues,
+                  let firstChild = children.first else {
+                return false
+            }
+
+            let actions = (try? firstChild.supportedActions()) ?? []
+            return actions.contains { $0.name.value.hasPrefix(reactPrefix) }
+        })
     }
 }

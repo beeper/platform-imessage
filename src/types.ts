@@ -1,4 +1,3 @@
-import type { MessageCell } from './SwiftServer/lib'
 import { AppleDate } from './time'
 
 type NumberBool = 0 | 1
@@ -273,6 +272,3 @@ export interface MessageSummaryInfo {
   otr?: Record<`${number}`, OTRValue>
 }
 
-// custom
-
-export type AXMessageSelection = Omit<MessageCell, 'overlay'>

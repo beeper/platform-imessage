@@ -1,6 +1,6 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { MessageID, OnServerEventCallback, Size, ThreadID } from '@textshq/platform-sdk'
+import type { OnServerEventCallback, Size, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
@@ -17,14 +17,6 @@ export const enum ActivityStatus {
   Typing = 'TYPING',
   NotTyping = 'NOT_TYPING',
   Unknown = 'UNKNOWN',
-}
-
-export interface MessageCell {
-  messageGUID: MessageID
-  offset: number
-  cellID: string | null
-  cellRole: string | null
-  overlay: boolean
 }
 
 export interface Hasher {
@@ -46,9 +38,9 @@ export declare class MessagesController {
 
   deleteThread: (threadID: ThreadID) => Promise<void>
 
-  undoSend: (threadID: ThreadID, messageCellJSON: string) => Promise<void>
+  undoSend: (threadID: ThreadID, messageID: string) => Promise<void>
 
-  editMessage: (threadID: ThreadID, messageCellJSON: string, newText: string) => Promise<void>
+  editMessage: (threadID: ThreadID, messageID: string, newText: string) => Promise<void>
 
   notifyAnyway: (threadID: ThreadID) => Promise<void>
 
@@ -56,9 +48,14 @@ export declare class MessagesController {
 
   watchThreadActivity: (threadID?: ThreadID, onTyping?: (status: ActivityStatus[]) => void) => Promise<void>
 
-  sendMessage: (threadID: ThreadID, text?: string, filePath?: string, quotedMessageCellJSON?: string) => Promise<void>
+  sendMessage: (
+    threadID: ThreadID,
+    text?: string,
+    filePath?: string,
+    quotedMessageID?: string,
+  ) => Promise<void>
 
-  setReaction: (threadID: ThreadID, messageCellJSON: string, reaction: string, on: boolean) => Promise<void>
+  setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
 
   isSameContact: (addressA: string, addressB: string) => boolean
 
