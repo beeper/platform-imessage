@@ -55,6 +55,21 @@ const allArches = Object.keys(xcArchMap) as unknown as [keyof typeof xcArchMap]
 const config = (process.argv.includes('--debug') || process.env.NODE_ENV === 'development') ? 'debug' : 'release'
 const NO_SPACES = process.argv.includes('--no-spaces')
 const USE_SWIFT_PM = process.argv.includes('--use-swiftpm') || process.argv.includes('--use-spm')
+const STANDALONE = process.argv.includes('--standalone')
+
+// Let a copied SwiftServer.node find NodeAPI.framework next to itself so the
+// binary can be dlopen'd without the Beeper desktop layout (e.g.
+// `yarn headless:run`). Opt-in via --standalone; default builds keep the
+// stock rpaths for the prod deploy path.
+const makeStandalone = async (nodePath: string, frameworkSrc: string) => {
+  const frameworkLink = path.join(path.dirname(nodePath), 'NodeAPI.framework')
+  await fsp.rm(frameworkLink, { force: true })
+  await fsp.symlink(frameworkSrc, frameworkLink)
+  await shellExec('install_name_tool', '-add_rpath', '@loader_path', nodePath).catch(error => {
+    // -add_rpath fails if the rpath is already present; fine on re-runs
+    console.error('swallowing install_name_tool -add_rpath failure:', error)
+  })
+}
 
 async function main() {
   async function buildForArch(specificArch?: keyof typeof xcArchMap) {
@@ -96,6 +111,7 @@ async function main() {
       await uploadDebugFilesToSentry(BUILD_DIR_PATH)
     }
 
+    const frameworkSrc = path.join(path.dirname(binaryPath), 'NodeAPI.framework')
     if (specificArch) {
       const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${specificArch}`)
       fsp.mkdir(outdir, { recursive: true })
@@ -104,21 +120,8 @@ async function main() {
         await strip(binaryPath, dest)
       } else {
         await fsp.copyFile(binaryPath, dest)
-        // Debug SwiftServer.node has an @rpath pointing into DerivedData's
-        // PackageFrameworks dir, but Xcode only populates that during the
-        // link step and it's empty by the time the .node is loaded. Symlink
-        // the built NodeAPI.framework into that rpath so the .node can be
-        // dlopen'd standalone (e.g. via `yarn headless:run`).
-        const frameworksDir = path.join(
-          buildOptions.buildPath!,
-          'DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/SwiftServer/BuildProductsPath/Debug/PackageFrameworks',
-        )
-        await fsp.mkdir(frameworksDir, { recursive: true })
-        const linkPath = path.join(frameworksDir, 'NodeAPI.framework')
-        const sourcePath = path.join(path.dirname(binaryPath), 'NodeAPI.framework')
-        await fsp.rm(linkPath, { force: true })
-        await fsp.symlink(sourcePath, linkPath)
       }
+      if (STANDALONE) await makeStandalone(dest, frameworkSrc)
       // await codesign(dest)
     } else {
       await Promise.all(
@@ -126,8 +129,11 @@ async function main() {
           .map(async arch => {
             const archOutDir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${arch}`)
             console.log(`build-swift: thinning for ${arch}, outputting to ${archOutDir}`)
-            await lipoThin(arch, binaryPath, path.join(archOutDir, 'SwiftServer.node'))
+            await fsp.mkdir(archOutDir, { recursive: true })
+            const archDest = path.join(archOutDir, 'SwiftServer.node')
+            await lipoThin(arch, binaryPath, archDest)
             await strip(binaryPath, binaryPath)
+            if (STANDALONE) await makeStandalone(archDest, frameworkSrc)
           }),
       )
     }
