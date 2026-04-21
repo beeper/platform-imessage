@@ -287,9 +287,16 @@ export default class DatabaseAPI {
     return this.threadHasherWarmed
   }
 
+  private async resolveChatRowID(chatGUID: string): Promise<number> {
+    const cached = this.chatGUIDRowIDMap.get(chatGUID)
+    if (cached) return cached
+    const chatRow = await this.getThread(chatGUID)
+    if (!chatRow?.ROWID) throw new Error(`expected chat GUID ${chatGUID} to resolve to a chat row`)
+    return chatRow.ROWID
+  }
+
   async isThreadRead(chatGUID: string): Promise<boolean> {
-    const rowID = this.chatGUIDRowIDMap.get(chatGUID)
-    if (typeof rowID !== 'number') return false
+    const rowID = await this.resolveChatRowID(chatGUID)
     return (await this.db.pluck_get<number[], number>(SQLS.threadUnreadCount, rowID)) === 0
   }
 
@@ -309,15 +316,6 @@ export default class DatabaseAPI {
     const fileName = await this.db.pluck_get<string[], string>(SQLS.getChatImageByGUID, attachmentGUID)
     return fileName ? replaceTilde(fileName) : undefined
   }
-
-  // getMessagesWithChatRowID(chatGUID: string, cursor: string, direction: 'after' | 'before'): Promise<MappedMessageRow[]> {
-  //   const cursorDirection = cursor && MAP_DIRECTION_TO_SQL_OP[direction]
-  //   const chatRowID = this.chatGUIDRowIDMap.get(chatGUID)
-  //   return this.db.all(
-  //     SQLS.getMessagesWithChatRowID(cursorDirection),
-  //     cursor ? [chatRowID, +cursor] : [chatRowID],
-  //   )
-  // }
 
   getLatestMessage(chatGUID: string): Promise<MappedMessageRow | undefined> {
     return this.db.get<[string], MappedMessageRow>(SQLS.getLatestMessage, chatGUID)
@@ -366,12 +364,10 @@ export default class DatabaseAPI {
     }))
   }
 
-  getMessageReactions(msgGUIDs: string[], chat: ChatRef): Promise<MappedReactionMessageRow[]> {
+  async getMessageReactions(msgGUIDs: string[], chat: ChatRef): Promise<MappedReactionMessageRow[]> {
     let chatRowID: number
     if (chat.type === 'guid') {
-      const rowID = this.chatGUIDRowIDMap.get(chat.guid)
-      if (!rowID) throw new Error('while getting reactions: expected GUID to be in cache')
-      chatRowID = rowID
+      chatRowID = await this.resolveChatRowID(chat.guid)
     } else {
       chatRowID = chat.rowid
     }
