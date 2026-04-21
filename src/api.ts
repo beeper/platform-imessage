@@ -151,12 +151,9 @@ export default class AppleiMessage implements PlatformAPI {
     return enabled
   }).catch(console.error)
 
-  private session: SerializedSession
-
   private experiments = ''
 
   init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs?: Record<string, any>) => {
-    this.session = session || {}
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
@@ -169,7 +166,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
   }
 
-  serializeSession = () => this.session
+  serializeSession = () => ({})
 
   dispose = async () => {
     swiftServer?.stopSysPrefsOnboarding?.()
