@@ -6,6 +6,7 @@ import { setTimeout as setTimeoutAsync } from 'timers/promises'
 import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
 import { mapMessages } from './mappers'
+import { hashThreadID } from './hashing'
 import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
 import type PAPI from './api'
@@ -56,6 +57,7 @@ CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID
 CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
 WHERE chat.guid = ?`,
+  getAllThreadGUIDs: 'SELECT guid FROM chat',
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
 LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
 WHERE chat_id = ?`,
@@ -271,6 +273,18 @@ export default class DatabaseAPI {
     const chat = await this.db.get<string[], MappedChatRow>(SQLS.getThread, chatGUID)
     if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     return chat
+  }
+
+  private threadHasherWarmed?: Promise<void>
+
+  // loads every chat guid and feeds it through hashThreadID so the Swift
+  // hasher's reverse-lookup map is populated for every thread in the db.
+  // memoized so repeated misses share a single O(N) pass.
+  warmThreadHasher(): Promise<void> {
+    this.threadHasherWarmed ??= this.db
+      .pluck_all<void[], string>(SQLS.getAllThreadGUIDs)
+      .then(chatGUIDs => { chatGUIDs.forEach(hashThreadID) })
+    return this.threadHasherWarmed
   }
 
   async isThreadRead(chatGUID: string): Promise<boolean> {
