@@ -6,7 +6,6 @@ repos:
       - id: swiftlint
         name: swiftlint
         language: system
-        entry: yarn lint:swift
+        entry: swiftlint --fix --format
         types: [swift]
-        pass_filenames: false
         stages: [pre-commit]
