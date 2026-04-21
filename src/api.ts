@@ -24,7 +24,7 @@ import MessagesControllerWrapper from './mc'
 import type { AXMessageSelection, ChatRow, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
-import { AppleDate, appleDateNow, appleDateToMillisSinceEpoch } from './time'
+import { makeAppleDate } from './time'
 import Phaser from './phaser'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
@@ -991,21 +991,16 @@ export default class AppleiMessage implements PlatformAPI {
         return
       }
 
-      let newArchivalOrder: number | undefined
-      let persistedArchivedAt: AppleDate | undefined
-      const latestMessage = await db.getLatestMessage(chatGUID)
-      if (latestMessage) {
-        newArchivalOrder = appleDateToMillisSinceEpoch(latestMessage.dateString)
-        persistedArchivedAt = latestMessage.dateString
-
-        texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder to latest message's order (${newArchivalOrder}, raw "apple date": ${latestMessage.dateString})`)
-      } else {
-        // chat is empty or we can't fetch the latest message for whatever reason;
-        // just synthesize an HS order & timestamp to use
-        newArchivalOrder = Date.now()
-        persistedArchivedAt = appleDateNow()
-        texts.log(`imsg/archive/${hashedThreadID}: chat is empty, using synthesized archival order (${newArchivalOrder}, raw "apple date": ${persistedArchivedAt})`)
-      }
+      // Archive cutoff is `now`, not the DB's latest-message date: the renderer
+      // un-archives when its cached latest-message sortKey exceeds
+      // `isArchivedUpToOrder`, and its cache can outrun the DB when a message
+      // was deleted for all devices (gone from `chat_message_join`) — we don't
+      // observe those deletions, so `now` is the only value guaranteed to cover
+      // anything still cached.
+      const now = new Date()
+      const newArchivalOrder = now.getTime()
+      const persistedArchivedAt = makeAppleDate(now)
+      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder=${newArchivalOrder} ("${persistedArchivedAt}")`)
 
       this.persistence?.setThreadProp(hashedThreadID, 'archive', {
         archivedAt: persistedArchivedAt,

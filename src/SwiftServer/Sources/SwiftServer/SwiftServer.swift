@@ -146,6 +146,10 @@ enum Preferences {
             let lastDateRead = Date(nanosecondsSinceReferenceDate: Int(try lastDateReadNanosecondsBig.signed().value))
             log.debug("was asked to start polling (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
+            let initialCursorDB = try IMDatabase()
+            let initialRecoverableDeleteDate = try initialCursorDB.latestRecoverableMessageDeleteDate()
+            let initialRemovedRecoverableMessageRowID = try initialCursorDB.latestRemovedRecoverableMessageRowID()
+
             let poller = try Poller(serverEventSender: { events in
                 var values = [any NodeValueConvertible]()
                 // this probably isn't worth doing in parallel
@@ -156,7 +160,13 @@ enum Preferences {
                 log.debug("handing over \(values.count) value(s) to the event callback")
                 #endif
                 try await onEvent.call([values])
-            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()))
+            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(
+                lastRowID: lastRowID,
+                lastDateRead: lastDateRead,
+                lastDateEdited: Date(),
+                lastRecoverableDeleteDate: initialRecoverableDeleteDate,
+                lastRemovedRecoverableMessageRowID: initialRemovedRecoverableMessageRowID
+            ))
 
             pollingTask = Task {
                 log.debug("going to poll forever")

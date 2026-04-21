@@ -7,6 +7,9 @@ enum PASEvent {
     case toast(message: String, id: String?, timeoutMilliseconds: Int?)
     /// A PAS event with type `thread_messages_refresh`.
     case refreshMessagesInThread(id: String)
+    /// A PAS event with type `state_sync` that is used to `delete`
+    /// one or more messages from a single thread.
+    case deleteMessages(threadID: String, ids: [String])
     /// A PAS event with type `state_sync` that is used to `update` a
     /// `thread`.
     case stateSyncThread(id: String, patch: [String: any NodePropertyConvertible])
@@ -27,6 +30,14 @@ extension PASEvent: NodeValueConvertible {
             "type": "thread_messages_refresh",
             "threadID": id,
         ])
+        case let .deleteMessages(threadID, ids):
+            return try NodeObject([
+                "type": "state_sync",
+                "objectIDs": ["threadID": threadID, "messageID": null],
+                "objectName": "message",
+                "mutationType": "delete",
+                "entries": (ids as [NodeValueConvertible]).nodeValue()
+            ])
         case let .stateSyncThread(id, patch):
             let entry = try NodeObject(coercing: patch)
             try entry.define(["id": id])

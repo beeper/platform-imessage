@@ -22,6 +22,51 @@ ORDER BY
     date DESC
 """
 
+let recoverablyDeletedMessagesSinceQuery = """
+SELECT
+    crmj.delete_date,
+    c.guid,
+    m.guid,
+    m.part_count,
+    m.subject
+FROM
+    chat_recoverable_message_join crmj
+INNER JOIN chat c ON c.ROWID = crmj.chat_id
+INNER JOIN message m ON m.ROWID = crmj.message_id
+WHERE
+    crmj.delete_date > ?
+ORDER BY
+    crmj.delete_date ASC
+"""
+
+let removedRecoverableMessagesSinceQuery = """
+SELECT
+    ROWID,
+    chat_guid,
+    message_guid,
+    part_index
+FROM
+    unsynced_removed_recoverable_messages
+WHERE
+    ROWID > ?
+ORDER BY
+    ROWID ASC
+"""
+
+let latestRecoverableDeleteDateQuery = """
+SELECT
+    MAX(delete_date)
+FROM
+    chat_recoverable_message_join
+"""
+
+let latestRemovedRecoverableMessageRowIDQuery = """
+SELECT
+    MAX(ROWID)
+FROM
+    unsynced_removed_recoverable_messages
+"""
+
 public struct UpdatedChatsQueryResult {
     public var updatedChats: [ChatRef]
     /// This maximum is local to the set of updated chats.
@@ -29,6 +74,28 @@ public struct UpdatedChatsQueryResult {
     /// This maximum is local to the set of updated chats.
     public var latestMessageDateRead: Date?
     public var latestDateEdited: Date?
+}
+
+public struct RecoverablyDeletedMessage {
+    public var deleteDate: Date
+    public var chatGUID: String
+    public var messageGUID: String
+    public var partCount: Int
+    public var hasSubject: Bool
+}
+
+public struct RemovedRecoverableMessage {
+    public var rowID: Int
+    public var chatGUID: String
+    public var messageGUID: String
+    public var partIndex: Int?
+}
+
+public struct DeletedMessagesQueryResult {
+    public var recoverablyDeletedMessages: [RecoverablyDeletedMessage]
+    public var latestRecoverableDeleteDate: Date?
+    public var removedRecoverableMessages: [RemovedRecoverableMessage]
+    public var latestRemovedRecoverableMessageRowID: Int?
 }
 
 public extension IMDatabase {
@@ -103,6 +170,81 @@ public extension IMDatabase {
             latestMessageRowID: newestMessageRowID,
             latestMessageDateRead: latestMessageDateRead,
             latestDateEdited: latestDateEdited
+        )
+    }
+
+    func latestRecoverableMessageDeleteDate() throws -> Date {
+        guard #available(macOS 13, *) else { return .distantPast }
+
+        let statement = try cachedStatement(forEscapedSQL: latestRecoverableDeleteDateQuery)
+        try statement.reset()
+
+        let nanoseconds = try statement.compactMapRowsUntilDone { try $0[0].optional(Int.self) }.first ?? 0
+        guard nanoseconds > 0 else { return .distantPast }
+        return Date(nanosecondsSinceReferenceDate: nanoseconds)
+    }
+
+    func latestRemovedRecoverableMessageRowID() throws -> Int {
+        guard #available(macOS 13, *) else { return 0 }
+
+        let statement = try cachedStatement(forEscapedSQL: latestRemovedRecoverableMessageRowIDQuery)
+        try statement.reset()
+        return try statement.compactMapRowsUntilDone { try $0[0].optional(Int.self) }.first ?? 0
+    }
+
+    func deletedMessages(
+        sinceRecoverableDeleteDate lastRecoverableDeleteDate: Date,
+        andRemovedRecoverableRowID lastRemovedRecoverableRowID: Int
+    ) throws -> DeletedMessagesQueryResult {
+        guard #available(macOS 13, *) else {
+            return DeletedMessagesQueryResult(
+                recoverablyDeletedMessages: [],
+                latestRecoverableDeleteDate: nil,
+                removedRecoverableMessages: [],
+                latestRemovedRecoverableMessageRowID: nil
+            )
+        }
+
+        let recoverableStatement = try cachedStatement(forEscapedSQL: recoverablyDeletedMessagesSinceQuery)
+        try recoverableStatement.reset()
+        try recoverableStatement.bind(lastRecoverableDeleteDate.nanosecondsSinceReferenceDate)
+
+        var latestRecoverableDeleteDate: Date?
+        let recoverablyDeletedMessages = try recoverableStatement.mapRowsUntilDone { row in
+            let deleteDate = Date(nanosecondsSinceReferenceDate: try row[0].expect(Int.self))
+            latestRecoverableDeleteDate = max(deleteDate, latestRecoverableDeleteDate ?? .distantPast)
+
+            return try RecoverablyDeletedMessage(
+                deleteDate: deleteDate,
+                chatGUID: row[1].expect(String.self),
+                messageGUID: row[2].expect(String.self),
+                partCount: row[3].optional(Int.self) ?? 0,
+                hasSubject: row[4].optional(String.self)?.isEmpty == false
+            )
+        }
+
+        let removedStatement = try cachedStatement(forEscapedSQL: removedRecoverableMessagesSinceQuery)
+        try removedStatement.reset()
+        try removedStatement.bind(lastRemovedRecoverableRowID)
+
+        var latestRemovedRecoverableMessageRowID: Int?
+        let removedRecoverableMessages = try removedStatement.mapRowsUntilDone { row in
+            let rowID = try row[0].expect(Int.self)
+            latestRemovedRecoverableMessageRowID = max(rowID, latestRemovedRecoverableMessageRowID ?? 0)
+
+            return try RemovedRecoverableMessage(
+                rowID: rowID,
+                chatGUID: row[1].expect(String.self),
+                messageGUID: row[2].expect(String.self),
+                partIndex: row[3].optional(Int.self)
+            )
+        }
+
+        return DeletedMessagesQueryResult(
+            recoverablyDeletedMessages: recoverablyDeletedMessages,
+            latestRecoverableDeleteDate: latestRecoverableDeleteDate,
+            removedRecoverableMessages: removedRecoverableMessages,
+            latestRemovedRecoverableMessageRowID: latestRemovedRecoverableMessageRowID
         )
     }
 }
