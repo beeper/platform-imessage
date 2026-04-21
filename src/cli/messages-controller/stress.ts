@@ -1,4 +1,4 @@
-import type { MessagesController } from '../lib/index'
+import type { MessagesController } from '../../SwiftServer/lib/index'
 
 export async function runStress(
   controller: MessagesController,

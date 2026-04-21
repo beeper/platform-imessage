@@ -59,7 +59,7 @@ const STANDALONE = process.argv.includes('--standalone')
 
 // Let a copied SwiftServer.node find NodeAPI.framework next to itself so the
 // binary can be dlopen'd without the Beeper desktop layout (e.g.
-// `yarn headless:run`). Opt-in via --standalone; default builds keep the
+// `yarn messages-controller-cli:run`). Opt-in via --standalone; default builds keep the
 // stock rpaths for the prod deploy path.
 const makeStandalone = async (nodePath: string, frameworkSrc: string) => {
   const frameworkLink = path.join(path.dirname(nodePath), 'NodeAPI.framework')

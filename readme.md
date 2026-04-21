@@ -6,12 +6,12 @@ Built on an extended version of [Platform SDK](https://github.com/textshq/platfo
 
 ## Testing
 
-For local testing without the main Beeper app, use the headless Electron harness in `src/SwiftServer/headless/index.ts`.
+For local testing without the main Beeper app, use the MessagesController Electron CLI in `src/cli/messages-controller/index.ts`.
 
 ```sh
 yarn build:swift --debug --standalone
-yarn headless:build
-yarn headless:run
+yarn messages-controller-cli:build
+yarn messages-controller-cli:run
 ```
 
 This starts an interactive `imsg>` prompt that lets you call `MessagesController` methods directly.
@@ -19,8 +19,8 @@ This starts an interactive `imsg>` prompt that lets you call `MessagesController
 You can also run a single command without entering the REPL:
 
 ```sh
-yarn headless:run "sendMessage any;-;sjobs@apple.com hello-world"
-yarn headless:run "editMessage any;-;sjobs@apple.com last-message hello-world"
+yarn messages-controller-cli:run "sendMessage any;-;sjobs@apple.com hello-world"
+yarn messages-controller-cli:run "editMessage any;-;sjobs@apple.com last-message hello-world"
 ```
 
 Other REPL commands:

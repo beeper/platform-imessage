@@ -6,7 +6,7 @@ import readline from 'node:readline/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import c from 'ansi-colors'
-import swiftServer, { messageControllerDebuggingAvailable, MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController, MessagesControllerDebugging } from '../lib/index'
+import swiftServer, { messageControllerDebuggingAvailable, MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController, MessagesControllerDebugging } from '../../SwiftServer/lib/index'
 import { getLastMessageID } from './last-message'
 import { runStress } from './stress'
 import { measure } from './util'
@@ -22,7 +22,7 @@ const completer: readline.Completer = linePartial => {
   return [hits, linePartial]
 }
 
-const historyFilePath = path.resolve(import.meta.dirname, '.headless-history.json')
+const historyFilePath = path.resolve(import.meta.dirname, '.messages-controller-cli.history.json')
 const readHistory = async (): Promise<string[]> => JSON.parse(await fs.readFile(historyFilePath, 'utf8'))
 const writeHistory = (history: string[]): Promise<void> => fs.writeFile(historyFilePath, JSON.stringify(history))
 const KEEP_ALIVE_FLAG = '--stay-open'
