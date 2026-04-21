@@ -42,10 +42,10 @@ public final class IMDatabase {
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
-#if DEBUG
+        #if DEBUG
         log.debug("creating database with messages data directory: \(messagesDataDirectory)")
         defer { log.debug("database created") }
-#endif
+        #endif
         self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
     }
 

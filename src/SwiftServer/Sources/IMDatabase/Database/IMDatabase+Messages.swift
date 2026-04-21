@@ -32,7 +32,7 @@ public struct MessageQueryFilter {
 }
 
 let messagesQuerySharedPrelude = """
-SELECT c.guid, m.ROWID, m.guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
+SELECT c.guid, m.ROWID, m.guid, m.balloon_bundle_id, m.thread_originator_guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
 FROM message m
 LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
@@ -42,7 +42,7 @@ public extension IMDatabase {
     func message(
         with guid: GUID<Message>,
         withAttachments includeAttachments: Bool = true,
-    ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
+        ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
         let statement = try cachedStatement(forEscapedSQL: """
         \(messagesQuerySharedPrelude)
         WHERE m.guid = ?
@@ -72,7 +72,7 @@ public extension IMDatabase {
         order: DateOrdering = .newestFirst,
         limit: Int = 50,
         withAttachments includeAttachments: Bool = true,
-    ) throws -> some Collection<Message> {
+        ) throws -> some Collection<Message> {
         let statement = try cachedStatement(forEscapedSQL: """
         \(messagesQuerySharedPrelude)
         WHERE c.guid = ?
@@ -102,18 +102,20 @@ private extension Message {
         self = try Message(
             id: row[1].expect(Int.self),
             guid: GUID<Message>(row[2].expect(String.self)),
-            text: row[3].optional(String.self).map {
+            balloonBundleID: try row[3].optional(String.self),
+            threadOriginatorGUID: try row[4].optional(String.self).map(GUID<Message>.init(stringLiteral:)),
+            text: row[5].optional(String.self).map {
                 Sensitive(.messageText, hiding: $0)
             },
-            attributedBody: row[4].optional(Data.self).flatMap {
+            attributedBody: row[6].optional(Data.self).flatMap {
                 try Sensitive(.messageAttributedBody, hiding: unarchiveAttributedString(from: $0))
             },
-            isFromMe: row[5].looseBool(),
-            isSent: row[6].looseBool(),
-            date: row[7].imCoreDate(),
-            dateRead: row[8].imCoreDate(),
-            summaryInfo: row[9].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
-        )
+            isFromMe: row[7].looseBool(),
+            isSent: row[8].looseBool(),
+            date: row[9].imCoreDate(),
+            dateRead: row[10].imCoreDate(),
+            summaryInfo: row[11].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
+            )
     }
 }
 

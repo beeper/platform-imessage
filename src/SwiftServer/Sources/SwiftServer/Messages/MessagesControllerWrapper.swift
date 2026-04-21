@@ -11,7 +11,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
 @available(macOS 11, *)
 @NodeActor @NodeClass final class MessagesControllerWrapper {
     static let name = "MessagesController"
-    
+
     // not depending on swift-atomics for now
     private static let queueCounter = Protected<Int>(0)
 
@@ -160,11 +160,11 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         // TODO: implement this for groups
         if !threadID.hasPrefix("iMessage;-;") {
             guard threadID.hasPrefix("any;-;") else {
-            // only bother checking the database if the GUID can't tell us what service the chat is for
-            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-#if DEBUG
-            log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-#endif
+                // only bother checking the database if the GUID can't tell us what service the chat is for
+                // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+                #if DEBUG
+                log.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+                #endif
                 return undefined
             }
 
@@ -175,9 +175,9 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             }
 
             guard chat.serviceName == .imessage else {
-#if DEBUG
-            log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-#endif
+                #if DEBUG
+                log.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+                #endif
                 return undefined
             }
         }
@@ -203,7 +203,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
 
         // restored from old TextsHQ implementation
         // https://github.com/TextsHQ/platform-imessage/blob/main/src/SwiftServer/Sources/SwiftServer/SwiftServer.swift#L123-L158
-        let requestID: UUID = UUID()
+        let requestID = UUID()
         threadObserveRequestTokenLock.lock()
         threadObserveRequestToken = requestID
         threadObserveRequestTokenLock.unlock()
@@ -221,11 +221,8 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func setReaction(threadID: String, messageCellJSON: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
-        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
-            throw ErrorMessage("Invalid messageCellJSON arg")
-        }
-
+    @NodeMethod
+    func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
         let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
             // try the "legacy" reactions first (keyed by `supported` in platform info)
             reaction
@@ -238,31 +235,32 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             log.error("couldn't create reaction from provided name: \(reactionName)")
             throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
+
         return try performAsync { [self] in
+            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
             try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
         }
     }
 
     // @available(macOS 13, *)
-    @NodeMethod func undoSend(threadID: String, messageCellJSON: String) throws -> NodeValueConvertible {
-        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
-            throw ErrorMessage("Invalid messageCellJSON arg")
-        }
+    @NodeMethod
+    func undoSend(threadID: String, messageID: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
+            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
             try controller.undoSend(threadID: threadID, messageCell: messageCell)
         }
     }
 
-    @NodeMethod func editMessage(threadID: String, messageCellJSON: String, newText: String) throws -> NodeValueConvertible {
-        guard let messageCell = (try messageCellJSON.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }) else {
-            throw ErrorMessage("Invalid messageCellJSON arg")
-        }
+    @NodeMethod
+    func editMessage(threadID: String, messageID: String, newText: String) throws -> NodeValueConvertible {
         return try performAsync { [self] in
+            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID, allowOverlay: false)
             try controller.editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
         }
     }
 
-    @NodeMethod func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
+    @NodeMethod
+    func createThread(_ args: NodeArguments) throws -> NodeValueConvertible {
         guard args.count == 2,
               let addresses = try args[0].as([String].self),
               let message = try args[1].as(String.self) else {
@@ -273,16 +271,25 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         }
     }
 
-    @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageCellJSON: String?) throws -> NodeValueConvertible {
-        let quotedMessage = try quotedMessageCellJSON?.data(using: .utf8).flatMap { try JSONDecoder().decode(MessageCell.self, from: $0) }
-        return try performAsync { try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage) }
+    @NodeMethod
+    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws -> NodeValueConvertible {
+        return try performAsync {
+            let quotedMessage: MessageCell? = if let quotedMessageID {
+                try self.resolveMessageCell(threadID: threadID, messageID: quotedMessageID)
+            } else {
+                nil
+            }
+            try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
+        }
     }
 
-    @NodeMethod func isSameContact(_ a: String?, _ b: String?) -> Bool {
+    @NodeMethod
+    func isSameContact(_ a: String?, _ b: String?) -> Bool {
         return self.controller.isSameContact(a, b)
     }
 
-    @NodeMethod func dispose() throws {
+    @NodeMethod
+    func dispose() throws {
         guard !hasBeenDisposed else {
             // NOTE(skip): Guard against `dispose` being called more than once, which triggers a UAF via napi_remove_env_cleanup_hook. (DESK-7237)
             Log.default.warning("[MessagesControllerWrapper] dispose called when already disposed, ignoring")
@@ -293,5 +300,30 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         Log.default.notice("[MessagesControllerWrapper] disposing")
         Self.queue.queue.sync { controller.dispose() }
         try NodeEnvironment.current.removeCleanupHook(hook)
+    }
+}
+
+@available(macOS 11, *)
+extension MessagesControllerWrapper {
+    private func splitMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
+        let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
+        let messageGUID = String(components[0])
+
+        guard components.count > 1 else {
+            return (messageGUID, nil)
+        }
+
+        return (messageGUID, Int(components[1]))
+    }
+
+    private func resolveMessageCell(threadID: String, messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
+        let (messageGUID, partIndex) = splitMessageID(messageID)
+
+        return try controller.resolveMessageCell(
+            threadID: threadID,
+            messageGUID: messageGUID,
+            partIndex: partIndex,
+            allowOverlay: allowOverlay
+        )
     }
 }

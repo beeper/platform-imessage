@@ -40,57 +40,19 @@ final class MessagesAppElements {
         return try containsReactPrefix(element.children[0].supportedActions())
     }
 
-    static func messageContainerCells(in tv: Accessibility.Element) throws -> LazyFilterSequence<[Accessibility.Element]> {
-        return try tv.children().lazy.filter { (try? Self.isMessageContainerCell($0)) ?? false }
+    static func messageContainerCells(in transcriptView: Accessibility.Element) throws -> [Accessibility.Element] {
+        return try transcriptView.children().filter { (try? Self.isMessageContainerCell($0)) ?? false }
     }
 
-    /// Returns message container cells using `copyHierarchy` to minimize IPC round-trips.
-    /// One bulk call fetches descriptions and children for all cells, then `supportedActions()`
-    /// is called lazily only on cells that pass the description filter.
-    static func _messageContainerCells(in tv: Accessibility.Element) throws -> AnySequence<Accessibility.Element> {
-        let hierarchy = try tv.copyHierarchy(
-            requesting: [kAXDescriptionAttribute, kAXChildrenAttribute],
-            options: .init(
-                arrayAttributes: [kAXChildrenAttribute],
-                maxDepth: 2
-            )
-        )
-
-        guard let tvSnapshot = hierarchy.snapshot(for: tv),
-              let childrenEntry = tvSnapshot.entry(for: kAXChildrenAttribute),
-              let cells = childrenEntry.elementValues else {
-            return AnySequence([])
-        }
-
-        let reactPrefix = "Name:\(LocalizedStrings.react)"
-
-        return AnySequence(cells.lazy.filter { cell in
-            guard let snapshot = hierarchy.snapshot(for: cell),
-                  let descEntry = snapshot.entry(for: kAXDescriptionAttribute),
-                  let desc = descEntry.stringValue,
-                  !desc.isEmpty else {
-                return false
-            }
-
-            guard let childrenEntry = snapshot.entry(for: kAXChildrenAttribute),
-                  let children = childrenEntry.elementValues,
-                  let firstChild = children.first else {
-                return false
-            }
-
-            let actions = (try? firstChild.supportedActions()) ?? []
-            return actions.contains { $0.name.value.hasPrefix(reactPrefix) }
-        })
+    static func firstMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
+        try transcriptView.children().first { (try? Self.isMessageContainerCell($0)) ?? false }?.children[0]
+        // try messageContainerCells(in: transcriptView).first?.children[0]
     }
 
-    static func firstMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
-        try messageContainerCells(in: tv).first?.children[0]
-    }
-
-    static func firstSelectedMessageCell(in tv: Accessibility.Element) throws -> Accessibility.Element? {
+    static func firstSelectedMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
         // selectedChildren wont work here
-        // tv.children().first { (try? $0.selectedChildren[0]) != nil }?.children[0]
-        try tv.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
+        // transcriptView.children().first { (try? $0.selectedChildren[0]) != nil }?.children[0]
+        try transcriptView.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
     }
 
     private let runningApp: NSRunningApplication
@@ -241,13 +203,13 @@ final class MessagesAppElements {
                     }
                 } else if attempt > 3 {
                     do {
-                       try self.dismissAnyPresentedSheet()
+                        try self.dismissAnyPresentedSheet()
                     } catch {
                         log.error("couldn't try dismissing any presented sheet: \(error)")
                     }
                 }
             }
-//            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
+            //            try? MessagesController.resizeWindowToMaxHeight(mainWindow)
             // clearCachedElements()
             cachedMainWindow = mainWindow
             return mainWindow
@@ -297,7 +259,8 @@ final class MessagesAppElements {
             // }
             let startTime = Date()
             defer { log.debug("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            let cl = try retry(withTimeout: 1, interval: 0.1) {
+            // cachedConversationsList = cl
+            return try retry(withTimeout: 1, interval: 0.1) {
                 try Self.getConversationList(window: mainWindow, useFastPath: true).orThrow(ErrorMessage("ConversationList not found"))
             } onError: { _, _ in
                 let searchField = try self.searchField
@@ -305,8 +268,6 @@ final class MessagesAppElements {
                 // this will close the search results if active
                 try searchField.cancel()
             }
-            // cachedConversationsList = cl
-            return cl
         }
     }
 
@@ -316,7 +277,6 @@ final class MessagesAppElements {
             try Self.getSectionObjects(window: mainWindow)
         }
     }
-
 
     var selectedThreadCell: Accessibility.Element? {
         get {
@@ -332,18 +292,18 @@ final class MessagesAppElements {
             // alternative: (localizedDescription == "Messages" when main transcript)
             (try? el.localizedDescription()) == LocalizedStrings.replyTranscript
             /*
-              when it's replyTranscript/overlay=true, linkedElements.count == 1 (the sole linked element is messageBodyField),
-              BUT only when it's not a compose cell
-              so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
-            */
+             when it's replyTranscript/overlay=true, linkedElements.count == 1 (the sole linked element is messageBodyField),
+             BUT only when it's not a compose cell
+             so we are NOT using this: (try? el.linkedElements.count()) ?? 0 == 0
+             */
         }
         let predicate = { (el: Accessibility.Element) -> Bool in
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
         // takes ~8ms
-        if let tv = try? mainWindowSections.first(where: predicate) { return tv }
+        if let transcriptView = try? mainWindowSections.first(where: predicate) { return transcriptView }
         // takes ~19ms
-        if let tv = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return tv }
+        if let transcriptView = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return transcriptView }
         throw ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found")
     }
 
@@ -358,9 +318,8 @@ final class MessagesAppElements {
             // if let cached = cachedReplyTranscriptView, cached.isInViewport {
             //     return cached
             // }
-            let tcv = try getTranscriptView(replyTranscript: true)
             // cachedReplyTranscriptView = tcv
-            return tcv
+            return try getTranscriptView(replyTranscript: true)
         }
     }
 
@@ -430,7 +389,7 @@ final class MessagesAppElements {
     }
 
     // TODO: leverage to implement sticker avoidance (DESK-7141)
-#if false
+    #if false
     var customEmojiPopoverCharacters: [Accessibility.Element] {
         get throws {
             let popover = try popover
@@ -439,7 +398,7 @@ final class MessagesAppElements {
                 .orThrow(ErrorMessage("couldn't find table view containing emoji results"))
         }
     }
-#endif
+    #endif
 
     /// the first popover in the main window
     var popover: Accessibility.Element {
@@ -490,16 +449,16 @@ final class MessagesAppElements {
             let startTime = Date()
             defer { log.debug("reactButtons took \(startTime.timeIntervalSinceNow * -1000)ms") }
             /*
-            8 `AXButton`s
-            Heart
-            Thumbs up
-            Thumbs down
-            Ha ha!
-            Exclamation mark
-            Question mark
-            Reply -- only shows up when not in overlay mode
-            Pin -- only shows up for links/tweets in Monterey or above
-            */
+             8 `AXButton`s
+             Heart
+             Thumbs up
+             Thumbs down
+             Ha ha!
+             Exclamation mark
+             Question mark
+             Reply -- only shows up when not in overlay mode
+             Pin -- only shows up for links/tweets in Monterey or above
+             */
             guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == Accessibility.Role.button }) else {
                 throw ErrorMessage("reactButtons not found")
             }
@@ -538,8 +497,8 @@ final class MessagesAppElements {
         get throws {
             let startTime = Date()
             defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            let tv = try transcriptView
-            let count = try tv.children.count()
+            let transcriptView = try self.transcriptView
+            let count = try transcriptView.children.count()
             return try transcriptView.children(range: (count - 2)..<count).first(where: {
                 let child = try $0.children[0]
                 return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == Accessibility.Role.button
@@ -593,5 +552,48 @@ final class MessagesAppElements {
                 try iOSContentGroup.children[0].children().first { try $0.role() == Accessibility.Role.popUpButton }
             }
         }
+    }
+}
+
+@available(macOS 11, *)
+extension MessagesAppElements {
+    // MARK: Experimental
+    /// Returns message container cells using `copyHierarchy` to minimize IPC round-trips.
+    /// One bulk call fetches descriptions and children for all cells, then `supportedActions()`
+    /// is called lazily only on cells that pass the description filter.
+    static func snapshotBackedMessageContainerCells(in transcriptView: Accessibility.Element) throws -> AnySequence<Accessibility.Element> {
+        let hierarchy = try transcriptView.copyHierarchy(
+            requesting: [kAXDescriptionAttribute, kAXChildrenAttribute],
+            options: .init(
+                arrayAttributes: [kAXChildrenAttribute],
+                maxDepth: 2
+            )
+        )
+
+        guard let transcriptViewSnapshot = hierarchy.snapshot(for: transcriptView),
+              let childrenEntry = transcriptViewSnapshot.entry(for: kAXChildrenAttribute),
+              let cells = childrenEntry.elementValues else {
+            return AnySequence([])
+        }
+
+        let reactPrefix = "Name:\(LocalizedStrings.react)"
+
+        return AnySequence(cells.lazy.filter { cell in
+            guard let snapshot = hierarchy.snapshot(for: cell),
+                  let descEntry = snapshot.entry(for: kAXDescriptionAttribute),
+                  let desc = descEntry.stringValue,
+                  !desc.isEmpty else {
+                return false
+            }
+
+            guard let childrenEntry = snapshot.entry(for: kAXChildrenAttribute),
+                  let children = childrenEntry.elementValues,
+                  let firstChild = children.first else {
+                return false
+            }
+
+            let actions = (try? firstChild.supportedActions()) ?? []
+            return actions.contains { $0.name.value.hasPrefix(reactPrefix) }
+        })
     }
 }

@@ -20,8 +20,7 @@ func getBestWindowCoordinator() throws -> any WindowCoordinator {
     if sequoiaOrLater {
         log.debug("detected macOS 15 or later, using eclipsing window coordinator")
         return EclipsingWindowCoordinator()
-    } else {
-        log.debug("using spaces window coordinator")
-        return try SpacesWindowCoordinator()
     }
+    log.debug("using spaces window coordinator")
+    return try SpacesWindowCoordinator()
 }

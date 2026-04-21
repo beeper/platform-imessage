@@ -8,7 +8,7 @@ public actor LogFileCoordinator {
 
     // log file is allowed to grow around double this limit, then is trimmed to
     // approximately match it - this avoids constant trimming
-    public static let fileSizeLimit = 1_024 * 1_024 * 20
+    public static let fileSizeLimit = 1024 * 1024 * 20
 
     private var fileURL: URL
     private var lastTrimTime: Date?
@@ -68,7 +68,7 @@ public actor LogFileCoordinator {
 }
 
 extension LogFileCoordinator {
-    private func findClosestPrecedingNewline(bufferLength: Int = 1_024) throws -> Int? {
+    private func findClosestPrecedingNewline(bufferLength: Int = 1024) throws -> Int? {
         var offset = handle.offsetInFile
         let newline = UInt8(ascii: "\n")
 
@@ -89,7 +89,7 @@ extension LogFileCoordinator {
     }
 
     public func tryTrimming(approximatelyPreservingBytesAtEnd preserved: Int = LogFileCoordinator.fileSizeLimit) throws {
-        let newlineDiscoveryBufferLength = 1_024
+        let newlineDiscoveryBufferLength = 1024
         handle.seekToEndOfFile()
 
         let endOffset = Int(handle.offsetInFile)

@@ -74,7 +74,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             return NSRect(
                 origin: NSPoint(x: originalElectronFrame.origin.x, y: screen.frame.height - originalElectronFrame.maxY),
                 size: originalElectronFrame.size,
-            )
+                )
         }()
         log.debug("largest electron window frame (original): \(originalElectronFrame.formatted)")
         log.debug("largest electron window frame (in screen space): \(flippedElectronFrame.formatted)")
@@ -174,7 +174,7 @@ private extension EclipsingWindowCoordinator {
     }
 
     // Accurate as of macOS 15.3.2.
-    static let messagesAppMinimumSize: NSSize = NSSize(width: 660.0, height: 320.0)
+    static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
 }
 
 // MARK: - Extensions
@@ -212,8 +212,7 @@ extension NSApplication {
                 log.debug("biggest has frame of \(largest.frame) (area: \(largest.frame.area))")
             }
             return largest
-        } else {
-            return electronWindows.first
         }
+        return electronWindows.first
     }
 }

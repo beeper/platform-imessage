@@ -1,7 +1,6 @@
 import WindowControl
 import AccessibilityControl
 import Cocoa
-import AccessibilityControl
 import Logging
 
 private let log = Logger(swiftServerLabel: "spaces-window-coordinator")
@@ -37,13 +36,13 @@ final class SpacesWindowCoordinator {
             self.beginObservationsForUserSpace()
         }
 
-#if DEBUG
+        #if DEBUG
         do {
             try debug_printSpaces()
         } catch {
             log.error("[debug] failed to print spaces: \(String(reflecting: error))")
         }
-#endif
+        #endif
     }
 
     deinit {
@@ -111,12 +110,11 @@ private extension SpacesWindowCoordinator {
                 if isSameDock, canReuse {
                     $0.dockPID = dockPID
                     return true
-                } else {
-                    log.notice("space \($0.raw) was created by us but is visible now")
-                    // hide/destroy apparently has no effect atm
-                    // $0.hide()
-                    // $0.destroy()
                 }
+                log.notice("space \($0.raw) was created by us but is visible now")
+                // hide/destroy apparently has no effect atm
+                // $0.hide()
+                // $0.destroy()
             }
             return false
         }.first
@@ -185,7 +183,6 @@ private extension SpacesWindowCoordinator {
             }
         }
     }
-
 }
 
 // MARK: - Debugging

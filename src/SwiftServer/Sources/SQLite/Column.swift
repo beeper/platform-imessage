@@ -6,11 +6,6 @@ public struct Column: ~Copyable {
 
     let statement: Statement
     let index: Index
-
-    init(statement: Statement, index: Index) {
-        self.statement = statement
-        self.index = index
-    }
 }
 
 // MARK: - Errors

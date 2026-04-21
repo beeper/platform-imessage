@@ -24,9 +24,9 @@ extension IMDatabase {
             try Attachment(row: row)
         }
         message.attachments = attachments
-#if DEBUG
+        #if DEBUG
         log.debug("[attachment hydration] \(message.guid) attachments hydrated => \(attachments.count)")
-#endif
+        #endif
     }
 
     func hydrateAttachments(for messages: inout OrderedDictionary<Message.ID, Message>) throws {
@@ -79,6 +79,6 @@ extension Attachment {
             isSticker: isSticker,
             transferState: transferState,
             uti: uti,
-        )
+            )
     }
 }

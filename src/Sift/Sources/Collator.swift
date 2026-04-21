@@ -55,8 +55,7 @@ struct Collator: AsyncParsableCommand {
         if displayingIntermissions,
            let lastTimestamp,
            case let delta = lastTimestamp.distance(to: message.timestamp),
-           delta > intermissionTimeSeconds
-        {
+           delta > intermissionTimeSeconds {
             printIntermission(delta: Duration.seconds(delta))
         }
 
@@ -203,9 +202,8 @@ private extension RageshakeFile {
             try data.write(to: cacheEntryURL)
             // re-use the code path above
             return try await lines(authenticatingWithPassword: rageshakePassword, caching: true)
-        } else {
-            return bytes.lines
         }
+        return bytes.lines
     }
 }
 

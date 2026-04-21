@@ -8,7 +8,7 @@ public struct ClosestMessagePart {
     public var offsetFromTarget: Int
 }
 
-//  This logic is incredibly subtle for several reasons.                              +------------------------+
+//  This logic is incredibly subtle for several reasons. +------------------------+
 //                                                                               9:24 | message DEADBEEF…      |
 //  Each iMessage message is made up of an arbitrarily long sequence of               |                        |
 //  "parts". Parts can be arbitrarily interleaved with regular text, and they         | - - - - - - - - - - - +|
@@ -23,7 +23,7 @@ public struct ClosestMessagePart {
 //                                                                                    |                        |  |
 //  Part 2 is the "image" that I've attached, which also has a GUID attribute         | - - - - - - - - - - - +|  |  +------------+
 //  attached that points back to the corresponding row within the `attachment`        || part 0                |  |  |  "BEFORE"  |
-//  SQLite table. This lets the app render everything correctly.                      | - - - - - - - - - - - +|  |  +------------+
+//  SQLite table. This lets the app render everything correctly. | - - - - - - - - - - - +|  |  +------------+
 //                                                                                    |+----------------------+|  |
 //  Where this gets complicated is that, in the Messages app, each part is            || part 1 *our target*  ||--|
 //  rendered as its own bubble. _Each part is able to be individually unsent,         |+----------------------+|  |
@@ -33,7 +33,7 @@ public struct ClosestMessagePart {
 //  part indices to become discontinuous. When a part of a message is unsent or       +------------------------+  |
 //  edited, the `otr` field in the message's "summary info" can be used to            +------------------------+  |
 //  recover the original structure before any destructive modifications took     9:28 | message CAFEFOOD…      |  |  +------------+
-//  place. Handling message parts fluently is key to correct behavior.                |                        |  |  |  "AFTER"   |
+//  place. Handling message parts fluently is key to correct behavior. |                        |  |  |  "AFTER"   |
 //                                                                                    | - - - - - - - - - - - +|  |  +------------+
 //  (Logically, clients shouldn't have to know what a part is. We just map each       || part 0                |  v
 //  part to their own message. This means that a single iMessage message can be       | - - - - - - - - - - - +|
@@ -84,8 +84,7 @@ public extension IMDatabase {
         }
 
         func findFirstSelectablePart(in parts: some Collection<Message.Part>, scanningUpwards: Bool)
-            -> ClosestMessagePart?
-        {
+        -> ClosestMessagePart? {
             guard let firstSelectable = parts.enumerated().first(where: \.element.isSelectable)
             else {
                 return nil
@@ -93,14 +92,14 @@ public extension IMDatabase {
             let direction = scanningUpwards ? "<up>" : "<down>"
             let targetRelativeOffset =
                 targetPartOffset + (firstSelectable.offset + 1) * (scanningUpwards ? -1 : 1)
-#if DEBUG
+            #if DEBUG
             log.debug(
                 """
                 FOUND closest selectable scanning \(direction), \
                 offset within fetch result: \(firstSelectable.offset), \
                 offset relative to target: \(targetRelativeOffset)
                 """)
-#endif
+            #endif
             return ClosestMessagePart(
                 closestSelectable: firstSelectable.element, offsetFromTarget: targetRelativeOffset
             )
@@ -197,32 +196,44 @@ extension Message.Part {
         let body = attributedSubstring.string
         let hasText = body.nonEmpty != nil
         guard hasText else {
-#if DEBUG
+            #if DEBUG
             log.debug("\(parentMessageGUID)/\(index): has no text, or is empty")
-#endif
+            #endif
             return false
         }
 
         let onlyConsistsOfWhitespaceOrEmojis = body.allSatisfy { character in
-            character.isWhitespace || character.unicodeScalars.allSatisfy(\.properties.isEmoji)
+            if character.isWhitespace {
+                return true
+            }
+
+            // `UnicodeScalar.Properties.isEmoji` is true for ASCII digits
+            // because they can participate in keycap emoji sequences. We do
+            // not want to treat ordinary alphanumeric text like "123123" as
+            // emoji-only content.
+            if character.isLetter || character.isNumber {
+                return false
+            }
+
+            return character.unicodeScalars.contains(where: \.properties.isEmoji)
         }
         guard !onlyConsistsOfWhitespaceOrEmojis else {
-#if DEBUG
+            #if DEBUG
             log.debug("\(parentMessageGUID)/\(index): only consists of whitespace or emojis")
-#endif
+            #endif
             return false
         }
 
         guard attachmentGUID == nil else {
-#if DEBUG
+            #if DEBUG
             log.debug("\(parentMessageGUID)/\(index): is an attachment")
-#endif
+            #endif
             return false
         }
 
-#if DEBUG
+        #if DEBUG
         log.debug("\(parentMessageGUID)/\(index): SELECTABLE!")
-#endif
+        #endif
         return true
     }
 }

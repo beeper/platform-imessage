@@ -416,8 +416,8 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
         m.behavior = MessageBehavior.SILENT
         const changedGroupImg = msgRow.group_action_type === 1
         const removedGroupImg = msgRow.group_action_type === 2
-        const chatBgColorChanged = msgRow.group_action_type === 3
-        const chatBgColorRemoved = msgRow.group_action_type === 4
+        const chatBgColorChanged = msgRow.group_action_type === 3 || msgRow.group_action_type === 4
+        const chatBgColorRemoved = msgRow.group_action_type === 6
         if (changedGroupImg || removedGroupImg) {
           m.text = changedGroupImg
             ? '{{sender}} changed the group photo'
