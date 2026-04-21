@@ -37,6 +37,7 @@ function canAccessMessagesDir() {
 }
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
+const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
 
 const linkRegex = urlRegex()
 
@@ -275,7 +276,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!IS_BIG_SUR_OR_UP) return (await this.catalinaCreateThread(userIDs)) as Thread
     if (userIDs.length === 1) {
       const address = userIDs[0]
-      const existingThread = await this.getThread(`iMessage;-;${address}`)
+      const existingThread = await this.getThread(DEFAULT_THREAD_PREFIX + `;-;${address}`)
       if (existingThread) {
         if (message) this.sendMessage(existingThread.id, { text: message })
         // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
