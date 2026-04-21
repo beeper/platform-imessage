@@ -10,7 +10,6 @@ import IMAGE_EXTS from './image-exts.json'
 import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
-import type ThreadReadStore from './thread-read-store'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
 import { roomFeatures } from './capabilities'
 import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
@@ -681,7 +680,6 @@ type Context = {
   currentUserID: string
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
   mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
-  threadReadStore: ThreadReadStore | undefined
   unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   reminders?: { [chatGUID: string]: ThreadReminder | undefined }

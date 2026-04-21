@@ -14,7 +14,6 @@ import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
 import ASAPI from './as2'
-import ThreadReadStore from './thread-read-store'
 import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
@@ -50,8 +49,6 @@ export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
 
   currentUser: CurrentUser | undefined
-
-  private threadReadStore?: ThreadReadStore
 
   private persistence?: Persistence
 
@@ -158,11 +155,6 @@ export default class AppleiMessage implements PlatformAPI {
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
-    this.threadReadStore = IS_VENTURA_OR_UP ? undefined : new ThreadReadStore(userDataDirPath)
-    if (IS_VENTURA_OR_UP && !this.session.migrationVersion) {
-      fs.unlink(path.join(userDataDirPath, 'imessage.json')).catch(() => {})
-      this.session.migrationVersion = 1
-    }
   }
 
   serializeSession = () => this.session
@@ -227,7 +219,6 @@ export default class AppleiMessage implements PlatformAPI {
         accountID: this.accountID,
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUser!.id,
-        threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
         unreadCounts,
         dndState,
@@ -258,7 +249,6 @@ export default class AppleiMessage implements PlatformAPI {
         accountID: this.accountID,
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUser!.id,
-        threadReadStore: this.threadReadStore,
         mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
         unreadCounts,
         dndState,
@@ -361,7 +351,6 @@ export default class AppleiMessage implements PlatformAPI {
       dndState,
       unreadCounts,
       currentUserID: this.currentUser!.id,
-      threadReadStore: this.threadReadStore,
       reminders: this.batchGetThreadPropForChatRows(chatRows, 'reminder'),
       archivalStates,
       pinStates: this.batchGetThreadPropForChatRows(chatRows, 'pin'),
@@ -664,13 +653,6 @@ export default class AppleiMessage implements PlatformAPI {
         const isRead = await db.isThreadRead(threadID)
         if (isRead) return
         await this.toggleThreadRead(true)(hashedThreadID)
-        if (!IS_VENTURA_OR_UP) {
-          await setTimeoutAsync(50)
-          if (!await db.isThreadRead(threadID)) {
-            this.threadReadStore?.markThreadRead(threadID, messageID)
-            throw new Error('toggleThreadRead failed')
-          }
-        }
       }, {
         onFailedAttempt: error => {
           texts.Sentry.captureException(error)
@@ -678,8 +660,6 @@ export default class AppleiMessage implements PlatformAPI {
         },
         retries: 1,
       })
-    } else {
-      this.threadReadStore?.markThreadRead(threadID, messageID)
     }
   }
 
