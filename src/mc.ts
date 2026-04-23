@@ -2,7 +2,6 @@ import { texts } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import { setTimeout as setTimeoutAsync } from 'timers/promises'
 import swiftServer, { MessagesController } from './SwiftServer/lib'
-import { IS_BIG_SUR_OR_UP } from './common-constants'
 
 const messagesControllerClass = swiftServer?.messagesControllerClass
 
@@ -40,8 +39,6 @@ export default class MessagesControllerWrapper {
 
   // serialized: if there's an existing get request running, it's reused
   private static _getMessagesController = async (): Promise<MessagesController> => {
-    if (!IS_BIG_SUR_OR_UP) throw new Error('MessagesController is only supported on macOS Big Sur and later')
-
     // we want to reuse existing instances of the fetch promise while any one is
     // running, but once it's done the next call to getMessagesController should
     // start up a new invocation (so that isValid() is checked again)

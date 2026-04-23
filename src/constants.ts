@@ -2,7 +2,7 @@
 // on desktop
 import os from 'os'
 import path from 'path'
-import { IS_BIG_SUR_OR_UP, BINARIES_DIR_PATH } from './common-constants'
+import { BINARIES_DIR_PATH } from './common-constants'
 
 export * from './common-constants'
 
@@ -95,11 +95,11 @@ export const SENDER_NAME_CONSTANT = '$(kIMTranscriptPluginBreadcrumbTextSenderId
 
 export const homedir = os.homedir()
 
-export const MESSAGES_APP_BUNDLE_ID = IS_BIG_SUR_OR_UP ? 'com.apple.MobileSMS' : 'com.apple.iChat'
+export const MESSAGES_APP_BUNDLE_ID = 'com.apple.MobileSMS'
 export const APP_BUNDLE_ID = 'com.kishanbagaria.jack'
 
 export const CHAT_DB_PATH = path.join(homedir, 'Library/Messages/chat.db')
-export const TMP_MOBILE_SMS_PATH = IS_BIG_SUR_OR_UP ? path.join(os.tmpdir(), MESSAGES_APP_BUNDLE_ID) : undefined
+export const TMP_MOBILE_SMS_PATH = path.join(os.tmpdir(), MESSAGES_APP_BUNDLE_ID)
 
 export const ARCH_BINARIES_DIR_PATH = path.join(BINARIES_DIR_PATH, `${process.platform}-${process.arch}`)
 
