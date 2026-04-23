@@ -19,6 +19,7 @@ import { likelyAlphanumericSenderID } from './heuristics'
 
 const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
 const IMSG_EXTENSION_CHAR = '\uFFFD' // �
+const IMESSAGE_STRIP_INTERNAL_FIELDS = process.env.IMESSAGE_STRIP_INTERNAL_FIELDS === '1'
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 
@@ -258,7 +259,6 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   if (msgRow.schedule_type) return []
 
   const partialMessage: BeeperMessage = {
-    _original: stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID]),
     id: msgRow.guid,
     cursor: msgRow.dateString,
 
@@ -286,6 +286,10 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
       countsAsUnread: true,
       isSMS: isSMS ? true : undefined,
     },
+  }
+
+  if (!IMESSAGE_STRIP_INTERNAL_FIELDS) {
+    partialMessage._original = stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID])
   }
 
   if (dateStringIsTruthy(msgRow.dateRetractedString) || msgRow.was_detonated) partialMessage.isDeleted = true
@@ -737,7 +741,6 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const isArchivedUpToOrder = archivedAt ? appleDateToMillisSinceEpoch(archivedAt) : undefined
 
   const thread: BeeperThread = {
-    _original: stringifyWithArrayBuffers([chat, handleRows]),
     id: chat.guid,
     title: chat.display_name,
     imgURL: getChatPhotoGuid(),
@@ -762,11 +765,6 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     // the "folder"/inbox name gets forcibly set to the thread ID.
     folderName: InboxName.NORMAL,
     timestamp: regularlizeAppleDate(chat.msgDateString),
-    // @ts-expect-error -- HACK(skip): this exploits the fact that `features` isn't filtered
-    // from `assignProps`. this should actually be using `defaultFeatures` once
-    // we're able to set our bridge ID properly
-    // https://github.com/beeper/beeper-desktop-new/blob/681fe8ea8f23c50cc20d265775eb9a6a3bed5a0f/src/renderer/stores/ThreadStore.ts#L148
-    features: roomFeatures,
     reminder: context.reminders?.[chat.guid],
     extra: {
       isArchivedUpToOrder,
@@ -774,6 +772,14 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     },
     isPinned: context.pinStates?.[chat.guid] === true,
     isLowPriority: context.lowPriorityStates?.[chat.guid] === true,
+  }
+  if (!IMESSAGE_STRIP_INTERNAL_FIELDS) {
+    thread._original = stringifyWithArrayBuffers([chat, handleRows])
+    // @ts-expect-error -- HACK(skip): this exploits the fact that `features` isn't filtered
+    // from `assignProps`. this should actually be using `defaultFeatures` once
+    // we're able to set our bridge ID properly
+    // https://github.com/beeper/beeper-desktop-new/blob/681fe8ea8f23c50cc20d265775eb9a6a3bed5a0f/src/renderer/stores/ThreadStore.ts#L148
+    thread.features = roomFeatures
   }
   return thread
 }

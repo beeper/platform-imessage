@@ -1,5 +1,4 @@
-// NOTE: DO NOT PREFIX THESE IMPORTS WITH `node:`, it doesn't bundle correctly
-// on desktop
+// NOTE: DO NOT PREFIX THESE IMPORTS WITH `node:`, it doesn't bundle correctly on desktop
 import os from 'os'
 import path from 'path'
 import url from 'url'

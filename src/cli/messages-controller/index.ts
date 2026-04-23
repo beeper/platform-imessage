@@ -6,7 +6,7 @@ import readline from 'node:readline/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import c from 'ansi-colors'
-import swiftServer, { messageControllerDebuggingAvailable, MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController, MessagesControllerDebugging } from '../../SwiftServer/lib/index'
+import swiftServer, { MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController } from '../../SwiftServer/lib/index'
 import { getLastMessageID } from './last-message'
 import { runStress } from './stress'
 import { measure } from './util'

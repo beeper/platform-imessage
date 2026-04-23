@@ -139,6 +139,7 @@ ${fromMe ? 'AND is_from_me = 1' : ''}
 ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${MESSAGES_LIMIT}`,
   isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
+  getMaxDateRead: 'SELECT MAX(date_read) FROM message',
   getUnreadCounts: `SELECT
   cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
 FROM
@@ -229,6 +230,14 @@ export default class DatabaseAPI {
     swiftServer.startPolling(this.eventSender, BigInt(maxRowID), BigInt(maxDateRead))
   }
 
+  async startPollingFromCurrentState() {
+    const [lastRowID, maxDateRead] = await Promise.all([
+      this.getLastMessageRowID(),
+      this.getMaxDateRead(),
+    ])
+    await this.startPollingIfNecessary(lastRowID, maxDateRead)
+  }
+
   setLastCursor(allMsgRows: MappedMessageRow[]) {
     if (!allMsgRows.length) return
     // FIXME: use columns that don't drop precision
@@ -304,8 +313,12 @@ export default class DatabaseAPI {
     waitForRows(() => this.getThread(chatGUID).then(c => [c]), 1)
 
   async getThreads(pagination?: PaginationArg): Promise<MappedChatRow[]> {
+    const withCursor = pagination?.cursor ? pagination : undefined
     // FIXME: this shouldn't be parsing to a number due to precision loss
-    const chats = await this.db.all<number[], MappedChatRow>(SQLS.getThreads(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined), ...(pagination ? [Number.parseInt(pagination.cursor, 10)] : []))
+    const chats = await this.db.all<number[], MappedChatRow>(
+      SQLS.getThreads(withCursor ? MAP_DIRECTION_TO_SQL_OP[withCursor.direction] : undefined),
+      ...(withCursor ? [Number.parseInt(withCursor.cursor, 10)] : []),
+    )
     chats.forEach(chat => {
       this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     })
@@ -322,9 +335,13 @@ export default class DatabaseAPI {
   }
 
   getMessages(chatGUID: string, pagination?: PaginationArg): Promise<MappedMessageRow[]> {
+    const withCursor = pagination?.cursor ? pagination : undefined
     // FIXME: this shouldn't be parsing to a number due to precision loss
-    const bindings = pagination ? [chatGUID, Number.parseInt(pagination.cursor, 10)] : [chatGUID]
-    return this.db.all<typeof bindings, MappedMessageRow>(SQLS.getMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined), ...bindings)
+    const bindings = withCursor ? [chatGUID, Number.parseInt(withCursor.cursor, 10)] : [chatGUID]
+    return this.db.all<typeof bindings, MappedMessageRow>(
+      SQLS.getMessages(withCursor ? MAP_DIRECTION_TO_SQL_OP[withCursor.direction] : undefined),
+      ...bindings,
+    )
   }
 
   getMessage = (messageGUID: string): Promise<MappedMessageRow | undefined> =>
@@ -392,8 +409,15 @@ export default class DatabaseAPI {
   getThreadMessagesCount = (chatGUID: string): Promise<number> =>
     this.db.pluck_get<string[], number>(SQLS.getMsgCount, chatGUID)
 
-  getLastMessageRowID = (): Promise<number> =>
-    this.db.pluck_get("select seq from sqlite_sequence where name = 'message'")
+  getLastMessageRowID = async (): Promise<number> => {
+    const rowID = await this.db.pluck_get<void[], number | null>("select seq from sqlite_sequence where name = 'message'")
+    return rowID ?? 0
+  }
+
+  getMaxDateRead = async (): Promise<number> => {
+    const dateRead = await this.db.pluck_get<void[], number | null>(SQLS.getMaxDateRead)
+    return dateRead ?? 0
+  }
 
   getSentMessageIDsSince = (rowID: number): Promise<[number, string][]> =>
     this.db.raw_all<number[], [number, string]>('select ROWID, guid from message where is_from_me = 1 and ROWID > ?', rowID)
