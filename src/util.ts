@@ -19,8 +19,18 @@ export const getDataURI = (buffer: Buffer, mimeType = '') =>
 export const stringifyWithArrayBuffers = <T>(obj: T, space?: string | number) =>
   JSON.stringify(
     obj,
-    (_key: string, value: any) =>
-      (value?.buffer instanceof ArrayBuffer ? getDataURI(Buffer.from(value)) : value),
+    function (key: string, value: any) {
+      if (value === null || typeof value !== 'object') return value
+      const originalValue = this[key]
+      if (ArrayBuffer.isView(originalValue)) {
+        return getDataURI(Buffer.from(
+          originalValue.buffer,
+          originalValue.byteOffset,
+          originalValue.byteLength,
+        ))
+      }
+      return value
+    },
     space,
   )
 
