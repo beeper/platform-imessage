@@ -13,8 +13,7 @@ import { setTimeout as setTimeoutAsync } from 'timers/promises'
 import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin } from './mappers'
-import ASAPI from './as2'
-import { CHAT_DB_PATH, IS_BIG_SUR_OR_UP, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP } from './constants'
+import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
@@ -42,7 +41,6 @@ const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
 const linkRegex = urlRegex()
 
 function getDNDState() {
-  if (!IS_BIG_SUR_OR_UP) return new Set<string>()
   const arr = swiftServer.getDNDList()
   return new Set(arr)
 }
@@ -69,8 +67,6 @@ export default class AppleiMessage implements PlatformAPI {
    * used.
    */
   private cachedDB: DatabaseAPI | null = null
-
-  private asAPI = IS_BIG_SUR_OR_UP ? undefined : ASAPI()
 
   private onEvent: OnServerEventCallback | undefined
 
@@ -155,6 +151,7 @@ export default class AppleiMessage implements PlatformAPI {
   private experiments = ''
 
   init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs?: Record<string, any>) => {
+    if (session && !IS_BIG_SUR_OR_UP) throw new Error(MIN_MACOS_VERSION_ERROR)
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     if (swiftServer) {
@@ -178,7 +175,6 @@ export default class AppleiMessage implements PlatformAPI {
       MessagesControllerWrapper.dispose(),
       fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
       this.cachedDB?.dispose(),
-      this.asAPI?.dispose(),
     ])
   }
 
@@ -240,40 +236,8 @@ export default class AppleiMessage implements PlatformAPI {
     )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
   }
 
-  private catalinaCreateThread = async (userIDs: string[]) => {
-    const db = await this.ensureDB()
-    const threadID = await this.asAPI!.createThread(userIDs)
-    await setTimeoutAsync(10)
-    const [chatRow] = await db.getThreadWithWait(threadID)
-    if (!chatRow) throw new Error("couldn't find newly created thread")
-    const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
-      db.getThreadParticipantsWithWait(chatRow, userIDs),
-      db.fetchLastMessageRows(chatRow.ROWID),
-      db.getUnreadCounts(),
-      getDNDState(),
-    ])
-    if (handleRows.length < 1) throw new Error('newly created thread had no handles')
-    const thread = mapThread(
-      chatRow,
-      {
-        accountID: this.accountID,
-        handleRowsMap: { [chatRow.guid]: handleRows },
-        currentUserID: this.currentUser!.id,
-        mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
-        unreadCounts,
-        dndState,
-        reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
-        archivalStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'archive') },
-      },
-    )
-    if (!thread.timestamp) thread.timestamp = new Date()
-    return thread
-  }
-
   createThread = async (userIDs: string[], title?: string, message?: string) => {
     if (userIDs.length === 0) return false
-    // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
-    if (!IS_BIG_SUR_OR_UP) return (await this.catalinaCreateThread(userIDs)) as Thread
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(DEFAULT_THREAD_PREFIX + `;-;${address}`)
@@ -510,10 +474,8 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private sendFileFromFilePath = async (threadID: ThreadID, filePath: string, quotedMessageID?: MessageID): Promise<boolean | Message[]> =>
-    this.waitForMessageSend(threadID, quotedMessageID, undefined, () => (
-      this.asAPI
-        ? this.asAPI.sendFile(threadID, filePath)
-        : this.swiftSendWithRetry(threadID, undefined, filePath, quotedMessageID)))
+    this.waitForMessageSend(threadID, quotedMessageID, undefined, () =>
+      this.swiftSendWithRetry(threadID, undefined, filePath, quotedMessageID))
 
   private sendFileFromBuffer = async (threadID: ThreadID, fileBuffer: Buffer, fileName?: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
     await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
@@ -542,13 +504,7 @@ export default class AppleiMessage implements PlatformAPI {
       if (content.filePath) {
         return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
       }
-      if (IS_BIG_SUR_OR_UP) {
-        return this.waitForMessageSend(threadID, quotedMessageID, content.text, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
-      }
-      return this.waitForMessageSend(threadID, undefined, content.text, () => {
-        if (!content.text) throw new Error('Cannot send empty message')
-        return this.asAPI!.sendTextMessage(threadID, content.text)
-      })
+      return this.waitForMessageSend(threadID, quotedMessageID, content.text, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
     } finally {
       this.sendingMessagesCount--
     }
@@ -567,7 +523,6 @@ export default class AppleiMessage implements PlatformAPI {
   // eslint-disable-next-line class-methods-use-this
   updateThread = async (hashedThreadID: ThreadID, updates: Partial<Thread>) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
-    if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     if ('mutedUntil' in updates) {
       const mc = await MessagesControllerWrapper.get()
       await mc.muteThread(threadID, updates.mutedUntil === 'forever')
@@ -584,7 +539,6 @@ export default class AppleiMessage implements PlatformAPI {
   // eslint-disable-next-line class-methods-use-this
   deleteThread = async (hashedThreadID: ThreadID) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
-    if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     const mc = await MessagesControllerWrapper.get()
     await mc.deleteThread(threadID)
   }
@@ -596,7 +550,6 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const threadID = await this.resolveThreadID(hashedThreadID)
     if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
-    if (!IS_BIG_SUR_OR_UP) throw new Error('Only supported on macOS Big Sur or later')
     if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
     // group chat typing indicators require Tahoe+
     if (!IS_TAHOE_OR_UP && !getSingleParticipantAddress(threadID)) return
@@ -606,7 +559,6 @@ export default class AppleiMessage implements PlatformAPI {
 
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
     // if (IS_TAHOE_OR_UP) throw Error('reactions are not supported on macOS Tahoe')
-    if (!IS_BIG_SUR_OR_UP) throw Error('only supported on big sur and above')
     await pRetry(async () => {
       const controller = await MessagesControllerWrapper.get()
       const result = await this.waitForMessageSend(
@@ -658,19 +610,17 @@ export default class AppleiMessage implements PlatformAPI {
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
     const db = await this.ensureDB()
     const threadID = await this.resolveThreadID(hashedThreadID)
-    if (IS_BIG_SUR_OR_UP) {
-      await pRetry(async () => {
-        const isRead = await db.isThreadRead(threadID)
-        if (isRead) return
-        await this.toggleThreadRead(true)(hashedThreadID)
-      }, {
-        onFailedAttempt: error => {
-          texts.Sentry.captureException(error)
-          texts.log(`sendReadReceipt failed. Retries left: ${error.retriesLeft}`)
-        },
-        retries: 1,
-      })
-    }
+    await pRetry(async () => {
+      const isRead = await db.isThreadRead(threadID)
+      if (isRead) return
+      await this.toggleThreadRead(true)(hashedThreadID)
+    }, {
+      onFailedAttempt: error => {
+        texts.Sentry.captureException(error)
+        texts.log(`sendReadReceipt failed. Retries left: ${error.retriesLeft}`)
+      },
+      retries: 1,
+    })
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -763,9 +713,7 @@ export default class AppleiMessage implements PlatformAPI {
   private proxiedAuthFns = {
     isMessagesAppSetup: () => this.ensureDB().then(() => true, () => false),
     canAccessMessagesDir,
-    askForAutomationAccess: () => (this.asAPI
-      ? this.asAPI!.askForAutomationAccess()
-      : swiftServer.askForAutomationAccess().then(() => true)),
+    askForAutomationAccess: () => swiftServer.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
     confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
     disableMessagesNotifications: () => {
@@ -801,7 +749,6 @@ export default class AppleiMessage implements PlatformAPI {
 
       case 'hw': { // handwriting
         const [uuid] = methodName.split('.', 1)
-        if (!TMP_MOBILE_SMS_PATH) throw new Error('Can only fetch this asset on macOS Big Sur or later')
         const fileNames = await fs.readdir(TMP_MOBILE_SMS_PATH)
         let attemptsRemaining = 10
         while (attemptsRemaining--) {
@@ -818,7 +765,6 @@ export default class AppleiMessage implements PlatformAPI {
 
       case 'dt': { // digital touch
         const [uuid] = methodName.split('.', 1)
-        if (!TMP_MOBILE_SMS_PATH) throw new Error('Can only fetch this asset on macOS Big Sur or later')
         const filePath = path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)
         await waitForFileToExist(filePath, 5_000)
         return url.pathToFileURL(filePath).href

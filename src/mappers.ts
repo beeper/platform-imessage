@@ -2,7 +2,7 @@ import url from 'url'
 import { groupBy, omit } from 'lodash'
 import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, IMFileTransferState, BalloonBundleID, supportedReactions, TMP_MOBILE_SMS_PATH, REACTION_VERB_MAP } from './constants'
+import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, IMFileTransferState, BalloonBundleID, supportedReactions, REACTION_VERB_MAP } from './constants'
 import { stringifyWithArrayBuffers } from './util'
 import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
@@ -410,7 +410,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
   switch (msgRow.balloon_bundle_id) {
     case BalloonBundleID.DIGITAL_TOUCH: {
       partialHeader.textHeading = 'Digital Touch Message'
-      if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
+      if (msgRow.payload_data) {
         const uuid = Buffer.from(msgRow.payload_data.slice(-(UUID_START + UUID_LENGTH), -UUID_START)).toString('utf-8')
         if (UUID_REGEX.test(uuid)) {
           partialMessage.attachments = [{
@@ -428,7 +428,7 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     }
     case BalloonBundleID.HANDWRITING: {
       partialHeader.textHeading = 'Handwritten Message'
-      if (TMP_MOBILE_SMS_PATH && msgRow.payload_data) {
+      if (msgRow.payload_data) {
         const uuid = Buffer.from(msgRow.payload_data.slice(UUID_START, UUID_START + UUID_LENGTH)).toString('utf-8')
         if (UUID_REGEX.test(uuid)) {
           partialMessage.attachments = [{
@@ -741,8 +741,6 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
     id: chat.guid,
     title: chat.display_name,
     imgURL: getChatPhotoGuid(),
-    // catalina and lower:
-    // mutedUntil: props?.ignoreAlertsFlag ? 'forever' : undefined,
     mutedUntil: context.dndState.has(isGroup ? chat.group_id : chat.chat_identifier) ? 'forever' : undefined,
     type: isGroup ? 'group' : 'single',
     isReadOnly,

@@ -17,18 +17,6 @@
         "binaries/*/SwiftServer.node"
       ]
     },
-    "build:applescript": {
-      "inputs": [
-        "!**/.DS_Store",
-        "!src/AppleScriptServer/Release/**",
-        "!src/AppleScriptServer/AppleScriptServer.xcodeproj/project.xcworkspace/xcshareddata/**",
-        "src/AppleScriptServer/**"
-      ],
-      "outputs": [
-        "src/AppleScriptServer/Release/**",
-        "binaries/*/AppleScriptServer"
-      ]
-    },
     "build:typescript": {
       "outputs": ["dist/**"]
     },

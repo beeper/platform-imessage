@@ -6,7 +6,7 @@ import { AuthProps, texts } from '@textshq/platform-sdk'
 import type { AuthType } from 'node-mac-permissions'
 import type PAPI from '../api'
 
-import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_MOJAVE_OR_UP, IS_VENTURA_OR_UP } from '../constants'
+import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, MIN_MACOS_VERSION_ERROR } from '../constants'
 import useAsync from './use-async'
 
 const sleep = (ms: number) => new Promise(resolve => { setTimeout(resolve, ms) })
@@ -74,8 +74,7 @@ const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: CallProxiedFn }> = (
   const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
   const { value: sipEnabled } = useAsync(isSIPEnabled)
-  // no FDA in 10.13 or earlier
-  if (!IS_MOJAVE_OR_UP || !authorized || pending || !(sipEnabled ?? true) || hidden) return null
+  if (!authorized || pending || !(sipEnabled ?? true) || hidden) return null
   const onClick = async () => {
     if (!await callProxiedFn('revokeFDA')) return
     setTimeout(() => {
@@ -215,7 +214,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   const authorizeAX = () => {
     openAXPrefs()
-    if (!axAuthorized && IS_BIG_SUR_OR_UP) callProxiedFn('startSysPrefsOnboarding')
+    if (!axAuthorized) callProxiedFn('startSysPrefsOnboarding')
   }
 
   // const revokeAll = () => {
@@ -226,7 +225,7 @@ const ChecklistPage: React.FC<Props> = props => {
   // TODO(skip): this needs to actual variant of the app e.g. "Beeper Nightly"
   const appName = <strong>Beeper Desktop</strong>
   const checklistItems: ChecklistItemProps[] = [
-    IS_BIG_SUR_OR_UP && {
+    {
       icon: <svg className="icon" style={{ translate: '0 1px' /* optical alignment */ }} viewBox="0 0 16 16" height="1em" width="1em"><path d="M8 4.143A1.071 1.071 0 1 0 8 2a1.071 1.071 0 0 0 0 2.143Zm-4.668 1.47 3.24.316v2.5l-.323 4.585A.383.383 0 0 0 7 13.14l.826-4.017c.045-.18.301-.18.346 0L9 13.139a.383.383 0 0 0 .752-.125L9.43 8.43v-2.5l3.239-.316a.38.38 0 0 0-.047-.756H3.379a.38.38 0 0 0-.047.756Z" /><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8Z" /></svg>,
       title: 'Accessibility',
       completed: axAuthorized ?? false,
@@ -245,7 +244,7 @@ const ChecklistPage: React.FC<Props> = props => {
       more: <div onClick={openContactsPrefs}>Try opening {sysPrefsAppName} and manually checking {appName} in the list &rarr;</div>,
       showMore,
     },
-    IS_MOJAVE_OR_UP && {
+    {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M3.904 1.777C4.978 1.289 6.427 1 8 1s3.022.289 4.096.777C13.125 2.245 14 2.993 14 4s-.875 1.755-1.904 2.223C11.022 6.711 9.573 7 8 7s-3.022-.289-4.096-.777C2.875 5.755 2 5.007 2 4s.875-1.755 1.904-2.223Z" /><path d="M2 6.161V7c0 1.007.875 1.755 1.904 2.223C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777C13.125 8.755 14 8.007 14 7v-.839c-.457.432-1.004.751-1.49.972C11.278 7.693 9.682 8 8 8s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 9.161V10c0 1.007.875 1.755 1.904 2.223C4.978 12.711 6.427 13 8 13s3.022-.289 4.096-.777C13.125 11.755 14 11.007 14 10v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 12.161V13c0 1.007.875 1.755 1.904 2.223C4.978 15.711 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /></svg>,
       title: 'Messages Data',
       completed: messageDirAuthorized ?? false,
@@ -254,7 +253,7 @@ const ChecklistPage: React.FC<Props> = props => {
       more: <div onClick={() => nmp.askForFullDiskAccess()}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
-    IS_MOJAVE_OR_UP && {
+    {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" /></svg>,
       title: 'Automation',
       completed: automationAuthorized,
@@ -263,7 +262,7 @@ const ChecklistPage: React.FC<Props> = props => {
       more: <div onClick={openAutomationPrefs}>Try opening {sysPrefsAppName} and manually checking {appName} in the list &rarr;</div>,
       showMore,
     },
-  ].filter(item => item !== false)
+  ]
 
   const allAuthorized = isMessagesAppSetup && checklistItems.every(i => i.completed)
   const nextUncompletedItem = checklistItems.find(i => !i.completed)
@@ -351,6 +350,16 @@ const AppleiMessageAuth: React.FC<AuthProps & { nmp?: NMP }> = props => {
     return JSON.parse(await api.getAsset?.(undefined, 'proxied', fnName) as string)
   }, [])
   const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
+  if (!IS_BIG_SUR_OR_UP) {
+    return (
+      <div className="auth imessage-auth styled-inputs">
+        <link rel="stylesheet" href={cssPath} />
+        <div className="imessage-auth-well">
+          <div>{MIN_MACOS_VERSION_ERROR}. Update your Mac to continue.</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="auth imessage-auth styled-inputs">
       <link rel="stylesheet" href={cssPath} />
