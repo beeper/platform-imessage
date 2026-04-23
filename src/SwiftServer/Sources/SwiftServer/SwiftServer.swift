@@ -147,8 +147,7 @@ enum Preferences {
             log.debug("was asked to start polling (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
             let initialCursorDB = try IMDatabase()
-            let initialRecoverableDeleteDate = try initialCursorDB.latestRecoverableMessageDeleteDate()
-            let initialRemovedRecoverableMessageRowID = try initialCursorDB.latestRemovedRecoverableMessageRowID()
+            let deletedMessagesCursorSeed = try initialCursorDB.deletedMessagesCursorSeed()
 
             let poller = try Poller(serverEventSender: { events in
                 var values = [any NodeValueConvertible]()
@@ -164,8 +163,8 @@ enum Preferences {
                 lastRowID: lastRowID,
                 lastDateRead: lastDateRead,
                 lastDateEdited: Date(),
-                lastRecoverableDeleteDate: initialRecoverableDeleteDate,
-                lastRemovedRecoverableMessageRowID: initialRemovedRecoverableMessageRowID
+                lastRecoverableDeleteDate: deletedMessagesCursorSeed.latestRecoverableDeleteDate,
+                lastRemovedRecoverableMessageRowID: deletedMessagesCursorSeed.latestRemovedRecoverableMessageRowID
             ))
 
             pollingTask = Task {

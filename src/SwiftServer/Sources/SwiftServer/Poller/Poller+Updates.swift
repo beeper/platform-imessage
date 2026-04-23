@@ -88,6 +88,9 @@ extension Poller {
             log.error("didn't have new rowid cursor despite having updated chats? keeping the old cursor")
         }
 
+        let updatedChatGUIDs = Set(updatedChats.updatedChats.compactMap(\.guid))
+        let deletedMessageEvents = deleteEvents(forDeletedMessages: deletedMessages)
+
         defer {
             let newCursor = MessageUpdatesCursor(
                 lastRowID: updatedChats.latestMessageRowID ?? updatesCursor.lastRowID,
@@ -101,20 +104,15 @@ extension Poller {
             updatesCursor = newCursor
         }
 
-        let deletedMessageEvents = deleteEvents(forDeletedMessages: deletedMessages)
-        let refreshChatGUIDs = Set(updatedChats.updatedChats.compactMap(\.guid))
-            .union(deletedMessageEvents.affectedChatGUIDs)
-
-        guard !refreshChatGUIDs.isEmpty || !deletedMessageEvents.events.isEmpty else {
+        guard !updatedChatGUIDs.isEmpty || !deletedMessageEvents.events.isEmpty else {
             traceMessageUpdates("no message or delete updates this time around")
             return []
         }
 
         var events = deletedMessageEvents.events
         events.append(contentsOf: threadRefreshEvents(forUpdatedChats: updatedChats))
-        events.append(contentsOf: threadRefreshEvents(forChatGUIDs: Array(
-            deletedMessageEvents.affectedChatGUIDs.subtracting(Set(updatedChats.updatedChats.compactMap(\.guid)))
-        )))
+        let chatsAffectedOnlyByDeletes = deletedMessageEvents.affectedChatGUIDs.subtracting(updatedChatGUIDs)
+        events.append(contentsOf: threadRefreshEvents(forChatGUIDs: Array(chatsAffectedOnlyByDeletes)))
         return events
     }
 }

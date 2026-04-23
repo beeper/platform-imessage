@@ -53,18 +53,10 @@ ORDER BY
     ROWID ASC
 """
 
-let latestRecoverableDeleteDateQuery = """
+let deletedMessagesCursorSeedQuery = """
 SELECT
-    MAX(delete_date)
-FROM
-    chat_recoverable_message_join
-"""
-
-let latestRemovedRecoverableMessageRowIDQuery = """
-SELECT
-    MAX(ROWID)
-FROM
-    unsynced_removed_recoverable_messages
+    (SELECT MAX(delete_date) FROM chat_recoverable_message_join),
+    (SELECT MAX(ROWID) FROM unsynced_removed_recoverable_messages)
 """
 
 public struct UpdatedChatsQueryResult {
@@ -96,6 +88,11 @@ public struct DeletedMessagesQueryResult {
     public var latestRecoverableDeleteDate: Date?
     public var removedRecoverableMessages: [RemovedRecoverableMessage]
     public var latestRemovedRecoverableMessageRowID: Int?
+}
+
+public struct DeletedMessagesCursorSeed {
+    public let latestRecoverableDeleteDate: Date
+    public let latestRemovedRecoverableMessageRowID: Int
 }
 
 public extension IMDatabase {
@@ -173,23 +170,25 @@ public extension IMDatabase {
         )
     }
 
-    func latestRecoverableMessageDeleteDate() throws -> Date {
-        guard #available(macOS 13, *) else { return .distantPast }
+    func deletedMessagesCursorSeed() throws -> DeletedMessagesCursorSeed {
+        let defaultSeed = DeletedMessagesCursorSeed(
+            latestRecoverableDeleteDate: .distantPast,
+            latestRemovedRecoverableMessageRowID: 0
+        )
+        guard #available(macOS 13, *) else { return defaultSeed }
 
-        let statement = try cachedStatement(forEscapedSQL: latestRecoverableDeleteDateQuery)
+        let statement = try cachedStatement(forEscapedSQL: deletedMessagesCursorSeedQuery)
         try statement.reset()
 
-        let nanoseconds = try statement.compactMapRowsUntilDone { try $0[0].optional(Int.self) }.first ?? 0
-        guard nanoseconds > 0 else { return .distantPast }
-        return Date(nanosecondsSinceReferenceDate: nanoseconds)
-    }
-
-    func latestRemovedRecoverableMessageRowID() throws -> Int {
-        guard #available(macOS 13, *) else { return 0 }
-
-        let statement = try cachedStatement(forEscapedSQL: latestRemovedRecoverableMessageRowIDQuery)
-        try statement.reset()
-        return try statement.compactMapRowsUntilDone { try $0[0].optional(Int.self) }.first ?? 0
+        return try statement.mapRowsUntilDone { row in
+            let nanoseconds = try row[0].optional(Int.self) ?? 0
+            return DeletedMessagesCursorSeed(
+                latestRecoverableDeleteDate: nanoseconds > 0
+                    ? Date(nanosecondsSinceReferenceDate: nanoseconds)
+                    : .distantPast,
+                latestRemovedRecoverableMessageRowID: try row[1].optional(Int.self) ?? 0
+            )
+        }.first ?? defaultSeed
     }
 
     func deletedMessages(
