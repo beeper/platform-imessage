@@ -41,7 +41,7 @@ CAST(m.date_edited AS TEXT) AS dateEditedString,
 CAST(m.date_retracted AS TEXT) AS dateRetractedString`
 }
 
-const dateExpr = (op?: '<' | '>') => op === '>' && IS_VENTURA_OR_UP ? 'MAX(m.date, COALESCE(m.date_edited, 0))' : 'm.date'
+const dateExpr = (op?: '<' | '>') => (op === '>' && IS_VENTURA_OR_UP ? 'MAX(m.date, COALESCE(m.date_edited, 0))' : 'm.date')
 
 const SQLS = {
   getThreads: (dateComparisonOperator?: '<' | '>') => `SELECT *,
@@ -61,7 +61,7 @@ WHERE chat.guid = ?`,
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
 LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
 WHERE chat_id = ?`,
-  getChatImageByGUID: `SELECT filename FROM attachment WHERE guid = ?`,
+  getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
 
   getAccountLogins: 'SELECT DISTINCT account_login FROM chat',
   getMsgCount: `SELECT count(*)

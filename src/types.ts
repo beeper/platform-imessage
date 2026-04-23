@@ -271,4 +271,3 @@ export interface MessageSummaryInfo {
   // NOTE: Not sure why this isn't just an array. Maybe there can be other keys?
   otr?: Record<`${number}`, OTRValue>
 }
-

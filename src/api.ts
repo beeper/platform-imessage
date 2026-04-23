@@ -827,7 +827,7 @@ export default class AppleiMessage implements PlatformAPI {
       case 'reaction-sticker': {
         const rowIDStr = methodName.split('.', 1)?.[0]
         const reactionRowID = Number(rowIDStr)
-        if (!Number.isSafeInteger(reactionRowID)) throw new Error("invalid reaction sticker row ID")
+        if (!Number.isSafeInteger(reactionRowID)) throw new Error('invalid reaction sticker row ID')
         const db = await this.ensureDB()
         const attachment = (await db.getAttachments([reactionRowID])).find(a => a.filePath)
         if (!attachment?.filePath) throw new Error("couldn't resolve sticker attachment for reaction row")
