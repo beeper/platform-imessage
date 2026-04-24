@@ -1,5 +1,62 @@
 import AppKit
+import Darwin
+import SwiftServerFoundation
 import SwiftUI
+
+private enum PermissionsAppName {
+    static let current: String = {
+        responsibleApplicationName()
+            ?? bundleDisplayName()
+            ?? NSRunningApplication.current.localizedName?.nonEmpty
+            ?? "Beeper Desktop"
+    }()
+
+    private static func responsibleApplicationName() -> String? {
+        // TCC lists the responsible GUI app, which can be Terminal in dev launches.
+        var pid = getppid()
+        var visited = Set<pid_t>()
+
+        while pid > 1, visited.insert(pid).inserted {
+            if let name = bundledApplicationName(for: pid) {
+                return name
+            }
+
+            guard let parentPID = parentProcessID(of: pid), parentPID != pid else {
+                break
+            }
+
+            pid = parentPID
+        }
+
+        return nil
+    }
+
+    private static func bundledApplicationName(for pid: pid_t) -> String? {
+        guard let runningApp = NSRunningApplication(processIdentifier: pid),
+              runningApp.bundleIdentifier != nil || runningApp.bundleURL != nil else {
+            return nil
+        }
+
+        return runningApp.localizedName?.nonEmpty
+    }
+
+    private static func parentProcessID(of pid: pid_t) -> pid_t? {
+        var info = proc_bsdinfo()
+        let size = MemoryLayout<proc_bsdinfo>.stride
+        let result = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(size))
+
+        guard result == Int32(size), info.pbi_ppid > 0 else {
+            return nil
+        }
+
+        return pid_t(info.pbi_ppid)
+    }
+
+    private static func bundleDisplayName() -> String? {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.nonEmpty
+            ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.nonEmpty
+    }
+}
 
 @available(macOS 10.15, *)
 struct RoundedCorners: Shape {
@@ -74,7 +131,7 @@ struct OnboardingView: View {
     var body: some View {
         HStack(spacing: 0) {
             if #available(macOS 13.0, *) {
-                MessageBubble(text: "Turn on Beeper Desktop in the list", tl: 16, tr: 16, bl: 8, br: 16)
+                MessageBubble(text: "Turn on \(PermissionsAppName.current) in the list", tl: 16, tr: 16, bl: 8, br: 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding()
             } else {
@@ -84,7 +141,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                MessageBubble(text: "2. Check Beeper Desktop in the list", tl: 8, tr: 16, bl: 16, br: 16)
+                MessageBubble(text: "2. Check \(PermissionsAppName.current) in the list", tl: 8, tr: 16, bl: 16, br: 16)
                     .padding(.bottom, 195)
                     .padding(.trailing, 60)
             }
