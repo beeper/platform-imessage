@@ -27,12 +27,14 @@ const KEEP_ALIVE_FLAG = '--stay-open'
 const DATA_DIR_FLAG = '--data-dir'
 const NO_EVENTS_FLAG = '--no-events'
 const VERBOSE_FLAG = '--verbose'
+const MESSAGES_INSTANCE_FLAG = '--messages-instance'
 const SHELL_COMMAND = 'shell'
 const HELP_COMMAND = 'help'
 const PROMPT = 'imessage> '
 const SHUTDOWN_TIMEOUT_MS = 2_000
 const GLOBAL_CLI_OPTIONS = {
   'data-dir': { type: 'string' },
+  'messages-instance': { type: 'string' },
   'stay-open': { type: 'boolean' },
   'no-events': { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -53,6 +55,7 @@ type RunnerOptions = {
   customDataDir?: string
   keepAlive: boolean
   loggingEnabled: boolean
+  messagesInstanceMode: 'default' | 'puppet'
   subscribeToEvents: boolean
 }
 
@@ -135,12 +138,17 @@ function parseCliArgs(argv: string[]): RunnerOptions {
   })
 
   const commandArgs = values.help ? [HELP_COMMAND, ...commandArgsRaw] : commandArgsRaw
+  const messagesInstanceMode = values['messages-instance'] ?? process.env.IMESSAGE_MESSAGES_INSTANCE_MODE ?? 'default'
+  if (messagesInstanceMode !== 'default' && messagesInstanceMode !== 'puppet') {
+    throw new Error(`${MESSAGES_INSTANCE_FLAG} must be either "default" or "puppet"`)
+  }
 
   return {
     commandArgs,
     customDataDir: values['data-dir'],
     keepAlive: values['stay-open'] ?? false,
     loggingEnabled: values.verbose ?? false,
+    messagesInstanceMode,
     subscribeToEvents: !(values['no-events'] ?? false),
   }
 }
@@ -175,6 +183,7 @@ async function saveSession(api: PlatformAPI, sessionFilePath: string) {
 
 const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
+  process.env.IMESSAGE_MESSAGES_INSTANCE_MODE = state.messagesInstanceMode
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)
   // We do not currently depend on persisted CLI session state, but keeping this
@@ -297,6 +306,7 @@ function tokenizeInput(input: string): string[] {
 function formatGlobalFlags() {
   return [
     `  ${DATA_DIR_FLAG} PATH     Store CLI state under PATH instead of a temp directory`,
+    `  ${MESSAGES_INSTANCE_FLAG} MODE  Use "default" or "puppet" Messages instance mode`,
     `  ${NO_EVENTS_FLAG}        Do not subscribe to server events after running commands`,
     `  ${KEEP_ALIVE_FLAG}       Run one command, then stay open in the interactive shell`,
     `  ${VERBOSE_FLAG}          Enable verbose logging`,
@@ -879,6 +889,7 @@ async function main(runnerOptions: RunnerOptions) {
       sessionFilePath: state.sessionFilePath,
       subscribeToEvents: state.subscribeToEvents,
       loggingEnabled: state.loggingEnabled,
+      messagesInstanceMode: state.messagesInstanceMode,
     }, { colors: true, depth: 4 }))
   }
 

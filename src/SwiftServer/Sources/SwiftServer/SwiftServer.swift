@@ -44,6 +44,7 @@ enum Preferences {
     static var isLoggingEnabled = false
     static var isPHTEnabled = false
     static var enabledExperiments = ""
+    static var messagesInstanceMode = MessagesInstanceMode.default.rawValue
 }
 
 #NodeModule {
@@ -105,6 +106,12 @@ enum Preferences {
             Preferences.enabledExperiments
         } set: { args in
             Preferences.enabledExperiments = try args.first?.as(String.self) ?? ""
+        },
+
+        "messagesInstanceMode": NodeProperty { _ in
+            Preferences.messagesInstanceMode
+        } set: { args in
+            Preferences.messagesInstanceMode = try args.first?.as(String.self) ?? MessagesInstanceMode.default.rawValue
         },
 
         "isLoggingEnabled": NodeProperty { _ in

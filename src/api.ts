@@ -25,7 +25,12 @@ import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Pe
 import { makeAppleDate } from './time'
 import Phaser from './phaser'
 
-if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
+if (swiftServer) {
+  swiftServer.isLoggingEnabled = texts.isLoggingEnabled
+  if (process.env.IMESSAGE_MESSAGES_INSTANCE_MODE) {
+    swiftServer.messagesInstanceMode = process.env.IMESSAGE_MESSAGES_INSTANCE_MODE
+  }
+}
 
 function canAccessMessagesDir() {
   try {
@@ -165,7 +170,9 @@ export default class AppleiMessage implements PlatformAPI {
       // (DESK-13231; removed until this actually works)
       // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
       swiftServer.enabledExperiments = this.experiments
+      swiftServer.messagesInstanceMode = process.env.IMESSAGE_MESSAGES_INSTANCE_MODE ?? prefs?.messages_instance_mode ?? 'default'
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
+      texts.log('imessage messagesInstanceMode', swiftServer.messagesInstanceMode)
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
