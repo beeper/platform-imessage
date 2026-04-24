@@ -182,7 +182,23 @@ final class MessagesController {
     }
 
     @discardableResult
-    static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
+    static func openDeepLink(
+        _ url: URL,
+        activating: Bool = false,
+        hiding: Bool = true,
+        targeting app: NSRunningApplication? = nil
+    ) throws -> NSRunningApplication {
+        if Preferences.messagesInstanceMode == .puppet, let app {
+            try MessagesInstanceTarget.sendDeepLink(url, to: app)
+            if activating {
+                app.activate()
+            }
+            if hiding {
+                app.hide()
+            }
+            return app
+        }
+
         let openOptions = NSWorkspace.OpenConfiguration()
         openOptions.activates = activating
         openOptions.hides = hiding
@@ -215,18 +231,7 @@ final class MessagesController {
 
     @discardableResult
     private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-        guard Preferences.messagesInstanceMode == .puppet else {
-            return try Self.openDeepLink(url, activating: activating, hiding: hiding)
-        }
-
-        try MessagesInstanceTarget.sendDeepLink(url, to: app)
-        if activating {
-            app.activate()
-        }
-        if hiding {
-            app.hide()
-        }
-        return app
+        try Self.openDeepLink(url, activating: activating, hiding: hiding, targeting: app)
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -408,11 +413,7 @@ final class MessagesController {
         try app.waitForLaunch()
         let selectedApp = app
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
-            if Preferences.messagesInstanceMode == .puppet {
-                try MessagesInstanceTarget.sendDeepLink(url, to: selectedApp)
-            } else {
-                try Self.openDeepLink(url)
-            }
+            try Self.openDeepLink(url, targeting: selectedApp)
         })
         keyPresser = KeyPresser(pid: app.processIdentifier)
 

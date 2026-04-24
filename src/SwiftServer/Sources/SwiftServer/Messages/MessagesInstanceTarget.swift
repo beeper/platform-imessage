@@ -10,11 +10,13 @@ enum MessagesInstanceMode: String {
 
 @available(macOS 11, *)
 enum MessagesInstanceTarget {
-    static func getURLAppleEvent(for url: URL, target: NSRunningApplication?) -> NSAppleEventDescriptor {
+    private static func getURLAppleEvent(for url: URL, target: NSRunningApplication?) -> NSAppleEventDescriptor {
+        let targetDescriptor: NSAppleEventDescriptor? = target.map { NSAppleEventDescriptor(processIdentifier: $0.processIdentifier) }
+        
         let event = NSAppleEventDescriptor(
             eventClass: AEEventClass(kInternetEventClass),
             eventID: AEEventID(kAEGetURL),
-            targetDescriptor: target.map { NSAppleEventDescriptor(processIdentifier: $0.processIdentifier) },
+            targetDescriptor: targetDescriptor,
             returnID: AEReturnID(kAutoGenerateReturnID),
             transactionID: AETransactionID(kAnyTransactionID)
         )
@@ -77,12 +79,15 @@ enum MessagesInstanceTarget {
 
         let app = try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
         try app.waitForLaunch(timeout: timeout)
+        
         if let initialDeepLink {
             try sendDeepLink(initialDeepLink, to: app)
         }
+        
         if hiding {
             app.hide()
         }
+        
         return app
     }
 }
