@@ -183,6 +183,7 @@ async function saveSession(api: PlatformAPI, sessionFilePath: string) {
 
 const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
+  process.env.IMESSAGE_LOGGING_DIR_PATH = state.dataDirPath
   process.env.IMESSAGE_MESSAGES_INSTANCE_MODE = state.messagesInstanceMode
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)

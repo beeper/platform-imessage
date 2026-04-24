@@ -1,7 +1,7 @@
 import path from 'path'
 import { maxBy, memoize } from 'lodash'
 import { OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
-import { setTimeout as setTimeoutAsync } from 'timers/promises'
+import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
