@@ -5,7 +5,6 @@ import Logging
 
 private let log = Logger(swiftServerLabel: "onboarding-manager")
 
-@available(macOS 10.15, *)
 final class OnboardingManager {
     private var onboardingWindow: NSWindow?
     private var pollingTimer: Timer?

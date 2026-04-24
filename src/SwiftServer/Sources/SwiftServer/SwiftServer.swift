@@ -24,7 +24,6 @@ extension MessagesControllerWrapper {
 }
 #endif
 
-@available(macOS 10.15, *)
 enum SysPrefsOnboarding {
     static var onboardingManager: OnboardingManager?
 
