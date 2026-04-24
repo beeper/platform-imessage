@@ -28,6 +28,7 @@ const DATA_DIR_FLAG = '--data-dir'
 const NO_EVENTS_FLAG = '--no-events'
 const VERBOSE_FLAG = '--verbose'
 const MESSAGES_INSTANCE_FLAG = '--messages-instance'
+const HIDE_MESSAGES_APP_FLAG = '--hide-messages-app'
 const SHELL_COMMAND = 'shell'
 const HELP_COMMAND = 'help'
 const PROMPT = 'imessage> '
@@ -35,6 +36,7 @@ const SHUTDOWN_TIMEOUT_MS = 2_000
 const GLOBAL_CLI_OPTIONS = {
   'data-dir': { type: 'string' },
   'messages-instance': { type: 'string' },
+  'hide-messages-app': { type: 'string' },
   'stay-open': { type: 'boolean' },
   'no-events': { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -56,6 +58,7 @@ type RunnerOptions = {
   keepAlive: boolean
   loggingEnabled: boolean
   messagesInstanceMode: 'default' | 'puppet'
+  shouldAutoHideMessages: boolean
   subscribeToEvents: boolean
 }
 
@@ -142,6 +145,11 @@ function parseCliArgs(argv: string[]): RunnerOptions {
   if (messagesInstanceMode !== 'default' && messagesInstanceMode !== 'puppet') {
     throw new Error(`${MESSAGES_INSTANCE_FLAG} must be either "default" or "puppet"`)
   }
+  const shouldAutoHideMessages = parseBooleanOption(
+    HIDE_MESSAGES_APP_FLAG,
+    values['hide-messages-app'] ?? process.env.IMESSAGE_AUTO_HIDE_MESSAGES,
+    true,
+  )
 
   return {
     commandArgs,
@@ -149,6 +157,7 @@ function parseCliArgs(argv: string[]): RunnerOptions {
     keepAlive: values['stay-open'] ?? false,
     loggingEnabled: values.verbose ?? false,
     messagesInstanceMode,
+    shouldAutoHideMessages,
     subscribeToEvents: !(values['no-events'] ?? false),
   }
 }
@@ -185,6 +194,7 @@ const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
   process.env.IMESSAGE_LOGGING_DIR_PATH = state.dataDirPath
   process.env.IMESSAGE_MESSAGES_INSTANCE_MODE = state.messagesInstanceMode
+  process.env.IMESSAGE_AUTO_HIDE_MESSAGES = state.shouldAutoHideMessages ? '1' : '0'
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)
   // We do not currently depend on persisted CLI session state, but keeping this
@@ -222,6 +232,22 @@ function joinText(command: CommandDefinition, tokens: string[], startIndex: numb
   const text = tokens.slice(startIndex).join(' ').trim()
   if (!text) throw new Error(`${command.name} requires text content.\nusage: ${command.usage[0]}`)
   return text
+}
+
+function parseBooleanOption(name: string, value: string | undefined, defaultValue: boolean): boolean {
+  if (value == null) return defaultValue
+  switch (value.toLowerCase()) {
+  case 'true':
+  case '1':
+  case 'yes':
+    return true
+  case 'false':
+  case '0':
+  case 'no':
+    return false
+  default:
+    throw new Error(`${name} must be true or false`)
+  }
 }
 
 function parsePaginationArgs(command: CommandDefinition, args: string[], positionalCount: number): { positionals: string[], pagination?: PaginationArg } {
@@ -308,6 +334,7 @@ function formatGlobalFlags() {
   return [
     `  ${DATA_DIR_FLAG} PATH     Store CLI state under PATH instead of a temp directory`,
     `  ${MESSAGES_INSTANCE_FLAG} MODE  Use "default" or "puppet" Messages instance mode`,
+    `  ${HIDE_MESSAGES_APP_FLAG} BOOL  Whether to automatically hide or move the Messages app/window`,
     `  ${NO_EVENTS_FLAG}        Do not subscribe to server events after running commands`,
     `  ${KEEP_ALIVE_FLAG}       Run one command, then stay open in the interactive shell`,
     `  ${VERBOSE_FLAG}          Enable verbose logging`,
@@ -531,8 +558,9 @@ const commandDefinitions: CommandDefinition[] = [
     name: 'send',
     category: 'Message',
     summary: 'Send a text message to a chat.',
-    usage: ['send CHAT_ID TEXT'],
+    usage: ['send CHAT_ID_OR_EMAIL TEXT'],
     examples: [
+      'send sjobs@apple.com "hello from cli"',
       'send any;-;sjobs@apple.com "hello from cli"',
       'send any;-;+14155551234 "quoted shell text works"',
     ],
@@ -563,8 +591,8 @@ const commandDefinitions: CommandDefinition[] = [
     name: 'send-file',
     category: 'Message',
     summary: 'Send a file attachment to a chat.',
-    usage: ['send-file CHAT_ID FILE'],
-    examples: ['send-file any;-;sjobs@apple.com ./image.png'],
+    usage: ['send-file CHAT_ID_OR_EMAIL FILE'],
+    examples: ['send-file sjobs@apple.com ./image.png', 'send-file any;-;sjobs@apple.com ./image.png'],
     requiredAuthorization: MUTATING_AUTH,
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 2)
@@ -891,6 +919,7 @@ async function main(runnerOptions: RunnerOptions) {
       subscribeToEvents: state.subscribeToEvents,
       loggingEnabled: state.loggingEnabled,
       messagesInstanceMode: state.messagesInstanceMode,
+      shouldAutoHideMessages: state.shouldAutoHideMessages,
     }, { colors: true, depth: 4 }))
   }
 

@@ -30,6 +30,9 @@ if (swiftServer) {
   if (process.env.IMESSAGE_MESSAGES_INSTANCE_MODE) {
     swiftServer.messagesInstanceMode = process.env.IMESSAGE_MESSAGES_INSTANCE_MODE
   }
+  if (process.env.IMESSAGE_AUTO_HIDE_MESSAGES) {
+    swiftServer.shouldAutoHideMessages = process.env.IMESSAGE_AUTO_HIDE_MESSAGES !== '0'
+  }
 }
 
 function canAccessMessagesDir() {
@@ -42,6 +45,7 @@ function canAccessMessagesDir() {
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
+const emailAddressRegex = /^[^\s@;]+@[^\s@;]+$/
 
 const linkRegex = urlRegex()
 
@@ -117,15 +121,21 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private resolveThreadID = async (possiblyHashedThreadID: ThreadID): Promise<ThreadID> => {
+    let threadID: ThreadID
     try {
-      return originalThreadID(possiblyHashedThreadID)
+      threadID = originalThreadID(possiblyHashedThreadID)
     } catch {
       // hasher doesn't know this token (e.g. before getThreads has run after
       // a restart). warm it by tokenizing every chat guid, then retry.
       const db = await this.ensureDB()
       await db.warmThreadHasher()
-      return originalThreadID(possiblyHashedThreadID)
+      threadID = originalThreadID(possiblyHashedThreadID)
     }
+
+    if (!emailAddressRegex.test(threadID)) return threadID
+
+    const db = await this.ensureDB()
+    return await db.resolveDirectThreadGUIDForAddress(threadID) ?? `${DEFAULT_THREAD_PREFIX};-;${threadID}`
   }
 
   getCurrentUser = async (): Promise<CurrentUser> => {
@@ -171,8 +181,12 @@ export default class AppleiMessage implements PlatformAPI {
       // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
       swiftServer.enabledExperiments = this.experiments
       swiftServer.messagesInstanceMode = process.env.IMESSAGE_MESSAGES_INSTANCE_MODE ?? prefs?.messages_instance_mode ?? 'default'
+      swiftServer.shouldAutoHideMessages = process.env.IMESSAGE_AUTO_HIDE_MESSAGES
+        ? process.env.IMESSAGE_AUTO_HIDE_MESSAGES !== '0'
+        : prefs?.auto_hide_messages_app ?? true
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
       texts.log('imessage messagesInstanceMode', swiftServer.messagesInstanceMode)
+      texts.log('imessage shouldAutoHideMessages', swiftServer.shouldAutoHideMessages)
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))

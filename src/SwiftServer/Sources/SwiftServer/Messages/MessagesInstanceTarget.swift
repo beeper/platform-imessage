@@ -41,7 +41,7 @@ enum MessagesInstanceTarget {
     static func launchPuppet(
         initialDeepLink: URL? = nil,
         activating: Bool = false,
-        hiding: Bool = true,
+        hiding: Bool = false,
         timeout: TimeInterval = 8
     ) throws -> NSRunningApplication {
         guard let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID) else {

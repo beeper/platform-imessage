@@ -188,12 +188,13 @@ final class MessagesController {
         hiding: Bool = true,
         targeting app: NSRunningApplication? = nil
     ) throws -> NSRunningApplication {
+        let shouldHide = hiding && Preferences.shouldAutoHideMessages
         if Preferences.messagesInstanceMode == .puppet, let app {
             try MessagesInstanceTarget.sendDeepLink(url, to: app)
             if activating {
                 app.activate()
             }
-            if hiding {
+            if shouldHide {
                 app.hide()
             }
             return app
@@ -201,7 +202,7 @@ final class MessagesController {
 
         let openOptions = NSWorkspace.OpenConfiguration()
         openOptions.activates = activating
-        openOptions.hides = hiding
+        openOptions.hides = shouldHide
 
         let horribleWaiter = DispatchSemaphore(value: 0)
         var result: Result<NSRunningApplication, Error>?
@@ -212,9 +213,9 @@ final class MessagesController {
             let builtForDebugging = false
             #endif
             if Defaults.deepLinkTracingPII || builtForDebugging {
-                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(shouldHide))")
             } else {
-                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
+                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(shouldHide))")
             }
 
             if let error {
@@ -373,7 +374,7 @@ final class MessagesController {
 
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
             // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
+            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow && Preferences.shouldAutoHideMessages {
                 Thread.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
@@ -382,7 +383,11 @@ final class MessagesController {
 
         if Preferences.messagesInstanceMode == .puppet {
             log.info("launching puppet messages instance...")
-            app = try MessagesInstanceTarget.launchPuppet(initialDeepLink: MessagesDeepLink.compose.url(), activating: false, hiding: true)
+            app = try MessagesInstanceTarget.launchPuppet(
+                initialDeepLink: MessagesDeepLink.compose.url(),
+                activating: false,
+                hiding: false
+            )
         } else {
             var messagesApps = Self.getRunningMessagesApps()
             if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
@@ -392,7 +397,7 @@ final class MessagesController {
             }
             if let existingApp = messagesApps.first {
                 // if coordination is disabled, avoid unnecessarily terminating the app
-                if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
+                if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow || !Preferences.shouldAutoHideMessages {
                     log.info("reusing existing messages...")
                     app = existingApp
                 } else {
@@ -407,7 +412,9 @@ final class MessagesController {
             }
         }
 
-        windowCoordinator.app = app
+        if Preferences.shouldAutoHideMessages {
+            windowCoordinator.app = app
+        }
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
@@ -536,13 +543,15 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             activityLock.lock()
         }
 
-        do {
-            try phtConnection?.setMessagesHidden(true)
-        } catch {
-            log.error("failed to hide messages app via pht: \(error)")
+        if Preferences.shouldAutoHideMessages {
+            do {
+                try phtConnection?.setMessagesHidden(true)
+            } catch {
+                log.error("failed to hide messages app via pht: \(error)")
+            }
         }
 
-        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
+        if Defaults.shouldCoordinateWindow && Preferences.shouldAutoHideMessages, let mainWindow = elements.getMainWindow() {
             try windowCoordinator.makeAutomatable(mainWindow)
         }
     }
@@ -551,7 +560,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.info("finishedAutomation")
         activityLock.unlock()
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
-        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
+        if Defaults.shouldCoordinateWindow && Preferences.shouldAutoHideMessages, let mainWindow = elements.getMainWindow() {
             do {
                 try windowCoordinator.automationDidComplete(mainWindow)
             } catch {
@@ -1448,7 +1457,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             messagesIsManuallyActivated = true
             log.debug("activateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
+            if Defaults.shouldCoordinateWindow && Preferences.shouldAutoHideMessages, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)
                 try windowCoordinator.userManuallyActivated(app)
             }
@@ -1469,7 +1478,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             log.debug("deactivateMessages")
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             let window = elements.getMainWindow()
-            if Defaults.shouldCoordinateWindow {
+            if Defaults.shouldCoordinateWindow && Preferences.shouldAutoHideMessages {
                 try windowCoordinator.userManuallyDeactivated(app)
             }
             try? closeAllNonMainWindows()

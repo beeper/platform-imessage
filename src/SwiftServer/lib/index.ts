@@ -93,6 +93,7 @@ export type SwiftServer = {
   appleInterfaceStyle: string
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
+  shouldAutoHideMessages: boolean
   enabledExperiments: string
   messagesInstanceMode: string
   isMessagesAppInDock: string
