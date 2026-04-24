@@ -25,7 +25,7 @@ import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Pe
 import { makeAppleDate } from './time'
 import Phaser from './phaser'
 
-if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled || texts.IS_DEV
+if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
 
 function canAccessMessagesDir() {
   try {
@@ -85,9 +85,16 @@ export default class AppleiMessage implements PlatformAPI {
 
     texts.log('imsg: created DatabaseAPI')
 
-    // eslint-disable-next-line no-void
-    void MessagesControllerWrapper.get()
-    texts.log('imsg: fetched MessagesControllerWrapper')
+    if (process.env.IMESSAGE_SKIP_EAGER_MC !== '1') {
+      // eslint-disable-next-line no-void
+      void MessagesControllerWrapper.get()
+        .then(() => {
+          texts.log('imsg: fetched MessagesControllerWrapper')
+        })
+        .catch(error => {
+          texts.error('imsg: eager MessagesControllerWrapper fetch failed:', error)
+        })
+    }
     this.currentUser = await this.fetchCurrentUser()
 
     return this.cachedDB
@@ -197,6 +204,12 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  startEventPollingFromCurrentState = async (): Promise<void> => {
+    if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventPollingFromCurrentState')
+    const db = await this.ensureDB()
+    await db.startPollingFromCurrentState()
+  }
+
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
     this.persistence?.setThreadProp(hashedThreadID, 'pin', pinned)
     this.onEvent?.([{
@@ -238,6 +251,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   createThread = async (userIDs: string[], title?: string, message?: string) => {
     if (userIDs.length === 0) return false
+    if (!message?.trim()) throw Error('no message')
     if (userIDs.length === 1) {
       const address = userIDs[0]
       const existingThread = await this.getThread(DEFAULT_THREAD_PREFIX + `;-;${address}`)
@@ -249,7 +263,6 @@ export default class AppleiMessage implements PlatformAPI {
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
     }
-    if (!message) throw Error('no message')
     await (await MessagesControllerWrapper.get()).createThread(userIDs, message)
     return true
   }

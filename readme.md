@@ -1,49 +1,79 @@
 # platform-imessage
 
-`platform-imessage` is the iMessage integration in Beeper Desktop on macOS. Designed to run with [System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled. 
+A standalone JS library and CLI that lets you and your agents send/receive messages and fully automate iMessage locally on your Mac.
 
-Built on an extended version of [Platform SDK](https://github.com/textshq/platform-sdk).
+Reads `chat.db` and works with automation and accessibility APIs. Designed to run with [System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled since it does not hook into low level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~98% feature parity (reactions, threaded replies, edit message, undo send, typing indicators, rich text message formatting etc.) on macOS Tahoe.
 
-## Testing
+This also powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS.
 
-For local testing without the main Beeper app, use the headless Electron harness in `src/SwiftServer/headless/index.ts`.
+Native code in Swift is exposed to JS via NAPI/[node-swift](https://github.com/kabiroberai/node-swift).
 
+## Usage
+
+
+1. Setup:
 ```sh
+git clone https://github.com/beeper/platform-imessage
+cd platform-imessage
+yarn
 yarn build:swift --debug --standalone
-yarn headless:build
-yarn headless:run
+yarn build:cli
+yarn cli authorize # authorize permissions like Accessibility/Automation/Contacts
 ```
 
-This starts an interactive `imsg>` prompt that lets you call `MessagesController` methods directly.
+2. Run one-off commands:
+```sh
+yarn cli current-user                                                                    # fetch logged in user
+yarn cli threads                                                                         # fetch chats
+yarn cli messages any;-;sjobs@apple.com                                                  # fetch messages for an existing chat
 
-You can also run a single command without entering the REPL:
+yarn cli send any;-;sjobs@apple.com "hello from shell"                                   # text an email
+yarn cli send any;-;+14155551234 "hello from shell"                                      # text a phone number
+
+yarn cli send-file any;-;+14155551234 ./image.png                                        # send a file
+
+yarn cli create-thread +14155551234 --message "hey this is steve"                        # start a new chat with a number or email
+yarn cli create-thread +15551234567 +15557654321 --message "new group"                   # create a group chat
+yarn cli reply any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "sounds good"     # reply to an existing message
+yarn cli reply-file any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./doc.pdf    # send a file as a reply
+yarn cli react any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh             # haha react to a message
+yarn cli react any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart             # heart a message
+yarn cli unreact any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh           # remove laugh from message
+
+yarn cli edit any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "updated text"     # edit a message
+
+yarn cli search "project status"                                                         # search messages
+
+yarn cli select-thread any;-;sjobs@apple.com                                             # select chat in messages.app
+yarn cli typing any;-;sjobs@apple.com on                                                 # send typing indicator
+
+yarn cli mark-read any;-;sjobs@apple.com
+yarn cli mark-unread any;-;sjobs@apple.com
+yarn cli mute any;-;sjobs@apple.com
+yarn cli unmute any;-;sjobs@apple.com
+yarn cli notify-anyway any;-;sjobs@apple.com                                             # if the recipient is on DND, hit the "notify anyway" button if present
+yarn cli delete-thread any;-;sjobs@apple.com                                             # delete the entire chat
+```
+
+Or open the shell with `yarn cli`:
 
 ```sh
-yarn headless:run "sendMessage any;-;sjobs@apple.com hello-world"
-yarn headless:run "editMessage any;-;sjobs@apple.com last-message hello-world"
+imessage> messages any;-;sjobs@apple.com
+imessage> send any;-;sjobs@apple.com "hello from shell"
+imessage> help
+imessage> help create-thread
+imessage> quit
 ```
 
-Other REPL commands:
-```sh
-imsg> undoSend any;-;sjobs@apple.com B2494090-4058-4013-ACF4-6EF91E595DDD
-imsg> setReaction any;-;sjobs@apple.com last-message heart true
-imsg> toggleThreadRead any;-;sjobs@apple.com true
-imsg> muteThread any;-;sjobs@apple.com true
-imsg> notifyAnyway any;-;sjobs@apple.com
-imsg> sendTypingStatus any;-;sjobs@apple.com true
-imsg> watch any;-;sjobs@apple.com
-```
+The shell will automatically subscribe to real time events (incoming messages etc.) unless you pass `--no-events`
 
-Use `_` for arguments that should be passed through as nil/undefined. `last-message` resolves to the latest message ID in that thread.
+> [!NOTE]
+> Commands you run are recorded in plain text to `.cli.history.json` (next to the CLI bundle) for arrow-up recall. This includes the full text of any messages sent via `send`/`reply`/`edit`. Delete the file at any time to clear history.
 
-The REPL currently splits command arguments on spaces, so message text containing spaces is not preserved correctly yet.
-
-## Getting Started
-
-**It is not possible to use local builds with Beeper Desktop.** You can still interact with this project as a library, see [texthsq/platform-test-lib](https://github.com/textshq/platform-test-lib) as an example how Platform SDK can be used.
+---
 
 <details>
-<summary>Instructions excerpt</summary>
+<summary>Old instructions excerpt</summary>
 
 > **Note**
 >
@@ -93,47 +123,11 @@ Electron itself. (This is only relevant in a development environment.)
 
 </details>
 
-### Building
-
-```sh
-# for debugging:
-rm binaries/*/libNodeAPI.dylib # needed only when you get ENOENT
-bun run build:swift --debug --watch
-
-# for shipping to prod:
-bun run build:swift
-```
-
-## SwiftServer
-
-SwiftServer exposes Swift functions to JS via
-NAPI/[node-swift](https://github.com/kabiroberai/node-swift) and handles all
-invocation of native Apple methods.
-
-### Quirks
-
-- Transparent thread merging: iMessage has separate threads for each
-  address/sender ID (email or phone #) but transparently merges threads
-  belonging to the same contact in the UI. Texts app shows separate threads and
-  performs no merging. Imagine if we had two threads, stevejobs@apple.com and
-  sjobs@apple.com. When calling a deep link to select either thread, sometimes
-  it'll select the thread in the sidebar, other times it'd create a new compose
-  cell. The logic is unknown. ![Compose cell](images/compose-cell.png)
-
-- `MessagesController.pasteFileInBodyField`: On Big Sur, using
-  `pasteboard.setString(fileURL.relativeString, forType: .fileURL)` doesn't
-  paste the file itself but a link. Monterey has intended behavior.
-
-- `elements.selectedThreadCell` is nil after pin/unpin because no cells are
-  selected. `imessage://open?message-guid=` will not select the thread in
-  sidebar (`elements.selectedThreadCell == nil`) if it's already open but
-  `imessage://open?address=` will.
-
-- After `elements.searchField` was clicked: `elements.conversationsList` will be
-  nil, selected item in sidebar will not always be reflective of the messages
-  list, calling a deep link will not update sidebar but only the messages list,
-  `CKLastSelectedItemIdentifier` won't be updated.
-
 ## License
 
 [MIT](./license.txt)
+
+## Related
+
+- [beeper/imessage](https://github.com/beeper/imessage)
+- [mautrix/imessage](https://github.com/mautrix/imessage)

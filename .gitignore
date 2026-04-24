@@ -34,8 +34,7 @@ DerivedData/
 
 .turbo
 
-headless.mjs
-headless-config.json
-.headless-history.json
+*.compiled.mjs
+.*.history.json
 .claude
 .build
