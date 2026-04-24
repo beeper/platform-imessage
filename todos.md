@@ -12,10 +12,24 @@
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
 - [ ] add support for spinning up a discrete instance of Messages.app
+- [ ] add handling for multiple instances of MessagesController
+- [ ] store UserDefaults in dataDirPath
+
+### Parity
+
+- [ ] add undo send CLI command
+- [ ] add delete message for me command
+- [ ] add add/remove group participant command
+- [ ] fix sending emoji reactions (🎉)
+- [ ] add rename group title command
+- [ ] add update group image command
+- [ ] add schedule message command
+- [ ] add draft message command
+- [ ] add leave group command
+- [ ] cli messages/threads command: add pagination
+- [ ] support rich text sending
+- [ ] support sending multipart messages (image(s) with caption)
+- [ ] map all message edits
 - [ ] fix parsing for multi-part messages w inline stickers
 - [ ] fix graphic for old school tapback reactions (👍, ❤️) – should not be same as emoji reactions (like, heart)
-- [ ] fix sending emoji reactions (🎉)
 - [ ] [fix real time sync of message deletions (for self, undo send already works)](https://github.com/beeper/platform-imessage/pull/63)
-- [ ] add handling for multiple instances
-
-- [ ] store UserDefaults in dataDirPath

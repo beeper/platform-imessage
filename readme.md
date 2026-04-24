@@ -2,7 +2,7 @@
 
 A standalone JS library and CLI that lets you and your agents send/receive messages and fully automate iMessage locally on your Mac.
 
-Reads `chat.db` and works with automation and accessibility APIs. Designed to run with [System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled since it does not hook into low level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~98% feature parity (reactions, threaded replies, edit message, undo send, typing indicators, rich text message formatting etc.) on macOS Tahoe.
+Reads `chat.db` and works with automation and accessibility APIs. Designed to run with [System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled since it does not hook into low level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~95% feature parity (reactions, threaded replies, edit message, undo send, typing indicators, rich text message formatting etc.) on macOS Tahoe.
 
 This also powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS.
 
