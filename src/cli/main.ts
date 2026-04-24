@@ -119,7 +119,13 @@ function parseCliArgs(argv: string[]): RunnerOptions {
     if (arg.startsWith('--')) {
       const optionName = arg.slice(2).split('=', 1)[0]
       const option = GLOBAL_CLI_OPTIONS[optionName as keyof typeof GLOBAL_CLI_OPTIONS]
-      if (option?.type === 'string' && !arg.includes('=')) index += 1
+      if (optionName === 'hide-messages-app') {
+        const value = arg.includes('=') ? arg.split('=', 2)[1] : argv[index + 1]
+        validateBooleanOptionValue(HIDE_MESSAGES_APP_FLAG, value)
+        if (!arg.includes('=')) index += 1
+      } else if (option?.type === 'string' && !arg.includes('=')) {
+        index += 1
+      }
       if (option) continue
     }
     if (!arg.startsWith('-')) {
@@ -236,6 +242,11 @@ function joinText(command: CommandDefinition, tokens: string[], startIndex: numb
 
 function parseBooleanOption(name: string, value: string | undefined, defaultValue: boolean): boolean {
   if (value == null) return defaultValue
+  validateBooleanOptionValue(name, value)
+  return booleanOptionValue(value)
+}
+
+function booleanOptionValue(value: string): boolean {
   switch (value.toLowerCase()) {
   case 'true':
   case '1':
@@ -246,8 +257,13 @@ function parseBooleanOption(name: string, value: string | undefined, defaultValu
   case 'no':
     return false
   default:
-    throw new Error(`${name} must be true or false`)
+    throw new Error('unreachable boolean option value')
   }
+}
+
+function validateBooleanOptionValue(name: string, value: string | undefined) {
+  if (!value || value.startsWith('-')) throw new Error(`${name} requires a value: true or false`)
+  if (!/^(true|false|1|0|yes|no)$/i.test(value)) throw new Error(`${name} must be true or false`)
 }
 
 function parsePaginationArgs(command: CommandDefinition, args: string[], positionalCount: number): { positionals: string[], pagination?: PaginationArg } {
