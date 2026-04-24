@@ -17,7 +17,7 @@
 
 ### Parity
 
-- [ ] add undo send CLI command
+- [x] add undo send CLI command
 - [ ] add delete message for me command
 - [ ] add add/remove group participant command
 - [ ] fix sending emoji reactions (🎉)

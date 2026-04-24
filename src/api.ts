@@ -605,8 +605,8 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
+    const threadID = await this.resolveThreadID(hashedThreadID)
     const controller = await MessagesControllerWrapper.get()
     await controller.undoSend(threadID, messageID)
   }

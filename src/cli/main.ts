@@ -275,6 +275,8 @@ const reactionNotes = [
   'Sticker reactions are not exposed in this CLI.',
 ]
 
+const UNDO_SEND_TIME_LIMIT_MINUTES = 2
+
 function reactionCommand(
   name: 'react' | 'unreact',
   method: 'addReaction' | 'removeReaction',
@@ -544,6 +546,21 @@ const commandDefinitions: CommandDefinition[] = [
         'editMessage',
         [args[0], args[1], { text: joinText(context.command, args, 2) }],
       )
+    },
+  },
+  {
+    name: 'undo-send',
+    category: 'Message',
+    summary: 'Undo send for a previously sent message.',
+    usage: ['undo-send CHAT_ID MESSAGE_ID'],
+    examples: [
+      'undo-send any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678',
+    ],
+    notes: [`Undo send is only supported on macOS Ventura or later and must be used within ${UNDO_SEND_TIME_LIMIT_MINUTES} minutes of sending.`],
+    requiredAuthorization: MUTATING_AUTH,
+    execute: async (args, context) => {
+      requireExactArgs(context.command, args, 2)
+      await context.invokeMethod('deleteMessage', [args[0], args[1]])
     },
   },
   reactionCommand('react', 'addReaction', 'Add'),
