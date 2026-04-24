@@ -1,60 +1,152 @@
 import AppKit
 import Darwin
+import Logging
 import SwiftServerFoundation
 import SwiftUI
 
+private let log = Logger(swiftServerLabel: "permissions-app-name")
+
 private enum PermissionsAppName {
+    private struct AncestorProcess {
+        let parentPID: pid_t
+        let application: AncestorApplication?
+    }
+
+    private struct AncestorApplication {
+        let runningApplication: NSRunningApplication?
+        let bundle: Bundle?
+        let bundleURL: URL?
+        let executableURL: URL?
+    }
+
     static let current: String = {
         responsibleApplicationName()
-            ?? bundleDisplayName()
+            ?? bundleDisplayName(for: .main)
             ?? NSRunningApplication.current.localizedName?.nonEmpty
             ?? "Beeper Desktop"
     }()
 
     private static func responsibleApplicationName() -> String? {
-        // TCC lists the responsible GUI app, which can be Terminal in dev launches.
+        // TCC uses the user-facing app responsible for the launch, not always this process.
         var pid = getppid()
         var visited = Set<pid_t>()
+        var ancestors: [AncestorProcess] = []
 
         while pid > 1, visited.insert(pid).inserted {
-            if let name = bundledApplicationName(for: pid) {
-                return name
-            }
-
-            guard let parentPID = parentProcessID(of: pid), parentPID != pid else {
+            guard let process = ancestorProcess(for: pid) else {
                 break
             }
 
-            pid = parentPID
+            ancestors.append(process)
+
+            guard process.parentPID != pid else {
+                break
+            }
+
+            pid = process.parentPID
+        }
+
+        for application in ancestors.compactMap(\.application).reversed() {
+            guard let appName = displayName(for: application) else { continue }
+            log.debug("selected permissions app name: \(appName) (\(application.bundleURL?.path ?? application.executableURL?.path ?? "<unknown path>"))")
+            return appName
+        }
+
+        log.debug("selected permissions app name: <none>")
+        return nil
+    }
+
+    private static func ancestorProcess(for pid: pid_t) -> AncestorProcess? {
+        guard let parentPID = parentProcessID(for: pid), parentPID > 0 else {
+            return nil
+        }
+
+        let path = processPath(for: pid)
+        return AncestorProcess(
+            parentPID: parentPID,
+            application: ancestorApplication(for: pid, path: path)
+        )
+    }
+
+    private static func parentProcessID(for pid: pid_t) -> pid_t? {
+        var info = proc_bsdinfo()
+        let size = MemoryLayout<proc_bsdinfo>.stride
+        let result = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(size))
+
+        if result == Int32(size), info.pbi_ppid > 0 {
+            return pid_t(info.pbi_ppid)
+        }
+
+        return parentProcessIDFromSysctl(for: pid)
+    }
+
+    private static func parentProcessIDFromSysctl(for pid: pid_t) -> pid_t? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        let result = sysctl(&mib, u_int(mib.count), &info, &size, nil, 0)
+
+        guard result == 0, size >= MemoryLayout<kinfo_proc>.stride, info.kp_eproc.e_ppid > 0 else {
+            return nil
+        }
+
+        return pid_t(info.kp_eproc.e_ppid)
+    }
+
+    private static func ancestorApplication(for pid: pid_t, path: String?) -> AncestorApplication? {
+        let runningApplication = NSRunningApplication(processIdentifier: pid)
+        let executableURL = runningApplication?.executableURL ?? path.map(URL.init(fileURLWithPath:))
+        let bundleURL = runningApplication?.bundleURL ?? executableURL.flatMap(appBundleURL)
+        let bundle = bundleURL.flatMap(Bundle.init(url:))
+
+        guard runningApplication != nil || bundle != nil || bundleURL != nil else {
+            return nil
+        }
+
+        return AncestorApplication(
+            runningApplication: runningApplication,
+            bundle: bundle,
+            bundleURL: bundleURL,
+            executableURL: executableURL
+        )
+    }
+
+    private static func processPath(for pid: pid_t) -> String? {
+        var buffer = [CChar](repeating: 0, count: 4096)
+        let result = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        guard result > 0 else { return nil }
+        return String(cString: buffer).nonEmpty
+    }
+
+    private static func appBundleURL(for executableURL: URL) -> URL? {
+        var url = executableURL.standardizedFileURL
+
+        while !url.pathComponents.isEmpty {
+            if url.pathExtension == "app" {
+                return url
+            }
+
+            let parent = url.deletingLastPathComponent()
+            guard parent.path != url.path else {
+                return nil
+            }
+            url = parent
         }
 
         return nil
     }
 
-    private static func bundledApplicationName(for pid: pid_t) -> String? {
-        guard let runningApp = NSRunningApplication(processIdentifier: pid),
-              runningApp.bundleIdentifier != nil || runningApp.bundleURL != nil else {
-            return nil
-        }
-
-        return runningApp.localizedName?.nonEmpty
+    private static func displayName(for application: AncestorApplication) -> String? {
+        application.bundleURL?.lastPathComponent.nonEmpty
+            ?? bundleDisplayName(for: application.bundle)
+            ?? application.runningApplication?.localizedName?.nonEmpty
     }
 
-    private static func parentProcessID(of pid: pid_t) -> pid_t? {
-        var info = proc_bsdinfo()
-        let size = MemoryLayout<proc_bsdinfo>.stride
-        let result = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(size))
+    private static func bundleDisplayName(for bundle: Bundle?) -> String? {
+        guard let bundle else { return nil }
 
-        guard result == Int32(size), info.pbi_ppid > 0 else {
-            return nil
-        }
-
-        return pid_t(info.pbi_ppid)
-    }
-
-    private static func bundleDisplayName() -> String? {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.nonEmpty
-            ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.nonEmpty
+        return (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.nonEmpty
+            ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)?.nonEmpty
     }
 }
 
