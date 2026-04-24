@@ -290,9 +290,10 @@ export default class DatabaseAPI {
   // hasher's reverse-lookup map is populated for every thread in the db.
   // memoized so repeated misses share a single O(N) pass.
   warmThreadHasher(): Promise<void> {
-    this.threadHasherWarmed ??= this.db
-      .pluck_all<void[], string>(SQLS.getAllThreadGUIDs)
-      .then(chatGUIDs => { chatGUIDs.forEach(hashThreadID) })
+    this.threadHasherWarmed ??= (async () => {
+      const chatGUIDs = await this.db.pluck_all<void[], string>(SQLS.getAllThreadGUIDs)
+      chatGUIDs.forEach(hashThreadID)
+    })()
     return this.threadHasherWarmed
   }
 

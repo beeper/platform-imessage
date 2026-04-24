@@ -14,6 +14,7 @@ import {
 import type {
   ClientContext,
   OnServerEventCallback,
+  PaginationArg,
   PlatformAPI,
   SerializedSession,
   ServerEvent,
@@ -213,6 +214,38 @@ function joinText(command: CommandDefinition, tokens: string[], startIndex: numb
   return text
 }
 
+function parsePaginationArgs(command: CommandDefinition, args: string[], positionalCount: number): { positionals: string[], pagination?: PaginationArg } {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      after: { type: 'string' },
+      before: { type: 'string' },
+    },
+    strict: true,
+  })
+
+  requireExactArgs(command, positionals, positionalCount)
+
+  const usage = `usage: ${command.usage[0]}`
+  const readCursor = (raw: string | undefined, flag: 'after' | 'before') => {
+    if (raw == null) return undefined
+    const trimmed = raw.trim()
+    if (!trimmed) throw new Error(`${command.name} requires a cursor after --${flag}.\n${usage}`)
+    return trimmed
+  }
+
+  const after = readCursor(values.after, 'after')
+  const before = readCursor(values.before, 'before')
+  if (after && before) throw new Error(`${command.name} accepts only one of --after or --before.\n${usage}`)
+
+  const pagination: PaginationArg | undefined = after ? { cursor: after, direction: 'after' }
+    : before ? { cursor: before, direction: 'before' }
+    : undefined
+
+  return { positionals, pagination }
+}
+
 function tokenizeInput(input: string): string[] {
   const tokens: string[] = []
   let current = ''
@@ -389,12 +422,19 @@ const commandDefinitions: CommandDefinition[] = [
     name: 'threads',
     category: 'Chat',
     summary: 'List chats from the normal inbox.',
-    usage: ['threads'],
-    examples: ['threads'],
+    usage: ['threads [--before CURSOR|--after CURSOR]'],
+    examples: [
+      'threads',
+      'threads --before 725506281967999900',
+    ],
+    notes: [
+      'Use `oldestCursor` from a result page with --before to fetch older chats.',
+      'Use --after CURSOR to fetch chats newer than that cursor.',
+    ],
     requiredAuthorization: READ_ONLY_AUTH,
     execute: async (args, context) => {
-      requireExactArgs(context.command, args, 0)
-      await context.invokeMethod('getThreads', [InboxName.NORMAL])
+      const { pagination } = parsePaginationArgs(context.command, args, 0)
+      await context.invokeMethod('getThreads', [InboxName.NORMAL, pagination])
     },
   },
   {
@@ -413,12 +453,19 @@ const commandDefinitions: CommandDefinition[] = [
     name: 'messages',
     category: 'Message',
     summary: 'List messages in a chat.',
-    usage: ['messages CHAT_ID'],
-    examples: ['messages any;-;sjobs@apple.com'],
+    usage: ['messages CHAT_ID [--before CURSOR|--after CURSOR]'],
+    examples: [
+      'messages any;-;sjobs@apple.com',
+      'messages any;-;sjobs@apple.com --before 725506281967999900',
+    ],
+    notes: [
+      'Use a message item `cursor` with --before to fetch older messages.',
+      'Use --after CURSOR to fetch messages newer than that cursor.',
+    ],
     requiredAuthorization: READ_ONLY_AUTH,
     execute: async (args, context) => {
-      requireExactArgs(context.command, args, 1)
-      await context.invokeMethod('getMessages', [args[0]])
+      const { positionals, pagination } = parsePaginationArgs(context.command, args, 1)
+      await context.invokeMethod('getMessages', [positionals[0], pagination])
     },
   },
   {

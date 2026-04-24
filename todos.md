@@ -17,7 +17,6 @@
 
 ### Parity
 
-- [x] add undo send CLI command
 - [ ] add delete message for me command
 - [ ] add add/remove group participant command
 - [ ] fix sending emoji reactions (🎉)
@@ -26,10 +25,11 @@
 - [ ] add schedule message command
 - [ ] add draft message command
 - [ ] add leave group command
-- [ ] cli messages/threads command: add pagination
 - [ ] support rich text sending
 - [ ] support sending multipart messages (image(s) with caption)
 - [ ] map all message edits
 - [ ] fix parsing for multi-part messages w inline stickers
 - [ ] fix graphic for old school tapback reactions (👍, ❤️) – should not be same as emoji reactions (like, heart)
 - [ ] [fix real time sync of message deletions (for self, undo send already works)](https://github.com/beeper/platform-imessage/pull/63)
+- [x] cli messages/threads command: add pagination
+- [x] add undo send CLI command
