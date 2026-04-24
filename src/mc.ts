@@ -1,6 +1,6 @@
 import { texts } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
-import { setTimeout as setTimeoutAsync } from 'timers/promises'
+import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 import swiftServer, { MessagesController } from './SwiftServer/lib'
 
 const messagesControllerClass = swiftServer?.messagesControllerClass

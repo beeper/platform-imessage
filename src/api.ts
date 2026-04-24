@@ -8,7 +8,7 @@ import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread,
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
-import { setTimeout as setTimeoutAsync } from 'timers/promises'
+import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'

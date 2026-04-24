@@ -1,6 +1,6 @@
 import os from 'os'
 import fs from 'fs/promises'
-import { setTimeout as setTimeoutAsync } from 'timers/promises'
+import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 export { shellExec } from './shell-exec'
 
