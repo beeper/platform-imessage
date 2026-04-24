@@ -8,13 +8,16 @@ import type { SupportedReaction } from '@textshq/platform-sdk'
 export const BINARIES_DIR_PATH = texts?.getBinariesDirPath('imessage')
   ?? path.join(process.cwd(), 'binaries')
 
+const tapbackGraphicURL = (fileName: string) =>
+  url.pathToFileURL(path.join(BINARIES_DIR_PATH, fileName)).href
+
 export const supportedReactions = {
-  heart: { title: 'Heart', render: '❤️' },
-  like: { title: 'Like', render: '👍' },
-  dislike: { title: 'Dislike', render: '👎' },
-  laugh: { title: 'Laugh', render: 'HAHA', imgURL: url.pathToFileURL(path.join(BINARIES_DIR_PATH, 'haha.svg')).href },
-  emphasize: { title: 'Emphasize', render: '‼️' },
-  question: { title: 'Question', render: '❓' },
+  heart: { title: 'Heart', render: '❤️', imgURL: tapbackGraphicURL('heart.svg') },
+  like: { title: 'Like', render: '👍', imgURL: tapbackGraphicURL('thumbsUp.svg') },
+  dislike: { title: 'Dislike', render: '👎', imgURL: tapbackGraphicURL('thumbsDown.svg') },
+  laugh: { title: 'Laugh', render: 'HAHA', imgURL: tapbackGraphicURL('haha.svg') },
+  emphasize: { title: 'Emphasize', render: '‼️', imgURL: tapbackGraphicURL('exclamation.svg') },
+  question: { title: 'Question', render: '❓', imgURL: tapbackGraphicURL('question.svg') },
 } as const satisfies Record<string, SupportedReaction>
 
 const [DARWIN_MAJOR_VERSON, DARWIN_MINOR_VERSION] = os.release().split('.').map(Number)
