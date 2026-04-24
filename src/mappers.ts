@@ -11,7 +11,6 @@ import AUDIO_EXTS from './audio-exts.json'
 import VIDEO_EXTS from './video-exts.json'
 import swiftServer, { Fragment } from './SwiftServer/lib'
 import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
-import { roomFeatures } from './capabilities'
 import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
 import { ThreadArchivalState } from './persistence'
 import { BeeperThread, BeeperMessage } from './desktop-types'
@@ -775,11 +774,6 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   }
   if (!IMESSAGE_STRIP_INTERNAL_FIELDS) {
     thread._original = stringifyWithArrayBuffers([chat, handleRows])
-    // @ts-expect-error -- HACK(skip): this exploits the fact that `features` isn't filtered
-    // from `assignProps`. this should actually be using `defaultFeatures` once
-    // we're able to set our bridge ID properly
-    // https://github.com/beeper/beeper-desktop-new/blob/681fe8ea8f23c50cc20d265775eb9a6a3bed5a0f/src/renderer/stores/ThreadStore.ts#L148
-    thread.features = roomFeatures
   }
   return thread
 }

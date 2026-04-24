@@ -113,4 +113,4 @@ export const roomFeatures = {
 
   // needed for desktop to send typing indicators
   typing_notifications: true,
-} as const
+}
