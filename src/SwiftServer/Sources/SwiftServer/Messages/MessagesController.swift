@@ -215,7 +215,7 @@ final class MessagesController {
 
     @discardableResult
     private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-        guard Preferences.messagesInstanceModeValue == .puppet else {
+        guard Preferences.messagesInstanceMode == .puppet else {
             return try Self.openDeepLink(url, activating: activating, hiding: hiding)
         }
 
@@ -375,7 +375,7 @@ final class MessagesController {
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
         }
 
-        if Preferences.messagesInstanceModeValue == .puppet {
+        if Preferences.messagesInstanceMode == .puppet {
             log.info("launching puppet messages instance...")
             app = try MessagesInstanceTarget.launchPuppet(initialDeepLink: MessagesDeepLink.compose.url(), activating: false, hiding: true)
         } else {
@@ -408,7 +408,7 @@ final class MessagesController {
         try app.waitForLaunch()
         let selectedApp = app
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
-            if Preferences.messagesInstanceModeValue == .puppet {
+            if Preferences.messagesInstanceMode == .puppet {
                 try MessagesInstanceTarget.sendDeepLink(url, to: selectedApp)
             } else {
                 try Self.openDeepLink(url)
@@ -1292,7 +1292,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        if !Defaults.disableOSAFastPath, Preferences.messagesInstanceModeValue != .puppet, let threadID, quotedMessage == nil { // fast path using OSA
+        if !Defaults.disableOSAFastPath, Preferences.messagesInstanceMode != .puppet, let threadID, quotedMessage == nil { // fast path using OSA
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links

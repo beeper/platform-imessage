@@ -41,10 +41,10 @@ enum SysPrefsOnboarding {
 }
 
 enum Preferences {
-    static var isLoggingEnabled = false
-    static var isPHTEnabled = false
-    static var enabledExperiments = ""
-    static var messagesInstanceMode = MessagesInstanceMode.default.rawValue
+    static var isLoggingEnabled: Bool = false
+    static var isPHTEnabled: Bool = false
+    static var enabledExperiments: String = ""
+    static var messagesInstanceMode: MessagesInstanceMode = MessagesInstanceMode.default
 }
 
 #NodeModule {
@@ -109,9 +109,13 @@ enum Preferences {
         },
 
         "messagesInstanceMode": NodeProperty { _ in
-            Preferences.messagesInstanceMode
+            Preferences.messagesInstanceMode.rawValue
         } set: { args in
-            Preferences.messagesInstanceMode = try args.first?.as(String.self) ?? MessagesInstanceMode.default.rawValue
+            if let rawValue: String = try args.first?.as(String.self), let messagesInstanceMode =  MessagesInstanceMode(rawValue: rawValue) {
+                Preferences.messagesInstanceMode = messagesInstanceMode
+            } else {
+                Preferences.messagesInstanceMode = .default
+            }
         },
 
         "isLoggingEnabled": NodeProperty { _ in
