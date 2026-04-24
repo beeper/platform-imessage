@@ -23,6 +23,9 @@ public actor LogFileCoordinator {
     }
 
     private static func handleFor(_ url: URL) throws -> FileHandle {
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
         do {
             return try FileHandle(forUpdating: url)
         } catch {

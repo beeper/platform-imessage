@@ -175,6 +175,7 @@ async function saveSession(api: PlatformAPI, sessionFilePath: string) {
 
 const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
+  process.env.IMESSAGE_LOGGING_DIR_PATH = state.dataDirPath
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)
   // We do not currently depend on persisted CLI session state, but keeping this

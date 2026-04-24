@@ -21,6 +21,8 @@ public extension Logger {
 }
 
 public enum Log {
+    private static let directoryPathEnvironmentKey = "IMESSAGE_LOGGING_DIR_PATH"
+
     /// A logger to be used for emitting error messages to the log when
     /// constructing exceptions or other errors.
     public static let errors = Logger(swiftServerLabel: "errors")
@@ -30,6 +32,11 @@ public enum Log {
     public static let `default` = Logger(swiftServerLabel: nil)
 
     public static var file: URL? = {
+        if let directoryPath = ProcessInfo.processInfo.environment[directoryPathEnvironmentKey], !directoryPath.isEmpty {
+            return URL(fileURLWithPath: directoryPath, isDirectory: true)
+                .appendingPathComponent("platform-imessage.log")
+        }
+
         let applicationSupport = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
         let profile = ProcessInfo.processInfo.environment["BEEPER_PROFILE"]
         let appDirectoryName = profile.map { "BeeperTexts-\($0)" } ?? "BeeperTexts"
