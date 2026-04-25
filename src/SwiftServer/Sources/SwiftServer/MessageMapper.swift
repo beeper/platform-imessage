@@ -34,7 +34,8 @@ struct Mapper {
         }
 
         let attachments = attachmentRows.compactMap { attachment(from: $0) }
-        let isSMS = msgRow.string("service") == "SMS" || msgRow.string("service") == "RCS"
+        let service = msgRow.string("service")
+        let isSMS = service == "SMS" || service == "RCS"
         let isGroup = !(msgRow.string("room_name") ?? "").isEmpty
         let dates = MessageDates(row: msgRow)
         let summaryInfo = parseSummaryInfo()
@@ -94,16 +95,16 @@ struct Mapper {
             messages[0] = addingInlineSubject(subject, to: messages[0])
         }
 
-        if let associatedGUID = msgRow.string("associated_message_guid"), !associatedGUID.isEmpty {
-            if let associatedMessage = associatedMessage(
-                messages: messages,
-                partialMessage: partialMessage,
-                summaryInfo: summaryInfo,
-                isSMS: isSMS,
-                associatedGUID: associatedGUID
-            ) {
-                return [associatedMessage]
-            }
+        if let associatedGUID = msgRow.string("associated_message_guid"),
+           !associatedGUID.isEmpty,
+           let associatedMessage = associatedMessage(
+               messages: messages,
+               partialMessage: partialMessage,
+               summaryInfo: summaryInfo,
+               isSMS: isSMS,
+               associatedGUID: associatedGUID
+           ) {
+            return [associatedMessage]
         }
 
         return messages.map { message in
@@ -220,8 +221,8 @@ struct Mapper {
         switch rawPartIndex {
         case "0":
             partIndex = ""
-        case "18446744073709551615":
-            // 18446744073709551615 is -1 (https://stackoverflow.com/questions/40608111/why-is-18446744073709551615-1-true)
+        case String(UInt64.max):
+            // UInt64.max stored where -1 was meant (https://stackoverflow.com/questions/40608111/why-is-18446744073709551615-1-true)
             partIndex = "-1"
         default:
             partIndex = rawPartIndex

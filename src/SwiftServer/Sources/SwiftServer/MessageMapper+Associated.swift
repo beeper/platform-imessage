@@ -36,15 +36,13 @@ extension Mapper {
             return nil
         case "heading":
             if var text = message.string("text") {
+                let other = msgRow.string("participantID") ?? ""
+                let isSender = message.bool("isSender") == true
+                let senderName = isSender ? currentUserID : other
+                let receiverName = isSender ? other : currentUserID
                 text = text
-                    .replacingOccurrences(
-                        of: receiverNamePlaceholder,
-                        with: message.bool("isSender") == true ? "{{\(msgRow.string("participantID") ?? "")}}" : "{{\(currentUserID)}}"
-                    )
-                    .replacingOccurrences(
-                        of: senderNamePlaceholder,
-                        with: message.bool("isSender") == true ? "{{\(currentUserID)}}" : "{{\(msgRow.string("participantID") ?? "")}}"
-                    )
+                    .replacingOccurrences(of: receiverNamePlaceholder, with: "{{\(receiverName)}}")
+                    .replacingOccurrences(of: senderNamePlaceholder, with: "{{\(senderName)}}")
                 message["text"] = text
             }
             message["parseTemplate"] = true
@@ -116,15 +114,10 @@ extension Mapper {
         guard let parts = reactionParts(assocMsgType) else {
             return message
         }
-        let reactionType: String?
-        if parts.actionType == "reacted" {
-            reactionType = "message_reaction_created"
-        } else if parts.actionType == "unreacted" {
-            reactionType = "message_reaction_deleted"
-        } else {
-            reactionType = nil
-        }
-        guard let reactionType else {
+        guard let reactionType = [
+            "reacted": "message_reaction_created",
+            "unreacted": "message_reaction_deleted",
+        ][parts.actionType] else {
             return message
         }
         message["isAction"] = !isSMS

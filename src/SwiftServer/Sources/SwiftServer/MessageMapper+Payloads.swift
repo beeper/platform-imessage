@@ -17,16 +17,13 @@ extension Mapper {
 
     func payloadProps(from payloadData: Any, messageAttachments: [JSONObject]) -> JSONObject {
         switch msgRow.string("balloon_bundle_id") {
-        case BalloonBundleID.url:
+        case BalloonBundleID.url, nil:
             return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
         case BalloonBundleID.applePay:
             return applePayProps(from: payloadData)
         case BalloonBundleID.youtube:
             return youTubeProps(from: payloadData)
         default:
-            if msgRow["balloon_bundle_id"] is NSNull || msgRow.string("balloon_bundle_id") == nil {
-                return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
-            }
             return [:]
         }
     }
