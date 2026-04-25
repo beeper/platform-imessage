@@ -7,20 +7,20 @@ extension Mapper {
         }
         let ext = attachmentRow.string("ext") ?? ""
         let fileName = attachmentRow.string("fileName")
-        let filePath = attachmentRow.string("filePath") ?? ""
+        let filePath = attachmentRow.string("filePath")
         var common = compactDictionary([
             "id": attachmentRow.string("attachmentID"),
             "fileName": fileName,
-            "srcURL": filePath,
             "fileSize": attachmentRow.int("total_bytes"),
             "loading": attachmentRow.int("transfer_state") != IMFileTransferState.finished,
         ])
-        if !filePath.isEmpty {
+        common["srcURL"] = attachmentRow["filePath"] ?? NSNull()
+        if let filePath, !filePath.isEmpty {
             common["srcURL"] = URL(fileURLWithPath: filePath).absoluteString
         }
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             if ext == "png" {
-                common["srcURL"] = "asset://$accountID/\(filePath.utf8.map { String(format: "%02x", $0) }.joined())"
+                common["srcURL"] = "asset://$accountID/\((filePath ?? "").utf8.map { String(format: "%02x", $0) }.joined())"
             }
             common["type"] = "img"
             common["size"] = attachmentRow["size"]
@@ -61,18 +61,14 @@ extension Mapper {
             message["behavior"] = "silent"
             if let title = msgRow.string("group_title") {
                 message["text"] = "{{sender}} named the conversation \"\(title)\""
-                message["action"] = [
-                    "type": "thread_title_updated",
-                    "title": title,
-                    "actorParticipantID": message.string("senderID") ?? "",
-                ]
             } else {
                 message["text"] = "{{sender}} removed the name from the conversation"
-                message["action"] = [
-                    "type": "thread_title_updated",
-                    "actorParticipantID": message.string("senderID") ?? "",
-                ]
             }
+            message["action"] = [
+                "type": "thread_title_updated",
+                "title": msgRow["group_title"] ?? NSNull(),
+                "actorParticipantID": message.string("senderID") ?? "",
+            ]
         case 3:
             message["behavior"] = "silent"
             let actionType = msgRow.int("group_action_type")

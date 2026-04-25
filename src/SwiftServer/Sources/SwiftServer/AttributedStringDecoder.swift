@@ -19,25 +19,24 @@ enum AttributedStringDecoder {
 
         var fragments: [Fragment] = []
         // https://github.com/apple/swift-corelibs-foundation/blob/b3b87b6328325b639032bdc92e384f33f0beef0e/Sources/Foundation/AttributedString/Conversion.swift#L222-L251
-        var cursor = string.startIndex
-        var curScalar = 0
         nsStr.enumerateAttributes(
             in: NSRange(location: 0, length: nsStr.length),
             options: .longestEffectiveRangeNotRequired
         ) { dict, range, _ in
-            let nextCursor = string.utf16.index(cursor, offsetBy: range.length)
-            let scalarLen = string.unicodeScalars.distance(from: cursor, to: nextCursor)
+            guard let stringRange = Range(range, in: string) else {
+                return
+            }
+            let scalarStart = string.unicodeScalars.distance(from: string.startIndex, to: stringRange.lowerBound)
+            let scalarEnd = string.unicodeScalars.distance(from: string.startIndex, to: stringRange.upperBound)
             var attributes: [String: Any] = [:]
             for (key, value) in dict {
                 attributes[key.rawValue] = value
             }
             fragments.append(Fragment(
-                text: string[cursor..<nextCursor],
-                scalarRange: curScalar..<(curScalar + scalarLen),
+                text: string[stringRange],
+                scalarRange: scalarStart..<scalarEnd,
                 attributes: attributes
             ))
-            cursor = nextCursor
-            curScalar += scalarLen
         }
         return fragments
     }

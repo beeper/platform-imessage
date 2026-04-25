@@ -51,7 +51,7 @@ enum IMFileTransferState {
 }
 
 let imageExtensions: Set<String> = [
-    "jpg", "jpeg", "png", "gif", "heic", "heif", "webp", "tiff", "tif", "bmp",
+    "jpg", "jpeg", "png", "gif", "heic", "heics", "heif", "webp", "tiff", "tif", "bmp",
 ]
 
 let audioExtensions: Set<String> = [
