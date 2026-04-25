@@ -43,7 +43,6 @@ enum SysPrefsOnboarding {
 enum Preferences {
     static var isLoggingEnabled: Bool = false
     static var isPHTEnabled: Bool = false
-    static var shouldAutoHideMessages: Bool = true
     static var enabledExperiments: String = ""
     static var messagesInstanceMode: MessagesInstanceMode = MessagesInstanceMode.default
 }
@@ -117,12 +116,6 @@ enum Preferences {
             } else {
                 Preferences.messagesInstanceMode = .default
             }
-        },
-
-        "shouldAutoHideMessages": NodeProperty { _ in
-            Preferences.shouldAutoHideMessages
-        } set: { args in
-            Preferences.shouldAutoHideMessages = try args.first?.as(Bool.self) ?? true
         },
 
         "isLoggingEnabled": NodeProperty { _ in

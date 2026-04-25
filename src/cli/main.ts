@@ -28,7 +28,6 @@ const DATA_DIR_FLAG = '--data-dir'
 const NO_EVENTS_FLAG = '--no-events'
 const VERBOSE_FLAG = '--verbose'
 const MESSAGES_INSTANCE_FLAG = '--messages-instance'
-const HIDE_MESSAGES_APP_FLAG = '--hide-messages-app'
 const SHELL_COMMAND = 'shell'
 const HELP_COMMAND = 'help'
 const PROMPT = 'imessage> '
@@ -36,7 +35,6 @@ const SHUTDOWN_TIMEOUT_MS = 2_000
 const GLOBAL_CLI_OPTIONS = {
   'data-dir': { type: 'string' },
   'messages-instance': { type: 'string' },
-  'hide-messages-app': { type: 'string' },
   'stay-open': { type: 'boolean' },
   'no-events': { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -58,7 +56,6 @@ type RunnerOptions = {
   keepAlive: boolean
   loggingEnabled: boolean
   messagesInstanceMode: 'default' | 'puppet'
-  shouldAutoHideMessages: boolean
   subscribeToEvents: boolean
 }
 
@@ -119,13 +116,7 @@ function parseCliArgs(argv: string[]): RunnerOptions {
     if (arg.startsWith('--')) {
       const optionName = arg.slice(2).split('=', 1)[0]
       const option = GLOBAL_CLI_OPTIONS[optionName as keyof typeof GLOBAL_CLI_OPTIONS]
-      if (optionName === 'hide-messages-app') {
-        const value = arg.includes('=') ? arg.split('=', 2)[1] : argv[index + 1]
-        validateBooleanOptionValue(HIDE_MESSAGES_APP_FLAG, value)
-        if (!arg.includes('=')) index += 1
-      } else if (option?.type === 'string' && !arg.includes('=')) {
-        index += 1
-      }
+      if (option?.type === 'string' && !arg.includes('=')) index += 1
       if (option) continue
     }
     if (!arg.startsWith('-')) {
@@ -151,11 +142,6 @@ function parseCliArgs(argv: string[]): RunnerOptions {
   if (messagesInstanceMode !== 'default' && messagesInstanceMode !== 'puppet') {
     throw new Error(`${MESSAGES_INSTANCE_FLAG} must be either "default" or "puppet"`)
   }
-  const shouldAutoHideMessages = parseBooleanOption(
-    HIDE_MESSAGES_APP_FLAG,
-    values['hide-messages-app'] ?? process.env.IMESSAGE_AUTO_HIDE_MESSAGES,
-    true,
-  )
 
   return {
     commandArgs,
@@ -163,7 +149,6 @@ function parseCliArgs(argv: string[]): RunnerOptions {
     keepAlive: values['stay-open'] ?? false,
     loggingEnabled: values.verbose ?? false,
     messagesInstanceMode,
-    shouldAutoHideMessages,
     subscribeToEvents: !(values['no-events'] ?? false),
   }
 }
@@ -200,7 +185,6 @@ const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
   process.env.IMESSAGE_LOGGING_DIR_PATH = state.dataDirPath
   process.env.IMESSAGE_MESSAGES_INSTANCE_MODE = state.messagesInstanceMode
-  process.env.IMESSAGE_AUTO_HIDE_MESSAGES = state.shouldAutoHideMessages ? '1' : '0'
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)
   // We do not currently depend on persisted CLI session state, but keeping this
@@ -238,32 +222,6 @@ function joinText(command: CommandDefinition, tokens: string[], startIndex: numb
   const text = tokens.slice(startIndex).join(' ').trim()
   if (!text) throw new Error(`${command.name} requires text content.\nusage: ${command.usage[0]}`)
   return text
-}
-
-function parseBooleanOption(name: string, value: string | undefined, defaultValue: boolean): boolean {
-  if (value == null) return defaultValue
-  validateBooleanOptionValue(name, value)
-  return booleanOptionValue(value)
-}
-
-function booleanOptionValue(value: string): boolean {
-  switch (value.toLowerCase()) {
-  case 'true':
-  case '1':
-  case 'yes':
-    return true
-  case 'false':
-  case '0':
-  case 'no':
-    return false
-  default:
-    throw new Error('unreachable boolean option value')
-  }
-}
-
-function validateBooleanOptionValue(name: string, value: string | undefined) {
-  if (!value || value.startsWith('-')) throw new Error(`${name} requires a value: true or false`)
-  if (!/^(true|false|1|0|yes|no)$/i.test(value)) throw new Error(`${name} must be true or false`)
 }
 
 function parsePaginationArgs(command: CommandDefinition, args: string[], positionalCount: number): { positionals: string[], pagination?: PaginationArg } {
@@ -350,7 +308,6 @@ function formatGlobalFlags() {
   return [
     `  ${DATA_DIR_FLAG} PATH     Store CLI state under PATH instead of a temp directory`,
     `  ${MESSAGES_INSTANCE_FLAG} MODE  Use "default" or "puppet" Messages instance mode`,
-    `  ${HIDE_MESSAGES_APP_FLAG} BOOL  Whether to automatically hide or move the Messages app/window`,
     `  ${NO_EVENTS_FLAG}        Do not subscribe to server events after running commands`,
     `  ${KEEP_ALIVE_FLAG}       Run one command, then stay open in the interactive shell`,
     `  ${VERBOSE_FLAG}          Enable verbose logging`,
@@ -935,7 +892,6 @@ async function main(runnerOptions: RunnerOptions) {
       subscribeToEvents: state.subscribeToEvents,
       loggingEnabled: state.loggingEnabled,
       messagesInstanceMode: state.messagesInstanceMode,
-      shouldAutoHideMessages: state.shouldAutoHideMessages,
     }, { colors: true, depth: 4 }))
   }
 
