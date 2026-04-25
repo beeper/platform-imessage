@@ -201,6 +201,45 @@ enum Preferences {
             try MessageMapper.mapMessageJSON(inputJSON)
         },
 
+        "getMessages": NodeFunction { (threadID: String, cursor: String?, direction: String?, currentUserID: String, accountID: String) in
+            let queue = try NodeAsyncQueue(label: "get-messages")
+            return try NodePromise { deferred in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        try SwiftMessageAPI.getMessages(
+                            threadID: threadID,
+                            cursor: cursor,
+                            direction: direction,
+                            currentUserID: currentUserID,
+                            accountID: accountID
+                        )
+                    }
+                    try? queue.run {
+                        try deferred(result)
+                    }
+                }
+            }
+        },
+
+        "getMessage": NodeFunction { (threadID: String, messageID: String, currentUserID: String, accountID: String) in
+            let queue = try NodeAsyncQueue(label: "get-message")
+            return try NodePromise { deferred in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = Result<NodeValueConvertible, Error> {
+                        try SwiftMessageAPI.getMessage(
+                            threadID: threadID,
+                            messageID: messageID,
+                            currentUserID: currentUserID,
+                            accountID: accountID
+                        )
+                    }
+                    try? queue.run {
+                        try deferred(result)
+                    }
+                }
+            }
+        },
+
         "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) in
             let queue = try NodeAsyncQueue(label: "search-messages")
             return try NodePromise { deferred in

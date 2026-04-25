@@ -99,6 +99,8 @@ export type SwiftServer = {
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   mapMessageJSON: (inputJSON: string) => string
+  getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, currentUserID: string, accountID: string) => Promise<string>
+  getMessage: (threadID: string, messageID: string, currentUserID: string, accountID: string) => Promise<string>
   getImageMetadata: (filePath: string) => Promise<Size | undefined>
   /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
   searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>

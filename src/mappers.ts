@@ -26,7 +26,7 @@ type MapperDiff = {
   kind: 'missing-in-swift' | 'missing-in-typescript' | 'type' | 'value' | 'length'
 }
 
-const reviveSwiftMapperValue = (value: unknown, key?: string): unknown => {
+export const reviveSwiftMapperValue = (value: unknown, key?: string): unknown => {
   if (SWIFT_DATE_FIELDS.has(key ?? '') && typeof value === 'number') return new Date(value)
   if (Array.isArray(value)) return value.map(item => reviveSwiftMapperValue(item))
   if (value && typeof value === 'object') {
@@ -37,7 +37,7 @@ const reviveSwiftMapperValue = (value: unknown, key?: string): unknown => {
   return value
 }
 
-const normalizeMapperValue = (value: unknown): unknown => {
+export const normalizeMapperValue = (value: unknown): unknown => {
   if (value instanceof Date) return { $date: value.getTime() }
   if (Array.isArray(value)) return value.map(normalizeMapperValue)
   if (value && typeof value === 'object') {
@@ -54,7 +54,7 @@ const normalizeMapperValue = (value: unknown): unknown => {
 const mapperValueType = (value: unknown) =>
   Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
 
-function diffNormalizedMapperValues(swiftValue: unknown, typescriptValue: unknown, path = '$', diffs: MapperDiff[] = []): MapperDiff[] {
+export function diffNormalizedMapperValues(swiftValue: unknown, typescriptValue: unknown, path = '$', diffs: MapperDiff[] = []): MapperDiff[] {
   if (diffs.length >= 20) return diffs
   if (Object.is(swiftValue, typescriptValue)) return diffs
 

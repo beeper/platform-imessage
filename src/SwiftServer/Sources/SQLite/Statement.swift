@@ -84,6 +84,13 @@ public extension Statement {
             try binding.unsafeBind(toPreparedStatement: handle, at: currentParameterIndex)
         }
     }
+
+    func bind(_ values: [any SQLiteBindable]) throws {
+        for (index, value) in values.enumerated() {
+            precondition(index < parameterCount, "tried to bind \(index + 1) value(s) (maximum is \(parameterCount))")
+            try value.unsafeBind(toPreparedStatement: handle, at: Int32(index + 1))
+        }
+    }
 }
 
 // MARK: - Stepping
