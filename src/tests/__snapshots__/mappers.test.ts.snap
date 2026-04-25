@@ -6,7 +6,6 @@ Array [
     "attachments": Array [
       Object {
         "fileName": "IMG_9997.png",
-        "fileSize": undefined,
         "id": "at_0_262F0210-126B-40E1-8247-C3EECF585C66",
         "isSticker": false,
         "loading": false,
@@ -21,7 +20,6 @@ Array [
     "cursor": "657208635075000000",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 0,
       "shouldNotify": true,
     },
@@ -32,12 +30,10 @@ Array [
     "reactions": Array [
       Object {
         "id": "kishan24x7@gmail.com",
-        "imgURL": undefined,
         "participantID": "kishan24x7@gmail.com",
         "reactionKey": "heart",
       },
     ],
-    "seen": undefined,
     "senderID": "kishan24x7@gmail.com",
     "sortKey": 1635515835075,
     "threadID": "iMessage;-;+918470075752",
@@ -47,7 +43,6 @@ Array [
     "cursor": "657208635075000000",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 1,
       "shouldNotify": true,
     },
@@ -58,16 +53,13 @@ Array [
     "reactions": Array [
       Object {
         "id": "kishan24x7@gmail.com",
-        "imgURL": undefined,
         "participantID": "kishan24x7@gmail.com",
         "reactionKey": "like",
       },
     ],
-    "seen": undefined,
     "senderID": "kishan24x7@gmail.com",
     "sortKey": 1635515835075,
     "text": "1",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+918470075752",
     "timestamp": 2021-10-29T13:57:15.075Z,
   },
@@ -75,7 +67,6 @@ Array [
     "attachments": Array [
       Object {
         "fileName": "IMG_9528.png",
-        "fileSize": undefined,
         "id": "at_2_262F0210-126B-40E1-8247-C3EECF585C66",
         "isSticker": false,
         "loading": false,
@@ -90,7 +81,6 @@ Array [
     "cursor": "657208635075000000",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 2,
       "shouldNotify": true,
     },
@@ -101,12 +91,10 @@ Array [
     "reactions": Array [
       Object {
         "id": "kishan24x7@gmail.com",
-        "imgURL": undefined,
         "participantID": "kishan24x7@gmail.com",
         "reactionKey": "dislike",
       },
     ],
-    "seen": undefined,
     "senderID": "kishan24x7@gmail.com",
     "sortKey": 1635515835075,
     "threadID": "iMessage;-;+918470075752",
@@ -116,7 +104,6 @@ Array [
     "cursor": "657208635075000000",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 3,
       "shouldNotify": true,
     },
@@ -127,16 +114,13 @@ Array [
     "reactions": Array [
       Object {
         "id": "kishan24x7@gmail.com",
-        "imgURL": undefined,
         "participantID": "kishan24x7@gmail.com",
         "reactionKey": "laugh",
       },
     ],
-    "seen": undefined,
     "senderID": "kishan24x7@gmail.com",
     "sortKey": 1635515835075,
     "text": "2",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+918470075752",
     "timestamp": 2021-10-29T13:57:15.075Z,
   },
@@ -150,7 +134,6 @@ Array [
     "cursor": "657208647322373600",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 0,
       "shouldNotify": true,
     },
@@ -162,7 +145,6 @@ Array [
     "senderID": "+918470075752",
     "sortKey": 1635515847322,
     "text": "part 0",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+918470075752",
     "timestamp": 2021-10-29T13:57:27.322Z,
   },
@@ -170,7 +152,6 @@ Array [
     "attachments": Array [
       Object {
         "fileName": "Screenshot 2021-10-29 at 4.10.47 PM.jpeg",
-        "fileSize": undefined,
         "id": "at_1_829D7284-F1C6-4848-B7C7-C4190EA416BD",
         "isSticker": false,
         "loading": false,
@@ -186,7 +167,6 @@ Array [
     "cursor": "657208647322373600",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 1,
       "shouldNotify": true,
     },
@@ -205,7 +185,6 @@ Array [
     "cursor": "657208647322373600",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 2,
       "shouldNotify": true,
     },
@@ -217,7 +196,6 @@ Array [
     "senderID": "+918470075752",
     "sortKey": 1635515847322,
     "text": "part 2",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+918470075752",
     "timestamp": 2021-10-29T13:57:27.322Z,
   },
@@ -225,7 +203,6 @@ Array [
     "attachments": Array [
       Object {
         "fileName": "Screenshot 2021-10-29 at 4.07.41 PM.jpeg",
-        "fileSize": undefined,
         "id": "at_3_829D7284-F1C6-4848-B7C7-C4190EA416BD",
         "isSticker": false,
         "loading": false,
@@ -241,7 +218,6 @@ Array [
     "cursor": "657208647322373600",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 3,
       "shouldNotify": true,
     },
@@ -252,7 +228,6 @@ Array [
     "reactions": Array [
       Object {
         "id": "+918470075752",
-        "imgURL": undefined,
         "participantID": "+918470075752",
         "reactionKey": "dislike",
       },
@@ -268,7 +243,6 @@ Array [
     "cursor": "657208647322373600",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 4,
       "shouldNotify": true,
     },
@@ -279,7 +253,6 @@ Array [
     "reactions": Array [
       Object {
         "id": "+918470075752",
-        "imgURL": undefined,
         "participantID": "+918470075752",
         "reactionKey": "like",
       },
@@ -288,7 +261,6 @@ Array [
     "senderID": "+918470075752",
     "sortKey": 1635515847322,
     "text": "part 4",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+918470075752",
     "timestamp": 2021-10-29T13:57:27.322Z,
   },
@@ -300,10 +272,8 @@ Array [
   Object {
     "behavior": "keep_read",
     "cursor": "725011655145000000",
-    "editedTimestamp": undefined,
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 0,
       "shouldNotify": true,
     },
@@ -323,10 +293,8 @@ Array [
   Object {
     "behavior": "keep_read",
     "cursor": "725011655145000000",
-    "editedTimestamp": undefined,
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 1,
       "shouldNotify": true,
     },
@@ -348,7 +316,6 @@ Array [
     "cursor": "725011655145000000",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 2,
       "shouldNotify": true,
     },
@@ -360,7 +327,6 @@ Array [
     "senderID": "tinyslices@gmail.com",
     "sortKey": 1703318855145,
     "text": "a",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+17075551000",
     "timestamp": 2023-12-23T08:07:35.145Z,
   },
@@ -374,7 +340,6 @@ Array [
     "cursor": "725506281967999900",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 0,
       "shouldNotify": true,
     },
@@ -386,17 +351,14 @@ Array [
     "senderID": "tinyslices@gmail.com",
     "sortKey": 1703813481967,
     "text": "begin middle multiple adjacent unsend",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+17075551000",
     "timestamp": 2023-12-29T01:31:21.967Z,
   },
   Object {
     "behavior": "keep_read",
     "cursor": "725506281967999900",
-    "editedTimestamp": undefined,
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 1,
       "shouldNotify": true,
     },
@@ -416,10 +378,8 @@ Array [
   Object {
     "behavior": "keep_read",
     "cursor": "725506281967999900",
-    "editedTimestamp": undefined,
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 2,
       "shouldNotify": true,
     },
@@ -441,7 +401,6 @@ Array [
     "cursor": "725506281967999900",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 3,
       "shouldNotify": true,
     },
@@ -453,7 +412,6 @@ Array [
     "senderID": "tinyslices@gmail.com",
     "sortKey": 1703813481967,
     "text": "end middle multiple adjacent unsend",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+17075551000",
     "timestamp": 2023-12-29T01:31:21.967Z,
   },
@@ -467,7 +425,6 @@ Array [
     "cursor": "725505911336000000",
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 0,
       "shouldNotify": true,
     },
@@ -479,17 +436,14 @@ Array [
     "senderID": "tinyslices@gmail.com",
     "sortKey": 1703813111336,
     "text": "a",
-    "textAttributes": undefined,
     "threadID": "iMessage;-;+17075551000",
     "timestamp": 2023-12-29T01:25:11.336Z,
   },
   Object {
     "behavior": "keep_read",
     "cursor": "725505911336000000",
-    "editedTimestamp": undefined,
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 1,
       "shouldNotify": true,
     },
@@ -509,10 +463,8 @@ Array [
   Object {
     "behavior": "keep_read",
     "cursor": "725505911336000000",
-    "editedTimestamp": undefined,
     "extra": Object {
       "countsAsUnread": true,
-      "isSMS": undefined,
       "part": 2,
       "shouldNotify": true,
     },

@@ -12,7 +12,7 @@ import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
-import { diffNormalizedMapperValues, mapThreads, mapMessages, mapThread, mapAccountLogin, normalizeMapperValue, reviveSwiftMapperValue } from './mappers'
+import { mapThreads, mapMessages, mapThread, mapAccountLogin, reviveSwiftMapperValue } from './mappers'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
@@ -24,7 +24,6 @@ import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThrea
 import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
 import { makeAppleDate } from './time'
 import Phaser from './phaser'
-import { getMessageLegacy, getMessagesLegacy } from './messages-legacy'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
 
@@ -46,35 +45,8 @@ function getDNDState() {
   return new Set(arr)
 }
 
-const IMESSAGE_SWIFT_MAP_MESSAGE_STRICT = process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT === '1'
-
 function parseSwiftMessageAPIJSON<T>(json: string): T {
   return reviveSwiftMapperValue(JSON.parse(json)) as T
-}
-
-function reportSwiftMessageAPIIssue(kind: 'error' | 'divergence', details: Record<string, unknown>) {
-  const message = `iMessage Swift message API ${kind}: ${Object.entries(details).map(([key, value]) => `${key}=${value}`).join(' ')}`
-  texts.error(message)
-  try {
-    texts.Sentry.captureMessage(message)
-  } catch {
-    // ignore reporting failures
-  }
-}
-
-function compareSwiftMessageAPIOutput(functionName: 'getMessages' | 'getMessage', swiftOutput: unknown, legacyOutput: unknown, context: Record<string, unknown>) {
-  const diffs = diffNormalizedMapperValues(normalizeMapperValue(swiftOutput), normalizeMapperValue(legacyOutput))
-  if (diffs.length === 0) return
-
-  const details = {
-    function: functionName,
-    ...context,
-    diffs: diffs.map(diff => `${diff.path}:${diff.kind}`).join(','),
-  }
-  if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) {
-    throw new Error(`Swift ${functionName} diverged: ${Object.entries(details).map(([key, value]) => `${key}=${value}`).join(' ')}`)
-  }
-  reportSwiftMessageAPIIssue('divergence', details)
 }
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
@@ -387,79 +359,25 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
-    const db = await this.ensureDB()
-    const legacyOutput = (async () => {
-      const threadID = await this.resolveThreadID(hashedThreadID)
-      return getMessagesLegacy(db, threadID, pagination, this.currentUser!.id, this.accountID)
-    })()
-
-    let swiftOutput: Paginated<Message>
-    try {
-      swiftOutput = parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftServer.getMessages(
-        hashedThreadID,
-        pagination?.cursor,
-        pagination?.direction,
-        this.currentUser!.id,
-        this.accountID,
-      ))
-    } catch (error) {
-      const details = {
-        function: 'getMessages',
-        threadID: hashedThreadID,
-        error: error instanceof Error ? error.name : typeof error,
-      }
-      if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) {
-        await legacyOutput.catch(() => {})
-        throw new Error(`Swift getMessages failed: ${Object.entries(details).map(([key, value]) => `${key}=${value}`).join(' ')}`)
-      }
-      reportSwiftMessageAPIIssue('error', details)
-      return legacyOutput
-    }
-
-    compareSwiftMessageAPIOutput('getMessages', swiftOutput, await legacyOutput, {
-      threadID: hashedThreadID,
-      cursor: pagination?.cursor ?? '',
-      direction: pagination?.direction ?? '',
-    })
-    return swiftOutput
+    await this.ensureDB()
+    return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftServer.getMessages(
+      hashedThreadID,
+      pagination?.cursor,
+      pagination?.direction,
+      this.currentUser!.id,
+      this.accountID,
+    ))
   }
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    const db = await this.ensureDB()
-    const legacyOutput = (async () => {
-      const threadID = await this.resolveThreadID(hashedThreadID)
-      return getMessageLegacy(db, threadID, messageID, this.currentUser!.id, this.accountID)
-    })()
-
-    let swiftOutput: Message | undefined
-    try {
-      const parsed = parseSwiftMessageAPIJSON<Message | null>(await swiftServer.getMessage(
-        hashedThreadID,
-        messageID,
-        this.currentUser!.id,
-        this.accountID,
-      ))
-      swiftOutput = parsed ?? undefined
-    } catch (error) {
-      const details = {
-        function: 'getMessage',
-        threadID: hashedThreadID,
-        messageID,
-        error: error instanceof Error ? error.name : typeof error,
-      }
-      if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) {
-        await legacyOutput.catch(() => {})
-        throw new Error(`Swift getMessage failed: ${Object.entries(details).map(([key, value]) => `${key}=${value}`).join(' ')}`)
-      }
-      reportSwiftMessageAPIIssue('error', details)
-      return legacyOutput
-    }
-
-    compareSwiftMessageAPIOutput('getMessage', swiftOutput, await legacyOutput, {
-      threadID: hashedThreadID,
+    await this.ensureDB()
+    const parsed = parseSwiftMessageAPIJSON<Message | null>(await swiftServer.getMessage(
+      hashedThreadID,
       messageID,
-    })
-    return swiftOutput
+      this.currentUser!.id,
+      this.accountID,
+    ))
+    return parsed ?? undefined
   }
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {

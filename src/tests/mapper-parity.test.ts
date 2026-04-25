@@ -1,13 +1,69 @@
 import './fix-env'
 
-import { __mapperParityTest } from '../mappers'
+import { reviveSwiftMapperValue } from '../mappers'
 
-const {
-  diffNormalizedMapperValues,
-  normalizeMapperValue,
-  projectSwiftToTypescriptShape,
-  reviveSwiftMapperValue,
-} = __mapperParityTest
+type MapperDiff = {
+  path: string
+  kind: 'missing-in-swift' | 'missing-in-typescript' | 'type' | 'value' | 'length'
+}
+
+const normalizeMapperValue = (value: unknown): unknown => {
+  if (value instanceof Date) return { $date: value.getTime() }
+  if (Array.isArray(value)) return value.map(normalizeMapperValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key, entryValue]) => key !== '_original' && entryValue !== undefined)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, entryValue]) => [key, normalizeMapperValue(entryValue)]),
+    )
+  }
+  return value
+}
+
+const mapperValueType = (value: unknown) =>
+  Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
+
+function diffNormalizedMapperValues(swiftValue: unknown, typescriptValue: unknown, path = '$', diffs: MapperDiff[] = []): MapperDiff[] {
+  if (diffs.length >= 20) return diffs
+  if (Object.is(swiftValue, typescriptValue)) return diffs
+
+  const swiftType = mapperValueType(swiftValue)
+  const typescriptType = mapperValueType(typescriptValue)
+  if (swiftType !== typescriptType) {
+    diffs.push({ path, kind: 'type' })
+    return diffs
+  }
+
+  if (Array.isArray(swiftValue) && Array.isArray(typescriptValue)) {
+    if (swiftValue.length !== typescriptValue.length) diffs.push({ path, kind: 'length' })
+    const length = Math.min(swiftValue.length, typescriptValue.length)
+    for (let i = 0; i < length; i++) {
+      diffNormalizedMapperValues(swiftValue[i], typescriptValue[i], `${path}[${i}]`, diffs)
+    }
+    return diffs
+  }
+
+  if (swiftValue && typeof swiftValue === 'object' && typescriptValue && typeof typescriptValue === 'object') {
+    const swiftRecord = swiftValue as Record<string, unknown>
+    const typescriptRecord = typescriptValue as Record<string, unknown>
+    const keys = new Set([...Object.keys(swiftRecord), ...Object.keys(typescriptRecord)])
+    for (const key of [...keys].sort()) {
+      if (diffs.length >= 20) break
+      if (!(key in swiftRecord)) {
+        diffs.push({ path: `${path}.${key}`, kind: 'missing-in-swift' })
+      } else if (!(key in typescriptRecord)) {
+        diffs.push({ path: `${path}.${key}`, kind: 'missing-in-typescript' })
+      } else {
+        diffNormalizedMapperValues(swiftRecord[key], typescriptRecord[key], `${path}.${key}`, diffs)
+      }
+    }
+    return diffs
+  }
+
+  diffs.push({ path, kind: 'value' })
+  return diffs
+}
 
 describe('mapper parity helpers', () => {
   test('normalizes dates and ignores _original', () => {
@@ -39,15 +95,6 @@ describe('mapper parity helpers', () => {
     expect(revived).toEqual([{ timestamp: new Date(1000), seen: new Date(2000), editedTimestamp: new Date(3000) }])
   })
 
-  test('projects swift output through the typescript oracle shape', () => {
-    const date = new Date(1000)
-    const restored = projectSwiftToTypescriptShape(
-      [{ id: 'm1', timestamp: date, swiftOnly: true }],
-      [{ id: 'm1', timestamp: new Date(1000), seen: undefined }],
-    )
-
-    expect(restored).toEqual([{ id: 'm1', timestamp: date, seen: undefined }])
-  })
 })
 
 const messageRow = {
@@ -83,9 +130,8 @@ const messageRow = {
   thread_originator_part: '',
 }
 
-function loadMapMessageWithSwift(mapMessageJSON: jest.Mock, strict = false) {
+function loadMapMessageWithSwift(mapMessageJSON: jest.Mock) {
   jest.resetModules()
-  process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT = strict ? '1' : ''
   globalThis.texts = {
     ...globalThis.texts,
     error: jest.fn(),
@@ -105,33 +151,18 @@ function loadMapMessageWithSwift(mapMessageJSON: jest.Mock, strict = false) {
   return require('../mappers') as typeof import('../mappers')
 }
 
-describe('mapMessage swift parity guard', () => {
+describe('mapMessage Swift wrapper', () => {
   afterEach(() => {
-    delete process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT
     jest.dontMock('../SwiftServer/lib')
     jest.resetModules()
   })
 
-  test('returns typescript output and reports when swift throws', () => {
+  test('throws when Swift throws', () => {
     const swiftError = jest.fn(() => {
       throw new Error('swift exploded')
     })
     const { mapMessage } = loadMapMessageWithSwift(swiftError)
 
-    const messages = mapMessage(messageRow as never, [], [], 'me@example.com', '$accountID')
-
-    expect(messages).toHaveLength(1)
-    expect(messages[0].text).toBe('hello')
-    expect(globalThis.texts.error).toHaveBeenCalledWith(expect.stringContaining('guid=m1'))
-    expect(globalThis.texts.error).not.toHaveBeenCalledWith(expect.stringContaining('hello'))
-  })
-
-  test('throws on swift failure in strict mode', () => {
-    const swiftError = jest.fn(() => {
-      throw new Error('swift exploded')
-    })
-    const { mapMessage } = loadMapMessageWithSwift(swiftError, true)
-
-    expect(() => mapMessage(messageRow as never, [], [], 'me@example.com', '$accountID')).toThrow('Swift mapMessage failed for m1')
+    expect(() => mapMessage(messageRow as never, [], [], 'me@example.com', '$accountID')).toThrow('swift exploded')
   })
 })

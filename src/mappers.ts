@@ -1,5 +1,5 @@
 import { groupBy, omit } from 'lodash'
-import { InboxName, Participant, ThreadReminder, texts } from '@textshq/platform-sdk'
+import { InboxName, Participant, ThreadReminder } from '@textshq/platform-sdk'
 
 import { stringifyWithArrayBuffers } from './util'
 import safeBplistParse from './safe-bplist-parse'
@@ -9,10 +9,8 @@ import { appleDateToMillisSinceEpoch, regularlizeAppleDate } from './time'
 import { ThreadArchivalState } from './persistence'
 import { BeeperThread, BeeperMessage } from './desktop-types'
 import { likelyAlphanumericSenderID } from './heuristics'
-import { mapMessageLegacy } from './mappers-legacy'
 
 const IMESSAGE_STRIP_INTERNAL_FIELDS = process.env.IMESSAGE_STRIP_INTERNAL_FIELDS === '1'
-const IMESSAGE_SWIFT_MAP_MESSAGE_STRICT = process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT === '1'
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 
@@ -20,11 +18,6 @@ const serializeMessageRow = (msgRow: MappedMessageRow) =>
   omit(msgRow, ['attributedBody', 'message_summary_info'])
 
 const SWIFT_DATE_FIELDS = new Set(['timestamp', 'seen', 'editedTimestamp'])
-
-type MapperDiff = {
-  path: string
-  kind: 'missing-in-swift' | 'missing-in-typescript' | 'type' | 'value' | 'length'
-}
 
 export const reviveSwiftMapperValue = (value: unknown, key?: string): unknown => {
   if (SWIFT_DATE_FIELDS.has(key ?? '') && typeof value === 'number') return new Date(value)
@@ -37,85 +30,6 @@ export const reviveSwiftMapperValue = (value: unknown, key?: string): unknown =>
   return value
 }
 
-export const normalizeMapperValue = (value: unknown): unknown => {
-  if (value instanceof Date) return { $date: value.getTime() }
-  if (Array.isArray(value)) return value.map(normalizeMapperValue)
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([key, entryValue]) => key !== '_original' && entryValue !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, entryValue]) => [key, normalizeMapperValue(entryValue)]),
-    )
-  }
-  return value
-}
-
-const mapperValueType = (value: unknown) =>
-  Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
-
-export function diffNormalizedMapperValues(swiftValue: unknown, typescriptValue: unknown, path = '$', diffs: MapperDiff[] = []): MapperDiff[] {
-  if (diffs.length >= 20) return diffs
-  if (Object.is(swiftValue, typescriptValue)) return diffs
-
-  const swiftType = mapperValueType(swiftValue)
-  const typescriptType = mapperValueType(typescriptValue)
-  if (swiftType !== typescriptType) {
-    diffs.push({ path, kind: 'type' })
-    return diffs
-  }
-
-  if (Array.isArray(swiftValue) && Array.isArray(typescriptValue)) {
-    if (swiftValue.length !== typescriptValue.length) diffs.push({ path, kind: 'length' })
-    const length = Math.min(swiftValue.length, typescriptValue.length)
-    for (let i = 0; i < length; i++) {
-      diffNormalizedMapperValues(swiftValue[i], typescriptValue[i], `${path}[${i}]`, diffs)
-    }
-    return diffs
-  }
-
-  if (swiftValue && typeof swiftValue === 'object' && typescriptValue && typeof typescriptValue === 'object') {
-    const swiftRecord = swiftValue as Record<string, unknown>
-    const typescriptRecord = typescriptValue as Record<string, unknown>
-    const keys = new Set([...Object.keys(swiftRecord), ...Object.keys(typescriptRecord)])
-    for (const key of [...keys].sort()) {
-      if (diffs.length >= 20) break
-      if (!(key in swiftRecord)) {
-        diffs.push({ path: `${path}.${key}`, kind: 'missing-in-swift' })
-      } else if (!(key in typescriptRecord)) {
-        diffs.push({ path: `${path}.${key}`, kind: 'missing-in-typescript' })
-      } else {
-        diffNormalizedMapperValues(swiftRecord[key], typescriptRecord[key], `${path}.${key}`, diffs)
-      }
-    }
-    return diffs
-  }
-
-  diffs.push({ path, kind: 'value' })
-  return diffs
-}
-
-function projectSwiftToTypescriptShape<T>(swiftValue: T, typescriptValue: unknown): T {
-  if (swiftValue instanceof Date || typescriptValue instanceof Date) return swiftValue
-  if (Array.isArray(swiftValue) && Array.isArray(typescriptValue)) {
-    return swiftValue.map((item, index) => projectSwiftToTypescriptShape(item, typescriptValue[index])) as T
-  }
-  if (swiftValue && typeof swiftValue === 'object' && typescriptValue && typeof typescriptValue === 'object') {
-    const swiftRecord = swiftValue as Record<string, unknown>
-    const projected: Record<string, unknown> = {}
-    Object.entries(typescriptValue).forEach(([key, value]) => {
-      if (key === '_original') return
-      if (key in swiftRecord) {
-        projected[key] = projectSwiftToTypescriptShape(swiftRecord[key], value)
-      } else if (value === undefined) {
-        projected[key] = undefined
-      }
-    })
-    return projected as T
-  }
-  return swiftValue
-}
-
 function attachOriginal(messages: BeeperMessage[], msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] | undefined, currentUserID: string) {
   if (IMESSAGE_STRIP_INTERNAL_FIELDS) return messages
   const original = stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows ?? [], currentUserID])
@@ -125,53 +39,15 @@ function attachOriginal(messages: BeeperMessage[], msgRow: MappedMessageRow, att
   return messages
 }
 
-function reportSwiftMapperIssue(kind: 'error' | 'divergence', msgRow: MappedMessageRow, details: string) {
-  const message = `iMessage Swift mapMessage ${kind}: guid=${msgRow.guid} thread=${msgRow.threadID} balloon=${msgRow.balloon_bundle_id} ${details}`
-  texts.error(message)
-  try {
-    texts.Sentry.captureMessage(message)
-  } catch {
-    // ignore reporting failures
-  }
-}
-
 function swiftMapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[] = [], currentUserID: string, accountID: string): BeeperMessage[] {
   const inputJSON = stringifyWithArrayBuffers({ msgRow, attachmentRows, reactionRows, currentUserID, accountID })
   return reviveSwiftMapperValue(JSON.parse(swiftServer.mapMessageJSON(inputJSON))) as BeeperMessage[]
 }
 
-export const __mapperParityTest = {
-  diffNormalizedMapperValues,
-  normalizeMapperValue,
-  projectSwiftToTypescriptShape,
-  reviveSwiftMapperValue,
-}
-
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
 export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[] = [], currentUserID: string, accountID: string): BeeperMessage[] {
-  const typescriptMessages = mapMessageLegacy(msgRow, attachmentRows, reactionRows, currentUserID, accountID)
-  let swiftMessages: BeeperMessage[]
-  try {
-    swiftMessages = swiftMapMessage(msgRow, attachmentRows, reactionRows, currentUserID, accountID)
-  } catch (error) {
-    const message = `error=${error instanceof Error ? error.name : typeof error}`
-    if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) throw new Error(`Swift mapMessage failed for ${msgRow.guid}: ${message}`)
-    reportSwiftMapperIssue('error', msgRow, message)
-    return typescriptMessages
-  }
-
-  const swiftNormalized = normalizeMapperValue(swiftMessages)
-  const typescriptNormalized = normalizeMapperValue(typescriptMessages)
-  const diffs = diffNormalizedMapperValues(swiftNormalized, typescriptNormalized)
-  if (diffs.length > 0) {
-    const details = `diffs=${diffs.map(diff => `${diff.path}:${diff.kind}`).join(',')}`
-    if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) throw new Error(`Swift mapMessage diverged for ${msgRow.guid}: ${details}`)
-    reportSwiftMapperIssue('divergence', msgRow, details)
-    return typescriptMessages
-  }
-
   return attachOriginal(
-    projectSwiftToTypescriptShape(swiftMessages, typescriptMessages),
+    swiftMapMessage(msgRow, attachmentRows, reactionRows, currentUserID, accountID),
     msgRow,
     attachmentRows,
     currentUserID,
