@@ -8,8 +8,9 @@ This also powers the iMessage integration on [Beeper](https://www.beeper.com/dow
 
 Native code in Swift is exposed to JS via NAPI/[node-swift](https://github.com/kabiroberai/node-swift).
 
-## Usage
+**What it won't do**: expose more features if you disable SIP, allow automating multiple iMessage accounts, work on Windows/Linux. Also see [TODOs](./todos.md).
 
+## Usage
 
 1. Setup:
 ```sh

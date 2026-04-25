@@ -11,8 +11,8 @@
   - [ ] made bridgev2 version for self hosting support
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
-- [ ] add support for spinning up a discrete instance of Messages.app
-- [ ] add handling for multiple instances of MessagesController
+- [ ] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
+- [ ] add handling for multiple instances of MessagesController (Beeper Desktop + CLI running at the same time)
 - [ ] store UserDefaults in dataDirPath
 
 ### Parity
