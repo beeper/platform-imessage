@@ -57,24 +57,6 @@ CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID
 CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
 FROM chat
 WHERE chat.guid = ?`,
-  resolveDirectThreadGUIDForAddress: `SELECT chat.guid
-FROM chat
-LEFT JOIN chat_handle_join AS chj ON chj.chat_id = chat.ROWID
-LEFT JOIN handle ON handle.ROWID = chj.handle_id
-WHERE chat.guid LIKE '%;-;%'
-AND (
-  LOWER(handle.id) = LOWER(?)
-  OR LOWER(handle.uncanonicalized_id) = LOWER(?)
-  OR LOWER(chat.chat_identifier) = LOWER(?)
-)
-ORDER BY
-  CASE chat.service_name
-    WHEN 'iMessage' THEN 0
-    WHEN 'iMessageLite' THEN 1
-    ELSE 2
-  END,
-  (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) DESC
-LIMIT 1`,
   getAllThreadGUIDs: 'SELECT guid FROM chat',
   getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
 LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
@@ -300,15 +282,6 @@ export default class DatabaseAPI {
     const chat = await this.db.get<string[], MappedChatRow>(SQLS.getThread, chatGUID)
     if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     return chat
-  }
-
-  async resolveDirectThreadGUIDForAddress(address: string): Promise<string | undefined> {
-    return this.db.pluck_get<string[], string>(
-      SQLS.resolveDirectThreadGUIDForAddress,
-      address,
-      address,
-      address,
-    )
   }
 
   private threadHasherWarmed?: Promise<void>

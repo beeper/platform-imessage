@@ -531,9 +531,8 @@ const commandDefinitions: CommandDefinition[] = [
     name: 'send',
     category: 'Message',
     summary: 'Send a text message to a chat.',
-    usage: ['send CHAT_ID_OR_EMAIL TEXT'],
+    usage: ['send CHAT_ID TEXT'],
     examples: [
-      'send sjobs@apple.com "hello from cli"',
       'send any;-;sjobs@apple.com "hello from cli"',
       'send any;-;+14155551234 "quoted shell text works"',
     ],
@@ -564,8 +563,8 @@ const commandDefinitions: CommandDefinition[] = [
     name: 'send-file',
     category: 'Message',
     summary: 'Send a file attachment to a chat.',
-    usage: ['send-file CHAT_ID_OR_EMAIL FILE'],
-    examples: ['send-file sjobs@apple.com ./image.png', 'send-file any;-;sjobs@apple.com ./image.png'],
+    usage: ['send-file CHAT_ID FILE'],
+    examples: ['send-file any;-;sjobs@apple.com ./image.png'],
     requiredAuthorization: MUTATING_AUTH,
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 2)

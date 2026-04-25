@@ -42,7 +42,6 @@ function canAccessMessagesDir() {
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
-const emailAddressRegex = /^[^\s@;]+@[^\s@;]+$/
 
 const linkRegex = urlRegex()
 
@@ -118,21 +117,15 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private resolveThreadID = async (possiblyHashedThreadID: ThreadID): Promise<ThreadID> => {
-    let threadID: ThreadID
     try {
-      threadID = originalThreadID(possiblyHashedThreadID)
+      return originalThreadID(possiblyHashedThreadID)
     } catch {
       // hasher doesn't know this token (e.g. before getThreads has run after
       // a restart). warm it by tokenizing every chat guid, then retry.
       const db = await this.ensureDB()
       await db.warmThreadHasher()
-      threadID = originalThreadID(possiblyHashedThreadID)
+      return originalThreadID(possiblyHashedThreadID)
     }
-
-    if (!emailAddressRegex.test(threadID)) return threadID
-
-    const db = await this.ensureDB()
-    return await db.resolveDirectThreadGUIDForAddress(threadID) ?? `${DEFAULT_THREAD_PREFIX};-;${threadID}`
   }
 
   getCurrentUser = async (): Promise<CurrentUser> => {
