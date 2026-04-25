@@ -16,6 +16,7 @@ Native code in Swift is exposed to JS via NAPI/[node-swift](https://github.com/k
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
 yarn
+yarn rebuild:native
 yarn build:swift --debug --standalone
 yarn build:cli
 yarn cli authorize # authorize permissions like Accessibility/Automation/Contacts
