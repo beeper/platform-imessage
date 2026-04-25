@@ -67,7 +67,7 @@ struct EclipsingPointView: View {
     var body: some View {
         let color = Color(point.color)
 
-        GeometryReader { proxy in
+        GeometryReader { _ in
             ZStack {
                 Circle()
                     .fill(color)
@@ -190,7 +190,7 @@ struct EclipsingDebuggerView: View {
     var state: EclipsingDebuggerState
 
     var body: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             ZStack {
                 ForEach(state.points) { point in
                     EclipsingPointView(point: point)
@@ -208,9 +208,9 @@ struct EclipsingDebuggerView: View {
 #Preview {
     @Previewable var state = EclipsingDebuggerState(points: [
         EclipsingPoint(position: CGPoint(x: 200, y: 100), label: "topleft"),
-        EclipsingPoint(position: CGPoint(x: 200 + 150, y: 100 + 75), label: "bottomright"),
+        EclipsingPoint(position: CGPoint(x: 200 + 150, y: 100 + 75), label: "bottomright")
     ], rectangles: [
-        EclipsingRect(at: CGRect(x: 200, y: 100, width: 150, height: 75), label: "rectangle", color: NSColor.green.cgColor),
+        EclipsingRect(at: CGRect(x: 200, y: 100, width: 150, height: 75), label: "rectangle", color: NSColor.green.cgColor)
     ])
 
     EclipsingDebuggerView(state: state)

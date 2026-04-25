@@ -94,7 +94,7 @@ export type SwiftServer = {
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
   enabledExperiments: string
-  messagesInstanceMode: string
+  useSecondaryMessagesInstance: boolean
   isMessagesAppInDock: string
   isNotificationsEnabledForMessages: boolean
 

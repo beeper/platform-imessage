@@ -20,7 +20,7 @@ public struct CharacterPickerSearch {
             // these would only work on english locales:
             localizedName.replacingOccurrences(of: "flag of ", with: ""),
             localizedName.split(separator: " ").first.map(String.init),
-            "flag",
+            "flag"
         ].compactMap { $0 }
 
         let firstSuceedingQuery = try queriesToAttempt

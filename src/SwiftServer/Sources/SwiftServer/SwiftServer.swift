@@ -44,7 +44,7 @@ enum Preferences {
     static var isLoggingEnabled: Bool = false
     static var isPHTEnabled: Bool = false
     static var enabledExperiments: String = ""
-    static var messagesInstanceMode: MessagesInstanceMode = MessagesInstanceMode.default
+    static var useSecondaryMessagesInstance: Bool = false
 }
 
 #NodeModule {
@@ -87,7 +87,7 @@ enum Preferences {
     var dict: [String: NodePropertyConvertible] = try [
         "hashers": [
             "thread": try Hasher.thread.nodeValue(),
-            "participant": try Hasher.participant.nodeValue(),
+            "participant": try Hasher.participant.nodeValue()
         ].nodeValue(),
 
         "appleInterfaceStyle": NodeProperty { _ in
@@ -108,14 +108,10 @@ enum Preferences {
             Preferences.enabledExperiments = try args.first?.as(String.self) ?? ""
         },
 
-        "messagesInstanceMode": NodeProperty { _ in
-            Preferences.messagesInstanceMode.rawValue
+        "useSecondaryMessagesInstance": NodeProperty { _ in
+            Preferences.useSecondaryMessagesInstance
         } set: { args in
-            if let rawValue: String = try args.first?.as(String.self), let messagesInstanceMode =  MessagesInstanceMode(rawValue: rawValue) {
-                Preferences.messagesInstanceMode = messagesInstanceMode
-            } else {
-                Preferences.messagesInstanceMode = .default
-            }
+            Preferences.useSecondaryMessagesInstance = try args.first?.as(Bool.self) ?? false
         },
 
         "isLoggingEnabled": NodeProperty { _ in

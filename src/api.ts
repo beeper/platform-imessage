@@ -25,10 +25,18 @@ import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Pe
 import { makeAppleDate } from './time'
 import Phaser from './phaser'
 
+function parseEnvBoolean(value: string | undefined): boolean | undefined {
+  if (value == null) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  return !/^(0|false|no)$/i.test(trimmed)
+}
+
 if (swiftServer) {
   swiftServer.isLoggingEnabled = texts.isLoggingEnabled
-  if (process.env.IMESSAGE_MESSAGES_INSTANCE_MODE) {
-    swiftServer.messagesInstanceMode = process.env.IMESSAGE_MESSAGES_INSTANCE_MODE
+  const useSecondaryMessagesInstance = parseEnvBoolean(process.env.IMESSAGE_USE_SECONDARY_INSTANCE)
+  if (useSecondaryMessagesInstance !== undefined) {
+    swiftServer.useSecondaryMessagesInstance = useSecondaryMessagesInstance
   }
 }
 
@@ -170,9 +178,9 @@ export default class AppleiMessage implements PlatformAPI {
       // (DESK-13231; removed until this actually works)
       // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
       swiftServer.enabledExperiments = this.experiments
-      swiftServer.messagesInstanceMode = process.env.IMESSAGE_MESSAGES_INSTANCE_MODE ?? prefs?.messages_instance_mode ?? 'default'
+      swiftServer.useSecondaryMessagesInstance = parseEnvBoolean(process.env.IMESSAGE_USE_SECONDARY_INSTANCE) ?? prefs?.use_secondary_messages_instance ?? false
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
-      texts.log('imessage messagesInstanceMode', swiftServer.messagesInstanceMode)
+      texts.log('imessage useSecondaryMessagesInstance', swiftServer.useSecondaryMessagesInstance)
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))

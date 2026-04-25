@@ -71,7 +71,7 @@ extension Poller {
                 //
                 // TODO(skip): This might not be necessary anymore since we
                 // adopted the stream order concept.
-                "markedUnreadUpdatedAt": markedUnreadUpdatedAt,
+                "markedUnreadUpdatedAt": markedUnreadUpdatedAt
             ]
 
             traceUnreads("chat \(chatRef) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")

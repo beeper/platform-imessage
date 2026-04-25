@@ -88,8 +88,8 @@ private final class RunLoopSource<WorkItem> {
             copyDescription: nil,
             equal: nil,
             hash: nil,
-            schedule: { _, runLoop, mode in },
-            cancel: { _, runLoop, mode in },
+            schedule: { _, _, _ in },
+            cancel: { _, _, _ in },
             perform: { _ in }
         )
 

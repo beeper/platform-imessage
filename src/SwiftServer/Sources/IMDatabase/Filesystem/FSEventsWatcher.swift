@@ -162,7 +162,7 @@ public extension FSEventsWatcher {
                 (.renamed, "renamed"),
                 (.xattrModified, "xattrModified"),
                 (.ownEvent, "ownEvent"),
-                (.cloned, "cloned"),
+                (.cloned, "cloned")
             ] where contains(flag) {
                 names.append(name)
             }

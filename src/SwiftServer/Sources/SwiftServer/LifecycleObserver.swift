@@ -62,7 +62,7 @@ extension LifecycleObserver {
             lastFocusedUIElementChange?.withLock { $0 = Date() }
         }
         #if DEBUG
-        titleChangedToken = try app.observe(.titleChanged) { info in
+        titleChangedToken = try app.observe(.titleChanged) { _ in
             do {
                 let windows = try app.appWindows().compactMap { try? $0.title() }
                 log.info("@@ AX: window titles changed, now: \(windows)")

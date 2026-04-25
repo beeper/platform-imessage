@@ -177,7 +177,7 @@ private extension Collection<Message> {
                                 return nil
                             }
                             return "[attachment GUID: \(guid)"
-                        }(),
+                        }()
                     ].compactMap(\.self)
                     lines.append(
                         "\(indent) part #\(part.index): \(emoji)@\(range.location)..<\(range.location + range.length) \(tags)"

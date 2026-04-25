@@ -188,7 +188,7 @@ final class MessagesController {
         hiding: Bool = true,
         targeting app: NSRunningApplication? = nil
     ) throws -> NSRunningApplication {
-        if Preferences.messagesInstanceMode == .puppet, let app {
+        if Preferences.useSecondaryMessagesInstance, let app {
             try MessagesInstanceTarget.sendDeepLink(url, to: app)
             if activating {
                 app.activate()
@@ -380,9 +380,9 @@ final class MessagesController {
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
         }
 
-        if Preferences.messagesInstanceMode == .puppet {
-            log.info("launching puppet messages instance...")
-            app = try MessagesInstanceTarget.launchPuppet(
+        if Preferences.useSecondaryMessagesInstance {
+            log.info("launching secondary messages instance...")
+            app = try MessagesInstanceTarget.launchSecondaryInstance(
                 initialDeepLink: MessagesDeepLink.compose.url(),
                 activating: false,
                 hiding: false
@@ -1297,7 +1297,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        if !Defaults.disableOSAFastPath, Preferences.messagesInstanceMode != .puppet, let threadID, quotedMessage == nil { // fast path using OSA
+        if !Defaults.disableOSAFastPath, !Preferences.useSecondaryMessagesInstance, let threadID, quotedMessage == nil { // fast path using OSA
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links
@@ -1590,7 +1590,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func idleCallback(observingThreadID threadID: String, statusSender: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        return { [weak self] quiescence in
+        return { [weak self] _ in
             guard let self else { return }
 
             guard !messagesIsManuallyActivated else {

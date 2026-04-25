@@ -11,7 +11,7 @@ let package = Package(
             type: .dynamic,
             targets: ["SwiftServer"]
         ),
-        .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
+        .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"])
     ],
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
@@ -21,7 +21,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1")
     ],
     targets: [
         .target(
@@ -35,7 +35,7 @@ let package = Package(
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
                 "IMDatabase",
-                .product(name: "Collections", package: "swift-collections"),
+                .product(name: "Collections", package: "swift-collections")
             ],
 
             // `node-swift`'s build scripts pass some flags that enable dynamic
@@ -49,7 +49,7 @@ let package = Package(
             ),
         .target(name: "EmojiSPI", dependencies: ["SwiftServerFoundation"]),
         .target(name: "SQLite", dependencies: [
-            .product(name: "Logging", package: "swift-log"),
+            .product(name: "Logging", package: "swift-log")
         ]),
         .testTarget(name: "SQLiteTests", dependencies: ["SQLite"]),
         .target(
@@ -60,7 +60,7 @@ let package = Package(
                 .product(name: "Collections", package: "swift-collections"),
                 "SQLite",
                 "ExceptionCatcher",
-                "SwiftServerFoundation",
+                "SwiftServerFoundation"
             ],
             ),
         .executableTarget(
@@ -68,7 +68,7 @@ let package = Package(
             dependencies: [
                 "IMDatabase",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "SwiftServerFoundation",
+                "SwiftServerFoundation"
             ]
         ),
         .executableTarget(
@@ -76,7 +76,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "BetterSwiftAX",
-                "SwiftServerFoundation",
+                "SwiftServerFoundation"
             ]
         ),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
@@ -90,8 +90,8 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 "ExceptionCatcher",
-                "CUnfairLock",
+                "CUnfairLock"
             ]
-        ),
+        )
     ]
 )

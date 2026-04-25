@@ -120,7 +120,7 @@ extension MessagesController {
                 // that prefers nicknames, since iMessage uses it for the window title
                 contacts.format(contact: contact, style: .short),
 
-                contacts.format(contact: contact, style: .standard),
+                contacts.format(contact: contact, style: .standard)
             ].compactMap(\.self))
         }
         log.debug("misfire prevention: could not find contact with address, predicting with plain and formatted address")

@@ -79,7 +79,7 @@ private func collate(_ files: [RageshakeFile], authenticatingWithPassword ragesh
     let filesToExamine = [
         "platform-imessage-poller.log.gz",
         "platform-imessage.log.gz",
-        "renderer.log.gz",
+        "renderer.log.gz"
     ]
 
     // copy so the command struct isn't captured by the escaping task group closure

@@ -159,7 +159,7 @@ enum Defaults {
             DefaultsKeys.editingDelayBeforeReplacing: 0.5,
             DefaultsKeys.disableOSAFastPath: false,
 
-            DefaultsKeys.pollerTraceUnreads: true,
+            DefaultsKeys.pollerTraceUnreads: true
         ]
 
         #if DEBUG

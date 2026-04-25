@@ -89,7 +89,7 @@ final class Contacts {
             isEmail ? CNContactEmailAddressesKey : CNContactPhoneNumbersKey,
             CNContactNicknameKey,
             CNContactGivenNameKey,
-            CNContactFamilyNameKey,
+            CNContactFamilyNameKey
         ] as [any CNKeyDescriptor]
 
         if let descriptorForShortFormatting {

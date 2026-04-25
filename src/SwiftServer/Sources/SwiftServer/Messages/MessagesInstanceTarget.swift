@@ -3,16 +3,11 @@ import Carbon.HIToolbox
 import Foundation
 import SwiftServerFoundation
 
-enum MessagesInstanceMode: String {
-    case `default`
-    case puppet
-}
-
 @available(macOS 11, *)
 enum MessagesInstanceTarget {
     private static func getURLAppleEvent(for url: URL, target: NSRunningApplication?) -> NSAppleEventDescriptor {
         let targetDescriptor: NSAppleEventDescriptor? = target.map { NSAppleEventDescriptor(processIdentifier: $0.processIdentifier) }
-        
+
         let event = NSAppleEventDescriptor(
             eventClass: AEEventClass(kInternetEventClass),
             eventID: AEEventID(kAEGetURL),
@@ -38,7 +33,7 @@ enum MessagesInstanceTarget {
             .sendEvent(options: [.neverInteract, .noReply], timeout: timeout)
     }
 
-    static func launchPuppet(
+    static func launchSecondaryInstance(
         initialDeepLink: URL? = nil,
         activating: Bool = false,
         hiding: Bool = false,
@@ -61,7 +56,7 @@ enum MessagesInstanceTarget {
 
         let waiter = DispatchSemaphore(value: 0)
         var result: Result<NSRunningApplication, Error>?
-        
+
         NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { app, error in
             if let error {
                 result = .failure(error)
@@ -74,20 +69,20 @@ enum MessagesInstanceTarget {
         }
 
         guard waiter.wait(timeout: .now() + timeout) == .success else {
-            throw ErrorMessage("Timed out waiting for puppet Messages.app launch after \(timeout)s")
+            throw ErrorMessage("Timed out waiting for secondary Messages.app launch after \(timeout)s")
         }
 
         let app = try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
         try app.waitForLaunch(timeout: timeout)
-        
+
         if let initialDeepLink {
             try sendDeepLink(initialDeepLink, to: app)
         }
-        
+
         if hiding {
             app.hide()
         }
-        
+
         return app
     }
 }
