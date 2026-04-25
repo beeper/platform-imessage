@@ -1,6 +1,6 @@
-import './fix-env'
+import '../src/tests/fix-env'
 
-import { reviveSwiftMapperValue } from '../mappers'
+import { reviveSwiftMapperValue } from '../src/mappers'
 
 type MapperDiff = {
   path: string
@@ -143,7 +143,7 @@ function loadMapMessageWithSwift(mapMessageJSON: jest.Mock) {
       startTransaction: jest.fn(),
     },
   } as unknown as typeof globalThis.texts
-  jest.doMock('../SwiftServer/lib', () => ({
+  jest.doMock('../src/SwiftServer/lib', () => ({
     __esModule: true,
     default: {
       mapMessageJSON,
@@ -151,12 +151,12 @@ function loadMapMessageWithSwift(mapMessageJSON: jest.Mock) {
     },
   }))
   // eslint-disable-next-line global-require
-  return require('../mappers') as typeof import('../mappers')
+  return require('../src/mappers') as typeof import('../src/mappers')
 }
 
 describe('mapMessage Swift wrapper', () => {
   afterEach(() => {
-    jest.dontMock('../SwiftServer/lib')
+    jest.dontMock('../src/SwiftServer/lib')
     jest.resetModules()
   })
 
