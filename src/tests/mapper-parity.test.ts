@@ -21,8 +21,11 @@ const normalizeMapperValue = (value: unknown): unknown => {
   return value
 }
 
-const mapperValueType = (value: unknown) =>
-  Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
+function mapperValueType(value: unknown) {
+  if (Array.isArray(value)) return 'array'
+  if (value === null) return 'null'
+  return typeof value
+}
 
 function diffNormalizedMapperValues(swiftValue: unknown, typescriptValue: unknown, path = '$', diffs: MapperDiff[] = []): MapperDiff[] {
   if (diffs.length >= 20) return diffs
@@ -94,7 +97,6 @@ describe('mapper parity helpers', () => {
 
     expect(revived).toEqual([{ timestamp: new Date(1000), seen: new Date(2000), editedTimestamp: new Date(3000) }])
   })
-
 })
 
 const messageRow = {
@@ -148,6 +150,7 @@ function loadMapMessageWithSwift(mapMessageJSON: jest.Mock) {
       decodeAttributedString: jest.fn(),
     },
   }))
+  // eslint-disable-next-line global-require
   return require('../mappers') as typeof import('../mappers')
 }
 

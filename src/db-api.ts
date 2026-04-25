@@ -5,11 +5,9 @@ import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
-import { mapMessages } from './mappers'
 import { hashThreadID } from './hashing'
 import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
-import type PAPI from './api'
 import swiftServer from './SwiftServer/lib'
 
 const MAP_DIRECTION_TO_SQL_OP = {
@@ -64,11 +62,6 @@ WHERE chat_id = ?`,
   getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
 
   getAccountLogins: 'SELECT DISTINCT account_login FROM chat',
-  getMsgCount: `SELECT count(*)
-FROM message AS m
-LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-WHERE t.guid = ?`,
   createIndexes: IS_VENTURA_OR_UP
     ? 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read); CREATE INDEX IF NOT EXISTS message_idx_date_edited ON message (date_edited)'
     : 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
@@ -85,14 +78,6 @@ LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (${msgGUIDs.map(() => '?').join(',')})
 AND chat_id = ?`,
-  getLatestMessage: `SELECT
-${MAP_MESSAGES_COLS}
-FROM message AS m
-${MESSAGE_JOINS}
-WHERE t.guid = ?
-ORDER BY date DESC
-LIMIT 1
-`,
   getMessagesWithChatRowID: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
@@ -101,19 +86,6 @@ WHERE cmj.chat_id = ?
 ${dateComparisonOperator ? `AND ${dateExpr(dateComparisonOperator)} ${dateComparisonOperator} ?` : ''}
 ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
 LIMIT ${limit}`,
-  getMessages: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
-${MAP_MESSAGES_COLS}
-FROM message AS m
-${MESSAGE_JOINS}
-WHERE t.guid = ?
-${dateComparisonOperator ? `AND ${dateExpr(dateComparisonOperator)} ${dateComparisonOperator} ?` : ''}
-ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
-LIMIT ${limit}`,
-  getMessage: `SELECT
-${MAP_MESSAGES_COLS}
-FROM message AS m
-${MESSAGE_JOINS}
-WHERE m.guid = ?`,
   getMessagesByRowIDs: (rowIDs: number[]) => `SELECT
 ${MAP_MESSAGES_COLS}
 FROM message AS m
@@ -127,18 +99,6 @@ WHERE cmj.chat_id = ?
 AND m.item_type == 0
 AND m.is_read == 0
 AND m.is_from_me == 0`,
-  searchMessages: (dateComparisonOperator?: '<' | '>', chatGUID?: string, mediaOnly?: boolean, fromMe?: boolean) => `SELECT
-${MAP_MESSAGES_COLS}
-FROM message AS m
-${MESSAGE_JOINS}
-WHERE m.text LIKE ? ESCAPE '\\' COLLATE NOCASE
-${dateComparisonOperator ? `AND m.date ${dateComparisonOperator} ?` : ''}
-${chatGUID ? 'AND t.guid = ?' : ''}
-${mediaOnly ? 'AND cache_has_attachments = 1' : ''}
-${fromMe ? 'AND is_from_me = 1' : ''}
-ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
-LIMIT ${MESSAGES_LIMIT}`,
-  isMessageRead: 'SELECT is_read FROM message WHERE guid = ?',
   getMaxDateRead: 'SELECT MAX(date_read) FROM message',
   getUnreadCounts: `SELECT
   cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
@@ -184,15 +144,15 @@ export default class DatabaseAPI {
   // hand it off to the poller (SwiftServer) in order for it to trigger updates
   eventSender: OnServerEventCallback | null = null
 
-  constructor(private db: IAsyncSqlite, private readonly papi: InstanceType<typeof PAPI>) {}
+  constructor(private db: IAsyncSqlite) {}
 
-  static async make(papi: InstanceType<typeof PAPI>) {
+  static async make() {
     texts.log('imsg: creating DatabaseAPI')
     const db = await getDB()
     texts.log('imsg: creating indexes')
     await db.exec(SQLS.createIndexes)
     texts.log('imsg: done creating indexes, returning new DatabaseAPI')
-    return new DatabaseAPI(db, papi)
+    return new DatabaseAPI(db)
   }
 
   dispose() {
@@ -331,23 +291,6 @@ export default class DatabaseAPI {
     return fileName ? replaceTilde(fileName) : undefined
   }
 
-  getLatestMessage(chatGUID: string): Promise<MappedMessageRow | undefined> {
-    return this.db.get<[string], MappedMessageRow>(SQLS.getLatestMessage, chatGUID)
-  }
-
-  getMessages(chatGUID: string, pagination?: PaginationArg): Promise<MappedMessageRow[]> {
-    const withCursor = pagination?.cursor ? pagination : undefined
-    // FIXME: this shouldn't be parsing to a number due to precision loss
-    const bindings = withCursor ? [chatGUID, Number.parseInt(withCursor.cursor, 10)] : [chatGUID]
-    return this.db.all<typeof bindings, MappedMessageRow>(
-      SQLS.getMessages(withCursor ? MAP_DIRECTION_TO_SQL_OP[withCursor.direction] : undefined),
-      ...bindings,
-    )
-  }
-
-  getMessage = (messageGUID: string): Promise<MappedMessageRow | undefined> =>
-    this.db.get<string[], MappedMessageRow>(SQLS.getMessage, messageGUID)
-
   getMessagesByRowIDs(rowIDs: number[]): Promise<MappedMessageRow[]> {
     if (rowIDs.length === 0) return Promise.resolve([])
     return this.db.all<number[], MappedMessageRow>(SQLS.getMessagesByRowIDs(rowIDs), ...rowIDs)
@@ -394,22 +337,6 @@ export default class DatabaseAPI {
     return this.db.all<typeof bindings, MappedReactionMessageRow>(SQLS.getMessageReactions(msgGUIDs), ...bindings)
   }
 
-  async searchMessages(typed: string, chatGUID?: string, mediaOnly?: boolean, pagination?: PaginationArg, sender?: string): Promise<MappedMessageRow[]> {
-    const typedEscaped = `%${typed.replaceAll('%', '\\%')}%`
-    // FIXME: this shouldn't be parsing to a number due to precision loss
-    const bindings = pagination ? [typedEscaped, Number.parseInt(pagination.cursor, 10)] : [typedEscaped]
-    if (chatGUID) bindings.push(chatGUID)
-    const msgRows = await this.db.all<typeof bindings, MappedMessageRow>(
-      SQLS.searchMessages(pagination ? MAP_DIRECTION_TO_SQL_OP[pagination.direction] : undefined, chatGUID, mediaOnly, sender === 'me'),
-      ...bindings,
-    )
-    msgRows.reverse()
-    return msgRows
-  }
-
-  getThreadMessagesCount = (chatGUID: string): Promise<number> =>
-    this.db.pluck_get<string[], number>(SQLS.getMsgCount, chatGUID)
-
   getLastMessageRowID = async (): Promise<number> => {
     const rowID = await this.db.pluck_get<void[], number | null>("select seq from sqlite_sequence where name = 'message'")
     return rowID ?? 0
@@ -429,19 +356,6 @@ FROM message AS m
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 WHERE m.ROWID = ?`, rowID)
-
-  private getMappedMessagesWithoutExtraRows = async (chatGUID: string, pagination?: PaginationArg) => {
-    const msgRows = await this.getMessages(chatGUID, pagination)
-    if (pagination?.direction !== 'after') msgRows.reverse()
-    const items = mapMessages(msgRows, [], [], this.papi.currentUser!.id, this.papi.accountID)
-    return {
-      items,
-      hasMore: msgRows.length === MESSAGES_LIMIT,
-    }
-  }
-
-  isMessageRead = (messageGUID: string): Promise<number> =>
-    this.db.pluck_get<string[], number>(SQLS.isMessageRead, messageGUID)
 
   isNotEmpty = async (): Promise<boolean> =>
     (await this.db.pluck_get<void[], number>('SELECT (SELECT count(*) FROM message) > 0')) === 1

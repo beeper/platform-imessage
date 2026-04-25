@@ -80,7 +80,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     try {
-      this.cachedDB = await DatabaseAPI.make(this)
+      this.cachedDB = await DatabaseAPI.make()
     } catch (error: unknown) {
       texts.error("imsg: couldn't initialize DatabaseAPI:", error)
       throw new ReAuthError("Can't access iMessage data", { cause: error })
@@ -175,6 +175,7 @@ export default class AppleiMessage implements PlatformAPI {
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
   }
 
+  // eslint-disable-next-line class-methods-use-this
   serializeSession = () => ({})
 
   dispose = async () => {

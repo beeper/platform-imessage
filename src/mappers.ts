@@ -39,8 +39,8 @@ function attachOriginal(messages: BeeperMessage[], msgRow: MappedMessageRow, att
   return messages
 }
 
-function swiftMapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[] = [], currentUserID: string, accountID: string): BeeperMessage[] {
-  const inputJSON = stringifyWithArrayBuffers({ msgRow, attachmentRows, reactionRows, currentUserID, accountID })
+function swiftMapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] | undefined, reactionRows: MappedReactionMessageRow[] | undefined, currentUserID: string, accountID: string): BeeperMessage[] {
+  const inputJSON = stringifyWithArrayBuffers({ msgRow, attachmentRows: attachmentRows ?? [], reactionRows: reactionRows ?? [], currentUserID, accountID })
   return reviveSwiftMapperValue(JSON.parse(swiftServer.mapMessageJSON(inputJSON))) as BeeperMessage[]
 }
 
