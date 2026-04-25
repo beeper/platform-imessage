@@ -5,7 +5,7 @@ typealias JSONArray = [Any]
 
 let objectReplacementCharacter = "\u{fffc}"
 let imessageExtensionCharacter = "\u{fffd}"
-let assocMsgGUIDPrefix = #"^(?:p:([-\d]+)/|bp:)"#
+let assocMsgGUIDPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:([-\d]+)/|bp:)"#)
 let uuidStart = 11
 let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000

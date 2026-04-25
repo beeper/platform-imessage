@@ -83,12 +83,16 @@ struct Mapper {
             ), at: 0)
         }
 
+        let attachmentsByID = Dictionary(attachments.compactMap { attachment -> (String, JSONObject)? in
+            guard let id = attachment.string("id") else { return nil }
+            return (id, attachment)
+        }, uniquingKeysWith: { first, _ in first })
         var messages = makeMessages(
             from: messageParts,
             partialMessage: partialMessage,
             partialHeader: partialHeader,
             partialFooter: partialFooter,
-            attachments: attachments
+            attachmentsByID: attachmentsByID
         ).filter(shouldKeepMessage)
 
         if addSubjectInline, let subject, !messages.isEmpty {
@@ -115,11 +119,12 @@ struct Mapper {
     }
 
     private func baseMessage(dates: MessageDates, isSMS: Bool, isGroup: Bool) -> JSONObject {
+        let sent = appleDateMilliseconds(dates.sent) ?? 0
         var message = compactDictionary([
             "id": msgRow.string("guid") ?? "",
             "cursor": dates.sent,
-            "timestamp": appleDateMilliseconds(dates.sent) ?? 0,
-            "sortKey": appleDateMilliseconds(dates.sent) ?? 0,
+            "timestamp": sent,
+            "sortKey": sent,
             "senderID": senderID(),
             "isSender": msgRow.int("is_from_me") == 1,
             "isErrored": msgRow.int("error") != 0,
@@ -257,7 +262,7 @@ struct Mapper {
         partialMessage: JSONObject,
         partialHeader: JSONObject,
         partialFooter: JSONObject,
-        attachments: [JSONObject]
+        attachmentsByID: [String: JSONObject]
     ) -> [JSONObject] {
         parts.enumerated().map { partIndex, part in
             var message = partialMessage
@@ -273,12 +278,12 @@ struct Mapper {
             if part.index != 0 {
                 message["id"] = "\(message.string("id") ?? "")_\(part.index)"
             }
-            apply(part, to: &message, attachments: attachments)
+            apply(part, to: &message, attachmentsByID: attachmentsByID)
             return message
         }
     }
 
-    private func apply(_ part: MessagePart, to message: inout JSONObject, attachments: [JSONObject]) {
+    private func apply(_ part: MessagePart, to message: inout JSONObject, attachmentsByID: [String: JSONObject]) {
         switch part {
         case let .text(_, _, text, attributes):
             message["text"] = text
@@ -286,7 +291,7 @@ struct Mapper {
                 message["textAttributes"] = attributes
             }
         case let .attachment(_, _, attachmentID):
-            if let attachment = attachments.first(where: { $0.string("id") == attachmentID }) {
+            if let attachment = attachmentsByID[attachmentID] {
                 message["attachments"] = [attachment]
             }
         case .unsent:

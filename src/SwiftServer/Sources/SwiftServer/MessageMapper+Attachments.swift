@@ -14,9 +14,10 @@ extension Mapper {
             "fileSize": attachmentRow.int("total_bytes"),
             "loading": attachmentRow.int("transfer_state") != IMFileTransferState.finished,
         ])
-        common["srcURL"] = attachmentRow["filePath"] ?? NSNull()
         if let filePath, !filePath.isEmpty {
             common["srcURL"] = URL(fileURLWithPath: filePath).absoluteString
+        } else {
+            common["srcURL"] = attachmentRow["filePath"] ?? NSNull()
         }
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             if ext == "png" {

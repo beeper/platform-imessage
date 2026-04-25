@@ -3,6 +3,7 @@ import IMDatabase
 import SwiftServerFoundation
 
 private let messagePageLimit = 20
+private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
 
 enum SwiftMessageAPI {
     static func getMessages(
@@ -99,9 +100,10 @@ private extension SwiftMessageAPI {
         let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.string("associated_message_guid") ?? "") })
 
         return try msgRows.flatMap { msgRow -> [JSONObject] in
+            let attachments = attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? []
             let mapper = try Mapper(input: [
                 "msgRow": msgRow,
-                "attachmentRows": attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? [],
+                "attachmentRows": attachments,
                 "reactionRows": reactionRowsByMessageGUID[msgRow.string("guid") ?? ""] ?? [],
                 "currentUserID": currentUserID,
                 "accountID": accountID,
@@ -110,7 +112,7 @@ private extension SwiftMessageAPI {
             return attachOriginalIfNeeded(
                 mapped,
                 msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? [],
+                attachmentRows: attachments,
                 currentUserID: currentUserID
             ).map(hashMessage)
         }
@@ -126,7 +128,7 @@ private extension SwiftMessageAPI {
         attachmentRows: [JSONObject],
         currentUserID: String
     ) -> [JSONObject] {
-        guard ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] != "1" else {
+        guard !stripInternalFields else {
             return messages
         }
 
@@ -188,14 +190,15 @@ private extension SwiftMessageAPI {
         }
     }
 
+    static let reactionPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:[-\d]+/|bp:)"#)
+
     static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
-        guard let range = associatedMessageGUID.range(
-            of: #"^(?:p:[-\d]+/|bp:)"#,
-            options: .regularExpression
-        ) else {
+        let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
+        guard let match = reactionPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
+              let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
             return associatedMessageGUID
         }
-        return String(associatedMessageGUID[range.upperBound...])
+        return String(associatedMessageGUID[upper...])
     }
 
     static func encodeJSON(_ value: Any) throws -> String {

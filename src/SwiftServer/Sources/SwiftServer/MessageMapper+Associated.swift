@@ -21,10 +21,11 @@ extension Mapper {
     ) -> JSONObject? {
         let firstTextPart = messages.first { $0["text"] is String }
         var message = firstTextPart ?? partialMessage
-        message["linkedMessageID"] = associatedGUID.replacingOccurrences(
-            of: assocMsgGUIDPrefix,
-            with: "",
-            options: .regularExpression
+        let guidRange = NSRange(associatedGUID.startIndex ..< associatedGUID.endIndex, in: associatedGUID)
+        message["linkedMessageID"] = assocMsgGUIDPrefixRegex.stringByReplacingMatches(
+            in: associatedGUID,
+            range: guidRange,
+            withTemplate: ""
         )
         guard let associatedMessageType = msgRow.int("associated_message_type"),
               let assocMsgType = associatedMessageTypes[associatedMessageType] else {

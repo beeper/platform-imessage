@@ -110,8 +110,11 @@ public extension IMDatabase {
         AND chat_id = ?
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        guard let chatRowID = try chat(withGUID: chatGUID)?.id else {
+            return []
+        }
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
-        bindings.append(try chatRowID(forGUID: chatGUID))
+        bindings.append(chatRowID)
         try statement.bind(bindings)
         return try statement.mapRowsUntilDone { row in
             try row.object(columnNames: columnNames)
@@ -126,18 +129,6 @@ private extension IMDatabase {
             try row[1].expect(String.self)
         }
     }
-
-    func chatRowID(forGUID guid: String) throws -> Int {
-        let statement = try cachedStatement(forEscapedSQL: "SELECT ROWID FROM chat WHERE guid = ?").reset()
-        try statement.bind(guid)
-        guard let rowID = try statement.compactMapRowsUntilDone({ row in
-            try row[0].optionalConverting(Int.self)
-        }).first else {
-            throw NSError(domain: "IMDatabase", code: 1, userInfo: [NSLocalizedDescriptionKey: "expected chat GUID to resolve to a row"])
-        }
-        return rowID
-    }
-
 }
 
 private func messageSelectionNames(messageColumns: [String]) -> [String] {

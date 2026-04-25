@@ -34,13 +34,20 @@ func stringFromDataSlice(_ data: Data, start: Int, length: Int) -> String? {
     return String(data: data[start ..< start + length], encoding: .utf8)
 }
 
+private let uuidRegex = try! NSRegularExpression(
+    pattern: #"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$"#,
+    options: .caseInsensitive
+)
+
 func isUUID(_ string: String) -> Bool {
-    string.range(of: #"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$"#, options: [.regularExpression, .caseInsensitive]) != nil
+    uuidRegex.firstMatch(in: string, range: NSRange(string.startIndex ..< string.endIndex, in: string)) != nil
 }
+
+private let sizeRegex = try! NSRegularExpression(pattern: #"\{(\d+), (\d+)\}"#)
 
 func parseSize(_ size: String?) -> [String: Int]? {
     guard let size,
-          let match = size.firstMatch(of: #"\{(\d+), (\d+)\}"#),
+          let match = size.firstMatch(against: sizeRegex),
           let width = Int(match[1]),
           let height = Int(match[2]),
           width > 0,
@@ -80,18 +87,19 @@ func isXHost(_ url: String) -> Bool {
     return host == "twitter.com" || host == "x.com"
 }
 
+private let tweetURLRegex = try! NSRegularExpression(
+    pattern: #"https?://(?:[a-z]+\.)?(?:twitter|x)\.com/(.+?)/status/(\d+)"#
+)
+
 func parseTweetURL(_ url: String) -> (username: String, tweetID: String)? {
-    guard let match = url.firstMatch(of: #"https?://(?:[a-z]+\.)?(?:twitter|x)\.com/(.+?)/status/(\d+)"#) else {
+    guard let match = url.firstMatch(against: tweetURLRegex) else {
         return nil
     }
     return (username: match[1], tweetID: match[2])
 }
 
 extension String {
-    func firstMatch(of pattern: String) -> [String]? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return nil
-        }
+    func firstMatch(against regex: NSRegularExpression) -> [String]? {
         let range = NSRange(startIndex ..< endIndex, in: self)
         guard let match = regex.firstMatch(in: self, range: range) else {
             return nil

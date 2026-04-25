@@ -46,6 +46,8 @@ func mapArchivedObject(_ value: Any, objects: [Any]) -> Any? {
     return value
 }
 
+private let keyedArchiveUIDRegex = try! NSRegularExpression(pattern: #"\{value = (\d+)\}"#)
+
 func keyedArchiveUID(_ value: Any) -> Int? {
     if let dictionary = value as? JSONObject,
        dictionary.count == 1,
@@ -57,7 +59,7 @@ func keyedArchiveUID(_ value: Any) -> Int? {
     }
     let description = String(describing: value)
     guard description.contains("CFKeyedArchiverUID"),
-          let match = description.firstMatch(of: #"\{value = (\d+)\}"#),
+          let match = description.firstMatch(against: keyedArchiveUIDRegex),
           let uid = Int(match[1]) else {
         return nil
     }
