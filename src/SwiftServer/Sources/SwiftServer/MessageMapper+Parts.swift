@@ -2,7 +2,7 @@ import Foundation
 import SwiftServerFoundation
 
 extension Mapper {
-    func decodeAttributedMessageParts(summaryInfo: [String: Any]) -> [MessagePart] {
+    func decodeAttributedMessageParts(summaryInfo: JSONObject) -> [MessagePart] {
         guard let data = msgRow.dataURI("attributedBody"),
               let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
             return []
@@ -12,7 +12,7 @@ extension Mapper {
 
     func decodeMessageParts(
         fragments: [AttributedStringDecoder.Fragment],
-        messageSummaryInfo: [String: Any]
+        messageSummaryInfo: JSONObject
     ) -> [MessagePart] {
         var parts = [MessagePart]()
         var handledDeletedParts = [Int]()
@@ -53,8 +53,8 @@ extension Mapper {
         return parts
     }
 
-    func mapTextEntity(_ attr: [String: Any]) -> [String: Any] {
-        var entity = [String: Any]()
+    func mapTextEntity(_ attr: JSONObject) -> JSONObject {
+        var entity = JSONObject()
         if attr.stringifying("__kIMTextBoldAttributeName") == "1" {
             entity["bold"] = true
         }
@@ -94,7 +94,7 @@ extension Mapper {
         var attributesForPart = existingAttributes
         let entity = mapTextEntity(fragment.attributes)
         if !entity.isEmpty {
-            var entities = (attributesForPart?["entities"] as? [[String: Any]]) ?? []
+            var entities = (attributesForPart?["entities"] as? [JSONObject]) ?? []
             var ranged = entity
             ranged["from"] = from
             ranged["to"] = end
@@ -125,7 +125,7 @@ extension Mapper {
         for index in 1 ..< parts.count {
             guard case let .text(partIndex, end, text, attributes) = parts[index],
                   case let previous = parts[index - 1],
-                  var entities = attributes?["entities"] as? [[String: Any]] else {
+                  var entities = attributes?["entities"] as? [JSONObject] else {
                 continue
             }
             entities = entities.map { entity in

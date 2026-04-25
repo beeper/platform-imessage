@@ -18,7 +18,7 @@ func removeObjectReplacementCharacter(_ text: String) -> String {
     return text.replacingOccurrences(of: objectReplacementCharacter, with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-func compactDictionary(_ pairs: [String: Any?]) -> [String: Any] {
+func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
     pairs.compactMapValues { value in
         guard let value, !(value is NSNull) else {
             return nil
@@ -60,7 +60,7 @@ func relativeURL(_ value: Any?) -> String? {
     if let value = value as? NSURL {
         return value.absoluteString
     }
-    if let value = value as? [String: Any] {
+    if let value = value as? JSONObject {
         return value.string("NS.relative") ?? value.string("relative") ?? value.string("url")
     }
     return nil
@@ -112,6 +112,12 @@ extension Array {
 }
 
 extension Dictionary where Key == String, Value == Any {
+    mutating func mutateDictionary(_ key: String, _ body: (inout JSONObject) -> Void) {
+        var value = dictionary(key) ?? [:]
+        body(&value)
+        self[key] = value
+    }
+
     func string(_ key: String) -> String? {
         if let value = self[key] as? String {
             return value
@@ -152,8 +158,8 @@ extension Dictionary where Key == String, Value == Any {
         return nil
     }
 
-    func dictionary(_ key: String) -> [String: Any]? {
-        self[key] as? [String: Any]
+    func dictionary(_ key: String) -> JSONObject? {
+        self[key] as? JSONObject
     }
 
     func array(_ key: String) -> [Any] {

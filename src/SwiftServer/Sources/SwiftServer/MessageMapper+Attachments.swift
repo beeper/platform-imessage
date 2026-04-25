@@ -1,7 +1,7 @@
 import Foundation
 
 extension Mapper {
-    func mapAttachment(_ attachmentRow: [String: Any]) -> [String: Any]? {
+    func attachment(from attachmentRow: JSONObject) -> JSONObject? {
         guard attachmentRow["transfer_state"] != nil else {
             return nil
         }
@@ -13,12 +13,12 @@ extension Mapper {
             "fileName": fileName,
             "srcURL": filePath,
             "fileSize": attachmentRow.int("total_bytes"),
-            "loading": attachmentRow.int("transfer_state") != IMFileTransferState.finished,
+            "loading": attachmentRow.int("transfer_state") != FileTransferState.finished,
         ])
         if !filePath.isEmpty {
             common["srcURL"] = URL(fileURLWithPath: filePath).absoluteString
         }
-        if ImageExts.contains(ext) || ext == "pluginpayloadattachment" {
+        if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             if ext == "png" {
                 common["srcURL"] = "asset://$accountID/\(filePath.utf8.map { String(format: "%02x", $0) }.joined())"
             }
@@ -27,11 +27,11 @@ extension Mapper {
             common["isSticker"] = attachmentRow.int("is_sticker") == 1
             return common
         }
-        if VideoExts.contains(ext) {
+        if videoExtensions.contains(ext) {
             common["type"] = "video"
             return common
         }
-        if AudioExts.contains(ext) {
+        if audioExtensions.contains(ext) {
             common["isVoiceNote"] = msgRow.int("is_audio_message") == 1
             common["type"] = "audio"
             return common
@@ -40,7 +40,7 @@ extension Mapper {
         return common
     }
 
-    func mapItemTypeMessage(partialMessage: [String: Any]) -> [String: Any]? {
+    func mapItemTypeMessage(partialMessage: JSONObject) -> JSONObject? {
         var message = partialMessage
         message["isAction"] = true
         message["parseTemplate"] = true
@@ -78,7 +78,7 @@ extension Mapper {
             let actionType = msgRow.int("group_action_type")
             if actionType == 1 || actionType == 2 {
                 message["text"] = actionType == 1 ? "{{sender}} changed the group photo" : "{{sender}} removed the group photo"
-                message["attachments"] = [[String: Any]]()
+                message["attachments"] = [JSONObject]()
                 message["action"] = [
                     "type": "thread_img_changed",
                     "actorParticipantID": message.string("senderID") ?? "",

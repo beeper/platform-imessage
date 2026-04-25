@@ -1,24 +1,24 @@
 import Foundation
 
 extension Mapper {
-    func footer() -> [String: Any] {
+    func footer() -> JSONObject {
         let expressiveSendStyleID = msgRow.string("expressive_send_style_id") ?? ""
-        if let effect = ExpressiveMessages[expressiveSendStyleID] {
+        if let effect = expressiveMessages[expressiveSendStyleID] {
             return ["textFooter": "(Sent with \(effect) effect)"]
         }
-        if let service = msgRow.string("service"), let footer = ServiceFooters[service] {
+        if let service = msgRow.string("service"), let footer = serviceFooters[service] {
             return ["textFooter": footer]
         }
         return [:]
     }
 
     func associatedMessage(
-        messages: [[String: Any]],
-        partialMessage: [String: Any],
-        summaryInfo: [String: Any],
+        messages: [JSONObject],
+        partialMessage: JSONObject,
+        summaryInfo: JSONObject,
         isSMS: Bool,
         associatedGUID: String
-    ) -> [String: Any]? {
+    ) -> JSONObject? {
         let firstTextPart = messages.first { $0["text"] is String }
         var message = firstTextPart ?? partialMessage
         message["linkedMessageID"] = associatedGUID.replacingOccurrences(
@@ -27,7 +27,7 @@ extension Mapper {
             options: .regularExpression
         )
         guard let associatedMessageType = msgRow.int("associated_message_type"),
-              let assocMsgType = AssociatedMessageTypes[associatedMessageType] else {
+              let assocMsgType = associatedMessageTypes[associatedMessageType] else {
             return nil
         }
 
@@ -38,11 +38,11 @@ extension Mapper {
             if var text = message.string("text") {
                 text = text
                     .replacingOccurrences(
-                        of: receiverNameConstant,
+                        of: receiverNamePlaceholder,
                         with: message.bool("isSender") == true ? "{{\(msgRow.string("participantID") ?? "")}}" : "{{\(currentUserID)}}"
                     )
                     .replacingOccurrences(
-                        of: senderNameConstant,
+                        of: senderNamePlaceholder,
                         with: message.bool("isSender") == true ? "{{\(currentUserID)}}" : "{{\(msgRow.string("participantID") ?? "")}}"
                     )
                 message["text"] = text
@@ -59,8 +59,8 @@ extension Mapper {
         }
     }
 
-    func assignReactions(to message: inout [String: Any], filterIndex: Int?) {
-        var reactions = [[String: Any]]()
+    func assignReactions(to message: inout JSONObject, filterIndex: Int?) {
+        var reactions = [JSONObject]()
         let filteredRows = reactionRows.filter { reaction in
             guard let filterIndex else {
                 return true
@@ -69,7 +69,7 @@ extension Mapper {
         }
         for reaction in filteredRows {
             guard let associatedMessageType = reaction.int("associated_message_type"),
-                  let assocMsgType = AssociatedMessageTypes[associatedMessageType],
+                  let assocMsgType = associatedMessageTypes[associatedMessageType],
                   let parts = reactionParts(assocMsgType),
                   assocMsgType != "sticker" else {
                 continue
@@ -108,10 +108,10 @@ extension Mapper {
 
     private func mapReactionAction(
         assocMsgType: String,
-        message inputMessage: [String: Any],
-        summaryInfo: [String: Any],
+        message inputMessage: JSONObject,
+        summaryInfo: JSONObject,
         isSMS: Bool
-    ) -> [String: Any] {
+    ) -> JSONObject {
         var message = inputMessage
         guard let parts = reactionParts(assocMsgType) else {
             return message
@@ -135,11 +135,11 @@ extension Mapper {
             "imgURL": assocMsgType == "reacted_sticker" ? reactionStickerAssetURL(rowID: msgRow.int("ROWID") ?? 0) : nil,
             "reactionKey": parts.actionKey == "emoji" ? msgRow.string("associated_message_emoji") : parts.actionKey,
         ])
-        if parts.actionKey == "emoji" || parts.actionKey == "sticker" || SupportedReactionKeys.contains(parts.actionKey) {
+        if parts.actionKey == "emoji" || parts.actionKey == "sticker" || supportedReactionKeys.contains(parts.actionKey) {
             message["parseTemplate"] = true
             let actor = msgRow.int("is_from_me") == 1 ? "You" : "{{sender}}"
             let target = summaryInfo.string("ams").map { "\"\($0)\"" } ?? "a message"
-            message["text"] = "\(actor) \(ReactionVerbMap[assocMsgType] ?? "") \(target)"
+            message["text"] = "\(actor) \(reactionVerbMap[assocMsgType] ?? "") \(target)"
             message["isHidden"] = true
         }
         return message
@@ -153,7 +153,7 @@ extension Mapper {
         return (pieces[0], pieces[1])
     }
 
-    private func senderID(for row: [String: Any]) -> String {
+    private func senderID(for row: JSONObject) -> String {
         if row.int("is_from_me") == 1 || ((row.string("participantID") ?? "").isEmpty && row.int("handle_id") == 0) {
             return currentUserID
         }

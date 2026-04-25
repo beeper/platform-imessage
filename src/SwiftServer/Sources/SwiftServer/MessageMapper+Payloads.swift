@@ -1,7 +1,7 @@
 import Foundation
 
 extension Mapper {
-    func getPayloadData() -> Any? {
+    func payloadData() -> Any? {
         guard let data = msgRow.dataURI("payload_data") else {
             return nil
         }
@@ -15,34 +15,34 @@ extension Mapper {
         return nil
     }
 
-    func getPayloadProps(payloadData: Any, msgAttachments: [[String: Any]]) -> [String: Any] {
+    func payloadProps(from payloadData: Any, messageAttachments: [JSONObject]) -> JSONObject {
         switch msgRow.string("balloon_bundle_id") {
         case BalloonBundleID.url:
-            return getURLBalloonProps(payloadData: payloadData, msgAttachments: msgAttachments)
+            return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
         case BalloonBundleID.applePay:
-            return getApplePayProps(payloadData: payloadData)
+            return applePayProps(from: payloadData)
         case BalloonBundleID.youtube:
-            return getYouTubeProps(payloadData: payloadData)
+            return youTubeProps(from: payloadData)
         default:
             if msgRow["balloon_bundle_id"] is NSNull || msgRow.string("balloon_bundle_id") == nil {
-                return getURLBalloonProps(payloadData: payloadData, msgAttachments: msgAttachments)
+                return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
             }
             return [:]
         }
     }
 
-    func getURLBalloonProps(payloadData: Any, msgAttachments: [[String: Any]]) -> [String: Any] {
-        guard let payload = payloadData as? [String: Any],
+    func urlBalloonProps(from payloadData: Any, messageAttachments: [JSONObject]) -> JSONObject {
+        guard let payload = payloadData as? JSONObject,
               let richLinkMetadata = payload.dictionary("richLinkMetadata") else {
             return [:]
         }
-        let payloadAttachments = pluginPayloadAttachments(from: msgAttachments)
+        let payloadAttachments = pluginPayloadAttachments(from: messageAttachments)
         let attachments = richLinkAttachments(richLinkMetadata: richLinkMetadata, payloadAttachments: payloadAttachments)
         let parsedURL = relativeURL(richLinkMetadata["URL"])
         let originalURL = relativeURL(richLinkMetadata["originalURL"])
         let linkURL = originalURL ?? parsedURL
 
-        if let tweetProps = getTweetProps(
+        if let tweetProps = tweetProps(
             richLinkMetadata: richLinkMetadata,
             payloadAttachments: payloadAttachments,
             attachments: attachments,
@@ -80,12 +80,12 @@ extension Mapper {
         ])
     }
 
-    func getExternalVideos(videos: Any?) -> [[String: Any]] {
-        guard let videos = videos as? [String: Any] else {
+    func externalVideos(from videos: Any?) -> [JSONObject] {
+        guard let videos = videos as? JSONObject else {
             return []
         }
-        return videos.array("NS.objects").compactMap { video -> [String: Any]? in
-            guard let video = video as? [String: Any],
+        return videos.array("NS.objects").compactMap { video -> JSONObject? in
+            guard let video = video as? JSONObject,
                   video.string("type") != "text/html",
                   let srcURL = relativeURL(video["URL"]),
                   let size = parseSize(video.string("size")) else {
@@ -100,8 +100,8 @@ extension Mapper {
         }
     }
 
-    func getApplePayProps(payloadData: Any) -> [String: Any] {
-        guard let payload = payloadData as? [String: Any],
+    func applePayProps(from payloadData: Any) -> JSONObject {
+        guard let payload = payloadData as? JSONObject,
               let objects = payload["NS.objects"] as? [Any],
               let heading = objects.first as? String else {
             return [:]
@@ -109,7 +109,7 @@ extension Mapper {
         return ["textHeading": heading]
     }
 
-    func getYouTubeProps(payloadData: Any) -> [String: Any] {
+    func youTubeProps(from payloadData: Any) -> JSONObject {
         guard let unwrapped = unwrapDictionary(payloadData) else {
             return [:]
         }
@@ -124,15 +124,15 @@ extension Mapper {
         ]
     }
 
-    func parseSummaryInfo() -> [String: Any] {
+    func parseSummaryInfo() -> JSONObject {
         guard let data = msgRow.dataURI("message_summary_info"),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
             return [:]
         }
-        return normalizeFoundationObject(plist) as? [String: Any] ?? [:]
+        return normalizeFoundationObject(plist) as? JSONObject ?? [:]
     }
 
-    private func pluginPayloadAttachments(from attachments: [[String: Any]]) -> [[String: Any]] {
+    private func pluginPayloadAttachments(from attachments: [JSONObject]) -> [JSONObject] {
         attachments.filter {
             ($0.string("srcURL") != nil)
                 && ($0.string("fileName")?.lowercased().hasSuffix(".pluginpayloadattachment") == true)
@@ -140,12 +140,12 @@ extension Mapper {
     }
 
     private func richLinkAttachments(
-        richLinkMetadata: [String: Any],
-        payloadAttachments: [[String: Any]]
-    ) -> [[String: Any]] {
+        richLinkMetadata: JSONObject,
+        payloadAttachments: [JSONObject]
+    ) -> [JSONObject] {
         let alternateImages = richLinkMetadata.dictionary("alternateImages")?.array("NS.objects") ?? []
-        let alternates = alternateImages.compactMap { alternate -> [String: Any]? in
-            guard let index = (alternate as? [String: Any])?.int("richLinkImageAttachmentSubstituteIndex") else {
+        let alternates = alternateImages.compactMap { alternate -> JSONObject? in
+            guard let index = (alternate as? JSONObject)?.int("richLinkImageAttachmentSubstituteIndex") else {
                 return nil
             }
             return payloadAttachments[safe: index]
@@ -153,16 +153,16 @@ extension Mapper {
         guard let videos = richLinkMetadata["videos"] else {
             return alternates
         }
-        return getExternalVideos(videos: videos) + alternates
+        return externalVideos(from: videos) + alternates
     }
 
-    private func getTweetProps(
-        richLinkMetadata: [String: Any],
-        payloadAttachments: [[String: Any]],
-        attachments: [[String: Any]],
+    private func tweetProps(
+        richLinkMetadata: JSONObject,
+        payloadAttachments: [JSONObject],
+        attachments: [JSONObject],
         linkURL: String?,
         originalURL: String?
-    ) -> [String: Any]? {
+    ) -> JSONObject? {
         guard let linkURL,
               isXHost(linkURL) || (originalURL.map(isXHost) ?? false),
               let parsedTweet = parseTweetURL(originalURL ?? linkURL),

@@ -1,5 +1,8 @@
 import Foundation
 
+typealias JSONObject = [String: Any]
+typealias JSONArray = [Any]
+
 let objectReplacementCharacter = "\u{fffc}"
 let imessageExtensionCharacter = "\u{fffd}"
 let assocMsgGUIDPrefix = #"^(?:p:([-\d]+)/|bp:)"#
@@ -8,7 +11,7 @@ let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000
 
 enum MessagePart {
-    case text(index: Int, end: Int, text: String, attributes: [String: Any]?)
+    case text(index: Int, end: Int, text: String, attributes: JSONObject?)
     case attachment(index: Int, end: Int, attachmentID: String)
     case unsent(index: Int, end: Int)
 
@@ -43,23 +46,23 @@ enum BalloonBundleID {
     static let youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
 }
 
-enum IMFileTransferState {
+enum FileTransferState {
     static let finished = 5
 }
 
-let ImageExts: Set<String> = [
+let imageExtensions: Set<String> = [
     "jpg", "jpeg", "png", "gif", "heic", "heif", "webp", "tiff", "tif", "bmp",
 ]
 
-let AudioExts: Set<String> = [
+let audioExtensions: Set<String> = [
     "mp3", "m4a", "mp4", "aac", "wav", "aiff", "caf", "amr", "ogg", "oga", "webm",
 ]
 
-let VideoExts: Set<String> = [
+let videoExtensions: Set<String> = [
     "mov", "mp4", "m4v", "avi", "webm", "ogg", "ogv", "3gp", "3g2",
 ]
 
-let AssociatedMessageTypes: [Int: String] = [
+let associatedMessageTypes: [Int: String] = [
     3: "heading",
     1000: "sticker",
     2000: "reacted_heart",
@@ -80,7 +83,7 @@ let AssociatedMessageTypes: [Int: String] = [
     3007: "unreacted_sticker",
 ]
 
-let ReactionVerbMap = [
+let reactionVerbMap = [
     "reacted_heart": "loved",
     "reacted_like": "liked",
     "reacted_dislike": "disliked",
@@ -99,9 +102,9 @@ let ReactionVerbMap = [
     "unreacted_sticker": "removed a sticker from",
 ]
 
-let SupportedReactionKeys: Set<String> = ["heart", "like", "dislike", "laugh", "emphasize", "question"]
+let supportedReactionKeys: Set<String> = ["heart", "like", "dislike", "laugh", "emphasize", "question"]
 
-let ExpressiveMessages = [
+let expressiveMessages = [
     "com.apple.messages.effect.CKEchoEffect": "Echo screen",
     "com.apple.messages.effect.CKSpotlightEffect": "Spotlight screen",
     "com.apple.messages.effect.CKHappyBirthdayEffect": "Balloons screen",
@@ -117,10 +120,10 @@ let ExpressiveMessages = [
     "com.apple.MobileSMS.expressivesend.invisibleink": "Invisible Ink text",
 ]
 
-let ServiceFooters = [
+let serviceFooters = [
     "iMessageLite": "iMessage · Satellite",
     "SatelliteSMS": "SMS · Satellite",
 ]
 
-let receiverNameConstant = "$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)"
-let senderNameConstant = "$(kIMTranscriptPluginBreadcrumbTextSenderIdentifier)"
+let receiverNamePlaceholder = "$(kIMTranscriptPluginBreadcrumbTextReceiverIdentifier)"
+let senderNamePlaceholder = "$(kIMTranscriptPluginBreadcrumbTextSenderIdentifier)"
