@@ -146,6 +146,7 @@ struct Mapper {
 
     private func applyEditedTimestamp(to message: inout JSONObject, dates: MessageDates, summaryInfo: JSONObject) {
         let hasUnsendData = summaryInfo.dictionary("otr") != nil && summaryInfo.hasValue("rp")
+        // Partial unsends update `date_edited`; don't expose that as a user-facing edit timestamp.
         guard !hasUnsendData,
               dateStringIsTruthy(dates.edited),
               let edited = appleDateMilliseconds(dates.edited) else {
@@ -183,6 +184,7 @@ struct Mapper {
             "id": uuid,
             "type": "video",
             "isGif": true,
+            // Prefer asset:// because Messages.app can take a few seconds to write this file to disk.
             "srcURL": "asset://$accountID/dt/\(uuid).mov",
             "size": ["width": 144, "height": 180],
         ]
@@ -219,6 +221,7 @@ struct Mapper {
         case "0":
             partIndex = ""
         case "18446744073709551615":
+            // 18446744073709551615 is -1 (https://stackoverflow.com/questions/40608111/why-is-18446744073709551615-1-true)
             partIndex = "-1"
         default:
             partIndex = rawPartIndex

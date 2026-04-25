@@ -46,7 +46,7 @@ enum BalloonBundleID {
     static let youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
 }
 
-enum FileTransferState {
+enum IMFileTransferState {
     static let finished = 5
 }
 

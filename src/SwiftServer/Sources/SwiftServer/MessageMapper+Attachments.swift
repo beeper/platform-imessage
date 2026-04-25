@@ -13,7 +13,7 @@ extension Mapper {
             "fileName": fileName,
             "srcURL": filePath,
             "fileSize": attachmentRow.int("total_bytes"),
-            "loading": attachmentRow.int("transfer_state") != FileTransferState.finished,
+            "loading": attachmentRow.int("transfer_state") != IMFileTransferState.finished,
         ])
         if !filePath.isEmpty {
             common["srcURL"] = URL(fileURLWithPath: filePath).absoluteString
