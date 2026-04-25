@@ -1,644 +1,181 @@
-import url from 'url'
 import { groupBy, omit } from 'lodash'
-import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
+import { InboxName, Participant, ThreadReminder, texts } from '@textshq/platform-sdk'
 
-import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, IMFileTransferState, BalloonBundleID, supportedReactions, REACTION_VERB_MAP } from './constants'
 import { stringifyWithArrayBuffers } from './util'
-import { getPayloadData, getPayloadProps } from './payload'
 import safeBplistParse from './safe-bplist-parse'
-import IMAGE_EXTS from './image-exts.json'
-import AUDIO_EXTS from './audio-exts.json'
-import VIDEO_EXTS from './video-exts.json'
-import swiftServer, { Fragment } from './SwiftServer/lib'
-import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow, MessageSummaryInfo } from './types'
-import { AppleDate, appleDateToMillisSinceEpoch, regularlizeAppleDate, unwrapAppleDate } from './time'
+import swiftServer from './SwiftServer/lib'
+import type { MappedAttachmentRow, MappedChatRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import { appleDateToMillisSinceEpoch, regularlizeAppleDate } from './time'
 import { ThreadArchivalState } from './persistence'
 import { BeeperThread, BeeperMessage } from './desktop-types'
 import { likelyAlphanumericSenderID } from './heuristics'
+import { mapMessageLegacy } from './mappers-legacy'
 
-const OBJ_REPLACEMENT_CHAR = '\uFFFC' // ￼
-const IMSG_EXTENSION_CHAR = '\uFFFD' // �
 const IMESSAGE_STRIP_INTERNAL_FIELDS = process.env.IMESSAGE_STRIP_INTERNAL_FIELDS === '1'
+const IMESSAGE_SWIFT_MAP_MESSAGE_STRICT = process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT === '1'
 
 const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
-
-const associatedTypeIsValid = (type: number): type is keyof typeof ASSOC_MSG_TYPE => Object.keys(ASSOC_MSG_TYPE).includes(String(type))
-
-function mapAttachment(a: MappedAttachmentRow, msgRow: MappedMessageRow): Attachment | null {
-  if (a.transfer_state == null) return null
-  const { ext, fileName, filePath } = a
-  const common = {
-    id: a.attachmentID,
-    fileName,
-    srcURL: filePath,
-    fileSize: a.total_bytes,
-    loading: a.transfer_state !== IMFileTransferState.FINISHED,
-  } satisfies Partial<Attachment>
-  if (filePath) common.srcURL = url.pathToFileURL(filePath).href
-  if (IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment') {
-    if (ext === 'png') {
-      common.srcURL = 'asset://$accountID/' + Buffer.from(filePath).toString('hex')
-    }
-    return { ...common, type: AttachmentType.IMG, size: a.size, isSticker: a.is_sticker === 1 }
-  }
-  if (VIDEO_EXTS.includes(ext)) {
-    return { ...common, type: AttachmentType.VIDEO }
-  }
-  if (AUDIO_EXTS.includes(ext)) {
-    return { ...common, isVoiceNote: msgRow.is_audio_message === 1, type: AttachmentType.AUDIO }
-  }
-  return { ...common, type: AttachmentType.UNKNOWN }
-}
 
 const serializeMessageRow = (msgRow: MappedMessageRow) =>
   omit(msgRow, ['attributedBody', 'message_summary_info'])
 
-const removeObjReplacementChar = (text: string): string => {
-  if (!text?.includes(OBJ_REPLACEMENT_CHAR)) return text
-  return text.replaceAll(OBJ_REPLACEMENT_CHAR, ' ').trim()
+const SWIFT_DATE_FIELDS = new Set(['timestamp', 'seen', 'editedTimestamp'])
+
+type MapperDiff = {
+  path: string
+  kind: 'missing-in-swift' | 'missing-in-typescript' | 'type' | 'value' | 'length'
 }
 
-const reactionStickerAssetURL = (accountID: string, rowID: MappedReactionMessageRow['ROWID']) =>
-  `asset://${accountID}/reaction-sticker/${rowID}.heic`
-
-function assignReactions(currentUserID: string, accountID: string, message: BeeperMessage, _reactionRows: MappedReactionMessageRow[] = [], filterIndex?: number) {
-  const reactions: MessageReaction[] = []
-  const reactionRows = filterIndex != null
-    ? _reactionRows.filter(r => r.associated_message_guid.startsWith(`p:${filterIndex}/`))
-    : _reactionRows
-  reactionRows.forEach(reaction => {
-    if (!associatedTypeIsValid(reaction.associated_message_type)) return
-    const assocMsgType = ASSOC_MSG_TYPE[reaction.associated_message_type]
-    if (assocMsgType !== 'sticker' && assocMsgType) {
-      const [actionType, actionKey] = assocMsgType.split('_', 2) || []
-      const participantID = (reaction.is_from_me || (!reaction.participantID && reaction.handle_id === 0)) ? currentUserID : reaction.participantID
-      if (actionType === 'reacted') {
-        reactions.push({
-          id: participantID,
-          reactionKey: actionKey === 'emoji' ? reaction.associated_message_emoji : actionKey,
-          participantID,
-          imgURL: actionKey === 'sticker' ? reactionStickerAssetURL(accountID, reaction.ROWID) : undefined,
-        })
-      } else if (actionType === 'unreacted') {
-        const index = reactions.findIndex(r => r.id === participantID)
-        if (index > -1) reactions.splice(index, 1)
-      }
-    }
-  })
-  if (reactions.length > 0) message.reactions = reactions
+const reviveSwiftMapperValue = (value: unknown, key?: string): unknown => {
+  if (SWIFT_DATE_FIELDS.has(key ?? '') && typeof value === 'number') return new Date(value)
+  if (Array.isArray(value)) return value.map(item => reviveSwiftMapperValue(item))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => [entryKey, reviveSwiftMapperValue(entryValue, entryKey)]),
+    )
+  }
+  return value
 }
 
-const enum MessagePartKind {
-  TEXT,
-  ATTACHMENT,
-  UNSENT,
-}
-interface MessagePartText {
-  kind: MessagePartKind.TEXT
-  index: number
-  text: string
-  end: number
-  attributes?: TextAttributes
-}
-interface MessagePartAttachment {
-  kind: MessagePartKind.ATTACHMENT
-  index: number
-  end: number
-  attachmentID: string
-}
-interface MessagePartUnsent {
-  kind: MessagePartKind.UNSENT
-  index: number
-  end: number
+const normalizeMapperValue = (value: unknown): unknown => {
+  if (value instanceof Date) return { $date: value.getTime() }
+  if (Array.isArray(value)) return value.map(normalizeMapperValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key, entryValue]) => key !== '_original' && entryValue !== undefined)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, entryValue]) => [key, normalizeMapperValue(entryValue)]),
+    )
+  }
+  return value
 }
 
-type MessagePart = MessagePartText | MessagePartAttachment | MessagePartUnsent
+const mapperValueType = (value: unknown) =>
+  Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
 
-function mapTextEntity(attr: Record<string, string>): Omit<TextEntity, 'from' | 'to'> {
-  const entity: Omit<TextEntity, 'from' | 'to'> = {}
-  if (attr.__kIMTextBoldAttributeName === '1') entity.bold = true
-  if (attr.__kIMTextItalicAttributeName === '1') entity.italic = true
-  if (attr.__kIMTextUnderlineAttributeName === '1') entity.underline = true
-  if (attr.__kIMTextStrikethroughAttributeName === '1') entity.strikethrough = true
-  if (attr.__kIMLinkAttributeName) entity.link = attr.__kIMLinkAttributeName
-  if (typeof attr.__kIMMentionConfirmedMention === 'string') entity.mentionedUser = { id: attr.__kIMMentionConfirmedMention }
-  return entity
-}
-function decodeMessageParts(fragments: Fragment[], messageSummaryInfo?: MessageSummaryInfo): MessagePart[] {
-  const parts: MessagePart[] = []
+function diffNormalizedMapperValues(swiftValue: unknown, typescriptValue: unknown, path = '$', diffs: MapperDiff[] = []): MapperDiff[] {
+  if (diffs.length >= 20) return diffs
+  if (Object.is(swiftValue, typescriptValue)) return diffs
 
-  const handledDeletedParts: number[] = []
-  let lastSeenPart: number | null = null
-
-  const deletedParts = messageSummaryInfo?.rp
-
-  for (const frag of fragments) {
-    const attachmentID = frag.attributes.__kIMFileTransferGUIDAttributeName
-
-    const part: string | null = frag.attributes.__kIMMessagePartAttributeName
-    const partNumber: number | null = part != null ? parseInt(part, 10) : null
-
-    if (partNumber != null) {
-      // Check for any unsent parts before this one by detecting jumps in the
-      // part number relative to the last, and checking if it's present in
-      // "rp".
-      if (lastSeenPart && partNumber !== lastSeenPart + 1 && deletedParts?.includes(partNumber - 1)) {
-        // Calculate how many unsent parts come before this one. If we haven't
-        // seen any parts yet, then that means the very first part(s) of the
-        // message were deleted. Adjust our math accordingly so we always
-        // insert enough unsent parts.
-        const unsentParts = partNumber - (lastSeenPart ?? -1) - 1
-
-        // Because we're finding unsent parts that come before this fragment,
-        // adjust our starting index (of the first "sent", i.e. not unsent,
-        // part).
-        const startingIndexOfSent = frag.from + unsentParts
-
-        for (let unsentIndex = startingIndexOfSent - unsentParts; unsentIndex < startingIndexOfSent; unsentIndex++) {
-          parts.push({
-            kind: MessagePartKind.UNSENT,
-            index: parts.length,
-            end: unsentIndex + 1,
-          })
-
-          // Insert the would-be part index of the deleted part. This value is
-          // unused at the moment, but might come in handy in the future.
-          const unsentPart = partNumber - (startingIndexOfSent - unsentIndex)
-          handledDeletedParts.push(unsentPart)
-        }
-      }
-
-      lastSeenPart = partNumber
-    }
-
-    // By inserting deleted parts into the message, we must update our indexes
-    // to account for them.
-    const from = frag.from + handledDeletedParts.length
-    const end = frag.to + handledDeletedParts.length
-
-    if (typeof attachmentID === 'string') {
-      parts.push({
-        kind: MessagePartKind.ATTACHMENT,
-        index: parts.length,
-        end,
-        attachmentID,
-      })
-    } else {
-      // The rest of this block (barring the `if` below) continuously updates
-      // the last part. Insert a new text part if there's no part attribute,
-      // we're on the first part, or the last part wasn't a text one (which
-      // means that we can't just update it).
-      if (typeof part === 'undefined' || parts.length === 0 || parts.at(-1)?.kind !== MessagePartKind.TEXT) {
-        parts.push({
-          kind: MessagePartKind.TEXT,
-          index: parts.length,
-          end: 0, // Continuously updated by the code below.
-          text: '',
-        })
-      }
-
-      const textPart = parts.at(-1) as MessagePartText
-      textPart.end = end
-      if (frag.text != null) {
-        textPart.text += frag.text.replace(IMSG_EXTENSION_CHAR, '')
-      }
-      const entity = mapTextEntity(frag.attributes)
-      if (Object.keys(entity).length > 0) {
-        textPart.attributes = {
-          entities: [
-            ...(textPart.attributes?.entities || []),
-            { from, to: end, ...entity },
-          ],
-        }
-      }
-    }
+  const swiftType = mapperValueType(swiftValue)
+  const typescriptType = mapperValueType(typescriptValue)
+  if (swiftType !== typescriptType) {
+    diffs.push({ path, kind: 'type' })
+    return diffs
   }
 
-  // Because the code above only handles unsent parts that come _before_ each
-  // fragment, we never get the ones at the end (because there's no fragment
-  // that goes after them). Add them here.
-  if (messageSummaryInfo?.rp != null) {
-    const trailingUnsentParts = messageSummaryInfo.rp.length - handledDeletedParts.length
-    for (let i = 0; i < trailingUnsentParts; i++) {
-      parts.push({
-        kind: MessagePartKind.UNSENT,
-        index: parts.length,
-        end: parts.length + 1,
-      })
+  if (Array.isArray(swiftValue) && Array.isArray(typescriptValue)) {
+    if (swiftValue.length !== typescriptValue.length) diffs.push({ path, kind: 'length' })
+    const length = Math.min(swiftValue.length, typescriptValue.length)
+    for (let i = 0; i < length; i++) {
+      diffNormalizedMapperValues(swiftValue[i], typescriptValue[i], `${path}[${i}]`, diffs)
     }
+    return diffs
   }
 
-  for (let i = 1; i < parts.length; i++) {
-    const part = parts[i]
-    if (part.kind !== MessagePartKind.TEXT) continue
-    const start = parts[i - 1]
-    part.attributes?.entities?.forEach(e => {
-      e.from -= start.end
-      e.to -= start.end
+  if (swiftValue && typeof swiftValue === 'object' && typescriptValue && typeof typescriptValue === 'object') {
+    const swiftRecord = swiftValue as Record<string, unknown>
+    const typescriptRecord = typescriptValue as Record<string, unknown>
+    const keys = new Set([...Object.keys(swiftRecord), ...Object.keys(typescriptRecord)])
+    for (const key of [...keys].sort()) {
+      if (diffs.length >= 20) break
+      if (!(key in swiftRecord)) {
+        diffs.push({ path: `${path}.${key}`, kind: 'missing-in-swift' })
+      } else if (!(key in typescriptRecord)) {
+        diffs.push({ path: `${path}.${key}`, kind: 'missing-in-typescript' })
+      } else {
+        diffNormalizedMapperValues(swiftRecord[key], typescriptRecord[key], `${path}.${key}`, diffs)
+      }
+    }
+    return diffs
+  }
+
+  diffs.push({ path, kind: 'value' })
+  return diffs
+}
+
+function projectSwiftToTypescriptShape<T>(swiftValue: T, typescriptValue: unknown): T {
+  if (swiftValue instanceof Date || typescriptValue instanceof Date) return swiftValue
+  if (Array.isArray(swiftValue) && Array.isArray(typescriptValue)) {
+    return swiftValue.map((item, index) => projectSwiftToTypescriptShape(item, typescriptValue[index])) as T
+  }
+  if (swiftValue && typeof swiftValue === 'object' && typescriptValue && typeof typescriptValue === 'object') {
+    const swiftRecord = swiftValue as Record<string, unknown>
+    const projected: Record<string, unknown> = {}
+    Object.entries(typescriptValue).forEach(([key, value]) => {
+      if (key === '_original') return
+      if (key in swiftRecord) {
+        projected[key] = projectSwiftToTypescriptShape(swiftRecord[key], value)
+      } else if (value === undefined) {
+        projected[key] = undefined
+      }
     })
+    return projected as T
   }
-  return parts
+  return swiftValue
 }
 
-const UUID_START = 11
-const UUID_LENGTH = 36
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function attachOriginal(messages: BeeperMessage[], msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] | undefined, currentUserID: string) {
+  if (IMESSAGE_STRIP_INTERNAL_FIELDS) return messages
+  const original = stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows ?? [], currentUserID])
+  messages.forEach(message => {
+    message._original = original
+  })
+  return messages
+}
+
+function reportSwiftMapperIssue(kind: 'error' | 'divergence', msgRow: MappedMessageRow, details: string) {
+  const message = `iMessage Swift mapMessage ${kind}: guid=${msgRow.guid} thread=${msgRow.threadID} balloon=${msgRow.balloon_bundle_id} ${details}`
+  texts.error(message)
+  try {
+    texts.Sentry.captureMessage(message)
+  } catch {
+    // ignore reporting failures
+  }
+}
+
+function swiftMapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[] = [], currentUserID: string, accountID: string): BeeperMessage[] {
+  const inputJSON = stringifyWithArrayBuffers({ msgRow, attachmentRows, reactionRows, currentUserID, accountID })
+  return reviveSwiftMapperValue(JSON.parse(swiftServer.mapMessageJSON(inputJSON))) as BeeperMessage[]
+}
+
+export const __mapperParityTest = {
+  diffNormalizedMapperValues,
+  normalizeMapperValue,
+  projectSwiftToTypescriptShape,
+  reviveSwiftMapperValue,
+}
+
 // eslint-disable-next-line @typescript-eslint/default-param-last -- FIXME(skip)
-export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[], currentUserID: string, accountID: string): BeeperMessage[] {
-  const attachments = attachmentRows.map(a => mapAttachment(a, msgRow)).filter(attachment => attachment != null)
-  const isSMS = msgRow.service === 'SMS' || msgRow.service === 'RCS'
-  const isGroup = !!msgRow.room_name
-
-  // for whatever reason the date we get back from the db can be `0` instead of
-  // `nil`, so be sure to check for that.
-  // TODO(skip): perhaps just do this in the database layer
-  const dateStringIsTruthy = (date: AppleDate | undefined) =>
-    date && unwrapAppleDate(date) !== undefined
-
-  if (msgRow.schedule_type) return []
-
-  const partialMessage: BeeperMessage = {
-    id: msgRow.guid,
-    cursor: msgRow.dateString,
-
-    // TODO(skip): probably throw (or drop) instead of `0`.
-    timestamp: regularlizeAppleDate(msgRow.dateString) ?? new Date(0),
-
-    // NOTE(skip): because this object is used as a template of sorts, this
-    // means that any additionally synthesized messages will share the same sort
-    // key. this might be problematic
-    sortKey: appleDateToMillisSinceEpoch(msgRow.dateString) ?? 0,
-
-    senderID: (msgRow.is_from_me || (!msgRow.participantID && msgRow.handle_id === 0)) ? currentUserID : msgRow.participantID,
-    // text: (msgRow.subject ? `${msgRow.subject}\n` : '') + (removeObjReplacementChar(msgRow.text) || ''),
-    isSender: msgRow.is_from_me === 1,
-    isErrored: msgRow.error !== 0,
-    isDelivered: msgRow.is_delivered === 1,
-    // NOTE(skip): if this is ever implemented for groups (read receipts are
-    // possible there when replying), be sure to hash participants
-    seen: isGroup ? undefined : regularlizeAppleDate(msgRow.dateReadString),
-    threadID: msgRow.threadID,
-    extra: {
-      // NOTE(skip): Beeper Desktop maintains an incrementing unread count in the
-      // renderer when `countsAsUnread` is truthy. Note that `Thread` itself does
-      // not track an unread count.
-      countsAsUnread: true,
-      isSMS: isSMS ? true : undefined,
-    },
+export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[] = [], currentUserID: string, accountID: string): BeeperMessage[] {
+  const typescriptMessages = mapMessageLegacy(msgRow, attachmentRows, reactionRows, currentUserID, accountID)
+  let swiftMessages: BeeperMessage[]
+  try {
+    swiftMessages = swiftMapMessage(msgRow, attachmentRows, reactionRows, currentUserID, accountID)
+  } catch (error) {
+    const message = `error=${error instanceof Error ? error.name : typeof error}`
+    if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) throw new Error(`Swift mapMessage failed for ${msgRow.guid}: ${message}`)
+    reportSwiftMapperIssue('error', msgRow, message)
+    return typescriptMessages
   }
 
-  if (!IMESSAGE_STRIP_INTERNAL_FIELDS) {
-    partialMessage._original = stringifyWithArrayBuffers([serializeMessageRow(msgRow), attachmentRows, currentUserID])
+  const swiftNormalized = normalizeMapperValue(swiftMessages)
+  const typescriptNormalized = normalizeMapperValue(typescriptMessages)
+  const diffs = diffNormalizedMapperValues(swiftNormalized, typescriptNormalized)
+  if (diffs.length > 0) {
+    const details = `diffs=${diffs.map(diff => `${diff.path}:${diff.kind}`).join(',')}`
+    if (IMESSAGE_SWIFT_MAP_MESSAGE_STRICT) throw new Error(`Swift mapMessage diverged for ${msgRow.guid}: ${details}`)
+    reportSwiftMapperIssue('divergence', msgRow, details)
+    return typescriptMessages
   }
 
-  if (dateStringIsTruthy(msgRow.dateRetractedString) || msgRow.was_detonated) partialMessage.isDeleted = true
-  if (msgRow.is_read) {
-    partialMessage.behavior = MessageBehavior.KEEP_READ
-  }
-
-  const msi: MessageSummaryInfo | undefined = msgRow.message_summary_info ? safeBplistParse(msgRow.message_summary_info) as MessageSummaryInfo : undefined
-
-  const unsendDataPresent = msi?.otr != null && msi?.rp != null
-
-  // When a message is partially unsent, the edited timestamp reflects when the
-  // (ostensibly most recent) unsend occurred. If this is the case, don't show
-  // the last unsend timestamp to the user as a last edited timestamp, as that's
-  // somewhat misleading.
-  if (!unsendDataPresent && msgRow.dateEditedString && dateStringIsTruthy(msgRow.dateEditedString)) {
-    partialMessage.editedTimestamp = regularlizeAppleDate(msgRow.dateEditedString) ?? new Date(0)
-  }
-
-  if (msgRow.item_type !== 0) {
-    const m: BeeperMessage = {
-      ...partialMessage,
-      isAction: true,
-      parseTemplate: true,
-    }
-    let didFail = false
-    switch (msgRow.item_type) {
-      case 1: {
-        m.behavior = MessageBehavior.SILENT
-        const removed = msgRow.group_action_type === 1
-        m.text = removed
-          ? `{{sender}} removed {{${msgRow.otherID}}} from the conversation`
-          : `{{sender}} added {{${msgRow.otherID}}} to the conversation`
-        m.action = {
-          type: removed
-            ? MessageActionType.THREAD_PARTICIPANTS_REMOVED
-            : MessageActionType.THREAD_PARTICIPANTS_ADDED,
-          participantIDs: [msgRow.otherID],
-          actorParticipantID: m.senderID,
-        }
-        break
-      }
-      case 2:
-        m.behavior = MessageBehavior.SILENT
-        m.text = msgRow.group_title == null
-          ? '{{sender}} removed the name from the conversation'
-          : `{{sender}} named the conversation "${msgRow.group_title}"`
-        m.action = {
-          type: MessageActionType.THREAD_TITLE_UPDATED,
-          title: msgRow.group_title,
-          actorParticipantID: m.senderID,
-        }
-        break
-      case 3: {
-        m.behavior = MessageBehavior.SILENT
-        const changedGroupImg = msgRow.group_action_type === 1
-        const removedGroupImg = msgRow.group_action_type === 2
-        const chatBgColorChanged = msgRow.group_action_type === 3 || msgRow.group_action_type === 4
-        const chatBgColorRemoved = msgRow.group_action_type === 6
-        if (changedGroupImg || removedGroupImg) {
-          m.text = changedGroupImg
-            ? '{{sender}} changed the group photo'
-            : '{{sender}} removed the group photo'
-          m.attachments = []
-          m.action = {
-            type: MessageActionType.THREAD_IMG_CHANGED,
-            actorParticipantID: m.senderID,
-          }
-        } else if (chatBgColorChanged || chatBgColorRemoved) {
-          m.text = chatBgColorChanged
-            ? '{{sender}} changed the background'
-            : '{{sender}} removed the background'
-        } else if (msgRow.group_action_type === 0) {
-          m.text = '{{sender}} left the conversation'
-          m.action = {
-            type: MessageActionType.THREAD_PARTICIPANTS_REMOVED,
-            actorParticipantID: m.senderID,
-            participantIDs: [m.senderID],
-          }
-        }
-        break
-      }
-      case 4:
-        m.behavior = MessageBehavior.SILENT
-        m.text = msgRow.share_status === 1
-          ? '{{sender}} stopped sharing location'
-          : '{{sender}} started sharing location'
-        break
-      case 5:
-        m.behavior = MessageBehavior.SILENT
-        m.text = msgRow.balloon_bundle_id === BalloonBundleID.DIGITAL_TOUCH
-          ? '{{sender}} kept Digital Touch Message from you.'
-          : '{{sender}} kept an audio message from you.'
-        break
-      case 6:
-        m.text = 'FaceTime Call'
-        break
-      default:
-        didFail = true
-        break
-    }
-    if (!didFail) return [m]
-  } else {
-    partialMessage.extra!.shouldNotify = true
-  }
-
-  const partialHeader: Pick<Message, 'textHeading' | 'linkedMessageID'> = {}
-  const expressiveSendStyleIsValid = (style: string): style is keyof typeof EXPRESSIVE_MSGS =>
-    Object.keys(EXPRESSIVE_MSGS).includes(String(style))
-  const expressiveSendStyleID = msgRow.expressive_send_style_id
-  const serviceFooters: Record<string, string> = {
-    iMessageLite: 'iMessage · Satellite',
-    SatelliteSMS: 'SMS · Satellite',
-  }
-  const partialFooter: Pick<Message, 'textFooter'> = expressiveSendStyleIsValid(expressiveSendStyleID)
-    ? { textFooter: `(Sent with ${(EXPRESSIVE_MSGS[expressiveSendStyleID] || expressiveSendStyleID)} effect)` }
-    : (serviceFooters[msgRow.service] ? { textFooter: serviceFooters[msgRow.service] } : {})
-
-  const payloadData = getPayloadData(msgRow)
-  Object.assign(partialMessage, getPayloadProps(payloadData, attachments, msgRow.balloon_bundle_id))
-
-  switch (msgRow.balloon_bundle_id) {
-    case BalloonBundleID.DIGITAL_TOUCH: {
-      partialHeader.textHeading = 'Digital Touch Message'
-      if (msgRow.payload_data) {
-        const uuid = Buffer.from(msgRow.payload_data.slice(-(UUID_START + UUID_LENGTH), -UUID_START)).toString('utf-8')
-        if (UUID_REGEX.test(uuid)) {
-          partialMessage.attachments = [{
-            id: uuid,
-            type: AttachmentType.VIDEO,
-            isGif: true,
-            // file:// will mostly work fine but we use asset:// since it can take a few seconds before the file is written to disk by messages.app
-            srcURL: `asset://$accountID/dt/${uuid}.mov`,
-            // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)).href,
-            size: { width: 144, height: 180 },
-          }]
-        }
-      }
-      break
-    }
-    case BalloonBundleID.HANDWRITING: {
-      partialHeader.textHeading = 'Handwritten Message'
-      if (msgRow.payload_data) {
-        const uuid = Buffer.from(msgRow.payload_data.slice(UUID_START, UUID_START + UUID_LENGTH)).toString('utf-8')
-        if (UUID_REGEX.test(uuid)) {
-          partialMessage.attachments = [{
-            id: uuid,
-            type: AttachmentType.IMG,
-            isGif: true,
-            // todo: since we don't know w & h, we use asset://
-            // srcURL: url.pathToFileURL(path.join(TMP_MOBILE_SMS_PATH, `hw_${uuid}_${w}_${h}_${swiftServer.appleInterfaceStyle === 'Dark' ? 'dark' : 'light'}.png`)).href,
-            srcURL: `asset://$accountID/hw/${uuid}.png`,
-          }]
-        }
-      }
-      break
-    }
-    case BalloonBundleID.BIZ_EXTENSION: {
-      partialHeader.textHeading = 'Business Chat Extension'
-      // TODO: Handle busines chats
-      // if (m.attachments[0]) m.attachments[0].size = { height: 80, width: 80 }
-      break
-    }
-    default:
-  }
-
-  if (msgRow.message_summary_info) {
-    if (msi?.amsa === 'com.apple.siri') {
-      partialFooter.textFooter = 'Sent with Siri'
-    }
-  }
-
-  // reply
-  if (msgRow.thread_originator_guid) {
-    /**
-      * looks like X:Y:Z (0:0:1, 2:2:1, 2:2:18, 2:109:158, 18446744073709551615:0:5)
-      * X = message part index
-      * Y = original quoted message text start
-      * Z = length after Y
-      *
-      * 18446744073709551615 is -1 (https://stackoverflow.com/questions/40608111/why-is-18446744073709551615-1-true)
-     */
-    let partIndex = msgRow.thread_originator_part?.split(':', 1)?.[0]
-    if (partIndex === '0') partIndex = ''
-    if (partIndex === '18446744073709551615') partIndex = '-1'
-    partialHeader.linkedMessageID = msgRow.thread_originator_guid + (partIndex ? `_${partIndex}` : '')
-  }
-
-  let messageParts: MessagePart[] = []
-  if (swiftServer && msgRow.attributedBody) {
-    const attributes = swiftServer.decodeAttributedString(msgRow.attributedBody)
-    if (attributes) {
-      messageParts = decodeMessageParts(attributes, msi)
-    }
-  }
-  if (messageParts.length === 0) {
-    if (msgRow.attributedBody == null && msi?.rp != null && msi?.otr != null) {
-      messageParts = [{ kind: MessagePartKind.UNSENT, index: 0, end: 0 }]
-    } else {
-      messageParts = [{
-        kind: MessagePartKind.TEXT,
-        index: 0,
-        text: removeObjReplacementChar(msgRow.text || '').replaceAll(IMSG_EXTENSION_CHAR, ''),
-      } as MessagePart].concat(...(attachments.map((a, i) => ({
-        kind: MessagePartKind.ATTACHMENT,
-        attachmentID: a.id,
-        index: i + 1,
-      })) as MessagePartAttachment[]))
-    }
-  }
-
-  const addSubjectInline = msgRow.subject && messageParts[0].kind === MessagePartKind.TEXT && messageParts[0].text.length
-  if (msgRow.subject && !addSubjectInline) {
-    messageParts.unshift({
-      kind: MessagePartKind.TEXT,
-      index: -1,
-      end: 0,
-      text: msgRow.subject,
-      attributes: {
-        entities: [{
-          from: 0,
-          to: [...msgRow.subject].length,
-          bold: true,
-        }],
-      },
-    })
-  }
-
-  // messageParts will always be non-empty
-  const messages = messageParts.map<BeeperMessage>((part, partIdx) => {
-    const message = { ...partialMessage }
-    if (messageParts.length > 1) {
-      // we have to copy message.extra, otherwise it shares the object
-      // among different message parts
-      message.extra = {
-        ...message.extra,
-        // we mean part number (part.index), not partIdx. The latter is
-        // 0-based whereas part.index can be negative for the subject.
-        part: part.index,
-      }
-    }
-    // we mean idx, not part number
-    if (partIdx === 0) Object.assign(message, partialHeader)
-    if (partIdx === messageParts.length - 1) Object.assign(message, partialFooter)
-    if (part.index !== 0) message.id = `${message.id}_${part.index}`
-    switch (part.kind) {
-      case MessagePartKind.TEXT: {
-        message.text = part.text
-        message.textAttributes = part.attributes
-        break
-      }
-      case MessagePartKind.ATTACHMENT: {
-        // TODO: make this faster if necessary
-        const att = attachments.find(a => a.id === part.attachmentID)
-        if (att) message.attachments = [att]
-        break
-      }
-      case MessagePartKind.UNSENT: {
-        message.isAction = true
-        message.parseTemplate = true
-        message.editedTimestamp = undefined
-        message.text = '{{sender}} unsent a message'
-        break
-      }
-      default:
-    }
-    return message
-  }).filter(m => m.attachments?.length || m.text || m.textHeading)
-
-  if (addSubjectInline) {
-    const firstTextPart = messages[0]
-    firstTextPart.text = `${msgRow.subject}\n${firstTextPart.text}`
-    const subjectLength = [...msgRow.subject].length
-    firstTextPart.textAttributes = {
-      entities: [
-        {
-          from: 0,
-          to: subjectLength,
-          bold: true,
-        },
-        ...(firstTextPart.textAttributes?.entities || []).map(e => ({
-          ...e,
-          from: subjectLength + 1 + e.from,
-          to: subjectLength + 1 + e.to,
-        })),
-      ],
-    }
-  }
-
-  const firstTextPart = messages.find(msg => typeof msg.text === 'string')
-  if (msgRow.associated_message_guid) {
-    const m: BeeperMessage = {
-      // fall back to `partialMessage` if no text part was found at all -
-      // important to avoid creating a bogus message object with invalid data
-      ...(firstTextPart ?? partialMessage),
-      linkedMessageID: msgRow.associated_message_guid.replace(assocMsgGuidPrefix, ''),
-    }
-    // texts.log('found associated message. first text:', firstTextPart, ' - linked message - ', m.linkedMessageID)
-    const assocMsgType = associatedTypeIsValid(msgRow.associated_message_type) ? ASSOC_MSG_TYPE[msgRow.associated_message_type] : null
-    let didFail = false
-    switch (assocMsgType) {
-      case 'sticker':
-        if (messages[0]) messages[0].linkedMessageID = m.linkedMessageID
-        didFail = true
-        break
-      case 'heading':
-        if (m.text) {
-          m.text = m.text
-            .replace(RECEIVER_NAME_CONSTANT, m.isSender ? `{{${msgRow.participantID}}}` : `{{${currentUserID}}}`)
-            .replace(SENDER_NAME_CONSTANT, m.isSender ? `{{${currentUserID}}}` : `{{${msgRow.participantID}}}`)
-        }
-        m.parseTemplate = true
-        break
-      default:
-        if (!assocMsgType) {
-          didFail = true
-          break
-        }
-        // [un]reacted
-        m.isAction = !isSMS // apple imessage has a bug where sms can be reacted to
-        // eslint-disable-next-line no-case-declarations
-        const [actionType, actionKey] = assocMsgType.split('_', 2) || []
-        // eslint-disable-next-line no-case-declarations
-        const reactionType = ({
-          reacted: MessageActionType.MESSAGE_REACTION_CREATED,
-          unreacted: MessageActionType.MESSAGE_REACTION_DELETED,
-        } as const)[actionType]
-        if (!reactionType) break
-        m.action = {
-          type: reactionType,
-          messageID: m.linkedMessageID,
-          participantID: m.senderID,
-          imgURL: assocMsgType === 'reacted_sticker' ? reactionStickerAssetURL(accountID, msgRow.ROWID) : undefined,
-          reactionKey: actionKey === 'emoji' ? msgRow.associated_message_emoji : actionKey,
-        }
-        if (actionKey === 'emoji' || actionKey === 'sticker' || actionKey in supportedReactions) {
-          m.parseTemplate = true
-          m.text = `${msgRow.is_from_me ? 'You' : '{{sender}}'} ${REACTION_VERB_MAP[assocMsgType]} ${msi?.ams ? `"${msi?.ams}"` : 'a message'}`
-          m.isHidden = true
-        }
-    }
-    // texts.log('didFail:', didFail)
-    if (!didFail) return [m]
-  }
-
-  return messages.map(msg => {
-    // texts.log('assigning reactions', msg.id, msg.index, reactionRows)
-    assignReactions(currentUserID, accountID, msg, reactionRows, messages.length === 1 ? undefined : msg.extra?.part)
-    return msg
-  })
+  return attachOriginal(
+    projectSwiftToTypescriptShape(swiftMessages, typescriptMessages),
+    msgRow,
+    attachmentRows,
+    currentUserID,
+  )
 }
 
 function mapParticipant({ participantID: id, uncanonicalized_id }: MappedHandleRow, chatDisplayName?: string): Participant | undefined {

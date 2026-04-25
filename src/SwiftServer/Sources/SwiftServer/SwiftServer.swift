@@ -197,6 +197,10 @@ enum Preferences {
             }
         },
 
+        "mapMessageJSON": NodeFunction { (inputJSON: String) in
+            try MessageMapper.mapMessageJSON(inputJSON)
+        },
+
         "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) in
             let queue = try NodeAsyncQueue(label: "search-messages")
             return try NodePromise { deferred in

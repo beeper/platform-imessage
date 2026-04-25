@@ -98,6 +98,7 @@ export type SwiftServer = {
   isNotificationsEnabledForMessages: boolean
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
+  mapMessageJSON: (inputJSON: string) => string
   getImageMetadata: (filePath: string) => Promise<Size | undefined>
   /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
   searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>
@@ -131,9 +132,9 @@ export type SwiftServer = {
 
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
 
-const require = nodeModule.createRequire(import.meta.url)
+const nodeRequire = nodeModule.createRequire(path.join(process.cwd(), 'SwiftServer.node-loader.js'))
 // eslint-disable-next-line import/no-dynamic-require -- can't bundle .node files
-const swiftServer: SwiftServer = require(swiftServerPath)
+const swiftServer: SwiftServer = nodeRequire(swiftServerPath)
 swiftServer.messagesControllerClass = (swiftServer as unknown as { MessagesController: typeof MessagesController }).MessagesController
 
 export default swiftServer
