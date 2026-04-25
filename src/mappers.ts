@@ -739,7 +739,7 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const archivedAt = context.archivalStates?.[chat.guid]?.archivedAt
   const isArchivedUpToOrder = archivedAt ? appleDateToMillisSinceEpoch(archivedAt) : undefined
 
-  const thread: BeeperThread = {
+  const thread: Omit<BeeperThread, 'isUnread'> = {
     id: chat.guid,
     title: chat.display_name,
     imgURL: getChatPhotoGuid(),
@@ -775,7 +775,8 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   if (!IMESSAGE_STRIP_INTERNAL_FIELDS) {
     thread._original = stringifyWithArrayBuffers([chat, handleRows])
   }
-  return thread
+  // Desktop computes `isUnread` from `isMarkedUnread || unreadCount > 0`.
+  return thread as BeeperThread
 }
 
 export const mapThreads = (chatRows: MappedChatRow[], context: Context) =>

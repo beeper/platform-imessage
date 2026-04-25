@@ -2656,23 +2656,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#main":
-  version: 0.4.4
-  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
-  dependencies:
-    emoji-regex: "npm:^10.1.0"
-    lodash: "npm:^4.17.21"
-    qrcode.react: "npm:^3.1.0"
-    ws: "npm:^8.15.1"
-  dependenciesMeta:
-    lodash:
-      optional: true
-    ws:
-      optional: true
-  checksum: 10/4f831cfc9a275760c916c554bfdd04920741525756b98041c6c0e1e1110038d96603a5e6a0f68b8c2c037093ed73d2a120a104fb9e62f61e48f21535709abb62
-  languageName: node
-  linkType: hard
-
 "@textshq/platform-test-lib@https://github.com/TextsHQ/platform-test-lib#main":
   version: 0.1.0
   resolution: "@textshq/platform-test-lib@https://github.com/TextsHQ/platform-test-lib.git#commit=a267e8761d9c74f8ccf000e660fadfe46e6b86fd"
@@ -8931,21 +8914,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
     imurmurhash: "npm:^0.1.4"
     signal-exit: "npm:^3.0.7"
   checksum: 10/e3edc4917c0ee82b369eb2dfd38251d11a83a26dba2702836225497f68b59b60514d68cdc2fa869348b5c3455e4c68e1fa32c0532c8ad5123cc89755bfd53d96
-  languageName: node
-  linkType: hard
-
-"ws@npm:^8.15.1":
-  version: 8.20.0
-  resolution: "ws@npm:8.20.0"
-  peerDependencies:
-    bufferutil: ^4.0.1
-    utf-8-validate: ">=5.0.2"
-  peerDependenciesMeta:
-    bufferutil:
-      optional: true
-    utf-8-validate:
-      optional: true
-  checksum: 10/b7ab934b21ffdea9f25a5af5097e8c1ec7625db553bca026c5a23e35b7c236f3fb89782f2b57fab9da553864512f9aa7d245827ef998d26ffa1b2187a19a6d10
   languageName: node
   linkType: hard
 
