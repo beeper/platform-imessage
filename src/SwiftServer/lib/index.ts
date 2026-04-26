@@ -74,10 +74,6 @@ export declare class SwiftPlatformAPI {
   getThread: (threadID: string) => Promise<string>
 }
 
-export interface MessagesControllerDebugging {
-  _getMainWindow(): void
-}
-
 // purely for headless (REPL) tab-autocomplete
 export const MESSAGES_CONTROLLER_METHOD_NAMES = [
   'isValid',
@@ -94,12 +90,7 @@ export const MESSAGES_CONTROLLER_METHOD_NAMES = [
   'setReaction',
   'isSameContact',
   'dispose',
-  '_getMainWindow',
-] as const satisfies (keyof MessagesController | keyof MessagesControllerDebugging)[]
-
-export function messageControllerDebuggingAvailable(mc: MessagesController): mc is MessagesController & MessagesControllerDebugging {
-  return 'debug' in mc && typeof mc.debug === 'boolean' && mc.debug
-}
+] as const satisfies (keyof MessagesController)[]
 
 export type SwiftServer = {
   appleInterfaceStyle: string

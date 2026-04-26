@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { performance } from 'node:perf_hooks'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import * as platformTestLib from '@textshq/platform-test-lib'
@@ -92,6 +93,9 @@ const getMessageSamplesAll = getMessageSamplesArg === 'all'
 const getMessageSamples = getMessageSamplesAll ? Infinity : Number.parseInt(getMessageSamplesArg, 10)
 const progressEvery = Number.parseInt(args.get('progress-every') ?? '100', 10)
 const traceCurrent = args.has('trace-current')
+const perfDeltaMinMs = Number.parseFloat(args.get('perf-delta-ms') ?? '25')
+const perfDeltaMinRatio = Number.parseFloat(args.get('perf-delta-ratio') ?? '1.25')
+const perfDeltaLimit = Number.parseInt(args.get('perf-delta-limit') ?? '20', 10)
 
 const dateFields = new Set(['timestamp', 'seen', 'editedTimestamp'])
 
@@ -145,6 +149,135 @@ function failureSummary(error) {
   return { details: error instanceof Error ? error.message : String(error) }
 }
 
+const roundTiming = value => Number(value.toFixed(3))
+const perfRatio = (currentMs, referenceMs) => {
+  if (referenceMs === 0) return currentMs === 0 ? 1 : null
+  return currentMs / referenceMs
+}
+
+const perfDeltasByPhase = new Map()
+const currentSlowerPerfDeltas = []
+const referenceSlowerPerfDeltas = []
+
+function boundedSortPush(list, entry, sortKey) {
+  if (perfDeltaLimit <= 0) return
+  list.push(entry)
+  list.sort((a, b) => b[sortKey] - a[sortKey])
+  if (list.length > perfDeltaLimit) list.length = perfDeltaLimit
+}
+
+function isNotablePerfDelta(deltaMs, ratio) {
+  return deltaMs >= perfDeltaMinMs && (ratio === null || ratio >= perfDeltaMinRatio)
+}
+
+async function timedCall(fn) {
+  const startedAt = performance.now()
+  try {
+    return {
+      ok: true,
+      value: await fn(),
+      ms: performance.now() - startedAt,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error,
+      ms: performance.now() - startedAt,
+    }
+  }
+}
+
+function recordPerfDelta(phase, context, currentMs, referenceMs) {
+  const bucket = perfDeltasByPhase.get(phase) ?? {
+    samples: 0,
+    currentTotalMs: 0,
+    referenceTotalMs: 0,
+    deltaTotalMs: 0,
+    currentSlowerCount: 0,
+    referenceSlowerCount: 0,
+    maxCurrentSlowerMs: 0,
+    maxReferenceSlowerMs: 0,
+  }
+  const deltaMs = currentMs - referenceMs
+  const ratio = perfRatio(currentMs, referenceMs)
+  bucket.samples += 1
+  bucket.currentTotalMs += currentMs
+  bucket.referenceTotalMs += referenceMs
+  bucket.deltaTotalMs += deltaMs
+  if (deltaMs > 0) {
+    bucket.currentSlowerCount += 1
+    bucket.maxCurrentSlowerMs = Math.max(bucket.maxCurrentSlowerMs, deltaMs)
+    if (isNotablePerfDelta(deltaMs, ratio)) {
+      boundedSortPush(currentSlowerPerfDeltas, {
+        phase,
+        ...context,
+        currentMs: roundTiming(currentMs),
+        referenceMs: roundTiming(referenceMs),
+        deltaMs: roundTiming(deltaMs),
+        ratio: ratio === null ? null : Number(ratio.toFixed(3)),
+      }, 'deltaMs')
+    }
+  } else if (deltaMs < 0) {
+    const referenceDeltaMs = -deltaMs
+    const referenceRatio = perfRatio(referenceMs, currentMs)
+    bucket.referenceSlowerCount += 1
+    bucket.maxReferenceSlowerMs = Math.max(bucket.maxReferenceSlowerMs, referenceDeltaMs)
+    if (isNotablePerfDelta(referenceDeltaMs, referenceRatio)) {
+      boundedSortPush(referenceSlowerPerfDeltas, {
+        phase,
+        ...context,
+        currentMs: roundTiming(currentMs),
+        referenceMs: roundTiming(referenceMs),
+        deltaMs: roundTiming(deltaMs),
+        referenceSlowerByMs: roundTiming(referenceDeltaMs),
+        ratio: referenceRatio === null ? null : Number(referenceRatio.toFixed(3)),
+      }, 'referenceSlowerByMs')
+    }
+  }
+  perfDeltasByPhase.set(phase, bucket)
+}
+
+async function timedPair(phase, context, currentFn, referenceFn) {
+  const [currentResult, referenceResult] = await Promise.all([
+    timedCall(currentFn),
+    timedCall(referenceFn),
+  ])
+  recordPerfDelta(phase, context, currentResult.ms, referenceResult.ms)
+  if (!currentResult.ok) throw currentResult.error
+  if (!referenceResult.ok) throw referenceResult.error
+  return [currentResult.value, referenceResult.value]
+}
+
+function summarizePerfDeltas() {
+  return {
+    thresholds: {
+      minMs: perfDeltaMinMs,
+      minRatio: perfDeltaMinRatio,
+      limit: perfDeltaLimit,
+    },
+    byPhase: Object.fromEntries(
+      [...perfDeltasByPhase.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([phase, bucket]) => [phase, {
+          samples: bucket.samples,
+          currentTotalMs: roundTiming(bucket.currentTotalMs),
+          referenceTotalMs: roundTiming(bucket.referenceTotalMs),
+          totalDeltaMs: roundTiming(bucket.deltaTotalMs),
+          avgCurrentMs: roundTiming(bucket.currentTotalMs / bucket.samples),
+          avgReferenceMs: roundTiming(bucket.referenceTotalMs / bucket.samples),
+          avgDeltaMs: roundTiming(bucket.deltaTotalMs / bucket.samples),
+          aggregateRatio: bucket.referenceTotalMs === 0 ? null : Number((bucket.currentTotalMs / bucket.referenceTotalMs).toFixed(3)),
+          currentSlowerCount: bucket.currentSlowerCount,
+          referenceSlowerCount: bucket.referenceSlowerCount,
+          maxCurrentSlowerMs: roundTiming(bucket.maxCurrentSlowerMs),
+          maxReferenceSlowerMs: roundTiming(bucket.maxReferenceSlowerMs),
+        }]),
+    ),
+    currentSlower: currentSlowerPerfDeltas,
+    referenceSlower: referenceSlowerPerfDeltas,
+  }
+}
+
 function recordDelta(failures, phase, context, swiftOutput, referenceOutput) {
   const diffs = diff(normalize(swiftOutput), normalize(referenceOutput))
   if (diffs.length === 0) return
@@ -168,14 +301,17 @@ try {
     let page
     try {
       const pagination = threadCursor ? { cursor: threadCursor, direction: 'before' } : undefined
-      const [currentPage, referencePage] = await Promise.all([
-        api.getThreads('normal', pagination),
-        referenceAPI.getThreads('normal', pagination),
-      ])
+      const pageIndex = threadPagesChecked + 1
+      const [currentPage, referencePage] = await timedPair(
+        'getThreads',
+        { pageIndex },
+        () => api.getThreads('normal', pagination),
+        () => referenceAPI.getThreads('normal', pagination),
+      )
       page = currentPage
       threadPagesChecked += 1
       getThreadsPagesChecked += 1
-      recordDelta(failures, 'getThreads', { pageIndex: threadPagesChecked }, currentPage, referencePage)
+      recordDelta(failures, 'getThreads', { pageIndex }, currentPage, referencePage)
     } catch (error) {
       threadPagesChecked += 1
       getThreadsPagesChecked += 1
@@ -200,10 +336,12 @@ try {
       console.error(`[parity] checked ${threadIndex}/${threads.length} chats`)
     }
     try {
-      const [currentThread, referenceThread] = await Promise.all([
-        api.getThread(thread.id),
-        referenceAPI.getThread(thread.id),
-      ])
+      const [currentThread, referenceThread] = await timedPair(
+        'getThread',
+        { threadID: thread.id },
+        () => api.getThread(thread.id),
+        () => referenceAPI.getThread(thread.id),
+      )
       getThreadItemsChecked += 1
       recordDelta(failures, 'getThread', { threadID: thread.id }, currentThread, referenceThread)
     } catch (error) {
@@ -218,25 +356,30 @@ try {
           console.error(`[parity] chat=${threadIndex} thread=${thread.id} cursor=${messageCursor ?? '<latest>'}`)
         }
         const pagination = messageCursor ? { cursor: messageCursor, direction: 'before' } : undefined
-        const [page, referencePage] = await Promise.all([
-          api.getMessages(thread.id, pagination),
-          referenceAPI.getMessages(thread.id, pagination),
-        ])
+        const pageIndex = pagesChecked + 1
+        const [page, referencePage] = await timedPair(
+          'getMessages',
+          { threadID: thread.id, pageIndex },
+          () => api.getMessages(thread.id, pagination),
+          () => referenceAPI.getMessages(thread.id, pagination),
+        )
         pagesChecked += 1
         getMessagesPagesChecked += 1
         mappedMessagesPlanned += page.items.length
         seenMessages += page.items.length
-        recordDelta(failures, 'getMessages', { threadID: thread.id, pageIndex: pagesChecked }, page, referencePage)
+        recordDelta(failures, 'getMessages', { threadID: thread.id, pageIndex }, page, referencePage)
 
         const sampledMessages = Number.isFinite(getMessageSamples)
           ? page.items.slice(0, Math.max(0, getMessageSamples))
           : page.items
         for (const message of sampledMessages) {
           try {
-            const [currentMessage, referenceMessage] = await Promise.all([
-              api.getMessage(thread.id, message.id),
-              referenceAPI.getMessage(thread.id, message.id),
-            ])
+            const [currentMessage, referenceMessage] = await timedPair(
+              'getMessage',
+              { threadID: thread.id, messageID: message.id },
+              () => api.getMessage(thread.id, message.id),
+              () => referenceAPI.getMessage(thread.id, message.id),
+            )
             getMessageItemsChecked += 1
             recordDelta(failures, 'getMessage', { threadID: thread.id, messageID: message.id }, currentMessage, referenceMessage)
           } catch (error) {
@@ -272,6 +415,7 @@ try {
     mappedMessagesPlanned,
     strictFailures: failures.length,
     byDiff,
+    perfDeltas: summarizePerfDeltas(),
     failures,
   }, null, 2))
 

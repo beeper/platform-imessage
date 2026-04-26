@@ -97,11 +97,18 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
         let db = try IMDatabase()
         let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
         let chatRows = try db.mappedThreadRows(cursor: cursor, direction: pageDirection)
-        let latestMessageRowsByChatGUID = try ThreadMapper.latestMessageRowsByChatGUID(chatRows: chatRows, db: db)
-        let context = try ThreadMapper.context(
-            chatRows: chatRows,
-            latestMessageRowsByChatGUID: latestMessageRowsByChatGUID,
-            db: db,
+        let chatRowIDs = chatRows.compactMap { $0.int("ROWID") }
+        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(chatRows: chatRows, db: db)
+        let context = ThreadMapper.context(
+            handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
+            latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
+                latestMessageRowsByChatGUID,
+                db: db,
+                currentUserID: currentUserID,
+                accountID: accountID
+            ),
+            unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
+            dndState: permanentDNDThreadIDs(),
             currentUserID: currentUserID,
             accountID: accountID
         )
@@ -124,11 +131,18 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
             return jsonNull
         }
-        let latestMessageRowsByChatGUID = try ThreadMapper.latestMessageRowsByChatGUID(chatRows: [chatRow], db: db)
-        let context = try ThreadMapper.context(
-            chatRows: [chatRow],
-            latestMessageRowsByChatGUID: latestMessageRowsByChatGUID,
-            db: db,
+        let chatRowIDs = [chatRow].compactMap { $0.int("ROWID") }
+        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(chatRows: [chatRow], db: db)
+        let context = ThreadMapper.context(
+            handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
+            latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
+                latestMessageRowsByChatGUID,
+                db: db,
+                currentUserID: currentUserID,
+                accountID: accountID
+            ),
+            unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
+            dndState: permanentDNDThreadIDs(),
             currentUserID: currentUserID,
             accountID: accountID
         )
@@ -157,10 +171,11 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
             msgRows.reverse()
         }
 
+        let payloadRows = try messagePayloadRows(msgRows: msgRows, db: db, threadID: threadID)
         let messages = try mapAndHashMessages(
             msgRows: msgRows,
-            db: db,
-            threadID: threadID,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
             accountID: accountID
         )
@@ -183,10 +198,11 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
             return jsonNull
         }
 
+        let payloadRows = try messagePayloadRows(msgRows: [msgRow], db: db, threadID: threadID)
         let messages = try mapAndHashMessages(
             msgRows: [msgRow],
-            db: db,
-            threadID: threadID,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
             accountID: accountID
         )
@@ -198,6 +214,46 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
 }
 
 extension PlatformAPI {
+    private struct MessagePayloadRows {
+        var attachmentRows: [JSONObject]
+        var reactionRows: [JSONObject]
+    }
+
+    nonisolated static func latestThreadMessageRowsByChatGUID(chatRows: [JSONObject], db: IMDatabase) throws -> [String: JSONObject] {
+        try chatRows.reduce(into: [:]) { result, chatRow in
+            guard let guid = chatRow.string("guid") else {
+                return
+            }
+            result[guid] = try db.mappedMessageRows(in: guid, cursor: nil, direction: nil, limit: 1).first
+        }
+    }
+
+    nonisolated static func latestThreadMessagesByChatGUID(
+        _ latestMessageRowsByChatGUID: [String: JSONObject],
+        db: IMDatabase,
+        currentUserID: String,
+        accountID: String
+    ) throws -> [String: [JSONObject]] {
+        var latestMessagesByChatGUID = [String: [JSONObject]]()
+        for (guid, msgRow) in latestMessageRowsByChatGUID {
+            let payloadRows = try messagePayloadRows(msgRows: [msgRow], db: db, threadID: guid)
+            latestMessagesByChatGUID[guid] = try mapAndHashMessages(
+                msgRows: [msgRow],
+                attachmentRows: payloadRows.attachmentRows,
+                reactionRows: payloadRows.reactionRows,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
+        }
+        return latestMessagesByChatGUID
+    }
+
+    nonisolated static func permanentDNDThreadIDs() -> Set<String> {
+        Set((Defaults.getDNDList() ?? [:]).compactMap { key, value in
+            value == Int(Date.distantFuture.timeIntervalSince1970) ? key : nil
+        })
+    }
+
     nonisolated static func originalThreadID(_ threadID: String, db: IMDatabase) throws -> String {
         guard threadID.hasPrefix("imsg") else {
             return threadID
@@ -212,10 +268,23 @@ extension PlatformAPI {
         }
     }
 
-    nonisolated static func mapAndHashMessages(
+    private nonisolated static func messagePayloadRows(
         msgRows: [JSONObject],
         db: IMDatabase,
-        threadID: String,
+        threadID: String
+    ) throws -> MessagePayloadRows {
+        let msgRowIDs = msgRows.compactMap { $0.int("ROWID") }
+        let msgGUIDs = msgRows.compactMap { $0.string("guid") }
+        return MessagePayloadRows(
+            attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRowIDs)),
+            reactionRows: try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
+        )
+    }
+
+    nonisolated static func mapAndHashMessages(
+        msgRows: [JSONObject],
+        attachmentRows: [JSONObject],
+        reactionRows: [JSONObject],
         currentUserID: String,
         accountID: String
     ) throws -> [JSONObject] {
@@ -223,10 +292,6 @@ extension PlatformAPI {
             return []
         }
 
-        let msgRowIDs = msgRows.compactMap { $0.int("ROWID") }
-        let msgGUIDs = msgRows.compactMap { $0.string("guid") }
-        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRowIDs))
-        let reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
         let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: { $0.int("msgRowID") ?? -1 })
         let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.string("associated_message_guid") ?? "") })
 

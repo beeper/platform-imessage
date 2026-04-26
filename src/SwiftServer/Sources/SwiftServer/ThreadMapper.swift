@@ -1,5 +1,4 @@
 import Foundation
-import IMDatabase
 import SwiftServerFoundation
 
 enum ThreadMapper {
@@ -12,44 +11,18 @@ enum ThreadMapper {
         var dndState: Set<String>
     }
 
-    static func latestMessageRowsByChatGUID(chatRows: [JSONObject], db: IMDatabase) throws -> [String: JSONObject] {
-        try chatRows.reduce(into: [:]) { result, chatRow in
-            guard let guid = chatRow.string("guid") else {
-                return
-            }
-            result[guid] = try db.mappedMessageRows(in: guid, cursor: nil, direction: nil, limit: 1).first
-        }
-    }
-
     static func context(
-        chatRows: [JSONObject],
-        latestMessageRowsByChatGUID: [String: JSONObject],
-        db: IMDatabase,
+        handleRowsByChatRowID: [Int: [JSONObject]],
+        latestMessagesByChatGUID: [String: [JSONObject]],
+        unreadCounts: [Int: Int],
+        dndState: Set<String>,
         currentUserID: String,
         accountID: String
-    ) throws -> Context {
-        let chatRowIDs = chatRows.compactMap { $0.int("ROWID") }
-        let participantRows = try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs)
-        let unreadCounts = try db.mappedUnreadCounts(chatRowIDs: chatRowIDs)
-        let dndState = Set((Defaults.getDNDList() ?? [:]).compactMap { key, value in
-            value == Int(Date.distantFuture.timeIntervalSince1970) ? key : nil
-        })
-
-        var latestMessagesByChatGUID = [String: [JSONObject]]()
-        for (guid, msgRow) in latestMessageRowsByChatGUID {
-            latestMessagesByChatGUID[guid] = try PlatformAPI.mapAndHashMessages(
-                msgRows: [msgRow],
-                db: db,
-                threadID: guid,
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
-        }
-
+    ) -> Context {
         return Context(
             accountID: accountID,
             currentUserID: currentUserID,
-            handleRowsByChatRowID: participantRows,
+            handleRowsByChatRowID: handleRowsByChatRowID,
             latestMessagesByChatGUID: latestMessagesByChatGUID,
             unreadCounts: unreadCounts,
             dndState: dndState

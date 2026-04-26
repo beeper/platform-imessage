@@ -10,20 +10,6 @@ private let log = Logger(swiftServerLabel: "swift-server")
 let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
     .appendingPathComponent("Messages", isDirectory: true)
 
-#if DEBUG
-@available(macOS 11, *)
-extension MessagesControllerWrapper {
-    @NodeMethod func _getMainWindow() {
-        do {
-            let window = try self.controller.elements.mainWindow
-            Log.default.debug("@@@ [DEBUG] was able to fetch main window: \(window)")
-        } catch {
-            Log.default.error("@@@ [DEBUG] ❌ COULDN'T get main window! \(error)")
-        }
-    }
-}
-#endif
-
 enum SysPrefsOnboarding {
     static var onboardingManager: OnboardingManager?
 
