@@ -51,15 +51,26 @@ enum IMFileTransferState {
 }
 
 let imageExtensions: Set<String> = [
-    "jpg", "jpeg", "png", "gif", "heic", "heics", "heif", "webp", "tiff", "tif", "bmp",
+    "3dv", "ai", "amf", "art", "ase", "awg", "blp", "bmp", "bw", "cd5", "cdr", "cgm", "cit", "cmx", "cpt",
+    "cr2", "cur", "cut", "dds", "dib", "djvu", "dxf", "e2d", "ecw", "egt", "emf", "eps", "exif", "fs",
+    "gbr", "gif", "gpl", "grf", "hdp", "heic", "heics", "ico", "icns", "iff", "int", "inta", "jfif",
+    "jng", "jp2", "jpeg", "jpg", "jps", "jxr", "lbm", "liff", "max", "miff", "mng", "msp", "nitf",
+    "nrrd", "odg", "ota", "pam", "pbm", "pc1", "pc2", "pc3", "pcf", "pct", "pcx", "pdd", "pdn",
+    "pgf", "pgm", "PI1", "PI2", "PI3", "pict", "png", "pnm", "pns", "ppm", "psp", "px", "pxm", "pxr",
+    "qfx", "ras", "raw", "rgb", "rgba", "rle", "sct", "sgi", "sid", "sun", "svg", "sxd", "tga", "tgs",
+    "tif", "tiff", "v2d", "vnd", "vrml", "vtf", "wdp", "webp", "wmf", "x3d", "xar", "xbm", "xcf", "xpm",
 ]
 
 let audioExtensions: Set<String> = [
-    "mp3", "m4a", "mp4", "aac", "wav", "aiff", "caf", "amr", "ogg", "oga", "webm",
+    "3gp", "aac", "act", "aiff", "amr", "ast", "au", "bwf", "caf", "dct", "dss", "flac", "gsm", "m4a",
+    "m4p", "mmf", "mp2", "mp3", "mp4", "mpc", "oga", "ogg", "opus", "pac", "ra", "raw", "s3m", "sln",
+    "tta", "vox", "wav", "wv",
 ]
 
 let videoExtensions: Set<String> = [
-    "mov", "mp4", "m4v", "avi", "webm", "ogg", "ogv", "3gp", "3g2",
+    "3g2", "3gp", "aaf", "asf", "avchd", "avi", "drc", "flv", "m2v", "m4p", "m4v", "mkv", "mng", "mov",
+    "mp2", "mp4", "mpe", "mpeg", "mpg", "mpv", "mxf", "nsv", "ogg", "ogv", "qt", "rm", "rmvb", "roq",
+    "svi", "vob", "webm", "wmv", "yuv",
 ]
 
 let associatedMessageTypes: [Int: String] = [

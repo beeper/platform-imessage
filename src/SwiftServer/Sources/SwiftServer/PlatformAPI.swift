@@ -50,19 +50,19 @@ public final class PlatformAPI {
         self.runtime = runtime
     }
 
-    /// Runs a DB query off the caller actor with the cached currentUserID resolved.
+    /// Runs a DB query off the caller actor with the cached current user resolved.
     /// Captures `accountID`, `database`, and `currentUserCache` before crossing
     /// into the @Sendable closure so `self` doesn't need to.
     private func runDBQuery<T>(
-        _ work: @escaping @Sendable (IMDatabase, String /*currentUserID*/, String /*accountID*/) throws -> T
+        _ work: @escaping @Sendable (IMDatabase, CurrentUser, String /*accountID*/) throws -> T
     ) async throws -> T {
         let accountID = accountID
         let database = database
         let currentUserCache = currentUserCache
         return try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                return try work(db, currentUserID, accountID)
+                let currentUser = try Self.currentUser(db: db, cache: currentUserCache)
+                return try work(db, currentUser, accountID)
             }
         }.value
     }
@@ -90,14 +90,14 @@ public final class PlatformAPI {
     }
 
     public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        try await runDBQuery { db, currentUserID, accountID in
+        try await runDBQuery { db, currentUser, accountID in
             try Self.searchMessages(
                 db: db,
                 query: typed,
                 threadID: threadID,
                 mediaOnly: mediaOnly ?? false,
                 sender: sender,
-                currentUserID: currentUserID,
+                currentUserID: currentUser.id,
                 accountID: accountID,
                 limit: limit
             )
@@ -105,26 +105,26 @@ public final class PlatformAPI {
     }
 
     public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> JSONObject {
-        try await runDBQuery { db, currentUserID, accountID in
+        try await runDBQuery { db, currentUser, accountID in
             try Self.getThreads(
                 db: db,
                 folderName: folderName,
                 cursor: cursor,
                 direction: direction,
-                currentUserID: currentUserID,
+                currentUser: currentUser,
                 accountID: accountID
             )
         }
     }
 
     public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> JSONObject {
-        try await runDBQuery { db, currentUserID, accountID in
+        try await runDBQuery { db, currentUser, accountID in
             try Self.getMessages(
                 db: db,
                 threadID: threadID,
                 cursor: cursor,
                 direction: direction,
-                currentUserID: currentUserID,
+                currentUserID: currentUser.id,
                 accountID: accountID,
                 limit: limit
             )
@@ -132,23 +132,23 @@ public final class PlatformAPI {
     }
 
     public func getThread(threadID: String) async throws -> JSONObject? {
-        try await runDBQuery { db, currentUserID, accountID in
+        try await runDBQuery { db, currentUser, accountID in
             try Self.getThread(
                 db: db,
                 threadID: threadID,
-                currentUserID: currentUserID,
+                currentUser: currentUser,
                 accountID: accountID
             )
         }
     }
 
     public func getMessage(threadID: String, messageID: String) async throws -> JSONObject? {
-        try await runDBQuery { db, currentUserID, accountID in
+        try await runDBQuery { db, currentUser, accountID in
             try Self.getMessage(
                 db: db,
                 threadID: threadID,
                 messageID: messageID,
-                currentUserID: currentUserID,
+                currentUserID: currentUser.id,
                 accountID: accountID
             )
         }
@@ -165,11 +165,11 @@ public final class PlatformAPI {
 
         if userIDs.count == 1 {
             let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(userIDs[0])"
-            let existingThread = try await runDBQuery { db, currentUserID, accountID in
+            let existingThread = try await runDBQuery { db, currentUser, accountID in
                 try Self.getThread(
                     db: db,
                     threadID: existingThreadID,
-                    currentUserID: currentUserID,
+                    currentUser: currentUser,
                     accountID: accountID
                 )
             }
@@ -738,14 +738,14 @@ public final class PlatformAPI {
     }
 
     private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [JSONObject] {
-        try await runDBQuery { db, currentUserID, accountID in
+        try await runDBQuery { db, currentUser, accountID in
             var messages = [JSONObject]()
             for sentMessageID in sentMessageIDs {
                 guard let message = try Self.messageObject(
                     db: db,
                     threadID: nil,
                     messageID: sentMessageID.guid,
-                    currentUserID: currentUserID,
+                    currentUserID: currentUser.id,
                     accountID: accountID
                 ) else {
                     continue
@@ -795,7 +795,7 @@ public final class PlatformAPI {
         folderName: String,
         cursor: String?,
         direction: String?,
-        currentUserID: String,
+        currentUser: CurrentUser,
         accountID: String
     ) throws -> JSONObject {
         guard folderName == "normal" else {
@@ -815,12 +815,12 @@ public final class PlatformAPI {
             latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
                 db: db,
                 latestMessageRowsByChatGUID,
-                currentUserID: currentUserID,
+                currentUserID: currentUser.id,
                 accountID: accountID
             ),
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
             dndState: permanentDNDThreadIDs(),
-            currentUserID: currentUserID,
+            currentUser: currentUser,
             accountID: accountID
         )
         let threads = try chatRows.map { try ThreadMapper.mapAndHashThread($0, context: context) }
@@ -842,7 +842,7 @@ public final class PlatformAPI {
     nonisolated static func getThread(
         db: IMDatabase,
         threadID publicThreadID: String,
-        currentUserID: String,
+        currentUser: CurrentUser,
         accountID: String
     ) throws -> JSONObject? {
         let threadID = try originalThreadID(db: db, publicThreadID)
@@ -856,12 +856,12 @@ public final class PlatformAPI {
             latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
                 db: db,
                 latestMessageRowsByChatGUID,
-                currentUserID: currentUserID,
+                currentUserID: currentUser.id,
                 accountID: accountID
             ),
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
             dndState: permanentDNDThreadIDs(),
-            currentUserID: currentUserID,
+            currentUser: currentUser,
             accountID: accountID
         )
         return try ThreadMapper.mapAndHashThread(chatRow, context: context)

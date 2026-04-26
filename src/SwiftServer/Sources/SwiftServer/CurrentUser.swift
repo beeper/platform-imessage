@@ -2,7 +2,7 @@ import Foundation
 import IMDatabase
 import SwiftServerFoundation
 
-struct CurrentUser: Encodable {
+struct CurrentUser: Encodable, Sendable {
     var id: String
     var displayText: String
     var email: String?

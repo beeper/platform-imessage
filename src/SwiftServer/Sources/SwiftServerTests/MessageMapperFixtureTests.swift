@@ -43,7 +43,7 @@ private let mapperFixtures = [
             "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0_1",
             "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0_2",
         ],
-        texts: ["{{sender}} unsent a message", "{{sender}} unsent a message", "a"],
+        texts: ["a", "{{sender}} unsent a message", "{{sender}} unsent a message"],
         attachmentCounts: [0, 0, 0],
         reactionCounts: [0, 0, 0]
     ),
@@ -53,16 +53,14 @@ private let mapperFixtures = [
             "3BC3F988-3263-4200-9863-8EBD537FE7EB",
             "3BC3F988-3263-4200-9863-8EBD537FE7EB_1",
             "3BC3F988-3263-4200-9863-8EBD537FE7EB_2",
-            "3BC3F988-3263-4200-9863-8EBD537FE7EB_3",
         ],
         texts: [
-            "begin middle multiple adjacent unsend",
+            "begin middle multiple adjacent unsendend middle multiple adjacent unsend",
             "{{sender}} unsent a message",
             "{{sender}} unsent a message",
-            "end middle multiple adjacent unsend",
         ],
-        attachmentCounts: [0, 0, 0, 0],
-        reactionCounts: [0, 0, 0, 0]
+        attachmentCounts: [0, 0, 0],
+        reactionCounts: [0, 0, 0]
     ),
     MapperFixture(
         fileName: "partial_trailing_unsends",

@@ -152,12 +152,15 @@ public extension IMDatabase {
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        INNER JOIN (
-          SELECT chat_id, MAX(message_date) AS latest_message_date
-          FROM chat_message_join
-          WHERE chat_id IN (\(placeholders))
-          GROUP BY chat_id
-        ) AS latest ON latest.chat_id = cmj.chat_id AND latest.latest_message_date = cmj.message_date
+        WHERE cmj.chat_id IN (\(placeholders))
+        AND m.ROWID = (
+          SELECT latest.message_id
+          FROM chat_message_join AS latest
+          INNER JOIN message AS latest_message ON latest_message.ROWID = latest.message_id
+          WHERE latest.chat_id = cmj.chat_id
+          ORDER BY latest_message.date DESC
+          LIMIT 1
+        )
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })

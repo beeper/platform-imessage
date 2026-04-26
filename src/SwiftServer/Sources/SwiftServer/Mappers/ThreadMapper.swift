@@ -12,7 +12,7 @@ enum ThreadMapper {
         var latestMessagesByChatGUID: [String: [JSONObject]]
         var unreadCounts: [Int: Int]
         var dndState: Set<String>
-        var currentUserID: String
+        var currentUser: CurrentUser
         var accountID: String
     }
 
@@ -42,16 +42,15 @@ enum ThreadMapper {
         let guid = chat.string("guid") ?? ""
         let handleRows = context.handleRowsByChatRowID[chat.int("ROWID") ?? -1] ?? []
         let messages = context.latestMessagesByChatGUID[guid] ?? []
-        let selfID = chat.string("last_addressed_handle") ?? chat.string("account_login").map(mapAccountLogin) ?? context.currentUserID
+        let selfID = chat.string("last_addressed_handle").flatMap(\.nonEmpty)
+            ?? chat.string("account_login").map(mapAccountLogin).flatMap(\.nonEmpty)
+            ?? context.currentUser.id
         let firstParticipantID = handleRows.first?.string("participantID")
 
         let chatDisplayName = chat.string("display_name")
         var participants = handleRows.compactMap { mapParticipant($0, chatDisplayName: chatDisplayName) }
-        if context.currentUserID != firstParticipantID {
-            var selfParticipant = mapParticipant(["participantID": selfID], chatDisplayName: nil) ?? [:]
-            selfParticipant["id"] = context.currentUserID
-            selfParticipant["isSelf"] = true
-            participants.append(selfParticipant)
+        if context.currentUser.id != firstParticipantID {
+            participants.append(mapSelfParticipant(selfID: selfID, currentUserID: context.currentUser.id))
         }
 
         let isGroup = chat.string("room_name")?.isEmpty == false
@@ -146,6 +145,13 @@ enum ThreadMapper {
         if !isPhone, let uncanonicalizedID {
             participant["id"] = uncanonicalizedID
         }
+        return participant
+    }
+
+    private static func mapSelfParticipant(selfID: String, currentUserID: String) -> JSONObject {
+        var participant = mapParticipant(["participantID": selfID], chatDisplayName: nil) ?? [:]
+        participant["id"] = currentUserID
+        participant["isSelf"] = true
         return participant
     }
 

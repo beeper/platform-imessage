@@ -26,9 +26,11 @@ extension Mapper {
             let partNumber = part.flatMap(Int.init)
 
             if let partNumber {
-                let expectedPartNumber = (lastSeenPart ?? -1) + 1
-                if partNumber > expectedPartNumber, deletedParts.contains(partNumber - 1) {
-                    let unsentParts = partNumber - expectedPartNumber
+                if let lastSeenPart,
+                   lastSeenPart != 0,
+                   partNumber > lastSeenPart + 1,
+                   deletedParts.contains(partNumber - 1) {
+                    let unsentParts = partNumber - lastSeenPart - 1
                     let startingIndexOfSent = fragment.scalarRange.lowerBound + unsentParts
                     for unsentIndex in (startingIndexOfSent - unsentParts) ..< startingIndexOfSent {
                         parts.append(.unsent(index: parts.count, end: unsentIndex + 1))

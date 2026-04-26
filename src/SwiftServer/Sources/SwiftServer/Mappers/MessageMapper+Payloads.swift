@@ -100,7 +100,8 @@ extension Mapper {
     func applePayProps(from payloadData: Any) -> JSONObject {
         guard let payload = payloadData as? JSONObject,
               let objects = payload["NS.objects"] as? [Any],
-              let heading = objects.first as? String else {
+              let heading = objects.first as? String,
+              !heading.hasPrefix("data:;base64,") else {
             return [:]
         }
         return ["textHeading": heading]
@@ -160,7 +161,8 @@ extension Mapper {
     ) -> JSONObject? {
         guard let linkURL,
               isXHost(linkURL) || (originalURL.map(isXHost) ?? false),
-              let parsedTweet = parseTweetURL(originalURL ?? linkURL),
+              let originalURL,
+              let parsedTweet = parseTweetURL(originalURL),
               let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex"),
               let imgURL = payloadAttachments[safe: iconIndex]?.string("srcURL") else {
             return nil
