@@ -5,6 +5,7 @@ import Contacts
 import Darwin
 import Foundation
 import SwiftServer
+import SwiftServerFoundation
 
 private let accountID = "default"
 private let prompt = "imessage> "
@@ -48,7 +49,7 @@ struct PlatformCLI: AsyncParsableCommand {
             keepAlive: stayOpen,
             loggingEnabled: verbose,
             subscribeToEvents: !noEvents,
-            useSecondaryInstance: useSecondaryInstance || ProcessInfo.processInfo.environment["IMESSAGE_USE_SECONDARY_INSTANCE"] != nil
+            useSecondaryInstance: useSecondaryInstance || PlatformEnvironment.useSecondaryInstance
         )
         try await Runner(options: options).run()
     }
@@ -997,7 +998,7 @@ private func absolutePath(_ path: String) -> String {
 }
 
 private func elapsedMilliseconds(since date: Date) -> String {
-    String(format: "%.3f", Date().timeIntervalSince(date) * 1000)
+    String(format: "%.3f", date.elapsedMilliseconds)
 }
 
 private func prettyJSONString(_ raw: String) -> String {

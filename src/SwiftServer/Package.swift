@@ -84,6 +84,7 @@ let package = Package(
             name: "PlatformCLI",
             dependencies: [
                 "SwiftServer",
+                "SwiftServerFoundation",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),

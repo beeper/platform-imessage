@@ -136,10 +136,7 @@ func waitForFileToExist(_ filePath: String, maxWait: TimeInterval) -> Bool {
 }
 
 func replaceTilde(_ string: String) -> String {
-    guard string.first == "~" else {
-        return string
-    }
-    return NSHomeDirectory() + String(string.dropFirst())
+    (string as NSString).expandingTildeInPath
 }
 
 struct System {

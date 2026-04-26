@@ -1,6 +1,6 @@
 import Foundation
 
-enum PlatformEnvironment {
+public enum PlatformEnvironment {
     private static let skipEagerMCKey = "IMESSAGE_SKIP_EAGER_MC"
     private static let stripInternalFieldsKey = "IMESSAGE_STRIP_INTERNAL_FIELDS"
     private static let loggingDirectoryKey = "IMESSAGE_LOGGING_DIR_PATH"
@@ -8,6 +8,10 @@ enum PlatformEnvironment {
 
     static var stripInternalFields: Bool {
         ProcessInfo.processInfo.environment[stripInternalFieldsKey] == "1"
+    }
+
+    public static var useSecondaryInstance: Bool {
+        ProcessInfo.processInfo.environment[secondaryInstanceKey] != nil
     }
 
     static func applyCLIDefaults() {

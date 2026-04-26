@@ -112,12 +112,10 @@ extension Mapper {
         }
         return [
             "attachments": [],
-            "links": [[
-                "title": unwrapped["ldtext"] as Any,
-                "url": relativeURL(unwrapped["URL"]) as Any,
-            ].compactMapValues { value in
-                value is NSNull ? nil : value
-            }],
+            "links": [compactDictionary([
+                "title": unwrapped["ldtext"],
+                "url": relativeURL(unwrapped["URL"]),
+            ])],
         ]
     }
 

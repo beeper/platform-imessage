@@ -1,4 +1,5 @@
 import Foundation
+import SwiftServerFoundation
 
 func appleDateMilliseconds(_ appleDate: String?) -> Int64? {
     guard let appleDate, appleDate != "0", let nanos = Int64(appleDate) else {
@@ -117,7 +118,7 @@ private func legacyAssetURL(path: String) -> String {
 }
 
 func fileAttachmentAssetURL(filePath: String) -> String {
-    legacyAssetURL(path: filePath.utf8.map { String(format: "%02x", $0) }.joined())
+    legacyAssetURL(path: Array(filePath.utf8).hexString())
 }
 
 func digitalTouchAssetURL(uuid: String) -> String {

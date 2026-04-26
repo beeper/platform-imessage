@@ -2,7 +2,7 @@ import Foundation
 
 extension Mapper {
     func attachment(from attachmentRow: JSONObject) -> JSONObject? {
-        guard attachmentRow["transfer_state"] != nil else {
+        guard attachmentRow.hasValue("transfer_state") else {
             return nil
         }
         let ext = attachmentRow.string("ext") ?? ""

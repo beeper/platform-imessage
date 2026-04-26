@@ -1226,11 +1226,10 @@ extension PlatformAPI {
         switch pathHex {
         case "hw":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
-            let fileNames = try FileManager.default.contentsOfDirectory(atPath: MessagesPaths.temporaryMobileSMSPath)
-            var attemptsRemaining = 10
-            while attemptsRemaining > 0 {
-                attemptsRemaining -= 1
-                if let fileName = fileNames.first(where: { $0.hasPrefix("hw_\(uuid)_") }) {
+            let prefix = "hw_\(uuid)_"
+            for _ in 0 ..< 10 {
+                let fileNames = (try? FileManager.default.contentsOfDirectory(atPath: MessagesPaths.temporaryMobileSMSPath)) ?? []
+                if let fileName = fileNames.first(where: { $0.hasPrefix(prefix) }) {
                     return .url(fileURLString(MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent(fileName).path))
                 }
                 Thread.sleep(forTimeInterval: 0.1)
