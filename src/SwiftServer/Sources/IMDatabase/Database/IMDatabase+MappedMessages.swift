@@ -75,6 +75,24 @@ public extension IMDatabase {
         }.first
     }
 
+    func mappedMessageRows(rowIDs: [Int]) throws -> [[String: Any]] {
+        guard !rowIDs.isEmpty else { return [] }
+        let messageColumns = try tableColumns("message")
+        let sql = """
+        SELECT
+        \(messageSelectionSQL(messageColumns: messageColumns))
+        FROM message AS m
+        \(messageJoins)
+        WHERE m.ROWID IN (\(rowIDs.map { _ in "?" }.joined(separator: ", ")))
+        ORDER BY m.date DESC
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind(rowIDs.map { $0 as any SQLiteBindable })
+        return try statement.mapRowsUntilDone { row in
+            try row.object(columnNames: messageSelectionNames(messageColumns: messageColumns))
+        }
+    }
+
     func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: [String: Any]] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let messageColumns = try tableColumns("message")

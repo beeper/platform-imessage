@@ -11,14 +11,14 @@ import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapMessages, reviveSwiftMapperValue } from './mappers'
+import { reviveSwiftMapperValue } from './mappers'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
-import DatabaseAPI, { MESSAGES_LIMIT } from './db-api'
+import DatabaseAPI from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus, type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import { hashMessage, hashParticipantID, hashThreadID, originalThreadID } from './hashing'
+import { hashParticipantID, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
@@ -332,35 +332,15 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
-    const db = await this.ensureDB()
-    const hashedThreadID = options?.threadID
-    const threadID = hashedThreadID ? await this.resolveThreadID(hashedThreadID) : hashedThreadID
-    const mediaOnly = Boolean(options?.mediaType)
-
-    // Use Swift to search - it properly decodes attributedBody and filters by actual message text
-    // This avoids false positives from binary plist metadata (e.g., "NSString" matching "string")
-    const matchingRowIDs = await swiftServer.searchMessages(typed, threadID, mediaOnly, options?.sender, MESSAGES_LIMIT)
-
-    if (matchingRowIDs.length === 0) {
-      return { items: [], hasMore: false, oldestCursor: '' }
-    }
-
-    // Fetch full message data for the matching ROWIDs
-    const msgRows = await db.getMessagesByRowIDs(matchingRowIDs)
-
-    const msgRowIDs = msgRows.map(m => m.ROWID)
-    const msgGUIDs = msgRows.map(m => m.guid)
-    const [attachmentRows, reactionRows] = msgRows.length === 0 ? [[], []] : await Promise.all([
-      db.getAttachments(msgRowIDs),
-      threadID ? db.getMessageReactions(msgGUIDs, { type: 'guid', guid: threadID }) : [],
-    ])
-    const items = mapMessages(msgRows, attachmentRows, reactionRows, this.currentUser!.id, this.accountID)
-    return {
-      // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
-      items: items.map(hashMessage) as Message[],
-      hasMore: matchingRowIDs.length === MESSAGES_LIMIT,
-      oldestCursor: msgRows[0]?.date?.toString(),
-    }
+    await this.ensureDB()
+    const swiftAPI = this.getSwiftPlatformAPI()
+    return parseSwiftMessageAPIJSON<PaginatedWithCursors<Message>>(await swiftAPI.searchMessages(
+      typed,
+      options?.threadID,
+      Boolean(options?.mediaType),
+      options?.sender,
+      undefined,
+    ))
   }
 
   private swiftSendQueue = new PQueue({ concurrency: 1, timeout: 45_000 })

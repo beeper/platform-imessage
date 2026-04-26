@@ -1,39 +1,14 @@
 import path from 'path'
-import { maxBy, memoize } from 'lodash'
+import { memoize } from 'lodash'
 import { OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
-import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
+import { CHAT_DB_PATH, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
 import { hashThreadID } from './hashing'
 import IMAGE_EXTS from './image-exts.json'
-import type { ChatRow, MappedAttachmentRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import type { ChatRow, MappedAttachmentRow } from './types'
 import swiftServer from './SwiftServer/lib'
-
-export const MESSAGES_LIMIT = 20
-
-const MESSAGE_JOINS = `LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-LEFT JOIN handle AS h ON m.handle_id = h.ROWID
-LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID`
-
-let MAP_MESSAGES_COLS = `
-m.*,
-t.guid AS threadID,
-t.room_name,
-h.id AS participantID,
-oh.id AS otherID,
-
-CAST(m.date AS TEXT) AS dateString,
-CAST(m.date_read AS TEXT) AS dateReadString,
-CAST(m.date_delivered AS TEXT) AS dateDeliveredString`
-if (IS_VENTURA_OR_UP) {
-  MAP_MESSAGES_COLS += `,
-CAST(m.date_edited AS TEXT) AS dateEditedString,
-CAST(m.date_retracted AS TEXT) AS dateRetractedString`
-}
-
-const dateExpr = (op?: '<' | '>') => (op === '>' && IS_VENTURA_OR_UP ? 'MAX(m.date, COALESCE(m.date_edited, 0))' : 'm.date')
 
 const SQLS = {
   getThread: 'SELECT * FROM chat WHERE guid = ?',
@@ -51,26 +26,6 @@ FROM message AS m
 LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
 LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
 WHERE m.ROWID IN (${new Array(msgIDs.length).fill('?').join(', ')})`,
-  getMessageReactions: (msgGUIDs: string[]) => `SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, ${IS_SEQUOIA_OR_UP ? 'associated_message_emoji,' : ''} h.id AS participantID
-FROM message AS m
-LEFT JOIN handle AS h ON m.handle_id = h.ROWID
-LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (${msgGUIDs.map(() => '?').join(',')})
-AND chat_id = ?`,
-  getMessagesWithChatRowID: (dateComparisonOperator?: '<' | '>', limit = MESSAGES_LIMIT) => `SELECT
-${MAP_MESSAGES_COLS}
-FROM message AS m
-${MESSAGE_JOINS}
-WHERE cmj.chat_id = ?
-${dateComparisonOperator ? `AND ${dateExpr(dateComparisonOperator)} ${dateComparisonOperator} ?` : ''}
-ORDER BY date ${dateComparisonOperator === '>' ? 'ASC' : 'DESC'}
-LIMIT ${limit}`,
-  getMessagesByRowIDs: (rowIDs: number[]) => `SELECT
-${MAP_MESSAGES_COLS}
-FROM message AS m
-${MESSAGE_JOINS}
-WHERE m.ROWID IN (${new Array(rowIDs.length).fill('?').join(', ')})
-ORDER BY date DESC`,
   threadUnreadCount: `SELECT COUNT(m.ROWID)
 FROM message AS m
 INNER JOIN chat_message_join AS cmj ON m.ROWID = cmj.message_id
@@ -129,12 +84,6 @@ export default class DatabaseAPI {
     return this.db.dispose()
   }
 
-  // this should ideally be fetched from swiftserver
-  async getUnreadCounts(): Promise<Map<number /* chat rowid */, number>> {
-    const rows = await this.db.all<[], { unread_count: number, chat_id: number }>(SQLS.getUnreadCounts)
-    return new Map(rows.map(row => [row.chat_id, row.unread_count]))
-  }
-
   getAccountLogins = (): Promise<string[]> =>
     this.db.pluck_all<void[], string>(SQLS.getAccountLogins)
 
@@ -165,30 +114,6 @@ export default class DatabaseAPI {
       this.getMaxDateRead(),
     ])
     await this.startPollingIfNecessary(lastRowID, maxDateRead)
-  }
-
-  setLastCursor(allMsgRows: MappedMessageRow[]) {
-    if (!allMsgRows.length) return
-    // FIXME: use columns that don't drop precision
-    const maxDateRead = maxBy(allMsgRows, msgRow => {
-      const largestSigned64BitInt = '9223372036854775807'
-      // Try to guard against bogus read dates. Not sure what causes these to
-      // be committed to the database.
-      if (msgRow.dateReadString >= largestSigned64BitInt) {
-        texts.error(`imsg: detected unreasonably large date_read on message ROWID ${msgRow.ROWID}: ${msgRow.dateReadString}`)
-        return 0
-      }
-
-      return msgRow.date_read
-    })!.date_read
-    const maxRowID = maxBy(allMsgRows, 'ROWID')!.ROWID
-    if (maxRowID > this.lastRowID) {
-      this.lastRowID = maxRowID
-    }
-    if (maxDateRead > this.lastDateRead) {
-      this.lastDateRead = maxDateRead
-    }
-    this.startPollingIfNecessary(maxRowID, maxDateRead)
   }
 
   async getThread(chatGUID: string): Promise<ChatRow | undefined> {
@@ -228,11 +153,6 @@ export default class DatabaseAPI {
     return fileName ? replaceTilde(fileName) : undefined
   }
 
-  getMessagesByRowIDs(rowIDs: number[]): Promise<MappedMessageRow[]> {
-    if (rowIDs.length === 0) return Promise.resolve([])
-    return this.db.all<number[], MappedMessageRow>(SQLS.getMessagesByRowIDs(rowIDs), ...rowIDs)
-  }
-
   private imageSizeMemoized = memoize(swiftServer.getImageMetadata)
 
   async getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
@@ -260,18 +180,6 @@ export default class DatabaseAPI {
       }
       return a
     }))
-  }
-
-  async getMessageReactions(msgGUIDs: string[], chat: ChatRef): Promise<MappedReactionMessageRow[]> {
-    let chatRowID: number
-    if (chat.type === 'guid') {
-      chatRowID = await this.resolveChatRowID(chat.guid)
-    } else {
-      chatRowID = chat.rowid
-    }
-
-    const bindings = [...msgGUIDs, chatRowID]
-    return this.db.all<typeof bindings, MappedReactionMessageRow>(SQLS.getMessageReactions(msgGUIDs), ...bindings)
   }
 
   getLastMessageRowID = async (): Promise<number> => {

@@ -1,4 +1,4 @@
-import { groupBy, omit } from 'lodash'
+import { omit } from 'lodash'
 
 import { stringifyWithArrayBuffers } from './util'
 import swiftServer from './SwiftServer/lib'
@@ -6,8 +6,6 @@ import type { MappedAttachmentRow, MappedMessageRow, MappedReactionMessageRow } 
 import { BeeperMessage } from './desktop-types'
 
 const IMESSAGE_STRIP_INTERNAL_FIELDS = process.env.IMESSAGE_STRIP_INTERNAL_FIELDS === '1'
-
-const assocMsgGuidPrefix = /^p:([-\d]+)\/|bp:/
 
 const serializeMessageRow = (msgRow: MappedMessageRow) =>
   omit(msgRow, ['attributedBody', 'message_summary_info'])
@@ -47,14 +45,4 @@ export function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttac
     attachmentRows,
     currentUserID,
   )
-}
-
-// @ts-expect-error FIXME(skip): argument ordering
-// eslint-disable-next-line @typescript-eslint/default-param-last
-export function mapMessages(messages: MappedMessageRow[], attachmentRows?: MappedAttachmentRow[], reactionRows?: MappedReactionMessageRow[], currentUserID: string, accountID: string): BeeperMessage[] {
-  const groupedAttachmentRows = groupBy(attachmentRows, 'msgRowID')
-  const groupedReactionRows = groupBy(reactionRows, r => r.associated_message_guid.replace(assocMsgGuidPrefix, ''))
-  return messages
-    .flatMap(message => mapMessage(message, groupedAttachmentRows[message.ROWID], groupedReactionRows[message.guid], currentUserID, accountID))
-    .filter(Boolean)
 }

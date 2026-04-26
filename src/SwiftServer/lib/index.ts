@@ -4,13 +4,6 @@ import type { OnServerEventCallback, Size, ThreadID } from '@textshq/platform-sd
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
-export interface Fragment {
-  from: number
-  to: number
-  text: string
-  attributes: { [key: string]: string }
-}
-
 export const enum ActivityStatus {
   DND = 'DND',
   DNDCanNotify = 'DND_CAN_NOTIFY',
@@ -72,6 +65,8 @@ export declare class SwiftPlatformAPI {
   getThreads: (folderName: string, cursor: string | undefined, direction: 'after' | 'before' | undefined) => Promise<string>
 
   getThread: (threadID: string) => Promise<string>
+
+  searchMessages: (query: string, threadID: string | undefined, mediaOnly: boolean | undefined, sender: string | undefined, limit?: number) => Promise<string>
 }
 
 // purely for headless (REPL) tab-autocomplete
@@ -100,11 +95,8 @@ export type SwiftServer = {
   isMessagesAppInDock: string
   isNotificationsEnabledForMessages: boolean
 
-  decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   mapMessageJSON: (inputJSON: string) => string
   getImageMetadata: (filePath: string) => Promise<Size | undefined>
-  /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
-  searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>
   PlatformAPI: typeof SwiftPlatformAPI
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
@@ -120,8 +112,6 @@ export type SwiftServer = {
   killDock: () => void
 
   disableSoundEffects: () => void
-
-  getDNDList: () => string[]
 
   cancelPollingIfNecessary: () => void
   startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void

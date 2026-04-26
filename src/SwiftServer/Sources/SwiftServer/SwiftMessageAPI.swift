@@ -79,6 +79,22 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
         }
     }
 
+    @NodeMethod func searchMessages(query: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
+        let currentUserID = currentUserID
+        let accountID = accountID
+        return try await Self.offNodeActor {
+            try Self.searchMessages(
+                query: query,
+                threadID: threadID,
+                mediaOnly: mediaOnly ?? false,
+                sender: sender,
+                currentUserID: currentUserID,
+                accountID: accountID,
+                limit: limit
+            )
+        }
+    }
+
     nonisolated static func getThreads(
         folderName: String,
         cursor: String?,
@@ -210,6 +226,51 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
             return jsonNull
         }
         return try encodeJSON(message)
+    }
+
+    nonisolated static func searchMessages(
+        query: String,
+        threadID publicThreadID: String?,
+        mediaOnly: Bool,
+        sender: String?,
+        currentUserID: String,
+        accountID: String,
+        limit: Int? = nil
+    ) throws -> String {
+        let db = try IMDatabase()
+        let threadID = try publicThreadID.map { try originalThreadID($0, db: db) }
+        let effectiveLimit = limit ?? messagePageLimit
+        let matchingRowIDs = try db.searchMessages(
+            query: query,
+            chatGUID: threadID,
+            mediaOnly: mediaOnly,
+            sender: sender,
+            limit: effectiveLimit
+        )
+        guard !matchingRowIDs.isEmpty else {
+            return try encodeJSON([
+                "items": [],
+                "hasMore": false,
+                "oldestCursor": "",
+            ])
+        }
+
+        let msgRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
+        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRows.compactMap { $0.int("ROWID") }))
+        let messageGUIDs = msgRows.compactMap { $0.string("guid") }
+        let reactionRows = try threadID.map { try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatGUID: $0) } ?? []
+        let messages = try mapAndHashMessages(
+            msgRows: msgRows,
+            attachmentRows: attachmentRows,
+            reactionRows: reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        return try encodeJSON([
+            "items": messages,
+            "hasMore": matchingRowIDs.count == effectiveLimit,
+            "oldestCursor": msgRows.first?.string("date") ?? "",
+        ])
     }
 }
 

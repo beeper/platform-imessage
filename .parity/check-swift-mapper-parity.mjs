@@ -19,6 +19,8 @@ const unwrapDefault = value => {
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.basename(scriptDir) === 'scripts' ? path.resolve(scriptDir, '..') : process.cwd()
 const injectGlobals = unwrapDefault(platformTestLib)
+const referenceSwiftServerNodePath = '/Applications/Beeper Nightly.app/Contents/Resources/app/build/platform-imessage/darwin-arm64/SwiftServer.node'
+const referenceBinariesDirPath = path.dirname(path.dirname(referenceSwiftServerNodePath))
 
 process.env.IMESSAGE_SKIP_EAGER_MC ??= '1'
 process.env.IMESSAGE_STRIP_INTERNAL_FIELDS ??= '1'
@@ -36,7 +38,7 @@ const args = new Map(
   }),
 )
 
-const binariesDirPathLiteral = JSON.stringify(path.join(repoRoot, 'binaries'))
+const binariesDirPathLiteral = JSON.stringify(referenceBinariesDirPath)
 const buildBanner = `globalThis.texts={IS_DEV:true,isLoggingEnabled:false,log(){},error(){},constants:{USER_AGENT:'platform-imessage-parity',APP_VERSION:'1.0.0'},Sentry:{captureException(){},captureMessage(){},startTransaction(){}},async trackPlatformEvent(){},getBinariesDirPath(){return ${binariesDirPathLiteral}},fetch:globalThis.fetch,fetchStream:undefined,createHttpClient:undefined,nativeFetch:undefined,nativeFetchStream:undefined,runWorker:undefined,forkChildProcess:undefined,getOriginalObject:undefined,openBrowserWindow:undefined};`
 
 async function pathExists(filePath) {

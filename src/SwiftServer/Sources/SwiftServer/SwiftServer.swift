@@ -170,35 +170,8 @@ private func offNodeActor<T: Sendable>(
             }
         },
 
-        "decodeAttributedString": NodeFunction { (data: Data) in
-            guard let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
-                return undefined
-            }
-            return decoded.map { [
-                "from": Double($0.scalarRange.lowerBound),
-                "to": Double($0.scalarRange.upperBound),
-                "text": "\($0.text)",
-                "attributes": $0.attributes.mapValues { "\($0)" }
-            ]
-            }
-        },
-
         "mapMessageJSON": NodeFunction { (inputJSON: String) in
             try MessageMapper.mapMessageJSON(inputJSON)
-        },
-
-        "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> NodeValueConvertible in
-            let rowIDs = try await offNodeActor {
-                let db = try IMDatabase()
-                return try db.searchMessages(
-                    query: query,
-                    chatGUID: chatGUID,
-                    mediaOnly: mediaOnly ?? false,
-                    sender: sender,
-                    limit: limit ?? 20
-                )
-            }
-            return rowIDs as [NodeValueConvertible]
         },
 
         "getImageMetadata": NodeFunction { (filePath: String) async throws -> NodeValueConvertible in
@@ -230,14 +203,6 @@ private func offNodeActor<T: Sendable>(
 
         "disableSoundEffects": NodeFunction {
             Defaults.playSoundEffects = false
-        },
-
-        "getDNDList": NodeFunction {
-            guard let dict = Defaults.getDNDList() else {
-                return undefined
-            }
-            let list = dict.compactMap { $0.value == Int(Date.distantFuture.timeIntervalSince1970) ? $0.key : nil }
-            return list as [NodeValueConvertible]
         },
 
         "revealSettings": NodeFunction {
