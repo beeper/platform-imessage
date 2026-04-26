@@ -25,7 +25,7 @@ extension PASEvent: NodeValueConvertible {
         ])
         case let .refreshMessagesInThread(id): return try NodeObject([
             "type": "thread_messages_refresh",
-            "threadID": id
+            "threadID": id,
         ])
         case let .stateSyncThread(id, patch):
             let entry = try NodeObject(coercing: patch)

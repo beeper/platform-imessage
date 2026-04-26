@@ -12,7 +12,7 @@ public extension Message {
         let entire = NSRange(location: 0, length: body.length)
 
         var parts = [Message.Part]()
-        body.enumerateAttribute(.imPart, in: entire) { rawIndex, range, _ in
+        body.enumerateAttribute(.imPart, in: entire) { rawIndex, range, stop in
             guard let index = rawIndex as? Int else {
                 log.warning("encountered non-integer message part index: \(rawIndex, default: "nil")")
                 return
