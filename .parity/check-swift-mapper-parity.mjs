@@ -46,7 +46,8 @@ function parseLimit(value, argName) {
 
 const formatLimit = value => Number.isFinite(value) ? value : 'all'
 
-const defaultReferenceSwiftServerNodePath = '/Applications/Beeper Nightly.app/Contents/Resources/app/build/platform-imessage/darwin-arm64/SwiftServer.node'
+const referenceRoot = path.resolve(args.get('reference-root') ?? path.join(repoRoot, '.parity/platform-imessage-main'))
+const defaultReferenceSwiftServerNodePath = path.join(referenceRoot, 'binaries', `${process.platform}-${process.arch}`, 'SwiftServer.node')
 const referenceSwiftServerNodePath = args.get('reference-swift-server-node') ?? defaultReferenceSwiftServerNodePath
 const referenceBinariesDirPath = path.dirname(path.dirname(referenceSwiftServerNodePath))
 
@@ -83,7 +84,6 @@ async function readDefaultReferenceRef() {
 }
 
 async function ensureReferenceAPI() {
-  const referenceRoot = path.resolve(args.get('reference-root') ?? path.join(repoRoot, '.parity/platform-imessage-main'))
   const referenceRef = args.get('reference-ref') ?? await readDefaultReferenceRef()
   const bundlePath = path.join(referenceRoot, '.parity-platform-api.compiled.mjs')
   if (!await pathExists(path.join(referenceRoot, 'package.json'))) {
@@ -91,6 +91,8 @@ async function ensureReferenceAPI() {
     exec('git', ['worktree', 'add', '--detach', referenceRoot, referenceRef], repoRoot)
   }
   if (!args.has('skip-reference-rebuild') || args.has('rebuild-reference') || !await pathExists(bundlePath)) {
+    exec('yarn', [], referenceRoot)
+    exec('bun', ['build:swift', '--standalone'], referenceRoot)
     exec('bun', [
       'build',
       'src/api.ts',
@@ -135,6 +137,10 @@ const searchScopes = (args.get('search-scopes') ?? 'global,thread')
   .split(',')
   .map(scope => scope.trim())
   .filter(Boolean)
+const explicitThreadIDs = (args.get('thread-ids') ?? '')
+  .split(',')
+  .map(threadID => threadID.trim())
+  .filter(Boolean)
 
 const dateFields = new Set(['timestamp', 'seen', 'editedTimestamp'])
 
@@ -145,7 +151,7 @@ function normalize(value, key) {
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
-        .filter(([entryKey, entryValue]) => entryKey !== '_original' && entryValue !== undefined)
+        .filter(([entryKey, entryValue]) => entryKey !== '_original' && entryValue != null)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([entryKey, entryValue]) => [entryKey, normalize(entryValue, entryKey)]),
     )
@@ -369,13 +375,13 @@ try {
   await api.init({}, { accountID: 'default', dataDirPath })
   await referenceAPI.init({}, { accountID: 'default', dataDirPath: referenceDataDirPath })
 
-  const threads = []
+  const threads = explicitThreadIDs.map(id => ({ id }))
   const failures = []
   let threadCursor
   let threadPagesChecked = 0
   let getThreadsPagesChecked = 0
   const targetThreadCount = Number.isFinite(chatLimit) ? skipChats + chatLimit : Infinity
-  while (threads.length < targetThreadCount) {
+  while (explicitThreadIDs.length === 0 && threads.length < targetThreadCount) {
     let page
     try {
       const pagination = threadCursor ? { cursor: threadCursor, direction: 'before' } : undefined
@@ -429,9 +435,11 @@ try {
     }
   }
 
-  const selectedThreads = Number.isFinite(chatLimit)
-    ? threads.slice(skipChats, skipChats + chatLimit)
-    : threads.slice(skipChats)
+  const selectedThreads = explicitThreadIDs.length > 0
+    ? threads
+    : (Number.isFinite(chatLimit)
+      ? threads.slice(skipChats, skipChats + chatLimit)
+      : threads.slice(skipChats))
   for (const [index, thread] of selectedThreads.entries()) {
     const checkedThreadCount = index + 1
     const threadIndex = skipChats + checkedThreadCount
