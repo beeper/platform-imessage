@@ -75,7 +75,9 @@ public extension IMDatabase {
         }
     }
 
-    func mappedUnreadCounts() throws -> [Int: Int] {
+    func mappedUnreadCounts(chatRowIDs: [Int]) throws -> [Int: Int] {
+        guard !chatRowIDs.isEmpty else { return [:] }
+        let placeholders = chatRowIDs.map { _ in "?" }.joined(separator: ", ")
         let sql = """
         SELECT
           cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
@@ -86,23 +88,16 @@ public extension IMDatabase {
           m.item_type == 0
           AND m.is_read == 0
           AND m.is_from_me == 0
+          AND cm.chat_id IN (\(placeholders))
         GROUP BY
           cm.chat_id
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
         return try statement.mapRowsUntilDone { row in
             (try row[0].expectConverting(Int.self), try row[1].expectConverting(Int.self))
         }.reduce(into: [:]) { result, pair in
             result[pair.0] = pair.1
-        }
-    }
-}
-
-private extension IMDatabase {
-    func tableColumns(_ tableName: String) throws -> [String] {
-        let statement = try Statement.prepare(escapedSQL: "PRAGMA table_info(\(tableName))", for: database)
-        return try statement.mapRowsUntilDone { row in
-            try row[1].expect(String.self)
         }
     }
 }
@@ -117,32 +112,4 @@ private func chatSelectionSQL(chatColumns: [String]) -> String {
         .filter { $0 != "ROWID" }
         .map { "chat.\($0) AS \($0)" }
     return selections.joined(separator: ",\n")
-}
-
-private extension Row {
-    borrowing func object(columnNames: [String]) throws -> [String: Any] {
-        var result = [String: Any]()
-        for (index, name) in columnNames.enumerated() {
-            result[name] = try value(at: index)
-        }
-        return result
-    }
-
-    borrowing func value(at index: Int) throws -> Any {
-        switch self[index].type {
-        case .integer:
-            return try self[index].expectConverting(Int.self)
-        case .float:
-            return try self[index].expectConverting(Double.self)
-        case .text:
-            return try self[index].expect(String.self)
-        case .blob:
-            let data = try self[index].expect(Data.self)
-            return "data:;base64,\(data.base64EncodedString())"
-        case .null:
-            return NSNull()
-        default:
-            return NSNull()
-        }
-    }
 }

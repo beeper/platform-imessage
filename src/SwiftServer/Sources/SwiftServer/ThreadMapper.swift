@@ -30,7 +30,7 @@ enum ThreadMapper {
     ) throws -> Context {
         let chatRowIDs = chatRows.compactMap { $0.int("ROWID") }
         let participantRows = try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs)
-        let unreadCounts = try db.mappedUnreadCounts()
+        let unreadCounts = try db.mappedUnreadCounts(chatRowIDs: chatRowIDs)
         let dndState = Set((Defaults.getDNDList() ?? [:]).compactMap { key, value in
             value == Int(Date.distantFuture.timeIntervalSince1970) ? key : nil
         })
@@ -65,9 +65,10 @@ enum ThreadMapper {
             return nil
         }
         let maxRowID = latestMessageRows.compactMap { $0.int("ROWID") }.max() ?? 0
-        let largestSigned64BitInt = "9223372036854775807"
         let maxDateRead = latestMessageRows.map { row -> Int in
-            guard (row.string("dateReadString") ?? "0") < largestSigned64BitInt else {
+            // Guard against bogus read dates that overflow Int64 — the source
+            // of these is unknown but they'd poison the polling cursor.
+            guard (row.string("dateReadString") ?? "0") < int64MaxString else {
                 return 0
             }
             return row.int("date_read") ?? 0
@@ -77,6 +78,8 @@ enum ThreadMapper {
             "maxDateRead": maxDateRead,
         ]
     }
+
+    private static let int64MaxString = String(Int.max)
 
     private static func mapThread(_ chat: JSONObject, context: Context) throws -> JSONObject {
         let guid = chat.string("guid") ?? ""

@@ -61,10 +61,3 @@ export function appleDateToMillisSinceEpoch(appleDate: AppleDate): number | unde
 export function appleDateNow(): AppleDate {
   return makeAppleDate(new Date())
 }
-
-/** Converts a {@linkcode AppleDate} to a normal {@linkcode Date}. */
-export function regularlizeAppleDate(appleDate: AppleDate): Date | undefined {
-  const millis = appleDateToMillisSinceEpoch(appleDate)
-  if (!millis) return undefined
-  return new Date(millis)
-}

@@ -294,16 +294,14 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     const cursor = pagination?.cursor ?? null
-    const response = parseSwiftMessageAPIJSON<SwiftGetThreadsResponse>(await swiftAPI.getThreads(
+    const { _pollingCursor, ...response } = parseSwiftMessageAPIJSON<SwiftGetThreadsResponse>(await swiftAPI.getThreads(
       folderName,
       pagination?.cursor,
       pagination?.direction,
     ))
-    const pollingCursor = response._pollingCursor
-    delete response._pollingCursor
-    if (!cursor && pollingCursor?.maxRowID) {
+    if (!cursor && _pollingCursor?.maxRowID) {
       // TODO: this is a polling bootstrap side effect; it should not live in a getter/non-mutating API.
-      void db.startPollingIfNecessary(pollingCursor.maxRowID, pollingCursor.maxDateRead ?? 0)
+      void db.startPollingIfNecessary(_pollingCursor.maxRowID, _pollingCursor.maxDateRead ?? 0)
     }
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
@@ -801,6 +799,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   archiveThread = async (hashedThreadID: string, archived: boolean) => {
+    const db = await this.ensureDB()
     // wait for any pending message sends/reactions before archiving. the
     // phaser has an artificial delay, which was introduced in the hopes that
     // the latest message id is used
@@ -818,8 +817,9 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     if (archived) {
-      const thread = await this.getThread(hashedThreadID)
-      if (!thread) {
+      const chatGUID = await this.resolveThreadID(hashedThreadID)
+      const chat = await db.getThread(chatGUID)
+      if (!chat) {
         texts.log(`imsg/archive/${hashedThreadID}: chat not found in iMessage, deleting from Beeper`)
         this.persistence?.deleteThreadProp(hashedThreadID, 'archive')
         this.onEvent?.([{
