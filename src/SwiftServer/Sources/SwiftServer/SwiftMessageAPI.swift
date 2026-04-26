@@ -220,12 +220,7 @@ extension PlatformAPI {
     }
 
     nonisolated static func latestThreadMessageRowsByChatGUID(chatRows: [JSONObject], db: IMDatabase) throws -> [String: JSONObject] {
-        try chatRows.reduce(into: [:]) { result, chatRow in
-            guard let guid = chatRow.string("guid") else {
-                return
-            }
-            result[guid] = try db.mappedMessageRows(in: guid, cursor: nil, direction: nil, limit: 1).first
-        }
+        try db.mappedLatestMessageRows(chatRowIDs: chatRows.compactMap { $0.int("ROWID") })
     }
 
     nonisolated static func latestThreadMessagesByChatGUID(
@@ -275,9 +270,11 @@ extension PlatformAPI {
     ) throws -> MessagePayloadRows {
         let msgRowIDs = msgRows.compactMap { $0.int("ROWID") }
         let msgGUIDs = msgRows.compactMap { $0.string("guid") }
+        let chatRowID = msgRows.first?.int("chatRowID")
         return MessagePayloadRows(
             attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRowIDs)),
-            reactionRows: try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
+            reactionRows: try chatRowID.map { try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatRowID: $0) }
+                ?? db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
         )
     }
 

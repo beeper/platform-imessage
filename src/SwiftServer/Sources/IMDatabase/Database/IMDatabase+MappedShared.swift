@@ -3,10 +3,15 @@ import SQLite
 
 extension IMDatabase {
     func tableColumns(_ tableName: String) throws -> [String] {
+        if let cached = tableColumnCache[tableName] {
+            return cached
+        }
         let statement = try Statement.prepare(escapedSQL: "PRAGMA table_info(\(tableName))", for: database)
-        return try statement.mapRowsUntilDone { row in
+        let columns = try statement.mapRowsUntilDone { row in
             try row[1].expect(String.self)
         }
+        tableColumnCache[tableName] = columns
+        return columns
     }
 }
 

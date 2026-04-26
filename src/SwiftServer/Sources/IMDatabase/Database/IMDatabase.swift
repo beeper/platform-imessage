@@ -39,6 +39,7 @@ public final class IMDatabase {
     var database: Database
 
     private var statementCache = [String: Statement]()
+    var tableColumnCache = [String: [String]]()
 
     public init(messagesDataBaseURL: URL? = nil) throws {
         self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")

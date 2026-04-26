@@ -15,10 +15,10 @@ private let osLog = os.OSLog(subsystem: "com.automattic.beeper.desktop", categor
 
 public struct SwiftServerLogHandler: LogHandler {
     var identifier: String
-    public var logLevel: SwiftLogger.Level = .debug
+    public var logLevel: SwiftLogger.Level = .info
     public var metadata: SwiftLogger.Metadata = [:]
 
-    public init(identifier: String, logLevel: SwiftLogger.Level = .debug, metadata: SwiftLogger.Metadata = [:]) {
+    public init(identifier: String, logLevel: SwiftLogger.Level = .info, metadata: SwiftLogger.Metadata = [:]) {
         self.identifier = identifier
         self.logLevel = logLevel
         self.metadata = metadata

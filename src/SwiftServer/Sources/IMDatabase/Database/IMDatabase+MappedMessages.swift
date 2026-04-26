@@ -75,6 +75,32 @@ public extension IMDatabase {
         }.first
     }
 
+    func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: [String: Any]] {
+        guard !chatRowIDs.isEmpty else { return [:] }
+        let messageColumns = try tableColumns("message")
+        let placeholders = chatRowIDs.map { _ in "?" }.joined(separator: ", ")
+        let sql = """
+        SELECT
+        \(messageSelectionSQL(messageColumns: messageColumns))
+        FROM message AS m
+        \(messageJoins)
+        INNER JOIN (
+          SELECT chat_id, MAX(message_date) AS latest_message_date
+          FROM chat_message_join
+          WHERE chat_id IN (\(placeholders))
+          GROUP BY chat_id
+        ) AS latest ON latest.chat_id = cmj.chat_id AND latest.latest_message_date = cmj.message_date
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
+        return try statement.mapRowsUntilDone { row in
+            try row.object(columnNames: messageSelectionNames(messageColumns: messageColumns))
+        }.reduce(into: [:]) { result, messageRow in
+            guard let threadID = messageRow["threadID"] as? String else { return }
+            result[threadID] = messageRow
+        }
+    }
+
     func mappedAttachmentRows(messageRowIDs: [Int]) throws -> [[String: Any]] {
         guard !messageRowIDs.isEmpty else { return [] }
         let sql = """
@@ -93,7 +119,7 @@ public extension IMDatabase {
         }
     }
 
-    func mappedReactionRows(messageGUIDs: [String], chatGUID: String) throws -> [[String: Any]] {
+    func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [[String: Any]] {
         guard !messageGUIDs.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")
         let hasAssociatedEmoji = messageColumns.contains("associated_message_emoji")
@@ -110,15 +136,19 @@ public extension IMDatabase {
         AND chat_id = ?
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        guard let chatRowID = try chat(withGUID: chatGUID)?.id else {
-            return []
-        }
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
         bindings.append(chatRowID)
         try statement.bind(bindings)
         return try statement.mapRowsUntilDone { row in
             try row.object(columnNames: columnNames)
         }
+    }
+
+    func mappedReactionRows(messageGUIDs: [String], chatGUID: String) throws -> [[String: Any]] {
+        guard let chatRowID = try chat(withGUID: chatGUID)?.id else {
+            return []
+        }
+        return try mappedReactionRows(messageGUIDs: messageGUIDs, chatRowID: chatRowID)
     }
 }
 
@@ -128,7 +158,7 @@ private func messageSelectionNames(messageColumns: [String]) -> [String] {
         + (messageColumns.contains("date_retracted") ? ["dateRetractedString"] : [])
     return ["ROWID"]
         + messageColumns.filter { $0 != "ROWID" }
-        + ["threadID", "room_name", "participantID", "otherID"]
+        + ["threadID", "chatRowID", "room_name", "participantID", "otherID"]
         + dateAliases
 }
 
@@ -139,6 +169,7 @@ private func messageSelectionSQL(messageColumns: [String]) -> String {
         .map { "m.\($0) AS \($0)" }
     selections += [
         "t.guid AS threadID",
+        "t.ROWID AS chatRowID",
         "t.room_name",
         "h.id AS participantID",
         "oh.id AS otherID",
