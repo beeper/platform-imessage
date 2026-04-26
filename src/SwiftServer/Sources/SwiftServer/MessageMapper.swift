@@ -163,7 +163,7 @@ struct Mapper {
     }
 
     private func digitalTouchAttachment() -> JSONObject? {
-        guard let data = msgRow.dataURI("payload_data"),
+        guard let data = msgRow.data("payload_data"),
               let uuid = stringFromDataSlice(data, start: data.count - uuidStart - uuidLength, length: uuidLength),
               isUUID(uuid) else {
             return nil
@@ -179,7 +179,7 @@ struct Mapper {
     }
 
     private func handwritingAttachment() -> JSONObject? {
-        guard let data = msgRow.dataURI("payload_data"),
+        guard let data = msgRow.data("payload_data"),
               let uuid = stringFromDataSlice(data, start: uuidStart, length: uuidLength),
               isUUID(uuid) else {
             return nil
@@ -221,7 +221,7 @@ struct Mapper {
     }
 
     private func fallbackMessageParts(summaryInfo: JSONObject, attachments: [JSONObject]) -> [MessagePart] {
-        if msgRow.dataURI("attributedBody") == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
+        if msgRow.data("attributedBody") == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
             return [.unsent(index: 0, end: 0)]
         }
         let text = removeObjectReplacementCharacter(msgRow.string("text") ?? "")

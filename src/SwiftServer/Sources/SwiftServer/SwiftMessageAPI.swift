@@ -1206,7 +1206,37 @@ extension PlatformAPI {
     }
 
     nonisolated static func encodeJSON(_ value: Any) throws -> String {
-        let data = try JSONSerialization.data(withJSONObject: value)
+        let data = try JSONSerialization.data(withJSONObject: jsonSerializable(value))
         return try String(data: data, encoding: .utf8).orThrow(ErrorMessage("Swift message API output wasn't utf8"))
+    }
+
+    private nonisolated static func jsonSerializable(_ value: Any) -> Any {
+        switch value {
+        case let data as Data:
+            return "data:;base64,\(data.base64EncodedString())"
+        case let data as NSData:
+            return "data:;base64,\(data.base64EncodedString())"
+        case let dictionary as [String: Any]:
+            return dictionary.mapValues(jsonSerializable)
+        case let dictionary as NSDictionary:
+            var result = JSONObject()
+            for (key, child) in dictionary {
+                guard let key = key as? String else {
+                    continue
+                }
+                result[key] = jsonSerializable(child)
+            }
+            return result
+        case let array as [Any]:
+            return array.map(jsonSerializable)
+        case let array as NSArray:
+            return array.map(jsonSerializable)
+        case let url as URL:
+            return url.absoluteString
+        case let url as NSURL:
+            return url.absoluteString ?? ""
+        default:
+            return value
+        }
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 extension Mapper {
     func payloadData() -> Any? {
-        guard let data = msgRow.dataURI("payload_data") else {
+        guard let data = msgRow.data("payload_data") else {
             return nil
         }
         if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) {
@@ -122,7 +122,7 @@ extension Mapper {
     }
 
     func parseSummaryInfo() -> JSONObject {
-        guard let data = msgRow.dataURI("message_summary_info"),
+        guard let data = msgRow.data("message_summary_info"),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
             return [:]
         }

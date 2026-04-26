@@ -3,7 +3,7 @@ import SwiftServerFoundation
 
 extension Mapper {
     func decodeAttributedMessageParts(summaryInfo: JSONObject) -> [MessagePart] {
-        guard let data = msgRow.dataURI("attributedBody"),
+        guard let data = msgRow.data("attributedBody"),
               let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
             return []
         }

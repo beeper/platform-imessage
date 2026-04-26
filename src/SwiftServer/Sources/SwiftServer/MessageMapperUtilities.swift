@@ -216,11 +216,7 @@ extension Dictionary where Key == String, Value == Any {
         return !(value is NSNull)
     }
 
-    func dataURI(_ key: String) -> Data? {
-        guard let value = self[key] as? String,
-              let comma = value.firstIndex(of: ",") else {
-            return nil
-        }
-        return Data(base64Encoded: String(value[value.index(after: comma)...]))
+    func data(_ key: String) -> Data? {
+        self[key] as? Data
     }
 }

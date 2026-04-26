@@ -39,8 +39,7 @@ extension Row {
         case .text:
             return try self[index].expect(String.self)
         case .blob:
-            let data = try self[index].expect(Data.self)
-            return "data:;base64,\(data.base64EncodedString())"
+            return try self[index].expect(Data.self)
         case .null:
             return NSNull()
         default:

@@ -56,7 +56,7 @@ enum ThreadMapper {
 
         let isGroup = chat.string("room_name")?.isEmpty == false
         let isReadOnly = chat.int("state") == 0 && chat.hasValue("properties")
-        let props = propertyListDictionary(chat.dataURI("properties"))
+        let props = propertyListDictionary(chat.data("properties"))
         let unreadCount = context.unreadCounts[chat.int("ROWID") ?? -1] ?? 0
 
         var thread = compactDictionary([
