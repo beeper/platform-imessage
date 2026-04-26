@@ -169,10 +169,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getMessagesController(forceInvalidate: Bool?) async throws -> NodeValueConvertible {
-        try await getMessagesControllerWrapper(forceInvalidate: forceInvalidate ?? false).wrapped()
-    }
-
     @NodeMethod func createThread(addresses addressesValue: NodeArray, title: String?, message: String?) async throws -> String {
         let addresses = try addressesValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
 

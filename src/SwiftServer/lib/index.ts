@@ -60,7 +60,7 @@ export declare class SwiftPlatformAPI {
   dispose: () => void
 }
 
-export type SwiftServer = {
+type SwiftServer = {
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
   enabledExperiments: string
@@ -70,7 +70,6 @@ export type SwiftServer = {
 
   PlatformAPI: typeof SwiftPlatformAPI
 
-  resolveThreadID: (threadID: ThreadID) => Promise<ThreadID>
   canAccessMessagesDir: () => Promise<boolean>
   validateDatabaseAccess: () => Promise<void>
   askForMessagesDirAccess: () => Promise<void>
@@ -80,12 +79,10 @@ export type SwiftServer = {
   stopSysPrefsOnboarding?: () => void
 
   confirmUNCPrompt: () => Promise<void>
-  disableNotificationsForApp: (appName: string) => Promise<void>
+  disableMessagesNotifications: () => Promise<void>
 
   removeMessagesFromDock: () => void
   killDock: () => void
-
-  disableSoundEffects: () => void
 
   cancelPollingIfNecessary: () => void
   setEventCallback: (cb: OnServerEventCallback) => void

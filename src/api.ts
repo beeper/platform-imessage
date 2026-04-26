@@ -91,9 +91,6 @@ export default class AppleiMessage implements PlatformAPI {
     return this.swiftPlatformAPI
   }
 
-  private resolveThreadID = async (threadID: ThreadID): Promise<ThreadID> =>
-    swiftServer.resolveThreadID(threadID)
-
   getCurrentUser = async (): Promise<CurrentUser> => {
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<CurrentUser>(await swiftAPI.getCurrentUser())
@@ -258,19 +255,17 @@ export default class AppleiMessage implements PlatformAPI {
     this.threadPhaser.bracketed(hashedThreadID, this.actuallySendMessage(hashedThreadID, content, options))
 
   private actuallySendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    if (threadID.startsWith('SMS;-;') && threadID.includes('@')) throw Error('Cannot send message to email address over SMS')
     // if (IS_TAHOE_OR_UP && options.quotedMessageID) throw Error('replies are not supported on macOS Tahoe')
     try {
       this.sendingMessagesCount++
       const { quotedMessageID } = options
       if (content.fileBuffer) {
-        return this.sendFileFromBuffer(threadID, content.fileBuffer, content.fileName, quotedMessageID)
+        return this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
       }
       if (content.filePath) {
-        return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
+        return this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
       }
-      return parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(threadID, content.text, undefined, quotedMessageID))
+      return parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(hashedThreadID, content.text, undefined, quotedMessageID))
     } finally {
       this.sendingMessagesCount--
     }
@@ -334,10 +329,7 @@ export default class AppleiMessage implements PlatformAPI {
     askForAutomationAccess: () => swiftServer.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
     confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
-    disableMessagesNotifications: () => {
-      swiftServer.disableNotificationsForApp('Messages')
-      swiftServer.disableSoundEffects()
-    },
+    disableMessagesNotifications: () => swiftServer.disableMessagesNotifications(),
     startSysPrefsOnboarding: () => swiftServer.startSysPrefsOnboarding?.(),
     stopSysPrefsOnboarding: () => swiftServer.stopSysPrefsOnboarding?.(),
     isSIPEnabled: () => this.sipEnabled,

@@ -131,12 +131,6 @@ private func offNodeActor<T: Sendable>(
             }
         },
 
-        "resolveThreadID": NodeFunction { (threadID: String) async throws in
-            try await offNodeActor {
-                try PlatformAPI.originalThreadID(db: IMDatabase(), threadID)
-            }
-        },
-
         "cancelPollingIfNecessary": NodeFunction {
             PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
             return
@@ -178,9 +172,10 @@ private func offNodeActor<T: Sendable>(
             }
         },
 
-        "disableNotificationsForApp": NodeFunction { (appName: String) async throws in
+        "disableMessagesNotifications": NodeFunction {
             try await offNodeActor(priority: .background) {
-                try PromptAutomation.disableNotificationsForApp(named: appName)
+                try PromptAutomation.disableNotificationsForApp(named: "Messages")
+                Defaults.playSoundEffects = false
             }
         },
 
@@ -190,10 +185,6 @@ private func offNodeActor<T: Sendable>(
 
         "killDock": NodeFunction {
             Dock.runningApplication()?.terminate()
-        },
-
-        "disableSoundEffects": NodeFunction {
-            Defaults.playSoundEffects = false
         },
 
         "revealSettings": NodeFunction {
