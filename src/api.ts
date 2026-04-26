@@ -1,5 +1,4 @@
 import fsSync, { promises as fs } from 'fs'
-import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
@@ -10,11 +9,10 @@ import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { BeeperThread } from './desktop-types'
-import { convertCGBI } from './async-cgbi-to-png'
-import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
+import { CHAT_DB_PATH, APP_BUNDLE_ID, IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
 import DatabaseAPI from './db-api'
 import { csrStatus } from './csr'
-import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
+import { shellExec, threadIDToAddress } from './util'
 import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import { makeJSONPersistence, Persistence } from './persistence'
@@ -33,8 +31,6 @@ function canAccessMessagesDir() {
 }
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
-const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
-
 const linkRegex = urlRegex()
 
 function parseSwiftMessageAPIJSON<T>(json: string): T {
@@ -132,7 +128,8 @@ export default class AppleiMessage implements PlatformAPI {
     swiftServer.resolveThreadID(threadID)
 
   getCurrentUser = async (): Promise<CurrentUser> => {
-    return parseSwiftMessageAPIJSON<CurrentUser>(await this.swiftPlatformAPI!.getCurrentUser())
+    const swiftAPI = this.swiftPlatformAPI!
+    return parseSwiftMessageAPIJSON<CurrentUser>(await swiftAPI.getCurrentUser())
   }
 
   login = async (): Promise<LoginResult> => {
@@ -226,20 +223,9 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   createThread = async (userIDs: string[], title?: string, message?: string) => {
-    if (userIDs.length === 0) return false
-    if (!message?.trim()) throw Error('no message')
-    if (userIDs.length === 1) {
-      const address = userIDs[0]
-      const existingThread = await this.getThread(DEFAULT_THREAD_PREFIX + `;-;${address}`)
-      if (existingThread) {
-        if (message) this.sendMessage(existingThread.id, { text: message })
-        return existingThread
-      }
-    } else {
-      // potential todo: we can search for an existing thread with the specified userIDs here
-    }
-    await (await this.getMessagesController()).createThread(userIDs, message)
-    return true
+    const swiftAPI = this.swiftPlatformAPI!
+    const result = parseSwiftMessageAPIJSON<Thread | boolean>(await swiftAPI.createThread(userIDs, title, message))
+    return typeof result === 'object' ? this.applyPersistedThreadState(result) : result
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -403,16 +389,11 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   editMessage = async (hashedThreadID: ThreadID, messageID: MessageID, content: MessageContent) => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    if (!IS_VENTURA_OR_UP) throw Error('Only supported on macOS Ventura or later')
-    const { text } = content
-    if (!text) throw new Error('Tried to edit message to have empty content')
-    const controller = await this.getMessagesController()
-    await controller.editMessage(threadID, messageID, text)
+    const swiftAPI = this.swiftPlatformAPI!
+    await swiftAPI.editMessage(hashedThreadID, messageID, content.text)
     return true
   }
 
-  // eslint-disable-next-line class-methods-use-this
   updateThread = async (hashedThreadID: ThreadID, updates: Partial<Thread>) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
     if ('mutedUntil' in updates) {
@@ -428,26 +409,10 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  deleteThread = async (hashedThreadID: ThreadID) => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    const mc = await this.getMessagesController()
-    await mc.deleteThread(threadID)
-  }
+  deleteThread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.deleteThread(hashedThreadID)
 
-  sendActivityIndicator = async (type: ActivityType, hashedThreadID?: ThreadID) => {
-    if (!hashedThreadID) {
-      texts.error('imsg: ignoring request to send an activity indicator, no thread id provided')
-      return
-    }
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    if (![ActivityType.TYPING, ActivityType.NONE].includes(type)) return
-    if (this.sendingMessagesCount > 0) return texts.log('skipping sendActivityIndicator')
-    // group chat typing indicators require Tahoe+
-    if (!IS_TAHOE_OR_UP && !getSingleParticipantAddress(threadID)) return
-    const isTyping = type === ActivityType.TYPING
-    return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
-  }
+  sendActivityIndicator = (type: ActivityType, hashedThreadID?: ThreadID) =>
+    this.swiftPlatformAPI!.sendActivityIndicator(type, hashedThreadID, this.sendingMessagesCount)
 
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
     // if (IS_TAHOE_OR_UP) throw Error('reactions are not supported on macOS Tahoe')
@@ -484,14 +449,19 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    await this.swiftPlatformAPI!.deleteMessage(hashedThreadID, messageID)
+    const swiftAPI = this.swiftPlatformAPI!
+    await swiftAPI.deleteMessage(hashedThreadID, messageID)
   }
 
-  markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
+  markAsUnread = async (hashedThreadID: ThreadID) => {
+    const swiftAPI = this.swiftPlatformAPI!
+    return swiftAPI.markAsUnread(hashedThreadID)
+  }
 
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
+    const swiftAPI = this.swiftPlatformAPI!
     await pRetry(async () => {
-      await this.swiftPlatformAPI!.sendReadReceipt(hashedThreadID)
+      await swiftAPI.sendReadReceipt(hashedThreadID)
     }, {
       onFailedAttempt: error => {
         texts.Sentry.captureException(error)
@@ -501,7 +471,10 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
+  notifyAnyway = async (hashedThreadID: ThreadID) => {
+    const swiftAPI = this.swiftPlatformAPI!
+    return swiftAPI.notifyAnyway(hashedThreadID)
+  }
 
   onThreadSelected = async (hashedThreadID: ThreadID) => {
     // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored
@@ -510,7 +483,8 @@ export default class AppleiMessage implements PlatformAPI {
     if (!hashedThreadID) return
     if (!this.onEvent) return
 
-    return this.swiftPlatformAPI!.onThreadSelected(hashedThreadID, this.onEvent)
+    const swiftAPI = this.swiftPlatformAPI!
+    return swiftAPI.onThreadSelected(hashedThreadID, this.onEvent)
   }
 
   //   private getThreadMessagesChecksum = async (threadID: ThreadID, afterCursor: string) => {
@@ -549,66 +523,17 @@ export default class AppleiMessage implements PlatformAPI {
   } satisfies Record<string, () => Awaitable<boolean | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {
-    switch (pathHex) {
-      case 'proxied': {
-        const methodNameIsValid = (name: string): name is keyof typeof this.proxiedAuthFns =>
-          Object.keys(this.proxiedAuthFns).includes(name)
-        if (!methodNameIsValid(methodName)) throw new Error(`Unknown proxied method name "${methodName}"`)
+    if (pathHex === 'proxied') {
+      const methodNameIsValid = (name: string): name is keyof typeof this.proxiedAuthFns =>
+        Object.keys(this.proxiedAuthFns).includes(name)
+      if (!methodNameIsValid(methodName)) throw new Error(`Unknown proxied method name "${methodName}"`)
 
-        const result = await this.proxiedAuthFns[methodName]()
-        const json = JSON.stringify(result)
-        return json === undefined ? 'null' : json
-      }
-
-      case 'hw': { // handwriting
-        const [uuid] = methodName.split('.', 1)
-        const fileNames = await fs.readdir(TMP_MOBILE_SMS_PATH)
-        let attemptsRemaining = 10
-        while (attemptsRemaining--) {
-          const fileName = fileNames.find(fn => fn.startsWith(`hw_${uuid}_`))
-          if (!fileName) {
-            await setTimeoutAsync(100)
-            continue
-          }
-          const hwPath = path.join(TMP_MOBILE_SMS_PATH, fileName)
-          return url.pathToFileURL(hwPath).href
-        }
-        throw new Error("Couldn't fetch handwriting asset")
-      }
-
-      case 'dt': { // digital touch
-        const [uuid] = methodName.split('.', 1)
-        const filePath = path.join(TMP_MOBILE_SMS_PATH, `${uuid}.mov`)
-        await waitForFileToExist(filePath, 5_000)
-        return url.pathToFileURL(filePath).href
-      }
-
-      case 'reaction-sticker': {
-        const rowIDStr = methodName.split('.', 1)?.[0]
-        const reactionRowID = Number(rowIDStr)
-        if (!Number.isSafeInteger(reactionRowID)) throw new Error('invalid reaction sticker row ID')
-        const filePath = await this.swiftPlatformAPI!.getAttachmentFilePath(reactionRowID)
-        if (!filePath) throw new Error("couldn't resolve sticker attachment for reaction row")
-        return url.pathToFileURL(filePath).href
-      }
-
-      case 'thread-image': {
-        const filePath = await this.swiftPlatformAPI!.getChatImageFilePath(methodName)
-        if (!filePath) throw new Error("couldn't resolve chat image attachment")
-        return url.pathToFileURL(filePath).href
-      }
-
-      default: {
-        const filePath = Buffer.from(pathHex, 'hex').toString()
-        const buffer = await fs.readFile(filePath)
-        try {
-          // TODO: `await import` here for laziness
-          return convertCGBI(buffer)
-        } catch (err) {
-          return url.pathToFileURL(filePath).href
-        }
-      }
+      const result = await this.proxiedAuthFns[methodName]()
+      const json = JSON.stringify(result)
+      return json === undefined ? 'null' : json
     }
+
+    return this.swiftPlatformAPI!.getAsset(pathHex, methodName)
   }
 
   // eslint-disable-next-line class-methods-use-this

@@ -163,9 +163,64 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getMessagesController(_ args: NodeArguments) async throws -> NodeValueConvertible {
-        let forceInvalidate = args.count > 0 ? try args[0].as(Bool.self) ?? false : false
-        return try await getMessagesControllerWrapper(forceInvalidate: forceInvalidate).wrapped()
+    @NodeMethod func getMessagesController(forceInvalidate: Bool?) async throws -> NodeValueConvertible {
+        try await getMessagesControllerWrapper(forceInvalidate: forceInvalidate ?? false).wrapped()
+    }
+
+    @NodeMethod func createThread(addresses addressesValue: NodeArray, title: String?, message: String?) async throws -> String {
+        let addresses = try addressesValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
+
+        guard !addresses.isEmpty else {
+            return "false"
+        }
+
+        guard let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ErrorMessage("no message")
+        }
+
+        if addresses.count == 1 {
+            let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(addresses[0])"
+            let accountID = accountID
+            let database = database
+            let currentUserCache = currentUserCache
+            let existingThread = try await Self.offNodeActor {
+                try database.withDatabase { db in
+                    let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                    return try Self.getThread(
+                        db: db,
+                        threadID: existingThreadID,
+                        currentUserID: currentUserID,
+                        accountID: accountID
+                    )
+                }
+            }
+
+            if existingThread != jsonNull {
+                let wrapper = try await getMessagesControllerWrapper()
+                try await Self.onMessagesControllerQueue {
+                    try wrapper.controller.sendMessage(
+                        threadID: existingThreadID,
+                        addresses: nil,
+                        text: message,
+                        filePath: nil,
+                        quotedMessage: nil
+                    )
+                }
+                return existingThread
+            }
+        }
+
+        let wrapper = try await getMessagesControllerWrapper()
+        try await Self.onMessagesControllerQueue {
+            try wrapper.controller.sendMessage(
+                threadID: nil,
+                addresses: addresses,
+                text: message,
+                filePath: nil,
+                quotedMessage: nil
+            )
+        }
+        return "true"
     }
 
     @NodeMethod func notifyAnyway(threadID publicThreadID: String) async throws -> NodeValueConvertible {
@@ -182,6 +237,58 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
         let wrapper = try await getMessagesControllerWrapper()
         return try wrapper.undoSend(threadID: threadID, messageID: messageID)
+    }
+
+    @NodeMethod func editMessage(threadID publicThreadID: String, messageID: String, newText text: String?) async throws -> NodeValueConvertible {
+        guard isVenturaOrUp else {
+            throw ErrorMessage("Only supported on macOS Ventura or later")
+        }
+
+        guard let text, !text.isEmpty else {
+            throw ErrorMessage("Tried to edit message to have empty content")
+        }
+
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.editMessage(threadID: threadID, messageID: messageID, newText: text)
+    }
+
+    @NodeMethod func deleteThread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.deleteThread(threadID: threadID)
+    }
+
+    @NodeMethod func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws -> NodeValueConvertible {
+        guard let publicThreadID, !publicThreadID.isEmpty else {
+            platformLog.error("ignoring request to send an activity indicator, no thread id provided")
+            return undefined
+        }
+
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+
+        guard type == "typing" || type == "none" else {
+            return undefined
+        }
+
+        guard (sendingMessagesCount ?? 0) == 0 else {
+            platformLog.debug("skipping sendActivityIndicator")
+            return undefined
+        }
+
+        // Group chat typing indicators require Tahoe+.
+        guard isTahoeOrUp || singleParticipantAddress(threadID) != nil else {
+            return undefined
+        }
+
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.sendTypingStatus(threadID: threadID, isTyping: type == "typing")
     }
 
     @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
@@ -212,21 +319,16 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return undefined
     }
 
-    @NodeMethod func getAttachmentFilePath(messageRowID: Int) async throws -> String? {
+    @NodeMethod func getAsset(pathHex: String, methodName: String?) async throws -> NodeValueConvertible {
         let database = database
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                try db.attachmentFilename(messageRowID: messageRowID).map(Self.replaceTilde)
-            }
+        let asset = try await Self.offNodeActor {
+            try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
         }
-    }
-
-    @NodeMethod func getChatImageFilePath(attachmentGUID: String) async throws -> String? {
-        let database = database
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                try db.attachmentFilename(guid: attachmentGUID).map(Self.replaceTilde)
-            }
+        switch asset {
+        case let .url(url):
+            return url
+        case let .data(data):
+            return data
         }
     }
 
@@ -551,6 +653,11 @@ extension PlatformAPI {
         var reactionRows: [JSONObject]
     }
 
+    private enum AssetResult: Sendable {
+        case url(String)
+        case data(Data)
+    }
+
     nonisolated static func latestThreadMessageRowsByChatGUID(db: IMDatabase, chatRows: [JSONObject]) throws -> [String: JSONObject] {
         try db.mappedLatestMessageRows(chatRowIDs: chatRows.compactMap { $0.int("ROWID") })
     }
@@ -754,15 +861,64 @@ extension PlatformAPI {
         return String(associatedMessageGUID[upper...])
     }
 
+    private nonisolated static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> AssetResult {
+        switch pathHex {
+        case "hw":
+            let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
+            let fileNames = try FileManager.default.contentsOfDirectory(atPath: temporaryMobileSMSPath)
+            var attemptsRemaining = 10
+            while attemptsRemaining > 0 {
+                attemptsRemaining -= 1
+                if let fileName = fileNames.first(where: { $0.hasPrefix("hw_\(uuid)_") }) {
+                    return .url(fileURLString(temporaryMobileSMSURL.appendingPathComponent(fileName).path))
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            throw ErrorMessage("Couldn't fetch handwriting asset")
+
+        case "dt":
+            let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
+            let filePath = temporaryMobileSMSURL.appendingPathComponent("\(uuid).mov").path
+            _ = waitForFileToExist(filePath, maxWait: 5)
+            return .url(fileURLString(filePath))
+
+        case "reaction-sticker":
+            let rowIDString = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
+            guard let rowID = Int(rowIDString) else {
+                throw ErrorMessage("invalid reaction sticker row ID")
+            }
+            let filePath = try database.withDatabase { db in
+                try db.attachmentFilename(messageRowID: rowID).map(replaceTilde)
+            }
+            guard let filePath else {
+                throw ErrorMessage("couldn't resolve sticker attachment for reaction row")
+            }
+            return .url(fileURLString(filePath))
+
+        case "thread-image":
+            let filePath = try database.withDatabase { db in
+                try db.attachmentFilename(guid: methodName).map(replaceTilde)
+            }
+            guard let filePath else {
+                throw ErrorMessage("couldn't resolve chat image attachment")
+            }
+            return .url(fileURLString(filePath))
+
+        default:
+            let filePath = try String(
+                data: Data([UInt8](hexString: pathHex)),
+                encoding: .utf8
+            ).orThrow(ErrorMessage("couldn't decode asset path"))
+            let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
+            guard let pngData = CgBIPNG.dataForAsset(data) else {
+                return .url(fileURLString(filePath))
+            }
+            return .data(pngData)
+        }
+    }
+
     nonisolated static func encodeJSON(_ value: Any) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: value)
         return try String(data: data, encoding: .utf8).orThrow(ErrorMessage("Swift message API output wasn't utf8"))
-    }
-
-    nonisolated static func replaceTilde(_ string: String) -> String {
-        guard string.first == "~" else {
-            return string
-        }
-        return NSHomeDirectory() + String(string.dropFirst())
     }
 }

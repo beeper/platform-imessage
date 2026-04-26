@@ -60,6 +60,37 @@ func jsonStringify<T: Encodable>(_ input: T) throws -> String {
 
 private let encoder = JSONEncoder()
 
+let temporaryMobileSMSURL = URL(
+    fileURLWithPath: NSTemporaryDirectory(),
+    isDirectory: true
+).appendingPathComponent(messagesBundleID, isDirectory: true)
+
+var temporaryMobileSMSPath: String {
+    temporaryMobileSMSURL.path
+}
+
+func fileURLString(_ filePath: String) -> String {
+    URL(fileURLWithPath: filePath).absoluteString
+}
+
+func waitForFileToExist(_ filePath: String, maxWait: TimeInterval) -> Bool {
+    let deadline = Date().addingTimeInterval(maxWait)
+    while !FileManager.default.fileExists(atPath: filePath) {
+        guard Date() <= deadline else {
+            return false
+        }
+        Thread.sleep(forTimeInterval: 0.02)
+    }
+    return true
+}
+
+func replaceTilde(_ string: String) -> String {
+    guard string.first == "~" else {
+        return string
+    }
+    return NSHomeDirectory() + String(string.dropFirst())
+}
+
 struct System {
     /// "Darwin"
     let os: String

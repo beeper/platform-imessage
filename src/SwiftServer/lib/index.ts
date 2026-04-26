@@ -50,6 +50,8 @@ export declare class SwiftPlatformAPI {
 
   getMessagesController: (forceInvalidate?: boolean) => Promise<MessagesController>
 
+  createThread: (addresses: string[], title: string | undefined, message: string | undefined) => Promise<string>
+
   getCurrentUser: () => Promise<string>
 
   getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, limit?: number) => Promise<string>
@@ -68,13 +70,17 @@ export declare class SwiftPlatformAPI {
 
   deleteMessage: (threadID: ThreadID, messageID: string) => Promise<void>
 
+  editMessage: (threadID: ThreadID, messageID: string, newText: string | undefined) => Promise<void>
+
+  deleteThread: (threadID: ThreadID) => Promise<void>
+
+  sendActivityIndicator: (type: string, threadID: ThreadID | undefined, sendingMessagesCount?: number) => Promise<void>
+
   markAsUnread: (threadID: ThreadID) => Promise<void>
 
   sendReadReceipt: (threadID: ThreadID) => Promise<void>
 
-  getAttachmentFilePath: (messageRowID: number) => Promise<string | undefined>
-
-  getChatImageFilePath: (attachmentGUID: string) => Promise<string | undefined>
+  getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 
   dispose: () => void
 }
