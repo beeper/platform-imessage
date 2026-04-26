@@ -131,8 +131,6 @@ export default class AppleiMessage implements PlatformAPI {
   serializeSession = () => ({})
 
   dispose = async () => {
-    swiftServer?.stopSysPrefsOnboarding?.()
-    await swiftServer?.cancelPollingIfNecessary?.()
     await this.swiftPlatformAPI?.dispose()
   }
 
