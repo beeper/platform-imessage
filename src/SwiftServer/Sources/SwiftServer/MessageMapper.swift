@@ -293,10 +293,7 @@ struct Mapper {
         if let text = message.string("text"), !text.isEmpty {
             return true
         }
-        if let textHeading = message.string("textHeading"), !textHeading.isEmpty {
-            return true
-        }
-        return false
+        return !(message.string("textHeading") ?? "").isEmpty
     }
 
     private func addingInlineSubject(_ subject: String, to message: JSONObject) -> JSONObject {

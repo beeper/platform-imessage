@@ -24,15 +24,15 @@ enum ThreadMapper {
         guard !latestMessageRows.isEmpty else {
             return nil
         }
-        let maxRowID = latestMessageRows.compactMap { $0.int("ROWID") }.max() ?? 0
-        let maxDateReadNanoseconds = latestMessageRows.map { row -> Int in
+        let (maxRowID, maxDateReadNanoseconds) = latestMessageRows.reduce(into: (0, 0)) { result, row in
+            result.0 = max(result.0, row.int("ROWID") ?? 0)
             // Guard against bogus read dates that overflow Int64 — the source
             // of these is unknown but they'd poison the polling cursor.
             guard (row.string("dateReadString") ?? "0") < int64MaxString else {
-                return 0
+                return
             }
-            return row.int("date_read") ?? 0
-        }.max() ?? 0
+            result.1 = max(result.1, row.int("date_read") ?? 0)
+        }
         return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
@@ -153,9 +153,8 @@ enum ThreadMapper {
     private static let alphanumericSenderIDRegex = try! NSRegularExpression(pattern: #"^[\da-zA-Z .&_/-]{1,11}$"#)
 
     private static func likelyAlphanumericSenderID(_ id: String) -> Bool {
-        let range = NSRange(id.startIndex ..< id.endIndex, in: id)
-        return numbersAndSymbolsRegex.firstMatch(in: id, range: range) == nil
-            && alphanumericSenderIDRegex.firstMatch(in: id, range: range) != nil
+        !id.matches(against: numbersAndSymbolsRegex)
+            && id.matches(against: alphanumericSenderIDRegex)
     }
 
     private static func chatPhotoURL(props: JSONObject?, accountID: String) -> String? {

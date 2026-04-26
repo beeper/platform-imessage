@@ -129,6 +129,11 @@ func handwritingAssetURL(uuid: String) -> String {
 }
 
 extension String {
+    func matches(against regex: NSRegularExpression) -> Bool {
+        let range = NSRange(startIndex ..< endIndex, in: self)
+        return regex.firstMatch(in: self, range: range) != nil
+    }
+
     func firstMatch(against regex: NSRegularExpression) -> [String]? {
         let range = NSRange(startIndex ..< endIndex, in: self)
         guard let match = regex.firstMatch(in: self, range: range) else {
