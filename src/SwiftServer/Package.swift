@@ -11,6 +11,11 @@ let package = Package(
             type: .dynamic,
             targets: ["SwiftServer"]
         ),
+        .library(
+            name: "SwiftServerNode",
+            type: .dynamic,
+            targets: ["SwiftServerNode"]
+        ),
         .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
         .executable(name: "PlatformCLI", targets: ["PlatformCLI"]),
     ],
@@ -31,14 +36,20 @@ let package = Package(
                 "BetterSwiftAX",
                 "ExceptionCatcher",
                 "SwiftServerFoundation",
-                .product(name: "NodeAPI", package: "node-swift"),
-                .product(name: "NodeModuleSupport", package: "node-swift"),
                 .product(name: "PHTClient", package: "PHTCommon"),
                 "EmojiSPI",
                 "IMDatabase",
                 .product(name: "Collections", package: "swift-collections"),
             ],
-
+            ),
+        .target(
+            name: "SwiftServerNode",
+            dependencies: [
+                "SwiftServer",
+                "SwiftServerFoundation",
+                .product(name: "NodeAPI", package: "node-swift"),
+                .product(name: "NodeModuleSupport", package: "node-swift"),
+            ],
             // `node-swift`'s build scripts pass some flags that enable dynamic
             // symbol resolution, which avoids N-API linkage errors at static
             // linking time. replicate those here so we can build with SPM (just

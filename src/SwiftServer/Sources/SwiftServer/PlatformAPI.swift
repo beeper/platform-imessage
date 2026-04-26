@@ -48,12 +48,12 @@ public final class PlatformAPI {
         self.init(accountID: accountID, runtime: .noop)
     }
 
-    init(accountID: String, runtime: PlatformAPIRuntime) {
+    public init(accountID: String, runtime: PlatformAPIRuntime) {
         self.accountID = accountID
         self.runtime = runtime
     }
 
-    /// Runs a DB query off the NodeActor with the cached currentUserID resolved.
+    /// Runs a DB query off the caller actor with the cached currentUserID resolved.
     /// Captures `accountID`, `database`, and `currentUserCache` before crossing
     /// into the @Sendable closure so `self` doesn't need to.
     private func runDBQuery<T>(
@@ -85,7 +85,7 @@ public final class PlatformAPI {
     public func getCurrentUser() async throws -> String {
         let database = database
         let currentUserCache = currentUserCache
-        return try await NodeBridgeUtilities.offNodeActor {
+        return try await DetachedWork.run {
             try database.withDatabase { db in
                 try jsonStringify(Self.currentUser(db: db, cache: currentUserCache).hashed())
             }
@@ -221,7 +221,7 @@ public final class PlatformAPI {
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
         let database = database
-        let threadID = try await NodeBridgeUtilities.offNodeActor {
+        let threadID = try await DetachedWork.run {
             try database.withDatabase { db in
                 try Self.originalThreadID(db: db, publicThreadID)
             }
@@ -253,8 +253,8 @@ public final class PlatformAPI {
         )
     }
 
-    func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
-        let filePath = try await NodeBridgeUtilities.offNodeActor {
+    public func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
+        let filePath = try await DetachedWork.run {
             try Self.writeTemporaryAttachmentFile(data: fileBuffer, fileName: fileName)
         }
         return try await sendMessage(threadID: publicThreadID, text: nil, filePath: filePath, quotedMessageID: quotedMessageID)
@@ -318,7 +318,7 @@ public final class PlatformAPI {
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
         try await retry(retries: 1, interval: 1) { attempt in
-            let (threadID, isRead) = try await NodeBridgeUtilities.offNodeActor {
+            let (threadID, isRead) = try await DetachedWork.run {
                 try database.withDatabase { db in
                     let threadID = try Self.originalThreadID(db: db, publicThreadID)
                     return (threadID, try db.isThreadRead(chatGUID: threadID))
@@ -345,13 +345,13 @@ public final class PlatformAPI {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
     }
 
-    func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
+    public func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
         if reaction == "sticker" {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
         }
 
         let database = database
-        let threadID = try await NodeBridgeUtilities.offNodeActor {
+        let threadID = try await DetachedWork.run {
             try database.withDatabase { db in
                 try Self.originalThreadID(db: db, publicThreadID)
             }
@@ -374,7 +374,7 @@ public final class PlatformAPI {
         try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
-    func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping PlatformEventSender) async throws {
+    public func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping PlatformEventSender) async throws {
         guard !publicThreadID.isEmpty else {
             return
         }
@@ -446,9 +446,9 @@ public final class PlatformAPI {
         }
     }
 
-    func getAsset(pathHex: String, methodName: String?) async throws -> PlatformAssetResult {
+    public func getAsset(pathHex: String, methodName: String?) async throws -> PlatformAssetResult {
         let database = database
-        return try await NodeBridgeUtilities.offNodeActor {
+        return try await DetachedWork.run {
             try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
         }
     }
@@ -654,7 +654,7 @@ public final class PlatformAPI {
 
     private func lastMessageRowID() async throws -> Int {
         let database = database
-        return try await NodeBridgeUtilities.offNodeActor {
+        return try await DetachedWork.run {
             try database.withDatabase { db in
                 try db.lastMessageRowID()
             }
@@ -697,7 +697,7 @@ public final class PlatformAPI {
         timeout: TimeInterval
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
-        return try await NodeBridgeUtilities.offNodeActor {
+        return try await DetachedWork.run {
             let start = Date()
             let expectedNewMessageIDCount = text.map { max(linkCount(in: $0), 1) } ?? 1
             var sentMessageIDs: [(rowID: Int, guid: String)] = []
@@ -719,7 +719,7 @@ public final class PlatformAPI {
 
     private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
         let database = database
-        return try await NodeBridgeUtilities.offNodeActor {
+        return try await DetachedWork.run {
             let sentThreadIDs = {
                 try messageRowIDs.map { rowID in
                     try database.withDatabase { db in

@@ -1,5 +1,4 @@
 import IMDatabase
-import NodeAPI
 import Logging
 
 private let log = Logger(swiftServerLabel: "poller.unreads")
@@ -40,7 +39,7 @@ extension Poller {
             let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1000).rounded()
             let isUnread = currentState.unreadCount > 0
             let markedUnreadUpdatedAt = Int(fresh.lastUpdated.timeIntervalSince1970 * 1000)
-            var patch: [String: any NodePropertyConvertible] = [
+            var patch: JSONObject = [
                 "lastReadMessageSortKey": lastReadMessageSortKey,
 
                 // The renderer avoids sending a read receipt if it can see that

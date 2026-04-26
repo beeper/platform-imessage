@@ -1,5 +1,6 @@
 import Foundation
 import NodeAPI
+import SwiftServer
 import SwiftServerFoundation
 
 @NodeActor @NodeClass final class PlatformAPINodeWrapper {

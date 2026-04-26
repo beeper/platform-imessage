@@ -58,7 +58,7 @@ public final class PlatformCLIAPI {
     }
 
     public func startEventPollingFromCurrentState() async throws {
-        let (lastRowID, lastDateRead) = try await NodeBridgeUtilities.offNodeActor {
+        let (lastRowID, lastDateRead) = try await DetachedWork.run {
             let db = try IMDatabase()
             return (try db.lastMessageRowID(), try db.maxMessageDateRead())
         }
@@ -66,14 +66,14 @@ public final class PlatformCLIAPI {
     }
 
     public func validateDatabaseAccess() async throws {
-        try await NodeBridgeUtilities.offNodeActor {
+        try await DetachedWork.run {
             _ = try IMDatabase(createIndexes: true)
         }
     }
 
     public func canAccessMessagesDir() async -> Bool {
         do {
-            try await NodeBridgeUtilities.offNodeActor {
+            try await DetachedWork.run {
                 _ = try IMDatabase()
             }
             return true
@@ -93,14 +93,14 @@ public final class PlatformCLIAPI {
     }
 
     public func confirmUNCPrompt() async throws {
-        try await NodeBridgeUtilities.offNodeActor(priority: .background) {
+        try await DetachedWork.run(priority: .background) {
             try PromptAutomation.confirmUNCPrompt()
         }
     }
 
     public func disableMessagesNotifications() async throws {
-        try await NodeBridgeUtilities.offNodeActor(priority: .background) {
-            try PromptAutomation.disableNotificationsForApp(named: "Messages")
+        try await DetachedWork.run(priority: .background) {
+            _ = try PromptAutomation.disableNotificationsForApp(named: "Messages")
             Defaults.playSoundEffects = false
         }
     }

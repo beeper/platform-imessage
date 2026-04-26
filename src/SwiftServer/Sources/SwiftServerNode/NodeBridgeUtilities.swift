@@ -1,5 +1,6 @@
 import Foundation
 import NodeAPI
+import SwiftServer
 import SwiftServerFoundation
 
 final class SendableBox<T>: @unchecked Sendable {
@@ -11,15 +12,6 @@ final class SendableBox<T>: @unchecked Sendable {
 }
 
 enum NodeBridgeUtilities {
-    static func offNodeActor<T: Sendable>(
-        priority: TaskPriority = .userInitiated,
-        _ action: @escaping @Sendable () throws -> T
-    ) async throws -> T {
-        try await Task.detached(priority: priority) {
-            try action()
-        }.value
-    }
-
     @NodeActor
     static func nodeArray(from values: [Any]) throws -> NodeArray {
         let array = try NodeArray(capacity: values.count)
