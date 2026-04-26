@@ -14,6 +14,43 @@ LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID
 """
 
 public extension IMDatabase {
+    func lastMessageRowID() throws -> Int {
+        let statement = try cachedStatement(forEscapedSQL: "SELECT seq FROM sqlite_sequence WHERE name = 'message'").reset()
+        return try statement.compactMapRowsUntilDone { row in
+            try row[0].optionalConverting(Int.self)
+        }.first ?? 0
+    }
+
+    func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT ROWID, guid
+        FROM message
+        WHERE is_from_me = 1 AND ROWID > ?
+        """).reset()
+        try statement.bind(rowID)
+        return try statement.compactMapRowsUntilDone { row in
+            guard let rowID = try row[0].optionalConverting(Int.self),
+                  let guid = try row[1].optionalConverting(String.self) else {
+                return nil
+            }
+            return (rowID, guid)
+        }
+    }
+
+    func threadIDForMessage(rowID: Int) throws -> String? {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT t.guid
+        FROM message AS m
+        LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+        LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+        WHERE m.ROWID = ?
+        """).reset()
+        try statement.bind(rowID)
+        return try statement.compactMapRowsUntilDone { row in
+            try row[0].optionalConverting(String.self)
+        }.first
+    }
+
     func allThreadGUIDs() throws -> [String] {
         let statement = try cachedStatement(forEscapedSQL: "SELECT guid FROM chat").reset()
         return try statement.compactMapRowsUntilDone { row in

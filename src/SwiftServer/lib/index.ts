@@ -48,9 +48,18 @@ export declare class MessagesController {
 export declare class SwiftPlatformAPI {
   constructor(accountID: string)
 
-  getMessagesController: (forceInvalidate?: boolean) => Promise<MessagesController>
+  getMessagesController: () => Promise<MessagesController>
 
   createThread: (addresses: string[], title: string | undefined, message: string | undefined) => Promise<string>
+
+  sendMessage: (
+    threadID: ThreadID,
+    text?: string,
+    filePath?: string,
+    quotedMessageID?: string,
+  ) => Promise<string>
+
+  setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
 
   getCurrentUser: () => Promise<string>
 

@@ -6,6 +6,11 @@ import SwiftServerFoundation
 
 private let messagePageLimit = 20
 private let platformLog = Logger(swiftServerLabel: "platform-api")
+private let messageSendTimeout: TimeInterval = 45
+private let reactionSendTimeout: TimeInterval = 5
+private let waitForLinksTimeout: TimeInterval = 1.5
+private let waitForSentThreadTimeout: TimeInterval = 10
+private let sentMessagePollInterval: TimeInterval = 0.025
 // These APIs return JSON strings; this is the JSON null literal.
 private let jsonNull = "null"
 let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
@@ -221,6 +226,56 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             )
         }
         return "true"
+    }
+
+    @NodeMethod func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
+        let database = database
+        let threadID = try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try Self.originalThreadID(db: db, publicThreadID)
+            }
+        }
+
+        if threadID.hasPrefix("SMS;-;"), threadID.contains("@") {
+            throw ErrorMessage("Cannot send message to email address over SMS")
+        }
+
+        let lastRowID = try await performControllerOperation(
+            name: "sendMessage",
+            retries: quotedMessageID == nil ? 1 : 2,
+            prepareAttempt: { try await self.lastMessageRowID() }
+        ) { wrapper in
+            try wrapper.performSendMessage(
+                threadID: threadID,
+                text: text,
+                filePath: filePath,
+                quotedMessageID: quotedMessageID
+            )
+        }
+
+        return try await waitForMessageSend(
+            threadID: threadID,
+            expectedLinkedMessageID: quotedMessageID,
+            text: text,
+            lastRowID: lastRowID,
+            timeout: messageSendTimeout
+        )
+    }
+
+    @NodeMethod func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws -> NodeValueConvertible {
+        if reaction == "sticker" {
+            throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
+        }
+
+        let database = database
+        let threadID = try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try Self.originalThreadID(db: db, publicThreadID)
+            }
+        }
+
+        try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
+        return undefined
     }
 
     @NodeMethod func notifyAnyway(threadID publicThreadID: String) async throws -> NodeValueConvertible {
@@ -445,6 +500,183 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
+    @discardableResult
+    private func performControllerOperation<AttemptContext>(
+        name: String,
+        retries: Int,
+        prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
+        _ action: @escaping @Sendable (MessagesControllerWrapper) throws -> Void,
+        afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
+    ) async throws -> AttemptContext {
+        var attempt = 0
+        while true {
+            do {
+                let context = try await prepareAttempt()
+                let wrapper = try await getMessagesControllerWrapper(forceInvalidate: attempt > 0)
+                try await Self.onMessagesControllerQueue {
+                    try action(wrapper)
+                }
+                try await afterAttempt?(context)
+                return context
+            } catch {
+                platformLog.error("\(name) failed, retries left: \(max(retries - attempt, 0)): \(error)")
+                try? await reportMessageToSentry("imessage \(name) failed: \(error)")
+                guard attempt < retries else {
+                    throw error
+                }
+                attempt += 1
+            }
+        }
+    }
+
+    private func retryReactionOperation(threadID: String, messageID: String, reaction: String, on: Bool) async throws {
+        try await performControllerOperation(
+            name: "setReaction",
+            retries: 2,
+            prepareAttempt: { try await self.lastMessageRowID() }
+        ) { wrapper in
+            try wrapper.performSetReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
+        } afterAttempt: { lastRowID in
+            _ = try await self.waitForMessageSend(
+                threadID: threadID,
+                expectedLinkedMessageID: messageID,
+                text: nil,
+                lastRowID: lastRowID,
+                timeout: reactionSendTimeout
+            )
+        }
+    }
+
+    private func lastMessageRowID() async throws -> Int {
+        let database = database
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try db.lastMessageRowID()
+            }
+        }
+    }
+
+    private func waitForMessageSend(
+        threadID: String,
+        expectedLinkedMessageID: String?,
+        text: String?,
+        lastRowID: Int,
+        timeout: TimeInterval
+    ) async throws -> String {
+        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
+        let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
+        let wrapper = try await getMessagesControllerWrapper()
+        let address = threadIDToAddress(threadID)
+        let sentThreadIsValid = try await Self.onMessagesControllerQueue {
+            sentThreadIDs.allSatisfy { sentThreadID in
+                sentThreadID == threadID || (
+                    sentThreadID != nil
+                    && wrapper.controller.isSameContact(address, threadIDToAddress(sentThreadID!))
+                )
+            }
+        }
+
+        guard sentThreadIsValid else {
+            platformLog.error("imsg: imessage potentially sent messages to invalid thread")
+            return "true"
+        }
+
+        let messages = try await sentMessages(sentMessageIDs)
+        validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
+        return try Self.encodeJSON(messages)
+    }
+
+    private func waitForSentMessageIDs(
+        since lastRowID: Int,
+        text: String?,
+        timeout: TimeInterval
+    ) async throws -> [(rowID: Int, guid: String)] {
+        let database = database
+        return try await Self.offNodeActor {
+            let start = Date()
+            let expectedNewMessageIDCount = text.map { max(linkCount(in: $0), 1) } ?? 1
+            var sentMessageIDs: [(rowID: Int, guid: String)] = []
+            while sentMessageIDs.count != expectedNewMessageIDCount {
+                sentMessageIDs = try database.withDatabase { db in
+                    try db.sentMessageIDs(since: lastRowID)
+                }
+                if text != nil, !sentMessageIDs.isEmpty, Date().timeIntervalSince(start) > waitForLinksTimeout {
+                    break
+                }
+                if Date().timeIntervalSince(start) > timeout {
+                    throw ErrorMessage("timed out waiting for sent messages")
+                }
+                Thread.sleep(forTimeInterval: sentMessagePollInterval)
+            }
+            return sentMessageIDs
+        }
+    }
+
+    private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
+        let database = database
+        return try await Self.offNodeActor {
+            let sentThreadIDs = {
+                try messageRowIDs.map { rowID in
+                    try database.withDatabase { db in
+                        try db.threadIDForMessage(rowID: rowID)
+                    }
+                }
+            }
+            var threadIDs = try sentThreadIDs()
+            let start = Date()
+            while threadIDs.contains(where: { $0 == nil }) {
+                Thread.sleep(forTimeInterval: sentMessagePollInterval)
+                threadIDs = try sentThreadIDs()
+                if Date().timeIntervalSince(start) > waitForSentThreadTimeout {
+                    break
+                }
+            }
+            return threadIDs
+        }
+    }
+
+    private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [JSONObject] {
+        let accountID = accountID
+        let database = database
+        let currentUserCache = currentUserCache
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                var messages = [JSONObject]()
+                for sentMessageID in sentMessageIDs {
+                    guard let message = try Self.messageObject(
+                        db: db,
+                        threadID: nil,
+                        messageID: sentMessageID.guid,
+                        currentUserID: currentUserID,
+                        accountID: accountID
+                    ) else {
+                        continue
+                    }
+                    messages.append(message)
+                }
+                return messages
+            }
+        }
+    }
+
+    private func validateLinkedMessageIDs(_ messages: [JSONObject], expectedLinkedMessageID: String?) {
+        for message in messages where message.bool("isHidden") != true {
+            let actual = message.string("linkedMessageID")
+            guard expectedLinkedMessageID != actual else {
+                continue
+            }
+            platformLog.error("imsg: sent message with incorrect quoted message, intended: \(String(describing: expectedLinkedMessageID)), actual: \(String(describing: actual))")
+            Task {
+                try? await reportMessageToSentry("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
+            }
+        }
+    }
+
+    private func reportMessageToSentry(_ message: String) async throws {
+        try await Node.texts.Sentry.captureMessage(message)
+    }
+
     private static func onMessagesControllerQueue<T>(
         _ action: @escaping @Sendable () throws -> T
     ) async throws -> T {
@@ -581,13 +813,29 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         currentUserID: String,
         accountID: String
     ) throws -> String {
-        let threadID = try originalThreadID(db: db, publicThreadID)
+        try messageObject(
+            db: db,
+            threadID: publicThreadID,
+            messageID: messageID,
+            currentUserID: currentUserID,
+            accountID: accountID
+        ).map(encodeJSON) ?? jsonNull
+    }
+
+    nonisolated static func messageObject(
+        db: IMDatabase,
+        threadID publicThreadID: String?,
+        messageID: String,
+        currentUserID: String,
+        accountID: String
+    ) throws -> JSONObject? {
+        let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let messageGUID = messageID.components(separatedBy: "_").first ?? messageID
         guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
-            return jsonNull
+            return nil
         }
 
-        let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: threadID)
+        let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: threadID ?? "")
         let messages = try mapAndHashMessages(
             msgRows: [msgRow],
             attachmentRows: payloadRows.attachmentRows,
@@ -595,10 +843,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        guard let message = messages.first(where: { ($0["id"] as? String) == messageID }) else {
-            return jsonNull
-        }
-        return try encodeJSON(message)
+        return messages.first(where: { ($0["id"] as? String) == messageID })
     }
 
     nonisolated static func searchMessages(

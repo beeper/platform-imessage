@@ -80,16 +80,6 @@ export default class DatabaseAPI {
     return dateRead ?? 0
   }
 
-  getSentMessageIDsSince = (rowID: number): Promise<[number, string][]> =>
-    this.db.raw_all<number[], [number, string]>('select ROWID, guid from message where is_from_me = 1 and ROWID > ?', rowID)
-
-  getThreadIDForMessageRowID = (rowID: number): Promise<string> =>
-    this.db.pluck_get(`SELECT t.guid
-FROM message AS m
-LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-WHERE m.ROWID = ?`, rowID)
-
   isNotEmpty = async (): Promise<boolean> =>
     (await this.db.pluck_get<void[], number>('SELECT (SELECT count(*) FROM message) > 0')) === 1
 

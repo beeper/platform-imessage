@@ -4,15 +4,12 @@ import path from 'path'
 import crypto from 'crypto'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
-import PQueue from 'p-queue'
-import urlRegex from 'url-regex'
-import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { BeeperThread } from './desktop-types'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
 import DatabaseAPI from './db-api'
 import { csrStatus } from './csr'
-import { shellExec, threadIDToAddress } from './util'
+import { shellExec } from './util'
 import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import { makeJSONPersistence, Persistence } from './persistence'
@@ -31,7 +28,6 @@ function canAccessMessagesDir() {
 }
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
-const linkRegex = urlRegex()
 
 function parseSwiftMessageAPIJSON<T>(json: string): T {
   return reviveSwiftMapperValue(JSON.parse(json)) as T
@@ -287,73 +283,8 @@ export default class AppleiMessage implements PlatformAPI {
     ))
   }
 
-  private swiftSendQueue = new PQueue({ concurrency: 1, timeout: 45_000 })
-
-  private swiftSendWithRetry = (threadID: ThreadID, text?: string, filePath?: string, quotedMessageID?: string) =>
-    this.swiftSendQueue.add(async () => {
-      const retries = quotedMessageID ? 2 : 1
-      await pRetry(async () => {
-        // re-fetch the controller on each attempt so that invalidation is respected
-        const controller = await this.getMessagesController()
-        await controller.sendMessage(threadID, text, filePath, quotedMessageID)
-      }, {
-        onFailedAttempt: error => {
-          texts.Sentry.captureException(error)
-          texts.log('sendMessage failed', { quotedMessageID }, error)
-          if (error.attemptNumber === 1) MessagesControllerWrapper.forceInvalidate = true
-        },
-        retries,
-      })
-    })
-
-  private waitForMessageSend = async (threadID: ThreadID, quotedMessageID: MessageID | undefined, text: string | undefined, callback: () => Promise<void>, timeoutMs = 45_000): Promise<true | Message[]> => {
-    const db = await this.ensureDB()
-    const lastRowID = await db.getLastMessageRowID()
-    await callback()
-    let sentMessageIDs: [number, string][] | undefined
-    const startTime = Date.now()
-    // messages ending with links will sometimes be split with each link as a separate message (for link preview)
-    const links = text?.match(linkRegex)
-    const expectedNewMessageIDCount = links?.length || 1
-    const waitForLinksTimeout = 1_500
-    while (sentMessageIDs?.length !== expectedNewMessageIDCount) {
-      sentMessageIDs = await db.getSentMessageIDsSince(lastRowID)
-      // at least one message sent, but not `expectedNewMessageIDCount`
-      if (text && sentMessageIDs.length > 0 && (Date.now() - startTime) > waitForLinksTimeout) break
-      if ((Date.now() - startTime) > timeoutMs) throw Error('timed out waiting for sent messages')
-      await setTimeoutAsync(25)
-    }
-    const getSentThreadIDs = () => Promise.all(sentMessageIDs.map(([rowID]) => db.getThreadIDForMessageRowID(rowID)))
-    let sentThreadIDs = await getSentThreadIDs()
-    const start = Date.now()
-    while (sentThreadIDs.some(t => !t)) {
-      await setTimeoutAsync(25)
-      sentThreadIDs = await getSentThreadIDs()
-      if ((Date.now() - start) > 10_000) break
-    }
-    const mc = await this.getMessagesController()
-    const address = threadIDToAddress(threadID)
-    if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || (sentThreadID && mc?.isSameContact(address, threadIDToAddress(sentThreadID))))) {
-      texts.error('imsg: imessage potentially sent messages to invalid thread')
-      return true
-    }
-    const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))).filter(message => message != null)
-    for (const message of messages) {
-      if (!message.isHidden) {
-        const intended = quotedMessageID ?? undefined
-        const actual = message.linkedMessageID ?? undefined
-        if (intended !== actual) {
-          texts.error('imsg: sent message with incorrect quoted message', { intended, actual })
-          texts.Sentry.captureMessage(`imessage sent message with incorrect quoted message, intended=${!!intended} actual=${!!actual}`)
-        }
-      }
-    }
-    return messages
-  }
-
   private sendFileFromFilePath = async (threadID: ThreadID, filePath: string, quotedMessageID?: MessageID): Promise<boolean | Message[]> =>
-    this.waitForMessageSend(threadID, quotedMessageID, undefined, () =>
-      this.swiftSendWithRetry(threadID, undefined, filePath, quotedMessageID))
+    parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(threadID, undefined, filePath, quotedMessageID))
 
   private sendFileFromBuffer = async (threadID: ThreadID, fileBuffer: Buffer, fileName?: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
     await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
@@ -382,15 +313,14 @@ export default class AppleiMessage implements PlatformAPI {
       if (content.filePath) {
         return this.sendFileFromFilePath(threadID, content.filePath, quotedMessageID)
       }
-      return this.waitForMessageSend(threadID, quotedMessageID, content.text, () => this.swiftSendWithRetry(threadID, content.text, undefined, quotedMessageID))
+      return parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(threadID, content.text, undefined, quotedMessageID))
     } finally {
       this.sendingMessagesCount--
     }
   }
 
   editMessage = async (hashedThreadID: ThreadID, messageID: MessageID, content: MessageContent) => {
-    const swiftAPI = this.swiftPlatformAPI!
-    await swiftAPI.editMessage(hashedThreadID, messageID, content.text)
+    this.swiftPlatformAPI!.editMessage(hashedThreadID, messageID, content.text)
     return true
   }
 
@@ -414,49 +344,18 @@ export default class AppleiMessage implements PlatformAPI {
   sendActivityIndicator = (type: ActivityType, hashedThreadID?: ThreadID) =>
     this.swiftPlatformAPI!.sendActivityIndicator(type, hashedThreadID, this.sendingMessagesCount)
 
-  private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
-    // if (IS_TAHOE_OR_UP) throw Error('reactions are not supported on macOS Tahoe')
-    await pRetry(async () => {
-      const controller = await this.getMessagesController()
-      const result = await this.waitForMessageSend(
-        threadID,
-        messageID,
-        undefined,
-        () => controller.setReaction(threadID, messageID, reactionKey, on),
-        5_000,
-      )
-      if (!result) throw Error('setReaction unknown error')
-    }, {
-      onFailedAttempt: error => {
-        texts.Sentry.captureException(error)
-        texts.log(`setReaction failed, retries left: ${error.retriesLeft}`, error)
-        if (error.attemptNumber === 1) MessagesControllerWrapper.forceInvalidate = true
-      },
-      retries: 2,
-    })
-  }
+  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
+    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.setReaction(hashedThreadID, messageID, reactionKey, true))
 
-  addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
-    if (reactionKey === 'sticker') throw Error("Adding sticker reactions isn't supported")
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, true))
-  }
-
-  removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) => {
-    if (reactionKey === 'sticker') throw Error("Removing sticker reactions isn't supported")
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    return this.threadPhaser.bracketed(hashedThreadID, this.setReaction(threadID, messageID, reactionKey, false))
-  }
+  removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
+    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.setReaction(hashedThreadID, messageID, reactionKey, false))
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     const swiftAPI = this.swiftPlatformAPI!
     await swiftAPI.deleteMessage(hashedThreadID, messageID)
   }
 
-  markAsUnread = async (hashedThreadID: ThreadID) => {
-    const swiftAPI = this.swiftPlatformAPI!
-    return swiftAPI.markAsUnread(hashedThreadID)
-  }
+  markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
 
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
     const swiftAPI = this.swiftPlatformAPI!
@@ -471,10 +370,7 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  notifyAnyway = async (hashedThreadID: ThreadID) => {
-    const swiftAPI = this.swiftPlatformAPI!
-    return swiftAPI.notifyAnyway(hashedThreadID)
-  }
+  notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
 
   onThreadSelected = async (hashedThreadID: ThreadID) => {
     // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored

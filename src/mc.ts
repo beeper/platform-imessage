@@ -17,8 +17,6 @@ const timeoutAndReport = async <T>(promise: Promise<T>, ms = 120_000): Promise<T
 export default class MessagesControllerWrapper {
   private static fetchPromises = new WeakMap<SwiftPlatformAPI, Promise<MessagesController>>()
 
-  static forceInvalidate = false
-
   static get = async (swiftAPI: SwiftPlatformAPI) => {
     const startTime = Date.now()
     const mcPromise = MessagesControllerWrapper._getMessagesController(swiftAPI)
@@ -53,17 +51,8 @@ export default class MessagesControllerWrapper {
   // unserialized: should be serialized by the caller
   private static __getMessagesController = async (swiftAPI: SwiftPlatformAPI): Promise<MessagesController> =>
     pRetry(async () => {
-      const forceInvalidate = MessagesControllerWrapper.forceInvalidate
-      MessagesControllerWrapper.forceInvalidate = false
-      if (forceInvalidate) {
-        texts.trackPlatformEvent({
-          platform: 'imessage',
-          message: 'invalidating MessagesController',
-          forceInvalidate,
-        })
-      }
       texts.log('imsg: [getMessagesController] fetching MessagesController from Swift PlatformAPI...')
-      return timeoutAndReport(swiftAPI.getMessagesController(forceInvalidate)) // can throw
+      return timeoutAndReport(swiftAPI.getMessagesController()) // can throw
     }, {
       retries: 3,
       onFailedAttempt: err => {

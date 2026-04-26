@@ -66,7 +66,7 @@ private let queueLog = Logger(swiftServerLabel: "queue")
     private let swiftJSQueue: NodeAsyncQueue
     private let watchCBQueue: NodeAsyncQueue
 
-    let controller: MessagesController
+    nonisolated let controller: MessagesController
     let hook: AsyncCleanupHook
     // must be called on JS queue
     init(controller: MessagesController) throws {
@@ -203,6 +203,12 @@ private let queueLog = Logger(swiftServerLabel: "queue")
 
     @NodeMethod
     func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws -> NodeValueConvertible {
+        return try performAsync { [self] in
+            try performSetReaction(threadID: threadID, messageID: messageID, reactionName: reactionName, on: on)
+        }
+    }
+
+    nonisolated func performSetReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws {
         let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
             // try the "legacy" reactions first (keyed by `supported` in platform info)
             reaction
@@ -216,10 +222,8 @@ private let queueLog = Logger(swiftServerLabel: "queue")
             throw ErrorMessage("Couldn't create reaction from \"\(reactionName)\"")
         }
 
-        return try performAsync { [self] in
-            let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
-            try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
-        }
+        let messageCell = try resolveMessageCell(threadID: threadID, messageID: messageID)
+        try controller.setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
     }
 
     // @available(macOS 13, *)
@@ -254,13 +258,17 @@ private let queueLog = Logger(swiftServerLabel: "queue")
     @NodeMethod
     func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws -> NodeValueConvertible {
         return try performAsync {
-            let quotedMessage: MessageCell? = if let quotedMessageID {
-                try self.resolveMessageCell(threadID: threadID, messageID: quotedMessageID)
-            } else {
-                nil
-            }
-            try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
+            try self.performSendMessage(threadID: threadID, text: text, filePath: filePath, quotedMessageID: quotedMessageID)
         }
+    }
+
+    nonisolated func performSendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws {
+        let quotedMessage: MessageCell? = if let quotedMessageID {
+            try self.resolveMessageCell(threadID: threadID, messageID: quotedMessageID)
+        } else {
+            nil
+        }
+        try self.controller.sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
     }
 
     @NodeMethod
@@ -283,7 +291,7 @@ private let queueLog = Logger(swiftServerLabel: "queue")
 }
 
 extension MessagesControllerWrapper {
-    private func splitMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
+    private nonisolated func splitMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
         let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
         let messageGUID = String(components[0])
 
@@ -294,7 +302,7 @@ extension MessagesControllerWrapper {
         return (messageGUID, Int(components[1]))
     }
 
-    private func resolveMessageCell(threadID: String, messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
+    private nonisolated func resolveMessageCell(threadID: String, messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
         let (messageGUID, partIndex) = splitMessageID(messageID)
 
         return try controller.resolveMessageCell(
