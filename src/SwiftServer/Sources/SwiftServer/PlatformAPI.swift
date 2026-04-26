@@ -1,7 +1,6 @@
 import Foundation
 import IMDatabase
 import Logging
-import NodeAPI
 import SwiftServerFoundation
 
 private let messagePageLimit = 20
@@ -11,7 +10,6 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
-private let temporaryAttachmentDirectoryName = "platform-imessage"
 // These APIs return JSON strings; this is the JSON null literal.
 private let jsonNull = "null"
 let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
@@ -32,29 +30,23 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 }
 
-@NodeActor @NodeClass final class PlatformAPI {
-    static let name = "PlatformAPI"
-
+final class PlatformAPI {
     private let accountID: String
+    private let runtime: PlatformAPIRuntime
     private let database = PlatformAPIDatabase()
     private let currentUserCache = Protected<CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
     private var messagesController: MessagesController?
-    private var messagesControllerCleanupHook: AsyncCleanupHook?
-    private var watchCBQueue: NodeAsyncQueue?
+    private var messagesControllerCleanupHook: PlatformCleanupHook?
+    private var watchCBQueue: PlatformCallbackQueue?
     private let threadObserveRequestToken = Protected<UUID?>()
     private let hasBeenDisposed = Protected(false)
 
     private static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
 
-    @NodeConstructor init(accountID: String) {
+    init(accountID: String, runtime: PlatformAPIRuntime = .noop) {
         self.accountID = accountID
-    }
-
-    private static func offNodeActor<T: Sendable>(_ action: @escaping @Sendable () throws -> T) async throws -> T {
-        try await Task.detached(priority: .userInitiated) {
-            try action()
-        }.value
+        self.runtime = runtime
     }
 
     /// Runs a DB query off the NodeActor with the cached currentUserID resolved.
@@ -66,7 +58,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let accountID = accountID
         let database = database
         let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
+        return try await NodeBridgeUtilities.offNodeActor {
             try database.withDatabase { db in
                 let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
                 return try work(db, currentUserID, accountID)
@@ -86,17 +78,17 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getCurrentUser() async throws -> String {
+    func getCurrentUser() async throws -> String {
         let database = database
         let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
+        return try await NodeBridgeUtilities.offNodeActor {
             try database.withDatabase { db in
                 try jsonStringify(Self.currentUser(db: db, cache: currentUserCache).hashed())
             }
         }
     }
 
-    @NodeMethod func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
+    func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.searchMessages(
                 db: db,
@@ -111,7 +103,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
+    func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThreads(
                 db: db,
@@ -124,7 +116,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
+    func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getMessages(
                 db: db,
@@ -138,7 +130,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getThread(threadID: String) async throws -> String {
+    func getThread(threadID: String) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThread(
                 db: db,
@@ -149,7 +141,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
+    func getMessage(threadID: String, messageID: String) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getMessage(
                 db: db,
@@ -161,9 +153,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {
-        let userIDs = try userIDsValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
-
+    func createThread(userIDs: [String], title: String?, messageText: String?) async throws -> String {
         guard !userIDs.isEmpty else {
             return "false"
         }
@@ -211,23 +201,23 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return "true"
     }
 
-    @NodeMethod func updateThread(threadID publicThreadID: String, muted: Bool) async throws -> NodeValueConvertible {
+    func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
+        try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
     }
 
-    @NodeMethod func deleteThread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+    func deleteThread(threadID publicThreadID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.deleteThread(threadID: threadID) }
+        try await performOnController { try $0.deleteThread(threadID: threadID) }
     }
 
-    @NodeMethod func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
+    func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
         let database = database
-        let threadID = try await Self.offNodeActor {
+        let threadID = try await NodeBridgeUtilities.offNodeActor {
             try database.withDatabase { db in
                 try Self.originalThreadID(db: db, publicThreadID)
             }
@@ -259,14 +249,14 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         )
     }
 
-    @NodeMethod func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
-        let filePath = try await Self.offNodeActor {
+    func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
+        let filePath = try await NodeBridgeUtilities.offNodeActor {
             try Self.writeTemporaryAttachmentFile(data: fileBuffer, fileName: fileName)
         }
         return try await sendMessage(threadID: publicThreadID, text: nil, filePath: filePath, quotedMessageID: quotedMessageID)
     }
 
-    @NodeMethod func editMessage(threadID publicThreadID: String, messageID: String, content text: String?) async throws -> NodeValueConvertible {
+    func editMessage(threadID publicThreadID: String, messageID: String, content text: String?) async throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("Only supported on macOS Ventura or later")
         }
@@ -278,13 +268,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
+        try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
-    @NodeMethod func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws -> NodeValueConvertible {
+    func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws {
         guard let publicThreadID, !publicThreadID.isEmpty else {
             platformLog.error("ignoring request to send an activity indicator, no thread id provided")
-            return undefined
+            return
         }
 
         let threadID = try database.withDatabase { db in
@@ -292,20 +282,20 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
 
         guard type == "typing" || type == "none" else {
-            return undefined
+            return
         }
 
         guard (sendingMessagesCount ?? 0) == 0 else {
             platformLog.debug("skipping sendActivityIndicator")
-            return undefined
+            return
         }
 
         // Group chat typing indicators require Tahoe+.
         guard isTahoeOrUp || singleParticipantAddress(threadID) != nil else {
-            return undefined
+            return
         }
 
-        return try await performOnController { controller in
+        try await performOnController { controller in
             if type == "typing" {
                 try controller.sendTypingStatus(threadID: threadID)
             } else {
@@ -314,83 +304,75 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func deleteMessage(threadID publicThreadID: String, messageID: String) async throws -> NodeValueConvertible {
+    func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
+        try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
-    @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+    func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
-        return try await retry(retries: 1, interval: 1) { attempt in
-            let (threadID, isRead) = try await Self.offNodeActor {
+        try await retry(retries: 1, interval: 1) { attempt in
+            let (threadID, isRead) = try await NodeBridgeUtilities.offNodeActor {
                 try database.withDatabase { db in
                     let threadID = try Self.originalThreadID(db: db, publicThreadID)
                     return (threadID, try db.isThreadRead(chatGUID: threadID))
                 }
             }
             guard !isRead else {
-                return undefined
+                return
             }
 
-            return try await performOnController(forceInvalidate: attempt > 0) {
+            try await performOnController(forceInvalidate: attempt > 0) {
                 try $0.toggleThreadRead(threadID: threadID, read: true)
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
-            try? await self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
+            try? self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
         }
     }
 
-    @NodeMethod func addReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws -> NodeValueConvertible {
+    func addReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: true)
     }
 
-    @NodeMethod func removeReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws -> NodeValueConvertible {
+    func removeReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
     }
 
-    @NodeMethod func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws -> NodeValueConvertible {
+    func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
         if reaction == "sticker" {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
         }
 
         let database = database
-        let threadID = try await Self.offNodeActor {
+        let threadID = try await NodeBridgeUtilities.offNodeActor {
             try database.withDatabase { db in
                 try Self.originalThreadID(db: db, publicThreadID)
             }
         }
 
         try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
-        return undefined
     }
 
-    @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+    func markAsUnread(threadID publicThreadID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
+        try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
-    @NodeMethod func notifyAnyway(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+    func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.notifyAnyway(threadID: threadID) }
+        try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
-    @NodeMethod func onThreadSelected(_ args: NodeArguments) async throws -> NodeValueConvertible {
-        guard args.count == 2,
-              let publicThreadID = try args[0].as(String.self),
-              let sendEvents = try args[1].as(NodeFunction.self)
-        else {
-            throw ErrorMessage("Bad PlatformAPI call: \(#function)")
-        }
-
+    func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping PlatformEventSender) async throws {
         guard !publicThreadID.isEmpty else {
-            return undefined
+            return
         }
 
         let threadID = try database.withDatabase { db in
@@ -398,13 +380,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
 
         guard !Preferences.enabledExperiments.contains("no_watch_thread") else {
-            return undefined
+            return
         }
 
         let singleParticipantID = singleParticipantAddress(threadID)
         platformLog.debug("activity/\(publicThreadID): watching")
 
-        return try await watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
+        try await watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
             platformLog.debug("activity/\(publicThreadID): received \(statuses.map(\.rawValue))")
 
             let isDNDCanNotify = statuses.contains(.dndCanNotify)
@@ -425,55 +407,49 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 return
             }
 
-            var events: [NodeValueConvertible] = [
-                try NodeObject([
+            var events: [PlatformEvent] = [
+                [
                     "type": "user_activity",
                     "activityType": statuses.contains(.typing) ? "typing" : "none",
                     "threadID": publicThreadID,
                     "participantID": Hasher.participant.tokenizeRemembering(pii: singleParticipantID),
                     "durationMs": 120_000,
-                ])
+                ]
             ]
 
             if isDND {
-                events.append(try NodeObject([
+                events.append([
                     "type": "user_presence_updated",
-                    "presence": try NodeObject([
+                    "presence": [
                         "userID": Hasher.participant.tokenizeRemembering(pii: userID),
                         "status": isDNDCanNotify ? "dnd_can_notify" : "dnd",
-                    ]),
-                ]))
+                    ],
+                ])
             } else if dndUserIDs.withLock({ $0.contains(userID) }) {
                 dndUserIDs.withLock {
                     _ = $0.remove(userID)
                 }
-                events.append(try NodeObject([
+                events.append([
                     "type": "user_presence_updated",
-                    "presence": try NodeObject([
+                    "presence": [
                         "userID": Hasher.participant.tokenizeRemembering(pii: userID),
                         "status": "idle",
-                    ]),
-                ]))
+                    ],
+                ])
             }
 
-            try sendEvents.dynamicallyCall(withArguments: [try events.nodeValue()])
+            try sendEvents(events)
         }
     }
 
-    @NodeMethod func getAsset(pathHex: String, methodName: String?) async throws -> NodeValueConvertible {
+    func getAsset(pathHex: String, methodName: String?) async throws -> PlatformAssetResult {
         let database = database
-        let asset = try await Self.offNodeActor {
+        return try await NodeBridgeUtilities.offNodeActor {
             try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
         }
-        switch asset {
-        case let .url(url):
-            return url
-        case let .data(data):
-            return data
-        }
     }
 
-    @NodeMethod func dispose() async throws {
+    func dispose() async throws {
         defer {
             Self.cleanupTemporaryAttachmentDirectory()
         }
@@ -491,10 +467,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     private func performOnController(
         forceInvalidate: Bool = false,
         _ action: @escaping @Sendable (MessagesController) throws -> Void
-    ) async throws -> NodeValueConvertible {
+    ) async throws {
         let controller = try await getMessagesController(forceInvalidate: forceInvalidate)
         try await Self.onMessagesControllerQueue { try action(controller) }
-        return undefined
     }
 
     private func getMessagesController(forceInvalidate: Bool = false) async throws -> MessagesController {
@@ -515,7 +490,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
 
         let controller = try await makeMessagesController()
-        let cleanupHook = try NodeEnvironment.current.addCleanupHook { completion in
+        let cleanupHook = try runtime.addCleanupHook { completion in
             Log.default.notice("[PlatformAPI] running MessagesController dispose inside cleanup hook")
             controller.dispose()
             completion()
@@ -545,23 +520,21 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     /// Disposes a controller. Clears the queue's idle callback and runs
     /// `controller.dispose()` inside the same `queue.sync` critical section
     /// so a pending idle callback can't fire against a half-disposed controller.
-    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: AsyncCleanupHook?) throws {
+    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: PlatformCleanupHook?) throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         Self.messagesControllerQueue.queue.sync {
             Self.messagesControllerQueue.setIdleCallback(nil)
             controller.dispose()
         }
-        if let cleanupHook {
-            try NodeEnvironment.current.removeCleanupHook(cleanupHook)
-        }
+        try cleanupHook?.remove()
     }
 
     private func watchThreadActivity(
         threadID: String,
-        statusSender: @escaping @Sendable @NodeActor ([ActivityStatus]) throws -> Void
-    ) async throws -> NodeValueConvertible {
+        statusSender: @escaping @Sendable ([ActivityStatus]) throws -> Void
+    ) async throws {
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.watchThreadActivity) else {
-            return undefined
+            return
         }
 
         // reset the idle callback in case we fail and bail out
@@ -578,28 +551,28 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 #if DEBUG
                 platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
                 #endif
-                return undefined
+                return
             }
 
             let chat = try controller.db.chat(withGUID: threadID)
             guard let chat else {
                 platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                return undefined
+                return
             }
 
             guard chat.serviceName == .imessage else {
                 #if DEBUG
                 platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
                 #endif
-                return undefined
+                return
             }
         }
 
-        let watchCBQueue: NodeAsyncQueue
+        let watchCBQueue: PlatformCallbackQueue
         if let existing = self.watchCBQueue {
             watchCBQueue = existing
         } else {
-            watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
+            watchCBQueue = try runtime.makeCallbackQueue("watch-imessage-callback")
             self.watchCBQueue = watchCBQueue
         }
         let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
@@ -633,8 +606,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
             try observe(.began)
         }
-
-        return undefined
     }
 
     @discardableResult
@@ -655,7 +626,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             return context
         } onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
-            try? await self.reportMessageToSentry("imessage \(name) failed: \(error)")
+            try? self.reportMessageToSentry("imessage \(name) failed: \(error)")
         }
     }
 
@@ -679,7 +650,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
     private func lastMessageRowID() async throws -> Int {
         let database = database
-        return try await Self.offNodeActor {
+        return try await NodeBridgeUtilities.offNodeActor {
             try database.withDatabase { db in
                 try db.lastMessageRowID()
             }
@@ -722,7 +693,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         timeout: TimeInterval
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
-        return try await Self.offNodeActor {
+        return try await NodeBridgeUtilities.offNodeActor {
             let start = Date()
             let expectedNewMessageIDCount = text.map { max(linkCount(in: $0), 1) } ?? 1
             var sentMessageIDs: [(rowID: Int, guid: String)] = []
@@ -744,7 +715,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
     private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
         let database = database
-        return try await Self.offNodeActor {
+        return try await NodeBridgeUtilities.offNodeActor {
             let sentThreadIDs = {
                 try messageRowIDs.map { rowID in
                     try database.withDatabase { db in
@@ -791,14 +762,12 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 continue
             }
             platformLog.error("imsg: sent message with incorrect quoted message, intended: \(String(describing: expectedLinkedMessageID)), actual: \(String(describing: actual))")
-            Task {
-                try? await reportMessageToSentry("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
-            }
+            try? reportMessageToSentry("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
         }
     }
 
-    private func reportMessageToSentry(_ message: String) async throws {
-        try Node.texts.Sentry.captureMessage(message)
+    private func reportMessageToSentry(_ message: String) throws {
+        try runtime.reportMessageToSentry(message)
     }
 
     private static func onMessagesControllerQueue<T>(
@@ -812,13 +781,10 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     private func makeMessagesController() async throws -> MessagesController {
-        let q = try NodeAsyncQueue(label: "platform-api-messages-controller")
         return try await Self.onMessagesControllerQueue {
-            try MessagesController(reportToSentry: { txt in
+            try MessagesController(reportToSentry: { [runtime = self.runtime] txt in
                 platformLog.error("<!> report to sentry: \(txt)")
-                try? q.run {
-                    try Node.texts.Sentry.captureMessage(txt)
-                }
+                try? runtime.reportMessageToSentry(txt)
             })
         }
     }
@@ -1028,11 +994,6 @@ extension PlatformAPI {
         var reactionRows: [JSONObject]
     }
 
-    private enum AssetResult: Sendable {
-        case url(String)
-        case data(Data)
-    }
-
     nonisolated static func latestThreadMessageRowsByChatGUID(db: IMDatabase, chatRows: [JSONObject]) throws -> [String: JSONObject] {
         try db.mappedLatestMessageRows(chatRowIDs: chatRows.compactMap { $0.int("ROWID") })
     }
@@ -1082,8 +1043,7 @@ extension PlatformAPI {
     }
 
     nonisolated private static func temporaryAttachmentDirectoryURL() -> URL {
-        URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent(temporaryAttachmentDirectoryName, isDirectory: true)
+        MessagesPaths.temporaryPlatformAttachmentDirectory
     }
 
     nonisolated private static func writeTemporaryAttachmentFile(data: Data, fileName: String?) throws -> String {
@@ -1258,16 +1218,16 @@ extension PlatformAPI {
         return String(associatedMessageGUID[upper...])
     }
 
-    private nonisolated static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> AssetResult {
+    private nonisolated static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> PlatformAssetResult {
         switch pathHex {
         case "hw":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
-            let fileNames = try FileManager.default.contentsOfDirectory(atPath: temporaryMobileSMSPath)
+            let fileNames = try FileManager.default.contentsOfDirectory(atPath: MessagesPaths.temporaryMobileSMSPath)
             var attemptsRemaining = 10
             while attemptsRemaining > 0 {
                 attemptsRemaining -= 1
                 if let fileName = fileNames.first(where: { $0.hasPrefix("hw_\(uuid)_") }) {
-                    return .url(fileURLString(temporaryMobileSMSURL.appendingPathComponent(fileName).path))
+                    return .url(fileURLString(MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent(fileName).path))
                 }
                 Thread.sleep(forTimeInterval: 0.1)
             }
@@ -1275,7 +1235,7 @@ extension PlatformAPI {
 
         case "dt":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
-            let filePath = temporaryMobileSMSURL.appendingPathComponent("\(uuid).mov").path
+            let filePath = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(uuid).mov").path
             _ = waitForFileToExist(filePath, maxWait: 5)
             return .url(fileURLString(filePath))
 

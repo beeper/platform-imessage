@@ -38,7 +38,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
     }
 
     @MainActor func requestAccess() async throws {
-        expectedURL = messagesDir
+        expectedURL = MessagesPaths.messagesDirectory
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
         openPanel.delegate = self
@@ -48,7 +48,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.canChooseFiles = false
         openPanel.prompt = buttonTitle
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
-        openPanel.directoryURL = messagesDir
+        openPanel.directoryURL = MessagesPaths.messagesDirectory
         if Accessibility.isTrusted() {
             DispatchQueue.global(qos: .background).async {
                 try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)

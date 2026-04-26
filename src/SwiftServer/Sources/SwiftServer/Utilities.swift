@@ -64,15 +64,6 @@ func jsonStringify<T: Encodable>(_ input: T) throws -> String {
 
 private let encoder = JSONEncoder()
 
-let temporaryMobileSMSURL = URL(
-    fileURLWithPath: NSTemporaryDirectory(),
-    isDirectory: true
-).appendingPathComponent(messagesBundleID, isDirectory: true)
-
-var temporaryMobileSMSPath: String {
-    temporaryMobileSMSURL.path
-}
-
 func fileURLString(_ filePath: String) -> String {
     URL(fileURLWithPath: filePath).absoluteString
 }

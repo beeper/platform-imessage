@@ -10,15 +10,12 @@ import SwiftServerFoundation
 // }
 
 enum DraftsManager {
-    static let draftsDir = messagesDir?
-        .appendingPathComponent("Drafts", isDirectory: true)
-
     static let objReplacementChar = "\u{fffc}"
 
     static let CKCompositionFileURL = NSAttributedString.Key(rawValue: "CKCompositionFileURL")
 
     static func saveDraft(address: String, filePath: String) throws {
-        let draftsDir = try draftsDir.orThrow(ErrorMessage("draftsDir nil"))
+        let draftsDir = try MessagesPaths.draftsDirectory.orThrow(ErrorMessage("draftsDir nil"))
 
         let ogFileURL = URL(fileURLWithPath: filePath)
         let addressDir = draftsDir.appendingPathComponent(address, isDirectory: true)

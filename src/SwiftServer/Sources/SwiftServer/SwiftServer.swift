@@ -7,39 +7,11 @@ import IMDatabase
 
 private let log = Logger(swiftServerLabel: "swift-server")
 
-let messagesDir = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-    .appendingPathComponent("Messages", isDirectory: true)
-
-enum SysPrefsOnboarding {
-    static var onboardingManager: OnboardingManager?
-
-    static func start() {
-        guard onboardingManager == nil else { return }
-        let onboardingManager = OnboardingManager()
-        self.onboardingManager = onboardingManager
-        onboardingManager.createWindow()
-    }
-
-    static func stop() {
-        onboardingManager?.closeWindow()
-        onboardingManager = nil
-    }
-}
-
 enum Preferences {
     static var isLoggingEnabled: Bool = false
     static var isPHTEnabled: Bool = false
     static var enabledExperiments: String = ""
     static var useSecondaryMessagesInstance: Bool = false
-}
-
-private func offNodeActor<T: Sendable>(
-    priority: TaskPriority = .userInitiated,
-    _ action: @escaping @Sendable () throws -> T
-) async throws -> T {
-    try await Task.detached(priority: priority) {
-        try action()
-    }.value
 }
 
 #NodeModule {
@@ -119,14 +91,14 @@ private func offNodeActor<T: Sendable>(
         },
 
         "canAccessMessagesDir": NodeFunction {
-            try await offNodeActor {
+            try await NodeBridgeUtilities.offNodeActor {
                 _ = try IMDatabase()
                 return true
             }
         },
 
         "validateDatabaseAccess": NodeFunction {
-            try await offNodeActor {
+            try await NodeBridgeUtilities.offNodeActor {
                 try validateDatabaseAccess()
             }
         },
@@ -141,7 +113,7 @@ private func offNodeActor<T: Sendable>(
             guard let onEvent = PollingLifecycle.shared.eventCallback else {
                 throw ErrorMessage("subscribeToEvents must be called before startEventPollingFromCurrentState")
             }
-            let (lastRowID, lastDateRead) = try await offNodeActor {
+            let (lastRowID, lastDateRead) = try await NodeBridgeUtilities.offNodeActor {
                 let db = try IMDatabase()
                 return (try db.lastMessageRowID(), try db.maxMessageDateRead())
             }
@@ -162,13 +134,13 @@ private func offNodeActor<T: Sendable>(
         },
 
         "confirmUNCPrompt": NodeFunction {
-            try await offNodeActor(priority: .background) {
+            try await NodeBridgeUtilities.offNodeActor(priority: .background) {
                 try PromptAutomation.confirmUNCPrompt()
             }
         },
 
         "disableMessagesNotifications": NodeFunction {
-            try await offNodeActor(priority: .background) {
+            try await NodeBridgeUtilities.offNodeActor(priority: .background) {
                 try PromptAutomation.disableNotificationsForApp(named: "Messages")
                 Defaults.playSoundEffects = false
             }
@@ -207,7 +179,7 @@ private func offNodeActor<T: Sendable>(
     dict["stopSysPrefsOnboarding"] = try NodeFunction {
         SysPrefsOnboarding.stop()
     }
-    dict["PlatformAPI"] = try PlatformAPI.constructor()
+    dict["PlatformAPI"] = try PlatformAPINodeWrapper.constructor()
 
     return dict
 }
