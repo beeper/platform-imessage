@@ -105,13 +105,6 @@ function formatEvents(events: ServerEvent[]): string {
   return `[events ${stamp}] ${inspect(events, { colors: true, depth: 8 })}`
 }
 
-function parseEnvBoolean(value: string | undefined): boolean | undefined {
-  if (value == null) return undefined
-  const trimmed = value.trim()
-  if (!trimmed) return false
-  return !/^(0|false|no)$/i.test(trimmed)
-}
-
 function parseCliArgs(argv: string[]): RunnerOptions {
   let commandStartIndex = argv.length
   for (let index = 0; index < argv.length; index += 1) {
@@ -145,7 +138,7 @@ function parseCliArgs(argv: string[]): RunnerOptions {
   })
 
   const commandArgs = values.help ? [HELP_COMMAND, ...commandArgsRaw] : commandArgsRaw
-  const useSecondaryInstance = values['use-secondary-instance'] ?? parseEnvBoolean(process.env.IMESSAGE_USE_SECONDARY_INSTANCE) ?? false
+  const useSecondaryInstance = values['use-secondary-instance'] ?? !!process.env.IMESSAGE_USE_SECONDARY_INSTANCE
 
   return {
     commandArgs,
