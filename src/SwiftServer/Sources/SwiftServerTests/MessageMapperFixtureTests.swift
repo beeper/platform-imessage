@@ -102,6 +102,42 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     #expect(messages.map { ($0["reactions"] as? [JSONObject])?.count ?? 0 } == fixture.reactionCounts)
 }
 
+@Test private func stickerAssociatedMessagePreservesLinkedMessageID() throws {
+    let messages = try Mapper(
+        msgRow: [
+            "ROWID": 1,
+            "guid": "STICKER-GUID",
+            "dateString": "1",
+            "date": "1",
+            "is_from_me": 0,
+            "handle_id": 1,
+            "participantID": "sender",
+            "item_type": 0,
+            "service": "iMessage",
+            "threadID": "iMessage;+;chat",
+            "associated_message_guid": "p:0/TARGET-GUID",
+            "associated_message_type": 1000,
+        ],
+        attachmentRows: [[
+            "msgRowID": 1,
+            "attachmentID": "ATTACHMENT-GUID",
+            "transfer_state": 5,
+            "fileName": "sticker.heic",
+            "filePath": "/tmp/sticker.heic",
+            "ext": "heic",
+            "total_bytes": 10,
+        ]],
+        reactionRows: [],
+        currentUserID: "me",
+        accountID: "default"
+    ).mapMessage()
+
+    let message = try #require(messages.first)
+    #expect(messages.count == 1)
+    #expect(message.string("linkedMessageID") == "TARGET-GUID")
+    #expect((message["attachments"] as? [JSONObject])?.count == 1)
+}
+
 private func loadFixture(_ name: String) throws -> [Any] {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
     let data = try Data(contentsOf: url)

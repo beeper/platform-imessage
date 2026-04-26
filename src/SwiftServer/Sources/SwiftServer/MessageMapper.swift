@@ -80,15 +80,16 @@ struct Mapper {
         }
 
         if let associatedGUID = msgRow.string("associated_message_guid"),
-           !associatedGUID.isEmpty,
-           let associatedMessage = associatedMessage(
-            messages: messages,
-            partialMessage: partialMessage,
-            summaryInfo: summaryInfo,
-            isSMS: isSMS,
-            associatedGUID: associatedGUID
-           ) {
-            return [associatedMessage]
+           !associatedGUID.isEmpty {
+            if let associatedMessage = associatedMessage(
+                messages: &messages,
+                partialMessage: partialMessage,
+                summaryInfo: summaryInfo,
+                isSMS: isSMS,
+                associatedGUID: associatedGUID
+            ) {
+                return [associatedMessage]
+            }
         }
 
         return messages.map { message in

@@ -13,7 +13,7 @@ extension Mapper {
     }
 
     func associatedMessage(
-        messages: [JSONObject],
+        messages: inout [JSONObject],
         partialMessage: JSONObject,
         summaryInfo: JSONObject,
         isSMS: Bool,
@@ -22,11 +22,12 @@ extension Mapper {
         let firstTextPart = messages.first { $0["text"] is String }
         var message = firstTextPart ?? partialMessage
         let guidRange = NSRange(associatedGUID.startIndex ..< associatedGUID.endIndex, in: associatedGUID)
-        message["linkedMessageID"] = assocMsgGUIDPrefixRegex.stringByReplacingMatches(
+        let linkedMessageID = assocMsgGUIDPrefixRegex.stringByReplacingMatches(
             in: associatedGUID,
             range: guidRange,
             withTemplate: ""
         )
+        message["linkedMessageID"] = linkedMessageID
         guard let associatedMessageType = msgRow.int("associated_message_type"),
               let assocMsgType = associatedMessageTypes[associatedMessageType] else {
             return nil
@@ -34,6 +35,9 @@ extension Mapper {
 
         switch assocMsgType {
         case "sticker":
+            if !messages.isEmpty {
+                messages[0]["linkedMessageID"] = linkedMessageID
+            }
             return nil
         case "heading":
             if var text = message.string("text") {

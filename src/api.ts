@@ -272,7 +272,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   editMessage = async (hashedThreadID: ThreadID, messageID: MessageID, content: MessageContent) => {
-    this.swiftPlatformAPI!.editMessage(hashedThreadID, messageID, content.text)
+    await this.swiftPlatformAPI!.editMessage(hashedThreadID, messageID, content.text)
     return true
   }
 
