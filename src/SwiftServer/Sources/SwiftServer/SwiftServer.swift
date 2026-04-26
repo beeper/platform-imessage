@@ -78,6 +78,41 @@ private func offNodeActor<T: Sendable>(
     let accessManager = MessagesAccessManager()
     var pollingTask: Task<Void, Never>?
 
+    func startPolling(onEvent: NodeFunction, lastRowID: Int, lastDateRead: Date) throws {
+        if let task = pollingTask {
+            log.warning("was asked to start polling, but there was already a poller alive; canceling it before proceeding")
+            task.cancel()
+            pollingTask = nil
+        }
+
+        log.debug("was asked to start polling (last row id: \(lastRowID), last date read: \(lastDateRead))")
+
+        let poller = try Poller(serverEventSender: { events in
+            var values = [any NodeValueConvertible]()
+            // this probably isn't worth doing in parallel
+            for event in events {
+                values.append(try await event.nodeValue())
+            }
+            #if DEBUG
+            log.debug("handing over \(values.count) value(s) to the event callback")
+            #endif
+            try await onEvent.call([values])
+        }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()))
+
+        pollingTask = Task {
+            log.debug("going to poll forever")
+            do {
+                try await poller.pollForever()
+            } catch {
+                log.error("poller died: \(String(reflecting: error))")
+            }
+        }
+    }
+
+    func validateDatabaseAccess() throws {
+        _ = try IMDatabase(createIndexes: true)
+    }
+
     var dict: [String: NodePropertyConvertible] = try [
         "isMessagesAppInDock": NodeProperty { _ in
             Defaults.isAppInDock(bundleID: messagesBundleID)
@@ -109,6 +144,19 @@ private func offNodeActor<T: Sendable>(
             try await accessManager.requestAccess()
         },
 
+        "canAccessMessagesDir": NodeFunction {
+            try await offNodeActor {
+                _ = try IMDatabase()
+                return true
+            }
+        },
+
+        "validateDatabaseAccess": NodeFunction {
+            try await offNodeActor {
+                try validateDatabaseAccess()
+            }
+        },
+
         "resolveThreadID": NodeFunction { (threadID: String) async throws in
             try await offNodeActor {
                 try PlatformAPI.originalThreadID(db: IMDatabase(), threadID)
@@ -127,38 +175,20 @@ private func offNodeActor<T: Sendable>(
         },
 
         "startPolling": NodeFunction { (onEvent: NodeFunction, lastRowIDBig: NodeBigInt, lastDateReadNanosecondsBig: NodeBigInt) in
-            if let task = pollingTask {
-                log.warning("was asked to start polling, but there was already a poller alive; canceling it before proceeding")
-                task.cancel()
-                pollingTask = nil
-            }
-
             let lastRowID = Int(try lastRowIDBig.signed().value)
             let lastDateRead = Date(nanosecondsSinceReferenceDate: Int(try lastDateReadNanosecondsBig.signed().value))
-            log.debug("was asked to start polling (last row id: \(lastRowID), last date read: \(lastDateRead))")
-
-            let poller = try Poller(serverEventSender: { events in
-                var values = [any NodeValueConvertible]()
-                // this probably isn't worth doing in parallel
-                for event in events {
-                    values.append(try await event.nodeValue())
-                }
-                #if DEBUG
-                log.debug("handing over \(values.count) value(s) to the event callback")
-                #endif
-                try await onEvent.call([values])
-            }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()))
-
-            pollingTask = Task {
-                log.debug("going to poll forever")
-                do {
-                    try await poller.pollForever()
-                } catch {
-                    log.error("poller died: \(String(reflecting: error))")
-                }
-            }
+            try startPolling(onEvent: onEvent, lastRowID: lastRowID, lastDateRead: lastDateRead)
 
             return // needed to resolve a compile-time type ambiguity apparently
+        },
+
+        "startPollingFromCurrentState": NodeFunction { (onEvent: NodeFunction) async throws in
+            let (lastRowID, lastDateRead) = try await offNodeActor {
+                let db = try IMDatabase()
+                return (try db.lastMessageRowID(), try db.maxMessageDateRead())
+            }
+            try startPolling(onEvent: onEvent, lastRowID: lastRowID, lastDateRead: lastDateRead)
+            return
         },
 
         "askForAutomationAccess": NodeFunction {

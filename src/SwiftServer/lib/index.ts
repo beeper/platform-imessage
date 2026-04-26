@@ -63,6 +63,8 @@ export type SwiftServer = {
   PlatformAPI: typeof SwiftPlatformAPI
 
   resolveThreadID: (threadID: ThreadID) => Promise<ThreadID>
+  canAccessMessagesDir: () => Promise<boolean>
+  validateDatabaseAccess: () => Promise<void>
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>
 
@@ -79,6 +81,7 @@ export type SwiftServer = {
 
   cancelPollingIfNecessary: () => void
   startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void
+  startPollingFromCurrentState: (cb: OnServerEventCallback) => Promise<void>
 
   revealSettings: () => void
 

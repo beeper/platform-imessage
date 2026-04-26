@@ -1,12 +1,12 @@
-import fsSync, { promises as fs } from 'fs'
+import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
+import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 
 import { BeeperThread } from './desktop-types'
-import { CHAT_DB_PATH, APP_BUNDLE_ID, IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
-import DatabaseAPI from './db-api'
+import { APP_BUNDLE_ID, IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
@@ -16,14 +16,6 @@ import Phaser from './phaser'
 import { reviveSwiftMapperValue } from './swift-json'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
-
-function canAccessMessagesDir() {
-  try {
-    const fd = fsSync.openSync(CHAT_DB_PATH, 'r')
-    fsSync.closeSync(fd)
-    return true
-  } catch (err) { return false }
-}
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
@@ -60,7 +52,7 @@ export default class AppleiMessage implements PlatformAPI {
    * actually propagate failure when permissions aren't granted, `login` is
    * used.
    */
-  private cachedDB: DatabaseAPI | null = null
+  private hasValidatedMessagesDatabaseAccess = false
 
   private onEvent: OnServerEventCallback | undefined
 
@@ -84,24 +76,48 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private async ensureDB(): Promise<DatabaseAPI> {
-    if (this.cachedDB) {
-      return this.cachedDB
+  private async ensureSwiftPlatformAPI(): Promise<SwiftPlatformAPI> {
+    if (!this.swiftPlatformAPI) {
+      this.swiftPlatformAPI = new swiftServer.PlatformAPI(this.accountID)
+    }
+
+    if (this.hasValidatedMessagesDatabaseAccess) {
+      return this.swiftPlatformAPI
     }
 
     try {
-      this.cachedDB = await DatabaseAPI.make()
+      await swiftServer.validateDatabaseAccess()
+      this.hasValidatedMessagesDatabaseAccess = true
     } catch (error: unknown) {
-      texts.error("imsg: couldn't initialize DatabaseAPI:", error)
+      texts.error("imsg: couldn't validate Messages database access:", error)
       throw new ReAuthError("Can't access iMessage data", { cause: error })
     }
+
     // at this point, we can definitely read the imsg database
+    texts.log('imsg: validated Messages database access')
 
-    texts.log('imsg: created DatabaseAPI')
+    return this.swiftPlatformAPI
+  }
 
-    this.swiftPlatformAPI = new swiftServer.PlatformAPI(this.accountID)
+  private hasAttemptedToStartPoller = false
 
-    return this.cachedDB
+  private async startPollingIfNecessary(maxRowID: number, maxDateRead: number) {
+    if (this.hasAttemptedToStartPoller) return
+    this.hasAttemptedToStartPoller = true
+
+    // HACK: We only get the callback via `subscribeToEvents`, but we may be
+    // asked to start polling from `getThreads` first. Wait until it arrives.
+    let spins = 0
+    while (!this.onEvent) {
+      if (++spins === 50) {
+        texts.log("imsg: WARNING: still don't have server event callback after 5 seconds; something is running amok")
+      }
+      await setTimeoutAsync(100)
+    }
+
+    texts.log(`imsg: kicking off poller (max row id: ${maxRowID}, max date read: ${maxDateRead})`)
+    // FIXME: it's useless to make these `BigInt`s when they're already `number` (lost precision)
+    swiftServer.startPolling(this.onEvent, BigInt(maxRowID), BigInt(maxDateRead))
   }
 
   private resolveThreadID = async (threadID: ThreadID): Promise<ThreadID> =>
@@ -114,7 +130,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   login = async (): Promise<LoginResult> => {
     try {
-      await this.ensureDB()
+      await this.ensureSwiftPlatformAPI()
       return { type: 'success' }
     } catch (error) {
       const errorMessage = 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.'
@@ -153,16 +169,16 @@ export default class AppleiMessage implements PlatformAPI {
 
   dispose = async () => {
     swiftServer?.stopSysPrefsOnboarding?.()
+    swiftServer?.cancelPollingIfNecessary?.()
     await Promise.all([
       this.swiftPlatformAPI?.dispose(),
       fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
-      this.cachedDB?.dispose(),
     ])
   }
 
   subscribeToEvents = async (onEvent: OnServerEventCallback): Promise<void> => {
-    const db = await this.ensureDB()
-    db.eventSender = (events: ServerEvent[]) => {
+    await this.ensureSwiftPlatformAPI()
+    this.onEvent = (events: ServerEvent[]) => {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
@@ -173,7 +189,6 @@ export default class AppleiMessage implements PlatformAPI {
       })
       onEvent(evs)
     }
-    this.onEvent = onEvent
     if (swiftServer?.isMessagesAppInDock && swiftServer?.isPHTEnabled) {
       this.removeMessagesAppInDock()
     }
@@ -181,8 +196,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   startEventPollingFromCurrentState = async (): Promise<void> => {
     if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventPollingFromCurrentState')
-    const db = await this.ensureDB()
-    await db.startPollingFromCurrentState()
+    await this.ensureSwiftPlatformAPI()
+    await swiftServer.startPollingFromCurrentState(this.onEvent)
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
@@ -216,8 +231,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
-    const db = await this.ensureDB()
-    const swiftAPI = this.swiftPlatformAPI!
+    const swiftAPI = await this.ensureSwiftPlatformAPI()
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     const cursor = pagination?.cursor ?? null
@@ -228,7 +242,7 @@ export default class AppleiMessage implements PlatformAPI {
     ))
     if (!cursor && _pollingCursor?.maxRowID) {
       // TODO: this is a polling bootstrap side effect; it should not live in a getter/non-mutating API.
-      void db.startPollingIfNecessary(_pollingCursor.maxRowID, _pollingCursor.maxDateRead ?? 0)
+      void this.startPollingIfNecessary(_pollingCursor.maxRowID, _pollingCursor.maxDateRead ?? 0)
     }
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
@@ -366,8 +380,8 @@ export default class AppleiMessage implements PlatformAPI {
   //   }
 
   private proxiedAuthFns = {
-    isMessagesAppSetup: () => this.ensureDB().then(() => true, () => false),
-    canAccessMessagesDir,
+    isMessagesAppSetup: () => this.ensureSwiftPlatformAPI().then(() => true, () => false),
+    canAccessMessagesDir: () => swiftServer.canAccessMessagesDir().then(() => true, () => false),
     askForAutomationAccess: () => swiftServer.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
     confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
