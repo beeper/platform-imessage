@@ -16,21 +16,21 @@ final class PlatformCallbackQueue: Sendable {
 }
 
 final class PlatformCleanupHook: Sendable {
-    private let _remove: @Sendable () throws -> Void
+    private let _remove: @Sendable () async throws -> Void
 
-    init(remove: @escaping @Sendable () throws -> Void) {
+    init(remove: @escaping @Sendable () async throws -> Void) {
         self._remove = remove
     }
 
-    func remove() throws {
-        try _remove()
+    func remove() async throws {
+        try await _remove()
     }
 }
 
 struct PlatformAPIRuntime: Sendable {
-    var makeCallbackQueue: @Sendable (_ label: String) throws -> PlatformCallbackQueue
+    var makeCallbackQueue: @Sendable (_ label: String) async throws -> PlatformCallbackQueue
     var reportMessageToSentry: @Sendable (_ message: String) throws -> Void
-    var addCleanupHook: @Sendable (_ action: @escaping @Sendable (_ completion: @escaping @Sendable () -> Void) -> Void) throws -> PlatformCleanupHook
+    var addCleanupHook: @Sendable (_ action: @escaping @Sendable (_ completion: @escaping @Sendable () -> Void) -> Void) async throws -> PlatformCleanupHook
 
     static let noop = PlatformAPIRuntime(
         makeCallbackQueue: { _ in

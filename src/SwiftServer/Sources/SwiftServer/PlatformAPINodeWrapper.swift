@@ -124,10 +124,14 @@ import SwiftServerFoundation
     }
 
     private static func makeRuntime() -> PlatformAPIRuntime {
+        let runtimeQueue = try? NodeAsyncQueue(label: "platform-api-runtime")
         let sentryQueue = try? NodeAsyncQueue(label: "platform-api-sentry")
         return PlatformAPIRuntime(
             makeCallbackQueue: { label in
-                try NodeActor.unsafeAssumeIsolated {
+                guard let runtimeQueue else {
+                    throw ErrorMessage("PlatformAPI Node runtime queue is unavailable")
+                }
+                return try await runtimeQueue.run {
                     let queue = try NodeAsyncQueue(label: label)
                     return PlatformCallbackQueue { action in
                         try queue.run(action)
@@ -140,13 +144,19 @@ import SwiftServerFoundation
                 }
             },
             addCleanupHook: { action in
-                try NodeActor.unsafeAssumeIsolated {
-                    let hook = try NodeEnvironment.current.addCleanupHook { completion in
-                        action(completion)
+                guard let runtimeQueue else {
+                    return PlatformCleanupHook(remove: {})
+                }
+                return try await runtimeQueue.run {
+                    let cleanupHook = try NodeEnvironment.current.addCleanupHook { completion in
+                        action {
+                            completion()
+                        }
                     }
+                    let hook = SendableBox(cleanupHook)
                     return PlatformCleanupHook {
-                        try NodeActor.unsafeAssumeIsolated {
-                            try NodeEnvironment.current.removeCleanupHook(hook)
+                        try runtimeQueue.run {
+                            try NodeEnvironment.current.removeCleanupHook(hook.value)
                         }
                     }
                 }

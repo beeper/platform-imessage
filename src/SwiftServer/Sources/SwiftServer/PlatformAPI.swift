@@ -465,7 +465,7 @@ public final class PlatformAPI {
         currentUserCache.withLock { $0 = nil }
         SysPrefsOnboarding.stop()
         await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
-        try disposeCachedMessagesController()
+        try await disposeCachedMessagesController()
     }
 
     private func performOnController(
@@ -490,18 +490,18 @@ public final class PlatformAPI {
             }
 
             platformLog.debug("disposing cached MessagesController (valid? \(isValid), invalidation forced? \(forceInvalidate))")
-            try disposeCachedMessagesController()
+            try await disposeCachedMessagesController()
         }
 
         let controller = try await makeMessagesController()
-        let cleanupHook = try runtime.addCleanupHook { completion in
+        let cleanupHook = try await runtime.addCleanupHook { completion in
             Log.default.notice("[PlatformAPI] running MessagesController dispose inside cleanup hook")
             controller.dispose()
             completion()
         }
 
         guard !hasBeenDisposed.read() else {
-            try disposeMessagesController(controller, cleanupHook: cleanupHook)
+            try await disposeMessagesController(controller, cleanupHook: cleanupHook)
             throw ErrorMessage("PlatformAPI has been disposed")
         }
 
@@ -510,7 +510,7 @@ public final class PlatformAPI {
         return controller
     }
 
-    private func disposeCachedMessagesController() throws {
+    private func disposeCachedMessagesController() async throws {
         guard let controller = messagesController else {
             return
         }
@@ -518,19 +518,19 @@ public final class PlatformAPI {
         let cleanupHook = messagesControllerCleanupHook
         messagesController = nil
         messagesControllerCleanupHook = nil
-        try disposeMessagesController(controller, cleanupHook: cleanupHook)
+        try await disposeMessagesController(controller, cleanupHook: cleanupHook)
     }
 
     /// Disposes a controller. Clears the queue's idle callback and runs
     /// `controller.dispose()` inside the same `queue.sync` critical section
     /// so a pending idle callback can't fire against a half-disposed controller.
-    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: PlatformCleanupHook?) throws {
+    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: PlatformCleanupHook?) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         Self.messagesControllerQueue.queue.sync {
             Self.messagesControllerQueue.setIdleCallback(nil)
             controller.dispose()
         }
-        try cleanupHook?.remove()
+        try await cleanupHook?.remove()
     }
 
     private func watchThreadActivity(
@@ -576,7 +576,7 @@ public final class PlatformAPI {
         if let existing = self.watchCBQueue {
             watchCBQueue = existing
         } else {
-            watchCBQueue = try runtime.makeCallbackQueue("watch-imessage-callback")
+            watchCBQueue = try await runtime.makeCallbackQueue("watch-imessage-callback")
             self.watchCBQueue = watchCBQueue
         }
         let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
@@ -1197,7 +1197,7 @@ extension PlatformAPI {
             let transferName = attachmentRow.string("transfer_name")
             let base = filePath.map { ($0 as NSString).lastPathComponent } ?? transferName ?? ""
             let ext = filePath.map { ($0 as NSString).pathExtension.lowercased() } ?? ""
-            attachmentRow["filePath"] = filePath ?? NSNull()
+            attachmentRow["filePath"] = filePath as Any
             attachmentRow["fileName"] = transferName?.isEmpty == false ? transferName! : base
             attachmentRow["ext"] = ext
 
