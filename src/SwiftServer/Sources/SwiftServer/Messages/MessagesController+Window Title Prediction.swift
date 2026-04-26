@@ -17,7 +17,6 @@ private enum ChatMember {
     case stranger(Handle)
 }
 
-@available(macOS 11, *)
 extension MessagesController {
     var db: IMDatabase {
         get throws {

@@ -79,11 +79,6 @@ private func offNodeActor<T: Sendable>(
     var pollingTask: Task<Void, Never>?
 
     var dict: [String: NodePropertyConvertible] = try [
-        "hashers": [
-            "thread": try Hasher.thread.nodeValue(),
-            "participant": try Hasher.participant.nodeValue(),
-        ].nodeValue(),
-
         "appleInterfaceStyle": NodeProperty { _ in
             UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
         },
@@ -116,6 +111,16 @@ private func offNodeActor<T: Sendable>(
 
         "askForMessagesDirAccess": NodeFunction {
             try await accessManager.requestAccess()
+        },
+
+        "resolveThreadID": NodeFunction { (threadID: String) async throws in
+            try await offNodeActor {
+                try PlatformAPI.originalThreadID(db: IMDatabase(), threadID)
+            }
+        },
+
+        "hashParticipantID": NodeFunction { (id: String) in
+            Hasher.participant.tokenizeRemembering(pii: id)
         },
 
         "cancelPollingIfNecessary": NodeFunction {
@@ -224,16 +229,11 @@ private func offNodeActor<T: Sendable>(
         }
     ]
 
-    if #available(macOS 10.15, *) {
-        dict["startSysPrefsOnboarding"] = try NodeFunction {
-            SysPrefsOnboarding.start()
-        }
-        dict["stopSysPrefsOnboarding"] = try NodeFunction {
-            SysPrefsOnboarding.stop()
-        }
+    dict["startSysPrefsOnboarding"] = try NodeFunction {
+        SysPrefsOnboarding.start()
     }
-    if #available(macOS 11, *) {
-        dict["MessagesController"] = try MessagesControllerWrapper.constructor()
+    dict["stopSysPrefsOnboarding"] = try NodeFunction {
+        SysPrefsOnboarding.stop()
     }
     dict["PlatformAPI"] = try PlatformAPI.constructor()
 

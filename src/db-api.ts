@@ -5,14 +5,12 @@ import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { CHAT_DB_PATH, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
-import { hashThreadID } from './hashing'
 import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow } from './types'
 import swiftServer from './SwiftServer/lib'
 
 const SQLS = {
   getThread: 'SELECT * FROM chat WHERE guid = ?',
-  getAllThreadGUIDs: 'SELECT guid FROM chat',
   getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
 
   getAccountLogins: 'SELECT DISTINCT account_login FROM chat',
@@ -103,19 +101,6 @@ export default class DatabaseAPI {
     const chat = await this.db.get<string[], ChatRow>(SQLS.getThread, chatGUID)
     if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     return chat
-  }
-
-  private threadHasherWarmed?: Promise<void>
-
-  // loads every chat guid and feeds it through hashThreadID so the Swift
-  // hasher's reverse-lookup map is populated for every thread in the db.
-  // memoized so repeated misses share a single O(N) pass.
-  warmThreadHasher(): Promise<void> {
-    this.threadHasherWarmed ??= (async () => {
-      const chatGUIDs = await this.db.pluck_all<void[], string>(SQLS.getAllThreadGUIDs)
-      chatGUIDs.forEach(hashThreadID)
-    })()
-    return this.threadHasherWarmed
   }
 
   private async resolveChatRowID(chatGUID: string): Promise<number> {

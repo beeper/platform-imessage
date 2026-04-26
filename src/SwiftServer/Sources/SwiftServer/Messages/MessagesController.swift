@@ -124,7 +124,6 @@ private enum ConveyorEvent {
 }
 
 // external API is thread safe
-@available(macOS 11, *)
 final class MessagesController {
     private static let pollingInterval: TimeInterval = 1
 
@@ -1630,7 +1629,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 }
 
-@available(macOS 11, *)
 extension MessagesController {
     class OcclusionMonitor {
         var visible: Bool = true

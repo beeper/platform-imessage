@@ -94,7 +94,6 @@ public final class EMFEmojiToken {
     }
 }
 
-@available(macOS 11, *)
 public final class EMFEmojiSearchEngine {
     private let underlying: NSObject
 

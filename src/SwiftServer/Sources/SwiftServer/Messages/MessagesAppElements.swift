@@ -27,7 +27,6 @@ struct ElementSearchError: Error, CustomStringConvertible {
 
 /// MessagesAppElements contains all the fetching code (with retry) for `Accessibility.Element`s that MessagesController uses
 /// aim to reduce side effects (like calling actions) here
-@available(macOS 11, *)
 final class MessagesAppElements {
     static func isMessageContainerCell(_ element: Accessibility.Element) throws -> Bool {
         let containsReactPrefix: ([Accessibility.Action]) -> Bool = { actions in
@@ -555,7 +554,6 @@ final class MessagesAppElements {
     }
 }
 
-@available(macOS 11, *)
 extension MessagesAppElements {
     // MARK: Experimental
     /// Returns message container cells using `copyHierarchy` to minimize IPC round-trips.

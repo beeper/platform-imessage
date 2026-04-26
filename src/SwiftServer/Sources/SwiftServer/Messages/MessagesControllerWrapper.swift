@@ -6,9 +6,7 @@ import Logging
 
 private let log = Logger(swiftServerLabel: "messages-controller-wrapper")
 private let queueLog = Logger(swiftServerLabel: "queue")
-private let sentryLog = Logger(swiftServerLabel: "sentry")
 
-@available(macOS 11, *)
 @NodeActor @NodeClass final class MessagesControllerWrapper {
     static let name = "MessagesController"
 
@@ -59,33 +57,6 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             try action()
             return undefined
         }
-    }
-
-    @NodeMethod static func create() throws -> NodeValueConvertible {
-        addBreadcrumb("Creating async queue")
-        let q = try NodeAsyncQueue(label: "create-messages-controller")
-        addBreadcrumb("Opening async context")
-        return try returnAsync(on: q) {
-            let controller = try MessagesController(reportToSentry: { txt in
-                sentryLog.error("<!> report to sentry: \(txt)")
-                try? q.run {
-                    try Node.texts.Sentry.captureMessage(txt)
-                }
-            })
-            return NodeDeferredValue {
-                addBreadcrumb("NodeDeferred.init")
-                return try MessagesControllerWrapper(controller: controller).wrapped()
-            }
-        }
-    }
-
-    private static func addBreadcrumb(_ message: String) {
-        _ = try? Node.texts.Sentry.addBreadcrumb([
-            "category": "swiftserver",
-            "level": "info",
-            "message": message
-        ])
-        sentryLog.info("[breadcrumb] \(message)")
     }
 
     private var threadObserveRequestToken: UUID?
@@ -140,21 +111,16 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         try performAsync { try self.controller.notifyAnyway(threadID: threadID) }
     }
 
-    @NodeMethod func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
+    func watchThreadActivity(
+        threadID: String,
+        statusSender: @escaping @Sendable @NodeActor ([ActivityStatus]) throws -> Void
+    ) throws -> NodeValueConvertible {
         guard Defaults.swiftServer.bool(forKey: DefaultsKeys.watchThreadActivity) else {
             return undefined
         }
 
         // reset the idle callback in case we fail and bail out
         Self.queue.setIdleCallback(nil)
-
-        guard args.count == 2,
-              let threadID = try args[0].as(String.self),
-              let sendStatus = try args[1].as(NodeFunction.self)
-        else {
-            log.error("invalid args passed to watchThreadActivity")
-            return undefined
-        }
 
         // only watch thread activity for iMessage chats
         // TODO: implement this for groups
@@ -184,7 +150,7 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
 
         let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
             try? self.watchCBQueue.run {
-                try sendStatus(statuses.map(\.rawValue))
+                try statusSender(statuses)
             }
             return
         }
@@ -218,6 +184,20 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
             guard self.threadObserveRequestToken == requestID else { return }
 
             try observe(.began)
+        }
+    }
+
+    @NodeMethod func watchThreadActivity(_ args: NodeArguments) throws -> NodeValueConvertible {
+        guard args.count == 2,
+              let threadID = try args[0].as(String.self),
+              let sendStatus = try args[1].as(NodeFunction.self)
+        else {
+            log.error("invalid args passed to watchThreadActivity")
+            return undefined
+        }
+
+        return try watchThreadActivity(threadID: threadID) { statuses in
+            try sendStatus(statuses.map(\.rawValue))
         }
     }
 
@@ -288,7 +268,6 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
         return self.controller.isSameContact(a, b)
     }
 
-    @NodeMethod
     func dispose() throws {
         guard !hasBeenDisposed else {
             // NOTE(skip): Guard against `dispose` being called more than once, which triggers a UAF via napi_remove_env_cleanup_hook. (DESK-7237)
@@ -303,7 +282,6 @@ private let sentryLog = Logger(swiftServerLabel: "sentry")
     }
 }
 
-@available(macOS 11, *)
 extension MessagesControllerWrapper {
     private func splitMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
         let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)

@@ -6,7 +6,7 @@ import readline from 'node:readline/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 // eslint-disable-next-line import/no-extraneous-dependencies
 import c from 'ansi-colors'
-import swiftServer, { MESSAGES_CONTROLLER_METHOD_NAMES, MessagesController } from '../../SwiftServer/lib/index'
+import swiftServer, { MESSAGES_CONTROLLER_METHOD_NAMES, type MessagesController } from '../../SwiftServer/lib/index'
 import { getLastMessageID } from './last-message'
 import { runStress } from './stress'
 import { measure } from './util'
@@ -68,9 +68,9 @@ async function resolveMagicArgs(command: string, args: string[]): Promise<string
 }
 
 async function main() {
-  const { messagesControllerClass } = swiftServer
+  const platformAPI = new swiftServer.PlatformAPI('default', 'default')
   console.log(c.bold.blue('creating messages controller'))
-  const [mc, creationLatency] = await measure(messagesControllerClass.create)
+  const [mc, creationLatency] = await measure(() => platformAPI.getMessagesController())
   state.mc = mc
   console.log(c.bold.green(`messages controller created in ${creationLatency.toFixed(3)}ms`))
 
@@ -183,7 +183,7 @@ async function main() {
       || commandName === 'watchThreadActivity'
     if (!shouldKeepAlive) {
       await sleep(1000)
-      mc.dispose()
+      platformAPI.dispose()
       process.exit()
     }
   }
@@ -194,7 +194,7 @@ async function main() {
     const input = await rl.question(prompt)
 
     if (/^(q|quit|exit)$/.test(input)) {
-      mc.dispose()
+      platformAPI.dispose()
       process.exit()
     } else {
       await run(input.trim())

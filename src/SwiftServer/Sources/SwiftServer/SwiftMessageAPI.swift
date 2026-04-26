@@ -1,9 +1,11 @@
 import Foundation
 import IMDatabase
+import Logging
 import NodeAPI
 import SwiftServerFoundation
 
 private let messagePageLimit = 20
+private let platformLog = Logger(swiftServerLabel: "platform-api")
 // These APIs return JSON strings; this is the JSON null literal.
 private let jsonNull = "null"
 let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
@@ -30,6 +32,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     private let currentUserID: String
     private let accountID: String
     private let database = PlatformAPIDatabase()
+    private let dndUserIDs = Protected(Set<String>())
+    private var messagesControllerWrapper: MessagesControllerWrapper?
+    private var hasBeenDisposed = false
 
     @NodeConstructor init(currentUserID: String, accountID: String) {
         self.currentUserID = currentUserID
@@ -130,6 +135,143 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 )
             }
         }
+    }
+
+    @NodeMethod func getMessagesController(_ args: NodeArguments) async throws -> NodeValueConvertible {
+        guard !hasBeenDisposed else {
+            throw ErrorMessage("PlatformAPI has been disposed")
+        }
+
+        let forceInvalidate = args.count > 0 ? try args[0].as(Bool.self) ?? false : false
+        if let existing = messagesControllerWrapper {
+            let isValid = try await Self.onMessagesControllerQueue {
+                existing.controller.isValid
+            }
+            if isValid && !forceInvalidate {
+                return try existing.wrapped()
+            }
+
+            platformLog.debug("disposing cached MessagesController (valid? \(isValid), invalidation forced? \(forceInvalidate))")
+            try existing.dispose()
+            messagesControllerWrapper = nil
+        }
+
+        let wrapper = try await makeMessagesControllerWrapper()
+        guard !hasBeenDisposed else {
+            try wrapper.dispose()
+            throw ErrorMessage("PlatformAPI has been disposed")
+        }
+
+        messagesControllerWrapper = wrapper
+        return try wrapper.wrapped()
+    }
+
+    @NodeMethod func dispose() throws {
+        hasBeenDisposed = true
+
+        guard let wrapper = messagesControllerWrapper else {
+            return
+        }
+
+        try wrapper.dispose()
+        messagesControllerWrapper = nil
+    }
+
+    @NodeMethod func onThreadSelected(_ args: NodeArguments) throws -> NodeValueConvertible {
+        guard args.count == 3,
+              let publicThreadID = try args[0].as(String.self),
+              let sendEvents = try args[1].as(NodeFunction.self),
+              let messagesController = try args[2].as(MessagesControllerWrapper.self)
+        else {
+            throw ErrorMessage("Bad PlatformAPI call: \(#function)")
+        }
+
+        guard !publicThreadID.isEmpty else {
+            return undefined
+        }
+
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+
+        guard !Preferences.enabledExperiments.contains("no_watch_thread") else {
+            return undefined
+        }
+
+        let singleParticipantID = singleParticipantAddress(threadID)
+        platformLog.debug("activity/\(publicThreadID): watching")
+
+        return try messagesController.watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
+            platformLog.debug("activity/\(publicThreadID): received \(statuses.map(\.rawValue))")
+
+            let isDNDCanNotify = statuses.contains(.dndCanNotify)
+            let isDND = statuses.contains(.dnd) || isDNDCanNotify
+            let userID = threadIDToAddress(threadID) ?? ""
+            if isDND {
+                dndUserIDs.withLock { $0.insert(userID) }
+            } else {
+                dndUserIDs.withLock { $0.remove(userID) }
+            }
+
+            guard let singleParticipantID else {
+                platformLog.debug("activity/\(publicThreadID): NOT syncing; not a single participant \(statuses.map(\.rawValue))")
+                return
+            }
+
+            var events: [NodeValueConvertible] = [
+                try NodeObject([
+                    "type": "user_activity",
+                    "activityType": statuses.contains(.typing) ? "typing" : "none",
+                    "threadID": publicThreadID,
+                    "participantID": Hasher.participant.tokenizeRemembering(pii: singleParticipantID),
+                    "durationMs": 120_000,
+                ])
+            ]
+
+            if isDND {
+                events.append(try NodeObject([
+                    "type": "user_presence_updated",
+                    "presence": try NodeObject([
+                        "userID": Hasher.participant.tokenizeRemembering(pii: userID),
+                        "status": isDNDCanNotify ? "dnd_can_notify" : "dnd",
+                    ]),
+                ]))
+            } else if dndUserIDs.withLock({ $0.contains(userID) }) {
+                dndUserIDs.withLock { $0.remove(userID) }
+                events.append(try NodeObject([
+                    "type": "user_presence_updated",
+                    "presence": try NodeObject([
+                        "userID": Hasher.participant.tokenizeRemembering(pii: userID),
+                        "status": "idle",
+                    ]),
+                ]))
+            }
+
+            try sendEvents.dynamicallyCall(withArguments: [try events.nodeValue()])
+        }
+    }
+
+    private static func onMessagesControllerQueue<T>(
+        _ action: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            MessagesControllerWrapper.queue.async {
+                continuation.resume(with: Result { try action() })
+            }
+        }
+    }
+
+    private func makeMessagesControllerWrapper() async throws -> MessagesControllerWrapper {
+        let q = try NodeAsyncQueue(label: "platform-api-messages-controller")
+        let controller = try await Self.onMessagesControllerQueue {
+            try MessagesController(reportToSentry: { txt in
+                platformLog.error("<!> report to sentry: \(txt)")
+                try? q.run {
+                    try Node.texts.Sentry.captureMessage(txt)
+                }
+            })
+        }
+        return try MessagesControllerWrapper(controller: controller)
     }
 
     nonisolated static func getThreads(

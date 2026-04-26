@@ -29,6 +29,23 @@ const args = new Map(
   }),
 )
 
+const getArg = (...names) => {
+  for (const name of names) {
+    if (args.has(name)) return args.get(name)
+  }
+}
+
+function parseLimit(value, argName) {
+  const normalized = String(value).trim().toLowerCase()
+  if (['all', 'inf', 'infinite', 'infinity', 'unlimited'].includes(normalized)) return Infinity
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${argName} must be a non-negative integer or "all"`)
+  }
+  return Number.parseInt(normalized, 10)
+}
+
+const formatLimit = value => Number.isFinite(value) ? value : 'all'
+
 const defaultReferenceSwiftServerNodePath = '/Applications/Beeper Nightly.app/Contents/Resources/app/build/platform-imessage/darwin-arm64/SwiftServer.node'
 const referenceSwiftServerNodePath = args.get('reference-swift-server-node') ?? defaultReferenceSwiftServerNodePath
 const referenceBinariesDirPath = path.dirname(path.dirname(referenceSwiftServerNodePath))
@@ -89,9 +106,10 @@ const { default: ReferenceAppleiMessage } = await import(pathToFileURL(await ens
 const api = new AppleiMessage('default')
 const referenceAPI = new ReferenceAppleiMessage('default')
 
-const chatLimit = Number.parseInt(args.get('chats') ?? '1000', 10)
-const skipChats = Number.parseInt(args.get('skip-chats') ?? '0', 10)
-const messageLimit = Number.parseInt(args.get('messages') ?? '100', 10)
+const chatLimit = parseLimit(getArg('max-chats', 'chats') ?? 'all', '--max-chats')
+const skipChats = parseLimit(args.get('skip-chats') ?? '0', '--skip-chats')
+if (!Number.isFinite(skipChats)) throw new Error('--skip-chats must be a non-negative integer')
+const messageLimit = parseLimit(getArg('max-messages-per-chat', 'max-messages', 'messages') ?? '100', '--max-messages-per-chat')
 const getMessageSamplesArg = args.get('get-message-samples') ?? '1'
 const getMessageSamplesAll = getMessageSamplesArg === 'all'
 const getMessageSamples = getMessageSamplesAll ? Infinity : Number.parseInt(getMessageSamplesArg, 10)
@@ -318,7 +336,8 @@ try {
   let threadCursor
   let threadPagesChecked = 0
   let getThreadsPagesChecked = 0
-  while (threads.length < skipChats + chatLimit) {
+  const targetThreadCount = Number.isFinite(chatLimit) ? skipChats + chatLimit : Infinity
+  while (threads.length < targetThreadCount) {
     let page
     try {
       const pagination = threadCursor ? { cursor: threadCursor, direction: 'before' } : undefined
@@ -372,11 +391,14 @@ try {
     }
   }
 
-  const selectedThreads = threads.slice(skipChats, skipChats + chatLimit)
+  const selectedThreads = Number.isFinite(chatLimit)
+    ? threads.slice(skipChats, skipChats + chatLimit)
+    : threads.slice(skipChats)
   for (const [index, thread] of selectedThreads.entries()) {
-    const threadIndex = skipChats + index + 1
-    if (progressEvery > 0 && threadIndex % progressEvery === 0) {
-      console.error(`[parity] checked ${threadIndex}/${threads.length} chats`)
+    const checkedThreadCount = index + 1
+    const threadIndex = skipChats + checkedThreadCount
+    if (progressEvery > 0 && checkedThreadCount % progressEvery === 0) {
+      console.error(`[parity] checked ${checkedThreadCount}/${selectedThreads.length} chats (thread ${threadIndex})`)
     }
     try {
       const [currentThread, referenceThread] = await timedPair(
@@ -408,14 +430,17 @@ try {
         )
         pagesChecked += 1
         getMessagesPagesChecked += 1
-        mappedMessagesPlanned += page.items.length
-        seenMessages += page.items.length
+        const messagesToCheck = Number.isFinite(messageLimit)
+          ? page.items.slice(0, Math.max(0, messageLimit - seenMessages))
+          : page.items
+        mappedMessagesPlanned += messagesToCheck.length
+        seenMessages += messagesToCheck.length
         recordDelta(failures, 'getMessages', { threadID: thread.id, pageIndex }, page, referencePage)
-        addSearchCandidates(thread, page.items)
+        addSearchCandidates(thread, messagesToCheck)
 
         const sampledMessages = Number.isFinite(getMessageSamples)
-          ? page.items.slice(0, Math.max(0, getMessageSamples))
-          : page.items
+          ? messagesToCheck.slice(0, Math.max(0, getMessageSamples))
+          : messagesToCheck
         for (const message of sampledMessages) {
           try {
             const [currentMessage, referenceMessage] = await timedPair(
@@ -520,6 +545,10 @@ try {
   }
 
   console.log(JSON.stringify({
+    chatLimit: formatLimit(chatLimit),
+    skipChats,
+    messageLimitPerChat: formatLimit(messageLimit),
+    totalChatsDiscovered: threads.length,
     chatsChecked: selectedThreads.length,
     threadPagesChecked,
     getThreadsPagesChecked,

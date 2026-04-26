@@ -1,4 +1,3 @@
-@available(macOS 11, *)
 public struct CharacterPickerSearch {
     public var emoji: Character
 

@@ -1,9 +1,7 @@
 import { texts } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
-import swiftServer, { MessagesController } from './SwiftServer/lib'
-
-const messagesControllerClass = swiftServer?.messagesControllerClass
+import { MessagesController, type SwiftPlatformAPI } from './SwiftServer/lib'
 
 const timeoutSymbol = Symbol('timeout')
 
@@ -17,15 +15,13 @@ const timeoutAndReport = async <T>(promise: Promise<T>, ms = 120_000): Promise<T
 }
 
 export default class MessagesControllerWrapper {
-  private static fetchPromise?: Promise<MessagesController>
-
-  private static controller?: MessagesController
+  private static fetchPromises = new WeakMap<SwiftPlatformAPI, Promise<MessagesController>>()
 
   static forceInvalidate = false
 
-  static get = async () => {
+  static get = async (swiftAPI: SwiftPlatformAPI) => {
     const startTime = Date.now()
-    const mcPromise = MessagesControllerWrapper._getMessagesController()
+    const mcPromise = MessagesControllerWrapper._getMessagesController(swiftAPI)
     const timeout = setTimeout(() => {
       texts.Sentry.captureMessage('imessage.getMC took >10s')
     }, 10_000)
@@ -38,45 +34,36 @@ export default class MessagesControllerWrapper {
   }
 
   // serialized: if there's an existing get request running, it's reused
-  private static _getMessagesController = async (): Promise<MessagesController> => {
+  private static _getMessagesController = async (swiftAPI: SwiftPlatformAPI): Promise<MessagesController> => {
     // we want to reuse existing instances of the fetch promise while any one is
     // running, but once it's done the next call to getMessagesController should
     // start up a new invocation (so that isValid() is checked again)
-    if (MessagesControllerWrapper.fetchPromise) return MessagesControllerWrapper.fetchPromise
+    const existingFetch = MessagesControllerWrapper.fetchPromises.get(swiftAPI)
+    if (existingFetch) return existingFetch
 
-    MessagesControllerWrapper.fetchPromise = this.__getMessagesController()
+    const fetchPromise = this.__getMessagesController(swiftAPI)
       .finally(() => {
-        MessagesControllerWrapper.fetchPromise = undefined
+        MessagesControllerWrapper.fetchPromises.delete(swiftAPI)
       })
+    MessagesControllerWrapper.fetchPromises.set(swiftAPI, fetchPromise)
 
-    return MessagesControllerWrapper.fetchPromise
+    return fetchPromise
   }
 
   // unserialized: should be serialized by the caller
-  private static __getMessagesController = async (): Promise<MessagesController> =>
+  private static __getMessagesController = async (swiftAPI: SwiftPlatformAPI): Promise<MessagesController> =>
     pRetry(async () => {
-      let { controller } = MessagesControllerWrapper
-      if (!controller) {
-        texts.log('imsg: [getMessagesController] creating MessagesController...')
-        controller = await timeoutAndReport(messagesControllerClass.create()) // can throw
-        MessagesControllerWrapper.controller = controller
-      }
-
-      const controllerValid = await controller.isValid()
-      const isForcingInvalidation = MessagesControllerWrapper.forceInvalidate
-      if (!controllerValid || isForcingInvalidation) {
-        texts.log(`imsg: [getMessagesController] DISPOSING MessagesController (valid? ${controllerValid}, invalidation forced? ${isForcingInvalidation})`)
+      const forceInvalidate = MessagesControllerWrapper.forceInvalidate
+      MessagesControllerWrapper.forceInvalidate = false
+      if (forceInvalidate) {
         texts.trackPlatformEvent({
           platform: 'imessage',
-          message: 'disposing MessagesController',
-          forceInvalidate: MessagesControllerWrapper.forceInvalidate,
+          message: 'invalidating MessagesController',
+          forceInvalidate,
         })
-        MessagesControllerWrapper.forceInvalidate = false
-        MessagesControllerWrapper.controller = undefined
-        controller.dispose()
-        throw new Error('MessagesController is invalid')
       }
-      return controller
+      texts.log('imsg: [getMessagesController] fetching MessagesController from Swift PlatformAPI...')
+      return timeoutAndReport(swiftAPI.getMessagesController(forceInvalidate)) // can throw
     }, {
       retries: 3,
       onFailedAttempt: err => {
@@ -85,10 +72,4 @@ export default class MessagesControllerWrapper {
         texts.Sentry.captureException(err, { tags: { platform: 'imessage' } })
       },
     })
-
-  static async dispose() {
-    const controller = (await MessagesControllerWrapper.fetchPromise) || MessagesControllerWrapper.controller
-    controller?.dispose()
-    MessagesControllerWrapper.controller = undefined
-  }
 }

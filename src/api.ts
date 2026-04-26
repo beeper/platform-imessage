@@ -15,9 +15,9 @@ import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_
 import DatabaseAPI from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
-import swiftServer, { ActivityStatus, type SwiftPlatformAPI } from './SwiftServer/lib'
+import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import { hashParticipantID, hashThreadID, originalThreadID } from './hashing'
+import { hashParticipantID } from './hashing'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
@@ -85,6 +85,9 @@ export default class AppleiMessage implements PlatformAPI {
     return this.swiftPlatformAPI
   }
 
+  private getMessagesController = () =>
+    MessagesControllerWrapper.get(this.getSwiftPlatformAPI())
+
   private applyPersistedThreadState(thread: Thread): Thread {
     const archive = this.persistence?.getThreadProp(thread.id, 'archive')
     const reminder = this.persistence?.getThreadProp(thread.id, 'reminder')
@@ -120,9 +123,11 @@ export default class AppleiMessage implements PlatformAPI {
 
     texts.log('imsg: created DatabaseAPI')
 
+    this.currentUser = await this.fetchCurrentUser()
+
     if (process.env.IMESSAGE_SKIP_EAGER_MC !== '1') {
       // eslint-disable-next-line no-void
-      void MessagesControllerWrapper.get()
+      void this.getMessagesController()
         .then(() => {
           texts.log('imsg: fetched MessagesControllerWrapper')
         })
@@ -130,7 +135,6 @@ export default class AppleiMessage implements PlatformAPI {
           texts.error('imsg: eager MessagesControllerWrapper fetch failed:', error)
         })
     }
-    this.currentUser = await this.fetchCurrentUser()
 
     return this.cachedDB
   }
@@ -146,17 +150,8 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private resolveThreadID = async (possiblyHashedThreadID: ThreadID): Promise<ThreadID> => {
-    try {
-      return originalThreadID(possiblyHashedThreadID)
-    } catch {
-      // hasher doesn't know this token (e.g. before getThreads has run after
-      // a restart). warm it by tokenizing every chat guid, then retry.
-      const db = await this.ensureDB()
-      await db.warmThreadHasher()
-      return originalThreadID(possiblyHashedThreadID)
-    }
-  }
+  private resolveThreadID = async (threadID: ThreadID): Promise<ThreadID> =>
+    swiftServer.resolveThreadID(threadID)
 
   getCurrentUser = async (): Promise<CurrentUser> => {
     await this.ensureDB()
@@ -211,11 +206,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   dispose = async () => {
     swiftServer?.stopSysPrefsOnboarding?.()
-    // if the promise is undefined, we probably failed to create the controller
-    // and so getMessagesController() would re-initialize it. We only really care
-    // about disposing any existing handle.
     await Promise.all([
-      MessagesControllerWrapper.dispose(),
+      this.swiftPlatformAPI?.dispose(),
       fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
       this.cachedDB?.dispose(),
     ])
@@ -277,7 +269,7 @@ export default class AppleiMessage implements PlatformAPI {
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
     }
-    await (await MessagesControllerWrapper.get()).createThread(userIDs, message)
+    await (await this.getMessagesController()).createThread(userIDs, message)
     return true
   }
 
@@ -350,7 +342,7 @@ export default class AppleiMessage implements PlatformAPI {
       const retries = quotedMessageID ? 2 : 1
       await pRetry(async () => {
         // re-fetch the controller on each attempt so that invalidation is respected
-        const controller = await MessagesControllerWrapper.get()
+        const controller = await this.getMessagesController()
         await controller.sendMessage(threadID, text, filePath, quotedMessageID)
       }, {
         onFailedAttempt: error => {
@@ -387,14 +379,13 @@ export default class AppleiMessage implements PlatformAPI {
       sentThreadIDs = await getSentThreadIDs()
       if ((Date.now() - start) > 10_000) break
     }
-    const mc = await MessagesControllerWrapper.get()
+    const mc = await this.getMessagesController()
     const address = threadIDToAddress(threadID)
     if (!sentThreadIDs.every(sentThreadID => sentThreadID === threadID || (sentThreadID && mc?.isSameContact(address, threadIDToAddress(sentThreadID))))) {
       texts.error('imsg: imessage potentially sent messages to invalid thread')
       return true
     }
-    const hashedThreadID = hashThreadID(threadID)
-    const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(hashedThreadID, guid)))).filter(message => message != null)
+    const messages = (await Promise.all(sentMessageIDs.map(([, guid]) => this.getMessage(threadID, guid)))).filter(message => message != null)
     for (const message of messages) {
       if (!message.isHidden) {
         const intended = quotedMessageID ?? undefined
@@ -450,7 +441,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!IS_VENTURA_OR_UP) throw Error('Only supported on macOS Ventura or later')
     const { text } = content
     if (!text) throw new Error('Tried to edit message to have empty content')
-    const controller = await MessagesControllerWrapper.get()
+    const controller = await this.getMessagesController()
     await controller.editMessage(threadID, messageID, text)
     return true
   }
@@ -459,7 +450,7 @@ export default class AppleiMessage implements PlatformAPI {
   updateThread = async (hashedThreadID: ThreadID, updates: Partial<Thread>) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
     if ('mutedUntil' in updates) {
-      const mc = await MessagesControllerWrapper.get()
+      const mc = await this.getMessagesController()
       await mc.muteThread(threadID, updates.mutedUntil === 'forever')
     }
     if ('isLowPriority' in updates) {
@@ -474,7 +465,7 @@ export default class AppleiMessage implements PlatformAPI {
   // eslint-disable-next-line class-methods-use-this
   deleteThread = async (hashedThreadID: ThreadID) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
-    const mc = await MessagesControllerWrapper.get()
+    const mc = await this.getMessagesController()
     await mc.deleteThread(threadID)
   }
 
@@ -489,13 +480,13 @@ export default class AppleiMessage implements PlatformAPI {
     // group chat typing indicators require Tahoe+
     if (!IS_TAHOE_OR_UP && !getSingleParticipantAddress(threadID)) return
     const isTyping = type === ActivityType.TYPING
-    return (await MessagesControllerWrapper.get()).sendTypingStatus(threadID, isTyping)
+    return (await this.getMessagesController()).sendTypingStatus(threadID, isTyping)
   }
 
   private setReaction = async (threadID: ThreadID, messageID: MessageID, reactionKey: string, on: boolean) => {
     // if (IS_TAHOE_OR_UP) throw Error('reactions are not supported on macOS Tahoe')
     await pRetry(async () => {
-      const controller = await MessagesControllerWrapper.get()
+      const controller = await this.getMessagesController()
       const result = await this.waitForMessageSend(
         threadID,
         messageID,
@@ -529,14 +520,14 @@ export default class AppleiMessage implements PlatformAPI {
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
     const threadID = await this.resolveThreadID(hashedThreadID)
-    const controller = await MessagesControllerWrapper.get()
+    const controller = await this.getMessagesController()
     await controller.undoSend(threadID, messageID)
   }
 
   // eslint-disable-next-line class-methods-use-this
   private toggleThreadRead = (read: boolean) => async (hashedThreadID: ThreadID) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
-    const controller = await MessagesControllerWrapper.get()
+    const controller = await this.getMessagesController()
     await controller.toggleThreadRead(threadID, read)
   }
 
@@ -561,78 +552,19 @@ export default class AppleiMessage implements PlatformAPI {
   // eslint-disable-next-line class-methods-use-this
   notifyAnyway = async (hashedThreadID: ThreadID) => {
     const threadID = await this.resolveThreadID(hashedThreadID)
-    const controller = await MessagesControllerWrapper.get()
+    const controller = await this.getMessagesController()
     await controller.notifyAnyway(threadID)
   }
-
-  private dndSet = new Set<string>()
 
   onThreadSelected = async (hashedThreadID: ThreadID) => {
     // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored
     // fork of platform-sdk that lets the thread ID be null. We currently don't
     // use that fork, but we ought to.
     if (!hashedThreadID) return
+    if (!this.onEvent) return
 
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    if (this.experiments.includes('no_watch_thread')) return
-    // we don't need to Promise.all because the Promise has already been
-    // fired for messagesController
-    const messagesController = await MessagesControllerWrapper.get()
-    if (!messagesController) return
-
-    // ignore groups and sms threads
-    const singleParticipantID = getSingleParticipantAddress(threadID)
-    // if (!participantID) {
-    //   return messagesController.watchThreadActivity(null)
-    // }
-    texts.log(`imsg/activity/${hashedThreadID}: watching`)
-
-    // this can be optimized, a bunch of redundant events will be sent from swift -> js and platform-imessage -> client
-    return messagesController.watchThreadActivity(threadID, statuses => {
-      texts.log(`imsg/activity/${hashedThreadID}: received`, JSON.stringify(statuses))
-
-      const isDNDCanNotify = statuses.includes(ActivityStatus.DNDCanNotify)
-      const userID = threadID.split(';', 3).pop() as string // .split() never returns empty array
-      if (statuses.includes(ActivityStatus.DND) || isDNDCanNotify) {
-        this.dndSet.add(userID)
-      } else {
-        this.dndSet.delete(userID)
-      }
-
-      // only sync user activity for groups
-      if (!singleParticipantID) {
-        texts.log(`imsg/activity/${hashedThreadID}: NOT syncing; not a single participant`, JSON.stringify(statuses))
-        return
-      }
-
-      const events: ServerEvent[] = [{
-        type: ServerEventType.USER_ACTIVITY,
-        activityType: statuses.includes(ActivityStatus.Typing) ? ActivityType.TYPING : ActivityType.NONE,
-        threadID: hashedThreadID,
-        participantID: hashParticipantID(singleParticipantID),
-        durationMs: 120_000,
-      }]
-      if (statuses.includes(ActivityStatus.DND) || isDNDCanNotify) {
-        events.push({
-          type: ServerEventType.USER_PRESENCE_UPDATED,
-          presence: {
-            userID: hashParticipantID(userID),
-            status: isDNDCanNotify ? 'dnd_can_notify' : 'dnd',
-          },
-        })
-      } else if (this.dndSet.has(userID)) {
-        this.dndSet.delete(userID)
-        events.push({
-          type: ServerEventType.USER_PRESENCE_UPDATED,
-          presence: {
-            userID: hashParticipantID(userID),
-            status: 'idle',
-          },
-        })
-      }
-
-      this.onEvent?.(events)
-    })
+    const messagesController = await this.getMessagesController()
+    return this.getSwiftPlatformAPI().onThreadSelected(hashedThreadID, this.onEvent, messagesController)
   }
 
   //   private getThreadMessagesChecksum = async (threadID: ThreadID, afterCursor: string) => {

@@ -12,15 +12,7 @@ export const enum ActivityStatus {
   Unknown = 'UNKNOWN',
 }
 
-export interface Hasher {
-  tokenizeRemembering: (pii: string) => string
-  /** throws if not found */
-  recoverOriginal: (token: string) => string
-}
-
 export declare class MessagesController {
-  static create(): Promise<MessagesController>
-
   isValid: () => Promise<boolean>
 
   createThread: (addresses: string[], messageText: string) => Promise<void>
@@ -51,12 +43,12 @@ export declare class MessagesController {
   setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
 
   isSameContact: (addressA: string, addressB: string) => boolean
-
-  dispose: () => void
 }
 
 export declare class SwiftPlatformAPI {
   constructor(currentUserID: string, accountID: string)
+
+  getMessagesController: (forceInvalidate?: boolean) => Promise<MessagesController>
 
   getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, limit?: number) => Promise<string>
 
@@ -67,6 +59,10 @@ export declare class SwiftPlatformAPI {
   getThread: (threadID: string) => Promise<string>
 
   searchMessages: (query: string, threadID: string | undefined, mediaOnly: boolean | undefined, sender: string | undefined, limit?: number) => Promise<string>
+
+  onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback, messagesController: MessagesController) => Promise<void>
+
+  dispose: () => void
 }
 
 // purely for headless (REPL) tab-autocomplete
@@ -84,7 +80,6 @@ export const MESSAGES_CONTROLLER_METHOD_NAMES = [
   'sendMessage',
   'setReaction',
   'isSameContact',
-  'dispose',
 ] as const satisfies (keyof MessagesController)[]
 
 export type SwiftServer = {
@@ -95,10 +90,12 @@ export type SwiftServer = {
   isMessagesAppInDock: string
   isNotificationsEnabledForMessages: boolean
 
+  PlatformAPI: typeof SwiftPlatformAPI
+
   mapMessageJSON: (inputJSON: string) => string
   getImageMetadata: (filePath: string) => Promise<Size | undefined>
-  PlatformAPI: typeof SwiftPlatformAPI
-  messagesControllerClass: typeof MessagesController
+  resolveThreadID: (threadID: ThreadID) => Promise<ThreadID>
+  hashParticipantID: (id: string) => string
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>
 
@@ -118,10 +115,6 @@ export type SwiftServer = {
 
   revealSettings: () => void
 
-  hashers: {
-    thread: Hasher
-    participant: Hasher
-  }
 }
 
 const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
@@ -129,6 +122,5 @@ const swiftServerPath = path.join(ARCH_BINARIES_DIR_PATH, 'SwiftServer.node')
 const nodeRequire = nodeModule.createRequire(path.join(process.cwd(), 'SwiftServer.node-loader.js'))
 // eslint-disable-next-line import/no-dynamic-require -- can't bundle .node files
 const swiftServer: SwiftServer = nodeRequire(swiftServerPath)
-swiftServer.messagesControllerClass = (swiftServer as unknown as { MessagesController: typeof MessagesController }).MessagesController
 
 export default swiftServer
