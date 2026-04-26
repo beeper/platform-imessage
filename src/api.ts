@@ -64,25 +64,15 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  private async ensureSwiftPlatformAPI(): Promise<SwiftPlatformAPI> {
-    this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.accountID)
-
-    if (this.hasValidatedMessagesDatabaseAccess) {
-      return this.swiftPlatformAPI
-    }
-
+  private async ensureDB() {
     try {
       await swiftServer.validateDatabaseAccess()
-      this.hasValidatedMessagesDatabaseAccess = true
     } catch (error: unknown) {
       texts.error("imsg: couldn't validate Messages database access:", error)
       throw new ReAuthError("Can't access iMessage data", { cause: error })
     }
-
     // at this point, we can definitely read the imsg database
     texts.log('imsg: validated Messages database access')
-
-    return this.swiftPlatformAPI
   }
 
   getCurrentUser = async (): Promise<CurrentUser> => {
@@ -92,7 +82,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   login = async (): Promise<LoginResult> => {
     try {
-      await this.ensureSwiftPlatformAPI()
+      await this.ensureDB()
       return { type: 'success' }
     } catch (error) {
       const errorMessage = 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.'
@@ -125,6 +115,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
+    this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.accountID)
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -135,7 +126,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   subscribeToEvents = async (onEvent: OnServerEventCallback): Promise<void> => {
-    await this.ensureSwiftPlatformAPI()
     this.onEvent = (events: ServerEvent[]) => {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
@@ -155,7 +145,6 @@ export default class AppleiMessage implements PlatformAPI {
 
   startEventPollingFromCurrentState = async (): Promise<void> => {
     if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventPollingFromCurrentState')
-    await this.ensureSwiftPlatformAPI()
     await swiftServer.startPollingFromCurrentState()
   }
 
@@ -190,10 +179,9 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
-    const swiftAPI = await this.ensureSwiftPlatformAPI()
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
-    const response = parseSwiftMessageAPIJSON<PaginatedWithCursors<Thread>>(await swiftAPI.getThreads(
+    const response = parseSwiftMessageAPIJSON<PaginatedWithCursors<Thread>>(await this.swiftPlatformAPI!.getThreads(
       folderName,
       pagination?.cursor,
       pagination?.direction,
@@ -316,7 +304,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private proxiedAuthFns = {
-    isMessagesAppSetup: () => this.ensureSwiftPlatformAPI().then(() => true, () => false),
+    isMessagesAppSetup: () => swiftServer.validateDatabaseAccess().then(() => true, () => false),
     canAccessMessagesDir: () => swiftServer.canAccessMessagesDir().then(() => true, () => false),
     askForAutomationAccess: () => swiftServer.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),

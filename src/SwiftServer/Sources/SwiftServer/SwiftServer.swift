@@ -104,26 +104,35 @@ enum Preferences {
         },
 
         "setEventCallback": NodeFunction { (onEvent: NodeFunction) in
-            PollingLifecycle.shared.setEventCallback(onEvent)
+            let eventQueue = try NodeAsyncQueue(label: "polling-lifecycle-events")
+            let sentryQueue = try? NodeAsyncQueue(label: "polling-lifecycle-sentry")
+            let onEvent = SendableBox(onEvent)
+            PollingLifecycle.shared.setEventCallback { events in
+                try await eventQueue.run {
+                    var values = [any NodeValueConvertible]()
+                    for event in events {
+                        values.append(try await event.nodeValue())
+                    }
+                    try await onEvent.value.call([values])
+                }
+            } reportToSentry: { message in
+                try? sentryQueue?.run {
+                    try Node.texts.Sentry.captureMessage(message)
+                }
+            }
 
             return // needed to resolve a compile-time type ambiguity apparently
         },
 
         "startPollingFromCurrentState": NodeFunction { () async throws in
-            guard let onEvent = PollingLifecycle.shared.eventCallback else {
-                throw ErrorMessage("subscribeToEvents must be called before startEventPollingFromCurrentState")
-            }
             let (lastRowID, lastDateRead) = try await NodeBridgeUtilities.offNodeActor {
                 let db = try IMDatabase()
                 return (try db.lastMessageRowID(), try db.maxMessageDateRead())
             }
-            try PollingLifecycle.shared.startPolling(
-                onEvent: onEvent,
+            try PollingLifecycle.shared.startPollingFromCurrentState(
                 lastRowID: lastRowID,
-                lastDateRead: lastDateRead,
-                source: "current state"
+                lastDateRead: lastDateRead
             )
-            PollingLifecycle.shared.markBootstrapSatisfied()
             return
         },
 

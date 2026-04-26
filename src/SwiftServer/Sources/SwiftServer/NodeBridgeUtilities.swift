@@ -2,6 +2,14 @@ import Foundation
 import NodeAPI
 import SwiftServerFoundation
 
+final class SendableBox<T>: @unchecked Sendable {
+    let value: T
+
+    init(_ value: T) {
+        self.value = value
+    }
+}
+
 enum NodeBridgeUtilities {
     static func offNodeActor<T: Sendable>(
         priority: TaskPriority = .userInitiated,

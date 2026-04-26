@@ -1,9 +1,9 @@
 import Foundation
 import Logging
-import NodeAPI
 import SwiftServerFoundation
 
 private let pollingLog = Logger(swiftServerLabel: "polling-lifecycle")
+typealias PollingEventSender = @Sendable ([PASEvent]) async throws -> Void
 
 final class PollingLifecycle {
     static let shared = PollingLifecycle()
@@ -14,30 +14,25 @@ final class PollingLifecycle {
     }
 
     private struct State {
-        var onEvent: NodeFunction?
+        var onEvent: PollingEventSender?
         var pollingTask: Task<Void, Never>?
         var hasAttemptedBootstrap = false
         var pendingBootstrapCursor: BootstrapCursor?
-        var sentryQueue: NodeAsyncQueue?
+        var reportToSentry: Poller.ReportToSentry?
     }
 
     private let state = Protected(State())
 
     private init() {}
 
-    var eventCallback: NodeFunction? {
-        state.withLock { $0.onEvent }
+    var hasEventCallback: Bool {
+        state.withLock { $0.onEvent != nil }
     }
 
-    @NodeActor
-    func setEventCallback(_ onEvent: NodeFunction) {
-        // Construct a NodeAsyncQueue while we're still on NodeActor so the
-        // poller (which runs on a detached Task) can hop back here to call
-        // into Sentry. Best-effort; fall back to log-only on failure.
-        let sentryQueue = try? NodeAsyncQueue(label: "polling-lifecycle-sentry")
+    func setEventCallback(_ onEvent: @escaping PollingEventSender, reportToSentry: Poller.ReportToSentry? = nil) {
         let pendingCursor = state.withLock { state in
             state.onEvent = onEvent
-            state.sentryQueue = sentryQueue
+            state.reportToSentry = reportToSentry
             defer { state.pendingBootstrapCursor = nil }
             return state.pendingBootstrapCursor
         }
@@ -58,7 +53,7 @@ final class PollingLifecycle {
 
     func startBootstrapIfNecessary(lastRowID: Int, lastDateRead: Date) {
         let cursor = BootstrapCursor(lastRowID: lastRowID, lastDateRead: lastDateRead)
-        let onEvent = state.withLock { state -> NodeFunction? in
+        let onEvent = state.withLock { state -> PollingEventSender? in
             guard !state.hasAttemptedBootstrap else { return nil }
 
             state.hasAttemptedBootstrap = true
@@ -100,6 +95,7 @@ final class PollingLifecycle {
             state.pendingBootstrapCursor = nil
             if clearEventCallback {
                 state.onEvent = nil
+                state.reportToSentry = nil
             }
             return pollingTask
         }
@@ -115,8 +111,21 @@ final class PollingLifecycle {
         }
     }
 
+    func startPollingFromCurrentState(lastRowID: Int, lastDateRead: Date) throws {
+        guard let onEvent = state.withLock({ $0.onEvent }) else {
+            throw ErrorMessage("subscribeToEvents must be called before startEventPollingFromCurrentState")
+        }
+        try startPolling(
+            onEvent: onEvent,
+            lastRowID: lastRowID,
+            lastDateRead: lastDateRead,
+            source: "current state"
+        )
+        markBootstrapSatisfied()
+    }
+
     func startPolling(
-        onEvent: NodeFunction,
+        onEvent: @escaping PollingEventSender,
         lastRowID: Int,
         lastDateRead: Date,
         source: String
@@ -133,29 +142,14 @@ final class PollingLifecycle {
 
         pollingLog.debug("starting poller from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
-        // Sentry queue is constructed in setEventCallback (which runs on
-        // NodeActor). It's nil only if construction failed; if so, errors
-        // still log via pollingLog but won't reach Sentry.
-        let sentryQueue = state.withLock { $0.sentryQueue }
-        let reportToSentry: Poller.ReportToSentry? = sentryQueue.map { queue in
-            { msg in
-                try? queue.run {
-                    try Node.texts.Sentry.captureMessage(msg)
-                }
-            }
-        }
+        let reportToSentry = state.withLock { $0.reportToSentry }
 
         let poller = try Poller(
             serverEventSender: { events in
-                var values = [any NodeValueConvertible]()
-                // this probably isn't worth doing in parallel
-                for event in events {
-                    values.append(try await event.nodeValue())
-                }
                 #if DEBUG
-                pollingLog.debug("handing over \(values.count) value(s) to the event callback")
+                pollingLog.debug("handing over \(events.count) value(s) to the event callback")
                 #endif
-                try await onEvent.call([values])
+                try await onEvent(events)
             },
             initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()),
             reportToSentry: reportToSentry

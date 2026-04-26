@@ -3,8 +3,6 @@ import NodeAPI
 import SwiftServerFoundation
 
 @NodeActor @NodeClass final class PlatformAPINodeWrapper {
-    static let name = "PlatformAPI"
-
     private let api: PlatformAPI
 
     @NodeConstructor init(accountID: String) {
@@ -28,11 +26,11 @@ import SwiftServerFoundation
     }
 
     @NodeMethod func getThread(threadID: String) async throws -> String {
-        try await api.getThread(threadID: threadID)
+        try await api.getThread(threadID: threadID) ?? "null"
     }
 
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
-        try await api.getMessage(threadID: threadID, messageID: messageID)
+        try await api.getMessage(threadID: threadID, messageID: messageID) ?? "null"
     }
 
     @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {
@@ -95,14 +93,15 @@ import SwiftServerFoundation
     @NodeMethod func onThreadSelected(_ args: NodeArguments) async throws {
         guard args.count == 2,
               let threadID = try args[0].as(String.self),
-              let sendEvents = try args[1].as(NodeFunction.self)
+              let sendEventsFunction = try args[1].as(NodeFunction.self)
         else {
             throw ErrorMessage("Bad PlatformAPI call: \(#function)")
         }
 
+        let sendEvents = SendableBox(sendEventsFunction)
         try await api.onThreadSelected(threadID: threadID) { events in
             try NodeActor.unsafeAssumeIsolated {
-                _ = try sendEvents.dynamicallyCall(withArguments: [try NodeBridgeUtilities.nodeArray(from: events)])
+                _ = try sendEvents.value.dynamicallyCall(withArguments: [try NodeBridgeUtilities.nodeArray(from: events)])
             }
         }
     }

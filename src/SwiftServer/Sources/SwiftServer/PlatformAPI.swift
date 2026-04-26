@@ -10,9 +10,9 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
-// These APIs return JSON strings; this is the JSON null literal.
-private let jsonNull = "null"
-let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
+var stripInternalFields: Bool {
+    PlatformEnvironment.stripInternalFields
+}
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = Protected<IMDatabase?>()
@@ -30,7 +30,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 }
 
-final class PlatformAPI {
+public final class PlatformAPI {
     private let accountID: String
     private let runtime: PlatformAPIRuntime
     private let database = PlatformAPIDatabase()
@@ -44,7 +44,11 @@ final class PlatformAPI {
 
     private static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
 
-    init(accountID: String, runtime: PlatformAPIRuntime = .noop) {
+    public convenience init(accountID: String) {
+        self.init(accountID: accountID, runtime: .noop)
+    }
+
+    init(accountID: String, runtime: PlatformAPIRuntime) {
         self.accountID = accountID
         self.runtime = runtime
     }
@@ -78,7 +82,7 @@ final class PlatformAPI {
         }
     }
 
-    func getCurrentUser() async throws -> String {
+    public func getCurrentUser() async throws -> String {
         let database = database
         let currentUserCache = currentUserCache
         return try await NodeBridgeUtilities.offNodeActor {
@@ -88,7 +92,7 @@ final class PlatformAPI {
         }
     }
 
-    func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
+    public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.searchMessages(
                 db: db,
@@ -103,7 +107,7 @@ final class PlatformAPI {
         }
     }
 
-    func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
+    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThreads(
                 db: db,
@@ -116,7 +120,7 @@ final class PlatformAPI {
         }
     }
 
-    func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
+    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getMessages(
                 db: db,
@@ -130,7 +134,7 @@ final class PlatformAPI {
         }
     }
 
-    func getThread(threadID: String) async throws -> String {
+    public func getThread(threadID: String) async throws -> String? {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThread(
                 db: db,
@@ -141,7 +145,7 @@ final class PlatformAPI {
         }
     }
 
-    func getMessage(threadID: String, messageID: String) async throws -> String {
+    public func getMessage(threadID: String, messageID: String) async throws -> String? {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getMessage(
                 db: db,
@@ -153,7 +157,7 @@ final class PlatformAPI {
         }
     }
 
-    func createThread(userIDs: [String], title: String?, messageText: String?) async throws -> String {
+    public func createThread(userIDs: [String], title: String?, messageText: String?) async throws -> String {
         guard !userIDs.isEmpty else {
             return "false"
         }
@@ -173,7 +177,7 @@ final class PlatformAPI {
                 )
             }
 
-            if existingThread != jsonNull {
+            if let existingThread {
                 let controller = try await getMessagesController()
                 try await Self.onMessagesControllerQueue {
                     try controller.sendMessage(
@@ -201,21 +205,21 @@ final class PlatformAPI {
         return "true"
     }
 
-    func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
+    public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
         try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
     }
 
-    func deleteThread(threadID publicThreadID: String) async throws {
+    public func deleteThread(threadID publicThreadID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
         try await performOnController { try $0.deleteThread(threadID: threadID) }
     }
 
-    func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
+    public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
         let database = database
         let threadID = try await NodeBridgeUtilities.offNodeActor {
             try database.withDatabase { db in
@@ -256,7 +260,7 @@ final class PlatformAPI {
         return try await sendMessage(threadID: publicThreadID, text: nil, filePath: filePath, quotedMessageID: quotedMessageID)
     }
 
-    func editMessage(threadID publicThreadID: String, messageID: String, content text: String?) async throws {
+    public func editMessage(threadID publicThreadID: String, messageID: String, content text: String?) async throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("Only supported on macOS Ventura or later")
         }
@@ -271,7 +275,7 @@ final class PlatformAPI {
         try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
-    func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws {
+    public func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws {
         guard let publicThreadID, !publicThreadID.isEmpty else {
             platformLog.error("ignoring request to send an activity indicator, no thread id provided")
             return
@@ -304,14 +308,14 @@ final class PlatformAPI {
         }
     }
 
-    func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
+    public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
         try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
-    func sendReadReceipt(threadID publicThreadID: String) async throws {
+    public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
         try await retry(retries: 1, interval: 1) { attempt in
             let (threadID, isRead) = try await NodeBridgeUtilities.offNodeActor {
@@ -333,11 +337,11 @@ final class PlatformAPI {
         }
     }
 
-    func addReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
+    public func addReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: true)
     }
 
-    func removeReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
+    public func removeReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
     }
 
@@ -356,14 +360,14 @@ final class PlatformAPI {
         try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
     }
 
-    func markAsUnread(threadID publicThreadID: String) async throws {
+    public func markAsUnread(threadID publicThreadID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
         try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
-    func notifyAnyway(threadID publicThreadID: String) async throws {
+    public func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
@@ -449,7 +453,7 @@ final class PlatformAPI {
         }
     }
 
-    func dispose() async throws {
+    public func dispose() async throws {
         defer {
             Self.cleanupTemporaryAttachmentDirectory()
         }
@@ -843,10 +847,10 @@ final class PlatformAPI {
         threadID publicThreadID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> String {
+    ) throws -> String? {
         let threadID = try originalThreadID(db: db, publicThreadID)
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
-            return jsonNull
+            return nil
         }
         let chatRowIDs = [chatRow].compactMap { $0.int("ROWID") }
         let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: [chatRow])
@@ -908,14 +912,14 @@ final class PlatformAPI {
         messageID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> String {
+    ) throws -> String? {
         try messageObject(
             db: db,
             threadID: publicThreadID,
             messageID: messageID,
             currentUserID: currentUserID,
             accountID: accountID
-        ).map(encodeJSON) ?? jsonNull
+        ).map(encodeJSON)
     }
 
     nonisolated static func messageObject(

@@ -12,6 +12,7 @@ let package = Package(
             targets: ["SwiftServer"]
         ),
         .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
+        .executable(name: "PlatformCLI", targets: ["PlatformCLI"]),
     ],
     dependencies: [
         .package(path: "../../node_modules/node-swift"),
@@ -77,6 +78,13 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "BetterSwiftAX",
                 "SwiftServerFoundation",
+            ]
+        ),
+        .executableTarget(
+            name: "PlatformCLI",
+            dependencies: [
+                "SwiftServer",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
