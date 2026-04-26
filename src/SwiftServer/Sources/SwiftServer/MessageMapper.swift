@@ -24,7 +24,7 @@ struct Mapper {
         applyStatusFields(to: &partialMessage, dates: dates)
         applyEditedTimestamp(to: &partialMessage, dates: dates, summaryInfo: summaryInfo)
 
-        if (msgRow.int("item_type") ?? 0) != 0 {
+        if let itemType = msgRow.int("item_type"), itemType != 0 {
             if let actionMessage = mapItemTypeMessage(partialMessage: partialMessage) {
                 return [actionMessage]
             }
@@ -43,10 +43,10 @@ struct Mapper {
         applySiriFooter(summaryInfo: summaryInfo, footer: &partialFooter)
         applyThreadOriginator(to: &partialHeader)
 
-        var messageParts = decodeAttributedMessageParts(summaryInfo: summaryInfo)
-        if messageParts.isEmpty {
-            messageParts = fallbackMessageParts(summaryInfo: summaryInfo, attachments: attachments)
-        }
+        let decodedMessageParts = decodeAttributedMessageParts(summaryInfo: summaryInfo)
+        var messageParts = decodedMessageParts.isEmpty
+            ? fallbackMessageParts(summaryInfo: summaryInfo, attachments: attachments)
+            : decodedMessageParts
 
         let subject = subject()
         let addSubjectInline = shouldAddSubjectInline(subject, to: messageParts)
@@ -142,17 +142,18 @@ struct Mapper {
     }
 
     private func applyBalloonProps(to message: inout JSONObject, header: inout JSONObject) {
+        func setHeading(_ heading: String, attachment: JSONObject?) {
+            header["textHeading"] = heading
+            if let attachment {
+                message["attachments"] = [attachment]
+            }
+        }
+
         switch msgRow.string("balloon_bundle_id") {
         case BalloonBundleID.digitalTouch:
-            header["textHeading"] = "Digital Touch Message"
-            if let attachment = digitalTouchAttachment() {
-                message["attachments"] = [attachment]
-            }
+            setHeading("Digital Touch Message", attachment: digitalTouchAttachment())
         case BalloonBundleID.handwriting:
-            header["textHeading"] = "Handwritten Message"
-            if let attachment = handwritingAttachment() {
-                message["attachments"] = [attachment]
-            }
+            setHeading("Handwritten Message", attachment: handwritingAttachment())
         case BalloonBundleID.businessExtension:
             header["textHeading"] = "Business Chat Extension"
         default:
@@ -201,7 +202,10 @@ struct Mapper {
         guard let originatorGUID = msgRow.string("thread_originator_guid"), !originatorGUID.isEmpty else {
             return
         }
-        let rawPartIndex = msgRow.string("thread_originator_part")?.components(separatedBy: ":").first ?? ""
+        let rawPartIndex = msgRow.string("thread_originator_part")?
+            .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            .first
+            .map(String.init) ?? ""
         let partIndex: String
         switch rawPartIndex {
         case "0":

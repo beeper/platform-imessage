@@ -20,10 +20,12 @@ func removeObjectReplacementCharacter(_ text: String) -> String {
 
 // IMDB stores account logins as `E:foo@bar.com` / `P:+15551234`.
 func mapAccountLogin(_ accountLogin: String) -> String {
-    if accountLogin.hasPrefix("E:") || accountLogin.hasPrefix("P:") {
-        return String(accountLogin.dropFirst(2))
+    switch accountLogin {
+    case let value where value.hasPrefix("E:") || value.hasPrefix("P:"):
+        return String(value.dropFirst(2))
+    default:
+        return accountLogin
     }
-    return accountLogin
 }
 
 func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
@@ -42,22 +44,25 @@ func stringFromDataSlice(_ data: Data, start: Int, length: Int) -> String? {
     return String(data: data[start ..< start + length], encoding: .utf8)
 }
 
-private let uuidRegex = try! NSRegularExpression(
-    pattern: #"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$"#,
-    options: .caseInsensitive
-)
-
 func isUUID(_ string: String) -> Bool {
-    uuidRegex.firstMatch(in: string, range: NSRange(string.startIndex ..< string.endIndex, in: string)) != nil
+    UUID(uuidString: string) != nil
 }
 
-private let sizeRegex = try! NSRegularExpression(pattern: #"\{(\d+), (\d+)\}"#)
-
 func parseSize(_ size: String?) -> [String: Int]? {
-    guard let size,
-          let match = size.firstMatch(against: sizeRegex),
-          let width = Int(match[1]),
-          let height = Int(match[2]),
+    guard let size else {
+        return nil
+    }
+    let trimmed = size.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.first == "{", trimmed.last == "}" else {
+        return nil
+    }
+    let numbers = trimmed.dropFirst().dropLast().split(separator: ",", maxSplits: 1).map {
+        $0.trimmingCharacters(in: .whitespaces)
+    }
+    guard let widthString = numbers[safe: 0],
+          let heightString = numbers[safe: 1],
+          let width = Int(widthString),
+          let height = Int(heightString),
           width > 0,
           height > 0 else {
         return nil
@@ -66,19 +71,18 @@ func parseSize(_ size: String?) -> [String: Int]? {
 }
 
 func relativeURL(_ value: Any?) -> String? {
-    if let value = value as? String {
-        return value
-    }
-    if let url = value as? URL {
+    switch value {
+    case let string as String:
+        return string
+    case let url as URL:
         return url.absoluteString
+    case let url as NSURL:
+        return url.absoluteString
+    case let object as JSONObject:
+        return object.string("NS.relative") ?? object.string("relative") ?? object.string("url")
+    default:
+        return nil
     }
-    if let value = value as? NSURL {
-        return value.absoluteString
-    }
-    if let value = value as? JSONObject {
-        return value.string("NS.relative") ?? value.string("relative") ?? value.string("url")
-    }
-    return nil
 }
 
 func unquote(_ string: String) -> String {
