@@ -73,16 +73,17 @@ extension Mapper {
         case 3:
             message["behavior"] = "silent"
             let actionType = msgRow.int("group_action_type")
-            if actionType == 1 || actionType == 2 {
+            switch actionType {
+            case 1, 2:
                 message["text"] = actionType == 1 ? "{{sender}} changed the group photo" : "{{sender}} removed the group photo"
                 message["attachments"] = [JSONObject]()
                 message["action"] = [
                     "type": "thread_img_changed",
                     "actorParticipantID": message.string("senderID") ?? "",
                 ]
-            } else if actionType == 3 || actionType == 4 || actionType == 6 {
+            case 3, 4, 6:
                 message["text"] = actionType == 6 ? "{{sender}} removed the background" : "{{sender}} changed the background"
-            } else if actionType == 0 {
+            case 0:
                 let sender = message.string("senderID") ?? ""
                 message["text"] = "{{sender}} left the conversation"
                 message["action"] = [
@@ -90,6 +91,8 @@ extension Mapper {
                     "actorParticipantID": sender,
                     "participantIDs": [sender],
                 ]
+            default:
+                break
             }
         case 4:
             message["behavior"] = "silent"

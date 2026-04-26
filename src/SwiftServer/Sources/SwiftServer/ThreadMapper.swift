@@ -152,9 +152,8 @@ enum ThreadMapper {
     private static let alphanumericSenderIDRegex = try! NSRegularExpression(pattern: #"^[\da-zA-Z .&_/-]{1,11}$"#)
 
     private static func likelyAlphanumericSenderID(_ id: String) -> Bool {
-        let range = NSRange(id.startIndex ..< id.endIndex, in: id)
-        return numbersAndSymbolsRegex.firstMatch(in: id, range: range) == nil
-            && alphanumericSenderIDRegex.firstMatch(in: id, range: range) != nil
+        id.firstMatch(against: numbersAndSymbolsRegex) == nil
+            && id.firstMatch(against: alphanumericSenderIDRegex) != nil
     }
 
     private static func chatPhotoURL(props: JSONObject?, accountID: String) -> String? {
