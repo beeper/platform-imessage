@@ -673,7 +673,7 @@ public final class PlatformAPI {
             sentThreadIDs.allSatisfy { sentThreadID in
                 sentThreadID == threadID || (
                     sentThreadID != nil
-                    && controller.isSameContact(address, threadIDToAddress(sentThreadID!))
+                        && controller.isSameContact(address, threadIDToAddress(sentThreadID!))
                 )
             }
         }
@@ -1066,7 +1066,7 @@ extension PlatformAPI {
         try? FileManager.default.removeItem(at: temporaryAttachmentDirectoryURL())
     }
 
-    private nonisolated static func messagePayloadRows(
+    nonisolated private static func messagePayloadRows(
         db: IMDatabase,
         msgRows: [JSONObject],
         threadID: String
@@ -1219,7 +1219,7 @@ extension PlatformAPI {
         return String(associatedMessageGUID[upper...])
     }
 
-    private nonisolated static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> PlatformAssetResult {
+    nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> PlatformAssetResult {
         switch pathHex {
         case "hw":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
@@ -1273,5 +1273,4 @@ extension PlatformAPI {
             return .data(pngData)
         }
     }
-
 }

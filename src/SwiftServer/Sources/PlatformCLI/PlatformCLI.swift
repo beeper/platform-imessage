@@ -117,7 +117,6 @@ private enum AuthorizationRequirement: String {
     }
 }
 
-
 private struct RunnerOptions {
     var commandArgs: [String]
     var customDataDir: String?

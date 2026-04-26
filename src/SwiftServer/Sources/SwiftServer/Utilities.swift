@@ -35,8 +35,8 @@ func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -
 
 func singleParticipantAddress(_ threadID: String) -> String? {
     guard let (service, type, address) = splitThreadID(threadID),
-        type == "-",
-        service == "RCS" || service == "iMessage" || service == "any"
+          type == "-",
+          service == "RCS" || service == "iMessage" || service == "any"
     else {
         return nil
     }
