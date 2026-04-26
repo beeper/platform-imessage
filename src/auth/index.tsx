@@ -6,7 +6,7 @@ import { AuthProps, texts } from '@textshq/platform-sdk'
 import type { AuthType } from 'node-mac-permissions'
 import type PAPI from '../api'
 
-import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, MIN_MACOS_VERSION_ERROR } from '../constants'
+import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, MIN_MACOS_VERSION_ERROR } from '../common-constants'
 import useAsync from './use-async'
 
 const sleep = (ms: number) => new Promise(resolve => { setTimeout(resolve, ms) })

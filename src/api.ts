@@ -6,7 +6,8 @@ import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 
 import { BeeperThread } from './desktop-types'
-import { APP_BUNDLE_ID, IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
+import { APP_BUNDLE_ID } from './constants'
+import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './common-constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
@@ -368,16 +369,6 @@ export default class AppleiMessage implements PlatformAPI {
     const swiftAPI = this.swiftPlatformAPI!
     return swiftAPI.onThreadSelected(hashedThreadID, this.onEvent)
   }
-
-  //   private getThreadMessagesChecksum = async (threadID: ThreadID, afterCursor: string) => {
-  //     const x = await this.dbAPI.db.get(`SELECT count(*) as c
-  // FROM message as m
-  // ${COMMON_JOINS}
-  // WHERE t.guid = ?
-  // AND m.date >= ?
-  // ORDER BY date DESC`, [threadID, afterCursor])
-  //     return x.c
-  //   }
 
   private proxiedAuthFns = {
     isMessagesAppSetup: () => this.ensureSwiftPlatformAPI().then(() => true, () => false),

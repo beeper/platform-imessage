@@ -4,7 +4,7 @@
 // etc.
 //
 // https://developer.apple.com/documentation/corefoundation/cfabsolutetime
-export const CORE_FOUNDATION_REFERENCE_DATE_MS = 978307200000
+const CORE_FOUNDATION_REFERENCE_DATE_MS = 978307200000
 
 // use a branded type to prevent confusion
 declare const AppleDateBrand: unique symbol
@@ -14,7 +14,7 @@ export type AppleDate = string & {
 }
 
 /** Returns an {@linkcode AppleDate} as a stringified number of nanoseconds since {@linkcode CORE_FOUNDATION_REFERENCE_DATE_MS}. */
-export function unwrapAppleDate(appleDate: AppleDate): string | undefined {
+function unwrapAppleDate(appleDate: AppleDate): string | undefined {
   const string = appleDate as string
   // Apple frequently uses a date value of 0 to represent no value.
   if (string === '0') {
@@ -23,18 +23,18 @@ export function unwrapAppleDate(appleDate: AppleDate): string | undefined {
   return string
 }
 
-export function millisToNanos(millis: bigint): bigint
-export function millisToNanos(millis: number): number
-export function millisToNanos(millis: bigint | number): bigint | number {
+function millisToNanos(millis: bigint): bigint
+function millisToNanos(millis: number): number
+function millisToNanos(millis: bigint | number): bigint | number {
   if (typeof millis === 'bigint') {
     return millis * 1_000_000n
   }
   return millis * 1_000_000
 }
 
-export function nanosToMs(nanos: bigint): bigint
-export function nanosToMs(nanos: number): number
-export function nanosToMs(nanos: bigint | number): bigint | number {
+function nanosToMs(nanos: bigint): bigint
+function nanosToMs(nanos: number): number
+function nanosToMs(nanos: bigint | number): bigint | number {
   if (typeof nanos === 'bigint') {
     return nanos / 1_000_000n
   }
@@ -56,8 +56,4 @@ export function appleDateToMillisSinceEpoch(appleDate: AppleDate): number | unde
 
   const millisSinceUnixEpoch = Number(millisSinceReference) + CORE_FOUNDATION_REFERENCE_DATE_MS
   return Math.round(millisSinceUnixEpoch)
-}
-
-export function appleDateNow(): AppleDate {
-  return makeAppleDate(new Date())
 }
