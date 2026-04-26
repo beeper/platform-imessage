@@ -1,6 +1,6 @@
 import '../src/tests/fix-env'
 
-import { reviveSwiftMapperValue } from '../src/mappers'
+import { reviveSwiftMapperValue } from '../src/swift-json'
 
 type MapperDiff = {
   path: string
@@ -96,76 +96,5 @@ describe('mapper parity helpers', () => {
     const revived = reviveSwiftMapperValue([{ timestamp: 1000, seen: 2000, editedTimestamp: 3000 }])
 
     expect(revived).toEqual([{ timestamp: new Date(1000), seen: new Date(2000), editedTimestamp: new Date(3000) }])
-  })
-})
-
-const messageRow = {
-  ROWID: 1,
-  guid: 'm1',
-  date: 0,
-  dateString: '0',
-  date_read: 0,
-  dateReadString: '0',
-  date_delivered: 0,
-  dateDeliveredString: '0',
-  service: 'iMessage',
-  room_name: '',
-  participantID: 'sender@example.com',
-  otherID: '',
-  handle_id: 1,
-  schedule_type: 0,
-  is_from_me: 0,
-  error: 0,
-  is_delivered: 1,
-  threadID: 'thread-1',
-  is_read: 0,
-  was_detonated: 0,
-  item_type: 0,
-  text: 'hello',
-  balloon_bundle_id: '',
-  expressive_send_style_id: '',
-  subject: '',
-  associated_message_guid: '',
-  associated_message_type: 0,
-  associated_message_emoji: '',
-  thread_originator_guid: '',
-  thread_originator_part: '',
-}
-
-function loadMapMessageWithSwift(mapMessageJSON: jest.Mock) {
-  jest.resetModules()
-  globalThis.texts = {
-    ...globalThis.texts,
-    error: jest.fn(),
-    Sentry: {
-      captureMessage: jest.fn(),
-      captureException: jest.fn(),
-      startTransaction: jest.fn(),
-    },
-  } as unknown as typeof globalThis.texts
-  jest.doMock('../src/SwiftServer/lib', () => ({
-    __esModule: true,
-    default: {
-      mapMessageJSON,
-      decodeAttributedString: jest.fn(),
-    },
-  }))
-  // eslint-disable-next-line global-require
-  return require('../src/mappers') as typeof import('../src/mappers')
-}
-
-describe('mapMessage Swift wrapper', () => {
-  afterEach(() => {
-    jest.dontMock('../src/SwiftServer/lib')
-    jest.resetModules()
-  })
-
-  test('throws when Swift throws', () => {
-    const swiftError = jest.fn(() => {
-      throw new Error('swift exploded')
-    })
-    const { mapMessage } = loadMapMessageWithSwift(swiftError)
-
-    expect(() => mapMessage(messageRow as never, [], [], 'me@example.com', '$accountID')).toThrow('swift exploded')
   })
 })

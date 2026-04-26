@@ -11,7 +11,6 @@ import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
-import { reviveSwiftMapperValue } from './mappers'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
 import DatabaseAPI from './db-api'
 import { csrStatus } from './csr'
@@ -22,6 +21,7 @@ import { hashParticipantID, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
+import { reviveSwiftMapperValue } from './swift-json'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
 

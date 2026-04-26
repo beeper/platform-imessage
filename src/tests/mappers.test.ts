@@ -2,7 +2,16 @@ import './fix-env'
 import fs from 'fs/promises'
 import path from 'path'
 
-import { mapMessage } from '../mappers'
+import { BeeperMessage } from '../desktop-types'
+import swiftServer from '../SwiftServer/lib'
+import { reviveSwiftMapperValue } from '../swift-json'
+import type { MappedAttachmentRow, MappedMessageRow, MappedReactionMessageRow } from '../types'
+import { stringifyWithArrayBuffers } from '../util'
+
+function mapMessage(msgRow: MappedMessageRow, attachmentRows: MappedAttachmentRow[] = [], reactionRows: MappedReactionMessageRow[] = [], currentUserID: string, accountID: string): BeeperMessage[] {
+  const inputJSON = stringifyWithArrayBuffers({ msgRow, attachmentRows, reactionRows, currentUserID, accountID })
+  return reviveSwiftMapperValue(JSON.parse(swiftServer.mapMessageJSON(inputJSON))) as BeeperMessage[]
+}
 
 type MapMessageFixture = Parameters<typeof mapMessage>
 

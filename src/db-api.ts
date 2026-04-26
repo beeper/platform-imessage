@@ -34,17 +34,6 @@ AND m.item_type == 0
 AND m.is_read == 0
 AND m.is_from_me == 0`,
   getMaxDateRead: 'SELECT MAX(date_read) FROM message',
-  getUnreadCounts: `SELECT
-  cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
-FROM
-  message m
-  INNER JOIN chat_message_join cm ON m.ROWID = cm.message_id
-WHERE
-  m.item_type == 0
-  AND m.is_read == 0
-  AND m.is_from_me == 0
-GROUP BY
-  cm.chat_id`,
 }
 
 declare const AsyncSqlite: IAsyncSqlite
@@ -55,13 +44,7 @@ async function getDB() {
   return instance
 }
 
-export type ChatRef = { type: 'guid', guid: string } | { type: 'rowid', rowid: number }
-
 export default class DatabaseAPI {
-  private lastRowID = 0
-
-  private lastDateRead = 0
-
   private chatGUIDRowIDMap = new Map<string, number>()
 
   // HACK: this is populated by the `PlatformAPI` subclass, because we need to
