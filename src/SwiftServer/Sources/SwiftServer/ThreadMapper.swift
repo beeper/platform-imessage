@@ -105,6 +105,8 @@ enum ThreadMapper {
             "mutedUntil": context.dndState.contains(isGroup ? (chat.string("group_id") ?? "") : (chat.string("chat_identifier") ?? "")) ? "forever" : nil,
             "type": isGroup ? "group" : "single",
             "isReadOnly": isReadOnly,
+            // This mirrors Poller+Unreads.swift. Desktop computes unread state
+            // from `isMarkedUnread || unreadCount > 0`.
             "unreadCount": unreadCount,
             "isMarkedUnread": unreadCount > 0,
             "lastReadMessageSortKey": appleDateMilliseconds(chat.string("dateLastMessageReadString")),
@@ -116,6 +118,8 @@ enum ThreadMapper {
                 "hasMore": false,
                 "items": participants,
             ],
+            // Works around PAS's "map missing" behavior where the folder name
+            // can otherwise be filled with the thread ID.
             "folderName": "normal",
             "timestamp": appleDateMilliseconds(chat.string("msgDateString")),
             "extra": compactDictionary([
@@ -162,6 +166,8 @@ enum ThreadMapper {
         let isBusiness = id.hasPrefix("urn:")
         let isPhone = !isBusiness && !isEmail && id.rangeOfCharacter(from: .decimalDigits) != nil
         let uncanonicalizedID = row.string("uncanonicalized_id")
+        // iMessage can canonicalize SMS shortcodes with suffixes like
+        // `(smsft_rm)` or `(smsft)`. Prefer the raw ID for sender-ID heuristics.
         let idPreferringUncanonicalized = uncanonicalizedID ?? id
 
         if isBusiness {
@@ -171,6 +177,8 @@ enum ThreadMapper {
         } else if isPhone {
             participant["phoneNumber"] = id
         } else if likelyAlphanumericSenderID(idPreferringUncanonicalized) {
+            // Use `username` to avoid first/last-name splitting and preserve
+            // the sender ID as-is.
             participant["username"] = idPreferringUncanonicalized
         }
 
@@ -200,6 +208,8 @@ enum ThreadMapper {
     }
 
     private static func chatPhotoURL(props: JSONObject?, accountID: String) -> String? {
+        // `chat.properties` is a bplist; group chats may store a groupPhotoGuid
+        // that resolves via the thread-image asset route.
         guard let groupPhotoGuid = props?["groupPhotoGuid"] as? String else {
             return nil
         }
