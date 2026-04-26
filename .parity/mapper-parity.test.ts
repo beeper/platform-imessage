@@ -1,6 +1,6 @@
 import '../src/tests/fix-env'
 
-import { reviveSwiftMapperValue } from '../src/swift-json'
+import { swiftMapperReviver } from '../src/swift-json'
 
 type MapperDiff = {
   path: string
@@ -93,7 +93,10 @@ describe('mapper parity helpers', () => {
   })
 
   test('revives swift date fields from milliseconds', () => {
-    const revived = reviveSwiftMapperValue([{ timestamp: 1000, seen: 2000, editedTimestamp: 3000 }])
+    const revived = JSON.parse(
+      JSON.stringify([{ timestamp: 1000, seen: 2000, editedTimestamp: 3000 }]),
+      swiftMapperReviver,
+    )
 
     expect(revived).toEqual([{ timestamp: new Date(1000), seen: new Date(2000), editedTimestamp: new Date(3000) }])
   })

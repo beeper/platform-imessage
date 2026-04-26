@@ -11,17 +11,13 @@ import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
-import { reviveSwiftMapperValue } from './swift-json'
+import { parseSwiftMessageAPIJSON } from './swift-json'
 
 if (swiftServer) {
   swiftServer.isLoggingEnabled = texts.isLoggingEnabled
   if (process.env.IMESSAGE_USE_SECONDARY_INSTANCE) {
     swiftServer.useSecondaryMessagesInstance = true
   }
-}
-
-function parseSwiftMessageAPIJSON<T>(json: string): T {
-  return reviveSwiftMapperValue(JSON.parse(json)) as T
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -32,12 +28,10 @@ export default class AppleiMessage implements PlatformAPI {
   private swiftPlatformAPI?: SwiftPlatformAPI
 
   // used to make archive calls wait for any pending reactions/message sends,
-  // to remove flicker from e.g. sending then quickly archiving manually
-  private threadPhaser = new Phaser<Thread['id']>({
-    // HACK: wait an arbitrary amount of time for pending sends to be committed
-    // to the database so we can use its sort order
-    delayMsAfterWaiting: 50,
-  })
+  // to remove flicker from e.g. sending then quickly archiving manually.
+  // No delayMsAfterWaiting needed: SwiftMessageAPI.sendMessage / setReaction
+  // resolve only after waitForSentMessageIDs sees the new row in chat.db.
+  private threadPhaser = new Phaser<Thread['id']>()
 
   /**
    * We need to be constructable (and we should be able to handle our `init`
@@ -138,7 +132,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   dispose = async () => {
     swiftServer?.stopSysPrefsOnboarding?.()
-    swiftServer?.cancelPollingIfNecessary?.()
+    await swiftServer?.cancelPollingIfNecessary?.()
     await this.swiftPlatformAPI?.dispose()
   }
 

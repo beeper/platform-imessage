@@ -18,6 +18,7 @@ final class PollingLifecycle {
         var pollingTask: Task<Void, Never>?
         var hasAttemptedBootstrap = false
         var pendingBootstrapCursor: BootstrapCursor?
+        var sentryQueue: NodeAsyncQueue?
     }
 
     private let state = Protected(State())
@@ -28,9 +29,15 @@ final class PollingLifecycle {
         state.withLock { $0.onEvent }
     }
 
+    @NodeActor
     func setEventCallback(_ onEvent: NodeFunction) {
+        // Construct a NodeAsyncQueue while we're still on NodeActor so the
+        // poller (which runs on a detached Task) can hop back here to call
+        // into Sentry. Best-effort; fall back to log-only on failure.
+        let sentryQueue = try? NodeAsyncQueue(label: "polling-lifecycle-sentry")
         let pendingCursor = state.withLock { state in
             state.onEvent = onEvent
+            state.sentryQueue = sentryQueue
             defer { state.pendingBootstrapCursor = nil }
             return state.pendingBootstrapCursor
         }
@@ -85,7 +92,7 @@ final class PollingLifecycle {
         }
     }
 
-    func cancelPollingIfNecessary(clearEventCallback: Bool) {
+    func cancelPollingIfNecessary(clearEventCallback: Bool) async {
         let pollingTask = state.withLock { state in
             let pollingTask = state.pollingTask
             state.pollingTask = nil
@@ -100,6 +107,9 @@ final class PollingLifecycle {
         if let pollingTask {
             pollingLog.info("was asked to cancel polling task, doing so")
             pollingTask.cancel()
+            // Wait for the task to actually finish so callers (e.g. dispose())
+            // don't return while the poller still holds the DB.
+            await pollingTask.value
         } else {
             pollingLog.warning("was asked to cancel polling task, but there isn't one; disregarding")
         }
@@ -123,17 +133,33 @@ final class PollingLifecycle {
 
         pollingLog.debug("starting poller from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
-        let poller = try Poller(serverEventSender: { events in
-            var values = [any NodeValueConvertible]()
-            // this probably isn't worth doing in parallel
-            for event in events {
-                values.append(try await event.nodeValue())
+        // Sentry queue is constructed in setEventCallback (which runs on
+        // NodeActor). It's nil only if construction failed; if so, errors
+        // still log via pollingLog but won't reach Sentry.
+        let sentryQueue = state.withLock { $0.sentryQueue }
+        let reportToSentry: Poller.ReportToSentry? = sentryQueue.map { queue in
+            { msg in
+                try? queue.run {
+                    try Node.texts.Sentry.captureMessage(msg)
+                }
             }
-            #if DEBUG
-            pollingLog.debug("handing over \(values.count) value(s) to the event callback")
-            #endif
-            try await onEvent.call([values])
-        }, initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()))
+        }
+
+        let poller = try Poller(
+            serverEventSender: { events in
+                var values = [any NodeValueConvertible]()
+                // this probably isn't worth doing in parallel
+                for event in events {
+                    values.append(try await event.nodeValue())
+                }
+                #if DEBUG
+                pollingLog.debug("handing over \(values.count) value(s) to the event callback")
+                #endif
+                try await onEvent.call([values])
+            },
+            initialUpdatesCursor: Poller.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()),
+            reportToSentry: reportToSentry
+        )
 
         let pollingTask = Task {
             pollingLog.debug("going to poll forever")
@@ -141,6 +167,7 @@ final class PollingLifecycle {
                 try await poller.pollForever()
             } catch {
                 pollingLog.error("poller died: \(String(reflecting: error))")
+                reportToSentry?("imsg poller died: \(String(reflecting: error))")
             }
         }
 

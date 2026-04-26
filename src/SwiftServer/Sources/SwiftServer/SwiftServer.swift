@@ -131,8 +131,8 @@ private func offNodeActor<T: Sendable>(
             }
         },
 
-        "cancelPollingIfNecessary": NodeFunction {
-            PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
+        "cancelPollingIfNecessary": NodeFunction { () async in
+            await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
             return
         },
 

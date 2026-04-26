@@ -43,7 +43,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     private var messagesControllerCleanupHook: AsyncCleanupHook?
     private var watchCBQueue: NodeAsyncQueue?
     private let threadObserveRequestToken = Protected<UUID?>()
-    private var hasBeenDisposed = false
+    private let hasBeenDisposed = Protected(false)
 
     private static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
 
@@ -55,6 +55,23 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         try await Task.detached(priority: .userInitiated) {
             try action()
         }.value
+    }
+
+    /// Runs a DB query off the NodeActor with the cached currentUserID resolved.
+    /// Captures `accountID`, `database`, and `currentUserCache` before crossing
+    /// into the @Sendable closure so `self` doesn't need to.
+    private func runDBQuery<T: Sendable>(
+        _ work: @escaping @Sendable (IMDatabase, String /*currentUserID*/, String /*accountID*/) throws -> T
+    ) async throws -> T {
+        let accountID = accountID
+        let database = database
+        let currentUserCache = currentUserCache
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                return try work(db, currentUserID, accountID)
+            }
+        }
     }
 
     nonisolated private static func currentUser(db: IMDatabase, cache: Protected<CurrentUser?>) throws -> CurrentUser {
@@ -70,97 +87,67 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
-        let accountID = accountID
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                return try Self.getMessages(
-                    db: db,
-                    threadID: threadID,
-                    cursor: cursor,
-                    direction: direction,
-                    currentUserID: currentUserID,
-                    accountID: accountID,
-                    limit: limit
-                )
-            }
+        try await runDBQuery { db, currentUserID, accountID in
+            try Self.getMessages(
+                db: db,
+                threadID: threadID,
+                cursor: cursor,
+                direction: direction,
+                currentUserID: currentUserID,
+                accountID: accountID,
+                limit: limit
+            )
         }
     }
 
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
-        let accountID = accountID
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                return try Self.getMessage(
-                    db: db,
-                    threadID: threadID,
-                    messageID: messageID,
-                    currentUserID: currentUserID,
-                    accountID: accountID
-                )
-            }
+        try await runDBQuery { db, currentUserID, accountID in
+            try Self.getMessage(
+                db: db,
+                threadID: threadID,
+                messageID: messageID,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
         }
     }
 
     @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
-        let accountID = accountID
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                return try Self.getThreads(
-                    db: db,
-                    folderName: folderName,
-                    cursor: cursor,
-                    direction: direction,
-                    currentUserID: currentUserID,
-                    accountID: accountID
-                )
-            }
+        try await runDBQuery { db, currentUserID, accountID in
+            try Self.getThreads(
+                db: db,
+                folderName: folderName,
+                cursor: cursor,
+                direction: direction,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
         }
     }
 
     @NodeMethod func getThread(threadID: String) async throws -> String {
-        let accountID = accountID
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                return try Self.getThread(
-                    db: db,
-                    threadID: threadID,
-                    currentUserID: currentUserID,
-                    accountID: accountID
-                )
-            }
+        try await runDBQuery { db, currentUserID, accountID in
+            try Self.getThread(
+                db: db,
+                threadID: threadID,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
         }
     }
 
     @NodeMethod func searchMessages(query: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        let accountID = accountID
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                return try Self.searchMessages(
-                    db: db,
-                    query: query,
-                    threadID: threadID,
-                    mediaOnly: mediaOnly ?? false,
-                    sender: sender,
-                    currentUserID: currentUserID,
-                    accountID: accountID,
-                    limit: limit
-                )
-            }
+        try await runDBQuery { db, currentUserID, accountID in
+            try Self.searchMessages(
+                db: db,
+                query: query,
+                threadID: threadID,
+                mediaOnly: mediaOnly ?? false,
+                sender: sender,
+                currentUserID: currentUserID,
+                accountID: accountID,
+                limit: limit
+            )
         }
     }
 
@@ -187,19 +174,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
         if addresses.count == 1 {
             let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(addresses[0])"
-            let accountID = accountID
-            let database = database
-            let currentUserCache = currentUserCache
-            let existingThread = try await Self.offNodeActor {
-                try database.withDatabase { db in
-                    let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                    return try Self.getThread(
-                        db: db,
-                        threadID: existingThreadID,
-                        currentUserID: currentUserID,
-                        accountID: accountID
-                    )
-                }
+            let existingThread = try await runDBQuery { db, currentUserID, accountID in
+                try Self.getThread(
+                    db: db,
+                    threadID: existingThreadID,
+                    currentUserID: currentUserID,
+                    accountID: accountID
+                )
             }
 
             if existingThread != jsonNull {
@@ -415,7 +396,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     private func getMessagesController(forceInvalidate: Bool = false) async throws -> MessagesController {
-        guard !hasBeenDisposed else {
+        guard !hasBeenDisposed.read() else {
             throw ErrorMessage("PlatformAPI has been disposed")
         }
 
@@ -438,7 +419,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             completion()
         }
 
-        guard !hasBeenDisposed else {
+        guard !hasBeenDisposed.read() else {
             try disposeMessagesController(controller, cleanupHook: cleanupHook)
             throw ErrorMessage("PlatformAPI has been disposed")
         }
@@ -456,13 +437,16 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let cleanupHook = messagesControllerCleanupHook
         messagesController = nil
         messagesControllerCleanupHook = nil
-        Self.messagesControllerQueue.setIdleCallback(nil)
         try disposeMessagesController(controller, cleanupHook: cleanupHook)
     }
 
+    /// Disposes a controller. Clears the queue's idle callback and runs
+    /// `controller.dispose()` inside the same `queue.sync` critical section
+    /// so a pending idle callback can't fire against a half-disposed controller.
     private func disposeMessagesController(_ controller: MessagesController, cleanupHook: AsyncCleanupHook?) throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         Self.messagesControllerQueue.queue.sync {
+            Self.messagesControllerQueue.setIdleCallback(nil)
             controller.dispose()
         }
         if let cleanupHook {
@@ -470,12 +454,17 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func dispose() throws {
+    @NodeMethod func dispose() async throws {
         defer {
             Self.cleanupTemporaryAttachmentDirectory()
         }
 
-        hasBeenDisposed = true
+        hasBeenDisposed.withLock { $0 = true }
+        // OV2.A: clear cached current-user (and the Hasher tokens it implies)
+        // and tear down polling so a logout/relogin in Messages.app while
+        // Beeper restarts the account doesn't reuse stale state.
+        currentUserCache.withLock { $0 = nil }
+        await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
         try disposeCachedMessagesController()
     }
 
@@ -768,27 +757,21 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [JSONObject] {
-        let accountID = accountID
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
-                var messages = [JSONObject]()
-                for sentMessageID in sentMessageIDs {
-                    guard let message = try Self.messageObject(
-                        db: db,
-                        threadID: nil,
-                        messageID: sentMessageID.guid,
-                        currentUserID: currentUserID,
-                        accountID: accountID
-                    ) else {
-                        continue
-                    }
-                    messages.append(message)
+        try await runDBQuery { db, currentUserID, accountID in
+            var messages = [JSONObject]()
+            for sentMessageID in sentMessageIDs {
+                guard let message = try Self.messageObject(
+                    db: db,
+                    threadID: nil,
+                    messageID: sentMessageID.guid,
+                    currentUserID: currentUserID,
+                    accountID: accountID
+                ) else {
+                    continue
                 }
-                return messages
+                messages.append(message)
             }
+            return messages
         }
     }
 

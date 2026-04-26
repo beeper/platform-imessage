@@ -16,6 +16,7 @@ struct TimestampedChatState {
 
 final class Poller {
     typealias ServerEventSender = @Sendable (sending [PASEvent]) async throws -> Void
+    typealias ReportToSentry = @Sendable (String) -> Void
 
     var db: IMDatabase
 
@@ -24,8 +25,13 @@ final class Poller {
     var updatesCursor: MessageUpdatesCursor
 
     private var sender: ServerEventSender
+    private let reportToSentry: ReportToSentry?
 
-    init(serverEventSender sender: @escaping ServerEventSender, initialUpdatesCursor: MessageUpdatesCursor) throws {
+    init(
+        serverEventSender sender: @escaping ServerEventSender,
+        initialUpdatesCursor: MessageUpdatesCursor,
+        reportToSentry: ReportToSentry? = nil
+    ) throws {
         self.db = try IMDatabase()
         if Defaults.pollerTraceChangeListening {
             log.debug("tracing change listening, telling IMDatabase to be noisy")
@@ -33,6 +39,7 @@ final class Poller {
         }
         self.sender = sender
         self.updatesCursor = initialUpdatesCursor
+        self.reportToSentry = reportToSentry
     }
 
     func pollForever() async throws {
@@ -73,6 +80,7 @@ final class Poller {
                 try await sender(eventsToSend)
             } catch {
                 log.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
+                reportToSentry?("imsg poller: couldn't send events to PAS: \(String(reflecting: error))")
             }
         }
     }

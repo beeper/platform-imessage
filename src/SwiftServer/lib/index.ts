@@ -57,7 +57,7 @@ export declare class SwiftPlatformAPI {
 
   getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 
-  dispose: () => void
+  dispose: () => Promise<void>
 }
 
 type SwiftServer = {
@@ -84,7 +84,7 @@ type SwiftServer = {
   removeMessagesFromDock: () => void
   killDock: () => void
 
-  cancelPollingIfNecessary: () => void
+  cancelPollingIfNecessary: () => Promise<void>
   setEventCallback: (cb: OnServerEventCallback) => void
   startPollingFromCurrentState: () => Promise<void>
 

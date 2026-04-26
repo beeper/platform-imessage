@@ -70,9 +70,21 @@ function exec(command, commandArgs, cwd) {
   execFileSync(command, commandArgs, { cwd, stdio: 'inherit' })
 }
 
+async function readDefaultReferenceRef() {
+  const refFile = path.join(repoRoot, '.parity/REFERENCE_REF')
+  try {
+    const contents = await fs.readFile(refFile, 'utf8')
+    const ref = contents.trim().split('\n').find(line => line && !line.startsWith('#'))
+    if (ref) return ref
+  } catch {
+    // file missing or unreadable; fall through
+  }
+  return 'main'
+}
+
 async function ensureReferenceAPI() {
   const referenceRoot = path.resolve(args.get('reference-root') ?? path.join(repoRoot, '.parity/platform-imessage-main'))
-  const referenceRef = args.get('reference-ref') ?? 'main'
+  const referenceRef = args.get('reference-ref') ?? await readDefaultReferenceRef()
   const bundlePath = path.join(referenceRoot, '.parity-platform-api.compiled.mjs')
   if (!await pathExists(path.join(referenceRoot, 'package.json'))) {
     await fs.mkdir(path.dirname(referenceRoot), { recursive: true })

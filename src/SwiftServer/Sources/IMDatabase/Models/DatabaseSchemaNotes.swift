@@ -4,6 +4,10 @@ import Foundation
 /// types. These stubs intentionally are not used by the mappers; they preserve
 /// field-level database observations that are useful when investigating new
 /// macOS `chat.db` columns or mapper regressions.
+///
+/// Wrapped in `#if false` so the compiler doesn't typecheck this dead code.
+/// This is reference material, like a markdown file with type syntax.
+#if false
 enum DatabaseSchemaNotes {
     typealias NumberBool = Int
     typealias AppleDateNanosecondsString = String
@@ -306,3 +310,4 @@ enum DatabaseSchemaNotes {
         var d: Int
     }
 }
+#endif
