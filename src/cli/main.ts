@@ -27,12 +27,14 @@ const KEEP_ALIVE_FLAG = '--stay-open'
 const DATA_DIR_FLAG = '--data-dir'
 const NO_EVENTS_FLAG = '--no-events'
 const VERBOSE_FLAG = '--verbose'
+const USE_SECONDARY_INSTANCE_FLAG = '--use-secondary-instance'
 const SHELL_COMMAND = 'shell'
 const HELP_COMMAND = 'help'
 const PROMPT = 'imessage> '
 const SHUTDOWN_TIMEOUT_MS = 2_000
 const GLOBAL_CLI_OPTIONS = {
   'data-dir': { type: 'string' },
+  'use-secondary-instance': { type: 'boolean' },
   'stay-open': { type: 'boolean' },
   'no-events': { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -54,6 +56,7 @@ type RunnerOptions = {
   keepAlive: boolean
   loggingEnabled: boolean
   subscribeToEvents: boolean
+  useSecondaryInstance: boolean
 }
 
 type RunnerState = RunnerOptions & {
@@ -135,6 +138,7 @@ function parseCliArgs(argv: string[]): RunnerOptions {
   })
 
   const commandArgs = values.help ? [HELP_COMMAND, ...commandArgsRaw] : commandArgsRaw
+  const useSecondaryInstance = values['use-secondary-instance'] ?? !!process.env.IMESSAGE_USE_SECONDARY_INSTANCE
 
   return {
     commandArgs,
@@ -142,6 +146,7 @@ function parseCliArgs(argv: string[]): RunnerOptions {
     keepAlive: values['stay-open'] ?? false,
     loggingEnabled: values.verbose ?? false,
     subscribeToEvents: !(values['no-events'] ?? false),
+    useSecondaryInstance,
   }
 }
 
@@ -176,6 +181,7 @@ async function saveSession(api: PlatformAPI, sessionFilePath: string) {
 const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
   process.env.IMESSAGE_LOGGING_DIR_PATH = state.dataDirPath
+  process.env.IMESSAGE_USE_SECONDARY_INSTANCE = state.useSecondaryInstance ? '1' : '0'
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)
   // We do not currently depend on persisted CLI session state, but keeping this
@@ -298,6 +304,7 @@ function tokenizeInput(input: string): string[] {
 function formatGlobalFlags() {
   return [
     `  ${DATA_DIR_FLAG} PATH     Store CLI state under PATH instead of a temp directory`,
+    `  ${USE_SECONDARY_INSTANCE_FLAG}  Use a secondary Messages.app instance`,
     `  ${NO_EVENTS_FLAG}        Do not subscribe to server events after running commands`,
     `  ${KEEP_ALIVE_FLAG}       Run one command, then stay open in the interactive shell`,
     `  ${VERBOSE_FLAG}          Enable verbose logging`,
@@ -880,6 +887,7 @@ async function main(runnerOptions: RunnerOptions) {
       sessionFilePath: state.sessionFilePath,
       subscribeToEvents: state.subscribeToEvents,
       loggingEnabled: state.loggingEnabled,
+      useSecondaryInstance: state.useSecondaryInstance,
     }, { colors: true, depth: 4 }))
   }
 

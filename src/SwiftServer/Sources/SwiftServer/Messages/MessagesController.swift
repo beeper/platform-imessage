@@ -182,7 +182,23 @@ final class MessagesController {
     }
 
     @discardableResult
-    static func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
+    static func openDeepLink(
+        _ url: URL,
+        activating: Bool = false,
+        hiding: Bool = true,
+        targeting app: NSRunningApplication? = nil
+    ) throws -> NSRunningApplication {
+        if Preferences.useSecondaryMessagesInstance, let app {
+            try MessagesInstanceTarget.sendDeepLink(url, to: app)
+            if activating {
+                app.activate()
+            }
+            if hiding {
+                app.hide()
+            }
+            return app
+        }
+
         let openOptions = NSWorkspace.OpenConfiguration()
         openOptions.activates = activating
         openOptions.hides = hiding
@@ -211,6 +227,11 @@ final class MessagesController {
         horribleWaiter.wait()
 
         return try result!.get()
+    }
+
+    @discardableResult
+    private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
+        try Self.openDeepLink(url, activating: activating, hiding: hiding, targeting: app)
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -325,7 +346,7 @@ final class MessagesController {
 
     private func openThread(_ threadID: String) throws {
         try? self.clearTypingStatus()
-        try Self.openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
         try assertSelectedThread(threadID: threadID)
     }
 
@@ -359,33 +380,45 @@ final class MessagesController {
             return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
         }
 
-        var messagesApps = Self.getRunningMessagesApps()
-        if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-            log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-            messagesApps.forEach { try? Self.terminateApp($0) }
-            messagesApps.removeAll()
-        }
-        if let existingApp = messagesApps.first {
-            // if coordination is disabled, avoid unnecessarily terminating the app
-            if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
-                log.info("reusing existing messages...")
-                app = existingApp
-            } else {
-                log.info("terminating messages...")
-                try Self.terminateApp(existingApp)
-                // this is for markAsReadWithPressHack (monterey or lower)
-                // launch with activation because the hack doesn't work until the app is activated at least once
-                app = try launchMessages(!isVenturaOrUp)
-            }
+        if Preferences.useSecondaryMessagesInstance {
+            log.info("launching secondary messages instance...")
+            app = try MessagesInstanceTarget.launchSecondaryInstance(
+                initialDeepLink: MessagesDeepLink.compose.url(),
+                activating: false,
+                hiding: false
+            )
         } else {
-            app = try launchMessages(false)
+            var messagesApps = Self.getRunningMessagesApps()
+            if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
+                log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
+                messagesApps.forEach { try? Self.terminateApp($0) }
+                messagesApps.removeAll()
+            }
+            if let existingApp = messagesApps.first {
+                // if coordination is disabled, avoid unnecessarily terminating the app
+                if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
+                    log.info("reusing existing messages...")
+                    app = existingApp
+                } else {
+                    log.info("terminating messages...")
+                    try Self.terminateApp(existingApp)
+                    // this is for markAsReadWithPressHack (monterey or lower)
+                    // launch with activation because the hack doesn't work until the app is activated at least once
+                    app = try launchMessages(!isVenturaOrUp)
+                }
+            } else {
+                app = try launchMessages(false)
+            }
         }
 
         windowCoordinator.app = app
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
-        elements = MessagesAppElements(runningApp: app)
+        let selectedApp = app
+        elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
+            try Self.openDeepLink(url, targeting: selectedApp)
+        })
         keyPresser = KeyPresser(pid: app.processIdentifier)
 
         // if app.isHidden {
@@ -429,9 +462,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // this task doesn't run on the thread with the run loop
             Task.detached {
                 func debuggingStatus() -> String {
-                    // grab the running application again in case it has quit
-                    // and relaunched since we last observed an event
-                    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first else { return "<no app>" }
+                    let app = self.app
 
                     do {
                         let window = try self.elements.mainWindow
@@ -625,7 +656,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
             #endif
-            try Self.openDeepLink(openBefore)
+            try openDeepLink(openBefore)
         }
 
         try perform()
@@ -635,7 +666,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 #if DEBUG
                 debugLog("withActivation: opening after performing: \(openAfter)")
                 #endif
-                try Self.openDeepLink(openAfter)
+                try openDeepLink(openAfter)
             }
         }
     }
@@ -1125,7 +1156,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try prepareForAutomation()
         defer { finishedAutomation() }
 
-        try Self.openDeepLink(url)
+        try openDeepLink(url)
     }
 
     func clearTypingStatus() throws {
@@ -1266,7 +1297,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        if !Defaults.disableOSAFastPath, let threadID, quotedMessage == nil { // fast path using OSA
+        if !Defaults.disableOSAFastPath, !Preferences.useSecondaryMessagesInstance, let threadID, quotedMessage == nil { // fast path using OSA
             do {
                 if let text {
                     if !text.contains("@"), !containsLink(text) { // no mentions and no links
@@ -1559,7 +1590,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     func idleCallback(observingThreadID threadID: String, statusSender: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        return { [weak self] quiescence in
+        return { [weak self] _ in
             guard let self else { return }
 
             guard !messagesIsManuallyActivated else {
@@ -1586,7 +1617,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 try prepareForAutomation()
                 defer { finishedAutomation() }
 
-                try Self.openDeepLink(url)
+                try openDeepLink(url)
                 log.debug("activity: opened deep link, waiting for layout change")
                 lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                 waitForLayoutChange(timeout: 0.5)
