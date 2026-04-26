@@ -12,7 +12,7 @@
 - [ ] migrate parity test from worktree-of-main reference to snapshot-based regression once Swift fixture-snapshot port is live; remove `.parity/check-swift-mapper-parity.mjs` when no longer needed
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
-- [ ] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
+- [x] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
 - [ ] add handling for multiple instances of MessagesController (Beeper Desktop + CLI running at the same time)
 - [ ] store UserDefaults in dataDirPath
 
