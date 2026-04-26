@@ -13,7 +13,6 @@ const SQLS = {
   getThread: 'SELECT * FROM chat WHERE guid = ?',
   getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
 
-  getAccountLogins: 'SELECT DISTINCT account_login FROM chat',
   createIndexes: IS_VENTURA_OR_UP
     ? 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read); CREATE INDEX IF NOT EXISTS message_idx_date_edited ON message (date_edited)'
     : 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
@@ -64,9 +63,6 @@ export default class DatabaseAPI {
     swiftServer.cancelPollingIfNecessary()
     return this.db.dispose()
   }
-
-  getAccountLogins = (): Promise<string[]> =>
-    this.db.pluck_all<void[], string>(SQLS.getAccountLogins)
 
   private hasAttemptedToStartPoller = false
 

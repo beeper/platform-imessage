@@ -29,15 +29,14 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 @NodeActor @NodeClass final class PlatformAPI {
     static let name = "PlatformAPI"
 
-    private let currentUserID: String
     private let accountID: String
     private let database = PlatformAPIDatabase()
+    private let currentUserCache = Protected<CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
     private var messagesControllerWrapper: MessagesControllerWrapper?
     private var hasBeenDisposed = false
 
-    @NodeConstructor init(currentUserID: String, accountID: String) {
-        self.currentUserID = currentUserID
+    @NodeConstructor init(accountID: String) {
         self.accountID = accountID
     }
 
@@ -47,13 +46,26 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }.value
     }
 
+    nonisolated private static func currentUser(db: IMDatabase, cache: Protected<CurrentUser?>) throws -> CurrentUser {
+        try cache.withLock { cachedUser in
+            if let cachedUser {
+                return cachedUser
+            }
+
+            let currentUser = try CurrentUser.fetch(from: db)
+            cachedUser = currentUser
+            return currentUser
+        }
+    }
+
     @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
-        let currentUserID = currentUserID
         let accountID = accountID
         let database = database
+        let currentUserCache = currentUserCache
         return try await Self.offNodeActor {
             try database.withDatabase { db in
-                try Self.getMessages(
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                return try Self.getMessages(
                     db: db,
                     threadID: threadID,
                     cursor: cursor,
@@ -67,12 +79,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
-        let currentUserID = currentUserID
         let accountID = accountID
         let database = database
+        let currentUserCache = currentUserCache
         return try await Self.offNodeActor {
             try database.withDatabase { db in
-                try Self.getMessage(
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                return try Self.getMessage(
                     db: db,
                     threadID: threadID,
                     messageID: messageID,
@@ -84,12 +97,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
-        let currentUserID = currentUserID
         let accountID = accountID
         let database = database
+        let currentUserCache = currentUserCache
         return try await Self.offNodeActor {
             try database.withDatabase { db in
-                try Self.getThreads(
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                return try Self.getThreads(
                     db: db,
                     folderName: folderName,
                     cursor: cursor,
@@ -102,12 +116,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     @NodeMethod func getThread(threadID: String) async throws -> String {
-        let currentUserID = currentUserID
         let accountID = accountID
         let database = database
+        let currentUserCache = currentUserCache
         return try await Self.offNodeActor {
             try database.withDatabase { db in
-                try Self.getThread(
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                return try Self.getThread(
                     db: db,
                     threadID: threadID,
                     currentUserID: currentUserID,
@@ -118,12 +133,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     @NodeMethod func searchMessages(query: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        let currentUserID = currentUserID
         let accountID = accountID
         let database = database
+        let currentUserCache = currentUserCache
         return try await Self.offNodeActor {
             try database.withDatabase { db in
-                try Self.searchMessages(
+                let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
+                return try Self.searchMessages(
                     db: db,
                     query: query,
                     threadID: threadID,
@@ -137,18 +153,40 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
+    @NodeMethod func getCurrentUser() async throws -> String {
+        let database = database
+        let currentUserCache = currentUserCache
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try jsonStringify(Self.currentUser(db: db, cache: currentUserCache).hashed())
+            }
+        }
+    }
+
     @NodeMethod func getMessagesController(_ args: NodeArguments) async throws -> NodeValueConvertible {
+        let forceInvalidate = args.count > 0 ? try args[0].as(Bool.self) ?? false : false
+        return try await getMessagesControllerWrapper(forceInvalidate: forceInvalidate).wrapped()
+    }
+
+    @NodeMethod func notifyAnyway(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.notifyAnyway(threadID: threadID)
+    }
+
+    private func getMessagesControllerWrapper(forceInvalidate: Bool = false) async throws -> MessagesControllerWrapper {
         guard !hasBeenDisposed else {
             throw ErrorMessage("PlatformAPI has been disposed")
         }
 
-        let forceInvalidate = args.count > 0 ? try args[0].as(Bool.self) ?? false : false
         if let existing = messagesControllerWrapper {
             let isValid = try await Self.onMessagesControllerQueue {
                 existing.controller.isValid
             }
             if isValid && !forceInvalidate {
-                return try existing.wrapped()
+                return existing
             }
 
             platformLog.debug("disposing cached MessagesController (valid? \(isValid), invalidation forced? \(forceInvalidate))")
@@ -163,7 +201,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
 
         messagesControllerWrapper = wrapper
-        return try wrapper.wrapped()
+        return wrapper
     }
 
     @NodeMethod func dispose() throws {

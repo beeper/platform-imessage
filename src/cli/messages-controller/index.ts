@@ -68,7 +68,7 @@ async function resolveMagicArgs(command: string, args: string[]): Promise<string
 }
 
 async function main() {
-  const platformAPI = new swiftServer.PlatformAPI('default', 'default')
+  const platformAPI = new swiftServer.PlatformAPI('default')
   console.log(c.bold.blue('creating messages controller'))
   const [mc, creationLatency] = await measure(() => platformAPI.getMessagesController())
   state.mc = mc

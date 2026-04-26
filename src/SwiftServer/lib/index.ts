@@ -46,9 +46,11 @@ export declare class MessagesController {
 }
 
 export declare class SwiftPlatformAPI {
-  constructor(currentUserID: string, accountID: string)
+  constructor(accountID: string)
 
   getMessagesController: (forceInvalidate?: boolean) => Promise<MessagesController>
+
+  getCurrentUser: () => Promise<string>
 
   getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, limit?: number) => Promise<string>
 
@@ -61,6 +63,8 @@ export declare class SwiftPlatformAPI {
   searchMessages: (query: string, threadID: string | undefined, mediaOnly: boolean | undefined, sender: string | undefined, limit?: number) => Promise<string>
 
   onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback, messagesController: MessagesController) => Promise<void>
+
+  notifyAnyway: (threadID: ThreadID) => Promise<void>
 
   dispose: () => void
 }

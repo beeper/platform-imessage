@@ -17,7 +17,6 @@ import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import { hashParticipantID } from './hashing'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
@@ -38,8 +37,6 @@ const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
 
 const linkRegex = urlRegex()
 
-const mapAccountLogin = (accountLogin: string) => accountLogin?.replace(/^(E|P):/, '')
-
 function parseSwiftMessageAPIJSON<T>(json: string): T {
   return reviveSwiftMapperValue(JSON.parse(json)) as T
 }
@@ -53,8 +50,6 @@ type SwiftGetThreadsResponse = PaginatedWithCursors<Thread> & {
 
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
-
-  currentUser: CurrentUser | undefined
 
   private persistence?: Persistence
 
@@ -79,14 +74,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private onEvent: OnServerEventCallback | undefined
 
-  private getSwiftPlatformAPI(): SwiftPlatformAPI {
-    if (!this.currentUser) throw new Error('Swift PlatformAPI requested before current user was loaded')
-    this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.currentUser.id, this.accountID)
-    return this.swiftPlatformAPI
-  }
-
   private getMessagesController = () =>
-    MessagesControllerWrapper.get(this.getSwiftPlatformAPI())
+    MessagesControllerWrapper.get(this.swiftPlatformAPI!)
 
   private applyPersistedThreadState(thread: Thread): Thread {
     const archive = this.persistence?.getThreadProp(thread.id, 'archive')
@@ -123,7 +112,7 @@ export default class AppleiMessage implements PlatformAPI {
 
     texts.log('imsg: created DatabaseAPI')
 
-    this.currentUser = await this.fetchCurrentUser()
+    this.swiftPlatformAPI = new swiftServer.PlatformAPI(this.accountID)
 
     if (process.env.IMESSAGE_SKIP_EAGER_MC !== '1') {
       // eslint-disable-next-line no-void
@@ -139,30 +128,12 @@ export default class AppleiMessage implements PlatformAPI {
     return this.cachedDB
   }
 
-  private fetchCurrentUser = async (): Promise<CurrentUser> => {
-    const logins = await (await this.ensureDB()).getAccountLogins()
-    const unprefixed = logins.map(mapAccountLogin).filter(Boolean)
-    return {
-      id: unprefixed[0] || 'default',
-      displayText: unprefixed.join(', '),
-      email: logins.find(a => a?.startsWith('E:'))?.split(':')?.[1] || undefined,
-      phoneNumber: logins.find(a => a?.startsWith('P:'))?.split(':')?.[1] || undefined,
-    }
-  }
-
   private resolveThreadID = async (threadID: ThreadID): Promise<ThreadID> =>
     swiftServer.resolveThreadID(threadID)
 
   getCurrentUser = async (): Promise<CurrentUser> => {
     await this.ensureDB()
-    if (!this.currentUser) {
-      throw new Error('imsg: expected current user to be loaded by now')
-    }
-
-    return {
-      ...this.currentUser,
-      id: hashParticipantID(this.currentUser.id),
-    }
+    return parseSwiftMessageAPIJSON<CurrentUser>(await this.swiftPlatformAPI!.getCurrentUser())
   }
 
   login = async (): Promise<LoginResult> => {
@@ -251,7 +222,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   getThread = async (hashedThreadID: ThreadID) => {
     await this.ensureDB()
-    const swiftAPI = this.getSwiftPlatformAPI()
+    const swiftAPI = this.swiftPlatformAPI!
     const parsed = parseSwiftMessageAPIJSON<Thread | null>(await swiftAPI.getThread(hashedThreadID))
     return parsed ? this.applyPersistedThreadState(parsed) : undefined
   }
@@ -282,7 +253,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
     const db = await this.ensureDB()
-    const swiftAPI = this.getSwiftPlatformAPI()
+    const swiftAPI = this.swiftPlatformAPI!
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     const cursor = pagination?.cursor ?? null
@@ -304,7 +275,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
     await this.ensureDB()
-    const swiftAPI = this.getSwiftPlatformAPI()
+    const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftAPI.getMessages(
       hashedThreadID,
       pagination?.cursor,
@@ -315,7 +286,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     await this.ensureDB()
-    const swiftAPI = this.getSwiftPlatformAPI()
+    const swiftAPI = this.swiftPlatformAPI!
     const parsed = parseSwiftMessageAPIJSON<Message | null>(await swiftAPI.getMessage(
       hashedThreadID,
       messageID,
@@ -325,7 +296,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     await this.ensureDB()
-    const swiftAPI = this.getSwiftPlatformAPI()
+    const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<PaginatedWithCursors<Message>>(await swiftAPI.searchMessages(
       typed,
       options?.threadID,
@@ -549,12 +520,7 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  notifyAnyway = async (hashedThreadID: ThreadID) => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    const controller = await this.getMessagesController()
-    await controller.notifyAnyway(threadID)
-  }
+  notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
 
   onThreadSelected = async (hashedThreadID: ThreadID) => {
     // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored
@@ -563,8 +529,9 @@ export default class AppleiMessage implements PlatformAPI {
     if (!hashedThreadID) return
     if (!this.onEvent) return
 
+    await this.ensureDB()
     const messagesController = await this.getMessagesController()
-    return this.getSwiftPlatformAPI().onThreadSelected(hashedThreadID, this.onEvent, messagesController)
+    return this.swiftPlatformAPI!.onThreadSelected(hashedThreadID, this.onEvent, messagesController)
   }
 
   //   private getThreadMessagesChecksum = async (threadID: ThreadID, afterCursor: string) => {

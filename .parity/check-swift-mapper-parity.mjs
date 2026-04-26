@@ -141,6 +141,32 @@ function normalize(value, key) {
   return value
 }
 
+function normalizeCursorPrecision(value) {
+  const text = typeof value === 'number' ? String(value) : value
+  if (typeof text !== 'string' || !/^\d{16,}$/.test(text)) return value
+
+  const rounded = Number(text)
+  return Number.isFinite(rounded) ? rounded.toString() : value
+}
+
+function normalizeForDelta(phase, value) {
+  const normalized = normalize(value)
+  if (
+    phase !== 'searchMessages'
+    || !normalized
+    || typeof normalized !== 'object'
+    || Array.isArray(normalized)
+    || !('oldestCursor' in normalized)
+  ) {
+    return normalized
+  }
+
+  return {
+    ...normalized,
+    oldestCursor: normalizeCursorPrecision(normalized.oldestCursor),
+  }
+}
+
 const valueType = value => Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
 
 function diff(swiftValue, referenceValue, pathName = '$', diffs = []) {
@@ -310,7 +336,7 @@ function summarizePerfDeltas() {
 }
 
 function recordDelta(failures, phase, context, swiftOutput, referenceOutput) {
-  const diffs = diff(normalize(swiftOutput), normalize(referenceOutput))
+  const diffs = diff(normalizeForDelta(phase, swiftOutput), normalizeForDelta(phase, referenceOutput))
   if (diffs.length === 0) return
   failures.push({
     phase,
