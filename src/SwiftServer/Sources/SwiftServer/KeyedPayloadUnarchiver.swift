@@ -7,52 +7,67 @@ func unarchiveKeyedPayload(_ plist: Any) -> Any? {
           let root = archive.dictionary("$top")?["root"] else {
         return nil
     }
-    return mapArchivedObject(root, objects: objects)
+    return KeyedPayloadUnarchiver(objects: objects).unarchive(root)
 }
 
-func mapArchivedObject(_ value: Any, objects: [Any]) -> Any? {
-    if let uid = keyedArchiveUID(value) {
-        guard objects.indices.contains(uid) else {
+private struct KeyedPayloadUnarchiver {
+    let objects: [Any]
+
+    func unarchive(_ value: Any) -> Any? {
+        if let uid = keyedArchiveUID(value) {
+            return unarchiveObject(at: uid)
+        }
+
+        switch value {
+        case let string as String where string == "$null":
+            return NSNull()
+        case let dictionary as JSONObject:
+            return unarchive(dictionary)
+        case let array as JSONArray:
+            return array.compactMap(unarchive)
+        default:
+            return value
+        }
+    }
+
+    private func unarchiveObject(at index: Int) -> Any? {
+        guard objects.indices.contains(index) else {
             return nil
         }
-        return mapArchivedObject(objects[uid], objects: objects)
+        return unarchive(objects[index])
     }
-    if let string = value as? String, string == "$null" {
-        return NSNull()
-    }
-    if let dictionary = value as? JSONObject {
+
+    private func unarchive(_ dictionary: JSONObject) -> JSONObject {
         var result = JSONObject()
         for (key, child) in dictionary {
             if key == "$classes", let classes = child as? [Any] {
                 result[key] = classes
                 continue
             }
-            guard let mapped = mapArchivedObject(child, objects: objects) else {
+            guard let mapped = unarchive(child) else {
                 continue
             }
-            if key == "NS.objects", let mappedDictionary = mapped as? JSONObject {
-                result[key] = mappedDictionary
-                    .sorted { lhs, rhs in (Int(lhs.key) ?? 0) < (Int(rhs.key) ?? 0) }
-                    .map(\.value)
-            } else {
-                result[key] = mapped
-            }
+            result[key] = value(mapped, forArchiveKey: key)
         }
         return result
     }
-    if let array = value as? [Any] {
-        return array.compactMap { mapArchivedObject($0, objects: objects) }
+
+    private func value(_ mapped: Any, forArchiveKey key: String) -> Any {
+        guard key == "NS.objects",
+              let dictionary = mapped as? JSONObject else {
+            return mapped
+        }
+        return dictionary
+            .sorted { (Int($0.key) ?? 0) < (Int($1.key) ?? 0) }
+            .map(\.value)
     }
-    return value
 }
 
 private let keyedArchiveUIDRegex = try! NSRegularExpression(pattern: #"\{value = (\d+)\}"#)
 
 func keyedArchiveUID(_ value: Any) -> Int? {
-    if let dictionary = value as? JSONObject,
-       dictionary.count == 1,
-       let uid = dictionary["CF$UID"] {
-        return (uid as? NSNumber)?.intValue ?? uid as? Int
+    if let dictionary = value as? JSONObject, dictionary.count == 1 {
+        return dictionary.int("CF$UID")
     }
     if value is JSONObject || value is JSONArray || value is NSDictionary || value is NSArray {
         return nil
@@ -67,23 +82,29 @@ func keyedArchiveUID(_ value: Any) -> Int? {
 }
 
 func unwrapDictionary(_ value: Any) -> JSONObject? {
-    guard let dictionary = value as? JSONObject,
-          let keys = dictionary["NS.keys"] as? [Any],
+    guard let dictionary = value as? JSONObject else {
+        return nil
+    }
+    guard let keys = dictionary["NS.keys"] as? [Any],
           let objects = dictionary["NS.objects"] as? [Any] else {
         return value as? JSONObject
     }
     var result = JSONObject()
-    for (index, key) in keys.enumerated() {
-        guard let key = key as? String, objects.indices.contains(index) else {
+    for (key, object) in zip(keys, objects) {
+        guard let key = key as? String else {
             continue
         }
-        result[key] = objects[index]
+        result[key] = object
     }
     return result
 }
 
 func normalizeFoundationObject(_ value: Any) -> Any {
     switch value {
+    case let dictionary as JSONObject:
+        return dictionary.reduce(into: JSONObject()) { result, element in
+            result[element.key] = normalizeFoundationObject(element.value)
+        }
     case let dictionary as NSDictionary:
         var result = JSONObject()
         for (rawKey, rawValue) in dictionary {
@@ -93,10 +114,16 @@ func normalizeFoundationObject(_ value: Any) -> Any {
             result[key] = normalizeFoundationObject(rawValue)
         }
         return result
+    case let array as JSONArray:
+        return array.map(normalizeFoundationObject)
     case let array as NSArray:
         return array.map(normalizeFoundationObject)
+    case let url as URL:
+        return ["NS.relative": url.absoluteString]
     case let url as NSURL:
         return ["NS.relative": url.absoluteString ?? ""]
+    case let data as Data:
+        return "data:;base64,\(data.base64EncodedString())"
     case let data as NSData:
         return "data:;base64,\(data.base64EncodedString())"
     default:
