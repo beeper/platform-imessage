@@ -25,7 +25,7 @@ enum ThreadMapper {
             return nil
         }
         let maxRowID = latestMessageRows.compactMap { $0.int("ROWID") }.max() ?? 0
-        let maxDateRead = latestMessageRows.map { row -> Int in
+        let maxDateReadNanoseconds = latestMessageRows.map { row -> Int in
             // Guard against bogus read dates that overflow Int64 — the source
             // of these is unknown but they'd poison the polling cursor.
             guard (row.string("dateReadString") ?? "0") < int64MaxString else {
@@ -33,7 +33,7 @@ enum ThreadMapper {
             }
             return row.int("date_read") ?? 0
         }.max() ?? 0
-        return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateRead)
+        return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
     private static let int64MaxString = String(Int.max)
@@ -45,7 +45,8 @@ enum ThreadMapper {
         let selfID = chat.string("last_addressed_handle") ?? chat.string("account_login").map(mapAccountLogin) ?? context.currentUserID
         let firstParticipantID = handleRows.first?.string("participantID")
 
-        var participants = handleRows.compactMap { mapParticipant($0, chatDisplayName: chat.string("display_name")) }
+        let chatDisplayName = chat.string("display_name")
+        var participants = handleRows.compactMap { mapParticipant($0, chatDisplayName: chatDisplayName) }
         if context.currentUserID != firstParticipantID {
             var selfParticipant = mapParticipant(["participantID": selfID], chatDisplayName: nil) ?? [:]
             selfParticipant["id"] = context.currentUserID
