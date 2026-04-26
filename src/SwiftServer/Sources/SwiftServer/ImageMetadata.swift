@@ -2,7 +2,7 @@ import NodeAPI
 import Foundation
 import ImageIO
 
-struct ImageMetadata {
+struct ImageMetadata: Sendable {
     let width: Int
     let height: Int
 

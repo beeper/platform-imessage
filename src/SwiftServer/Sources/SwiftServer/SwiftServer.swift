@@ -46,6 +46,15 @@ enum Preferences {
     static var enabledExperiments = ""
 }
 
+private func offNodeActor<T: Sendable>(
+    priority: TaskPriority = .userInitiated,
+    _ action: @escaping @Sendable () throws -> T
+) async throws -> T {
+    try await Task.detached(priority: priority) {
+        try action()
+    }.value
+}
+
 #NodeModule {
     // this needs to be bootstrapped as early as possible, because it needs to
     // be ready by the first `debugLog` call, or else subsequent calls to that
@@ -170,17 +179,8 @@ enum Preferences {
         },
 
         "askForAutomationAccess": NodeFunction {
-            let queue = try NodeAsyncQueue(label: "automation-access-callback")
-            return try NodePromise { deferred in
-                DispatchQueue.main.async {
-                    let result = Result<NodeValueConvertible, Error> {
-                        try OSA.promptAutomationAccess()
-                        return undefined
-                    }
-                    try? queue.run {
-                        try deferred(result)
-                    }
-                }
+            try await MainActor.run {
+                try OSA.promptAutomationAccess()
             }
         },
 
@@ -201,74 +201,36 @@ enum Preferences {
             try MessageMapper.mapMessageJSON(inputJSON)
         },
 
-        "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) in
-            let queue = try NodeAsyncQueue(label: "search-messages")
-            return try NodePromise { deferred in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let result = Result<NodeValueConvertible, Error> {
-                        let db = try IMDatabase()
-                        let rowIDs = try db.searchMessages(
-                            query: query,
-                            chatGUID: chatGUID,
-                            mediaOnly: mediaOnly ?? false,
-                            sender: sender,
-                            limit: limit ?? 20
-                        )
-                        return rowIDs as [NodeValueConvertible]
-                    }
-                    try? queue.run {
-                        try deferred(result)
-                    }
-                }
+        "searchMessages": NodeFunction { (query: String, chatGUID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> NodeValueConvertible in
+            let rowIDs = try await offNodeActor {
+                let db = try IMDatabase()
+                return try db.searchMessages(
+                    query: query,
+                    chatGUID: chatGUID,
+                    mediaOnly: mediaOnly ?? false,
+                    sender: sender,
+                    limit: limit ?? 20
+                )
             }
+            return rowIDs as [NodeValueConvertible]
         },
 
-        "getImageMetadata": NodeFunction { (filePath: String) in
-            let queue = try NodeAsyncQueue(label: "image-metadata")
-            return try NodePromise { deferred in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let result = Result<NodeValueConvertible, Error> {
-                        guard let metadata = ImageMetadataReader.read(from: filePath) else {
-                            return undefined
-                        }
-                        return metadata.nodeValue()
-                    }
-                    try? queue.run {
-                        try deferred(result)
-                    }
-                }
+        "getImageMetadata": NodeFunction { (filePath: String) async throws -> NodeValueConvertible in
+            guard let metadata = try await offNodeActor({ ImageMetadataReader.read(from: filePath) }) else {
+                return undefined
             }
+            return metadata.nodeValue()
         },
 
         "confirmUNCPrompt": NodeFunction {
-            let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
-            return try NodePromise { deferred in
-                // we don't use DispatchQueue.main to prevent freezing the UI
-                DispatchQueue.global(qos: .background).async {
-                    let result = Result<NodeValueConvertible, Error> {
-                        try PromptAutomation.confirmUNCPrompt()
-                        return undefined
-                    }
-                    try? queue.run {
-                        try deferred(result)
-                    }
-                }
+            try await offNodeActor(priority: .background) {
+                try PromptAutomation.confirmUNCPrompt()
             }
         },
 
-        "disableNotificationsForApp": NodeFunction { (appName: String) in
-            let queue = try NodeAsyncQueue(label: "prompt-automation-callback")
-            return try NodePromise { deferred in
-                // we don't use DispatchQueue.main to prevent freezing the UI
-                DispatchQueue.global(qos: .background).async {
-                    let result = Result<NodeValueConvertible, Error> {
-                        try PromptAutomation.disableNotificationsForApp(named: appName)
-                    }
-
-                    try? queue.run {
-                        try deferred(result)
-                    }
-                }
+        "disableNotificationsForApp": NodeFunction { (appName: String) async throws in
+            try await offNodeActor(priority: .background) {
+                try PromptAutomation.disableNotificationsForApp(named: appName)
             }
         },
 
