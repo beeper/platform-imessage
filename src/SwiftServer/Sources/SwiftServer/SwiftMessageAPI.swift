@@ -39,8 +39,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = PlatformAPIDatabase()
     private let currentUserCache = Protected<CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
-    private var messagesControllerWrapper: MessagesControllerWrapper?
+    private var messagesController: MessagesController?
+    private var messagesControllerCleanupHook: AsyncCleanupHook?
+    private var watchCBQueue: NodeAsyncQueue?
+    private let threadObserveRequestToken = Protected<UUID?>()
     private var hasBeenDisposed = false
+
+    private static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
 
     @NodeConstructor init(accountID: String) {
         self.accountID = accountID
@@ -198,9 +203,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             }
 
             if existingThread != jsonNull {
-                let wrapper = try await getMessagesControllerWrapper()
+                let controller = try await getMessagesController()
                 try await Self.onMessagesControllerQueue {
-                    try wrapper.controller.sendMessage(
+                    try controller.sendMessage(
                         threadID: existingThreadID,
                         addresses: nil,
                         text: message,
@@ -212,9 +217,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             }
         }
 
-        let wrapper = try await getMessagesControllerWrapper()
+        let controller = try await getMessagesController()
         try await Self.onMessagesControllerQueue {
-            try wrapper.controller.sendMessage(
+            try controller.sendMessage(
                 threadID: nil,
                 addresses: addresses,
                 text: message,
@@ -241,8 +246,8 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             name: "sendMessage",
             retries: quotedMessageID == nil ? 1 : 2,
             prepareAttempt: { try await self.lastMessageRowID() }
-        ) { wrapper in
-            try wrapper.performSendMessage(
+        ) { controller in
+            try controller.sendMessage(
                 threadID: threadID,
                 text: text,
                 filePath: filePath,
@@ -286,16 +291,22 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.notifyAnyway(threadID: threadID)
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            try controller.notifyAnyway(threadID: threadID)
+        }
+        return undefined
     }
 
     @NodeMethod func deleteMessage(threadID publicThreadID: String, messageID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.undoSend(threadID: threadID, messageID: messageID)
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            try controller.undoSend(threadID: threadID, messageID: messageID)
+        }
+        return undefined
     }
 
     @NodeMethod func editMessage(threadID publicThreadID: String, messageID: String, newText text: String?) async throws -> NodeValueConvertible {
@@ -310,24 +321,33 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.editMessage(threadID: threadID, messageID: messageID, newText: text)
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            try controller.editMessage(threadID: threadID, messageID: messageID, newText: text)
+        }
+        return undefined
     }
 
     @NodeMethod func deleteThread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.deleteThread(threadID: threadID)
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            try controller.deleteThread(threadID: threadID)
+        }
+        return undefined
     }
 
     @NodeMethod func updateThread(threadID publicThreadID: String, muted: Bool) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.muteThread(threadID: threadID, muted: muted)
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            try controller.muteThread(threadID: threadID, muted: muted)
+        }
+        return undefined
     }
 
     @NodeMethod func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws -> NodeValueConvertible {
@@ -354,16 +374,26 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             return undefined
         }
 
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.sendTypingStatus(threadID: threadID, isTyping: type == "typing")
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            if type == "typing" {
+                try controller.sendTypingStatus(threadID: threadID)
+            } else {
+                try controller.clearTypingStatus()
+            }
+        }
+        return undefined
     }
 
     @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let wrapper = try await getMessagesControllerWrapper()
-        return try wrapper.toggleThreadRead(threadID: threadID, read: false)
+        let controller = try await getMessagesController()
+        try await Self.onMessagesControllerQueue {
+            try controller.toggleThreadRead(threadID: threadID, read: false)
+        }
+        return undefined
     }
 
     @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
@@ -379,8 +409,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 return undefined
             }
 
-            let wrapper = try await getMessagesControllerWrapper(forceInvalidate: attempt > 0)
-            let controller = wrapper.controller
+            let controller = try await getMessagesController(forceInvalidate: attempt > 0)
             try await Self.onMessagesControllerQueue {
                 try controller.toggleThreadRead(threadID: threadID, read: true)
             }
@@ -404,32 +433,60 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    private func getMessagesControllerWrapper(forceInvalidate: Bool = false) async throws -> MessagesControllerWrapper {
+    private func getMessagesController(forceInvalidate: Bool = false) async throws -> MessagesController {
         guard !hasBeenDisposed else {
             throw ErrorMessage("PlatformAPI has been disposed")
         }
 
-        if let existing = messagesControllerWrapper {
+        if let existing = messagesController {
             let isValid = try await Self.onMessagesControllerQueue {
-                existing.controller.isValid
+                existing.isValid
             }
             if isValid && !forceInvalidate {
                 return existing
             }
 
             platformLog.debug("disposing cached MessagesController (valid? \(isValid), invalidation forced? \(forceInvalidate))")
-            try existing.dispose()
-            messagesControllerWrapper = nil
+            try disposeCachedMessagesController()
         }
 
-        let wrapper = try await makeMessagesControllerWrapper()
+        let controller = try await makeMessagesController()
+        let cleanupHook = try NodeEnvironment.current.addCleanupHook { completion in
+            Log.default.notice("[PlatformAPI] running MessagesController dispose inside cleanup hook")
+            controller.dispose()
+            completion()
+        }
+
         guard !hasBeenDisposed else {
-            try wrapper.dispose()
+            try disposeMessagesController(controller, cleanupHook: cleanupHook)
             throw ErrorMessage("PlatformAPI has been disposed")
         }
 
-        messagesControllerWrapper = wrapper
-        return wrapper
+        messagesController = controller
+        messagesControllerCleanupHook = cleanupHook
+        return controller
+    }
+
+    private func disposeCachedMessagesController() throws {
+        guard let controller = messagesController else {
+            return
+        }
+
+        let cleanupHook = messagesControllerCleanupHook
+        messagesController = nil
+        messagesControllerCleanupHook = nil
+        Self.messagesControllerQueue.setIdleCallback(nil)
+        try disposeMessagesController(controller, cleanupHook: cleanupHook)
+    }
+
+    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: AsyncCleanupHook?) throws {
+        Log.default.notice("[PlatformAPI] disposing MessagesController")
+        Self.messagesControllerQueue.queue.sync {
+            controller.dispose()
+        }
+        if let cleanupHook {
+            try NodeEnvironment.current.removeCleanupHook(cleanupHook)
+        }
     }
 
     @NodeMethod func dispose() throws {
@@ -438,13 +495,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
 
         hasBeenDisposed = true
-
-        guard let wrapper = messagesControllerWrapper else {
-            return
-        }
-
-        try wrapper.dispose()
-        messagesControllerWrapper = nil
+        try disposeCachedMessagesController()
     }
 
     @NodeMethod func onThreadSelected(_ args: NodeArguments) async throws -> NodeValueConvertible {
@@ -470,17 +521,20 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let singleParticipantID = singleParticipantAddress(threadID)
         platformLog.debug("activity/\(publicThreadID): watching")
 
-        let messagesController = try await getMessagesControllerWrapper()
-        return try messagesController.watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
+        return try await watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
             platformLog.debug("activity/\(publicThreadID): received \(statuses.map(\.rawValue))")
 
             let isDNDCanNotify = statuses.contains(.dndCanNotify)
             let isDND = statuses.contains(.dnd) || isDNDCanNotify
             let userID = threadIDToAddress(threadID) ?? ""
             if isDND {
-                dndUserIDs.withLock { $0.insert(userID) }
+                dndUserIDs.withLock {
+                    _ = $0.insert(userID)
+                }
             } else {
-                dndUserIDs.withLock { $0.remove(userID) }
+                dndUserIDs.withLock {
+                    _ = $0.remove(userID)
+                }
             }
 
             guard let singleParticipantID else {
@@ -507,7 +561,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                     ]),
                 ]))
             } else if dndUserIDs.withLock({ $0.contains(userID) }) {
-                dndUserIDs.withLock { $0.remove(userID) }
+                dndUserIDs.withLock {
+                    _ = $0.remove(userID)
+                }
                 events.append(try NodeObject([
                     "type": "user_presence_updated",
                     "presence": try NodeObject([
@@ -521,19 +577,102 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
+    private func watchThreadActivity(
+        threadID: String,
+        statusSender: @escaping @Sendable @NodeActor ([ActivityStatus]) throws -> Void
+    ) async throws -> NodeValueConvertible {
+        guard Defaults.swiftServer.bool(forKey: DefaultsKeys.watchThreadActivity) else {
+            return undefined
+        }
+
+        // reset the idle callback in case we fail and bail out
+        Self.messagesControllerQueue.setIdleCallback(nil)
+
+        let controller = try await getMessagesController()
+
+        // only watch thread activity for iMessage chats
+        // TODO: implement this for groups
+        if !threadID.hasPrefix("iMessage;-;") {
+            guard threadID.hasPrefix("any;-;") else {
+                // only bother checking the database if the GUID can't tell us what service the chat is for
+                // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+                #if DEBUG
+                platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+                #endif
+                return undefined
+            }
+
+            let chat = try controller.db.chat(withGUID: threadID)
+            guard let chat else {
+                platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
+                return undefined
+            }
+
+            guard chat.serviceName == .imessage else {
+                #if DEBUG
+                platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+                #endif
+                return undefined
+            }
+        }
+
+        let watchCBQueue: NodeAsyncQueue
+        if let existing = self.watchCBQueue {
+            watchCBQueue = existing
+        } else {
+            watchCBQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
+            self.watchCBQueue = watchCBQueue
+        }
+        let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
+            try? watchCBQueue.run {
+                try statusSender(statuses)
+            }
+            return
+        }
+
+        // it's okay that we aren't using `onMessagesControllerQueue` here -
+        // the idle callback is itself submitted onto the queue, so everything's
+        // still serial
+        let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
+        Self.messagesControllerQueue.setIdleCallback { quiescence in
+            do {
+                try observe(quiescence)
+            } catch {
+                platformLog.error("failed to observe activity: \(error)")
+            }
+        }
+
+        // restored from old TextsHQ implementation
+        // https://github.com/TextsHQ/platform-imessage/blob/main/src/SwiftServer/Sources/SwiftServer/SwiftServer.swift#L123-L158
+        let requestID = UUID()
+        threadObserveRequestToken.withLock { $0 = requestID }
+
+        try await Self.onMessagesControllerQueue {
+            // if another watchThreadActivity request has been enqueued
+            // after our current one (but before this block began executing),
+            // then this check will fail and prevent the current block from
+            // unnecessarily running
+            guard self.threadObserveRequestToken.read() == requestID else { return }
+
+            try observe(.began)
+        }
+
+        return undefined
+    }
+
     @discardableResult
     private func performControllerOperation<AttemptContext>(
         name: String,
         retries: Int,
         prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
-        _ action: @escaping @Sendable (MessagesControllerWrapper) throws -> Void,
+        _ action: @escaping @Sendable (MessagesController) throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
         try await retry(retries: retries) { attempt in
             let context = try await prepareAttempt()
-            let wrapper = try await getMessagesControllerWrapper(forceInvalidate: attempt > 0)
+            let controller = try await getMessagesController(forceInvalidate: attempt > 0)
             try await Self.onMessagesControllerQueue {
-                try action(wrapper)
+                try action(controller)
             }
             try await afterAttempt?(context)
             return context
@@ -548,8 +687,8 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             name: "setReaction",
             retries: 2,
             prepareAttempt: { try await self.lastMessageRowID() }
-        ) { wrapper in
-            try wrapper.performSetReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
+        ) { controller in
+            try controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
         } afterAttempt: { lastRowID in
             _ = try await self.waitForMessageSend(
                 threadID: threadID,
@@ -579,13 +718,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     ) async throws -> String {
         let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
-        let wrapper = try await getMessagesControllerWrapper()
+        let controller = try await getMessagesController()
         let address = threadIDToAddress(threadID)
         let sentThreadIsValid = try await Self.onMessagesControllerQueue {
             sentThreadIDs.allSatisfy { sentThreadID in
                 sentThreadID == threadID || (
                     sentThreadID != nil
-                    && wrapper.controller.isSameContact(address, threadIDToAddress(sentThreadID!))
+                    && controller.isSameContact(address, threadIDToAddress(sentThreadID!))
                 )
             }
         }
@@ -688,22 +827,22 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     private func reportMessageToSentry(_ message: String) async throws {
-        try await Node.texts.Sentry.captureMessage(message)
+        try Node.texts.Sentry.captureMessage(message)
     }
 
     private static func onMessagesControllerQueue<T>(
         _ action: @escaping @Sendable () throws -> T
     ) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
-            MessagesControllerWrapper.queue.async {
+            messagesControllerQueue.async {
                 continuation.resume(with: Result { try action() })
             }
         }
     }
 
-    private func makeMessagesControllerWrapper() async throws -> MessagesControllerWrapper {
+    private func makeMessagesController() async throws -> MessagesController {
         let q = try NodeAsyncQueue(label: "platform-api-messages-controller")
-        let controller = try await Self.onMessagesControllerQueue {
+        return try await Self.onMessagesControllerQueue {
             try MessagesController(reportToSentry: { txt in
                 platformLog.error("<!> report to sentry: \(txt)")
                 try? q.run {
@@ -711,7 +850,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 }
             })
         }
-        return try MessagesControllerWrapper(controller: controller)
     }
 
     nonisolated static func getThreads(
