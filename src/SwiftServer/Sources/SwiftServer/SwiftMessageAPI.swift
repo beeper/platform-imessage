@@ -11,50 +11,47 @@ private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_
 
     private let currentUserID: String
     private let accountID: String
-    private let swiftJSQueue: NodeAsyncQueue
 
-    @NodeConstructor init(currentUserID: String, accountID: String) throws {
+    @NodeConstructor init(currentUserID: String, accountID: String) {
         self.currentUserID = currentUserID
         self.accountID = accountID
-        swiftJSQueue = try NodeAsyncQueue(label: "platform-api")
     }
 
-    private func returnAsync(_ action: @escaping () throws -> NodeValueConvertible) throws -> NodePromise {
-        try NodePromise { deferred in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let result = Result { try action() }
-                try? self.swiftJSQueue.run {
-                    try deferred(result)
-                }
-            }
-        }
+    private static func offNodeActor<T: Sendable>(_ action: @escaping @Sendable () throws -> T) async throws -> T {
+        try await Task.detached(priority: .userInitiated) {
+            try action()
+        }.value
     }
 
-    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) throws -> NodeValueConvertible {
-        try returnAsync {
+    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
+        let currentUserID = currentUserID
+        let accountID = accountID
+        return try await Self.offNodeActor {
             try Self.getMessages(
                 threadID: threadID,
                 cursor: cursor,
                 direction: direction,
-                currentUserID: self.currentUserID,
-                accountID: self.accountID,
+                currentUserID: currentUserID,
+                accountID: accountID,
                 limit: limit
             )
         }
     }
 
-    @NodeMethod func getMessage(threadID: String, messageID: String) throws -> NodeValueConvertible {
-        try returnAsync {
+    @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
+        let currentUserID = currentUserID
+        let accountID = accountID
+        return try await Self.offNodeActor {
             try Self.getMessage(
                 threadID: threadID,
                 messageID: messageID,
-                currentUserID: self.currentUserID,
-                accountID: self.accountID
+                currentUserID: currentUserID,
+                accountID: accountID
             )
         }
     }
 
-    static func getMessages(
+    nonisolated static func getMessages(
         threadID publicThreadID: String,
         cursor: String?,
         direction: String?,
@@ -89,7 +86,7 @@ private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_
         ])
     }
 
-    static func getMessage(
+    nonisolated static func getMessage(
         threadID publicThreadID: String,
         messageID: String,
         currentUserID: String,
@@ -117,7 +114,7 @@ private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_
 }
 
 private extension PlatformAPI {
-    static func originalThreadID(_ threadID: String, db: IMDatabase) throws -> String {
+    nonisolated static func originalThreadID(_ threadID: String, db: IMDatabase) throws -> String {
         guard threadID.hasPrefix("imsg") else {
             return threadID
         }
@@ -131,7 +128,7 @@ private extension PlatformAPI {
         }
     }
 
-    static func mapAndHashMessages(
+    nonisolated static func mapAndHashMessages(
         msgRows: [JSONObject],
         db: IMDatabase,
         threadID: String,
@@ -168,11 +165,11 @@ private extension PlatformAPI {
         }
     }
 
-    static func shouldKeepForAPI(_ message: JSONObject) -> Bool {
+    nonisolated static func shouldKeepForAPI(_ message: JSONObject) -> Bool {
         !message.isEmpty
     }
 
-    static func attachOriginalIfNeeded(
+    nonisolated static func attachOriginalIfNeeded(
         _ messages: [JSONObject],
         msgRow: JSONObject,
         attachmentRows: [JSONObject],
@@ -193,7 +190,7 @@ private extension PlatformAPI {
         }
     }
 
-    static func hashMessage(_ message: JSONObject) -> JSONObject {
+    nonisolated static func hashMessage(_ message: JSONObject) -> JSONObject {
         var message = message
         if let threadID = message.string("threadID") {
             message["threadID"] = Hasher.thread.tokenizeRemembering(pii: threadID)
@@ -216,7 +213,7 @@ private extension PlatformAPI {
         return message
     }
 
-    static func decorateAttachments(_ attachmentRows: [JSONObject]) -> [JSONObject] {
+    nonisolated static func decorateAttachments(_ attachmentRows: [JSONObject]) -> [JSONObject] {
         attachmentRows.map { attachmentRow in
             var attachmentRow = attachmentRow
             let rawFilePath = attachmentRow.string("filename")
@@ -240,9 +237,9 @@ private extension PlatformAPI {
         }
     }
 
-    static let reactionPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:[-\d]+/|bp:)"#)
+    nonisolated static let reactionPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:[-\d]+/|bp:)"#)
 
-    static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
+    nonisolated static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
         let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
         guard let match = reactionPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
               let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
@@ -251,12 +248,12 @@ private extension PlatformAPI {
         return String(associatedMessageGUID[upper...])
     }
 
-    static func encodeJSON(_ value: Any) throws -> String {
+    nonisolated static func encodeJSON(_ value: Any) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: value)
         return try String(data: data, encoding: .utf8).orThrow(ErrorMessage("Swift message API output wasn't utf8"))
     }
 
-    static func replaceTilde(_ string: String) -> String {
+    nonisolated static func replaceTilde(_ string: String) -> String {
         guard string.first == "~" else {
             return string
         }
