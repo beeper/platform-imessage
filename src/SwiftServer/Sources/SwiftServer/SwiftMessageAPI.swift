@@ -4,7 +4,9 @@ import NodeAPI
 import SwiftServerFoundation
 
 private let messagePageLimit = 20
-private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
+// These APIs return JSON strings; this is the JSON null literal.
+private let jsonNull = "null"
+let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
 
 @NodeActor @NodeClass final class PlatformAPI {
     static let name = "PlatformAPI"
@@ -49,6 +51,88 @@ private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_
                 accountID: accountID
             )
         }
+    }
+
+    @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
+        let currentUserID = currentUserID
+        let accountID = accountID
+        return try await Self.offNodeActor {
+            try Self.getThreads(
+                folderName: folderName,
+                cursor: cursor,
+                direction: direction,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
+        }
+    }
+
+    @NodeMethod func getThread(threadID: String) async throws -> String {
+        let currentUserID = currentUserID
+        let accountID = accountID
+        return try await Self.offNodeActor {
+            try Self.getThread(
+                threadID: threadID,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
+        }
+    }
+
+    nonisolated static func getThreads(
+        folderName: String,
+        cursor: String?,
+        direction: String?,
+        currentUserID: String,
+        accountID: String
+    ) throws -> String {
+        guard folderName == "normal" else {
+            return try encodeJSON([
+                "items": [],
+                "hasMore": false,
+                "oldestCursor": "0",
+            ])
+        }
+
+        let db = try IMDatabase()
+        let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
+        let chatRows = try db.mappedThreadRows(cursor: cursor, direction: pageDirection)
+        let latestMessageRowsByChatGUID = try ThreadMapper.latestMessageRowsByChatGUID(chatRows: chatRows, db: db)
+        let context = try ThreadMapper.context(
+            chatRows: chatRows,
+            latestMessageRowsByChatGUID: latestMessageRowsByChatGUID,
+            db: db,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        let threads = try chatRows.map { try ThreadMapper.mapAndHashThread($0, context: context) }
+        return try encodeJSON(compactDictionary([
+            "items": threads,
+            "hasMore": chatRows.count == mappedThreadsLimit,
+            "oldestCursor": chatRows.last?.string("msgDateString"),
+            "_pollingCursor": cursor == nil ? ThreadMapper.pollingCursor(from: latestMessageRowsByChatGUID.values.map { $0 }) : nil,
+        ]))
+    }
+
+    nonisolated static func getThread(
+        threadID publicThreadID: String,
+        currentUserID: String,
+        accountID: String
+    ) throws -> String {
+        let db = try IMDatabase()
+        let threadID = try originalThreadID(publicThreadID, db: db)
+        guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
+            return jsonNull
+        }
+        let latestMessageRowsByChatGUID = try ThreadMapper.latestMessageRowsByChatGUID(chatRows: [chatRow], db: db)
+        let context = try ThreadMapper.context(
+            chatRows: [chatRow],
+            latestMessageRowsByChatGUID: latestMessageRowsByChatGUID,
+            db: db,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        return try encodeJSON(ThreadMapper.mapAndHashThread(chatRow, context: context))
     }
 
     nonisolated static func getMessages(
@@ -96,7 +180,7 @@ private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_
         let threadID = try originalThreadID(publicThreadID, db: db)
         let messageGUID = messageID.components(separatedBy: "_").first ?? messageID
         guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
-            return "null"
+            return jsonNull
         }
 
         let messages = try mapAndHashMessages(
@@ -107,13 +191,13 @@ private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_
             accountID: accountID
         )
         guard let message = messages.first(where: { ($0["id"] as? String) == messageID }) else {
-            return "null"
+            return jsonNull
         }
         return try encodeJSON(message)
     }
 }
 
-private extension PlatformAPI {
+extension PlatformAPI {
     nonisolated static func originalThreadID(_ threadID: String, db: IMDatabase) throws -> String {
         guard threadID.hasPrefix("imsg") else {
             return threadID

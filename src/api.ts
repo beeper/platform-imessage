@@ -1,28 +1,26 @@
 import fsSync, { promises as fs } from 'fs'
-import { mapKeys } from 'lodash'
 import url from 'url'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, InboxName, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
+import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 import pRetry from 'p-retry'
 import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
-import { BeeperMessage, BeeperThread } from './desktop-types'
+import { BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
-import { mapThreads, mapMessages, mapThread, mapAccountLogin, reviveSwiftMapperValue } from './mappers'
+import { mapMessages, reviveSwiftMapperValue } from './mappers'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
-import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
+import DatabaseAPI, { MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus, type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import type { ChatRow, MappedHandleRow, MappedMessageRow } from './types'
-import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
-import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
-import { makeAppleDate } from './time'
+import { hashMessage, hashParticipantID, hashThreadID, originalThreadID } from './hashing'
+import { makeJSONPersistence, Persistence } from './persistence'
+import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
 
 if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
@@ -40,13 +38,17 @@ const DEFAULT_THREAD_PREFIX = IS_TAHOE_OR_UP ? 'any' : 'iMessage'
 
 const linkRegex = urlRegex()
 
-function getDNDState() {
-  const arr = swiftServer.getDNDList()
-  return new Set(arr)
-}
+const mapAccountLogin = (accountLogin: string) => accountLogin?.replace(/^(E|P):/, '')
 
 function parseSwiftMessageAPIJSON<T>(json: string): T {
   return reviveSwiftMapperValue(JSON.parse(json)) as T
+}
+
+type SwiftGetThreadsResponse = PaginatedWithCursors<Thread> & {
+  _pollingCursor?: {
+    maxRowID?: number
+    maxDateRead?: number
+  }
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -81,6 +83,26 @@ export default class AppleiMessage implements PlatformAPI {
     if (!this.currentUser) throw new Error('Swift PlatformAPI requested before current user was loaded')
     this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.currentUser.id, this.accountID)
     return this.swiftPlatformAPI
+  }
+
+  private applyPersistedThreadState(thread: Thread): Thread {
+    const archive = this.persistence?.getThreadProp(thread.id, 'archive')
+    const reminder = this.persistence?.getThreadProp(thread.id, 'reminder')
+    const extra: NonNullable<BeeperThread['extra']> = { ...(thread.extra ?? {}) }
+    const isArchivedUpToOrder = archive?.archivedAt ? appleDateToMillisSinceEpoch(archive.archivedAt) : undefined
+    if (isArchivedUpToOrder != null) {
+      extra.isArchivedUpToOrder = isArchivedUpToOrder
+    } else {
+      delete extra.isArchivedUpToOrder
+    }
+
+    return {
+      ...thread,
+      extra,
+      reminder,
+      isPinned: this.persistence?.getThreadProp(thread.id, 'pin') === true,
+      isLowPriority: this.persistence?.getThreadProp(thread.id, 'lowPriority') === true,
+    }
   }
 
   private async ensureDB(): Promise<DatabaseAPI> {
@@ -236,37 +258,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThread = async (hashedThreadID: ThreadID) => {
-    const db = await this.ensureDB()
+    await this.ensureDB()
     const swiftAPI = this.getSwiftPlatformAPI()
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    const chatRow = await db.getThread(threadID)
-    if (!chatRow) return
-    const [handleRows, latestMessagesResult, unreadCounts, dndState] = await Promise.all([
-      db.getThreadParticipants(chatRow.ROWID),
-      parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftAPI.getMessages(
-        chatRow.guid,
-        undefined,
-        undefined,
-        1,
-      )),
-      db.getUnreadCounts(),
-      getDNDState(),
-    ])
-    return hashThread(mapThread(
-      chatRow,
-      {
-        accountID: this.accountID,
-        handleRowsMap: { [chatRow.guid]: handleRows },
-        currentUserID: this.currentUser!.id,
-        latestMessagesMap: { [chatRow.guid]: latestMessagesResult.items },
-        unreadCounts,
-        dndState,
-        reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
-        archivalStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'archive') },
-        pinStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'pin') },
-        lowPriorityStates: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'lowPriority') },
-      },
-    )) as Thread // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
+    const parsed = parseSwiftMessageAPIJSON<Thread | null>(await swiftAPI.getThread(hashedThreadID))
+    return parsed ? this.applyPersistedThreadState(parsed) : undefined
   }
 
   createThread = async (userIDs: string[], title?: string, message?: string) => {
@@ -293,92 +288,27 @@ export default class AppleiMessage implements PlatformAPI {
     if ('email' in ids) return { id: ids.email!, email: ids.email }
   }
 
-  private batchGetThreadPropForChatRows<P extends keyof PersistedThreadProps>(chatRows: ChatRow[], propName: P): PersistedBatchGetResults<P> | undefined {
-    let values = this.persistence?.batchGetThreadProp(chatRows.map(row => hashThreadID(row.guid)), propName)
-    if (values) {
-      // `Persistence` works with hashed thread IDs but we often begin working
-      // with chat GUIDs (PII). we are expected to go back and hash everything
-      // before returning to renderer
-      values = mapKeys(values, (_value, hashedThreadID) => originalThreadID(hashedThreadID))
-    }
-    return values
-  }
-
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
     const db = await this.ensureDB()
     const swiftAPI = this.getSwiftPlatformAPI()
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
-    if (folderName !== InboxName.NORMAL) {
-      return {
-        items: [],
-        hasMore: false,
-        oldestCursor: '0',
-      }
-    }
     const cursor = pagination?.cursor ?? null
-    if (texts.isLoggingEnabled) console.time('imsg dbapi')
-    const chatRows = await db.getThreads(pagination)
-    if (texts.isLoggingEnabled) console.timeEnd('imsg dbapi')
-    const latestMessagesMap: { [chatGUID: string]: BeeperMessage[] } = {}
-    const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
-    const allMsgRows: MappedMessageRow[] = []
-    if (texts.isLoggingEnabled) console.time('imsg Promise.all')
-    const [, , unreadCounts, dndState] = await Promise.all([
-      Promise.all(chatRows.map(async chat => {
-        const response = parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftAPI.getMessages(
-          chat.guid,
-          undefined,
-          undefined,
-          1,
-        ))
-        latestMessagesMap[chat.guid] = response.items
-        if (!cursor) {
-          const [msgRows] = await db.fetchLastMessageRows(chat.ROWID)
-          allMsgRows.push(...msgRows)
-        }
-      })),
-      Promise.all(chatRows.map(async chat => {
-        handleRowsMap[chat.guid] = await db.getThreadParticipants(chat.ROWID)
-      })),
-      db.getUnreadCounts(),
-      getDNDState(),
-    ])
-    if (texts.isLoggingEnabled) console.timeEnd('imsg Promise.all')
-    if (texts.isLoggingEnabled) console.time('imsg mapThreads')
-
-    const archivalStates = this.batchGetThreadPropForChatRows(chatRows, 'archive')
-    try {
-      const hashedIDs = chatRows.map(row => {
-        const hashedID = hashThreadID(row.guid)
-        const abbreviated = hashedID.substring(0, 29)
-        return `${abbreviated}[${archivalStates?.[row.guid]?.archivedAt ?? '?'}]`
-      })
-      texts.log(`imsg/getThreads: going to map ${JSON.stringify(pagination)} (${hashedIDs.length}) ${hashedIDs.join(', ')}`)
-      // eslint-disable-next-line no-empty
-    } catch (err) {
-      texts.error(`imsg/getThreads: couldn't log hashed ids: ${err}`)
+    const response = parseSwiftMessageAPIJSON<SwiftGetThreadsResponse>(await swiftAPI.getThreads(
+      folderName,
+      pagination?.cursor,
+      pagination?.direction,
+    ))
+    const pollingCursor = response._pollingCursor
+    delete response._pollingCursor
+    if (!cursor && pollingCursor?.maxRowID) {
+      // TODO: this is a polling bootstrap side effect; it should not live in a getter/non-mutating API.
+      void db.startPollingIfNecessary(pollingCursor.maxRowID, pollingCursor.maxDateRead ?? 0)
     }
-    const items = mapThreads(chatRows, {
-      accountID: this.accountID,
-      latestMessagesMap,
-      handleRowsMap,
-      dndState,
-      unreadCounts,
-      currentUserID: this.currentUser!.id,
-      reminders: this.batchGetThreadPropForChatRows(chatRows, 'reminder'),
-      archivalStates,
-      pinStates: this.batchGetThreadPropForChatRows(chatRows, 'pin'),
-      lowPriorityStates: this.batchGetThreadPropForChatRows(chatRows, 'lowPriority'),
-    })
-    if (texts.isLoggingEnabled) console.timeEnd('imsg mapThreads')
-    if (!cursor) db.setLastCursor(allMsgRows)
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
-      // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
-      items: items.map(hashThread) as Thread[],
-      hasMore: chatRows.length === THREADS_LIMIT,
-      oldestCursor: chatRows[chatRows.length - 1]?.msgDateString,
+      ...response,
+      items: response.items.map(thread => this.applyPersistedThreadState(thread)),
     }
   }
 
@@ -871,7 +801,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   archiveThread = async (hashedThreadID: string, archived: boolean) => {
-    const db = await this.ensureDB()
     // wait for any pending message sends/reactions before archiving. the
     // phaser has an artificial delay, which was introduced in the hopes that
     // the latest message id is used
@@ -889,10 +818,8 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     if (archived) {
-      const chatGUID = await this.resolveThreadID(hashedThreadID)
-
-      const chat = await db.getThread(chatGUID)
-      if (!chat) {
+      const thread = await this.getThread(hashedThreadID)
+      if (!thread) {
         texts.log(`imsg/archive/${hashedThreadID}: chat not found in iMessage, deleting from Beeper`)
         this.persistence?.deleteThreadProp(hashedThreadID, 'archive')
         this.onEvent?.([{

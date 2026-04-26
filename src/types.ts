@@ -184,13 +184,6 @@ MappedMessageRow,
 >
 
 // db-api.ts -> SQLS
-export type MappedChatRow = ChatRow & {
-  msgDateString: AppleDate
-  /** `last_read_message_timestamp` but as a string to avoid precision loss */
-  dateLastMessageReadString: AppleDate
-}
-
-// db-api.ts -> SQLS
 export type MappedAttachmentRow = {
   msgRowID: number
   filename: string
@@ -212,15 +205,6 @@ export interface OTRValue {
 
   /** The length of this part of the original message. */
   le: number
-}
-
-// db-api.ts -> SQLS
-// https://www.notion.so/beeper/Canonicalization-Notes-255a168aa37080c189c0d616724830e4?source=copy_link
-export type MappedHandleRow = {
-  /** phone number, email, business urn, SMS shortcode, etc. SMS shortcode may have `(smsft_rm)`, `(smsft)`, etc. appended for unknown reasons */
-  participantID: string
-  /** contains the raw id if `participantID` was canonicalized */
-  uncanonicalized_id?: string
 }
 
 export interface MessageSummaryInfo {

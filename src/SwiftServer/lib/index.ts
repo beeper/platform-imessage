@@ -68,6 +68,10 @@ export declare class SwiftPlatformAPI {
   getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, limit?: number) => Promise<string>
 
   getMessage: (threadID: string, messageID: string) => Promise<string>
+
+  getThreads: (folderName: string, cursor: string | undefined, direction: 'after' | 'before' | undefined) => Promise<string>
+
+  getThread: (threadID: string) => Promise<string>
 }
 
 export interface MessagesControllerDebugging {

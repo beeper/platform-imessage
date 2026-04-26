@@ -1,21 +1,15 @@
 import path from 'path'
 import { maxBy, memoize } from 'lodash'
-import { OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
+import { OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { CHAT_DB_PATH, IS_SEQUOIA_OR_UP, IS_VENTURA_OR_UP } from './constants'
 import { replaceTilde } from './util'
 import { hashThreadID } from './hashing'
 import IMAGE_EXTS from './image-exts.json'
-import type { ChatRow, MappedAttachmentRow, MappedChatRow, MappedMessageRow, MappedHandleRow, MappedReactionMessageRow } from './types'
+import type { ChatRow, MappedAttachmentRow, MappedMessageRow, MappedReactionMessageRow } from './types'
 import swiftServer from './SwiftServer/lib'
 
-const MAP_DIRECTION_TO_SQL_OP = {
-  after: '>',
-  before: '<',
-} as const
-
-export const THREADS_LIMIT = 25
 export const MESSAGES_LIMIT = 20
 
 const MESSAGE_JOINS = `LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -42,23 +36,8 @@ CAST(m.date_retracted AS TEXT) AS dateRetractedString`
 const dateExpr = (op?: '<' | '>') => (op === '>' && IS_VENTURA_OR_UP ? 'MAX(m.date, COALESCE(m.date_edited, 0))' : 'm.date')
 
 const SQLS = {
-  getThreads: (dateComparisonOperator?: '<' | '>') => `SELECT *,
-(SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
-CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
-CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
-FROM chat
-${dateComparisonOperator ? `WHERE msgDate ${dateComparisonOperator} ?` : ''}
-ORDER BY msgDate DESC
-LIMIT ${THREADS_LIMIT}`,
-  getThread: `SELECT *,
-CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
-CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
-FROM chat
-WHERE chat.guid = ?`,
+  getThread: 'SELECT * FROM chat WHERE guid = ?',
   getAllThreadGUIDs: 'SELECT guid FROM chat',
-  getThreadParticipants: `SELECT uncanonicalized_id, id AS participantID FROM handle
-LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
-WHERE chat_id = ?`,
   getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
 
   getAccountLogins: 'SELECT DISTINCT account_login FROM chat',
@@ -119,16 +98,6 @@ async function getDB() {
   const instance = new AsyncSqlite()
   await instance.init(CHAT_DB_PATH)
   return instance
-}
-
-async function waitForRows<T>(queryFn: () => Promise<T[]>, minRowCount = 1, maxAttempt = 3) {
-  let attempt = 0
-  let rows: T[] = []
-  while (attempt++ < maxAttempt && rows.length < minRowCount) {
-    rows = await queryFn()
-    await setTimeoutAsync(50)
-  }
-  return rows
 }
 
 export type ChatRef = { type: 'guid', guid: string } | { type: 'rowid', rowid: number }
@@ -222,24 +191,8 @@ export default class DatabaseAPI {
     this.startPollingIfNecessary(maxRowID, maxDateRead)
   }
 
-  getThreadParticipants = (chatRowID: number): Promise<MappedHandleRow[]> =>
-    this.db.all<number[], MappedHandleRow>(SQLS.getThreadParticipants, chatRowID)
-
-  getThreadParticipantsWithWait = (chatRow: ChatRow, userIDs: string[]) =>
-    waitForRows(() => this.getThreadParticipants(chatRow.ROWID), userIDs.length + 1)
-
-  async fetchLastMessageRows(chatRowID: number): Promise<[MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]]> {
-    const msgRow = await this.db.get<number[], MappedMessageRow>(SQLS.getMessagesWithChatRowID(undefined, 1), chatRowID)
-    if (!msgRow) return [[], [], []]
-    const [attachmentRows, reactionRows] = await Promise.all([
-      this.getAttachments([msgRow.ROWID]),
-      this.getMessageReactions([msgRow.guid], { type: 'rowid', rowid: chatRowID }),
-    ])
-    return [[msgRow], attachmentRows, reactionRows]
-  }
-
-  async getThread(chatGUID: string): Promise<MappedChatRow> {
-    const chat = await this.db.get<string[], MappedChatRow>(SQLS.getThread, chatGUID)
+  async getThread(chatGUID: string): Promise<ChatRow | undefined> {
+    const chat = await this.db.get<string[], ChatRow>(SQLS.getThread, chatGUID)
     if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
     return chat
   }
@@ -268,22 +221,6 @@ export default class DatabaseAPI {
   async isThreadRead(chatGUID: string): Promise<boolean> {
     const rowID = await this.resolveChatRowID(chatGUID)
     return (await this.db.pluck_get<number[], number>(SQLS.threadUnreadCount, rowID)) === 0
-  }
-
-  getThreadWithWait = (chatGUID: string) =>
-    waitForRows(() => this.getThread(chatGUID).then(c => [c]), 1)
-
-  async getThreads(pagination?: PaginationArg): Promise<MappedChatRow[]> {
-    const withCursor = pagination?.cursor ? pagination : undefined
-    // FIXME: this shouldn't be parsing to a number due to precision loss
-    const chats = await this.db.all<number[], MappedChatRow>(
-      SQLS.getThreads(withCursor ? MAP_DIRECTION_TO_SQL_OP[withCursor.direction] : undefined),
-      ...(withCursor ? [Number.parseInt(withCursor.cursor, 10)] : []),
-    )
-    chats.forEach(chat => {
-      this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
-    })
-    return chats
   }
 
   async getChatImageByGUID(attachmentGUID: string): Promise<string | undefined> {

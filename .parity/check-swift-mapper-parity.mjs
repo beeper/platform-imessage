@@ -190,6 +190,7 @@ try {
   let pagesChecked = 0
   let getMessagesPagesChecked = 0
   let getMessageItemsChecked = 0
+  let getThreadItemsChecked = 0
   let mappedMessagesPlanned = 0
 
   const selectedThreads = threads.slice(skipChats, skipChats + chatLimit)
@@ -197,6 +198,17 @@ try {
     const threadIndex = skipChats + index + 1
     if (progressEvery > 0 && threadIndex % progressEvery === 0) {
       console.error(`[parity] checked ${threadIndex}/${threads.length} chats`)
+    }
+    try {
+      const [currentThread, referenceThread] = await Promise.all([
+        api.getThread(thread.id),
+        referenceAPI.getThread(thread.id),
+      ])
+      getThreadItemsChecked += 1
+      recordDelta(failures, 'getThread', { threadID: thread.id }, currentThread, referenceThread)
+    } catch (error) {
+      getThreadItemsChecked += 1
+      failures.push({ phase: 'getThread', threadID: thread.id, ...failureSummary(error) })
     }
     let messageCursor
     let seenMessages = 0
@@ -253,6 +265,7 @@ try {
     chatsChecked: selectedThreads.length,
     threadPagesChecked,
     getThreadsPagesChecked,
+    getThreadItemsChecked,
     pagesChecked,
     getMessagesPagesChecked,
     getMessageItemsChecked,
