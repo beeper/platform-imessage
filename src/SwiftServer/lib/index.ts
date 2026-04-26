@@ -83,6 +83,8 @@ export declare class SwiftPlatformAPI {
 
   deleteThread: (threadID: ThreadID) => Promise<void>
 
+  updateThread: (threadID: ThreadID, muted: boolean) => Promise<void>
+
   sendActivityIndicator: (type: string, threadID: ThreadID | undefined, sendingMessagesCount?: number) => Promise<void>
 
   markAsUnread: (threadID: ThreadID) => Promise<void>

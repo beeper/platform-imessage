@@ -52,3 +52,27 @@ public func retry<T>(
     } while -start.timeIntervalSinceNow < timeout
     return try res.get()
 }
+
+public func retry<T>(
+    retries: Int,
+    interval: TimeInterval? = nil,
+    _ perform: (_ attempt: Int) async throws -> T,
+    onError: ((_ attempt: Int, _ retriesLeft: Int, _ err: Error) async -> Void)? = nil
+) async throws -> T {
+    var attempt = 0
+    while true {
+        do {
+            return try await perform(attempt)
+        } catch {
+            let retriesLeft = max(retries - attempt, 0)
+            await onError?(attempt, retriesLeft, error)
+            guard attempt < retries else {
+                throw error
+            }
+            attempt += 1
+            if let interval {
+                try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            }
+        }
+    }
+}

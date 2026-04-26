@@ -318,6 +318,14 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return try wrapper.deleteThread(threadID: threadID)
     }
 
+    @NodeMethod func updateThread(threadID publicThreadID: String, muted: Bool) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.muteThread(threadID: threadID, muted: muted)
+    }
+
     @NodeMethod func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws -> NodeValueConvertible {
         guard let publicThreadID, !publicThreadID.isEmpty else {
             platformLog.error("ignoring request to send an activity indicator, no thread id provided")
@@ -356,22 +364,27 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
     @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
         let database = database
-        let (threadID, isRead) = try await Self.offNodeActor {
-            try database.withDatabase { db in
-                let threadID = try Self.originalThreadID(db: db, publicThreadID)
-                return (threadID, try db.isThreadRead(chatGUID: threadID))
+        return try await retry(retries: 1, interval: 1) { attempt in
+            let (threadID, isRead) = try await Self.offNodeActor {
+                try database.withDatabase { db in
+                    let threadID = try Self.originalThreadID(db: db, publicThreadID)
+                    return (threadID, try db.isThreadRead(chatGUID: threadID))
+                }
             }
-        }
-        guard !isRead else {
-            return undefined
-        }
+            guard !isRead else {
+                return undefined
+            }
 
-        let wrapper = try await getMessagesControllerWrapper()
-        let controller = wrapper.controller
-        try await Self.onMessagesControllerQueue {
-            try controller.toggleThreadRead(threadID: threadID, read: true)
+            let wrapper = try await getMessagesControllerWrapper(forceInvalidate: attempt > 0)
+            let controller = wrapper.controller
+            try await Self.onMessagesControllerQueue {
+                try controller.toggleThreadRead(threadID: threadID, read: true)
+            }
+            return undefined
+        } onError: { _, retriesLeft, error in
+            platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
+            try? await self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
         }
-        return undefined
     }
 
     @NodeMethod func getAsset(pathHex: String, methodName: String?) async throws -> NodeValueConvertible {

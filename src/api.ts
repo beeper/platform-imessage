@@ -3,7 +3,6 @@ import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
-import pRetry from 'p-retry'
 
 import { BeeperThread } from './desktop-types'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
@@ -325,10 +324,8 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   updateThread = async (hashedThreadID: ThreadID, updates: Partial<Thread>) => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
     if ('mutedUntil' in updates) {
-      const mc = await this.getMessagesController()
-      await mc.muteThread(threadID, updates.mutedUntil === 'forever')
+      await this.swiftPlatformAPI!.updateThread(hashedThreadID, updates.mutedUntil === 'forever')
     }
     if ('isLowPriority' in updates) {
       if (updates.isLowPriority) {
@@ -357,18 +354,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
 
-  sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
-    const swiftAPI = this.swiftPlatformAPI!
-    await pRetry(async () => {
-      await swiftAPI.sendReadReceipt(hashedThreadID)
-    }, {
-      onFailedAttempt: error => {
-        texts.Sentry.captureException(error)
-        texts.log(`sendReadReceipt failed. Retries left: ${error.retriesLeft}`)
-      },
-      retries: 1,
-    })
-  }
+  sendReadReceipt = (hashedThreadID: ThreadID, messageID?: MessageID) =>
+    this.swiftPlatformAPI!.sendReadReceipt(hashedThreadID)
 
   notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
 
