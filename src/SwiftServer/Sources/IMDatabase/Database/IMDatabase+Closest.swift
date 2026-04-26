@@ -163,14 +163,11 @@ private extension Collection<Message> {
         "\n"
             + enumerated().map { index, message in
                 let markerLength = 5
-                let position = "\(index + 1)/\(count)".padding(
-                    toLength: markerLength, withPad: " ", startingAt: 0
-                )
                 let indent = String(repeating: " ", count: markerLength)
 
                 var lines = ["\(index + 1)/\(count) \(message.compactDebuggingDescription)"]
                 let parts = message.parts
-                for (index, part) in parts.enumerated() {
+                for part in parts {
                     let range = part.rangeWithinParentAttributedBody
                     let emoji = part.replacedWithObject ? "🖼️ " : ""
                     let tags = [
@@ -180,7 +177,7 @@ private extension Collection<Message> {
                                 return nil
                             }
                             return "[attachment GUID: \(guid)"
-                        }(),
+                        }()
                     ].compactMap(\.self)
                     lines.append(
                         "\(indent) part #\(part.index): \(emoji)@\(range.location)..<\(range.location + range.length) \(tags)"

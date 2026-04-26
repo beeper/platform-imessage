@@ -16,7 +16,12 @@ import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
 import { reviveSwiftMapperValue } from './swift-json'
 
-if (swiftServer) swiftServer.isLoggingEnabled = texts.isLoggingEnabled
+if (swiftServer) {
+  swiftServer.isLoggingEnabled = texts.isLoggingEnabled
+  if (process.env.IMESSAGE_USE_SECONDARY_INSTANCE) {
+    swiftServer.useSecondaryMessagesInstance = true
+  }
+}
 
 const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
 
@@ -160,6 +165,7 @@ export default class AppleiMessage implements PlatformAPI {
       // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
       swiftServer.enabledExperiments = this.experiments
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
+      texts.log('imessage useSecondaryMessagesInstance', swiftServer.useSecondaryMessagesInstance)
     }
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
