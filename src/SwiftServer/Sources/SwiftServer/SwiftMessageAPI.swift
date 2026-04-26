@@ -176,6 +176,45 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return try wrapper.notifyAnyway(threadID: threadID)
     }
 
+    @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let database = database
+        let (threadID, isRead) = try await Self.offNodeActor {
+            try database.withDatabase { db in
+                let threadID = try Self.originalThreadID(db: db, publicThreadID)
+                return (threadID, try db.isThreadRead(chatGUID: threadID))
+            }
+        }
+        guard !isRead else {
+            return undefined
+        }
+
+        let wrapper = try await getMessagesControllerWrapper()
+        let controller = wrapper.controller
+        try await Self.onMessagesControllerQueue {
+            try controller.toggleThreadRead(threadID: threadID, read: true)
+        }
+        return undefined
+    }
+
+    @NodeMethod func getAttachmentFilePath(messageRowID: Int) async throws -> String? {
+        let database = database
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                let attachmentRows = Self.decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: [messageRowID]))
+                return attachmentRows.compactMap { $0.string("filePath") }.first
+            }
+        }
+    }
+
+    @NodeMethod func getChatImageFilePath(attachmentGUID: String) async throws -> String? {
+        let database = database
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try db.attachmentFilename(guid: attachmentGUID).map(Self.replaceTilde)
+            }
+        }
+    }
+
     private func getMessagesControllerWrapper(forceInvalidate: Bool = false) async throws -> MessagesControllerWrapper {
         guard !hasBeenDisposed else {
             throw ErrorMessage("PlatformAPI has been disposed")

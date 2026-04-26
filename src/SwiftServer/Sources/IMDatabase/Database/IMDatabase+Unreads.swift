@@ -1,6 +1,7 @@
 import Foundation
 import Logging
 import SQLite
+import SwiftServerFoundation
 
 private let log = Logger(label: "imdb.unreads")
 
@@ -48,6 +49,12 @@ extension ChatState: CustomStringConvertible {
 }
 
 public extension IMDatabase {
+    func isThreadRead(chatGUID: String) throws -> Bool {
+        let chat = try chat(withGUID: chatGUID).orThrow(ErrorMessage("expected chat \(chatGUID) to exist"))
+        let unreadCounts = try mappedUnreadCounts(chatRowIDs: [chat.id])
+        return (unreadCounts[chat.id] ?? 0) == 0
+    }
+
     func chatStates() throws -> [ChatRef: ChatState] {
         let statement = try cachedStatement(forEscapedSQL: unreadStatesQuery)
         try statement.reset()

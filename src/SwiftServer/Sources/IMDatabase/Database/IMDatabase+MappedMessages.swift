@@ -137,6 +137,14 @@ public extension IMDatabase {
         }
     }
 
+    func attachmentFilename(guid: String) throws -> String? {
+        let statement = try cachedStatement(forEscapedSQL: "SELECT filename FROM attachment WHERE guid = ?").reset()
+        try statement.bind(guid)
+        return try statement.compactMapRowsUntilDone { row in
+            try row[0].optional(String.self)
+        }.first
+    }
+
     func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [[String: Any]] {
         guard !messageGUIDs.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")

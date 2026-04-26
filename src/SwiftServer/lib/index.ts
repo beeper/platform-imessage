@@ -66,6 +66,12 @@ export declare class SwiftPlatformAPI {
 
   notifyAnyway: (threadID: ThreadID) => Promise<void>
 
+  sendReadReceipt: (threadID: ThreadID) => Promise<void>
+
+  getAttachmentFilePath: (messageRowID: number) => Promise<string | undefined>
+
+  getChatImageFilePath: (attachmentGUID: string) => Promise<string | undefined>
+
   dispose: () => void
 }
 

@@ -1,32 +1,12 @@
-import path from 'path'
-import { memoize } from 'lodash'
 import { OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 import { CHAT_DB_PATH } from './constants'
-import { replaceTilde } from './util'
-import IMAGE_EXTS from './image-exts.json'
-import type { ChatRow, MappedAttachmentRow } from './types'
+import type { ChatRow } from './types'
 import swiftServer from './SwiftServer/lib'
 
 const SQLS = {
   getThread: 'SELECT * FROM chat WHERE guid = ?',
-  getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
-
-  // updateReadTimestamp: 'UPDATE message SET is_read = TRUE WHERE guid = ?',
-
-  getAttachments: (msgIDs: number[]) => `SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.total_bytes, a.is_sticker, a.guid AS attachmentID, a.transfer_state
-FROM message AS m
-LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
-LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
-WHERE m.ROWID IN (${new Array(msgIDs.length).fill('?').join(', ')})`,
-  threadUnreadCount: `SELECT COUNT(m.ROWID)
-FROM message AS m
-INNER JOIN chat_message_join AS cmj ON m.ROWID = cmj.message_id
-WHERE cmj.chat_id = ?
-AND m.item_type == 0
-AND m.is_read == 0
-AND m.is_from_me == 0`,
   getMaxDateRead: 'SELECT MAX(date_read) FROM message',
 }
 
@@ -39,8 +19,6 @@ async function getDB() {
 }
 
 export default class DatabaseAPI {
-  private chatGUIDRowIDMap = new Map<string, number>()
-
   // HACK: this is populated by the `PlatformAPI` subclass, because we need to
   // hand it off to the poller (SwiftServer) in order for it to trigger updates
   eventSender: OnServerEventCallback | null = null
@@ -89,56 +67,7 @@ export default class DatabaseAPI {
   }
 
   async getThread(chatGUID: string): Promise<ChatRow | undefined> {
-    const chat = await this.db.get<string[], ChatRow>(SQLS.getThread, chatGUID)
-    if (chat) this.chatGUIDRowIDMap.set(chat.guid, chat.ROWID)
-    return chat
-  }
-
-  private async resolveChatRowID(chatGUID: string): Promise<number> {
-    const cached = this.chatGUIDRowIDMap.get(chatGUID)
-    if (cached) return cached
-    const chatRow = await this.getThread(chatGUID)
-    if (!chatRow?.ROWID) throw new Error(`expected chat GUID ${chatGUID} to resolve to a chat row`)
-    return chatRow.ROWID
-  }
-
-  async isThreadRead(chatGUID: string): Promise<boolean> {
-    const rowID = await this.resolveChatRowID(chatGUID)
-    return (await this.db.pluck_get<number[], number>(SQLS.threadUnreadCount, rowID)) === 0
-  }
-
-  async getChatImageByGUID(attachmentGUID: string): Promise<string | undefined> {
-    const fileName = await this.db.pluck_get<string[], string>(SQLS.getChatImageByGUID, attachmentGUID)
-    return fileName ? replaceTilde(fileName) : undefined
-  }
-
-  private imageSizeMemoized = memoize(swiftServer.getImageMetadata)
-
-  async getAttachments(msgRowIDs: number[]): Promise<MappedAttachmentRow[]> {
-    const attachments = await this.db.all<number[], MappedAttachmentRow>(SQLS.getAttachments(msgRowIDs), ...msgRowIDs)
-    return Promise.all(attachments.map(async a => {
-      const filePath = replaceTilde(a.filename)
-      const { base, ext: _ext } = filePath ? path.parse(filePath) : { base: a.transfer_name, ext: '' }
-      const ext = _ext.slice(1).toLowerCase()
-      const fileName = a.transfer_name || base
-      Object.assign(a, { ext, fileName, filePath })
-      if ((IMAGE_EXTS.includes(ext) || ext === 'pluginpayloadattachment')) {
-        try {
-          const imageSize = await this.imageSizeMemoized(filePath)
-          if (!imageSize) {
-            texts.error("couldn't determine image size")
-            return a
-          }
-          const { width, height } = imageSize
-          if (!width || !height) {
-            texts.error('image size had bogus dimensions')
-            return a
-          }
-          a.size = { width, height }
-        } catch (err) { texts.error(err) }
-      }
-      return a
-    }))
+    return this.db.get<string[], ChatRow>(SQLS.getThread, chatGUID)
   }
 
   getLastMessageRowID = async (): Promise<number> => {

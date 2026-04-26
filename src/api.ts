@@ -132,7 +132,6 @@ export default class AppleiMessage implements PlatformAPI {
     swiftServer.resolveThreadID(threadID)
 
   getCurrentUser = async (): Promise<CurrentUser> => {
-    await this.ensureDB()
     return parseSwiftMessageAPIJSON<CurrentUser>(await this.swiftPlatformAPI!.getCurrentUser())
   }
 
@@ -221,7 +220,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getThread = async (hashedThreadID: ThreadID) => {
-    await this.ensureDB()
     const swiftAPI = this.swiftPlatformAPI!
     const parsed = parseSwiftMessageAPIJSON<Thread | null>(await swiftAPI.getThread(hashedThreadID))
     return parsed ? this.applyPersistedThreadState(parsed) : undefined
@@ -274,7 +272,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
-    await this.ensureDB()
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftAPI.getMessages(
       hashedThreadID,
@@ -285,7 +282,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    await this.ensureDB()
     const swiftAPI = this.swiftPlatformAPI!
     const parsed = parseSwiftMessageAPIJSON<Message | null>(await swiftAPI.getMessage(
       hashedThreadID,
@@ -295,7 +291,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
-    await this.ensureDB()
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<PaginatedWithCursors<Message>>(await swiftAPI.searchMessages(
       typed,
@@ -505,12 +500,8 @@ export default class AppleiMessage implements PlatformAPI {
   markAsUnread = this.toggleThreadRead(false) // ventura and up only
 
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
-    const db = await this.ensureDB()
-    const threadID = await this.resolveThreadID(hashedThreadID)
     await pRetry(async () => {
-      const isRead = await db.isThreadRead(threadID)
-      if (isRead) return
-      await this.toggleThreadRead(true)(hashedThreadID)
+      await this.swiftPlatformAPI!.sendReadReceipt(hashedThreadID)
     }, {
       onFailedAttempt: error => {
         texts.Sentry.captureException(error)
@@ -529,7 +520,6 @@ export default class AppleiMessage implements PlatformAPI {
     if (!hashedThreadID) return
     if (!this.onEvent) return
 
-    await this.ensureDB()
     const messagesController = await this.getMessagesController()
     return this.swiftPlatformAPI!.onThreadSelected(hashedThreadID, this.onEvent, messagesController)
   }
@@ -608,15 +598,13 @@ export default class AppleiMessage implements PlatformAPI {
         const rowIDStr = methodName.split('.', 1)?.[0]
         const reactionRowID = Number(rowIDStr)
         if (!Number.isSafeInteger(reactionRowID)) throw new Error('invalid reaction sticker row ID')
-        const db = await this.ensureDB()
-        const attachment = (await db.getAttachments([reactionRowID])).find(a => a.filePath)
-        if (!attachment?.filePath) throw new Error("couldn't resolve sticker attachment for reaction row")
-        return url.pathToFileURL(attachment.filePath).href
+        const filePath = await this.swiftPlatformAPI!.getAttachmentFilePath(reactionRowID)
+        if (!filePath) throw new Error("couldn't resolve sticker attachment for reaction row")
+        return url.pathToFileURL(filePath).href
       }
 
       case 'thread-image': {
-        const db = await this.ensureDB()
-        const filePath = await db.getChatImageByGUID(methodName)
+        const filePath = await this.swiftPlatformAPI!.getChatImageFilePath(methodName)
         if (!filePath) throw new Error("couldn't resolve chat image attachment")
         return url.pathToFileURL(filePath).href
       }
@@ -678,7 +666,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   archiveThread = async (hashedThreadID: string, archived: boolean) => {
-    const db = await this.ensureDB()
     // wait for any pending message sends/reactions before archiving. the
     // phaser has an artificial delay, which was introduced in the hopes that
     // the latest message id is used
