@@ -17,7 +17,7 @@ import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_
 import DatabaseAPI, { THREADS_LIMIT, MESSAGES_LIMIT } from './db-api'
 import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
-import swiftServer, { ActivityStatus } from './SwiftServer/lib'
+import swiftServer, { ActivityStatus, type SwiftPlatformAPI } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
 import type { ChatRow, MappedHandleRow, MappedMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
@@ -56,6 +56,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   private persistence?: Persistence
 
+  private swiftPlatformAPI?: SwiftPlatformAPI
+
   // used to make archive calls wait for any pending reactions/message sends,
   // to remove flicker from e.g. sending then quickly archiving manually
   private threadPhaser = new Phaser<Thread['id']>({
@@ -74,6 +76,12 @@ export default class AppleiMessage implements PlatformAPI {
   private cachedDB: DatabaseAPI | null = null
 
   private onEvent: OnServerEventCallback | undefined
+
+  private getSwiftPlatformAPI(): SwiftPlatformAPI {
+    if (!this.currentUser) throw new Error('Swift PlatformAPI requested before current user was loaded')
+    this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.currentUser.id, this.accountID)
+    return this.swiftPlatformAPI
+  }
 
   private async ensureDB(): Promise<DatabaseAPI> {
     if (this.cachedDB) {
@@ -229,17 +237,16 @@ export default class AppleiMessage implements PlatformAPI {
 
   getThread = async (hashedThreadID: ThreadID) => {
     const db = await this.ensureDB()
+    const swiftAPI = this.getSwiftPlatformAPI()
     const threadID = await this.resolveThreadID(hashedThreadID)
     const chatRow = await db.getThread(threadID)
     if (!chatRow) return
     const [handleRows, latestMessagesResult, unreadCounts, dndState] = await Promise.all([
       db.getThreadParticipants(chatRow.ROWID),
-      parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftServer.getMessages(
+      parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftAPI.getMessages(
         chatRow.guid,
         undefined,
         undefined,
-        this.currentUser!.id,
-        this.accountID,
         1,
       )),
       db.getUnreadCounts(),
@@ -299,6 +306,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   getThreads = async (folderName: ThreadFolderName, pagination?: PaginationArg): Promise<PaginatedWithCursors<Thread>> => {
     const db = await this.ensureDB()
+    const swiftAPI = this.getSwiftPlatformAPI()
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     if (folderName !== InboxName.NORMAL) {
@@ -318,12 +326,10 @@ export default class AppleiMessage implements PlatformAPI {
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
     const [, , unreadCounts, dndState] = await Promise.all([
       Promise.all(chatRows.map(async chat => {
-        const response = parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftServer.getMessages(
+        const response = parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftAPI.getMessages(
           chat.guid,
           undefined,
           undefined,
-          this.currentUser!.id,
-          this.accountID,
           1,
         ))
         latestMessagesMap[chat.guid] = response.items
@@ -378,23 +384,21 @@ export default class AppleiMessage implements PlatformAPI {
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
     await this.ensureDB()
-    return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftServer.getMessages(
+    const swiftAPI = this.getSwiftPlatformAPI()
+    return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftAPI.getMessages(
       hashedThreadID,
       pagination?.cursor,
       pagination?.direction,
-      this.currentUser!.id,
-      this.accountID,
       undefined,
     ))
   }
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     await this.ensureDB()
-    const parsed = parseSwiftMessageAPIJSON<Message | null>(await swiftServer.getMessage(
+    const swiftAPI = this.getSwiftPlatformAPI()
+    const parsed = parseSwiftMessageAPIJSON<Message | null>(await swiftAPI.getMessage(
       hashedThreadID,
       messageID,
-      this.currentUser!.id,
-      this.accountID,
     ))
     return parsed ?? undefined
   }

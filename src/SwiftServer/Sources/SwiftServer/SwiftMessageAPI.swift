@@ -1,11 +1,59 @@
 import Foundation
 import IMDatabase
+import NodeAPI
 import SwiftServerFoundation
 
 private let messagePageLimit = 20
 private let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
 
-enum SwiftMessageAPI {
+@NodeActor @NodeClass final class PlatformAPI {
+    static let name = "PlatformAPI"
+
+    private let currentUserID: String
+    private let accountID: String
+    private let swiftJSQueue: NodeAsyncQueue
+
+    @NodeConstructor init(currentUserID: String, accountID: String) throws {
+        self.currentUserID = currentUserID
+        self.accountID = accountID
+        swiftJSQueue = try NodeAsyncQueue(label: "platform-api")
+    }
+
+    private func returnAsync(_ action: @escaping () throws -> NodeValueConvertible) throws -> NodePromise {
+        try NodePromise { deferred in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result { try action() }
+                try? self.swiftJSQueue.run {
+                    try deferred(result)
+                }
+            }
+        }
+    }
+
+    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) throws -> NodeValueConvertible {
+        try returnAsync {
+            try Self.getMessages(
+                threadID: threadID,
+                cursor: cursor,
+                direction: direction,
+                currentUserID: self.currentUserID,
+                accountID: self.accountID,
+                limit: limit
+            )
+        }
+    }
+
+    @NodeMethod func getMessage(threadID: String, messageID: String) throws -> NodeValueConvertible {
+        try returnAsync {
+            try Self.getMessage(
+                threadID: threadID,
+                messageID: messageID,
+                currentUserID: self.currentUserID,
+                accountID: self.accountID
+            )
+        }
+    }
+
     static func getMessages(
         threadID publicThreadID: String,
         cursor: String?,
@@ -68,7 +116,7 @@ enum SwiftMessageAPI {
     }
 }
 
-private extension SwiftMessageAPI {
+private extension PlatformAPI {
     static func originalThreadID(_ threadID: String, db: IMDatabase) throws -> String {
         guard threadID.hasPrefix("imsg") else {
             return threadID

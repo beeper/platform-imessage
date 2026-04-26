@@ -62,6 +62,14 @@ export declare class MessagesController {
   dispose: () => void
 }
 
+export declare class SwiftPlatformAPI {
+  constructor(currentUserID: string, accountID: string)
+
+  getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, limit?: number) => Promise<string>
+
+  getMessage: (threadID: string, messageID: string) => Promise<string>
+}
+
 export interface MessagesControllerDebugging {
   _getMainWindow(): void
 }
@@ -99,11 +107,10 @@ export type SwiftServer = {
 
   decodeAttributedString: (data: Buffer) => (Fragment[] | undefined)
   mapMessageJSON: (inputJSON: string) => string
-  getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, currentUserID: string, accountID: string, limit?: number) => Promise<string>
-  getMessage: (threadID: string, messageID: string, currentUserID: string, accountID: string) => Promise<string>
   getImageMetadata: (filePath: string) => Promise<Size | undefined>
   /** Search messages by text content, properly decoding attributedBody. Returns ROWIDs of matching messages. */
   searchMessages: (query: string, chatGUID?: string, mediaOnly?: boolean, sender?: string, limit?: number) => Promise<number[]>
+  PlatformAPI: typeof SwiftPlatformAPI
   messagesControllerClass: typeof MessagesController
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>
