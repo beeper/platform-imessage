@@ -18,6 +18,14 @@ func removeObjectReplacementCharacter(_ text: String) -> String {
     return text.replacingOccurrences(of: objectReplacementCharacter, with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+// IMDB stores account logins as `E:foo@bar.com` / `P:+15551234`.
+func mapAccountLogin(_ accountLogin: String) -> String {
+    if accountLogin.hasPrefix("E:") || accountLogin.hasPrefix("P:") {
+        return String(accountLogin.dropFirst(2))
+    }
+    return accountLogin
+}
+
 func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
     pairs.compactMapValues { value in
         guard let value, !(value is NSNull) else {

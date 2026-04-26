@@ -1,8 +1,5 @@
 import { promises as fs } from 'fs'
-import os from 'os'
 import path from 'path'
-import crypto from 'crypto'
-import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 
 import { BeeperThread } from './desktop-types'
@@ -23,17 +20,8 @@ if (swiftServer) {
   }
 }
 
-const TMP_ATTACHMENT_DIR_PATH = path.join(os.tmpdir(), 'texts-imessage')
-
 function parseSwiftMessageAPIJSON<T>(json: string): T {
   return reviveSwiftMapperValue(JSON.parse(json)) as T
-}
-
-type SwiftGetThreadsResponse = PaginatedWithCursors<Thread> & {
-  _pollingCursor?: {
-    maxRowID?: number
-    maxDateRead?: number
-  }
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -83,9 +71,7 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private async ensureSwiftPlatformAPI(): Promise<SwiftPlatformAPI> {
-    if (!this.swiftPlatformAPI) {
-      this.swiftPlatformAPI = new swiftServer.PlatformAPI(this.accountID)
-    }
+    this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.accountID)
 
     if (this.hasValidatedMessagesDatabaseAccess) {
       return this.swiftPlatformAPI
@@ -103,27 +89,6 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log('imsg: validated Messages database access')
 
     return this.swiftPlatformAPI
-  }
-
-  private hasAttemptedToStartPoller = false
-
-  private async startPollingIfNecessary(maxRowID: number, maxDateRead: number) {
-    if (this.hasAttemptedToStartPoller) return
-    this.hasAttemptedToStartPoller = true
-
-    // HACK: We only get the callback via `subscribeToEvents`, but we may be
-    // asked to start polling from `getThreads` first. Wait until it arrives.
-    let spins = 0
-    while (!this.onEvent) {
-      if (++spins === 50) {
-        texts.log("imsg: WARNING: still don't have server event callback after 5 seconds; something is running amok")
-      }
-      await setTimeoutAsync(100)
-    }
-
-    texts.log(`imsg: kicking off poller (max row id: ${maxRowID}, max date read: ${maxDateRead})`)
-    // FIXME: it's useless to make these `BigInt`s when they're already `number` (lost precision)
-    swiftServer.startPolling(this.onEvent, BigInt(maxRowID), BigInt(maxDateRead))
   }
 
   private resolveThreadID = async (threadID: ThreadID): Promise<ThreadID> =>
@@ -177,10 +142,7 @@ export default class AppleiMessage implements PlatformAPI {
   dispose = async () => {
     swiftServer?.stopSysPrefsOnboarding?.()
     swiftServer?.cancelPollingIfNecessary?.()
-    await Promise.all([
-      this.swiftPlatformAPI?.dispose(),
-      fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
-    ])
+    await this.swiftPlatformAPI?.dispose()
   }
 
   subscribeToEvents = async (onEvent: OnServerEventCallback): Promise<void> => {
@@ -196,6 +158,7 @@ export default class AppleiMessage implements PlatformAPI {
       })
       onEvent(evs)
     }
+    swiftServer.setEventCallback(this.onEvent)
     if (swiftServer?.isMessagesAppInDock && swiftServer?.isPHTEnabled) {
       this.removeMessagesAppInDock()
     }
@@ -204,7 +167,7 @@ export default class AppleiMessage implements PlatformAPI {
   startEventPollingFromCurrentState = async (): Promise<void> => {
     if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventPollingFromCurrentState')
     await this.ensureSwiftPlatformAPI()
-    await swiftServer.startPollingFromCurrentState(this.onEvent)
+    await swiftServer.startPollingFromCurrentState()
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
@@ -241,16 +204,11 @@ export default class AppleiMessage implements PlatformAPI {
     const swiftAPI = await this.ensureSwiftPlatformAPI()
     texts.log(`imsg/getThreads: requested folder ${folderName}, pagination: ${JSON.stringify(pagination)}`)
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
-    const cursor = pagination?.cursor ?? null
-    const { _pollingCursor, ...response } = parseSwiftMessageAPIJSON<SwiftGetThreadsResponse>(await swiftAPI.getThreads(
+    const response = parseSwiftMessageAPIJSON<PaginatedWithCursors<Thread>>(await swiftAPI.getThreads(
       folderName,
       pagination?.cursor,
       pagination?.direction,
     ))
-    if (!cursor && _pollingCursor?.maxRowID) {
-      // TODO: this is a polling bootstrap side effect; it should not live in a getter/non-mutating API.
-      void this.startPollingIfNecessary(_pollingCursor.maxRowID, _pollingCursor.maxDateRead ?? 0)
-    }
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
       ...response,
@@ -291,14 +249,8 @@ export default class AppleiMessage implements PlatformAPI {
   private sendFileFromFilePath = async (threadID: ThreadID, filePath: string, quotedMessageID?: MessageID): Promise<boolean | Message[]> =>
     parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(threadID, undefined, filePath, quotedMessageID))
 
-  private sendFileFromBuffer = async (threadID: ThreadID, fileBuffer: Buffer, fileName?: string, quotedMessageID?: string): Promise<boolean | Message[]> => {
-    await fs.mkdir(TMP_ATTACHMENT_DIR_PATH, { recursive: true })
-    const tmpFilePath = path.join(TMP_ATTACHMENT_DIR_PATH, fileName || crypto.randomUUID())
-    await fs.writeFile(tmpFilePath, fileBuffer)
-    const result = await this.sendFileFromFilePath(threadID, tmpFilePath, quotedMessageID)
-    // we don't immediately delete the file because imessage takes an unknown amount of time to send
-    return result
-  }
+  private sendFileFromBuffer = async (threadID: ThreadID, fileBuffer: Buffer, fileName?: string, quotedMessageID?: string): Promise<boolean | Message[]> =>
+    parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendFileFromBuffer(threadID, fileBuffer, fileName, quotedMessageID))
 
   private sendingMessagesCount = 0
 

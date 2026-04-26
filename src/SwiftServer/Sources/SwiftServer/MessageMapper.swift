@@ -8,30 +8,6 @@ struct Mapper {
     let currentUserID: String
     let accountID: String
 
-    init(
-        msgRow: JSONObject,
-        attachmentRows: [JSONObject],
-        reactionRows: [JSONObject],
-        currentUserID: String,
-        accountID: String
-    ) {
-        self.msgRow = msgRow
-        self.attachmentRows = attachmentRows
-        self.reactionRows = reactionRows
-        self.currentUserID = currentUserID
-        self.accountID = accountID
-    }
-
-    init(input: JSONObject) throws {
-        try self.init(
-            msgRow: input.dictionary("msgRow").orThrow(ErrorMessage("mapper input missing msgRow")),
-            attachmentRows: input.array("attachmentRows").compactMap { $0 as? JSONObject },
-            reactionRows: input.array("reactionRows").compactMap { $0 as? JSONObject },
-            currentUserID: input.string("currentUserID").orThrow(ErrorMessage("mapper input missing currentUserID")),
-            accountID: input.string("accountID").orThrow(ErrorMessage("mapper input missing accountID"))
-        )
-    }
-
     func mapMessage() throws -> [JSONObject] {
         guard (msgRow.int("schedule_type") ?? 0) == 0 else {
             return []

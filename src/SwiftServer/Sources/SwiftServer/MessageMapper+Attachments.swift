@@ -15,7 +15,7 @@ extension Mapper {
             "loading": attachmentRow.int("transfer_state") != IMFileTransferState.finished,
         ])
         if let filePath, !filePath.isEmpty {
-            common["srcURL"] = URL(fileURLWithPath: filePath).absoluteString
+            common["srcURL"] = fileURLString(filePath)
         } else {
             common["srcURL"] = attachmentRow["filePath"] ?? NSNull()
         }

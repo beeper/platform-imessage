@@ -26,13 +26,6 @@ struct CurrentUser: Encodable {
         return currentUser
     }
 
-    private static func mapAccountLogin(_ accountLogin: String) -> String {
-        if accountLogin.hasPrefix("E:") || accountLogin.hasPrefix("P:") {
-            return String(accountLogin.dropFirst(2))
-        }
-        return accountLogin
-    }
-
     private static func firstLoginValue(withPrefix prefix: String, in logins: [String]) -> String? {
         logins.first { $0.hasPrefix(prefix) }
             .map { String($0.dropFirst(prefix.count)) }

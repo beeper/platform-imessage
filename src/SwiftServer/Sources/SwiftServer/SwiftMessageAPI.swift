@@ -11,6 +11,7 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
+private let temporaryAttachmentDirectoryName = "platform-imessage"
 // These APIs return JSON strings; this is the JSON null literal.
 private let jsonNull = "null"
 let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
@@ -262,6 +263,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         )
     }
 
+    @NodeMethod func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
+        let filePath = try await Self.offNodeActor {
+            try Self.writeTemporaryAttachmentFile(data: fileBuffer, fileName: fileName)
+        }
+        return try await sendMessage(threadID: publicThreadID, text: nil, filePath: filePath, quotedMessageID: quotedMessageID)
+    }
+
     @NodeMethod func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws -> NodeValueConvertible {
         if reaction == "sticker" {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
@@ -429,6 +437,10 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     @NodeMethod func dispose() throws {
+        defer {
+            Self.cleanupTemporaryAttachmentDirectory()
+        }
+
         hasBeenDisposed = true
 
         guard let wrapper = messagesControllerWrapper else {
@@ -726,7 +738,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let chatRows = try db.mappedThreadRows(cursor: cursor, direction: pageDirection)
         let chatRowIDs = chatRows.compactMap { $0.int("ROWID") }
         let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: chatRows)
-        let context = ThreadMapper.context(
+        let context = ThreadMapper.Context(
             handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
             latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
                 db: db,
@@ -740,11 +752,18 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             accountID: accountID
         )
         let threads = try chatRows.map { try ThreadMapper.mapAndHashThread($0, context: context) }
+        // TODO: Change the API design so getThreads is side-effect free and
+        // the polling bootstrap is triggered by an explicit lifecycle call.
+        if cursor == nil, let pollingCursor = ThreadMapper.pollingCursor(from: latestMessageRowsByChatGUID.values.map { $0 }) {
+            PollingLifecycle.shared.startBootstrapIfNecessary(
+                lastRowID: pollingCursor.maxRowID,
+                lastDateRead: Date(nanosecondsSinceReferenceDate: pollingCursor.maxDateReadNanoseconds)
+            )
+        }
         return try encodeJSON(compactDictionary([
             "items": threads,
             "hasMore": chatRows.count == mappedThreadsLimit,
             "oldestCursor": chatRows.last?.string("msgDateString"),
-            "_pollingCursor": cursor == nil ? ThreadMapper.pollingCursor(from: latestMessageRowsByChatGUID.values.map { $0 }) : nil,
         ]))
     }
 
@@ -760,7 +779,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
         let chatRowIDs = [chatRow].compactMap { $0.int("ROWID") }
         let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: [chatRow])
-        let context = ThreadMapper.context(
+        let context = ThreadMapper.Context(
             handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
             latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
                 db: db,
@@ -957,6 +976,30 @@ extension PlatformAPI {
         }
     }
 
+    nonisolated private static func temporaryAttachmentDirectoryURL() -> URL {
+        URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(temporaryAttachmentDirectoryName, isDirectory: true)
+    }
+
+    nonisolated private static func writeTemporaryAttachmentFile(data: Data, fileName: String?) throws -> String {
+        let directoryURL = temporaryAttachmentDirectoryURL()
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let effectiveFileName: String
+        if let fileName, !fileName.isEmpty {
+            effectiveFileName = fileName
+        } else {
+            effectiveFileName = UUID().uuidString
+        }
+        let fileURL = directoryURL.appendingPathComponent(effectiveFileName)
+        try data.write(to: fileURL)
+        return fileURL.path
+    }
+
+    nonisolated private static func cleanupTemporaryAttachmentDirectory() {
+        try? FileManager.default.removeItem(at: temporaryAttachmentDirectoryURL())
+    }
+
     private nonisolated static func messagePayloadRows(
         db: IMDatabase,
         msgRows: [JSONObject],
@@ -1101,11 +1144,9 @@ extension PlatformAPI {
         }
     }
 
-    nonisolated static let reactionPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:[-\d]+/|bp:)"#)
-
     nonisolated static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
         let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
-        guard let match = reactionPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
+        guard let match = assocMsgGUIDPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
               let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
             return associatedMessageGUID
         }

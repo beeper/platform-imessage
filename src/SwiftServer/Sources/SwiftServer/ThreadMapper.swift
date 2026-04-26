@@ -2,38 +2,25 @@ import Foundation
 import SwiftServerFoundation
 
 enum ThreadMapper {
+    struct PollingCursor {
+        var maxRowID: Int
+        var maxDateReadNanoseconds: Int
+    }
+
     struct Context {
-        var accountID: String
-        var currentUserID: String
         var handleRowsByChatRowID: [Int: [JSONObject]]
         var latestMessagesByChatGUID: [String: [JSONObject]]
         var unreadCounts: [Int: Int]
         var dndState: Set<String>
-    }
-
-    static func context(
-        handleRowsByChatRowID: [Int: [JSONObject]],
-        latestMessagesByChatGUID: [String: [JSONObject]],
-        unreadCounts: [Int: Int],
-        dndState: Set<String>,
-        currentUserID: String,
-        accountID: String
-    ) -> Context {
-        return Context(
-            accountID: accountID,
-            currentUserID: currentUserID,
-            handleRowsByChatRowID: handleRowsByChatRowID,
-            latestMessagesByChatGUID: latestMessagesByChatGUID,
-            unreadCounts: unreadCounts,
-            dndState: dndState
-        )
+        var currentUserID: String
+        var accountID: String
     }
 
     static func mapAndHashThread(_ chat: JSONObject, context: Context) throws -> JSONObject {
         hashThread(try mapThread(chat, context: context))
     }
 
-    static func pollingCursor(from latestMessageRows: [JSONObject]) -> JSONObject? {
+    static func pollingCursor(from latestMessageRows: [JSONObject]) -> PollingCursor? {
         guard !latestMessageRows.isEmpty else {
             return nil
         }
@@ -46,10 +33,7 @@ enum ThreadMapper {
             }
             return row.int("date_read") ?? 0
         }.max() ?? 0
-        return [
-            "maxRowID": maxRowID,
-            "maxDateRead": maxDateRead,
-        ]
+        return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateRead)
     }
 
     private static let int64MaxString = String(Int.max)
@@ -58,7 +42,7 @@ enum ThreadMapper {
         let guid = chat.string("guid") ?? ""
         let handleRows = context.handleRowsByChatRowID[chat.int("ROWID") ?? -1] ?? []
         let messages = context.latestMessagesByChatGUID[guid] ?? []
-        let selfID = chat.string("last_addressed_handle") ?? mapAccountLogin(chat.string("account_login")) ?? context.currentUserID
+        let selfID = chat.string("last_addressed_handle") ?? chat.string("account_login").map(mapAccountLogin) ?? context.currentUserID
         let firstParticipantID = handleRows.first?.string("participantID")
 
         var participants = handleRows.compactMap { mapParticipant($0, chatDisplayName: chat.string("display_name")) }
@@ -171,16 +155,6 @@ enum ThreadMapper {
         let range = NSRange(id.startIndex ..< id.endIndex, in: id)
         return numbersAndSymbolsRegex.firstMatch(in: id, range: range) == nil
             && alphanumericSenderIDRegex.firstMatch(in: id, range: range) != nil
-    }
-
-    private static func mapAccountLogin(_ accountLogin: String?) -> String? {
-        guard let accountLogin else {
-            return nil
-        }
-        if accountLogin.hasPrefix("E:") || accountLogin.hasPrefix("P:") {
-            return String(accountLogin.dropFirst(2))
-        }
-        return accountLogin
     }
 
     private static func chatPhotoURL(props: JSONObject?, accountID: String) -> String? {

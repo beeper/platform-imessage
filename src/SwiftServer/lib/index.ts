@@ -16,6 +16,13 @@ export declare class SwiftPlatformAPI {
     quotedMessageID?: string,
   ) => Promise<string>
 
+  sendFileFromBuffer: (
+    threadID: ThreadID,
+    fileBuffer: Buffer,
+    fileName?: string,
+    quotedMessageID?: string,
+  ) => Promise<string>
+
   setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
 
   getCurrentUser: () => Promise<string>
@@ -81,8 +88,8 @@ export type SwiftServer = {
   disableSoundEffects: () => void
 
   cancelPollingIfNecessary: () => void
-  startPolling: (cb: OnServerEventCallback, lastRowID: bigint, lastDateReadNanoseconds: bigint) => void
-  startPollingFromCurrentState: (cb: OnServerEventCallback) => Promise<void>
+  setEventCallback: (cb: OnServerEventCallback) => void
+  startPollingFromCurrentState: () => Promise<void>
 
   revealSettings: () => void
 
