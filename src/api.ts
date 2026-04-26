@@ -29,7 +29,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   // used to make archive calls wait for any pending reactions/message sends,
   // to remove flicker from e.g. sending then quickly archiving manually.
-  // No delayMsAfterWaiting needed: SwiftMessageAPI.sendMessage / setReaction
+  // No delayMsAfterWaiting needed: PlatformAPI.sendMessage / setReaction
   // resolve only after waitForSentMessageIDs sees the new row in chat.db.
   private threadPhaser = new Phaser<Thread['id']>()
 
