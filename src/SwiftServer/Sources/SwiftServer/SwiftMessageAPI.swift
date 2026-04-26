@@ -8,11 +8,28 @@ private let messagePageLimit = 20
 private let jsonNull = "null"
 let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_INTERNAL_FIELDS"] == "1"
 
+private final class PlatformAPIDatabase: @unchecked Sendable {
+    private let database = Protected<IMDatabase?>()
+
+    func withDatabase<T>(_ action: (IMDatabase) throws -> T) throws -> T {
+        try database.withLock { cachedDatabase in
+            if let cachedDatabase {
+                return try action(cachedDatabase)
+            }
+
+            let newDatabase = try IMDatabase()
+            cachedDatabase = newDatabase
+            return try action(newDatabase)
+        }
+    }
+}
+
 @NodeActor @NodeClass final class PlatformAPI {
     static let name = "PlatformAPI"
 
     private let currentUserID: String
     private let accountID: String
+    private let database = PlatformAPIDatabase()
 
     @NodeConstructor init(currentUserID: String, accountID: String) {
         self.currentUserID = currentUserID
@@ -28,74 +45,95 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
     @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
         let currentUserID = currentUserID
         let accountID = accountID
+        let database = database
         return try await Self.offNodeActor {
-            try Self.getMessages(
-                threadID: threadID,
-                cursor: cursor,
-                direction: direction,
-                currentUserID: currentUserID,
-                accountID: accountID,
-                limit: limit
-            )
+            try database.withDatabase { db in
+                try Self.getMessages(
+                    db: db,
+                    threadID: threadID,
+                    cursor: cursor,
+                    direction: direction,
+                    currentUserID: currentUserID,
+                    accountID: accountID,
+                    limit: limit
+                )
+            }
         }
     }
 
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
         let currentUserID = currentUserID
         let accountID = accountID
+        let database = database
         return try await Self.offNodeActor {
-            try Self.getMessage(
-                threadID: threadID,
-                messageID: messageID,
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
+            try database.withDatabase { db in
+                try Self.getMessage(
+                    db: db,
+                    threadID: threadID,
+                    messageID: messageID,
+                    currentUserID: currentUserID,
+                    accountID: accountID
+                )
+            }
         }
     }
 
     @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
         let currentUserID = currentUserID
         let accountID = accountID
+        let database = database
         return try await Self.offNodeActor {
-            try Self.getThreads(
-                folderName: folderName,
-                cursor: cursor,
-                direction: direction,
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
+            try database.withDatabase { db in
+                try Self.getThreads(
+                    db: db,
+                    folderName: folderName,
+                    cursor: cursor,
+                    direction: direction,
+                    currentUserID: currentUserID,
+                    accountID: accountID
+                )
+            }
         }
     }
 
     @NodeMethod func getThread(threadID: String) async throws -> String {
         let currentUserID = currentUserID
         let accountID = accountID
+        let database = database
         return try await Self.offNodeActor {
-            try Self.getThread(
-                threadID: threadID,
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
+            try database.withDatabase { db in
+                try Self.getThread(
+                    db: db,
+                    threadID: threadID,
+                    currentUserID: currentUserID,
+                    accountID: accountID
+                )
+            }
         }
     }
 
     @NodeMethod func searchMessages(query: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
         let currentUserID = currentUserID
         let accountID = accountID
+        let database = database
         return try await Self.offNodeActor {
-            try Self.searchMessages(
-                query: query,
-                threadID: threadID,
-                mediaOnly: mediaOnly ?? false,
-                sender: sender,
-                currentUserID: currentUserID,
-                accountID: accountID,
-                limit: limit
-            )
+            try database.withDatabase { db in
+                try Self.searchMessages(
+                    db: db,
+                    query: query,
+                    threadID: threadID,
+                    mediaOnly: mediaOnly ?? false,
+                    sender: sender,
+                    currentUserID: currentUserID,
+                    accountID: accountID,
+                    limit: limit
+                )
+            }
         }
     }
 
     nonisolated static func getThreads(
+        db: IMDatabase,
         folderName: String,
         cursor: String?,
         direction: String?,
@@ -110,16 +148,15 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
             ])
         }
 
-        let db = try IMDatabase()
         let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
         let chatRows = try db.mappedThreadRows(cursor: cursor, direction: pageDirection)
         let chatRowIDs = chatRows.compactMap { $0.int("ROWID") }
-        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(chatRows: chatRows, db: db)
+        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: chatRows)
         let context = ThreadMapper.context(
             handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
             latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
-                latestMessageRowsByChatGUID,
                 db: db,
+                latestMessageRowsByChatGUID,
                 currentUserID: currentUserID,
                 accountID: accountID
             ),
@@ -138,22 +175,22 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
     }
 
     nonisolated static func getThread(
+        db: IMDatabase,
         threadID publicThreadID: String,
         currentUserID: String,
         accountID: String
     ) throws -> String {
-        let db = try IMDatabase()
-        let threadID = try originalThreadID(publicThreadID, db: db)
+        let threadID = try originalThreadID(db: db, publicThreadID)
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
             return jsonNull
         }
         let chatRowIDs = [chatRow].compactMap { $0.int("ROWID") }
-        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(chatRows: [chatRow], db: db)
+        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: [chatRow])
         let context = ThreadMapper.context(
             handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
             latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
-                latestMessageRowsByChatGUID,
                 db: db,
+                latestMessageRowsByChatGUID,
                 currentUserID: currentUserID,
                 accountID: accountID
             ),
@@ -166,6 +203,7 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
     }
 
     nonisolated static func getMessages(
+        db: IMDatabase,
         threadID publicThreadID: String,
         cursor: String?,
         direction: String?,
@@ -173,8 +211,7 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
         accountID: String,
         limit: Int? = nil
     ) throws -> String {
-        let db = try IMDatabase()
-        let threadID = try originalThreadID(publicThreadID, db: db)
+        let threadID = try originalThreadID(db: db, publicThreadID)
         let pageDirection = direction.flatMap(MappedMessagePageDirection.init(rawValue:))
         let effectiveLimit = limit ?? messagePageLimit
         var msgRows = try db.mappedMessageRows(
@@ -187,7 +224,7 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
             msgRows.reverse()
         }
 
-        let payloadRows = try messagePayloadRows(msgRows: msgRows, db: db, threadID: threadID)
+        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
         let messages = try mapAndHashMessages(
             msgRows: msgRows,
             attachmentRows: payloadRows.attachmentRows,
@@ -202,19 +239,19 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
     }
 
     nonisolated static func getMessage(
+        db: IMDatabase,
         threadID publicThreadID: String,
         messageID: String,
         currentUserID: String,
         accountID: String
     ) throws -> String {
-        let db = try IMDatabase()
-        let threadID = try originalThreadID(publicThreadID, db: db)
+        let threadID = try originalThreadID(db: db, publicThreadID)
         let messageGUID = messageID.components(separatedBy: "_").first ?? messageID
         guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
             return jsonNull
         }
 
-        let payloadRows = try messagePayloadRows(msgRows: [msgRow], db: db, threadID: threadID)
+        let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: threadID)
         let messages = try mapAndHashMessages(
             msgRows: [msgRow],
             attachmentRows: payloadRows.attachmentRows,
@@ -229,6 +266,7 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
     }
 
     nonisolated static func searchMessages(
+        db: IMDatabase,
         query: String,
         threadID publicThreadID: String?,
         mediaOnly: Bool,
@@ -237,8 +275,7 @@ let stripInternalFields = ProcessInfo.processInfo.environment["IMESSAGE_STRIP_IN
         accountID: String,
         limit: Int? = nil
     ) throws -> String {
-        let db = try IMDatabase()
-        let threadID = try publicThreadID.map { try originalThreadID($0, db: db) }
+        let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let effectiveLimit = limit ?? messagePageLimit
         let matchingRowIDs = try db.searchMessages(
             query: query,
@@ -280,19 +317,19 @@ extension PlatformAPI {
         var reactionRows: [JSONObject]
     }
 
-    nonisolated static func latestThreadMessageRowsByChatGUID(chatRows: [JSONObject], db: IMDatabase) throws -> [String: JSONObject] {
+    nonisolated static func latestThreadMessageRowsByChatGUID(db: IMDatabase, chatRows: [JSONObject]) throws -> [String: JSONObject] {
         try db.mappedLatestMessageRows(chatRowIDs: chatRows.compactMap { $0.int("ROWID") })
     }
 
     nonisolated static func latestThreadMessagesByChatGUID(
-        _ latestMessageRowsByChatGUID: [String: JSONObject],
         db: IMDatabase,
+        _ latestMessageRowsByChatGUID: [String: JSONObject],
         currentUserID: String,
         accountID: String
     ) throws -> [String: [JSONObject]] {
         var latestMessagesByChatGUID = [String: [JSONObject]]()
         for (guid, msgRow) in latestMessageRowsByChatGUID {
-            let payloadRows = try messagePayloadRows(msgRows: [msgRow], db: db, threadID: guid)
+            let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: guid)
             latestMessagesByChatGUID[guid] = try mapAndHashMessages(
                 msgRows: [msgRow],
                 attachmentRows: payloadRows.attachmentRows,
@@ -310,7 +347,7 @@ extension PlatformAPI {
         })
     }
 
-    nonisolated static func originalThreadID(_ threadID: String, db: IMDatabase) throws -> String {
+    nonisolated static func originalThreadID(db: IMDatabase, _ threadID: String) throws -> String {
         guard threadID.hasPrefix("imsg") else {
             return threadID
         }
@@ -325,8 +362,8 @@ extension PlatformAPI {
     }
 
     private nonisolated static func messagePayloadRows(
-        msgRows: [JSONObject],
         db: IMDatabase,
+        msgRows: [JSONObject],
         threadID: String
     ) throws -> MessagePayloadRows {
         let msgRowIDs = msgRows.compactMap { $0.int("ROWID") }

@@ -19,15 +19,6 @@ const unwrapDefault = value => {
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.basename(scriptDir) === 'scripts' ? path.resolve(scriptDir, '..') : process.cwd()
 const injectGlobals = unwrapDefault(platformTestLib)
-const referenceSwiftServerNodePath = '/Applications/Beeper Nightly.app/Contents/Resources/app/build/platform-imessage/darwin-arm64/SwiftServer.node'
-const referenceBinariesDirPath = path.dirname(path.dirname(referenceSwiftServerNodePath))
-
-process.env.IMESSAGE_SKIP_EAGER_MC ??= '1'
-process.env.IMESSAGE_STRIP_INTERNAL_FIELDS ??= '1'
-process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT ??= '1'
-
-injectGlobals(true, false, repoRoot)
-globalThis.texts.getBinariesDirPath = () => path.join(repoRoot, 'binaries')
 
 const args = new Map(
   process.argv.slice(2).flatMap(arg => {
@@ -37,6 +28,17 @@ const args = new Map(
     return flag ? [[flag[1], '1']] : []
   }),
 )
+
+const defaultReferenceSwiftServerNodePath = '/Applications/Beeper Nightly.app/Contents/Resources/app/build/platform-imessage/darwin-arm64/SwiftServer.node'
+const referenceSwiftServerNodePath = args.get('reference-swift-server-node') ?? defaultReferenceSwiftServerNodePath
+const referenceBinariesDirPath = path.dirname(path.dirname(referenceSwiftServerNodePath))
+
+process.env.IMESSAGE_SKIP_EAGER_MC ??= '1'
+process.env.IMESSAGE_STRIP_INTERNAL_FIELDS ??= '1'
+process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT ??= '1'
+
+injectGlobals(true, false, repoRoot)
+globalThis.texts.getBinariesDirPath = () => path.join(repoRoot, 'binaries')
 
 const binariesDirPathLiteral = JSON.stringify(referenceBinariesDirPath)
 const buildBanner = `globalThis.texts={IS_DEV:true,isLoggingEnabled:false,log(){},error(){},constants:{USER_AGENT:'platform-imessage-parity',APP_VERSION:'1.0.0'},Sentry:{captureException(){},captureMessage(){},startTransaction(){}},async trackPlatformEvent(){},getBinariesDirPath(){return ${binariesDirPathLiteral}},fetch:globalThis.fetch,fetchStream:undefined,createHttpClient:undefined,nativeFetch:undefined,nativeFetchStream:undefined,runWorker:undefined,forkChildProcess:undefined,getOriginalObject:undefined,openBrowserWindow:undefined};`
@@ -59,7 +61,7 @@ async function ensureReferenceAPI() {
     await fs.mkdir(path.dirname(referenceRoot), { recursive: true })
     exec('git', ['worktree', 'add', '--detach', referenceRoot, referenceRef], repoRoot)
   }
-  if (args.has('rebuild-reference') || !await pathExists(bundlePath)) {
+  if (!args.has('skip-reference-rebuild') || args.has('rebuild-reference') || !await pathExists(bundlePath)) {
     exec('bun', [
       'build',
       'src/api.ts',
@@ -98,6 +100,11 @@ const traceCurrent = args.has('trace-current')
 const perfDeltaMinMs = Number.parseFloat(args.get('perf-delta-ms') ?? '25')
 const perfDeltaMinRatio = Number.parseFloat(args.get('perf-delta-ratio') ?? '1.25')
 const perfDeltaLimit = Number.parseInt(args.get('perf-delta-limit') ?? '20', 10)
+const searchSamples = Number.parseInt(args.get('search-samples') ?? '25', 10)
+const searchScopes = (args.get('search-scopes') ?? 'global,thread')
+  .split(',')
+  .map(scope => scope.trim())
+  .filter(Boolean)
 
 const dateFields = new Set(['timestamp', 'seen', 'editedTimestamp'])
 
@@ -149,6 +156,10 @@ function diff(swiftValue, referenceValue, pathName = '$', diffs = []) {
 
 function failureSummary(error) {
   return { details: error instanceof Error ? error.message : String(error) }
+}
+
+function isMissingReferenceSearchMessages(error) {
+  return /searchMessages is not a function/.test(error instanceof Error ? error.message : String(error))
 }
 
 const roundTiming = value => Number(value.toFixed(3))
@@ -290,6 +301,14 @@ function recordDelta(failures, phase, context, swiftOutput, referenceOutput) {
   })
 }
 
+function searchTermsFromMessage(message) {
+  const text = typeof message?.text === 'string' ? message.text : ''
+  const matches = text.match(/[A-Za-z0-9][A-Za-z0-9'._@+-]{2,}/g) ?? []
+  return matches
+    .filter(term => term.length <= 32 && /[A-Za-z]/.test(term))
+    .filter(term => !term.includes('{{') && !term.includes('}}'))
+}
+
 try {
   await api.init({}, { accountID: 'default', dataDirPath })
   await referenceAPI.init({}, { accountID: 'default', dataDirPath: referenceDataDirPath })
@@ -330,6 +349,28 @@ try {
   let getMessageItemsChecked = 0
   let getThreadItemsChecked = 0
   let mappedMessagesPlanned = 0
+  let searchMessagesChecked = 0
+  let usesReferenceSearchFallback = false
+  const searchCandidates = []
+  const searchCandidateKeys = new Set()
+
+  function addSearchCandidates(thread, messages) {
+    if (searchCandidates.length >= searchSamples) return
+    for (const message of messages) {
+      for (const query of searchTermsFromMessage(message)) {
+        const key = `${thread.id}:${query.toLowerCase()}`
+        if (searchCandidateKeys.has(key)) continue
+        searchCandidateKeys.add(key)
+        searchCandidates.push({
+          query,
+          threadID: thread.id,
+          messageID: message.id,
+          queryLength: query.length,
+        })
+        if (searchCandidates.length >= searchSamples) return
+      }
+    }
+  }
 
   const selectedThreads = threads.slice(skipChats, skipChats + chatLimit)
   for (const [index, thread] of selectedThreads.entries()) {
@@ -370,6 +411,7 @@ try {
         mappedMessagesPlanned += page.items.length
         seenMessages += page.items.length
         recordDelta(failures, 'getMessages', { threadID: thread.id, pageIndex }, page, referencePage)
+        addSearchCandidates(thread, page.items)
 
         const sampledMessages = Number.isFinite(getMessageSamples)
           ? page.items.slice(0, Math.max(0, getMessageSamples))
@@ -401,6 +443,77 @@ try {
     }
   }
 
+  async function referenceSearchFromCurrentResults(currentSearch, options) {
+    const items = []
+    for (const item of currentSearch.items) {
+      if (!item?.threadID || !item?.id) continue
+      const message = await referenceAPI.getMessage(item.threadID, item.id)
+      if (!message) continue
+      if (options?.threadID) {
+        items.push(message)
+      } else {
+        const messageWithoutReactions = { ...message }
+        delete messageWithoutReactions.reactions
+        items.push(messageWithoutReactions)
+      }
+    }
+    return {
+      items,
+      hasMore: currentSearch.hasMore,
+      oldestCursor: currentSearch.oldestCursor,
+    }
+  }
+
+  async function timedSearchPair(context, query, options) {
+    const currentResult = await timedCall(() => api.searchMessages(query, undefined, options))
+    if (!currentResult.ok) throw currentResult.error
+
+    if (!usesReferenceSearchFallback) {
+      const referenceResult = await timedCall(() => referenceAPI.searchMessages(query, undefined, options))
+      if (referenceResult.ok) {
+        recordPerfDelta('searchMessages', context, currentResult.ms, referenceResult.ms)
+        return [currentResult.value, referenceResult.value]
+      }
+      if (!isMissingReferenceSearchMessages(referenceResult.error)) {
+        recordPerfDelta('searchMessages', context, currentResult.ms, referenceResult.ms)
+        throw referenceResult.error
+      }
+      usesReferenceSearchFallback = true
+    }
+
+    const referenceResult = await timedCall(() => referenceSearchFromCurrentResults(currentResult.value, options))
+    recordPerfDelta('searchMessages', { ...context, referenceMode: 'current-search-results' }, currentResult.ms, referenceResult.ms)
+    if (!referenceResult.ok) throw referenceResult.error
+    return [currentResult.value, referenceResult.value]
+  }
+
+  const runSearchScope = async (candidate, searchIndex, scope) => {
+    const options = scope === 'thread' ? { threadID: candidate.threadID } : undefined
+    const context = {
+      searchIndex,
+      scope,
+      queryLength: candidate.queryLength,
+      messageID: candidate.messageID,
+      ...(scope === 'thread' ? { threadID: candidate.threadID } : {}),
+    }
+    try {
+      const [currentSearch, referenceSearch] = await timedSearchPair(context, candidate.query, options)
+      searchMessagesChecked += 1
+      recordDelta(failures, 'searchMessages', context, currentSearch, referenceSearch)
+    } catch (error) {
+      searchMessagesChecked += 1
+      failures.push({ phase: 'searchMessages', ...context, ...failureSummary(error) })
+    }
+  }
+
+  for (const [index, candidate] of searchCandidates.entries()) {
+    const searchIndex = index + 1
+    for (const scope of searchScopes) {
+      if (scope !== 'global' && scope !== 'thread') continue
+      await runSearchScope(candidate, searchIndex, scope)
+    }
+  }
+
   const byDiff = Object.create(null)
   for (const failure of failures) {
     byDiff[failure.details] = (byDiff[failure.details] ?? 0) + 1
@@ -414,6 +527,9 @@ try {
     pagesChecked,
     getMessagesPagesChecked,
     getMessageItemsChecked,
+    searchMessagesChecked,
+    searchCandidatesCollected: searchCandidates.length,
+    referenceSearchMode: usesReferenceSearchFallback ? 'current-search-results' : 'api',
     mappedMessagesPlanned,
     strictFailures: failures.length,
     byDiff,
