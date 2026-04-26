@@ -84,7 +84,6 @@ type SwiftServer = {
   removeMessagesFromDock: () => void
   killDock: () => void
 
-  cancelPollingIfNecessary: () => Promise<void>
   setEventCallback: (cb: OnServerEventCallback) => void
   startPollingFromCurrentState: () => Promise<void>
 
