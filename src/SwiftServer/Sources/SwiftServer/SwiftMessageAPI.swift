@@ -291,22 +291,14 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
-            try controller.notifyAnyway(threadID: threadID)
-        }
-        return undefined
+        return try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
     @NodeMethod func deleteMessage(threadID publicThreadID: String, messageID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
-            try controller.undoSend(threadID: threadID, messageID: messageID)
-        }
-        return undefined
+        return try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
     @NodeMethod func editMessage(threadID publicThreadID: String, messageID: String, newText text: String?) async throws -> NodeValueConvertible {
@@ -321,33 +313,21 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
-            try controller.editMessage(threadID: threadID, messageID: messageID, newText: text)
-        }
-        return undefined
+        return try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
     @NodeMethod func deleteThread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
-            try controller.deleteThread(threadID: threadID)
-        }
-        return undefined
+        return try await performOnController { try $0.deleteThread(threadID: threadID) }
     }
 
     @NodeMethod func updateThread(threadID publicThreadID: String, muted: Bool) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
-            try controller.muteThread(threadID: threadID, muted: muted)
-        }
-        return undefined
+        return try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
     }
 
     @NodeMethod func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws -> NodeValueConvertible {
@@ -374,26 +354,20 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             return undefined
         }
 
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
+        return try await performOnController { controller in
             if type == "typing" {
                 try controller.sendTypingStatus(threadID: threadID)
             } else {
                 try controller.clearTypingStatus()
             }
         }
-        return undefined
     }
 
     @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
-            try controller.toggleThreadRead(threadID: threadID, read: false)
-        }
-        return undefined
+        return try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
     @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
@@ -409,11 +383,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 return undefined
             }
 
-            let controller = try await getMessagesController(forceInvalidate: attempt > 0)
-            try await Self.onMessagesControllerQueue {
-                try controller.toggleThreadRead(threadID: threadID, read: true)
+            return try await performOnController(forceInvalidate: attempt > 0) {
+                try $0.toggleThreadRead(threadID: threadID, read: true)
             }
-            return undefined
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
             try? await self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
@@ -431,6 +403,15 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         case let .data(data):
             return data
         }
+    }
+
+    private func performOnController(
+        forceInvalidate: Bool = false,
+        _ action: @escaping @Sendable (MessagesController) throws -> Void
+    ) async throws -> NodeValueConvertible {
+        let controller = try await getMessagesController(forceInvalidate: forceInvalidate)
+        try await Self.onMessagesControllerQueue { try action(controller) }
+        return undefined
     }
 
     private func getMessagesController(forceInvalidate: Bool = false) async throws -> MessagesController {
@@ -642,8 +623,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             }
         }
 
-        // restored from old TextsHQ implementation
-        // https://github.com/TextsHQ/platform-imessage/blob/main/src/SwiftServer/Sources/SwiftServer/SwiftServer.swift#L123-L158
         let requestID = UUID()
         threadObserveRequestToken.withLock { $0 = requestID }
 
