@@ -3,7 +3,7 @@ import { memoize } from 'lodash'
 import { OnServerEventCallback, texts, IAsyncSqlite } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
-import { CHAT_DB_PATH, IS_VENTURA_OR_UP } from './constants'
+import { CHAT_DB_PATH } from './constants'
 import { replaceTilde } from './util'
 import IMAGE_EXTS from './image-exts.json'
 import type { ChatRow, MappedAttachmentRow } from './types'
@@ -13,9 +13,6 @@ const SQLS = {
   getThread: 'SELECT * FROM chat WHERE guid = ?',
   getChatImageByGUID: 'SELECT filename FROM attachment WHERE guid = ?',
 
-  createIndexes: IS_VENTURA_OR_UP
-    ? 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read); CREATE INDEX IF NOT EXISTS message_idx_date_edited ON message (date_edited)'
-    : 'CREATE INDEX IF NOT EXISTS message_idx_date_read ON message (date_read)',
   // updateReadTimestamp: 'UPDATE message SET is_read = TRUE WHERE guid = ?',
 
   getAttachments: (msgIDs: number[]) => `SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.total_bytes, a.is_sticker, a.guid AS attachmentID, a.transfer_state
@@ -53,9 +50,7 @@ export default class DatabaseAPI {
   static async make() {
     texts.log('imsg: creating DatabaseAPI')
     const db = await getDB()
-    texts.log('imsg: creating indexes')
-    await db.exec(SQLS.createIndexes)
-    texts.log('imsg: done creating indexes, returning new DatabaseAPI')
+    texts.log('imsg: returning new DatabaseAPI')
     return new DatabaseAPI(db)
   }
 

@@ -19,7 +19,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                 return try action(cachedDatabase)
             }
 
-            let newDatabase = try IMDatabase()
+            let newDatabase = try IMDatabase(createIndexes: true)
             cachedDatabase = newDatabase
             return try action(newDatabase)
         }

@@ -14,6 +14,11 @@ private func chatDatabaseWalFile(in messagesDataURL: URL) -> URL {
 
 private let log = Logger(label: "imdb")
 
+private let messageIndexes = [
+    ("message_idx_date_read", "date_read"),
+    ("message_idx_date_edited", "date_edited"),
+]
+
 public final class IMDatabase {
     // `~/Library/Messages/`
     let messagesDataDirectory: URL
@@ -41,12 +46,18 @@ public final class IMDatabase {
     private var statementCache = [String: Statement]()
     var tableColumnCache = [String: [String]]()
 
-    public init(messagesDataBaseURL: URL? = nil) throws {
-        self.messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
+    public init(messagesDataBaseURL: URL? = nil, createIndexes: Bool = false) throws {
+        let messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
+        self.messagesDataDirectory = messagesDataDirectory
         #if DEBUG
         log.debug("creating database with messages data directory: \(messagesDataDirectory)")
         defer { log.debug("database created") }
         #endif
+
+        if createIndexes {
+            try Self.createIndexesIfNecessary(in: messagesDataDirectory)
+        }
+
         self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
     }
 
@@ -66,6 +77,17 @@ public final class IMDatabase {
             watcher.stopListeningIfNecessary()
         }
         debouncer?.cancel()
+    }
+}
+
+private extension IMDatabase {
+    static func createIndexesIfNecessary(in messagesDataDirectory: URL) throws {
+        let database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readWrite)
+        let messageColumns = try database.tableColumns("message")
+
+        for (indexName, columnName) in messageIndexes where messageColumns.contains(columnName) {
+            try database.execute(sqlWithoutEscaping: "CREATE INDEX IF NOT EXISTS \(indexName) ON message (\(columnName))")
+        }
     }
 }
 
