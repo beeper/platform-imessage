@@ -80,7 +80,11 @@ let package = Package(
             ]
         ),
         .testTarget(name: "EmojiSPITests", dependencies: ["EmojiSPI"]),
-        .testTarget(name: "SwiftServerTests", dependencies: ["SwiftServer"]),
+        .testTarget(
+            name: "SwiftServerTests",
+            dependencies: ["SwiftServer"],
+            resources: [.process("Fixtures")]
+        ),
         .target(
             name: "CUnfairLock",
             dependencies: []
