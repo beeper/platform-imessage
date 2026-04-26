@@ -200,8 +200,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let database = database
         return try await Self.offNodeActor {
             try database.withDatabase { db in
-                let attachmentRows = Self.decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: [messageRowID]))
-                return attachmentRows.compactMap { $0.string("filePath") }.first
+                try db.attachmentFilename(messageRowID: messageRowID).map(Self.replaceTilde)
             }
         }
     }
@@ -546,13 +545,17 @@ extension PlatformAPI {
         currentUserID: String,
         accountID: String
     ) throws -> [String: [JSONObject]] {
+        let msgRows = Array(latestMessageRowsByChatGUID.values)
+        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: "")
+        let attachmentRowsByMessageID = Dictionary(grouping: payloadRows.attachmentRows, by: { $0.int("msgRowID") ?? -1 })
+        let reactionRowsByMessageGUID = Dictionary(grouping: payloadRows.reactionRows, by: { reactionMessageGUID($0.string("associated_message_guid") ?? "") })
+
         var latestMessagesByChatGUID = [String: [JSONObject]]()
         for (guid, msgRow) in latestMessageRowsByChatGUID {
-            let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: guid)
-            latestMessagesByChatGUID[guid] = try mapAndHashMessages(
-                msgRows: [msgRow],
-                attachmentRows: payloadRows.attachmentRows,
-                reactionRows: payloadRows.reactionRows,
+            latestMessagesByChatGUID[guid] = try mapAndHashMessage(
+                msgRow: msgRow,
+                attachmentRows: attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? [],
+                reactionRows: reactionRowsByMessageGUID[msgRow.string("guid") ?? ""] ?? [],
                 currentUserID: currentUserID,
                 accountID: accountID
             )
@@ -585,13 +588,22 @@ extension PlatformAPI {
         msgRows: [JSONObject],
         threadID: String
     ) throws -> MessagePayloadRows {
+        guard !msgRows.isEmpty else {
+            return MessagePayloadRows(attachmentRows: [], reactionRows: [])
+        }
+
         let msgRowIDs = msgRows.compactMap { $0.int("ROWID") }
         let msgGUIDs = msgRows.compactMap { $0.string("guid") }
-        let chatRowID = msgRows.first?.int("chatRowID")
+        let chatRowIDs = Array(Set(msgRows.compactMap { $0.int("chatRowID") }))
+        let reactionRows: [JSONObject]
+        if !chatRowIDs.isEmpty {
+            reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatRowIDs: chatRowIDs)
+        } else {
+            reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
+        }
         return MessagePayloadRows(
             attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRowIDs)),
-            reactionRows: try chatRowID.map { try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatRowID: $0) }
-                ?? db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
+            reactionRows: reactionRows
         )
     }
 
@@ -610,22 +622,37 @@ extension PlatformAPI {
         let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.string("associated_message_guid") ?? "") })
 
         return try msgRows.flatMap { msgRow -> [JSONObject] in
-            let attachments = attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? []
-            let mapper = try Mapper(input: [
-                "msgRow": msgRow,
-                "attachmentRows": attachments,
-                "reactionRows": reactionRowsByMessageGUID[msgRow.string("guid") ?? ""] ?? [],
-                "currentUserID": currentUserID,
-                "accountID": accountID,
-            ])
-            let mapped = try mapper.mapMessage().filter { shouldKeepForAPI($0) }
-            return attachOriginalIfNeeded(
-                mapped,
+            try mapAndHashMessage(
                 msgRow: msgRow,
-                attachmentRows: attachments,
-                currentUserID: currentUserID
-            ).map(hashMessage)
+                attachmentRows: attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? [],
+                reactionRows: reactionRowsByMessageGUID[msgRow.string("guid") ?? ""] ?? [],
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
         }
+    }
+
+    nonisolated static func mapAndHashMessage(
+        msgRow: JSONObject,
+        attachmentRows: [JSONObject],
+        reactionRows: [JSONObject],
+        currentUserID: String,
+        accountID: String
+    ) throws -> [JSONObject] {
+        let mapper = Mapper(
+            msgRow: msgRow,
+            attachmentRows: attachmentRows,
+            reactionRows: reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        let mapped = try mapper.mapMessage().filter { shouldKeepForAPI($0) }
+        return attachOriginalIfNeeded(
+            mapped,
+            msgRow: msgRow,
+            attachmentRows: attachmentRows,
+            currentUserID: currentUserID
+        ).map(hashMessage)
     }
 
     nonisolated static func shouldKeepForAPI(_ message: JSONObject) -> Bool {

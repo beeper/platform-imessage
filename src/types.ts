@@ -183,22 +183,6 @@ MappedMessageRow,
 'participantID'
 >
 
-// db-api.ts -> SQLS
-export type MappedAttachmentRow = {
-  msgRowID: number
-  filename: string
-  transfer_name: string
-  total_bytes: number
-  is_sticker: number
-  attachmentID: string
-  transfer_state: number
-
-  size?: { width: number, height: number }
-  ext: string
-  fileName: string // this is not MappedAttachmentRow.filename and intentional
-  filePath: string
-}
-
 export interface OTRValue {
   /** The zero-based index pointing to the beginning of this part of the original message. */
   lo: number

@@ -1,14 +1,9 @@
-import NodeAPI
 import Foundation
 import ImageIO
 
 struct ImageMetadata: Sendable {
     let width: Int
     let height: Int
-
-    func nodeValue() -> [String: NodePropertyConvertible] {
-        ["width": width, "height": height]
-    }
 }
 
 enum ImageMetadataReader {

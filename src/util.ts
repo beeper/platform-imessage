@@ -1,17 +1,7 @@
-import os from 'os'
 import fs from 'fs/promises'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
 export { shellExec } from './shell-exec'
-
-const HOMEDIR = os.homedir()
-export function replaceTilde(str: string): string
-export function replaceTilde(str: undefined): undefined
-export function replaceTilde(str: string | undefined): string | undefined
-export function replaceTilde(str?: string) {
-  if (str?.[0] === '~') return HOMEDIR + str.slice(1)
-  return str
-}
 
 export const getDataURI = (buffer: Buffer, mimeType = '') =>
   `data:${mimeType};base64,${buffer.toString('base64')}`

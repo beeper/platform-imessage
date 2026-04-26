@@ -98,6 +98,24 @@ func parseTweetURL(_ url: String) -> (username: String, tweetID: String)? {
     return (username: match[1], tweetID: match[2])
 }
 
+private let legacyAssetAccountPlaceholder = "$accountID"
+
+private func legacyAssetURL(path: String) -> String {
+    "asset://\(legacyAssetAccountPlaceholder)/\(path)"
+}
+
+func fileAttachmentAssetURL(filePath: String) -> String {
+    legacyAssetURL(path: filePath.utf8.map { String(format: "%02x", $0) }.joined())
+}
+
+func digitalTouchAssetURL(uuid: String) -> String {
+    legacyAssetURL(path: "dt/\(uuid).mov")
+}
+
+func handwritingAssetURL(uuid: String) -> String {
+    legacyAssetURL(path: "hw/\(uuid).png")
+}
+
 extension String {
     func firstMatch(against regex: NSRegularExpression) -> [String]? {
         let range = NSRange(startIndex ..< endIndex, in: self)

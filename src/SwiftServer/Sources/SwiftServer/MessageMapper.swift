@@ -1,18 +1,6 @@
 import Foundation
 import SwiftServerFoundation
 
-enum MessageMapper {
-    static func mapMessageJSON(_ inputJSON: String) throws -> String {
-        let inputData = try inputJSON.data(using: .utf8).orThrow(ErrorMessage("mapper input wasn't utf8"))
-        let decoded = try JSONSerialization.jsonObject(with: inputData)
-        let input = try (decoded as? JSONObject).orThrow(ErrorMessage("mapper input wasn't an object"))
-        let mapper = try Mapper(input: input)
-        let messages = try mapper.mapMessage()
-        let outputData = try JSONSerialization.data(withJSONObject: messages)
-        return try String(data: outputData, encoding: .utf8).orThrow(ErrorMessage("mapper output wasn't utf8"))
-    }
-}
-
 struct Mapper {
     let msgRow: JSONObject
     let attachmentRows: [JSONObject]
@@ -20,12 +8,28 @@ struct Mapper {
     let currentUserID: String
     let accountID: String
 
+    init(
+        msgRow: JSONObject,
+        attachmentRows: [JSONObject],
+        reactionRows: [JSONObject],
+        currentUserID: String,
+        accountID: String
+    ) {
+        self.msgRow = msgRow
+        self.attachmentRows = attachmentRows
+        self.reactionRows = reactionRows
+        self.currentUserID = currentUserID
+        self.accountID = accountID
+    }
+
     init(input: JSONObject) throws {
-        msgRow = try input.dictionary("msgRow").orThrow(ErrorMessage("mapper input missing msgRow"))
-        attachmentRows = input.array("attachmentRows").compactMap { $0 as? JSONObject }
-        reactionRows = input.array("reactionRows").compactMap { $0 as? JSONObject }
-        currentUserID = try input.string("currentUserID").orThrow(ErrorMessage("mapper input missing currentUserID"))
-        accountID = try input.string("accountID").orThrow(ErrorMessage("mapper input missing accountID"))
+        try self.init(
+            msgRow: input.dictionary("msgRow").orThrow(ErrorMessage("mapper input missing msgRow")),
+            attachmentRows: input.array("attachmentRows").compactMap { $0 as? JSONObject },
+            reactionRows: input.array("reactionRows").compactMap { $0 as? JSONObject },
+            currentUserID: input.string("currentUserID").orThrow(ErrorMessage("mapper input missing currentUserID")),
+            accountID: input.string("accountID").orThrow(ErrorMessage("mapper input missing accountID"))
+        )
     }
 
     func mapMessage() throws -> [JSONObject] {
@@ -191,7 +195,7 @@ struct Mapper {
             "type": "video",
             "isGif": true,
             // Prefer asset:// because Messages.app can take a few seconds to write this file to disk.
-            "srcURL": "asset://$accountID/dt/\(uuid).mov",
+            "srcURL": digitalTouchAssetURL(uuid: uuid),
             "size": ["width": 144, "height": 180],
         ]
     }
@@ -206,7 +210,7 @@ struct Mapper {
             "id": uuid,
             "type": "img",
             "isGif": true,
-            "srcURL": "asset://$accountID/hw/\(uuid).png",
+            "srcURL": handwritingAssetURL(uuid: uuid),
         ]
     }
 

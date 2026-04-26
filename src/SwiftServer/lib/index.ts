@@ -1,6 +1,6 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { OnServerEventCallback, Size, ThreadID } from '@textshq/platform-sdk'
+import type { OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
@@ -93,7 +93,6 @@ export const MESSAGES_CONTROLLER_METHOD_NAMES = [
 ] as const satisfies (keyof MessagesController)[]
 
 export type SwiftServer = {
-  appleInterfaceStyle: string
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
   enabledExperiments: string
@@ -102,10 +101,7 @@ export type SwiftServer = {
 
   PlatformAPI: typeof SwiftPlatformAPI
 
-  mapMessageJSON: (inputJSON: string) => string
-  getImageMetadata: (filePath: string) => Promise<Size | undefined>
   resolveThreadID: (threadID: ThreadID) => Promise<ThreadID>
-  hashParticipantID: (id: string) => string
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>
 

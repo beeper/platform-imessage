@@ -145,29 +145,47 @@ public extension IMDatabase {
         }.first
     }
 
-    func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [[String: Any]] {
-        guard !messageGUIDs.isEmpty else { return [] }
+    func attachmentFilename(messageRowID: Int) throws -> String? {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT a.filename FROM message_attachment_join AS maj
+        INNER JOIN attachment AS a ON a.ROWID = maj.attachment_id
+        WHERE maj.message_id = ?
+        """).reset()
+        try statement.bind(messageRowID)
+        return try statement.compactMapRowsUntilDone { row in
+            try row[0].optional(String.self)
+        }.first
+    }
+
+    func mappedReactionRows(messageGUIDs: [String], chatRowIDs: [Int]) throws -> [[String: Any]] {
+        guard !messageGUIDs.isEmpty, !chatRowIDs.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")
         let hasAssociatedEmoji = messageColumns.contains("associated_message_emoji")
         let columnNames = [
             "ROWID", "is_from_me", "handle_id", "associated_message_type", "associated_message_guid",
         ] + (hasAssociatedEmoji ? ["associated_message_emoji"] : []) + ["participantID"]
         let emojiColumn = hasAssociatedEmoji ? "associated_message_emoji," : ""
+        let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
+        let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
         let sql = """
         SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, \(emojiColumn) h.id AS participantID
         FROM message AS m
         LEFT JOIN handle AS h ON m.handle_id = h.ROWID
         LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-        WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (\(messageGUIDs.map { _ in "?" }.joined(separator: ",")))
-        AND chat_id = ?
+        WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (\(messageGUIDPlaceholders))
+        AND cmj.chat_id IN (\(chatRowIDPlaceholders))
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
-        bindings.append(chatRowID)
+        bindings.append(contentsOf: chatRowIDs.map { $0 as any SQLiteBindable })
         try statement.bind(bindings)
         return try statement.mapRowsUntilDone { row in
             try row.object(columnNames: columnNames)
         }
+    }
+
+    func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [[String: Any]] {
+        try mappedReactionRows(messageGUIDs: messageGUIDs, chatRowIDs: [chatRowID])
     }
 
     func mappedReactionRows(messageGUIDs: [String], chatGUID: String) throws -> [[String: Any]] {

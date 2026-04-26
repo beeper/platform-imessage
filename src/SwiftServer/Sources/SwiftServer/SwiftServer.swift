@@ -79,10 +79,6 @@ private func offNodeActor<T: Sendable>(
     var pollingTask: Task<Void, Never>?
 
     var dict: [String: NodePropertyConvertible] = try [
-        "appleInterfaceStyle": NodeProperty { _ in
-            UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
-        },
-
         "isMessagesAppInDock": NodeProperty { _ in
             Defaults.isAppInDock(bundleID: messagesBundleID)
         },
@@ -117,10 +113,6 @@ private func offNodeActor<T: Sendable>(
             try await offNodeActor {
                 try PlatformAPI.originalThreadID(db: IMDatabase(), threadID)
             }
-        },
-
-        "hashParticipantID": NodeFunction { (id: String) in
-            Hasher.participant.tokenizeRemembering(pii: id)
         },
 
         "cancelPollingIfNecessary": NodeFunction {
@@ -173,17 +165,6 @@ private func offNodeActor<T: Sendable>(
             try await MainActor.run {
                 try OSA.promptAutomationAccess()
             }
-        },
-
-        "mapMessageJSON": NodeFunction { (inputJSON: String) in
-            try MessageMapper.mapMessageJSON(inputJSON)
-        },
-
-        "getImageMetadata": NodeFunction { (filePath: String) async throws -> NodeValueConvertible in
-            guard let metadata = try await offNodeActor({ ImageMetadataReader.read(from: filePath) }) else {
-                return undefined
-            }
-            return metadata.nodeValue()
         },
 
         "confirmUNCPrompt": NodeFunction {

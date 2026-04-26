@@ -21,7 +21,7 @@ extension Mapper {
         }
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             if ext == "png" {
-                common["srcURL"] = "asset://$accountID/\((filePath ?? "").utf8.map { String(format: "%02x", $0) }.joined())"
+                common["srcURL"] = fileAttachmentAssetURL(filePath: filePath ?? "")
             }
             common["type"] = "img"
             common["size"] = attachmentRow["size"]
