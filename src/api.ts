@@ -170,7 +170,6 @@ export default class AppleiMessage implements PlatformAPI {
       // (DESK-13231; removed until this actually works)
       // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
       swiftServer.enabledExperiments = this.experiments
-      swiftServer.useSecondaryMessagesInstance = !!(process.env.IMESSAGE_USE_SECONDARY_INSTANCE || prefs?.use_secondary_messages_instance)
       texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
       texts.log('imessage useSecondaryMessagesInstance', swiftServer.useSecondaryMessagesInstance)
     }

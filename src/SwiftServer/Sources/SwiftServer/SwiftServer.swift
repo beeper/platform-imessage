@@ -87,7 +87,7 @@ enum Preferences {
     var dict: [String: NodePropertyConvertible] = try [
         "hashers": [
             "thread": try Hasher.thread.nodeValue(),
-            "participant": try Hasher.participant.nodeValue()
+            "participant": try Hasher.participant.nodeValue(),
         ].nodeValue(),
 
         "appleInterfaceStyle": NodeProperty { _ in
