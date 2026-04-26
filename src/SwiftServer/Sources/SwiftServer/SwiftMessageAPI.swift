@@ -11,16 +11,18 @@ enum SwiftMessageAPI {
         cursor: String?,
         direction: String?,
         currentUserID: String,
-        accountID: String
+        accountID: String,
+        limit: Int? = nil
     ) throws -> String {
         let db = try IMDatabase()
         let threadID = try originalThreadID(publicThreadID, db: db)
         let pageDirection = direction.flatMap(MappedMessagePageDirection.init(rawValue:))
+        let effectiveLimit = limit ?? messagePageLimit
         var msgRows = try db.mappedMessageRows(
             in: threadID,
             cursor: cursor,
             direction: pageDirection,
-            limit: messagePageLimit
+            limit: effectiveLimit
         )
         if pageDirection != .after {
             msgRows.reverse()
@@ -35,7 +37,7 @@ enum SwiftMessageAPI {
         )
         return try encodeJSON([
             "items": messages,
-            "hasMore": msgRows.count == messagePageLimit,
+            "hasMore": msgRows.count == effectiveLimit,
         ])
     }
 

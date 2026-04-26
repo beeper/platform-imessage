@@ -1,7 +1,7 @@
-import { CursorProp, MessageReaction, Paginated, Participant } from '@textshq/platform-sdk'
+import { MessageReaction, Paginated, Participant } from '@textshq/platform-sdk'
 import swiftServer from './SwiftServer/lib'
 
-interface Messagelike extends CursorProp {
+interface Messagelike {
   threadID?: string
   reactions?: MessageReaction[]
   senderID: string
@@ -9,7 +9,6 @@ interface Messagelike extends CursorProp {
 
 interface Threadlike {
   id: string
-  messages?: Paginated<Messagelike>
   participants: Paginated<Participant>
 }
 
@@ -63,18 +62,13 @@ export function hashThreadID(id: string): string {
   return hashers.thread.tokenizeRemembering(id)
 }
 
-function hashPaginated<T extends CursorProp>(paginated: Paginated<T>, hasher: (unhashed: T) => T): Paginated<T> {
-  return {
-    hasMore: paginated.hasMore,
-    items: paginated.items.map(hasher),
-  }
-}
-
 export function hashThread<T extends Threadlike>(thread: T): T {
   return ({
     ...thread,
     id: hashers.thread.tokenizeRemembering(thread.id),
-    ...(thread.messages ? { messages: hashPaginated(thread.messages, hashMessage) } : {}),
-    participants: hashPaginated(thread.participants, hashParticipant),
+    participants: {
+      ...thread.participants,
+      items: thread.participants.items.map(hashParticipant),
+    },
   })
 }

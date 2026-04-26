@@ -163,17 +163,23 @@ try {
   const failures = []
   let threadCursor
   let threadPagesChecked = 0
+  let getThreadsPagesChecked = 0
   while (threads.length < skipChats + chatLimit) {
     let page
     try {
-      page = await api.getThreads(
-        'normal',
-        threadCursor ? { cursor: threadCursor, direction: 'before' } : undefined,
-      )
+      const pagination = threadCursor ? { cursor: threadCursor, direction: 'before' } : undefined
+      const [currentPage, referencePage] = await Promise.all([
+        api.getThreads('normal', pagination),
+        referenceAPI.getThreads('normal', pagination),
+      ])
+      page = currentPage
       threadPagesChecked += 1
+      getThreadsPagesChecked += 1
+      recordDelta(failures, 'getThreads', { pageIndex: threadPagesChecked }, currentPage, referencePage)
     } catch (error) {
       threadPagesChecked += 1
-      failures.push({ phase: 'threads', pageIndex: threadPagesChecked, ...failureSummary(error) })
+      getThreadsPagesChecked += 1
+      failures.push({ phase: 'getThreads', pageIndex: threadPagesChecked, ...failureSummary(error) })
       break
     }
     threads.push(...page.items.filter(thread => !threads.some(existing => existing.id === thread.id)))
@@ -246,6 +252,7 @@ try {
   console.log(JSON.stringify({
     chatsChecked: selectedThreads.length,
     threadPagesChecked,
+    getThreadsPagesChecked,
     pagesChecked,
     getMessagesPagesChecked,
     getMessageItemsChecked,

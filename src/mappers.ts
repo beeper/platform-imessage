@@ -95,7 +95,7 @@ type Context = {
   accountID: string
   currentUserID: string
   handleRowsMap: { [threadID: string]: MappedHandleRow[] }
-  mapMessageArgsMap: { [threadID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] }
+  latestMessagesMap: { [threadID: string]: BeeperMessage[] | undefined }
   unreadCounts: Map<number /* chat rowid */, number>
   dndState: Set<string>
   reminders?: { [chatGUID: string]: ThreadReminder | undefined }
@@ -117,7 +117,7 @@ export function mapMessages(messages: MappedMessageRow[], attachmentRows?: Mappe
 export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const { currentUserID, accountID } = context
   const handleRows = context.handleRowsMap[chat.guid]
-  const mapMessageArgs = context.mapMessageArgsMap?.[chat.guid]
+  const messages = context.latestMessagesMap?.[chat.guid] ?? []
   const selfID = chat.last_addressed_handle || mapAccountLogin(chat.account_login) || currentUserID
   const selfParticipant: Participant | undefined = currentUserID === handleRows[0]?.participantID
     ? undefined
@@ -125,7 +125,6 @@ export function mapThread(chat: MappedChatRow, context: Context): BeeperThread {
   const participants = [...handleRows.map(h => mapParticipant(h, chat.display_name)), selfParticipant].filter(participant => participant != null)
   const isGroup = !!chat.room_name
   const isReadOnly = chat.state === 0 && chat.properties != null
-  const messages = mapMessageArgs ? mapMessages(...mapMessageArgs, currentUserID, accountID) : []
   /*
     props = {
       "com.apple.iChat.LastArchivedMessageID": [ 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', 101010 ],

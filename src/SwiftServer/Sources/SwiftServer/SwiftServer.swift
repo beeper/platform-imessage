@@ -201,7 +201,7 @@ enum Preferences {
             try MessageMapper.mapMessageJSON(inputJSON)
         },
 
-        "getMessages": NodeFunction { (threadID: String, cursor: String?, direction: String?, currentUserID: String, accountID: String) in
+        "getMessages": NodeFunction { (threadID: String, cursor: String?, direction: String?, currentUserID: String, accountID: String, limit: Int?) in
             let queue = try NodeAsyncQueue(label: "get-messages")
             return try NodePromise { deferred in
                 DispatchQueue.global(qos: .userInitiated).async {
@@ -211,7 +211,8 @@ enum Preferences {
                             cursor: cursor,
                             direction: direction,
                             currentUserID: currentUserID,
-                            accountID: accountID
+                            accountID: accountID,
+                            limit: limit
                         )
                     }
                     try? queue.run {

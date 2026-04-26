@@ -10,7 +10,7 @@ import PQueue from 'p-queue'
 import urlRegex from 'url-regex'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 
-import { BeeperThread } from './desktop-types'
+import { BeeperMessage, BeeperThread } from './desktop-types'
 import { convertCGBI } from './async-cgbi-to-png'
 import { mapThreads, mapMessages, mapThread, mapAccountLogin, reviveSwiftMapperValue } from './mappers'
 import { CHAT_DB_PATH, APP_BUNDLE_ID, TMP_MOBILE_SMS_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, IS_TAHOE_OR_UP, MIN_MACOS_VERSION_ERROR } from './constants'
@@ -19,7 +19,7 @@ import { csrStatus } from './csr'
 import { waitForFileToExist, shellExec, threadIDToAddress, getSingleParticipantAddress } from './util'
 import swiftServer, { ActivityStatus } from './SwiftServer/lib'
 import MessagesControllerWrapper from './mc'
-import type { ChatRow, MappedAttachmentRow, MappedHandleRow, MappedMessageRow, MappedReactionMessageRow } from './types'
+import type { ChatRow, MappedHandleRow, MappedMessageRow } from './types'
 import { hashMessage, hashParticipantID, hashThread, hashThreadID, originalThreadID } from './hashing'
 import { makeJSONPersistence, PersistedBatchGetResults, PersistedThreadProps, Persistence } from './persistence'
 import { makeAppleDate } from './time'
@@ -48,6 +48,7 @@ function getDNDState() {
 function parseSwiftMessageAPIJSON<T>(json: string): T {
   return reviveSwiftMapperValue(JSON.parse(json)) as T
 }
+
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
 
@@ -231,9 +232,16 @@ export default class AppleiMessage implements PlatformAPI {
     const threadID = await this.resolveThreadID(hashedThreadID)
     const chatRow = await db.getThread(threadID)
     if (!chatRow) return
-    const [handleRows, lastMessageRows, unreadCounts, dndState] = await Promise.all([
+    const [handleRows, latestMessagesResult, unreadCounts, dndState] = await Promise.all([
       db.getThreadParticipants(chatRow.ROWID),
-      db.fetchLastMessageRows(chatRow.ROWID),
+      parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftServer.getMessages(
+        chatRow.guid,
+        undefined,
+        undefined,
+        this.currentUser!.id,
+        this.accountID,
+        1,
+      )),
       db.getUnreadCounts(),
       getDNDState(),
     ])
@@ -243,7 +251,7 @@ export default class AppleiMessage implements PlatformAPI {
         accountID: this.accountID,
         handleRowsMap: { [chatRow.guid]: handleRows },
         currentUserID: this.currentUser!.id,
-        mapMessageArgsMap: { [chatRow.guid]: lastMessageRows },
+        latestMessagesMap: { [chatRow.guid]: latestMessagesResult.items },
         unreadCounts,
         dndState,
         reminders: { [chatRow.guid]: this.persistence?.getThreadProp(hashThreadID(chatRow.guid), 'reminder') },
@@ -262,8 +270,7 @@ export default class AppleiMessage implements PlatformAPI {
       const existingThread = await this.getThread(DEFAULT_THREAD_PREFIX + `;-;${address}`)
       if (existingThread) {
         if (message) this.sendMessage(existingThread.id, { text: message })
-        // NOTE(types): appease typescript, but we aren't actually using the texts SDK contract
-        return hashThread(existingThread) as Thread
+        return existingThread
       }
     } else {
       // potential todo: we can search for an existing thread with the specified userIDs here
@@ -305,15 +312,25 @@ export default class AppleiMessage implements PlatformAPI {
     if (texts.isLoggingEnabled) console.time('imsg dbapi')
     const chatRows = await db.getThreads(pagination)
     if (texts.isLoggingEnabled) console.timeEnd('imsg dbapi')
-    const mapMessageArgsMap: { [chatGUID: string]: [MappedMessageRow[], MappedAttachmentRow[], MappedReactionMessageRow[]] } = {}
+    const latestMessagesMap: { [chatGUID: string]: BeeperMessage[] } = {}
     const handleRowsMap: { [chatGUID: string]: MappedHandleRow[] } = {}
     const allMsgRows: MappedMessageRow[] = []
     if (texts.isLoggingEnabled) console.time('imsg Promise.all')
     const [, , unreadCounts, dndState] = await Promise.all([
       Promise.all(chatRows.map(async chat => {
-        const [msgRows, attachmentRows, reactionRows] = await db.fetchLastMessageRows(chat.ROWID)
-        if (!cursor) allMsgRows.push(...msgRows)
-        mapMessageArgsMap[chat.guid] = [msgRows, attachmentRows, reactionRows]
+        const response = parseSwiftMessageAPIJSON<Paginated<BeeperMessage>>(await swiftServer.getMessages(
+          chat.guid,
+          undefined,
+          undefined,
+          this.currentUser!.id,
+          this.accountID,
+          1,
+        ))
+        latestMessagesMap[chat.guid] = response.items
+        if (!cursor) {
+          const [msgRows] = await db.fetchLastMessageRows(chat.ROWID)
+          allMsgRows.push(...msgRows)
+        }
       })),
       Promise.all(chatRows.map(async chat => {
         handleRowsMap[chat.guid] = await db.getThreadParticipants(chat.ROWID)
@@ -338,7 +355,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
     const items = mapThreads(chatRows, {
       accountID: this.accountID,
-      mapMessageArgsMap,
+      latestMessagesMap,
       handleRowsMap,
       dndState,
       unreadCounts,
@@ -367,6 +384,7 @@ export default class AppleiMessage implements PlatformAPI {
       pagination?.direction,
       this.currentUser!.id,
       this.accountID,
+      undefined,
     ))
   }
 
