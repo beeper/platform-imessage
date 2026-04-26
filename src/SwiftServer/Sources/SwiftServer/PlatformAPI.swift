@@ -10,9 +10,6 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
-var stripInternalFields: Bool {
-    PlatformEnvironment.stripInternalFields
-}
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = Protected<IMDatabase?>()
@@ -1151,7 +1148,7 @@ extension PlatformAPI {
         attachmentRows: [JSONObject],
         currentUserID: String
     ) -> [JSONObject] {
-        guard !stripInternalFields else {
+        guard !Preferences.stripInternalFields else {
             return messages
         }
 

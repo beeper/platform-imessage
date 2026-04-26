@@ -49,7 +49,7 @@ struct PlatformCLI: AsyncParsableCommand {
             keepAlive: stayOpen,
             loggingEnabled: verbose,
             subscribeToEvents: !noEvents,
-            useSecondaryInstance: useSecondaryInstance || PlatformEnvironment.useSecondaryInstance
+            useSecondaryInstance: useSecondaryInstance || SwiftServerHost.useSecondaryInstanceEnvironment
         )
         try await Runner(options: options).run()
     }

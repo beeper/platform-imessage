@@ -90,7 +90,7 @@ enum ThreadMapper {
             "isLowPriority": false,
         ])
 
-        if !stripInternalFields {
+        if !Preferences.stripInternalFields {
             thread["_original"] = (try? encodeJSON([chat, handleRows])) ?? ""
         }
         return thread

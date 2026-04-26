@@ -6,13 +6,6 @@ import IMDatabase
 
 private let log = Logger(swiftServerLabel: "swift-server")
 
-enum Preferences {
-    static var isLoggingEnabled: Bool = false
-    static var isPHTEnabled: Bool = false
-    static var enabledExperiments: String = ""
-    static var useSecondaryMessagesInstance: Bool = false
-}
-
 public enum SwiftServerHost {
     public typealias EventCallback = @Sendable ([PASEvent]) async throws -> Void
     public typealias SentryReporter = @Sendable (String) -> Void
@@ -27,6 +20,10 @@ public enum SwiftServerHost {
 
     public static var isNotificationsEnabledForMessages: Bool {
         Defaults.isNotificationsEnabledForApp(bundleID: messagesBundleID)
+    }
+
+    public static var useSecondaryInstanceEnvironment: Bool {
+        Preferences.useSecondaryInstanceEnvironment
     }
 
     public static var enabledExperiments: String {
@@ -87,6 +84,30 @@ public enum SwiftServerHost {
             } else {
                 log.debug("couldn't inject settings menu item, macOS 13 or later is needed")
             }
+        }
+    }
+
+    public static func bootstrapWithOptions(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool) {
+        Preferences.applyCLIDefaults()
+        Preferences.setLoggingDirectory(dataDirPath)
+        Preferences.setUseSecondaryInstance(useSecondaryInstance)
+        Preferences.isLoggingEnabled = verbose
+        Defaults.registerDefaults()
+
+        bootstrapLock.lock()
+        defer { bootstrapLock.unlock() }
+        guard !didBootstrap else { return }
+        didBootstrap = true
+
+        LoggingSystem.bootstrap { identifier in
+            SwiftServerLogHandler(
+                identifier: identifier,
+                logLevel: verbose ? .trace : .info
+            )
+        }
+
+        Task {
+            try? await LogFileCoordinator.shared?.tryTrimming()
         }
     }
 

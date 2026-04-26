@@ -1,21 +1,24 @@
 import Foundation
 
-public enum PlatformEnvironment {
-    private static let skipEagerMCKey = "IMESSAGE_SKIP_EAGER_MC"
+enum Preferences {
     private static let stripInternalFieldsKey = "IMESSAGE_STRIP_INTERNAL_FIELDS"
     private static let loggingDirectoryKey = "IMESSAGE_LOGGING_DIR_PATH"
     private static let secondaryInstanceKey = "IMESSAGE_USE_SECONDARY_INSTANCE"
+
+    static var isLoggingEnabled: Bool = false
+    static var isPHTEnabled: Bool = false
+    static var enabledExperiments: String = ""
+    static var useSecondaryMessagesInstance: Bool = false
 
     static var stripInternalFields: Bool {
         ProcessInfo.processInfo.environment[stripInternalFieldsKey] == "1"
     }
 
-    public static var useSecondaryInstance: Bool {
+    static var useSecondaryInstanceEnvironment: Bool {
         ProcessInfo.processInfo.environment[secondaryInstanceKey] != nil
     }
 
     static func applyCLIDefaults() {
-        setDefault(skipEagerMCKey, value: "1")
         setDefault(stripInternalFieldsKey, value: "1")
     }
 
@@ -25,7 +28,7 @@ public enum PlatformEnvironment {
 
     static func setUseSecondaryInstance(_ enabled: Bool) {
         setenv(secondaryInstanceKey, enabled ? "1" : "0", 1)
-        Preferences.useSecondaryMessagesInstance = enabled
+        useSecondaryMessagesInstance = enabled
     }
 
     private static func setDefault(_ key: String, value: String) {

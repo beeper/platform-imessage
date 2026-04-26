@@ -55,9 +55,9 @@ import SwiftServer
             let sentryQueue = try? NodeAsyncQueue(label: "polling-lifecycle-sentry")
             let onEvent = SendableBox(onEvent)
             SwiftServerHost.setEventCallback { events in
-                try await eventQueue.run {
+                try eventQueue.run {
                     let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
-                    try await onEvent.value.call([nodeEvents])
+                    try onEvent.value.call([nodeEvents])
                 }
             } reportToSentry: { message in
                 try? sentryQueue?.run {
