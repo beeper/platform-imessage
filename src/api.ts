@@ -484,20 +484,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
-    if (!IS_VENTURA_OR_UP) throw Error('supported on ventura and above')
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    const controller = await this.getMessagesController()
-    await controller.undoSend(threadID, messageID)
+    await this.swiftPlatformAPI!.deleteMessage(hashedThreadID, messageID)
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  private toggleThreadRead = (read: boolean) => async (hashedThreadID: ThreadID) => {
-    const threadID = await this.resolveThreadID(hashedThreadID)
-    const controller = await this.getMessagesController()
-    await controller.toggleThreadRead(threadID, read)
-  }
-
-  markAsUnread = this.toggleThreadRead(false) // ventura and up only
+  markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
 
   sendReadReceipt = async (hashedThreadID: ThreadID, messageID?: MessageID) => {
     await pRetry(async () => {
@@ -520,8 +510,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (!hashedThreadID) return
     if (!this.onEvent) return
 
-    const messagesController = await this.getMessagesController()
-    return this.swiftPlatformAPI!.onThreadSelected(hashedThreadID, this.onEvent, messagesController)
+    return this.swiftPlatformAPI!.onThreadSelected(hashedThreadID, this.onEvent)
   }
 
   //   private getThreadMessagesChecksum = async (threadID: ThreadID, afterCursor: string) => {

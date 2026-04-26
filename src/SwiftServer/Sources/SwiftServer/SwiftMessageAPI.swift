@@ -176,6 +176,22 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return try wrapper.notifyAnyway(threadID: threadID)
     }
 
+    @NodeMethod func deleteMessage(threadID publicThreadID: String, messageID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.undoSend(threadID: threadID, messageID: messageID)
+    }
+
+    @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        let wrapper = try await getMessagesControllerWrapper()
+        return try wrapper.toggleThreadRead(threadID: threadID, read: false)
+    }
+
     @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
         let database = database
         let (threadID, isRead) = try await Self.offNodeActor {
@@ -253,11 +269,10 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         messagesControllerWrapper = nil
     }
 
-    @NodeMethod func onThreadSelected(_ args: NodeArguments) throws -> NodeValueConvertible {
-        guard args.count == 3,
+    @NodeMethod func onThreadSelected(_ args: NodeArguments) async throws -> NodeValueConvertible {
+        guard args.count == 2,
               let publicThreadID = try args[0].as(String.self),
-              let sendEvents = try args[1].as(NodeFunction.self),
-              let messagesController = try args[2].as(MessagesControllerWrapper.self)
+              let sendEvents = try args[1].as(NodeFunction.self)
         else {
             throw ErrorMessage("Bad PlatformAPI call: \(#function)")
         }
@@ -277,6 +292,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let singleParticipantID = singleParticipantAddress(threadID)
         platformLog.debug("activity/\(publicThreadID): watching")
 
+        let messagesController = try await getMessagesControllerWrapper()
         return try messagesController.watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
             platformLog.debug("activity/\(publicThreadID): received \(statuses.map(\.rawValue))")
 

@@ -62,9 +62,13 @@ export declare class SwiftPlatformAPI {
 
   searchMessages: (query: string, threadID: string | undefined, mediaOnly: boolean | undefined, sender: string | undefined, limit?: number) => Promise<string>
 
-  onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback, messagesController: MessagesController) => Promise<void>
+  onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
 
   notifyAnyway: (threadID: ThreadID) => Promise<void>
+
+  deleteMessage: (threadID: ThreadID, messageID: string) => Promise<void>
+
+  markAsUnread: (threadID: ThreadID) => Promise<void>
 
   sendReadReceipt: (threadID: ThreadID) => Promise<void>
 
