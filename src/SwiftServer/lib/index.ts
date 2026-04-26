@@ -1,13 +1,44 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
+import type { ActivityType, MessageID, OnServerEventCallback, PaginationArg, ThreadFolderName, ThreadID, UserID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
 export declare class SwiftPlatformAPI {
   constructor(accountID: string)
 
-  createThread: (addresses: string[], title: string | undefined, message: string | undefined) => Promise<string>
+  getCurrentUser: () => Promise<string>
+
+  searchMessages: (
+    typed: string,
+    threadID: ThreadID | undefined,
+    mediaOnly: boolean | undefined,
+    sender: 'me' | UserID | undefined,
+    limit?: number,
+  ) => Promise<string>
+
+  getThreads: (
+    folderName: ThreadFolderName,
+    cursor: string | undefined,
+    direction: PaginationArg['direction'] | undefined,
+  ) => Promise<string>
+
+  getMessages: (
+    threadID: ThreadID,
+    cursor: string | undefined,
+    direction: PaginationArg['direction'] | undefined,
+    limit?: number,
+  ) => Promise<string>
+
+  getThread: (threadID: ThreadID) => Promise<string>
+
+  getMessage: (threadID: ThreadID, messageID: MessageID) => Promise<string>
+
+  createThread: (userIDs: UserID[], title: string | undefined, messageText: string | undefined) => Promise<string>
+
+  updateThread: (threadID: ThreadID, muted: boolean) => Promise<void>
+
+  deleteThread: (threadID: ThreadID) => Promise<void>
 
   sendMessage: (
     threadID: ThreadID,
@@ -23,37 +54,25 @@ export declare class SwiftPlatformAPI {
     quotedMessageID?: string,
   ) => Promise<string>
 
-  setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
+  editMessage: (threadID: ThreadID, messageID: MessageID, content: string | undefined) => Promise<void>
 
-  getCurrentUser: () => Promise<string>
+  sendActivityIndicator: (type: ActivityType, threadID: ThreadID | undefined, sendingMessagesCount?: number) => Promise<void>
 
-  getMessages: (threadID: string, cursor: string | undefined, direction: 'after' | 'before' | undefined, limit?: number) => Promise<string>
+  deleteMessage: (threadID: ThreadID, messageID: MessageID) => Promise<void>
 
-  getMessage: (threadID: string, messageID: string) => Promise<string>
+  sendReadReceipt: (threadID: ThreadID) => Promise<void>
 
-  getThreads: (folderName: string, cursor: string | undefined, direction: 'after' | 'before' | undefined) => Promise<string>
+  addReaction: (threadID: ThreadID, messageID: MessageID, reactionKey: string) => Promise<void>
 
-  getThread: (threadID: string) => Promise<string>
+  removeReaction: (threadID: ThreadID, messageID: MessageID, reactionKey: string) => Promise<void>
 
-  searchMessages: (query: string, threadID: string | undefined, mediaOnly: boolean | undefined, sender: string | undefined, limit?: number) => Promise<string>
-
-  onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
-
-  notifyAnyway: (threadID: ThreadID) => Promise<void>
-
-  deleteMessage: (threadID: ThreadID, messageID: string) => Promise<void>
-
-  editMessage: (threadID: ThreadID, messageID: string, newText: string | undefined) => Promise<void>
-
-  deleteThread: (threadID: ThreadID) => Promise<void>
-
-  updateThread: (threadID: ThreadID, muted: boolean) => Promise<void>
-
-  sendActivityIndicator: (type: string, threadID: ThreadID | undefined, sendingMessagesCount?: number) => Promise<void>
+  setReaction: (threadID: ThreadID, messageID: MessageID, reaction: string, on: boolean) => Promise<void>
 
   markAsUnread: (threadID: ThreadID) => Promise<void>
 
-  sendReadReceipt: (threadID: ThreadID) => Promise<void>
+  notifyAnyway: (threadID: ThreadID) => Promise<void>
+
+  onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
 
   getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 

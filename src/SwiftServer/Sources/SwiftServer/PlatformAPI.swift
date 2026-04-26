@@ -86,28 +86,27 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
-        try await runDBQuery { db, currentUserID, accountID in
-            try Self.getMessages(
-                db: db,
-                threadID: threadID,
-                cursor: cursor,
-                direction: direction,
-                currentUserID: currentUserID,
-                accountID: accountID,
-                limit: limit
-            )
+    @NodeMethod func getCurrentUser() async throws -> String {
+        let database = database
+        let currentUserCache = currentUserCache
+        return try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try jsonStringify(Self.currentUser(db: db, cache: currentUserCache).hashed())
+            }
         }
     }
 
-    @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
+    @NodeMethod func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
-            try Self.getMessage(
+            try Self.searchMessages(
                 db: db,
+                query: typed,
                 threadID: threadID,
-                messageID: messageID,
+                mediaOnly: mediaOnly ?? false,
+                sender: sender,
                 currentUserID: currentUserID,
-                accountID: accountID
+                accountID: accountID,
+                limit: limit
             )
         }
     }
@@ -125,6 +124,20 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
+    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
+        try await runDBQuery { db, currentUserID, accountID in
+            try Self.getMessages(
+                db: db,
+                threadID: threadID,
+                cursor: cursor,
+                direction: direction,
+                currentUserID: currentUserID,
+                accountID: accountID,
+                limit: limit
+            )
+        }
+    }
+
     @NodeMethod func getThread(threadID: String) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThread(
@@ -136,44 +149,31 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func searchMessages(query: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
+    @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
         try await runDBQuery { db, currentUserID, accountID in
-            try Self.searchMessages(
+            try Self.getMessage(
                 db: db,
-                query: query,
                 threadID: threadID,
-                mediaOnly: mediaOnly ?? false,
-                sender: sender,
+                messageID: messageID,
                 currentUserID: currentUserID,
-                accountID: accountID,
-                limit: limit
+                accountID: accountID
             )
         }
     }
 
-    @NodeMethod func getCurrentUser() async throws -> String {
-        let database = database
-        let currentUserCache = currentUserCache
-        return try await Self.offNodeActor {
-            try database.withDatabase { db in
-                try jsonStringify(Self.currentUser(db: db, cache: currentUserCache).hashed())
-            }
-        }
-    }
+    @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {
+        let userIDs = try userIDsValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
 
-    @NodeMethod func createThread(addresses addressesValue: NodeArray, title: String?, message: String?) async throws -> String {
-        let addresses = try addressesValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
-
-        guard !addresses.isEmpty else {
+        guard !userIDs.isEmpty else {
             return "false"
         }
 
-        guard let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let messageText, !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ErrorMessage("no message")
         }
 
-        if addresses.count == 1 {
-            let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(addresses[0])"
+        if userIDs.count == 1 {
+            let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(userIDs[0])"
             let existingThread = try await runDBQuery { db, currentUserID, accountID in
                 try Self.getThread(
                     db: db,
@@ -189,7 +189,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
                     try controller.sendMessage(
                         threadID: existingThreadID,
                         addresses: nil,
-                        text: message,
+                        text: messageText,
                         filePath: nil,
                         quotedMessage: nil
                     )
@@ -202,13 +202,27 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         try await Self.onMessagesControllerQueue {
             try controller.sendMessage(
                 threadID: nil,
-                addresses: addresses,
-                text: message,
+                addresses: userIDs,
+                text: messageText,
                 filePath: nil,
                 quotedMessage: nil
             )
         }
         return "true"
+    }
+
+    @NodeMethod func updateThread(threadID publicThreadID: String, muted: Bool) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        return try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
+    }
+
+    @NodeMethod func deleteThread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
+        return try await performOnController { try $0.deleteThread(threadID: threadID) }
     }
 
     @NodeMethod func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
@@ -252,37 +266,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return try await sendMessage(threadID: publicThreadID, text: nil, filePath: filePath, quotedMessageID: quotedMessageID)
     }
 
-    @NodeMethod func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws -> NodeValueConvertible {
-        if reaction == "sticker" {
-            throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
-        }
-
-        let database = database
-        let threadID = try await Self.offNodeActor {
-            try database.withDatabase { db in
-                try Self.originalThreadID(db: db, publicThreadID)
-            }
-        }
-
-        try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
-        return undefined
-    }
-
-    @NodeMethod func notifyAnyway(threadID publicThreadID: String) async throws -> NodeValueConvertible {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
-        return try await performOnController { try $0.notifyAnyway(threadID: threadID) }
-    }
-
-    @NodeMethod func deleteMessage(threadID publicThreadID: String, messageID: String) async throws -> NodeValueConvertible {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
-        return try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
-    }
-
-    @NodeMethod func editMessage(threadID publicThreadID: String, messageID: String, newText text: String?) async throws -> NodeValueConvertible {
+    @NodeMethod func editMessage(threadID publicThreadID: String, messageID: String, content text: String?) async throws -> NodeValueConvertible {
         guard isVenturaOrUp else {
             throw ErrorMessage("Only supported on macOS Ventura or later")
         }
@@ -295,20 +279,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             try Self.originalThreadID(db: db, publicThreadID)
         }
         return try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
-    }
-
-    @NodeMethod func deleteThread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
-        return try await performOnController { try $0.deleteThread(threadID: threadID) }
-    }
-
-    @NodeMethod func updateThread(threadID publicThreadID: String, muted: Bool) async throws -> NodeValueConvertible {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
-        return try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
     }
 
     @NodeMethod func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws -> NodeValueConvertible {
@@ -344,11 +314,11 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+    @NodeMethod func deleteMessage(threadID publicThreadID: String, messageID: String) async throws -> NodeValueConvertible {
         let threadID = try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-        return try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
+        return try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
     @NodeMethod func sendReadReceipt(threadID publicThreadID: String) async throws -> NodeValueConvertible {
@@ -373,100 +343,42 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         }
     }
 
-    @NodeMethod func getAsset(pathHex: String, methodName: String?) async throws -> NodeValueConvertible {
-        let database = database
-        let asset = try await Self.offNodeActor {
-            try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
-        }
-        switch asset {
-        case let .url(url):
-            return url
-        case let .data(data):
-            return data
-        }
+    @NodeMethod func addReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws -> NodeValueConvertible {
+        try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: true)
     }
 
-    private func performOnController(
-        forceInvalidate: Bool = false,
-        _ action: @escaping @Sendable (MessagesController) throws -> Void
-    ) async throws -> NodeValueConvertible {
-        let controller = try await getMessagesController(forceInvalidate: forceInvalidate)
-        try await Self.onMessagesControllerQueue { try action(controller) }
+    @NodeMethod func removeReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws -> NodeValueConvertible {
+        try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
+    }
+
+    @NodeMethod func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws -> NodeValueConvertible {
+        if reaction == "sticker" {
+            throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
+        }
+
+        let database = database
+        let threadID = try await Self.offNodeActor {
+            try database.withDatabase { db in
+                try Self.originalThreadID(db: db, publicThreadID)
+            }
+        }
+
+        try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
         return undefined
     }
 
-    private func getMessagesController(forceInvalidate: Bool = false) async throws -> MessagesController {
-        guard !hasBeenDisposed.read() else {
-            throw ErrorMessage("PlatformAPI has been disposed")
+    @NodeMethod func markAsUnread(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
         }
-
-        if let existing = messagesController {
-            let isValid = try await Self.onMessagesControllerQueue {
-                existing.isValid
-            }
-            if isValid && !forceInvalidate {
-                return existing
-            }
-
-            platformLog.debug("disposing cached MessagesController (valid? \(isValid), invalidation forced? \(forceInvalidate))")
-            try disposeCachedMessagesController()
-        }
-
-        let controller = try await makeMessagesController()
-        let cleanupHook = try NodeEnvironment.current.addCleanupHook { completion in
-            Log.default.notice("[PlatformAPI] running MessagesController dispose inside cleanup hook")
-            controller.dispose()
-            completion()
-        }
-
-        guard !hasBeenDisposed.read() else {
-            try disposeMessagesController(controller, cleanupHook: cleanupHook)
-            throw ErrorMessage("PlatformAPI has been disposed")
-        }
-
-        messagesController = controller
-        messagesControllerCleanupHook = cleanupHook
-        return controller
+        return try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
-    private func disposeCachedMessagesController() throws {
-        guard let controller = messagesController else {
-            return
+    @NodeMethod func notifyAnyway(threadID publicThreadID: String) async throws -> NodeValueConvertible {
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
         }
-
-        let cleanupHook = messagesControllerCleanupHook
-        messagesController = nil
-        messagesControllerCleanupHook = nil
-        try disposeMessagesController(controller, cleanupHook: cleanupHook)
-    }
-
-    /// Disposes a controller. Clears the queue's idle callback and runs
-    /// `controller.dispose()` inside the same `queue.sync` critical section
-    /// so a pending idle callback can't fire against a half-disposed controller.
-    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: AsyncCleanupHook?) throws {
-        Log.default.notice("[PlatformAPI] disposing MessagesController")
-        Self.messagesControllerQueue.queue.sync {
-            Self.messagesControllerQueue.setIdleCallback(nil)
-            controller.dispose()
-        }
-        if let cleanupHook {
-            try NodeEnvironment.current.removeCleanupHook(cleanupHook)
-        }
-    }
-
-    @NodeMethod func dispose() async throws {
-        defer {
-            Self.cleanupTemporaryAttachmentDirectory()
-        }
-
-        hasBeenDisposed.withLock { $0 = true }
-        // OV2.A: clear cached current-user (and the Hasher tokens it implies)
-        // and tear down polling so a logout/relogin in Messages.app while
-        // Beeper restarts the account doesn't reuse stale state.
-        currentUserCache.withLock { $0 = nil }
-        SysPrefsOnboarding.stop()
-        await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
-        try disposeCachedMessagesController()
+        return try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
     @NodeMethod func onThreadSelected(_ args: NodeArguments) async throws -> NodeValueConvertible {
@@ -545,6 +457,102 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             }
 
             try sendEvents.dynamicallyCall(withArguments: [try events.nodeValue()])
+        }
+    }
+
+    @NodeMethod func getAsset(pathHex: String, methodName: String?) async throws -> NodeValueConvertible {
+        let database = database
+        let asset = try await Self.offNodeActor {
+            try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
+        }
+        switch asset {
+        case let .url(url):
+            return url
+        case let .data(data):
+            return data
+        }
+    }
+
+    @NodeMethod func dispose() async throws {
+        defer {
+            Self.cleanupTemporaryAttachmentDirectory()
+        }
+
+        hasBeenDisposed.withLock { $0 = true }
+        // OV2.A: clear cached current-user (and the Hasher tokens it implies)
+        // and tear down polling so a logout/relogin in Messages.app while
+        // Beeper restarts the account doesn't reuse stale state.
+        currentUserCache.withLock { $0 = nil }
+        SysPrefsOnboarding.stop()
+        await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
+        try disposeCachedMessagesController()
+    }
+
+    private func performOnController(
+        forceInvalidate: Bool = false,
+        _ action: @escaping @Sendable (MessagesController) throws -> Void
+    ) async throws -> NodeValueConvertible {
+        let controller = try await getMessagesController(forceInvalidate: forceInvalidate)
+        try await Self.onMessagesControllerQueue { try action(controller) }
+        return undefined
+    }
+
+    private func getMessagesController(forceInvalidate: Bool = false) async throws -> MessagesController {
+        guard !hasBeenDisposed.read() else {
+            throw ErrorMessage("PlatformAPI has been disposed")
+        }
+
+        if let existing = messagesController {
+            let isValid = try await Self.onMessagesControllerQueue {
+                existing.isValid
+            }
+            if isValid && !forceInvalidate {
+                return existing
+            }
+
+            platformLog.debug("disposing cached MessagesController (valid? \(isValid), invalidation forced? \(forceInvalidate))")
+            try disposeCachedMessagesController()
+        }
+
+        let controller = try await makeMessagesController()
+        let cleanupHook = try NodeEnvironment.current.addCleanupHook { completion in
+            Log.default.notice("[PlatformAPI] running MessagesController dispose inside cleanup hook")
+            controller.dispose()
+            completion()
+        }
+
+        guard !hasBeenDisposed.read() else {
+            try disposeMessagesController(controller, cleanupHook: cleanupHook)
+            throw ErrorMessage("PlatformAPI has been disposed")
+        }
+
+        messagesController = controller
+        messagesControllerCleanupHook = cleanupHook
+        return controller
+    }
+
+    private func disposeCachedMessagesController() throws {
+        guard let controller = messagesController else {
+            return
+        }
+
+        let cleanupHook = messagesControllerCleanupHook
+        messagesController = nil
+        messagesControllerCleanupHook = nil
+        try disposeMessagesController(controller, cleanupHook: cleanupHook)
+    }
+
+    /// Disposes a controller. Clears the queue's idle callback and runs
+    /// `controller.dispose()` inside the same `queue.sync` critical section
+    /// so a pending idle callback can't fire against a half-disposed controller.
+    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: AsyncCleanupHook?) throws {
+        Log.default.notice("[PlatformAPI] disposing MessagesController")
+        Self.messagesControllerQueue.queue.sync {
+            Self.messagesControllerQueue.setIdleCallback(nil)
+            controller.dispose()
+        }
+        if let cleanupHook {
+            try NodeEnvironment.current.removeCleanupHook(cleanupHook)
         }
     }
 

@@ -287,10 +287,10 @@ export default class AppleiMessage implements PlatformAPI {
     this.swiftPlatformAPI!.sendActivityIndicator(type, hashedThreadID, this.sendingMessagesCount)
 
   addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
-    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.setReaction(hashedThreadID, messageID, reactionKey, true))
+    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.addReaction(hashedThreadID, messageID, reactionKey))
 
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
-    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.setReaction(hashedThreadID, messageID, reactionKey, false))
+    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.removeReaction(hashedThreadID, messageID, reactionKey))
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     const swiftAPI = this.swiftPlatformAPI!
