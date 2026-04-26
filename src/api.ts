@@ -10,7 +10,6 @@ import DatabaseAPI from './db-api'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
-import MessagesControllerWrapper from './mc'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
@@ -65,9 +64,6 @@ export default class AppleiMessage implements PlatformAPI {
 
   private onEvent: OnServerEventCallback | undefined
 
-  private getMessagesController = () =>
-    MessagesControllerWrapper.get(this.swiftPlatformAPI!)
-
   private applyPersistedThreadState(thread: Thread): Thread {
     const archive = this.persistence?.getThreadProp(thread.id, 'archive')
     const reminder = this.persistence?.getThreadProp(thread.id, 'reminder')
@@ -104,17 +100,6 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log('imsg: created DatabaseAPI')
 
     this.swiftPlatformAPI = new swiftServer.PlatformAPI(this.accountID)
-
-    if (process.env.IMESSAGE_SKIP_EAGER_MC !== '1') {
-      // eslint-disable-next-line no-void
-      void this.getMessagesController()
-        .then(() => {
-          texts.log('imsg: fetched MessagesControllerWrapper')
-        })
-        .catch(error => {
-          texts.error('imsg: eager MessagesControllerWrapper fetch failed:', error)
-        })
-    }
 
     return this.cachedDB
   }

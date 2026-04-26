@@ -4,51 +4,8 @@ import type { OnServerEventCallback, ThreadID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
-export const enum ActivityStatus {
-  DND = 'DND',
-  DNDCanNotify = 'DND_CAN_NOTIFY',
-  Typing = 'TYPING',
-  NotTyping = 'NOT_TYPING',
-  Unknown = 'UNKNOWN',
-}
-
-export declare class MessagesController {
-  isValid: () => Promise<boolean>
-
-  createThread: (addresses: string[], messageText: string) => Promise<void>
-
-  toggleThreadRead: (threadID: ThreadID, read: boolean) => Promise<void>
-
-  muteThread: (threadID: ThreadID, muted: boolean) => Promise<void>
-
-  deleteThread: (threadID: ThreadID) => Promise<void>
-
-  undoSend: (threadID: ThreadID, messageID: string) => Promise<void>
-
-  editMessage: (threadID: ThreadID, messageID: string, newText: string) => Promise<void>
-
-  notifyAnyway: (threadID: ThreadID) => Promise<void>
-
-  sendTypingStatus: (threadID: ThreadID, isTyping: boolean) => Promise<void>
-
-  watchThreadActivity: (threadID?: ThreadID, onTyping?: (status: ActivityStatus[]) => void) => Promise<void>
-
-  sendMessage: (
-    threadID: ThreadID,
-    text?: string,
-    filePath?: string,
-    quotedMessageID?: string,
-  ) => Promise<void>
-
-  setReaction: (threadID: ThreadID, messageID: string, reaction: string, on: boolean) => Promise<void>
-
-  isSameContact: (addressA: string, addressB: string) => boolean
-}
-
 export declare class SwiftPlatformAPI {
   constructor(accountID: string)
-
-  getMessagesController: () => Promise<MessagesController>
 
   createThread: (addresses: string[], title: string | undefined, message: string | undefined) => Promise<string>
 
@@ -95,23 +52,6 @@ export declare class SwiftPlatformAPI {
 
   dispose: () => void
 }
-
-// purely for headless (REPL) tab-autocomplete
-export const MESSAGES_CONTROLLER_METHOD_NAMES = [
-  'isValid',
-  'createThread',
-  'toggleThreadRead',
-  'muteThread',
-  'deleteThread',
-  'undoSend',
-  'editMessage',
-  'notifyAnyway',
-  'sendTypingStatus',
-  'watchThreadActivity',
-  'sendMessage',
-  'setReaction',
-  'isSameContact',
-] as const satisfies (keyof MessagesController)[]
 
 export type SwiftServer = {
   isLoggingEnabled: boolean

@@ -18,10 +18,8 @@
     "prepack": "yarn build",
     "lint:swift": "swiftlint --fix --format src",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
-    "messages-controller-cli": "env NODE_OPTIONS=\"--force-node-api-uncaught-exceptions-policy=true\" electron messages-controller-cli.compiled.mjs",
     "cli": "env NODE_OPTIONS=\"--force-node-api-uncaught-exceptions-policy=true\" electron cli.compiled.mjs",
     "rebuild:native": "npx @electron/rebuild -v 41.2.1 -f -w better-sqlite3",
-    "build:messages-controller-cli": "bun build src/cli/messages-controller/index.ts --target=node --format=esm --external electron --outfile=messages-controller-cli.compiled.mjs",
     "build:cli": "bun build src/cli/index.ts --target=node --format=esm --external electron --external @textshq/platform-test-lib --external node-mac-permissions --outfile=cli.compiled.mjs",
     "build:swift-mapper-parity": "bun build .parity/check-swift-mapper-parity.mjs --target=node --format=esm --external electron --external @textshq/platform-test-lib --external node-mac-permissions --outfile .parity/check-swift-mapper-parity.compiled.mjs",
     "swift-mapper-parity": "yarn build:swift-mapper-parity && env NODE_OPTIONS=\"--force-node-api-uncaught-exceptions-policy=true\" electron .parity/check-swift-mapper-parity.compiled.mjs",
@@ -49,14 +47,12 @@
     "@types/lodash": "^4.14.182",
     "@types/node": "20.17.19",
     "@types/react": "^17.0.38",
-    "ansi-colors": "^4.1.3",
     "electron": "^41.2.1",
     "eslint": "^8.30.0",
     "jest": "^28.1.3",
     "node-gyp": "^11.0.0",
     "node-mac-permissions": "TextsHQ/node-mac-permissions.git",
     "node-swift": "https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71",
-    "p-retry": "^6",
     "react": "^18",
     "sass": "^1.76.0",
     "ts-jest": "^28.0.7",
@@ -74,7 +70,6 @@
   },
   "peerDependencies": {
     "node-mac-permissions": "*",
-    "p-retry": "^6",
     "react": "*"
   },
   "packageManager": "yarn@4.14.1"

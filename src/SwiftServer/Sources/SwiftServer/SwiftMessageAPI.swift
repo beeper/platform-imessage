@@ -521,24 +521,17 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         _ action: @escaping @Sendable (MessagesControllerWrapper) throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
-        var attempt = 0
-        while true {
-            do {
-                let context = try await prepareAttempt()
-                let wrapper = try await getMessagesControllerWrapper(forceInvalidate: attempt > 0)
-                try await Self.onMessagesControllerQueue {
-                    try action(wrapper)
-                }
-                try await afterAttempt?(context)
-                return context
-            } catch {
-                platformLog.error("\(name) failed, retries left: \(max(retries - attempt, 0)): \(error)")
-                try? await reportMessageToSentry("imessage \(name) failed: \(error)")
-                guard attempt < retries else {
-                    throw error
-                }
-                attempt += 1
+        try await retry(retries: retries) { attempt in
+            let context = try await prepareAttempt()
+            let wrapper = try await getMessagesControllerWrapper(forceInvalidate: attempt > 0)
+            try await Self.onMessagesControllerQueue {
+                try action(wrapper)
             }
+            try await afterAttempt?(context)
+            return context
+        } onError: { _, retriesLeft, error in
+            platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
+            try? await self.reportMessageToSentry("imessage \(name) failed: \(error)")
         }
     }
 
