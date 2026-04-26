@@ -56,18 +56,18 @@ public final class PlatformAPI {
     /// Runs a DB query off the NodeActor with the cached currentUserID resolved.
     /// Captures `accountID`, `database`, and `currentUserCache` before crossing
     /// into the @Sendable closure so `self` doesn't need to.
-    private func runDBQuery<T: Sendable>(
+    private func runDBQuery<T>(
         _ work: @escaping @Sendable (IMDatabase, String /*currentUserID*/, String /*accountID*/) throws -> T
     ) async throws -> T {
         let accountID = accountID
         let database = database
         let currentUserCache = currentUserCache
-        return try await NodeBridgeUtilities.offNodeActor {
+        return try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
                 let currentUserID = try Self.currentUser(db: db, cache: currentUserCache).id
                 return try work(db, currentUserID, accountID)
             }
-        }
+        }.value
     }
 
     nonisolated private static func currentUser(db: IMDatabase, cache: Protected<CurrentUser?>) throws -> CurrentUser {
@@ -107,7 +107,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
+    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> JSONObject {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThreads(
                 db: db,
@@ -120,7 +120,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
+    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> JSONObject {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getMessages(
                 db: db,
@@ -134,7 +134,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getThread(threadID: String) async throws -> String? {
+    public func getThread(threadID: String) async throws -> JSONObject? {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getThread(
                 db: db,
@@ -145,7 +145,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessage(threadID: String, messageID: String) async throws -> String? {
+    public func getMessage(threadID: String, messageID: String) async throws -> JSONObject? {
         try await runDBQuery { db, currentUserID, accountID in
             try Self.getMessage(
                 db: db,
@@ -188,7 +188,7 @@ public final class PlatformAPI {
                         quotedMessage: nil
                     )
                 }
-                return existingThread
+                return try encodeJSON(existingThread)
             }
         }
 
@@ -688,7 +688,7 @@ public final class PlatformAPI {
 
         let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
-        return try Self.encodeJSON(messages)
+        return try encodeJSON(messages)
     }
 
     private func waitForSentMessageIDs(
@@ -800,13 +800,13 @@ public final class PlatformAPI {
         direction: String?,
         currentUserID: String,
         accountID: String
-    ) throws -> String {
+    ) throws -> JSONObject {
         guard folderName == "normal" else {
-            return try encodeJSON([
+            return [
                 "items": [],
                 "hasMore": false,
                 "oldestCursor": "0",
-            ])
+            ]
         }
 
         let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
@@ -835,11 +835,11 @@ public final class PlatformAPI {
                 lastDateRead: Date(nanosecondsSinceReferenceDate: pollingCursor.maxDateReadNanoseconds)
             )
         }
-        return try encodeJSON(compactDictionary([
+        return compactDictionary([
             "items": threads,
             "hasMore": chatRows.count == mappedThreadsLimit,
             "oldestCursor": chatRows.last?.string("msgDateString"),
-        ]))
+        ])
     }
 
     nonisolated static func getThread(
@@ -847,7 +847,7 @@ public final class PlatformAPI {
         threadID publicThreadID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> String? {
+    ) throws -> JSONObject? {
         let threadID = try originalThreadID(db: db, publicThreadID)
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
             return nil
@@ -867,7 +867,7 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return try encodeJSON(ThreadMapper.mapAndHashThread(chatRow, context: context))
+        return try ThreadMapper.mapAndHashThread(chatRow, context: context)
     }
 
     nonisolated static func getMessages(
@@ -878,7 +878,7 @@ public final class PlatformAPI {
         currentUserID: String,
         accountID: String,
         limit: Int? = nil
-    ) throws -> String {
+    ) throws -> JSONObject {
         let threadID = try originalThreadID(db: db, publicThreadID)
         let pageDirection = direction.flatMap(MappedMessagePageDirection.init(rawValue:))
         let effectiveLimit = limit ?? messagePageLimit
@@ -900,10 +900,10 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return try encodeJSON([
+        return [
             "items": messages,
             "hasMore": msgRows.count == effectiveLimit,
-        ])
+        ]
     }
 
     nonisolated static func getMessage(
@@ -912,14 +912,14 @@ public final class PlatformAPI {
         messageID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> String? {
+    ) throws -> JSONObject? {
         try messageObject(
             db: db,
             threadID: publicThreadID,
             messageID: messageID,
             currentUserID: currentUserID,
             accountID: accountID
-        ).map(encodeJSON)
+        )
     }
 
     nonisolated static func messageObject(
@@ -1278,38 +1278,4 @@ extension PlatformAPI {
         }
     }
 
-    nonisolated static func encodeJSON(_ value: Any) throws -> String {
-        let data = try JSONSerialization.data(withJSONObject: jsonSerializable(value))
-        return try String(data: data, encoding: .utf8).orThrow(ErrorMessage("Swift message API output wasn't utf8"))
-    }
-
-    private nonisolated static func jsonSerializable(_ value: Any) -> Any {
-        switch value {
-        case let data as Data:
-            return "data:;base64,\(data.base64EncodedString())"
-        case let data as NSData:
-            return "data:;base64,\(data.base64EncodedString())"
-        case let dictionary as [String: Any]:
-            return dictionary.mapValues(jsonSerializable)
-        case let dictionary as NSDictionary:
-            var result = JSONObject()
-            for (key, child) in dictionary {
-                guard let key = key as? String else {
-                    continue
-                }
-                result[key] = jsonSerializable(child)
-            }
-            return result
-        case let array as [Any]:
-            return array.map(jsonSerializable)
-        case let array as NSArray:
-            return array.map(jsonSerializable)
-        case let url as URL:
-            return url.absoluteString
-        case let url as NSURL:
-            return url.absoluteString ?? ""
-        default:
-            return value
-        }
-    }
 }

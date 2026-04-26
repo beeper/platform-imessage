@@ -62,6 +62,62 @@ func jsonStringify<T: Encodable>(_ input: T) throws -> String {
     return String(decoding: data, as: UTF8.self)
 }
 
+public func encodeJSON(_ value: Any?) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: jsonSerializable(value), options: [.fragmentsAllowed])
+    return try String(data: data, encoding: .utf8).orThrow(ErrorMessage("Swift message API output wasn't utf8"))
+}
+
+private func jsonSerializable(_ value: Any?) -> Any {
+    guard let value else {
+        return NSNull()
+    }
+
+    if let optional = value as? OptionalProtocol {
+        return jsonSerializable(optional.anyValue)
+    }
+
+    switch value {
+    case let data as Data:
+        return "data:;base64,\(data.base64EncodedString())"
+    case let data as NSData:
+        return "data:;base64,\(data.base64EncodedString())"
+    case let dictionary as [String: Any]:
+        return dictionary.mapValues(jsonSerializable)
+    case let dictionary as NSDictionary:
+        var result = JSONObject()
+        for (key, child) in dictionary {
+            guard let key = key as? String else {
+                continue
+            }
+            result[key] = jsonSerializable(child)
+        }
+        return result
+    case let array as [Any]:
+        return array.map(jsonSerializable)
+    case let array as NSArray:
+        return array.map(jsonSerializable)
+    case let url as URL:
+        return url.absoluteString
+    case let url as NSURL:
+        return url.absoluteString ?? ""
+    default:
+        return value
+    }
+}
+
+private protocol OptionalProtocol {
+    var anyValue: Any? { get }
+}
+
+extension Optional: OptionalProtocol {
+    var anyValue: Any? {
+        switch self {
+        case .some(let value): return value
+        case .none: return nil
+        }
+    }
+}
+
 private let encoder = JSONEncoder()
 
 func fileURLString(_ filePath: String) -> String {

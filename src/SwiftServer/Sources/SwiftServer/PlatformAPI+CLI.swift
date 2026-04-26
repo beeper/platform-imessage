@@ -43,7 +43,7 @@ public final class PlatformCLIAPI {
 
     public func onThreadSelected(threadID: String, sendJSONEvents: @escaping @Sendable (String) async -> Void) async throws {
         try await platformAPI.onThreadSelected(threadID: threadID) { events in
-            let json = try PlatformAPI.encodeJSON(events)
+            let json = try encodeJSON(events)
             Task {
                 await sendJSONEvents(json)
             }
@@ -52,7 +52,7 @@ public final class PlatformCLIAPI {
 
     public func subscribeToEvents(_ sendJSONEvents: @escaping @Sendable (String) async -> Void) {
         PollingLifecycle.shared.setEventCallback { events in
-            let json = try PlatformAPI.encodeJSON(events.map { $0.jsonObject() })
+            let json = try encodeJSON(events.map { $0.jsonObject() })
             await sendJSONEvents(json)
         }
     }

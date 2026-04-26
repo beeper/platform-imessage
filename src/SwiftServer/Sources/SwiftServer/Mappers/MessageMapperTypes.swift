@@ -1,7 +1,7 @@
 import Foundation
 
-typealias JSONObject = [String: Any]
-typealias JSONArray = [Any]
+public typealias JSONObject = [String: Any]
+public typealias JSONArray = [Any]
 
 let objectReplacementCharacter = "\u{fffc}"
 let imessageExtensionCharacter = "\u{fffd}"

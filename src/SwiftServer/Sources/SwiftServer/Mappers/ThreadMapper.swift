@@ -91,7 +91,7 @@ enum ThreadMapper {
         ])
 
         if !stripInternalFields {
-            thread["_original"] = (try? PlatformAPI.encodeJSON([chat, handleRows])) ?? ""
+            thread["_original"] = (try? encodeJSON([chat, handleRows])) ?? ""
         }
         return thread
     }

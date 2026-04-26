@@ -18,19 +18,23 @@ import SwiftServerFoundation
     }
 
     @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
-        try await api.getThreads(folderName: folderName, cursor: cursor, direction: direction)
+        let threads = try await api.getThreads(folderName: folderName, cursor: cursor, direction: direction)
+        return try encodeJSON(threads)
     }
 
     @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
-        try await api.getMessages(threadID: threadID, cursor: cursor, direction: direction, limit: limit)
+        let messages = try await api.getMessages(threadID: threadID, cursor: cursor, direction: direction, limit: limit)
+        return try encodeJSON(messages)
     }
 
     @NodeMethod func getThread(threadID: String) async throws -> String {
-        try await api.getThread(threadID: threadID) ?? "null"
+        let thread = try await api.getThread(threadID: threadID)
+        return try encodeJSON(thread)
     }
 
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
-        try await api.getMessage(threadID: threadID, messageID: messageID) ?? "null"
+        let message = try await api.getMessage(threadID: threadID, messageID: messageID)
+        return try encodeJSON(message)
     }
 
     @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {

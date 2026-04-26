@@ -409,7 +409,8 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 0)
         try await context.invoke("getThreads", args: ["normal", pagination.cursor as Any, pagination.direction as Any]) { api in
-            try await api.platformAPI.getThreads(folderName: "normal", cursor: pagination.cursor, direction: pagination.direction)
+            let threads = try await api.platformAPI.getThreads(folderName: "normal", cursor: pagination.cursor, direction: pagination.direction)
+            return try encodeJSON(threads)
         }
     },
     CommandDefinition(
@@ -421,7 +422,10 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("getThread", args: [args[0]]) { api in try await api.platformAPI.getThread(threadID: args[0]) }
+        try await context.invoke("getThread", args: [args[0]]) { api in
+            let thread = try await api.platformAPI.getThread(threadID: args[0])
+            return try encodeJSON(thread)
+        }
     },
     CommandDefinition(
         name: "messages",
@@ -434,7 +438,8 @@ private let commandDefinitions: [CommandDefinition] = [
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 1)
         let threadID = pagination.positionals[0]
         try await context.invoke("getMessages", args: [threadID, pagination.cursor as Any, pagination.direction as Any]) { api in
-            try await api.platformAPI.getMessages(threadID: threadID, cursor: pagination.cursor, direction: pagination.direction, limit: nil)
+            let messages = try await api.platformAPI.getMessages(threadID: threadID, cursor: pagination.cursor, direction: pagination.direction, limit: nil)
+            return try encodeJSON(messages)
         }
     },
     CommandDefinition(
@@ -446,7 +451,10 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
-        try await context.invoke("getMessage", args: args) { api in try await api.platformAPI.getMessage(threadID: args[0], messageID: args[1]) }
+        try await context.invoke("getMessage", args: args) { api in
+            let message = try await api.platformAPI.getMessage(threadID: args[0], messageID: args[1])
+            return try encodeJSON(message)
+        }
     },
     CommandDefinition(
         name: "search",
