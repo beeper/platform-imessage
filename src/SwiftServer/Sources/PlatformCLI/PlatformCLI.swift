@@ -9,6 +9,8 @@ import SwiftServer
 private let accountID = "default"
 private let prompt = "imessage> "
 private let commandCategories: [Category] = [.general, .message, .chat]
+private let quitCommands: Set<String> = ["q", "quit", "exit"]
+private let isoFormatter = ISO8601DateFormatter()
 
 @main
 struct PlatformCLI: AsyncParsableCommand {
@@ -62,7 +64,58 @@ private enum AuthorizationRequirement: String {
     case accessibility
     case contacts
     case messagesData = "messages-data"
+
+    var title: String {
+        switch self {
+        case .accessibility: return "Accessibility"
+        case .contacts: return "Contacts"
+        case .messagesData: return "Messages Data"
+        }
+    }
+
+    func currentStatus(api: PlatformCLIAPI) async -> (authorized: Bool, detail: String) {
+        switch self {
+        case .accessibility:
+            let ok = AXIsProcessTrusted()
+            return (ok, ok ? "Your current Terminal app can control Messages.app." : "Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.")
+        case .contacts:
+            let ok = CNContactStore.authorizationStatus(for: .contacts) == .authorized
+            return (ok, ok ? "Contacts lookups are available." : "Allow Contacts access if you want contact-name lookups from the CLI.")
+        case .messagesData:
+            let ok = await api.canAccessMessagesDir()
+            return (ok, ok ? "The CLI can read your local Messages data." : "The CLI cannot read ~/Library/Messages yet.")
+        }
+    }
+
+    func request(api: PlatformCLIAPI) async throws {
+        switch self {
+        case .accessibility:
+            openSystemSecurityPrefs("Privacy_Accessibility")
+            api.startSysPrefsOnboarding()
+            defer { api.stopSysPrefsOnboarding() }
+            _ = await pollAuthorization(timeout: 120) { AXIsProcessTrusted() }
+        case .contacts:
+            if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
+                _ = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+                    CNContactStore().requestAccess(for: .contacts) { granted, error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume(returning: granted)
+                        }
+                    }
+                }
+            }
+        case .messagesData:
+            try? await api.askForMessagesDirAccess()
+            if !(await api.canAccessMessagesDir()) {
+                print("  note: Opening Full Disk Access as a fallback.")
+                openSystemSecurityPrefs("Privacy_AllFiles")
+            }
+        }
+    }
 }
+
 
 private struct RunnerOptions {
     var commandArgs: [String]
@@ -139,7 +192,7 @@ private final class Runner {
         )
 
         defer {
-            if !state.customDataDirExists {
+            if state.options.customDataDir == nil {
                 try? FileManager.default.removeItem(atPath: state.dataDirPath)
             }
         }
@@ -220,7 +273,7 @@ private final class Runner {
         guard !eventsStarted, options.subscribeToEvents else { return }
         eventsStarted = true
         api.subscribeToEvents { json in
-            print("[events \(ISO8601DateFormatter().string(from: Date()))] \(prettyJSONString(json))")
+            print("[events \(isoFormatter.string(from: Date()))] \(prettyJSONString(json))")
         }
         do {
             try await api.startEventPollingFromCurrentState()
@@ -239,7 +292,7 @@ private final class Runner {
             }
             let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            if trimmed == "q" || trimmed == "quit" || trimmed == "exit" {
+            if quitCommands.contains(trimmed) {
                 try await shutdown()
                 return
             }
@@ -277,12 +330,6 @@ private final class Runner {
             try await apiInstance.platformAPI.dispose()
         }
         print("Exiting...")
-    }
-}
-
-private extension RunnerState {
-    var customDataDirExists: Bool {
-        options.customDataDir != nil
     }
 }
 
@@ -517,8 +564,12 @@ private let commandDefinitions: [CommandDefinition] = [
             return nil
         }
     },
-    reactionCommand(name: "react", methodName: "addReaction", summaryVerb: "Add"),
-    reactionCommand(name: "unreact", methodName: "removeReaction", summaryVerb: "Remove"),
+    reactionCommand(name: "react", methodName: "addReaction", summaryVerb: "Add", preposition: "to") { api, threadID, messageID, key in
+        try await api.addReaction(threadID: threadID, messageID: messageID, reactionKey: key)
+    },
+    reactionCommand(name: "unreact", methodName: "removeReaction", summaryVerb: "Remove", preposition: "from") { api, threadID, messageID, key in
+        try await api.removeReaction(threadID: threadID, messageID: messageID, reactionKey: key)
+    },
     CommandDefinition(
         name: "mark-read",
         category: .chat,
@@ -589,7 +640,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 1)
         try await context.invoke("onThreadSelected", args: args) { api in
             try await api.onThreadSelected(threadID: args[0]) { json in
-                print("[events \(ISO8601DateFormatter().string(from: Date()))] \(prettyJSONString(json))")
+                print("[events \(isoFormatter.string(from: Date()))] \(prettyJSONString(json))")
             }
             return nil
         }
@@ -618,11 +669,17 @@ private let commandDefinitions: [CommandDefinition] = [
 
 private let commandMap = Dictionary(uniqueKeysWithValues: commandDefinitions.map { ($0.name, $0) })
 
-private func reactionCommand(name: String, methodName: String, summaryVerb: String) -> CommandDefinition {
+private func reactionCommand(
+    name: String,
+    methodName: String,
+    summaryVerb: String,
+    preposition: String,
+    apply: @escaping (PlatformAPI, String, String, String) async throws -> Void
+) -> CommandDefinition {
     CommandDefinition(
         name: name,
         category: .message,
-        summary: "\(summaryVerb) a reaction \(name == "react" ? "to" : "from") a message using a standard key or emoji.",
+        summary: "\(summaryVerb) a reaction \(preposition) a message using a standard key or emoji.",
         usage: ["\(name) CHAT_ID MESSAGE_ID REACTION"],
         examples: [
             "\(name) any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart",
@@ -633,11 +690,7 @@ private func reactionCommand(name: String, methodName: String, summaryVerb: Stri
     ) { args, context in
         try requireExactArgs(context.command, args, 3)
         try await context.invoke(methodName, args: args) { api in
-            if methodName == "addReaction" {
-                try await api.platformAPI.addReaction(threadID: args[0], messageID: args[1], reactionKey: args[2])
-            } else {
-                try await api.platformAPI.removeReaction(threadID: args[0], messageID: args[1], reactionKey: args[2])
-            }
+            try await apply(api.platformAPI, args[0], args[1], args[2])
             return nil
         }
     }
@@ -665,13 +718,12 @@ private func ensureRunnerState(_ options: RunnerOptions) throws -> RunnerState {
     let dataDirPath: String
     if let customDataDir = options.customDataDir {
         dataDirPath = absolutePath(customDataDir)
-        try FileManager.default.createDirectory(atPath: dataDirPath, withIntermediateDirectories: true)
     } else {
         dataDirPath = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("platform-imessage-cli-\(UUID().uuidString)", isDirectory: true)
             .path
-        try FileManager.default.createDirectory(atPath: dataDirPath, withIntermediateDirectories: true)
     }
+    try FileManager.default.createDirectory(atPath: dataDirPath, withIntermediateDirectories: true)
     return RunnerState(
         options: options,
         dataDirPath: dataDirPath,
@@ -791,7 +843,8 @@ private func parsePaginationArgs(_ command: CommandDefinition, _ args: [String],
     if after != nil && before != nil {
         throw CLIError("\(command.name) accepts only one of --after or --before.\nusage: \(command.usage[0])")
     }
-    return PaginationParseResult(positionals: positionals, cursor: after ?? before, direction: after == nil ? (before == nil ? nil : "before") : "after")
+    let direction: String? = after != nil ? "after" : (before != nil ? "before" : nil)
+    return PaginationParseResult(positionals: positionals, cursor: after ?? before, direction: direction)
 }
 
 private func parseStringOption(_ args: [String], optionName: String) throws -> (positionals: [String], value: String?) {
@@ -869,70 +922,34 @@ private func tokenizeInput(_ input: String) throws -> [String] {
 
 private func runPreflightAuthCheck(commandName: String, requirements: [AuthorizationRequirement], api: PlatformCLIAPI) async throws {
     for requirement in requirements {
-        if await authorizationStatus(requirement, api: api).authorized { continue }
-        print("\"\(commandName)\" needs \(statusTitle(requirement)) access. Requesting...")
-        try await authorizeRequirement(requirement, api: api)
-        let updated = await authorizationStatus(requirement, api: api)
+        if await requirement.currentStatus(api: api).authorized { continue }
+        print("\"\(commandName)\" needs \(requirement.title) access. Requesting...")
+        try await requirement.request(api: api)
+        let updated = await requirement.currentStatus(api: api)
         if !updated.authorized {
-            throw CLIError("\(statusTitle(requirement)) was not granted. \(updated.detail)")
+            throw CLIError("\(requirement.title) was not granted. \(updated.detail)")
         }
     }
 }
 
 private func runAuthorizationFlow(target rawTarget: String?, api: PlatformCLIAPI) async throws {
-    let target = rawTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let resolved = target?.isEmpty == false ? target! : "all"
-    let requirements: [String] = resolved == "all" ? ["accessibility", "contacts", "messages-data", "automation"] : [resolved]
+    let trimmed = rawTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let resolved = (trimmed?.isEmpty == false ? trimmed : nil) ?? "all"
+    let names: [String] = resolved == "all" ? ["accessibility", "contacts", "messages-data", "automation"] : [resolved]
 
-    for requirement in requirements {
-        switch requirement {
-        case "accessibility":
-            let status = await authorizationStatus(.accessibility, api: api)
-            print(formatStatusLine(title: "Accessibility", status: status))
-            if !status.authorized { try await authorizeRequirement(.accessibility, api: api) }
-        case "contacts":
-            let status = await authorizationStatus(.contacts, api: api)
-            print(formatStatusLine(title: "Contacts", status: status))
-            if !status.authorized { try await authorizeRequirement(.contacts, api: api) }
-        case "messages-data":
-            let status = await authorizationStatus(.messagesData, api: api)
-            print(formatStatusLine(title: "Messages Data", status: status))
-            if !status.authorized { try await authorizeRequirement(.messagesData, api: api) }
-        case "automation":
+    for name in names {
+        if name == "automation" {
             print("  [ ] Automation - Not yet verified; requesting Apple Events access.")
             let ok = await authorizeAutomation(api: api)
             print("  \(ok ? "[ok]" : "[ ]") Automation - \(ok ? "Apple Events access to Messages.app is available." : "Automation access was denied or unavailable.")")
-        default:
-            throw CLIError("unknown authorization target \"\(requirement)\".\nusage: authorize [all|accessibility|contacts|messages-data|automation]")
+            continue
         }
-    }
-}
-
-private func authorizeRequirement(_ requirement: AuthorizationRequirement, api: PlatformCLIAPI) async throws {
-    switch requirement {
-    case .accessibility:
-        openSystemSecurityPrefs("Privacy_Accessibility")
-        api.startSysPrefsOnboarding()
-        defer { api.stopSysPrefsOnboarding() }
-        _ = await pollAuthorization(timeout: 120) { AXIsProcessTrusted() }
-    case .contacts:
-        if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
-            _ = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                CNContactStore().requestAccess(for: .contacts) { granted, error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: granted)
-                    }
-                }
-            }
+        guard let req = AuthorizationRequirement(rawValue: name) else {
+            throw CLIError("unknown authorization target \"\(name)\".\nusage: authorize [all|accessibility|contacts|messages-data|automation]")
         }
-    case .messagesData:
-        try? await api.askForMessagesDirAccess()
-        if !(await api.canAccessMessagesDir()) {
-            print("  note: Opening Full Disk Access as a fallback.")
-            openSystemSecurityPrefs("Privacy_AllFiles")
-        }
+        let status = await req.currentStatus(api: api)
+        print("  \(status.authorized ? "[ok]" : "[ ]") \(req.title) - \(status.detail)")
+        if !status.authorized { try await req.request(api: api) }
     }
 }
 
@@ -949,32 +966,6 @@ private func authorizeAutomation(api: PlatformCLIAPI) async -> Bool {
         print("  note: Automation prompt failed: \(error)")
         return false
     }
-}
-
-private func authorizationStatus(_ requirement: AuthorizationRequirement, api: PlatformCLIAPI) async -> (authorized: Bool, detail: String) {
-    switch requirement {
-    case .accessibility:
-        let ok = AXIsProcessTrusted()
-        return (ok, ok ? "Your current Terminal app can control Messages.app." : "Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.")
-    case .contacts:
-        let ok = CNContactStore.authorizationStatus(for: .contacts) == .authorized
-        return (ok, ok ? "Contacts lookups are available." : "Allow Contacts access if you want contact-name lookups from the CLI.")
-    case .messagesData:
-        let ok = await api.canAccessMessagesDir()
-        return (ok, ok ? "The CLI can read your local Messages data." : "The CLI cannot read ~/Library/Messages yet.")
-    }
-}
-
-private func statusTitle(_ requirement: AuthorizationRequirement) -> String {
-    switch requirement {
-    case .accessibility: return "Accessibility"
-    case .contacts: return "Contacts"
-    case .messagesData: return "Messages Data"
-    }
-}
-
-private func formatStatusLine(title: String, status: (authorized: Bool, detail: String)) -> String {
-    "  \(status.authorized ? "[ok]" : "[ ]") \(title) - \(status.detail)"
 }
 
 private func pollAuthorization(timeout: TimeInterval, interval: UInt64 = 250_000_000, test: () -> Bool) async -> Bool {
