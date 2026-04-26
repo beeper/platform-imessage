@@ -20,12 +20,10 @@ func removeObjectReplacementCharacter(_ text: String) -> String {
 
 // IMDB stores account logins as `E:foo@bar.com` / `P:+15551234`.
 func mapAccountLogin(_ accountLogin: String) -> String {
-    switch accountLogin {
-    case let value where value.hasPrefix("E:") || value.hasPrefix("P:"):
-        return String(value.dropFirst(2))
-    default:
-        return accountLogin
+    if accountLogin.hasPrefix("E:") || accountLogin.hasPrefix("P:") {
+        return String(accountLogin.dropFirst(2))
     }
+    return accountLogin
 }
 
 func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
@@ -44,8 +42,16 @@ func stringFromDataSlice(_ data: Data, start: Int, length: Int) -> String? {
     return String(data: data[start ..< start + length], encoding: .utf8)
 }
 
+private let canonicalUUIDRegex = try! NSRegularExpression(
+    pattern: #"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"#,
+    options: .caseInsensitive
+)
+
 func isUUID(_ string: String) -> Bool {
-    UUID(uuidString: string) != nil
+    guard UUID(uuidString: string) != nil else {
+        return false
+    }
+    return canonicalUUIDRegex.firstMatch(in: string, range: NSRange(string.startIndex ..< string.endIndex, in: string)) != nil
 }
 
 private let sizeRegex = try! NSRegularExpression(pattern: #"\{(\d+), (\d+)\}"#)

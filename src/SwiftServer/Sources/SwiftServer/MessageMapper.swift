@@ -24,7 +24,8 @@ struct Mapper {
         applyStatusFields(to: &partialMessage, dates: dates)
         applyEditedTimestamp(to: &partialMessage, dates: dates, summaryInfo: summaryInfo)
 
-        if let itemType = msgRow.int("item_type"), itemType != 0 {
+        let itemType = msgRow.int("item_type") ?? 0
+        if itemType != 0 {
             if let actionMessage = mapItemTypeMessage(partialMessage: partialMessage) {
                 return [actionMessage]
             }
@@ -43,10 +44,10 @@ struct Mapper {
         applySiriFooter(summaryInfo: summaryInfo, footer: &partialFooter)
         applyThreadOriginator(to: &partialHeader)
 
-        let decodedMessageParts = decodeAttributedMessageParts(summaryInfo: summaryInfo)
-        var messageParts = decodedMessageParts.isEmpty
-            ? fallbackMessageParts(summaryInfo: summaryInfo, attachments: attachments)
-            : decodedMessageParts
+        var messageParts = decodeAttributedMessageParts(summaryInfo: summaryInfo)
+        if messageParts.isEmpty {
+            messageParts = fallbackMessageParts(summaryInfo: summaryInfo, attachments: attachments)
+        }
 
         let subject = subject()
         let addSubjectInline = shouldAddSubjectInline(subject, to: messageParts)
