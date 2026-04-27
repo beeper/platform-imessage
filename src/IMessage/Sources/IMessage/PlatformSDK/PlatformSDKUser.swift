@@ -28,18 +28,34 @@ extension PlatformSDK {
             social = jsonObject.dictionary("social")
         }
 
-        public init(id: UserID, displayText: String? = nil, email: String? = nil, phoneNumber: String? = nil) {
+        public init(
+            id: UserID,
+            username: String? = nil,
+            phoneNumber: String? = nil,
+            email: String? = nil,
+            fullName: String? = nil,
+            nickname: String? = nil,
+            imgURL: String? = nil,
+            isVerified: Bool? = nil,
+            cannotMessage: Bool? = nil,
+            isSelf: Bool? = nil,
+            social: JSONObject? = nil
+        ) {
             self.id = id
-            username = nil
+            self.username = username
             self.phoneNumber = phoneNumber
             self.email = email
-            fullName = displayText
-            nickname = nil
-            imgURL = nil
-            isVerified = nil
-            cannotMessage = nil
-            isSelf = true
-            social = nil
+            self.fullName = fullName
+            self.nickname = nickname
+            self.imgURL = imgURL
+            self.isVerified = isVerified
+            self.cannotMessage = cannotMessage
+            self.isSelf = isSelf
+            self.social = social
+        }
+
+        public init(id: UserID, displayText: String? = nil, email: String? = nil, phoneNumber: String? = nil) {
+            self.init(id: id, phoneNumber: phoneNumber, email: email, fullName: displayText, isSelf: true)
         }
 
         public var jsonObject: JSONObject {
@@ -93,6 +109,13 @@ extension PlatformSDK {
             addedBy = jsonObject.string("addedBy")
             isAdmin = jsonObject.bool("isAdmin")
             hasExited = jsonObject.bool("hasExited")
+        }
+
+        public init(user: User, addedBy: UserID? = nil, isAdmin: Bool? = nil, hasExited: Bool? = nil) {
+            self.user = user
+            self.addedBy = addedBy
+            self.isAdmin = isAdmin
+            self.hasExited = hasExited
         }
 
         public var jsonObject: JSONObject {

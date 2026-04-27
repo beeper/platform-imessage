@@ -10,15 +10,15 @@ enum ThreadMapper {
 
     struct Context {
         var handleRowsByChatRowID: [Int: [MappedHandleRow]]
-        var latestMessagesByChatGUID: [String: [JSONObject]]
+        var latestMessagesByChatGUID: [String: [PlatformSDK.Message]]
         var unreadCounts: [Int: Int]
         var dndState: Set<String>
         var currentUser: CurrentUser
         var accountID: String
     }
 
-    static func mapAndHashThread(_ chat: MappedChatRow, context: Context) throws -> JSONObject {
-        hashThread(try mapThread(chat, context: context))
+    static func mapAndHashThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
+        try mapThread(chat, context: context)
     }
 
     static func pollingCursor(from latestMessageRows: [MappedMessageRow]) -> PollingCursor? {
@@ -32,7 +32,7 @@ enum ThreadMapper {
         return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
-    private static func mapThread(_ chat: MappedChatRow, context: Context) throws -> JSONObject {
+    private static func mapThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
         let guid = chat.guid
         let handleRows = context.handleRowsByChatRowID[chat.rowID] ?? []
         let messages = context.latestMessagesByChatGUID[guid] ?? []
@@ -52,70 +52,39 @@ enum ThreadMapper {
         let props = propertyListDictionary(chat.properties)
         let unreadCount = context.unreadCounts[chat.rowID] ?? 0
 
-        var thread = compactDictionary([
-            "id": guid,
-            "title": chat.displayName,
-            "imgURL": chatPhotoURL(props: props, accountID: context.accountID),
-            "mutedUntil": context.dndState.contains(isGroup ? (chat.groupID ?? "") : (chat.chatIdentifier ?? "")) ? "forever" : nil,
-            "type": isGroup ? "group" : "single",
-            "isReadOnly": isReadOnly,
-            // This mirrors Poller+Unreads.swift. Desktop computes unread state
-            // from `isMarkedUnread || unreadCount > 0`.
-            "unreadCount": unreadCount,
-            "isMarkedUnread": unreadCount > 0,
-            "lastReadMessageSortKey": appleDateMilliseconds(chat.lastReadMessageTimestamp),
-            "messages": [
-                "hasMore": true,
-                "items": messages,
-            ],
-            "participants": [
-                "hasMore": false,
-                "items": participants,
-            ],
+        return PlatformSDK.Thread(
+            id: Hasher.thread.tokenizeRemembering(pii: guid),
             // Works around PAS's "map missing" behavior where the folder name
             // can otherwise be filled with the thread ID.
-            "folderName": "normal",
-            "timestamp": appleDateMilliseconds(chat.msgDate),
-            "extra": compactDictionary([
+            folderName: "normal",
+            title: chat.displayName,
+            // This mirrors Poller+Unreads.swift. Desktop computes unread state
+            // from `isMarkedUnread || unreadCount > 0`.
+            isUnread: unreadCount > 0,
+            isReadOnly: isReadOnly,
+            isPinned: false,
+            mutedUntil: context.dndState.contains(isGroup ? (chat.groupID ?? "") : (chat.chatIdentifier ?? "")) ? "forever" : nil,
+            type: isGroup ? .group : .single,
+            timestamp: appleDateMilliseconds(chat.msgDate),
+            imgURL: chatPhotoURL(props: props, accountID: context.accountID),
+            messages: PlatformSDK.Paginated(items: messages, hasMore: true),
+            participants: PlatformSDK.Paginated(items: participants, hasMore: false),
+            extra: compactDictionary([
                 "isSMS": (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;")) ? true : nil,
             ]),
-            "isPinned": false,
-            "isLowPriority": false,
-        ])
-
-        if !Preferences.stripInternalFields {
-            thread["_original"] = (try? encodeJSON([chat.object, handleRows.objects])) ?? ""
-        }
-        return thread
+            original: Preferences.stripInternalFields ? nil : (try? encodeJSON([chat.object, handleRows.objects])) ?? "",
+            unreadCount: unreadCount,
+            isMarkedUnread: unreadCount > 0,
+            lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp),
+            isLowPriority: false
+        )
     }
 
-    private static func hashThread(_ thread: JSONObject) -> JSONObject {
-        var thread = thread
-        if let id = thread.string("id") {
-            thread["id"] = Hasher.thread.tokenizeRemembering(pii: id)
-        }
-        if var participants = thread.dictionary("participants"),
-           let items = participants["items"] as? [JSONObject] {
-            participants["items"] = items.map(hashParticipant)
-            thread["participants"] = participants
-        }
-        return thread
-    }
-
-    private static func hashParticipant(_ participant: JSONObject) -> JSONObject {
-        var participant = participant
-        if let id = participant.string("id") {
-            participant["id"] = Hasher.participant.tokenizeRemembering(pii: id)
-        }
-        return participant
-    }
-
-    private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> JSONObject? {
+    private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> PlatformSDK.Participant? {
         guard let id = row.participantID, !id.isEmpty else {
             return nil
         }
 
-        var participant: JSONObject = ["id": id]
         let isEmail = id.contains("@")
         let isBusiness = id.hasPrefix("urn:")
         let isPhone = !isBusiness && !isEmail && id.rangeOfCharacter(from: .decimalDigits) != nil
@@ -124,32 +93,63 @@ enum ThreadMapper {
         // `(smsft_rm)` or `(smsft)`. Prefer the raw ID for sender-ID heuristics.
         let idPreferringUncanonicalized = uncanonicalizedID ?? id
 
+        let participantID = !isPhone ? (uncanonicalizedID ?? id) : id
+        let username: String?
+        let phoneNumber: String?
+        let email: String?
+        let fullName: String?
         if isBusiness {
-            participant["fullName"] = chatDisplayName
+            fullName = chatDisplayName
+            email = nil
+            phoneNumber = nil
+            username = nil
         } else if isEmail {
-            participant["email"] = id
+            fullName = nil
+            email = id
+            phoneNumber = nil
+            username = nil
         } else if isPhone {
-            participant["phoneNumber"] = id
+            fullName = nil
+            email = nil
+            phoneNumber = id
+            username = nil
         } else if likelyAlphanumericSenderID(idPreferringUncanonicalized) {
             // Use `username` to avoid first/last-name splitting and preserve
             // the sender ID as-is.
-            participant["username"] = idPreferringUncanonicalized
+            fullName = nil
+            email = nil
+            phoneNumber = nil
+            username = idPreferringUncanonicalized
+        } else {
+            fullName = nil
+            email = nil
+            phoneNumber = nil
+            username = nil
         }
 
-        if !isPhone, let uncanonicalizedID {
-            participant["id"] = uncanonicalizedID
-        }
-        return participant
+        return PlatformSDK.Participant(user: PlatformSDK.User(
+            id: Hasher.participant.tokenizeRemembering(pii: participantID),
+            username: username,
+            phoneNumber: phoneNumber,
+            email: email,
+            fullName: fullName
+        ))
     }
 
-    private static func mapSelfParticipant(selfID: String, currentUserID: String) -> JSONObject {
-        var participant = mapParticipant(
+    private static func mapSelfParticipant(selfID: String, currentUserID: String) -> PlatformSDK.Participant {
+        let participant = mapParticipant(
             MappedHandleRow(chatID: nil, participantID: selfID, uncanonicalizedID: nil),
             chatDisplayName: nil
-        ) ?? [:]
-        participant["id"] = currentUserID
-        participant["isSelf"] = true
-        return participant
+        )
+        let user = participant?.user
+        return PlatformSDK.Participant(user: PlatformSDK.User(
+            id: Hasher.participant.tokenizeRemembering(pii: currentUserID),
+            username: user?.username,
+            phoneNumber: user?.phoneNumber,
+            email: user?.email,
+            fullName: user?.fullName,
+            isSelf: true
+        ))
     }
 
     private static let numbersAndSymbolsRegex = try! NSRegularExpression(pattern: #"^[\d\s+\-()]+$"#)

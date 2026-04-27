@@ -63,6 +63,58 @@ extension PlatformSDK {
         public let lastReadMessageSortKey: Timestamp?
         public let isLowPriority: Bool?
 
+        public init(
+            id: ThreadID,
+            folderName: String? = nil,
+            title: String? = nil,
+            isUnread: Bool,
+            lastReadMessageID: MessageID? = nil,
+            isReadOnly: Bool,
+            isArchived: Bool? = nil,
+            isPinned: Bool? = nil,
+            mutedUntil: Any? = nil,
+            type: ThreadType,
+            timestamp: Timestamp? = nil,
+            imgURL: String? = nil,
+            createdAt: Timestamp? = nil,
+            description: String? = nil,
+            partialLastMessage: PartialLastMessage? = nil,
+            messageExpirySeconds: Int? = nil,
+            messages: Paginated<Message>,
+            participants: Paginated<Participant>,
+            extra: Any? = nil,
+            original: String? = nil,
+            unreadCount: Int? = nil,
+            isMarkedUnread: Bool? = nil,
+            lastReadMessageSortKey: Timestamp? = nil,
+            isLowPriority: Bool? = nil
+        ) {
+            self.id = id
+            self.folderName = folderName
+            self.title = title
+            self.isUnread = isUnread
+            self.lastReadMessageID = lastReadMessageID
+            self.isReadOnly = isReadOnly
+            self.isArchived = isArchived
+            self.isPinned = isPinned
+            self.mutedUntil = mutedUntil
+            self.type = type
+            self.timestamp = timestamp
+            self.imgURL = imgURL
+            self.createdAt = createdAt
+            self.description = description
+            self.partialLastMessage = partialLastMessage
+            self.messageExpirySeconds = messageExpirySeconds
+            self.messages = messages
+            self.participants = participants
+            self.extra = extra
+            self.original = original
+            self.unreadCount = unreadCount
+            self.isMarkedUnread = isMarkedUnread
+            self.lastReadMessageSortKey = lastReadMessageSortKey
+            self.isLowPriority = isLowPriority
+        }
+
         public init(jsonObject: JSONObject) throws {
             id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "Thread")
             folderName = jsonObject.string("folderName")
