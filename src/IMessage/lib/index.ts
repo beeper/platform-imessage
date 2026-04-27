@@ -114,8 +114,8 @@ type IMessage = {
 
 const imessageBinaryPath = path.join(ARCH_BINARIES_DIR_PATH, 'IMessage.node')
 
-const nodeRequire = nodeModule.createRequire(path.join(process.cwd(), 'IMessage.node-loader.js'))
+const require = nodeModule.createRequire(import.meta.url)
 // eslint-disable-next-line import/no-dynamic-require -- can't bundle .node files
-const imessage: IMessage = nodeRequire(imessageBinaryPath)
+const imessage: IMessage = require(imessageBinaryPath)
 
 export default imessage
