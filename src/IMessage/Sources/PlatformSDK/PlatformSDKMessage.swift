@@ -15,14 +15,6 @@ extension PlatformSDK {
         public let participantID: UserID
         public let emoji: Bool?
 
-        public init(id: ID, reactionKey: String, imgURL: String? = nil, participantID: UserID, emoji: Bool? = nil) {
-            self.id = id
-            self.reactionKey = reactionKey
-            self.imgURL = imgURL
-            self.participantID = participantID
-            self.emoji = emoji
-        }
-
     }
 
     public enum MessageSeen: JSONValueConvertible {
@@ -66,24 +58,6 @@ extension PlatformSDK {
         public let title: String
         public let summary: String?
 
-        public init(
-            url: String,
-            originalURL: String? = nil,
-            favicon: String? = nil,
-            img: String? = nil,
-            imgSize: Size? = nil,
-            title: String,
-            summary: String? = nil
-        ) {
-            self.url = url
-            self.originalURL = originalURL
-            self.favicon = favicon
-            self.img = img
-            self.imgSize = imgSize
-            self.title = title
-            self.summary = summary
-        }
-
     }
 
     @PlatformSDKJSONObject
@@ -95,13 +69,6 @@ extension PlatformSDK {
             public let username: String
             public let isVerified: Bool?
 
-            public init(imgURL: String, name: String, username: String, isVerified: Bool? = nil) {
-                self.imgURL = imgURL
-                self.name = name
-                self.username = username
-                self.isVerified = isVerified
-            }
-
         }
 
         public let id: ID
@@ -112,26 +79,6 @@ extension PlatformSDK {
         public let textAttributes: TextAttributes?
         public let attachments: [Attachment]?
         public let quotedTweet: TweetBox?
-
-        public init(
-            id: ID,
-            user: User,
-            text: String,
-            timestamp: Timestamp? = nil,
-            url: String? = nil,
-            textAttributes: TextAttributes? = nil,
-            attachments: [Attachment]? = nil,
-            quotedTweet: TweetBox? = nil
-        ) {
-            self.id = id
-            self.user = user
-            self.text = text
-            self.timestamp = timestamp
-            self.url = url
-            self.textAttributes = textAttributes
-            self.attachments = attachments
-            self.quotedTweet = quotedTweet
-        }
 
     }
 

@@ -38,7 +38,7 @@ public extension PlatformSDK.JSONObjectConvertible {
     var jsonValue: Any { jsonObject }
 }
 
-@attached(member, names: named(jsonObject))
+@attached(member, names: named(init), named(jsonObject))
 public macro PlatformSDKJSONObject() = #externalMacro(module: "PlatformSDKMacros", type: "PlatformSDKJSONObjectMacro")
 
 @attached(peer)
@@ -75,11 +75,6 @@ extension PlatformSDK {
         public let items: [Item]
         public let hasMore: Bool
 
-        public init(items: [Item], hasMore: Bool) {
-            self.items = items
-            self.hasMore = hasMore
-        }
-
     }
 
     @PlatformSDKJSONObject
@@ -88,13 +83,6 @@ extension PlatformSDK {
         public let hasMore: Bool
         public let oldestCursor: String?
         public let newestCursor: String?
-
-        public init(items: [Item], hasMore: Bool, oldestCursor: String? = nil, newestCursor: String? = nil) {
-            self.items = items
-            self.hasMore = hasMore
-            self.oldestCursor = oldestCursor
-            self.newestCursor = newestCursor
-        }
 
     }
 }

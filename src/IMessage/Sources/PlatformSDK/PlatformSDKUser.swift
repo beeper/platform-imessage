@@ -15,32 +15,6 @@ extension PlatformSDK {
         public let isSelf: Bool?
         public let social: JSONObject?
 
-        public init(
-            id: UserID,
-            username: String? = nil,
-            phoneNumber: String? = nil,
-            email: String? = nil,
-            fullName: String? = nil,
-            nickname: String? = nil,
-            imgURL: String? = nil,
-            isVerified: Bool? = nil,
-            cannotMessage: Bool? = nil,
-            isSelf: Bool? = nil,
-            social: JSONObject? = nil
-        ) {
-            self.id = id
-            self.username = username
-            self.phoneNumber = phoneNumber
-            self.email = email
-            self.fullName = fullName
-            self.nickname = nickname
-            self.imgURL = imgURL
-            self.isVerified = isVerified
-            self.cannotMessage = cannotMessage
-            self.isSelf = isSelf
-            self.social = social
-        }
-
         public init(id: UserID, displayText: String? = nil, email: String? = nil, phoneNumber: String? = nil) {
             self.init(id: id, phoneNumber: phoneNumber, email: email, fullName: displayText, isSelf: true)
         }
@@ -53,13 +27,6 @@ extension PlatformSDK {
         public let displayText: String?
         public let email: String?
         public let phoneNumber: String?
-
-        public init(id: UserID, displayText: String?, email: String?, phoneNumber: String?) {
-            self.id = id
-            self.displayText = displayText
-            self.email = email
-            self.phoneNumber = phoneNumber
-        }
 
     }
 
