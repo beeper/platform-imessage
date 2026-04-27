@@ -13,6 +13,7 @@
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] tests for the cli
 - [ ] migrate parity test from worktree-of-main reference to snapshot-based regression once Swift fixture-snapshot port is live; remove `.parity` when no longer needed
+- [ ] remove polling side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps polling from the first thread fetch (`cursor == nil`) via `PollingLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting polling from inside it makes calls non-idempotent. Fix by moving polling bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventPollingFromCurrentState` / `IMessageHost.startPollingFromCurrentState` path.
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
