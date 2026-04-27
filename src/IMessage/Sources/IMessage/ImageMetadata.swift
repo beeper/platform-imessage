@@ -7,6 +7,26 @@ struct ImageMetadata: Sendable {
 }
 
 enum ImageMetadataReader {
+    private static let cache: NSCache<NSString, CachedImageMetadata> = {
+        let cache = NSCache<NSString, CachedImageMetadata>()
+        cache.countLimit = 2048
+        return cache
+    }()
+
+    static func cachedRead(from filePath: String) -> ImageMetadata? {
+        guard let key = cacheKey(filePath: filePath) else {
+            return read(from: filePath)
+        }
+
+        if let cached = cache.object(forKey: key) {
+            return cached.metadata
+        }
+
+        let metadata = read(from: filePath)
+        cache.setObject(CachedImageMetadata(metadata), forKey: key)
+        return metadata
+    }
+
     static func read(from filePath: String) -> ImageMetadata? {
         let url = URL(fileURLWithPath: filePath)
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
@@ -28,5 +48,21 @@ enum ImageMetadataReader {
         return (5...8).contains(orientation)
             ? ImageMetadata(width: height, height: width)
             : ImageMetadata(width: width, height: height)
+    }
+
+    private static func cacheKey(filePath: String) -> NSString? {
+        let url = URL(fileURLWithPath: filePath).standardizedFileURL
+        guard let byteCount = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber else {
+            return nil
+        }
+        return "\(url.path)\u{0}\(byteCount.uint64Value)" as NSString
+    }
+
+    private final class CachedImageMetadata {
+        let metadata: ImageMetadata?
+
+        init(_ metadata: ImageMetadata?) {
+            self.metadata = metadata
+        }
     }
 }

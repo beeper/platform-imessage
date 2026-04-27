@@ -1194,7 +1194,7 @@ extension PlatformAPI {
 
             if let filePath,
                imageExtensions.contains(ext) || ext == "pluginpayloadattachment",
-               let metadataSize = ImageMetadataReader.read(from: filePath) {
+               let metadataSize = ImageMetadataReader.cachedRead(from: filePath) {
                 size = [
                     "width": metadataSize.width,
                     "height": metadataSize.height,
