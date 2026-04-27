@@ -4,6 +4,9 @@ import type { ActivityType, MessageID, OnServerEventCallback, PaginationArg, Thr
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
+export type NativeMacPermissionAuthStatus = 'authorized' | 'denied' | 'restricted' | 'not determined'
+export type NativeMacPermissionAuthType = 'accessibility' | 'contacts' | 'full-disk-access'
+
 export declare class NativePlatformAPI {
   constructor(accountID: string)
 
@@ -79,6 +82,13 @@ export declare class NativePlatformAPI {
   dispose: () => Promise<void>
 }
 
+export type NativeMacPermissions = {
+  getAuthStatus: (authType: NativeMacPermissionAuthType) => NativeMacPermissionAuthStatus
+  askForAccessibilityAccess: () => void
+  askForContactsAccess: () => Promise<NativeMacPermissionAuthStatus>
+  askForFullDiskAccess: () => void
+}
+
 type IMessage = {
   isLoggingEnabled: boolean
   isPHTEnabled: boolean
@@ -88,6 +98,7 @@ type IMessage = {
   isNotificationsEnabledForMessages: boolean
 
   PlatformAPI: typeof NativePlatformAPI
+  MacPermissions: NativeMacPermissions
 
   canAccessMessagesDir: () => Promise<boolean>
   validateDatabaseAccess: () => Promise<void>

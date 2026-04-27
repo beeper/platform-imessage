@@ -94,6 +94,22 @@ import IMessage
             SystemSettingsOnboarding.stop()
         },
     ]
+    dict["MacPermissions"] = try [
+        "getAuthStatus": NodeFunction { (type: String) in
+            try MacPermissions.getAuthStatus(type).rawValue
+        },
+        "askForAccessibilityAccess": NodeFunction {
+            MacPermissions.askForAccessibilityAccess()
+            return undefined
+        },
+        "askForContactsAccess": NodeFunction { () async throws in
+            try await MacPermissions.askForContactsAccess().rawValue
+        },
+        "askForFullDiskAccess": NodeFunction {
+            MacPermissions.askForFullDiskAccess()
+            return undefined
+        },
+    ]
     dict["PlatformAPI"] = try PlatformAPINodeWrapper.constructor()
 
     return dict

@@ -82,8 +82,6 @@ export async function ensureReferenceAPI({
       'electron',
       '--external',
       '@textshq/platform-test-lib',
-      '--external',
-      'node-mac-permissions',
       '--banner',
       buildBanner,
       '--outfile',

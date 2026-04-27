@@ -3,8 +3,8 @@ import url from 'url'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import cn from 'clsx'
 import { AuthProps, texts } from '@textshq/platform-sdk'
-import type { AuthType } from 'node-mac-permissions'
 import type PAPI from '../api'
+import type { NativeMacPermissionAuthStatus, NativeMacPermissionAuthType } from '../IMessage/lib'
 
 import { BINARIES_DIR_PATH, IS_BIG_SUR_OR_UP, IS_VENTURA_OR_UP, MIN_MACOS_VERSION_ERROR } from '../common-constants'
 import useAsync from './use-async'
@@ -26,25 +26,24 @@ const openAXPrefs = () => { openSecuritySystemPrefs('Privacy_Accessibility') }
 
 const openAutomationPrefs = () => { openSecuritySystemPrefs('Privacy_Automation') }
 
-type AnyFunction = (...args: any[]) => any
-type Async<F extends AnyFunction> = ReturnType<F> extends Promise<any>
-  ? F
-  : (...args: Parameters<F>) => Promise<ReturnType<F>>
-
-type Promisified<T> = { [K in keyof T]: T[K] extends AnyFunction ? Async<T[K]> : never }
-
-type NMP = Promisified<typeof import('node-mac-permissions')>
-
 type CallProxiedFn = <ReturnType>(fnName: keyof PAPI['proxiedAuthFns']) => Promise<ReturnType>
 type Props = AuthProps & {
-  nmp?: NMP
   canAccessMessagesDir: () => Promise<boolean>
   callProxiedFn: CallProxiedFn
   open?: boolean
 }
 
-const useNMP = (nmp: NMP, authType: AuthType) => {
-  const isAuthorized = useCallback(() => nmp.getAuthStatus(authType).then(res => res === 'authorized'), [])
+const proxiedAuthStatusFns = {
+  accessibility: 'getAccessibilityAuthStatus',
+  contacts: 'getContactsAuthStatus',
+  'full-disk-access': 'getFullDiskAccessAuthStatus',
+} satisfies Record<NativeMacPermissionAuthType, keyof PAPI['proxiedAuthFns']>
+
+const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermissionAuthType) => {
+  const isAuthorized = useCallback(
+    () => callProxiedFn<NativeMacPermissionAuthStatus>(proxiedAuthStatusFns[authType]).then(res => res === 'authorized'),
+    [callProxiedFn, authType],
+  )
   const { execute: refreshAuthorization, value: authorized, pending, error } = useAsync(isAuthorized)
   // eslint-disable-next-line @typescript-eslint/no-throw-literal
   if (error) throw error
@@ -68,10 +67,11 @@ const useNMP = (nmp: NMP, authType: AuthType) => {
   return { refreshAuthorization, authorized, pending }
 }
 
-const RevokeFDASection: React.FC<{ nmp: NMP, callProxiedFn: CallProxiedFn }> = ({ nmp, callProxiedFn }) => {
+const RevokeFDASection: React.FC<{ callProxiedFn: CallProxiedFn }> = ({ callProxiedFn }) => {
   const [hidden, setHidden] = useState(false)
   const isSIPEnabled = useCallback(() => callProxiedFn<boolean>('isSIPEnabled'), [])
-  const isAuthorized = useCallback(() => nmp.getAuthStatus('full-disk-access').then(res => res === 'authorized'), [])
+  const isAuthorized = useCallback(() =>
+    callProxiedFn<NativeMacPermissionAuthStatus>('getFullDiskAccessAuthStatus').then(res => res === 'authorized'), [])
   const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
   const { value: sipEnabled } = useAsync(isSIPEnabled)
   if (!authorized || pending || !(sipEnabled ?? true) || hidden) return null
@@ -172,13 +172,13 @@ const ChecklistItem = ({
 )
 
 const ChecklistPage: React.FC<Props> = props => {
-  const { nmp, callProxiedFn, canAccessMessagesDir } = props
+  const { callProxiedFn, canAccessMessagesDir } = props
   // NOTE(skip): this prop is defined as optional in platform-sdk
   const [loggingIn, setLoggingIn] = useState(false)
   const { execute: refreshMessageDirAuthorization, value: messageDirAuthorized } = useAsync(canAccessMessagesDir)
   const askedContacts = useRef(false)
-  const { authorized: contactsAuthorized } = useNMP(nmp, 'contacts')
-  const { authorized: axAuthorized } = useNMP(nmp, 'accessibility')
+  const { authorized: contactsAuthorized } = useMacPermission(callProxiedFn, 'contacts')
+  const { authorized: axAuthorized } = useMacPermission(callProxiedFn, 'accessibility')
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -189,7 +189,7 @@ const ChecklistPage: React.FC<Props> = props => {
   const authorizeContacts = async () => {
     if (askedContacts.current) return openContactsPrefs()
     if (axAuthorized) setTimeout(() => callProxiedFn<void>('confirmUNCPrompt'), 1)
-    await nmp.askForContactsAccess()
+    await callProxiedFn('askForContactsAccess')
     askedContacts.current = true
   }
 
@@ -250,7 +250,7 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: messageDirAuthorized ?? false,
       action: authorizeMessagesDir,
       info: 'To connect with iMessage, Beeper needs to be able to read your messages.',
-      more: <div onClick={() => nmp.askForFullDiskAccess()}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
+      more: <div onClick={() => callProxiedFn('askForFullDiskAccess')}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
     {
@@ -334,7 +334,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   return (
     <div>
-      <RevokeFDASection {...{ nmp, callProxiedFn }} />
+      <RevokeFDASection {...{ callProxiedFn }} />
       {messageDirAuthorized && !isMessagesAppSetup && <SetupMessagesSection />}
       {allAuthorized
         ? (loggingIn ? 'Adding...' : <button className="primary" onClick={login}>Add iMessage</button>)
@@ -343,7 +343,7 @@ const ChecklistPage: React.FC<Props> = props => {
   )
 }
 
-const AppleiMessageAuth: React.FC<AuthProps & { nmp?: NMP }> = props => {
+const AppleiMessageAuth: React.FC<AuthProps> = props => {
   const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => {
     if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)

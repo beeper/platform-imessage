@@ -7,7 +7,7 @@ import { APP_BUNDLE_ID } from './constants'
 import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './common-constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
-import imessage, { type NativePlatformAPI } from './IMessage/lib'
+import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
@@ -301,6 +301,11 @@ export default class AppleiMessage implements PlatformAPI {
     canAccessMessagesDir: () => imessage.canAccessMessagesDir().then(() => true, () => false),
     askForAutomationAccess: () => imessage.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => imessage.askForMessagesDirAccess(),
+    getAccessibilityAuthStatus: () => imessage.MacPermissions.getAuthStatus('accessibility'),
+    getContactsAuthStatus: () => imessage.MacPermissions.getAuthStatus('contacts'),
+    getFullDiskAccessAuthStatus: () => imessage.MacPermissions.getAuthStatus('full-disk-access'),
+    askForContactsAccess: () => imessage.MacPermissions.askForContactsAccess(),
+    askForFullDiskAccess: () => imessage.MacPermissions.askForFullDiskAccess(),
     confirmUNCPrompt: () => imessage.confirmUNCPrompt(),
     disableMessagesNotifications: () => imessage.disableMessagesNotifications(),
     startSysPrefsOnboarding: () => imessage.SystemSettingsOnboarding.start(),
@@ -316,7 +321,7 @@ export default class AppleiMessage implements PlatformAPI {
     },
     isNotificationsEnabledForMessages: () => imessage.isNotificationsEnabledForMessages,
     revealSettings: () => imessage.revealSettings?.(),
-  } satisfies Record<string, () => Awaitable<boolean | void>>
+  } satisfies Record<string, () => Awaitable<boolean | NativeMacPermissionAuthStatus | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {
     if (pathHex === 'proxied') {
