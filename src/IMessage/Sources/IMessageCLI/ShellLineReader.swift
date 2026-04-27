@@ -62,20 +62,12 @@ final class ShellLineReader {
 
     func readLine() -> String? {
         guard isatty(STDIN_FILENO) == 1, isatty(STDOUT_FILENO) == 1 else {
-            print(prompt, terminator: "")
-            fflush(stdout)
-            guard let line = Swift.readLine() else { return nil }
-            history.record(line)
-            return line
+            return readLineFallback()
         }
 
         var originalTermios = termios()
         guard tcgetattr(STDIN_FILENO, &originalTermios) == 0 else {
-            print(prompt, terminator: "")
-            fflush(stdout)
-            guard let line = Swift.readLine() else { return nil }
-            history.record(line)
-            return line
+            return readLineFallback()
         }
 
         var rawTermios = originalTermios
@@ -89,11 +81,7 @@ final class ShellLineReader {
         }
 
         guard tcsetattr(STDIN_FILENO, TCSANOW, &rawTermios) == 0 else {
-            print(prompt, terminator: "")
-            fflush(stdout)
-            guard let line = Swift.readLine() else { return nil }
-            history.record(line)
-            return line
+            return readLineFallback()
         }
         defer {
             var restored = originalTermios
@@ -101,6 +89,14 @@ final class ShellLineReader {
         }
 
         return readInteractiveLine()
+    }
+
+    private func readLineFallback() -> String? {
+        print(prompt, terminator: "")
+        fflush(stdout)
+        guard let line = Swift.readLine() else { return nil }
+        history.record(line)
+        return line
     }
 
     private func readInteractiveLine() -> String? {
@@ -129,7 +125,8 @@ final class ShellLineReader {
                 history.record(line)
                 return line
             case 8, 127:
-                resetHistoryNavigation(&historyIndex, &draftBeforeHistory)
+                historyIndex = nil
+                draftBeforeHistory = ""
                 removeCharacterBeforeCursor(from: &line, cursorIndex: &cursorIndex)
                 refreshLine(line, cursorIndex: cursorIndex)
             case 27:
@@ -148,7 +145,8 @@ final class ShellLineReader {
                 }
 
                 pendingUTF8.removeAll()
-                resetHistoryNavigation(&historyIndex, &draftBeforeHistory)
+                historyIndex = nil
+                draftBeforeHistory = ""
                 line.insert(contentsOf: text, at: cursorIndex)
                 cursorIndex = line.index(cursorIndex, offsetBy: text.count)
                 refreshLine(line, cursorIndex: cursorIndex)
@@ -207,15 +205,17 @@ final class ShellLineReader {
         draftBeforeHistory: inout String
     ) {
         guard !history.entries.isEmpty else { return }
+        let nextIndex: Int
         if let index = historyIndex {
             guard index + 1 < history.entries.count else { return }
-            historyIndex = index + 1
+            nextIndex = index + 1
         } else {
             draftBeforeHistory = line
-            historyIndex = 0
+            nextIndex = 0
         }
 
-        line = history.entries[historyIndex ?? 0]
+        historyIndex = nextIndex
+        line = history.entries[nextIndex]
         cursorIndex = line.endIndex
         refreshLine(line, cursorIndex: cursorIndex)
     }
@@ -228,8 +228,9 @@ final class ShellLineReader {
     ) {
         guard let index = historyIndex else { return }
         if index > 0 {
-            historyIndex = index - 1
-            line = history.entries[historyIndex ?? 0]
+            let nextIndex = index - 1
+            historyIndex = nextIndex
+            line = history.entries[nextIndex]
         } else {
             historyIndex = nil
             line = draftBeforeHistory
@@ -238,11 +239,6 @@ final class ShellLineReader {
 
         cursorIndex = line.endIndex
         refreshLine(line, cursorIndex: cursorIndex)
-    }
-
-    private func resetHistoryNavigation(_ historyIndex: inout Int?, _ draftBeforeHistory: inout String) {
-        historyIndex = nil
-        draftBeforeHistory = ""
     }
 
     private func removeCharacterBeforeCursor(from line: inout String, cursorIndex: inout String.Index) {
