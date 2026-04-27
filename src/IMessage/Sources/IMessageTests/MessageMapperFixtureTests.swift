@@ -98,6 +98,12 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     #expect(messages.map { $0.string("text") } == fixture.texts)
     #expect(messages.map { ($0["attachments"] as? [JSONObject])?.count ?? 0 } == fixture.attachmentCounts)
     #expect(messages.map { ($0["reactions"] as? [JSONObject])?.count ?? 0 } == fixture.reactionCounts)
+
+    let platformMessages = try messages.map(PlatformSDK.Message.init(jsonObject:))
+    #expect(platformMessages.map(\.id) == fixture.messageIDs)
+    #expect(platformMessages.map(\.text) == fixture.texts)
+    #expect(platformMessages.map { $0.attachments?.count ?? 0 } == fixture.attachmentCounts)
+    #expect(platformMessages.map { $0.reactions?.count ?? 0 } == fixture.reactionCounts)
 }
 
 @Test private func stickerAssociatedMessagePreservesLinkedMessageID() throws {

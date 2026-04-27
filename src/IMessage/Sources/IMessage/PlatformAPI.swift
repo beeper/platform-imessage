@@ -83,18 +83,24 @@ public final class PlatformAPI {
         }
     }
 
-    public func getCurrentUser() async throws -> String {
+    public func getCurrentUser() async throws -> PlatformSDK.CurrentUser {
         let database = database
         let currentUserCache = currentUserCache
         return try await DetachedWork.run {
             try database.withDatabase { db in
-                try jsonStringify(Self.currentUser(db: db, cache: currentUserCache).hashed())
+                let currentUser = try Self.currentUser(db: db, cache: currentUserCache).hashed()
+                return PlatformSDK.CurrentUser(
+                    id: currentUser.id,
+                    displayText: currentUser.displayText,
+                    email: currentUser.email,
+                    phoneNumber: currentUser.phoneNumber
+                )
             }
         }
     }
 
-    public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        let page = try await runDBQuery { db, currentUser, accountID in
+    public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
+        try await runDBQuery { db, currentUser, accountID in
             try Self.searchMessages(
                 db: db,
                 query: typed,
@@ -106,10 +112,9 @@ public final class PlatformAPI {
                 limit: limit
             )
         }
-        return try encodeJSON(page.jsonObject)
     }
 
-    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> PlatformAPIPage<PlatformAPIThread> {
+    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Thread> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getThreads(
                 db: db,
@@ -122,7 +127,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> PlatformAPIPage<PlatformAPIMessage> {
+    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessages(
                 db: db,
@@ -136,7 +141,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getThread(threadID: String) async throws -> PlatformAPIThread? {
+    public func getThread(threadID: String) async throws -> PlatformSDK.Thread? {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getThread(
                 db: db,
@@ -147,7 +152,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessage(threadID: String, messageID: String) async throws -> PlatformAPIMessage? {
+    public func getMessage(threadID: String, messageID: String) async throws -> PlatformSDK.Message? {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessage(
                 db: db,
@@ -159,9 +164,9 @@ public final class PlatformAPI {
         }
     }
 
-    public func createThread(userIDs: [String], title: String?, messageText: String?) async throws -> String {
+    public func createThread(userIDs: [String], title: String?, messageText: String?) async throws -> PlatformSDK.CreateThreadResult {
         guard !userIDs.isEmpty else {
-            return "false"
+            return .boolean(false)
         }
 
         guard let messageText, !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -190,7 +195,7 @@ public final class PlatformAPI {
                         quotedMessage: nil
                     )
                 }
-                return try encodeJSON(existingThread.jsonObject)
+                return .thread(existingThread)
             }
         }
 
@@ -204,7 +209,7 @@ public final class PlatformAPI {
                 quotedMessage: nil
             )
         }
-        return "true"
+        return .boolean(true)
     }
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
@@ -221,7 +226,7 @@ public final class PlatformAPI {
         try await performOnController { try $0.deleteThread(threadID: threadID) }
     }
 
-    public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
+    public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
         let database = database
         let threadID = try await DetachedWork.run {
             try database.withDatabase { db in
@@ -255,7 +260,7 @@ public final class PlatformAPI {
         )
     }
 
-    public func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
+    public func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
         let filePath = try await DetachedWork.run {
             try Self.writeTemporaryAttachmentFile(data: fileBuffer, fileName: fileName)
         }
@@ -669,7 +674,7 @@ public final class PlatformAPI {
         text: String?,
         lastRowID: Int,
         timeout: TimeInterval
-    ) async throws -> String {
+    ) async throws -> PlatformSDK.MessageSendResult {
         let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
         let controller = try await getMessagesController()
@@ -685,12 +690,12 @@ public final class PlatformAPI {
 
         guard sentThreadIsValid else {
             platformLog.error("imsg: imessage potentially sent messages to invalid thread")
-            return "true"
+            return .boolean(true)
         }
 
         let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
-        return try encodeJSON(messages)
+        return .messages(try messages.map(PlatformSDK.Message.init(jsonObject:)))
     }
 
     private func waitForSentMessageIDs(
@@ -802,9 +807,9 @@ public final class PlatformAPI {
         direction: String?,
         currentUser: CurrentUser,
         accountID: String
-    ) throws -> PlatformAPIPage<PlatformAPIThread> {
+    ) throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Thread> {
         guard folderName == "normal" else {
-            return PlatformAPIPage(items: [], hasMore: false, oldestCursor: "0")
+            return PlatformSDK.PaginatedWithCursors(items: [], hasMore: false, oldestCursor: "0")
         }
 
         let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
@@ -824,7 +829,7 @@ public final class PlatformAPI {
             currentUser: currentUser,
             accountID: accountID
         )
-        let threads = try chatRows.map { try PlatformAPIThread(jsonObject: ThreadMapper.mapAndHashThread($0, context: context)) }
+        let threads = try chatRows.map { try PlatformSDK.Thread(jsonObject: ThreadMapper.mapAndHashThread($0, context: context)) }
         // TODO: Change the API design so getThreads is side-effect free and
         // the polling bootstrap is triggered by an explicit lifecycle call.
         if cursor == nil, let pollingCursor = ThreadMapper.pollingCursor(from: Array(latestMessageRowsByChatGUID.values)) {
@@ -833,7 +838,7 @@ public final class PlatformAPI {
                 lastDateRead: Date(nanosecondsSinceReferenceDate: pollingCursor.maxDateReadNanoseconds)
             )
         }
-        return PlatformAPIPage(
+        return PlatformSDK.PaginatedWithCursors(
             items: threads,
             hasMore: chatRows.count == mappedThreadsLimit,
             oldestCursor: chatRows.last?.msgDate.map(String.init)
@@ -845,7 +850,7 @@ public final class PlatformAPI {
         threadID publicThreadID: String,
         currentUser: CurrentUser,
         accountID: String
-    ) throws -> PlatformAPIThread? {
+    ) throws -> PlatformSDK.Thread? {
         let threadID = try originalThreadID(db: db, publicThreadID)
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
             return nil
@@ -865,7 +870,7 @@ public final class PlatformAPI {
             currentUser: currentUser,
             accountID: accountID
         )
-        return try PlatformAPIThread(jsonObject: ThreadMapper.mapAndHashThread(chatRow, context: context))
+        return try PlatformSDK.Thread(jsonObject: ThreadMapper.mapAndHashThread(chatRow, context: context))
     }
 
     nonisolated static func getMessages(
@@ -876,7 +881,7 @@ public final class PlatformAPI {
         currentUserID: String,
         accountID: String,
         limit: Int? = nil
-    ) throws -> PlatformAPIPage<PlatformAPIMessage> {
+    ) throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
         let threadID = try originalThreadID(db: db, publicThreadID)
         let pageDirection = direction.flatMap(MappedMessagePageDirection.init(rawValue:))
         let effectiveLimit = limit ?? messagePageLimit
@@ -898,8 +903,8 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return PlatformAPIPage(
-            items: messages.map(PlatformAPIMessage.init(jsonObject:)),
+        return PlatformSDK.Paginated(
+            items: try messages.map(PlatformSDK.Message.init(jsonObject:)),
             hasMore: msgRows.count == effectiveLimit
         )
     }
@@ -910,7 +915,7 @@ public final class PlatformAPI {
         messageID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> PlatformAPIMessage? {
+    ) throws -> PlatformSDK.Message? {
         try messageObject(
             db: db,
             threadID: publicThreadID,
@@ -926,7 +931,7 @@ public final class PlatformAPI {
         messageID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> PlatformAPIMessage? {
+    ) throws -> PlatformSDK.Message? {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let messageGUID = messageID.components(separatedBy: "_").first ?? messageID
         guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
@@ -941,7 +946,10 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return messages.first(where: { ($0["id"] as? String) == messageID }).map(PlatformAPIMessage.init(jsonObject:))
+        guard let message = messages.first(where: { ($0["id"] as? String) == messageID }) else {
+            return nil
+        }
+        return try PlatformSDK.Message(jsonObject: message)
     }
 
     nonisolated static func searchMessages(
@@ -953,7 +961,7 @@ public final class PlatformAPI {
         currentUserID: String,
         accountID: String,
         limit: Int? = nil
-    ) throws -> PlatformAPIPage<PlatformAPIMessage> {
+    ) throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let effectiveLimit = limit ?? messagePageLimit
         let matchingRowIDs = try db.searchMessages(
@@ -964,7 +972,7 @@ public final class PlatformAPI {
             limit: effectiveLimit
         )
         guard !matchingRowIDs.isEmpty else {
-            return PlatformAPIPage(items: [], hasMore: false, oldestCursor: "")
+            return PlatformSDK.PaginatedWithCursors(items: [], hasMore: false, oldestCursor: "")
         }
 
         let msgRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
@@ -978,8 +986,8 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return PlatformAPIPage(
-            items: messages.map(PlatformAPIMessage.init(jsonObject:)),
+        return PlatformSDK.PaginatedWithCursors(
+            items: try messages.map(PlatformSDK.Message.init(jsonObject:)),
             hasMore: matchingRowIDs.count == effectiveLimit,
             oldestCursor: msgRows.first?.date.map(String.init) ?? ""
         )

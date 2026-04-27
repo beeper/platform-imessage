@@ -373,7 +373,10 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        try await context.invoke("getCurrentUser", args: []) { api in try await api.platformAPI.getCurrentUser() }
+        try await context.invoke("getCurrentUser", args: []) { api in
+            let currentUser = try await api.platformAPI.getCurrentUser()
+            return try encodeJSON(currentUser.jsonObject)
+        }
     },
     CommandDefinition(
         name: "open-settings",
@@ -467,7 +470,8 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireMinArgs(context.command, args, 1)
         let query = args.joined(separator: " ")
         try await context.invoke("searchMessages", args: [query]) { api in
-            try await api.platformAPI.searchMessages(typed: query, threadID: nil, mediaOnly: false, sender: nil, limit: nil)
+            let messages = try await api.platformAPI.searchMessages(typed: query, threadID: nil, mediaOnly: false, sender: nil, limit: nil)
+            return try encodeJSON(messages.jsonObject)
         }
     },
     CommandDefinition(
@@ -482,7 +486,8 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireMinArgs(context.command, parsed.positionals, 1)
         let message = try requireStringOption(context.command, optionName: "--message TEXT", value: parsed.value)
         try await context.invoke("createThread", args: [parsed.positionals, message]) { api in
-            try await api.platformAPI.createThread(userIDs: parsed.positionals, title: nil, messageText: message)
+            let result = try await api.platformAPI.createThread(userIDs: parsed.positionals, title: nil, messageText: message)
+            return try encodeJSON(result.jsonValue)
         }
     },
     CommandDefinition(
@@ -496,7 +501,8 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireMinArgs(context.command, args, 2)
         let text = try joinText(context.command, args, startIndex: 1)
         try await context.invoke("sendMessage", args: [args[0], ["text": text]]) { api in
-            try await api.platformAPI.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: nil)
+            let result = try await api.platformAPI.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: nil)
+            return try encodeJSON(result.jsonValue)
         }
     },
     CommandDefinition(
@@ -510,7 +516,8 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireMinArgs(context.command, args, 3)
         let text = try joinText(context.command, args, startIndex: 2)
         try await context.invoke("sendMessage", args: [args[0], ["text": text], ["quotedMessageID": args[1]]]) { api in
-            try await api.platformAPI.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: args[1])
+            let result = try await api.platformAPI.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: args[1])
+            return try encodeJSON(result.jsonValue)
         }
     },
     CommandDefinition(
@@ -524,7 +531,8 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 2)
         let filePath = absolutePath(args[1])
         try await context.invoke("sendMessage", args: [args[0], ["filePath": filePath]]) { api in
-            try await api.platformAPI.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: nil)
+            let result = try await api.platformAPI.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: nil)
+            return try encodeJSON(result.jsonValue)
         }
     },
     CommandDefinition(
@@ -538,7 +546,8 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 3)
         let filePath = absolutePath(args[2])
         try await context.invoke("sendMessage", args: [args[0], ["filePath": filePath], ["quotedMessageID": args[1]]]) { api in
-            try await api.platformAPI.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: args[1])
+            let result = try await api.platformAPI.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: args[1])
+            return try encodeJSON(result.jsonValue)
         }
     },
     CommandDefinition(

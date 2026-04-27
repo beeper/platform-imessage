@@ -11,11 +11,13 @@ import IMessageCore
     }
 
     @NodeMethod func getCurrentUser() async throws -> String {
-        try await api.getCurrentUser()
+        let currentUser = try await api.getCurrentUser()
+        return try encodeJSON(currentUser.jsonObject)
     }
 
     @NodeMethod func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        try await api.searchMessages(typed: typed, threadID: threadID, mediaOnly: mediaOnly, sender: sender, limit: limit)
+        let messages = try await api.searchMessages(typed: typed, threadID: threadID, mediaOnly: mediaOnly, sender: sender, limit: limit)
+        return try encodeJSON(messages.jsonObject)
     }
 
     @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
@@ -40,7 +42,8 @@ import IMessageCore
 
     @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {
         let userIDs = try userIDsValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
-        return try await api.createThread(userIDs: userIDs, title: title, messageText: messageText)
+        let result = try await api.createThread(userIDs: userIDs, title: title, messageText: messageText)
+        return try encodeJSON(result.jsonValue)
     }
 
     @NodeMethod func updateThread(threadID: String, muted: Bool) async throws {
@@ -52,11 +55,13 @@ import IMessageCore
     }
 
     @NodeMethod func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> String {
-        try await api.sendMessage(threadID: threadID, text: text, filePath: filePath, quotedMessageID: quotedMessageID)
+        let result = try await api.sendMessage(threadID: threadID, text: text, filePath: filePath, quotedMessageID: quotedMessageID)
+        return try encodeJSON(result.jsonValue)
     }
 
     @NodeMethod func sendFileFromBuffer(threadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> String {
-        try await api.sendFileFromBuffer(threadID: threadID, fileBuffer: fileBuffer, fileName: fileName, quotedMessageID: quotedMessageID)
+        let result = try await api.sendFileFromBuffer(threadID: threadID, fileBuffer: fileBuffer, fileName: fileName, quotedMessageID: quotedMessageID)
+        return try encodeJSON(result.jsonValue)
     }
 
     @NodeMethod func editMessage(threadID: String, messageID: String, content: String?) async throws {
