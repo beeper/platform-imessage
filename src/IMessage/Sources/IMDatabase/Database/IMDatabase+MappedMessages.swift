@@ -76,7 +76,7 @@ public extension IMDatabase {
         cursor: String?,
         direction: MappedMessagePageDirection?,
         limit: Int = 20
-    ) throws -> [[String: Any]] {
+    ) throws -> [MappedMessageRow] {
         let messageColumns = try tableColumns("message")
         let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
         let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
@@ -104,12 +104,13 @@ public extension IMDatabase {
             try statement.bind(chatGUID)
         }
 
+        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
         return try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: messageSelectionNames(messageColumns: messageColumns))
+            try MappedMessageRow(row: row, columns: columns)
         }
     }
 
-    func mappedMessageRow(guid: String) throws -> [String: Any]? {
+    func mappedMessageRow(guid: String) throws -> MappedMessageRow? {
         let messageColumns = try tableColumns("message")
         let sql = """
         SELECT
@@ -120,12 +121,13 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(guid)
+        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
         return try statement.compactMapRowsUntilDone { row in
-            try row.object(columnNames: messageSelectionNames(messageColumns: messageColumns))
+            try MappedMessageRow(row: row, columns: columns)
         }.first
     }
 
-    func mappedMessageRows(rowIDs: [Int]) throws -> [[String: Any]] {
+    func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
         guard !rowIDs.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")
         let sql = """
@@ -138,12 +140,13 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(rowIDs.map { $0 as any SQLiteBindable })
+        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
         return try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: messageSelectionNames(messageColumns: messageColumns))
+            try MappedMessageRow(row: row, columns: columns)
         }
     }
 
-    func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: [String: Any]] {
+    func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: MappedMessageRow] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let messageColumns = try tableColumns("message")
         let placeholders = chatRowIDs.map { _ in "?" }.joined(separator: ", ")
@@ -164,15 +167,16 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
+        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
         return try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: messageSelectionNames(messageColumns: messageColumns))
+            try MappedMessageRow(row: row, columns: columns)
         }.reduce(into: [:]) { result, messageRow in
-            guard let threadID = messageRow["threadID"] as? String else { return }
+            guard let threadID = messageRow.threadID else { return }
             result[threadID] = messageRow
         }
     }
 
-    func mappedAttachmentRows(messageRowIDs: [Int]) throws -> [[String: Any]] {
+    func mappedAttachmentRows(messageRowIDs: [Int]) throws -> [MappedAttachmentRow] {
         guard !messageRowIDs.isEmpty else { return [] }
         let sql = """
         SELECT m.ROWID AS msgRowID, a.filename, a.transfer_name, a.total_bytes, a.is_sticker, a.guid AS attachmentID, a.transfer_state
@@ -183,10 +187,9 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(messageRowIDs.map { $0 as any SQLiteBindable })
+        let columns = MappedRowColumnIndexes(["msgRowID", "filename", "transfer_name", "total_bytes", "is_sticker", "attachmentID", "transfer_state"])
         return try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: [
-                "msgRowID", "filename", "transfer_name", "total_bytes", "is_sticker", "attachmentID", "transfer_state",
-            ])
+            try MappedAttachmentRow(row: row, columns: columns)
         }
     }
 
@@ -210,13 +213,14 @@ public extension IMDatabase {
         }.first
     }
 
-    func mappedReactionRows(messageGUIDs: [String], chatRowIDs: [Int]) throws -> [[String: Any]] {
+    func mappedReactionRows(messageGUIDs: [String], chatRowIDs: [Int]) throws -> [MappedReactionMessageRow] {
         guard !messageGUIDs.isEmpty, !chatRowIDs.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")
         let hasAssociatedEmoji = messageColumns.contains("associated_message_emoji")
         let columnNames = [
             "ROWID", "is_from_me", "handle_id", "associated_message_type", "associated_message_guid",
         ] + (hasAssociatedEmoji ? ["associated_message_emoji"] : []) + ["participantID"]
+        let columns = MappedRowColumnIndexes(columnNames)
         let emojiColumn = hasAssociatedEmoji ? "associated_message_emoji," : ""
         let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
         let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
@@ -233,15 +237,15 @@ public extension IMDatabase {
         bindings.append(contentsOf: chatRowIDs.map { $0 as any SQLiteBindable })
         try statement.bind(bindings)
         return try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: columnNames)
+            try MappedReactionMessageRow(row: row, columns: columns)
         }
     }
 
-    func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [[String: Any]] {
+    func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [MappedReactionMessageRow] {
         try mappedReactionRows(messageGUIDs: messageGUIDs, chatRowIDs: [chatRowID])
     }
 
-    func mappedReactionRows(messageGUIDs: [String], chatGUID: String) throws -> [[String: Any]] {
+    func mappedReactionRows(messageGUIDs: [String], chatGUID: String) throws -> [MappedReactionMessageRow] {
         guard let chatRowID = try chat(withGUID: chatGUID)?.id else {
             return []
         }

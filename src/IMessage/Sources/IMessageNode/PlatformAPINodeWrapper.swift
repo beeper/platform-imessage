@@ -20,22 +20,22 @@ import IMessageCore
 
     @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
         let threads = try await api.getThreads(folderName: folderName, cursor: cursor, direction: direction)
-        return try encodeJSON(threads)
+        return try encodeJSON(threads.jsonObject)
     }
 
     @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
         let messages = try await api.getMessages(threadID: threadID, cursor: cursor, direction: direction, limit: limit)
-        return try encodeJSON(messages)
+        return try encodeJSON(messages.jsonObject)
     }
 
     @NodeMethod func getThread(threadID: String) async throws -> String {
         let thread = try await api.getThread(threadID: threadID)
-        return try encodeJSON(thread)
+        return try encodeJSON(thread?.jsonObject)
     }
 
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
         let message = try await api.getMessage(threadID: threadID, messageID: messageID)
-        return try encodeJSON(message)
+        return try encodeJSON(message?.jsonObject)
     }
 
     @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {

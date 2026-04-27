@@ -94,7 +94,7 @@ public final class PlatformAPI {
     }
 
     public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        try await runDBQuery { db, currentUser, accountID in
+        let page = try await runDBQuery { db, currentUser, accountID in
             try Self.searchMessages(
                 db: db,
                 query: typed,
@@ -106,9 +106,10 @@ public final class PlatformAPI {
                 limit: limit
             )
         }
+        return try encodeJSON(page.jsonObject)
     }
 
-    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> JSONObject {
+    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> PlatformAPIPage<PlatformAPIThread> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getThreads(
                 db: db,
@@ -121,7 +122,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> JSONObject {
+    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> PlatformAPIPage<PlatformAPIMessage> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessages(
                 db: db,
@@ -135,7 +136,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getThread(threadID: String) async throws -> JSONObject? {
+    public func getThread(threadID: String) async throws -> PlatformAPIThread? {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getThread(
                 db: db,
@@ -146,7 +147,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessage(threadID: String, messageID: String) async throws -> JSONObject? {
+    public func getMessage(threadID: String, messageID: String) async throws -> PlatformAPIMessage? {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessage(
                 db: db,
@@ -189,7 +190,7 @@ public final class PlatformAPI {
                         quotedMessage: nil
                     )
                 }
-                return try encodeJSON(existingThread)
+                return try encodeJSON(existingThread.jsonObject)
             }
         }
 
@@ -754,7 +755,7 @@ public final class PlatformAPI {
                 ) else {
                     continue
                 }
-                messages.append(message)
+                messages.append(message.jsonObject)
             }
             return messages
         }
@@ -801,18 +802,14 @@ public final class PlatformAPI {
         direction: String?,
         currentUser: CurrentUser,
         accountID: String
-    ) throws -> JSONObject {
+    ) throws -> PlatformAPIPage<PlatformAPIThread> {
         guard folderName == "normal" else {
-            return [
-                "items": [],
-                "hasMore": false,
-                "oldestCursor": "0",
-            ]
+            return PlatformAPIPage(items: [], hasMore: false, oldestCursor: "0")
         }
 
         let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
         let chatRows = try db.mappedThreadRows(cursor: cursor, direction: pageDirection)
-        let chatRowIDs = chatRows.compactMap { $0.int("ROWID") }
+        let chatRowIDs = chatRows.map(\.rowID)
         let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: chatRows)
         let context = ThreadMapper.Context(
             handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
@@ -827,20 +824,20 @@ public final class PlatformAPI {
             currentUser: currentUser,
             accountID: accountID
         )
-        let threads = try chatRows.map { try ThreadMapper.mapAndHashThread($0, context: context) }
+        let threads = try chatRows.map { try PlatformAPIThread(jsonObject: ThreadMapper.mapAndHashThread($0, context: context)) }
         // TODO: Change the API design so getThreads is side-effect free and
         // the polling bootstrap is triggered by an explicit lifecycle call.
-        if cursor == nil, let pollingCursor = ThreadMapper.pollingCursor(from: latestMessageRowsByChatGUID.values.map { $0 }) {
+        if cursor == nil, let pollingCursor = ThreadMapper.pollingCursor(from: Array(latestMessageRowsByChatGUID.values)) {
             PollingLifecycle.shared.startBootstrapIfNecessary(
                 lastRowID: pollingCursor.maxRowID,
                 lastDateRead: Date(nanosecondsSinceReferenceDate: pollingCursor.maxDateReadNanoseconds)
             )
         }
-        return compactDictionary([
-            "items": threads,
-            "hasMore": chatRows.count == mappedThreadsLimit,
-            "oldestCursor": chatRows.last?.string("msgDateString"),
-        ])
+        return PlatformAPIPage(
+            items: threads,
+            hasMore: chatRows.count == mappedThreadsLimit,
+            oldestCursor: chatRows.last?.msgDateString
+        )
     }
 
     nonisolated static func getThread(
@@ -848,12 +845,12 @@ public final class PlatformAPI {
         threadID publicThreadID: String,
         currentUser: CurrentUser,
         accountID: String
-    ) throws -> JSONObject? {
+    ) throws -> PlatformAPIThread? {
         let threadID = try originalThreadID(db: db, publicThreadID)
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
             return nil
         }
-        let chatRowIDs = [chatRow].compactMap { $0.int("ROWID") }
+        let chatRowIDs = [chatRow.rowID]
         let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: [chatRow])
         let context = ThreadMapper.Context(
             handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
@@ -868,7 +865,7 @@ public final class PlatformAPI {
             currentUser: currentUser,
             accountID: accountID
         )
-        return try ThreadMapper.mapAndHashThread(chatRow, context: context)
+        return try PlatformAPIThread(jsonObject: ThreadMapper.mapAndHashThread(chatRow, context: context))
     }
 
     nonisolated static func getMessages(
@@ -879,7 +876,7 @@ public final class PlatformAPI {
         currentUserID: String,
         accountID: String,
         limit: Int? = nil
-    ) throws -> JSONObject {
+    ) throws -> PlatformAPIPage<PlatformAPIMessage> {
         let threadID = try originalThreadID(db: db, publicThreadID)
         let pageDirection = direction.flatMap(MappedMessagePageDirection.init(rawValue:))
         let effectiveLimit = limit ?? messagePageLimit
@@ -901,10 +898,10 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return [
-            "items": messages,
-            "hasMore": msgRows.count == effectiveLimit,
-        ]
+        return PlatformAPIPage(
+            items: messages.map(PlatformAPIMessage.init(jsonObject:)),
+            hasMore: msgRows.count == effectiveLimit
+        )
     }
 
     nonisolated static func getMessage(
@@ -913,7 +910,7 @@ public final class PlatformAPI {
         messageID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> JSONObject? {
+    ) throws -> PlatformAPIMessage? {
         try messageObject(
             db: db,
             threadID: publicThreadID,
@@ -929,7 +926,7 @@ public final class PlatformAPI {
         messageID: String,
         currentUserID: String,
         accountID: String
-    ) throws -> JSONObject? {
+    ) throws -> PlatformAPIMessage? {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let messageGUID = messageID.components(separatedBy: "_").first ?? messageID
         guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
@@ -944,7 +941,7 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return messages.first(where: { ($0["id"] as? String) == messageID })
+        return messages.first(where: { ($0["id"] as? String) == messageID }).map(PlatformAPIMessage.init(jsonObject:))
     }
 
     nonisolated static func searchMessages(
@@ -956,7 +953,7 @@ public final class PlatformAPI {
         currentUserID: String,
         accountID: String,
         limit: Int? = nil
-    ) throws -> String {
+    ) throws -> PlatformAPIPage<PlatformAPIMessage> {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let effectiveLimit = limit ?? messagePageLimit
         let matchingRowIDs = try db.searchMessages(
@@ -967,16 +964,12 @@ public final class PlatformAPI {
             limit: effectiveLimit
         )
         guard !matchingRowIDs.isEmpty else {
-            return try encodeJSON([
-                "items": [],
-                "hasMore": false,
-                "oldestCursor": "",
-            ])
+            return PlatformAPIPage(items: [], hasMore: false, oldestCursor: "")
         }
 
         let msgRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
-        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRows.compactMap { $0.int("ROWID") }))
-        let messageGUIDs = msgRows.compactMap { $0.string("guid") }
+        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRows.map(\.rowID)))
+        let messageGUIDs = msgRows.map(\.guid)
         let reactionRows = try threadID.map { try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatGUID: $0) } ?? []
         let messages = try mapAndHashMessages(
             msgRows: msgRows,
@@ -985,41 +978,41 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        return try encodeJSON([
-            "items": messages,
-            "hasMore": matchingRowIDs.count == effectiveLimit,
-            "oldestCursor": msgRows.first?.string("date") ?? "",
-        ])
+        return PlatformAPIPage(
+            items: messages.map(PlatformAPIMessage.init(jsonObject:)),
+            hasMore: matchingRowIDs.count == effectiveLimit,
+            oldestCursor: msgRows.first?.dateString ?? ""
+        )
     }
 }
 
 extension PlatformAPI {
     private struct MessagePayloadRows {
-        var attachmentRows: [JSONObject]
-        var reactionRows: [JSONObject]
+        var attachmentRows: [MappedAttachmentRow]
+        var reactionRows: [MappedReactionMessageRow]
     }
 
-    nonisolated static func latestThreadMessageRowsByChatGUID(db: IMDatabase, chatRows: [JSONObject]) throws -> [String: JSONObject] {
-        try db.mappedLatestMessageRows(chatRowIDs: chatRows.compactMap { $0.int("ROWID") })
+    nonisolated static func latestThreadMessageRowsByChatGUID(db: IMDatabase, chatRows: [MappedChatRow]) throws -> [String: MappedMessageRow] {
+        try db.mappedLatestMessageRows(chatRowIDs: chatRows.map(\.rowID))
     }
 
     nonisolated static func latestThreadMessagesByChatGUID(
         db: IMDatabase,
-        _ latestMessageRowsByChatGUID: [String: JSONObject],
+        _ latestMessageRowsByChatGUID: [String: MappedMessageRow],
         currentUserID: String,
         accountID: String
     ) throws -> [String: [JSONObject]] {
         let msgRows = Array(latestMessageRowsByChatGUID.values)
         let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: "")
-        let attachmentRowsByMessageID = Dictionary(grouping: payloadRows.attachmentRows, by: { $0.int("msgRowID") ?? -1 })
-        let reactionRowsByMessageGUID = Dictionary(grouping: payloadRows.reactionRows, by: { reactionMessageGUID($0.string("associated_message_guid") ?? "") })
+        let attachmentRowsByMessageID = Dictionary(grouping: payloadRows.attachmentRows, by: \.msgRowID)
+        let reactionRowsByMessageGUID = Dictionary(grouping: payloadRows.reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
 
         var latestMessagesByChatGUID = [String: [JSONObject]]()
         for (guid, msgRow) in latestMessageRowsByChatGUID {
             latestMessagesByChatGUID[guid] = try mapAndHashMessage(
                 msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.string("guid") ?? ""] ?? [],
+                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
+                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
                 currentUserID: currentUserID,
                 accountID: accountID
             )
@@ -1072,17 +1065,17 @@ extension PlatformAPI {
 
     nonisolated private static func messagePayloadRows(
         db: IMDatabase,
-        msgRows: [JSONObject],
+        msgRows: [MappedMessageRow],
         threadID: String
     ) throws -> MessagePayloadRows {
         guard !msgRows.isEmpty else {
             return MessagePayloadRows(attachmentRows: [], reactionRows: [])
         }
 
-        let msgRowIDs = msgRows.compactMap { $0.int("ROWID") }
-        let msgGUIDs = msgRows.compactMap { $0.string("guid") }
-        let chatRowIDs = Array(Set(msgRows.compactMap { $0.int("chatRowID") }))
-        let reactionRows: [JSONObject]
+        let msgRowIDs = msgRows.map(\.rowID)
+        let msgGUIDs = msgRows.map(\.guid)
+        let chatRowIDs = Array(Set(msgRows.compactMap(\.chatRowID)))
+        let reactionRows: [MappedReactionMessageRow]
         if !chatRowIDs.isEmpty {
             reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatRowIDs: chatRowIDs)
         } else {
@@ -1095,9 +1088,9 @@ extension PlatformAPI {
     }
 
     nonisolated static func mapAndHashMessages(
-        msgRows: [JSONObject],
-        attachmentRows: [JSONObject],
-        reactionRows: [JSONObject],
+        msgRows: [MappedMessageRow],
+        attachmentRows: [MappedAttachmentRow],
+        reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
         accountID: String
     ) throws -> [JSONObject] {
@@ -1105,14 +1098,14 @@ extension PlatformAPI {
             return []
         }
 
-        let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: { $0.int("msgRowID") ?? -1 })
-        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.string("associated_message_guid") ?? "") })
+        let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
+        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
 
         return try msgRows.flatMap { msgRow -> [JSONObject] in
             try mapAndHashMessage(
                 msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.int("ROWID") ?? -1] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.string("guid") ?? ""] ?? [],
+                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
+                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
                 currentUserID: currentUserID,
                 accountID: accountID
             )
@@ -1120,9 +1113,9 @@ extension PlatformAPI {
     }
 
     nonisolated static func mapAndHashMessage(
-        msgRow: JSONObject,
-        attachmentRows: [JSONObject],
-        reactionRows: [JSONObject],
+        msgRow: MappedMessageRow,
+        attachmentRows: [MappedAttachmentRow],
+        reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
         accountID: String
     ) throws -> [JSONObject] {
@@ -1136,8 +1129,8 @@ extension PlatformAPI {
         let mapped = try mapper.mapMessage().filter { shouldKeepForAPI($0) }
         return attachOriginalIfNeeded(
             mapped,
-            msgRow: msgRow,
-            attachmentRows: attachmentRows,
+            msgRow: msgRow.object,
+            attachmentRows: attachmentRows.objects,
             currentUserID: currentUserID
         ).map(hashMessage)
     }
@@ -1190,27 +1183,36 @@ extension PlatformAPI {
         return message
     }
 
-    nonisolated static func decorateAttachments(_ attachmentRows: [JSONObject]) -> [JSONObject] {
+    nonisolated static func decorateAttachments(_ attachmentRows: [MappedAttachmentRow]) -> [MappedAttachmentRow] {
         attachmentRows.map { attachmentRow in
-            var attachmentRow = attachmentRow
-            let rawFilePath = attachmentRow.string("filename")
+            let rawFilePath = attachmentRow.filename
             let filePath = rawFilePath.map(replaceTilde)
-            let transferName = attachmentRow.string("transfer_name")
+            let transferName = attachmentRow.transferName
             let base = filePath.map { ($0 as NSString).lastPathComponent } ?? transferName ?? ""
             let ext = filePath.map { ($0 as NSString).pathExtension.lowercased() } ?? ""
-            attachmentRow["filePath"] = filePath as Any
-            attachmentRow["fileName"] = transferName?.isEmpty == false ? transferName! : base
-            attachmentRow["ext"] = ext
+            var size: [String: Int]?
 
             if let filePath,
                imageExtensions.contains(ext) || ext == "pluginpayloadattachment",
-               let size = ImageMetadataReader.read(from: filePath) {
-                attachmentRow["size"] = [
-                    "width": size.width,
-                    "height": size.height,
+               let metadataSize = ImageMetadataReader.read(from: filePath) {
+                size = [
+                    "width": metadataSize.width,
+                    "height": metadataSize.height,
                 ]
             }
-            return attachmentRow
+            return MappedAttachmentRow(
+                msgRowID: attachmentRow.msgRowID,
+                filename: attachmentRow.filename,
+                transferName: attachmentRow.transferName,
+                totalBytes: attachmentRow.totalBytes,
+                isSticker: attachmentRow.isSticker,
+                attachmentID: attachmentRow.attachmentID,
+                transferState: attachmentRow.transferState,
+                ext: ext,
+                fileName: transferName?.isEmpty == false ? transferName! : base,
+                filePath: filePath,
+                size: size
+            )
         }
     }
 

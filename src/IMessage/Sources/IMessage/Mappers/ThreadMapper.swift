@@ -1,4 +1,5 @@
 import Foundation
+import IMDatabase
 import IMessageCore
 
 enum ThreadMapper {
@@ -8,7 +9,7 @@ enum ThreadMapper {
     }
 
     struct Context {
-        var handleRowsByChatRowID: [Int: [JSONObject]]
+        var handleRowsByChatRowID: [Int: [MappedHandleRow]]
         var latestMessagesByChatGUID: [String: [JSONObject]]
         var unreadCounts: [Int: Int]
         var dndState: Set<String>
@@ -16,60 +17,60 @@ enum ThreadMapper {
         var accountID: String
     }
 
-    static func mapAndHashThread(_ chat: JSONObject, context: Context) throws -> JSONObject {
+    static func mapAndHashThread(_ chat: MappedChatRow, context: Context) throws -> JSONObject {
         hashThread(try mapThread(chat, context: context))
     }
 
-    static func pollingCursor(from latestMessageRows: [JSONObject]) -> PollingCursor? {
+    static func pollingCursor(from latestMessageRows: [MappedMessageRow]) -> PollingCursor? {
         guard !latestMessageRows.isEmpty else {
             return nil
         }
         let (maxRowID, maxDateReadNanoseconds) = latestMessageRows.reduce(into: (0, 0)) { result, row in
-            result.0 = max(result.0, row.int("ROWID") ?? 0)
+            result.0 = max(result.0, row.rowID)
             // Guard against bogus read dates that overflow Int64 — the source
             // of these is unknown but they'd poison the polling cursor.
-            guard (row.string("dateReadString") ?? "0") < int64MaxString else {
+            guard row.dateReadString < int64MaxString else {
                 return
             }
-            result.1 = max(result.1, row.int("date_read") ?? 0)
+            result.1 = max(result.1, row.dateRead ?? 0)
         }
         return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
     private static let int64MaxString = String(Int.max)
 
-    private static func mapThread(_ chat: JSONObject, context: Context) throws -> JSONObject {
-        let guid = chat.string("guid") ?? ""
-        let handleRows = context.handleRowsByChatRowID[chat.int("ROWID") ?? -1] ?? []
+    private static func mapThread(_ chat: MappedChatRow, context: Context) throws -> JSONObject {
+        let guid = chat.guid
+        let handleRows = context.handleRowsByChatRowID[chat.rowID] ?? []
         let messages = context.latestMessagesByChatGUID[guid] ?? []
-        let selfID = chat.string("last_addressed_handle").flatMap(\.nonEmpty)
-            ?? chat.string("account_login").map(mapAccountLogin).flatMap(\.nonEmpty)
+        let selfID = chat.lastAddressedHandle.flatMap(\.nonEmpty)
+            ?? chat.accountLogin.map(mapAccountLogin).flatMap(\.nonEmpty)
             ?? context.currentUser.id
-        let firstParticipantID = handleRows.first?.string("participantID")
+        let firstParticipantID = handleRows.first?.participantID
 
-        let chatDisplayName = chat.string("display_name")
+        let chatDisplayName = chat.displayName
         var participants = handleRows.compactMap { mapParticipant($0, chatDisplayName: chatDisplayName) }
         if context.currentUser.id != firstParticipantID {
             participants.append(mapSelfParticipant(selfID: selfID, currentUserID: context.currentUser.id))
         }
 
-        let isGroup = chat.string("room_name")?.isEmpty == false
-        let isReadOnly = chat.int("state") == 0 && chat.hasValue("properties")
-        let props = propertyListDictionary(chat.data("properties"))
-        let unreadCount = context.unreadCounts[chat.int("ROWID") ?? -1] ?? 0
+        let isGroup = chat.roomName?.isEmpty == false
+        let isReadOnly = chat.state == 0 && chat.properties != nil
+        let props = propertyListDictionary(chat.properties)
+        let unreadCount = context.unreadCounts[chat.rowID] ?? 0
 
         var thread = compactDictionary([
             "id": guid,
-            "title": chat.string("display_name"),
+            "title": chat.displayName,
             "imgURL": chatPhotoURL(props: props, accountID: context.accountID),
-            "mutedUntil": context.dndState.contains(isGroup ? (chat.string("group_id") ?? "") : (chat.string("chat_identifier") ?? "")) ? "forever" : nil,
+            "mutedUntil": context.dndState.contains(isGroup ? (chat.groupID ?? "") : (chat.chatIdentifier ?? "")) ? "forever" : nil,
             "type": isGroup ? "group" : "single",
             "isReadOnly": isReadOnly,
             // This mirrors Poller+Unreads.swift. Desktop computes unread state
             // from `isMarkedUnread || unreadCount > 0`.
             "unreadCount": unreadCount,
             "isMarkedUnread": unreadCount > 0,
-            "lastReadMessageSortKey": appleDateMilliseconds(chat.string("dateLastMessageReadString")),
+            "lastReadMessageSortKey": appleDateMilliseconds(chat.dateLastMessageReadString),
             "messages": [
                 "hasMore": true,
                 "items": messages,
@@ -81,7 +82,7 @@ enum ThreadMapper {
             // Works around PAS's "map missing" behavior where the folder name
             // can otherwise be filled with the thread ID.
             "folderName": "normal",
-            "timestamp": appleDateMilliseconds(chat.string("msgDateString")),
+            "timestamp": appleDateMilliseconds(chat.msgDateString),
             "extra": compactDictionary([
                 "isSMS": (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;")) ? true : nil,
             ]),
@@ -90,7 +91,7 @@ enum ThreadMapper {
         ])
 
         if !Preferences.stripInternalFields {
-            thread["_original"] = (try? encodeJSON([chat, handleRows])) ?? ""
+            thread["_original"] = (try? encodeJSON([chat.object, handleRows.objects])) ?? ""
         }
         return thread
     }
@@ -116,8 +117,8 @@ enum ThreadMapper {
         return participant
     }
 
-    private static func mapParticipant(_ row: JSONObject, chatDisplayName: String?) -> JSONObject? {
-        guard let id = row.string("participantID"), !id.isEmpty else {
+    private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> JSONObject? {
+        guard let id = row.participantID, !id.isEmpty else {
             return nil
         }
 
@@ -125,7 +126,7 @@ enum ThreadMapper {
         let isEmail = id.contains("@")
         let isBusiness = id.hasPrefix("urn:")
         let isPhone = !isBusiness && !isEmail && id.rangeOfCharacter(from: .decimalDigits) != nil
-        let uncanonicalizedID = row.string("uncanonicalized_id")
+        let uncanonicalizedID = row.uncanonicalizedID
         // iMessage can canonicalize SMS shortcodes with suffixes like
         // `(smsft_rm)` or `(smsft)`. Prefer the raw ID for sender-ID heuristics.
         let idPreferringUncanonicalized = uncanonicalizedID ?? id
@@ -149,7 +150,10 @@ enum ThreadMapper {
     }
 
     private static func mapSelfParticipant(selfID: String, currentUserID: String) -> JSONObject {
-        var participant = mapParticipant(["participantID": selfID], chatDisplayName: nil) ?? [:]
+        var participant = mapParticipant(
+            MappedHandleRow(chatID: nil, participantID: selfID, uncanonicalizedID: nil),
+            chatDisplayName: nil
+        ) ?? [:]
         participant["id"] = currentUserID
         participant["isSelf"] = true
         return participant

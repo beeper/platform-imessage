@@ -410,7 +410,7 @@ private let commandDefinitions: [CommandDefinition] = [
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 0)
         try await context.invoke("getThreads", args: ["normal", pagination.cursor as Any, pagination.direction as Any]) { api in
             let threads = try await api.platformAPI.getThreads(folderName: "normal", cursor: pagination.cursor, direction: pagination.direction)
-            return try encodeJSON(threads)
+            return try encodeJSON(threads.jsonObject)
         }
     },
     CommandDefinition(
@@ -424,7 +424,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 1)
         try await context.invoke("getThread", args: [args[0]]) { api in
             let thread = try await api.platformAPI.getThread(threadID: args[0])
-            return try encodeJSON(thread)
+            return try encodeJSON(thread?.jsonObject)
         }
     },
     CommandDefinition(
@@ -439,7 +439,7 @@ private let commandDefinitions: [CommandDefinition] = [
         let threadID = pagination.positionals[0]
         try await context.invoke("getMessages", args: [threadID, pagination.cursor as Any, pagination.direction as Any]) { api in
             let messages = try await api.platformAPI.getMessages(threadID: threadID, cursor: pagination.cursor, direction: pagination.direction, limit: nil)
-            return try encodeJSON(messages)
+            return try encodeJSON(messages.jsonObject)
         }
     },
     CommandDefinition(
@@ -453,7 +453,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 2)
         try await context.invoke("getMessage", args: args) { api in
             let message = try await api.platformAPI.getMessage(threadID: args[0], messageID: args[1])
-            return try encodeJSON(message)
+            return try encodeJSON(message?.jsonObject)
         }
     },
     CommandDefinition(

@@ -2,7 +2,7 @@ import Foundation
 
 extension Mapper {
     func payloadData() -> Any? {
-        guard let data = msgRow.data("payload_data") else {
+        guard let data = msgRow.payloadData else {
             return nil
         }
         if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) {
@@ -16,7 +16,7 @@ extension Mapper {
     }
 
     func payloadProps(from payloadData: Any, messageAttachments: [JSONObject]) -> JSONObject {
-        switch msgRow.string("balloon_bundle_id") {
+        switch msgRow.balloonBundleID {
         case BalloonBundleID.url, nil:
             return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
         case BalloonBundleID.applePay:
@@ -121,7 +121,7 @@ extension Mapper {
     }
 
     func parseSummaryInfo() -> JSONObject {
-        guard let data = msgRow.data("message_summary_info"),
+        guard let data = msgRow.messageSummaryInfo,
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
             return [:]
         }

@@ -1,22 +1,53 @@
 import Foundation
+import IMDatabase
 import IMessageCore
 
 struct Mapper {
-    let msgRow: JSONObject
-    let attachmentRows: [JSONObject]
-    let reactionRows: [JSONObject]
+    let msgRow: MappedMessageRow
+    let attachmentRows: [MappedAttachmentRow]
+    let reactionRows: [MappedReactionMessageRow]
     let currentUserID: String
     let accountID: String
 
+    init(
+        msgRow: MappedMessageRow,
+        attachmentRows: [MappedAttachmentRow],
+        reactionRows: [MappedReactionMessageRow],
+        currentUserID: String,
+        accountID: String
+    ) {
+        self.msgRow = msgRow
+        self.attachmentRows = attachmentRows
+        self.reactionRows = reactionRows
+        self.currentUserID = currentUserID
+        self.accountID = accountID
+    }
+
+    init(
+        msgRow: JSONObject,
+        attachmentRows: [JSONObject],
+        reactionRows: [JSONObject],
+        currentUserID: String,
+        accountID: String
+    ) throws {
+        try self.init(
+            msgRow: MappedMessageRow(object: msgRow),
+            attachmentRows: attachmentRows.map(MappedAttachmentRow.init(object:)),
+            reactionRows: reactionRows.map(MappedReactionMessageRow.init(object:)),
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+    }
+
     func mapMessage() throws -> [JSONObject] {
-        guard (msgRow.int("schedule_type") ?? 0) == 0 else {
+        guard msgRow.scheduleType == 0 else {
             return []
         }
 
         let attachments = attachmentRows.compactMap { attachment(from: $0) }
-        let service = msgRow.string("service")
+        let service = msgRow.service
         let isSMS = service == "SMS" || service == "RCS"
-        let isGroup = !(msgRow.string("room_name") ?? "").isEmpty
+        let isGroup = !(msgRow.roomName ?? "").isEmpty
         let dates = MessageDates(row: msgRow)
         let summaryInfo = parseSummaryInfo()
 
@@ -24,7 +55,7 @@ struct Mapper {
         applyStatusFields(to: &partialMessage, dates: dates)
         applyEditedTimestamp(to: &partialMessage, dates: dates, summaryInfo: summaryInfo)
 
-        if let itemType = msgRow.int("item_type"), itemType != 0 {
+        if msgRow.itemType != 0 {
             if let actionMessage = mapItemTypeMessage(partialMessage: partialMessage) {
                 return [actionMessage]
             }
@@ -79,7 +110,7 @@ struct Mapper {
             messages[0] = addingInlineSubject(subject, to: messages[0])
         }
 
-        if let associatedGUID = msgRow.string("associated_message_guid"),
+        if let associatedGUID = msgRow.associatedMessageGUID,
            !associatedGUID.isEmpty {
             if let associatedMessage = associatedMessage(
                 messages: &messages,
@@ -102,15 +133,15 @@ struct Mapper {
     private func baseMessage(dates: MessageDates, isSMS: Bool, isGroup: Bool) -> JSONObject {
         let sent = appleDateMilliseconds(dates.sent) ?? 0
         var message = compactDictionary([
-            "id": msgRow.string("guid") ?? "",
+            "id": msgRow.guid,
             "cursor": dates.sent,
             "timestamp": sent,
             "sortKey": sent,
             "senderID": senderID(),
-            "isSender": msgRow.int("is_from_me") == 1,
-            "isErrored": msgRow.int("error") != 0,
-            "isDelivered": msgRow.int("is_delivered") == 1,
-            "threadID": msgRow.string("threadID"),
+            "isSender": msgRow.isFromMe == 1,
+            "isErrored": msgRow.error != 0,
+            "isDelivered": msgRow.isDelivered == 1,
+            "threadID": msgRow.threadID,
             "extra": compactDictionary([
                 "countsAsUnread": true,
                 "isSMS": isSMS ? true : nil,
@@ -123,10 +154,10 @@ struct Mapper {
     }
 
     private func applyStatusFields(to message: inout JSONObject, dates: MessageDates) {
-        if dateStringIsTruthy(dates.retracted) || msgRow.int("was_detonated") == 1 {
+        if dateStringIsTruthy(dates.retracted) || msgRow.wasDetonated == 1 {
             message["isDeleted"] = true
         }
-        if msgRow.int("is_read") == 1 {
+        if msgRow.isRead == 1 {
             message["behavior"] = "keep_read"
         }
     }
@@ -150,7 +181,7 @@ struct Mapper {
             }
         }
 
-        switch msgRow.string("balloon_bundle_id") {
+        switch msgRow.balloonBundleID {
         case BalloonBundleID.digitalTouch:
             setHeading("Digital Touch Message", attachment: digitalTouchAttachment())
         case BalloonBundleID.handwriting:
@@ -163,7 +194,7 @@ struct Mapper {
     }
 
     private func digitalTouchAttachment() -> JSONObject? {
-        guard let data = msgRow.data("payload_data"),
+        guard let data = msgRow.payloadData,
               let uuid = stringFromDataSlice(data, start: data.count - uuidStart - uuidLength, length: uuidLength),
               isUUID(uuid) else {
             return nil
@@ -179,7 +210,7 @@ struct Mapper {
     }
 
     private func handwritingAttachment() -> JSONObject? {
-        guard let data = msgRow.data("payload_data"),
+        guard let data = msgRow.payloadData,
               let uuid = stringFromDataSlice(data, start: uuidStart, length: uuidLength),
               isUUID(uuid) else {
             return nil
@@ -200,10 +231,10 @@ struct Mapper {
     }
 
     private func applyThreadOriginator(to header: inout JSONObject) {
-        guard let originatorGUID = msgRow.string("thread_originator_guid"), !originatorGUID.isEmpty else {
+        guard let originatorGUID = msgRow.threadOriginatorGUID, !originatorGUID.isEmpty else {
             return
         }
-        let rawPartIndex = msgRow.string("thread_originator_part")?
+        let rawPartIndex = msgRow.threadOriginatorPart?
             .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             .first
             .map(String.init) ?? ""
@@ -221,10 +252,10 @@ struct Mapper {
     }
 
     private func fallbackMessageParts(summaryInfo: JSONObject, attachments: [JSONObject]) -> [MessagePart] {
-        if msgRow.data("attributedBody") == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
+        if msgRow.attributedBody == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
             return [.unsent(index: 0, end: 0)]
         }
-        let text = removeObjectReplacementCharacter(msgRow.string("text") ?? "")
+        let text = removeObjectReplacementCharacter(msgRow.text ?? "")
             .replacingOccurrences(of: imessageExtensionCharacter, with: "")
         return [.text(index: 0, end: 0, text: text, attributes: nil)]
             + attachments.enumerated().map { offset, attachment in
@@ -325,10 +356,10 @@ private struct MessageDates {
     let edited: String?
     let retracted: String?
 
-    init(row: JSONObject) {
-        sent = row.string("dateString") ?? row.string("date")
-        read = row.string("dateReadString") ?? row.string("date_read")
-        edited = row.string("dateEditedString") ?? row.string("date_edited")
-        retracted = row.string("dateRetractedString") ?? row.string("date_retracted")
+    init(row: MappedMessageRow) {
+        sent = row.dateString
+        read = row.dateReadString
+        edited = row.dateEditedString
+        retracted = row.dateRetractedString
     }
 }

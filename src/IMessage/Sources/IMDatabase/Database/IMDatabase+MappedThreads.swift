@@ -13,7 +13,7 @@ public extension IMDatabase {
         cursor: String?,
         direction: MappedThreadPageDirection?,
         limit: Int = mappedThreadsLimit
-    ) throws -> [[String: Any]] {
+    ) throws -> [MappedChatRow] {
         let chatColumns = try tableColumns("chat")
         let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
         let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
@@ -34,12 +34,13 @@ public extension IMDatabase {
         if let withCursor {
             try statement.bind(withCursor.cursor)
         }
+        let columns = MappedRowColumnIndexes(chatSelectionNames(chatColumns: chatColumns))
         return try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: chatSelectionNames(chatColumns: chatColumns))
+            try MappedChatRow(row: row, columns: columns)
         }
     }
 
-    func mappedThreadRow(guid: String) throws -> [String: Any]? {
+    func mappedThreadRow(guid: String) throws -> MappedChatRow? {
         let chatColumns = try tableColumns("chat")
         let sql = """
         SELECT
@@ -52,12 +53,13 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(guid)
+        let columns = MappedRowColumnIndexes(chatSelectionNames(chatColumns: chatColumns))
         return try statement.compactMapRowsUntilDone { row in
-            try row.object(columnNames: chatSelectionNames(chatColumns: chatColumns))
+            try MappedChatRow(row: row, columns: columns)
         }.first
     }
 
-    func mappedThreadParticipantRows(chatRowIDs: [Int]) throws -> [Int: [[String: Any]]] {
+    func mappedThreadParticipantRows(chatRowIDs: [Int]) throws -> [Int: [MappedHandleRow]] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let sql = """
         SELECT chj.chat_id AS chat_id, uncanonicalized_id, id AS participantID
@@ -67,11 +69,12 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
+        let columns = MappedRowColumnIndexes(["chat_id", "uncanonicalized_id", "participantID"])
         let rows = try statement.mapRowsUntilDone { row in
-            try row.object(columnNames: ["chat_id", "uncanonicalized_id", "participantID"])
+            try MappedHandleRow(row: row, columns: columns)
         }
         return rows.reduce(into: [:]) { result, row in
-            result[(row["chat_id"] as? Int) ?? -1, default: []].append(row)
+            result[row.chatID ?? -1, default: []].append(row)
         }
     }
 
