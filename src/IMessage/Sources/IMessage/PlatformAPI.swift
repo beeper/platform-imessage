@@ -2,6 +2,7 @@ import Foundation
 import IMDatabase
 import Logging
 import IMessageCore
+import PlatformSDK
 
 private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")

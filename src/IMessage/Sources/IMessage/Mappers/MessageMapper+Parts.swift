@@ -1,5 +1,6 @@
 import Foundation
 import IMessageCore
+import PlatformSDK
 
 extension Mapper {
     func decodeAttributedMessageParts(summaryInfo: JSONObject) -> [MessagePart] {

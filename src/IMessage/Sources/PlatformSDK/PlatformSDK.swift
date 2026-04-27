@@ -1,5 +1,16 @@
 import Foundation
-import IMessageCore
+
+public typealias JSONObject = [String: Any]
+public typealias JSONArray = [Any]
+
+func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
+    pairs.compactMapValues { value in
+        guard let value, !(value is NSNull) else {
+            return nil
+        }
+        return value
+    }
+}
 
 /// Swift models for the public shapes defined by `@textshq/platform-sdk`
 /// https://github.com/TextsHQ/platform-sdk
@@ -28,10 +39,10 @@ public extension PlatformSDK.JSONObjectConvertible {
 }
 
 @attached(member, names: named(jsonObject))
-public macro PlatformSDKJSONObject() = #externalMacro(module: "IMessageMacros", type: "PlatformSDKJSONObjectMacro")
+public macro PlatformSDKJSONObject() = #externalMacro(module: "PlatformSDKMacros", type: "PlatformSDKJSONObjectMacro")
 
 @attached(peer)
-public macro PlatformSDKJSONKey(_ name: String) = #externalMacro(module: "IMessageMacros", type: "PlatformSDKJSONKeyMacro")
+public macro PlatformSDKJSONKey(_ name: String) = #externalMacro(module: "PlatformSDKMacros", type: "PlatformSDKJSONKeyMacro")
 
 enum PlatformSDKJSONEncoding {
     static func encode(_ value: Any?) -> Any? {

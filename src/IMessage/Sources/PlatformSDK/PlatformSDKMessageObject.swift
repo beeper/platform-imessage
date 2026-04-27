@@ -1,5 +1,4 @@
 import Foundation
-import IMessageCore
 
 extension PlatformSDK {
     @PlatformSDKJSONObject

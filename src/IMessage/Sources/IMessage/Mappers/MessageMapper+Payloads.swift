@@ -1,4 +1,5 @@
 import Foundation
+import PlatformSDK
 
 extension Mapper {
     func payloadData() -> Any? {

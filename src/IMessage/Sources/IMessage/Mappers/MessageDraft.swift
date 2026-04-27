@@ -1,4 +1,5 @@
 import Foundation
+import PlatformSDK
 
 struct MessageDraft {
     var id: String

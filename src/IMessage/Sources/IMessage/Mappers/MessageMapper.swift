@@ -1,6 +1,7 @@
 import Foundation
 import IMDatabase
 import IMessageCore
+import PlatformSDK
 
 struct Mapper {
     let msgRow: MappedMessageRow

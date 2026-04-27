@@ -1,4 +1,5 @@
 import Foundation
+import PlatformSDK
 
 public typealias JSONObject = [String: Any]
 public typealias JSONArray = [Any]

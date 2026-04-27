@@ -1,5 +1,6 @@
 import Foundation
 import IMDatabase
+import PlatformSDK
 
 extension Mapper {
     func attachment(from attachmentRow: MappedAttachmentRow) -> PlatformSDK.Attachment? {

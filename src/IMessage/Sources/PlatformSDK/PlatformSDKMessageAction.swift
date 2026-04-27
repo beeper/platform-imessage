@@ -1,5 +1,4 @@
 import Foundation
-import IMessageCore
 
 extension PlatformSDK {
     public enum MessageActionType: String {

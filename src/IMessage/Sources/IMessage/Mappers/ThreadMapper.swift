@@ -1,6 +1,7 @@
 import Foundation
 import IMDatabase
 import IMessageCore
+import PlatformSDK
 
 enum ThreadMapper {
     struct PollingCursor {

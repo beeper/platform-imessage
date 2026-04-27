@@ -7,6 +7,10 @@ let includeNodeBridge = Context.environment["IMESSAGE_INCLUDE_NODE_BRIDGE"] == "
 
 var products: [Product] = [
     .library(
+        name: "PlatformSDK",
+        targets: ["PlatformSDK"]
+    ),
+    .library(
         name: "IMessage",
         targets: ["IMessage"]
     ),
@@ -26,25 +30,32 @@ var dependencies: [Package.Dependency] = [
 
 var targets: [Target] = [
     .macro(
-        name: "IMessageMacros",
+        name: "PlatformSDKMacros",
         dependencies: [
             .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         ],
-        path: "src/IMessage/Sources/IMessageMacros"
+        path: "src/IMessage/Sources/PlatformSDKMacros"
+    ),
+    .target(
+        name: "PlatformSDK",
+        dependencies: [
+            "PlatformSDKMacros",
+        ],
+        path: "src/IMessage/Sources/PlatformSDK"
     ),
     .target(
         name: "IMessage",
         dependencies: [
             "BetterSwiftAX",
             "ExceptionCatcher",
-            "IMessageMacros",
             "IMessageCore",
             .product(name: "PHTClient", package: "PHTCommon"),
             "EmojiSPI",
             "IMDatabase",
+            "PlatformSDK",
             .product(name: "Collections", package: "swift-collections"),
         ],
         path: "src/IMessage/Sources/IMessage"
@@ -94,7 +105,7 @@ var targets: [Target] = [
     ),
     .testTarget(
         name: "IMessageTests",
-        dependencies: ["IMessage"],
+        dependencies: ["IMessage", "PlatformSDK"],
         path: "src/IMessage/Sources/IMessageTests",
         resources: [.process("Fixtures")]
     ),

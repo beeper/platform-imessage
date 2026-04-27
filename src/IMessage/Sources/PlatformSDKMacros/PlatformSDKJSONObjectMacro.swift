@@ -4,7 +4,7 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
 @main
-struct IMessageMacrosPlugin: CompilerPlugin {
+struct PlatformSDKMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         PlatformSDKJSONObjectMacro.self,
         PlatformSDKJSONKeyMacro.self,
