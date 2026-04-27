@@ -45,12 +45,22 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let text: String?
     public let subject: String?
     public let attributedBody: Data?
+    /// Usually "iMessage" or "SMS"; very old databases may contain other
+    /// values from the iChat era.
     public let service: String?
+    /// Numeric error code; `0` means success.
     public let error: Int
+    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+    /// needs to cross into JavaScript.
     public let date: Int?
+    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+    /// needs to cross into JavaScript.
     public let dateRead: Int?
+    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+    /// needs to cross into JavaScript.
     public let dateDelivered: Int?
     public let isDelivered: Int
+    /// Slightly different from `is_sent`.
     public let isFromMe: Int
     public let isRead: Int
     public let isAudioMessage: Int
@@ -68,7 +78,11 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let messageSummaryInfo: Data?
     public let threadOriginatorGUID: String?
     public let threadOriginatorPart: String?
+    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+    /// needs to cross into JavaScript.
     public let dateRetracted: Int?
+    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+    /// needs to cross into JavaScript.
     public let dateEdited: Int?
     public let wasDetonated: Int
     public let scheduleType: Int
@@ -215,6 +229,8 @@ public struct MappedChatRow: MappedDatabaseRow {
     public let lastAddressedHandle: String?
     public let displayName: String?
     public let groupID: String?
+    /// Apple nanosecond timestamp of the latest message read in this chat.
+    /// Stringify at JSON/API boundaries when it needs to cross into JavaScript.
     public let lastReadMessageTimestamp: Int?
 
     // Extensions selected by mapped-thread queries. These are not columns on
@@ -344,8 +360,14 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
 public struct MappedHandleRow: MappedDatabaseRow {
     // Extensions selected by mapped-handle queries. `chatID` comes from
     // `chat_handle_join`, and `participantID` aliases `handle.id`.
+    //
+    // Canonicalization notes:
+    // https://www.notion.so/beeper/Canonicalization-Notes-255a168aa37080c189c0d616724830e4
     public let chatID: Int?
+    /// Phone number, email, business URN, SMS shortcode, etc. SMS shortcodes
+    /// may have `(smsft_rm)`, `(smsft)`, etc. appended for unknown reasons.
     public let participantID: String?
+    /// Contains the raw ID if `participantID` was canonicalized.
     public let uncanonicalizedID: String?
 
     public init(chatID: Int?, participantID: String?, uncanonicalizedID: String?) {

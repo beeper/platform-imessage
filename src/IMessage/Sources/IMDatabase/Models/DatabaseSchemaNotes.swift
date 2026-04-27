@@ -7,6 +7,10 @@ import Foundation
 ///
 /// Wrapped in `#if false` so the compiler doesn't typecheck this dead code.
 /// This is reference material, like a markdown file with type syntax.
+///
+/// These notes are checked against the schema fixtures in `fixtures/`. A field
+/// can disappear across macOS releases, so don't assume older observations are
+/// still present without comparing the fixtures.
 #if false
 enum DatabaseSchemaNotes {
     typealias NumberBool = Int
@@ -132,8 +136,18 @@ enum DatabaseSchemaNotes {
 
         // Added in Ventura 13.1.
         var isStewie: NumberBool
+
+        // Observed in Tahoe.
+        var isSOS: NumberBool
+        var isCritical: NumberBool
+        var biaReferenceID: String?
+
         // Added in Ventura 13.2 through 13.4.1.
         var isKTVerified: NumberBool
+
+        // Observed in Tahoe.
+        var fallbackHash: String?
+
         // Added in Sequoia.
         var associatedMessageEmoji: String?
 
@@ -143,6 +157,11 @@ enum DatabaseSchemaNotes {
         var scheduleState: Int
         var sentOrReceivedOffGrid: Int
         var dateRecovered: Int
+
+        // Observed in Tahoe.
+        var isTimeSensitive: NumberBool
+        var ckChatID: String?
+        var indexState: Int
     }
 
     /// Columns observed in the `chat` table, originally taken from `chat.db`
@@ -182,6 +201,10 @@ enum DatabaseSchemaNotes {
 
         // Added in Ventura.
         var isRecovered: NumberBool
+
+        // Observed in Tahoe.
+        var isDeletingIncomingMessages: NumberBool
+        var isPendingReview: NumberBool
     }
 
     /// Extra fields selected by the historical mapped-message SQL.
@@ -216,7 +239,7 @@ enum DatabaseSchemaNotes {
     /// Extra fields selected by the historical mapped-handle SQL.
     ///
     /// Canonicalization notes:
-    /// https://www.notion.so/beeper/Canonicalization-Notes-255a168aa37080c189c0d616724830e4?source=copy_link
+    /// https://www.notion.so/beeper/Canonicalization-Notes-255a168aa37080c189c0d616724830e4
     struct MappedHandleRow {
         /// Phone number, email, business URN, SMS shortcode, etc. SMS
         /// shortcodes may have `(smsft_rm)`, `(smsft)`, etc. appended for
