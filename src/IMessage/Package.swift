@@ -81,7 +81,8 @@ let package = Package(
                 "IMDatabase",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 "IMessageCore",
-            ]
+            ],
+            exclude: ["README.md"]
         ),
         .executableTarget(
             name: "AXTool",
