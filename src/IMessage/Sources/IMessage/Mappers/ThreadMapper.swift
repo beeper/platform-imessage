@@ -17,10 +17,6 @@ enum ThreadMapper {
         var accountID: String
     }
 
-    static func mapAndHashThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
-        try mapThread(chat, context: context)
-    }
-
     static func pollingCursor(from latestMessageRows: [MappedMessageRow]) -> PollingCursor? {
         guard !latestMessageRows.isEmpty else {
             return nil
@@ -32,7 +28,7 @@ enum ThreadMapper {
         return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
-    private static func mapThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
+    static func mapThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
         let guid = chat.guid
         let handleRows = context.handleRowsByChatRowID[chat.rowID] ?? []
         let messages = context.latestMessagesByChatGUID[guid] ?? []
@@ -51,6 +47,9 @@ enum ThreadMapper {
         let isReadOnly = chat.state == 0 && chat.properties != nil
         let props = propertyListDictionary(chat.properties)
         let unreadCount = context.unreadCounts[chat.rowID] ?? 0
+        // Mirrors Poller+Unreads.swift. Desktop computes unread state from
+        // `isMarkedUnread || unreadCount > 0`.
+        let isUnread = unreadCount > 0
 
         return PlatformSDK.Thread(
             id: Hasher.thread.tokenizeRemembering(pii: guid),
@@ -58,9 +57,7 @@ enum ThreadMapper {
             // can otherwise be filled with the thread ID.
             folderName: "normal",
             title: chat.displayName,
-            // This mirrors Poller+Unreads.swift. Desktop computes unread state
-            // from `isMarkedUnread || unreadCount > 0`.
-            isUnread: unreadCount > 0,
+            isUnread: isUnread,
             isReadOnly: isReadOnly,
             isPinned: false,
             mutedUntil: context.dndState.contains(isGroup ? (chat.groupID ?? "") : (chat.chatIdentifier ?? "")) ? "forever" : nil,
@@ -74,7 +71,7 @@ enum ThreadMapper {
             ]),
             original: Preferences.stripInternalFields ? nil : (try? encodeJSON([chat.object, handleRows.objects])) ?? "",
             unreadCount: unreadCount,
-            isMarkedUnread: unreadCount > 0,
+            isMarkedUnread: isUnread,
             lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp),
             isLowPriority: false
         )
@@ -84,72 +81,52 @@ enum ThreadMapper {
         guard let id = row.participantID, !id.isEmpty else {
             return nil
         }
-
-        let isEmail = id.contains("@")
-        let isBusiness = id.hasPrefix("urn:")
-        let isPhone = !isBusiness && !isEmail && id.rangeOfCharacter(from: .decimalDigits) != nil
         let uncanonicalizedID = row.uncanonicalizedID
-        // iMessage can canonicalize SMS shortcodes with suffixes like
-        // `(smsft_rm)` or `(smsft)`. Prefer the raw ID for sender-ID heuristics.
-        let idPreferringUncanonicalized = uncanonicalizedID ?? id
-
-        let participantID = !isPhone ? (uncanonicalizedID ?? id) : id
-        let username: String?
-        let phoneNumber: String?
-        let email: String?
-        let fullName: String?
-        if isBusiness {
-            fullName = chatDisplayName
-            email = nil
-            phoneNumber = nil
-            username = nil
-        } else if isEmail {
-            fullName = nil
-            email = id
-            phoneNumber = nil
-            username = nil
-        } else if isPhone {
-            fullName = nil
-            email = nil
-            phoneNumber = id
-            username = nil
-        } else if likelyAlphanumericSenderID(idPreferringUncanonicalized) {
-            // Use `username` to avoid first/last-name splitting and preserve
-            // the sender ID as-is.
-            fullName = nil
-            email = nil
-            phoneNumber = nil
-            username = idPreferringUncanonicalized
-        } else {
-            fullName = nil
-            email = nil
-            phoneNumber = nil
-            username = nil
-        }
-
+        let isPhone = isPhoneLike(id)
+        let participantID = isPhone ? id : (uncanonicalizedID ?? id)
+        let fields = participantFields(id: id, uncanonicalizedID: uncanonicalizedID, chatDisplayName: chatDisplayName)
         return PlatformSDK.Participant(user: PlatformSDK.User(
             id: Hasher.participant.tokenizeRemembering(pii: participantID),
-            username: username,
-            phoneNumber: phoneNumber,
-            email: email,
-            fullName: fullName
+            username: fields.username,
+            phoneNumber: fields.phoneNumber,
+            email: fields.email,
+            fullName: fields.fullName
         ))
     }
 
     private static func mapSelfParticipant(selfID: String, currentUserID: String) -> PlatformSDK.Participant {
-        let participant = mapParticipant(
-            MappedHandleRow(chatID: nil, participantID: selfID, uncanonicalizedID: nil),
-            chatDisplayName: nil
-        )
-        let user = participant?.user
+        let fields = participantFields(id: selfID, uncanonicalizedID: nil, chatDisplayName: nil)
         return PlatformSDK.Participant(user: PlatformSDK.User(
             id: Hasher.participant.tokenizeRemembering(pii: currentUserID),
-            username: user?.username,
-            phoneNumber: user?.phoneNumber,
-            email: user?.email,
-            fullName: user?.fullName,
+            username: fields.username,
+            phoneNumber: fields.phoneNumber,
+            email: fields.email,
+            fullName: fields.fullName,
             isSelf: true
         ))
+    }
+
+    private static func isPhoneLike(_ id: String) -> Bool {
+        !id.hasPrefix("urn:") && !id.contains("@") && id.rangeOfCharacter(from: .decimalDigits) != nil
+    }
+
+    private static func participantFields(
+        id: String,
+        uncanonicalizedID: String?,
+        chatDisplayName: String?
+    ) -> (username: String?, phoneNumber: String?, email: String?, fullName: String?) {
+        if id.hasPrefix("urn:") { return (nil, nil, nil, chatDisplayName) }
+        if id.contains("@") { return (nil, nil, id, nil) }
+        if id.rangeOfCharacter(from: .decimalDigits) != nil { return (nil, id, nil, nil) }
+        // iMessage can canonicalize SMS shortcodes with suffixes like
+        // `(smsft_rm)` or `(smsft)`. Prefer the raw ID for sender-ID heuristics.
+        let idPreferringUncanonicalized = uncanonicalizedID ?? id
+        if likelyAlphanumericSenderID(idPreferringUncanonicalized) {
+            // Use `username` to avoid first/last-name splitting and preserve
+            // the sender ID as-is.
+            return (idPreferringUncanonicalized, nil, nil, nil)
+        }
+        return (nil, nil, nil, nil)
     }
 
     private static let numbersAndSymbolsRegex = try! NSRegularExpression(pattern: #"^[\d\s+\-()]+$"#)

@@ -829,7 +829,7 @@ public final class PlatformAPI {
             currentUser: currentUser,
             accountID: accountID
         )
-        let threads = try chatRows.map { try ThreadMapper.mapAndHashThread($0, context: context) }
+        let threads = try chatRows.map { try ThreadMapper.mapThread($0, context: context) }
         // TODO: Change the API design so getThreads is side-effect free and
         // the polling bootstrap is triggered by an explicit lifecycle call.
         if cursor == nil, let pollingCursor = ThreadMapper.pollingCursor(from: Array(latestMessageRowsByChatGUID.values)) {
@@ -870,7 +870,7 @@ public final class PlatformAPI {
             currentUser: currentUser,
             accountID: accountID
         )
-        return try ThreadMapper.mapAndHashThread(chatRow, context: context)
+        return try ThreadMapper.mapThread(chatRow, context: context)
     }
 
     nonisolated static func getMessages(
