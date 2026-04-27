@@ -17,13 +17,7 @@ The root `Package.swift` exposes only the Swift iMessage integration:
 - `IMessage`: library API for Messages access, polling, mapping, and sending operations.
 - `imessage`: command-line wrapper around the library API.
 
-The Node/N-API bridge, npm package, and `Sift` tool are intentionally not part of the published Swift package surface.
-
-Requirements:
-
-- macOS 11 or later
-- Swift 5.8 or later
-- A host process with the macOS permissions needed to read Messages data and automate Messages.app
+Requirements: macOS 11 or later, Swift 5.9 or later
 
 ```swift
 dependencies: [
