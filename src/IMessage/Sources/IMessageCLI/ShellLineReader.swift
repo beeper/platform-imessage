@@ -3,6 +3,28 @@ import Foundation
 
 private let historyFileName = ".cli.history.json"
 
+private enum TerminalByte {
+    static let maxUTF8SequenceLength = 4
+
+    static let controlC: UInt8 = 0x03
+    static let controlD: UInt8 = 0x04
+    static let backspace: UInt8 = 0x08
+    static let tab = UInt8(ascii: "\t")
+    static let lineFeed = UInt8(ascii: "\n")
+    static let carriageReturn = UInt8(ascii: "\r")
+    static let escape: UInt8 = 0x1B
+    static let firstPrintableASCII = UInt8(ascii: " ")
+    static let delete: UInt8 = 0x7F
+
+    static let controlSequenceIntroducer = UInt8(ascii: "[")
+    static let singleShiftSelect = UInt8(ascii: "O")
+    static let deleteSequencePrefix = UInt8(ascii: "3")
+    static let arrowUp = UInt8(ascii: "A")
+    static let arrowDown = UInt8(ascii: "B")
+    static let arrowRight = UInt8(ascii: "C")
+    static let arrowLeft = UInt8(ascii: "D")
+}
+
 private final class CLIHistory {
     private static let maxEntries = 1_000
 
@@ -112,24 +134,24 @@ final class ShellLineReader {
             guard let byte = readByte() else { return nil }
 
             switch byte {
-            case 3:
+            case TerminalByte.controlC:
                 writeTerminal("^C\n")
                 return ""
-            case 4:
+            case TerminalByte.controlD:
                 if line.isEmpty {
                     writeTerminal("\n")
                     return nil
                 }
-            case 10, 13:
+            case TerminalByte.lineFeed, TerminalByte.carriageReturn:
                 writeTerminal("\n")
                 history.record(line)
                 return line
-            case 8, 127:
+            case TerminalByte.backspace, TerminalByte.delete:
                 historyIndex = nil
                 draftBeforeHistory = ""
                 removeCharacterBeforeCursor(from: &line, cursorIndex: &cursorIndex)
                 refreshLine(line, cursorIndex: cursorIndex)
-            case 27:
+            case TerminalByte.escape:
                 handleEscapeSequence(
                     line: &line,
                     cursorIndex: &cursorIndex,
@@ -137,10 +159,12 @@ final class ShellLineReader {
                     draftBeforeHistory: &draftBeforeHistory
                 )
             default:
-                guard byte >= 32 || byte == 9 else { continue }
+                guard byte >= TerminalByte.firstPrintableASCII || byte == TerminalByte.tab else { continue }
                 pendingUTF8.append(byte)
                 guard let text = String(bytes: pendingUTF8, encoding: .utf8) else {
-                    if pendingUTF8.count >= 4 { pendingUTF8.removeAll() }
+                    if pendingUTF8.count >= TerminalByte.maxUTF8SequenceLength {
+                        pendingUTF8.removeAll()
+                    }
                     continue
                 }
 
@@ -161,35 +185,35 @@ final class ShellLineReader {
         draftBeforeHistory: inout String
     ) {
         guard let first = readByte() else { return }
-        guard first == 91 || first == 79 else { return }
+        guard first == TerminalByte.controlSequenceIntroducer || first == TerminalByte.singleShiftSelect else { return }
         guard let second = readByte() else { return }
 
         switch second {
-        case 65:
+        case TerminalByte.arrowUp:
             showPreviousHistory(
                 line: &line,
                 cursorIndex: &cursorIndex,
                 historyIndex: &historyIndex,
                 draftBeforeHistory: &draftBeforeHistory
             )
-        case 66:
+        case TerminalByte.arrowDown:
             showNextHistory(
                 line: &line,
                 cursorIndex: &cursorIndex,
                 historyIndex: &historyIndex,
                 draftBeforeHistory: &draftBeforeHistory
             )
-        case 67:
+        case TerminalByte.arrowRight:
             if cursorIndex < line.endIndex {
                 cursorIndex = line.index(after: cursorIndex)
                 refreshLine(line, cursorIndex: cursorIndex)
             }
-        case 68:
+        case TerminalByte.arrowLeft:
             if cursorIndex > line.startIndex {
                 cursorIndex = line.index(before: cursorIndex)
                 refreshLine(line, cursorIndex: cursorIndex)
             }
-        case 51:
+        case TerminalByte.deleteSequencePrefix:
             _ = readByte()
             removeCharacterAtCursor(from: &line, cursorIndex: &cursorIndex)
             refreshLine(line, cursorIndex: cursorIndex)
@@ -207,11 +231,12 @@ final class ShellLineReader {
         guard !history.entries.isEmpty else { return }
         let nextIndex: Int
         if let index = historyIndex {
-            guard index + 1 < history.entries.count else { return }
-            nextIndex = index + 1
+            let candidateIndex = history.entries.index(after: index)
+            guard candidateIndex < history.entries.endIndex else { return }
+            nextIndex = candidateIndex
         } else {
             draftBeforeHistory = line
-            nextIndex = 0
+            nextIndex = history.entries.startIndex
         }
 
         historyIndex = nextIndex
@@ -227,8 +252,8 @@ final class ShellLineReader {
         draftBeforeHistory: inout String
     ) {
         guard let index = historyIndex else { return }
-        if index > 0 {
-            let nextIndex = index - 1
+        if index > history.entries.startIndex {
+            let nextIndex = history.entries.index(before: index)
             historyIndex = nextIndex
             line = history.entries[nextIndex]
         } else {
@@ -256,14 +281,14 @@ final class ShellLineReader {
 
     private func refreshLine(_ line: String, cursorIndex: String.Index) {
         writeTerminal("\r\(prompt)\(line)\u{1B}[K")
-        let trailingCharacters = line.distance(from: cursorIndex, to: line.endIndex)
-        if trailingCharacters > 0 {
+        if cursorIndex < line.endIndex {
+            let trailingCharacters = line.distance(from: cursorIndex, to: line.endIndex)
             writeTerminal("\u{1B}[\(trailingCharacters)D")
         }
     }
 
     private func readByte() -> UInt8? {
-        var byte: UInt8 = 0
+        var byte = UInt8.zero
         let count = Darwin.read(STDIN_FILENO, &byte, 1)
         guard count == 1 else { return nil }
         return byte
