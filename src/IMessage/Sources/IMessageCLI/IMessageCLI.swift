@@ -1,7 +1,5 @@
 import AppKit
-import ApplicationServices
 import ArgumentParser
-import Contacts
 import Darwin
 import Foundation
 import IMessage
@@ -77,10 +75,10 @@ private enum AuthorizationRequirement: String {
     func currentStatus(api: IMessageCLIAPI) async -> (authorized: Bool, detail: String) {
         switch self {
         case .accessibility:
-            let ok = AXIsProcessTrusted()
+            let ok = (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.accessibility.rawValue)) == .authorized
             return (ok, ok ? "Your current Terminal app can control Messages.app." : "Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.")
         case .contacts:
-            let ok = CNContactStore.authorizationStatus(for: .contacts) == .authorized
+            let ok = (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.contacts.rawValue)) == .authorized
             return (ok, ok ? "Contacts lookups are available." : "Allow Contacts access if you want contact-name lookups from the CLI.")
         case .messagesData:
             let ok = await api.canAccessMessagesDir()
@@ -91,27 +89,19 @@ private enum AuthorizationRequirement: String {
     func request(api: IMessageCLIAPI) async throws {
         switch self {
         case .accessibility:
-            openSystemSecurityPrefs("Privacy_Accessibility")
+            MacPermissions.askForAccessibilityAccess()
             SystemSettingsOnboarding.start()
             defer { SystemSettingsOnboarding.stop() }
-            _ = await pollAuthorization(timeout: 120) { AXIsProcessTrusted() }
-        case .contacts:
-            if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
-                _ = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                    CNContactStore().requestAccess(for: .contacts) { granted, error in
-                        if let error {
-                            continuation.resume(throwing: error)
-                        } else {
-                            continuation.resume(returning: granted)
-                        }
-                    }
-                }
+            _ = await pollAuthorization(timeout: 120) {
+                (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.accessibility.rawValue)) == .authorized
             }
+        case .contacts:
+            _ = try? await MacPermissions.askForContactsAccess()
         case .messagesData:
             try? await api.askForMessagesDirAccess()
             if !(await api.canAccessMessagesDir()) {
                 print("  note: Opening Full Disk Access as a fallback.")
-                openSystemSecurityPrefs("Privacy_AllFiles")
+                MacPermissions.askForFullDiskAccess()
             }
         }
     }
@@ -972,7 +962,7 @@ private func runAuthorizationFlow(target rawTarget: String?, api: IMessageCLIAPI
 }
 
 private func authorizeAutomation(api: IMessageCLIAPI) async -> Bool {
-    if AXIsProcessTrusted() {
+    if (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.accessibility.rawValue)) == .authorized {
         Task {
             try? await api.confirmUNCPrompt()
         }
@@ -993,11 +983,6 @@ private func pollAuthorization(timeout: TimeInterval, interval: UInt64 = 250_000
         try? await Task.sleep(nanoseconds: interval)
     }
     return test()
-}
-
-private func openSystemSecurityPrefs(_ prefPath: String) {
-    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(prefPath)") else { return }
-    NSWorkspace.shared.open(url)
 }
 
 private func absolutePath(_ path: String) -> String {
