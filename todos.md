@@ -2,8 +2,9 @@
 
 - [ ] improve readme, add screenshots
 - [ ] publish to npm
-- [ ] publish to homebrew
 - [ ] publish to gh releases
+- [ ] publish to spm
+- [ ] publish to homebrew
 - [ ] add example JS+Swift script that consumes the library
 
 - [ ] cli: w system contacts, resolve phone #s and emails and populate Thread.title, User.fullName, User.imgURL
@@ -11,7 +12,7 @@
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] tests for the cli
-- [ ] migrate parity test from worktree-of-main reference to snapshot-based regression once Swift fixture-snapshot port is live; remove `.parity/check-swift-mapper-parity.mjs` when no longer needed
+- [ ] migrate parity test from worktree-of-main reference to snapshot-based regression once Swift fixture-snapshot port is live; remove `.parity` when no longer needed
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
@@ -20,6 +21,8 @@
 - [ ] store UserDefaults in dataDirPath
 - [x] transpile to pure Swift with TypeScript/Electron bindings
 - [x] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
+
+- [ ] improve misfire prevention and robustness
 
 ### Parity
 
