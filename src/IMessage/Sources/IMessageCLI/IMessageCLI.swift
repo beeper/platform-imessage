@@ -175,6 +175,7 @@ private final class Runner {
         state = try ensureRunnerState(options)
         guard let state else { return }
 
+        Log.consoleEmitter = ShellLineReader.emitConsoleLine
         IMessageCLIBootstrap.bootstrap(
             dataDirPath: state.dataDirPath,
             verbose: state.options.loggingEnabled,

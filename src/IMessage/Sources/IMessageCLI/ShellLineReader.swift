@@ -74,12 +74,31 @@ private final class CLIHistory {
 }
 
 final class ShellLineReader {
+    private static let activeReaderLock = NSLock()
+    private static weak var activeReader: ShellLineReader?
+
     private let prompt: String
     private let history: CLIHistory
+    private let terminalLock = NSRecursiveLock()
+    private var activeLine = ""
+    private var activeCursorOffset = 0
+    private var isReadingInteractively = false
 
     init(prompt: String) {
         self.prompt = prompt
         self.history = CLIHistory(fileURL: defaultHistoryFileURL())
+    }
+
+    static func emitConsoleLine(_ line: String) {
+        activeReaderLock.lock()
+        let reader = activeReader
+        activeReaderLock.unlock()
+
+        if let reader {
+            reader.printAboveInput(line)
+        } else {
+            print(line)
+        }
     }
 
     func readLine() -> String? {
@@ -128,22 +147,25 @@ final class ShellLineReader {
         var draftBeforeHistory = ""
         var pendingUTF8: [UInt8] = []
 
-        writeTerminal(prompt)
+        beginInteractiveRead(line: line, cursorIndex: cursorIndex)
 
         while true {
-            guard let byte = readByte() else { return nil }
+            guard let byte = readByte() else {
+                endInteractiveRead(trailingOutput: "\n")
+                return nil
+            }
 
             switch byte {
             case TerminalByte.controlC:
-                writeTerminal("^C\n")
+                endInteractiveRead(trailingOutput: "^C\n")
                 return ""
             case TerminalByte.controlD:
                 if line.isEmpty {
-                    writeTerminal("\n")
+                    endInteractiveRead(trailingOutput: "\n")
                     return nil
                 }
             case TerminalByte.lineFeed, TerminalByte.carriageReturn:
-                writeTerminal("\n")
+                endInteractiveRead(trailingOutput: "\n")
                 history.record(line)
                 return line
             case TerminalByte.backspace, TerminalByte.delete:
@@ -280,9 +302,60 @@ final class ShellLineReader {
     }
 
     private func refreshLine(_ line: String, cursorIndex: String.Index) {
+        terminalLock.lock()
+        defer { terminalLock.unlock() }
+
+        activeLine = line
+        activeCursorOffset = line.distance(from: line.startIndex, to: cursorIndex)
         writeTerminal("\r\(prompt)\(line)\u{1B}[K")
         if cursorIndex < line.endIndex {
             let trailingCharacters = line.distance(from: cursorIndex, to: line.endIndex)
+            writeTerminal("\u{1B}[\(trailingCharacters)D")
+        }
+    }
+
+    private func beginInteractiveRead(line: String, cursorIndex: String.Index) {
+        Self.activeReaderLock.lock()
+        Self.activeReader = self
+        Self.activeReaderLock.unlock()
+
+        terminalLock.lock()
+        defer { terminalLock.unlock() }
+
+        isReadingInteractively = true
+        activeLine = line
+        activeCursorOffset = line.distance(from: line.startIndex, to: cursorIndex)
+        writeTerminal(prompt)
+    }
+
+    private func endInteractiveRead(trailingOutput: String) {
+        terminalLock.lock()
+        defer { terminalLock.unlock() }
+
+        writeTerminal(trailingOutput)
+        isReadingInteractively = false
+        activeLine = ""
+        activeCursorOffset = 0
+
+        Self.activeReaderLock.lock()
+        if Self.activeReader === self {
+            Self.activeReader = nil
+        }
+        Self.activeReaderLock.unlock()
+    }
+
+    private func printAboveInput(_ line: String) {
+        terminalLock.lock()
+        defer { terminalLock.unlock() }
+
+        guard isReadingInteractively else {
+            print(line)
+            return
+        }
+
+        writeTerminal("\r\u{1B}[K\(line)\n\(prompt)\(activeLine)\u{1B}[K")
+        let trailingCharacters = activeLine.count - activeCursorOffset
+        if trailingCharacters > 0 {
             writeTerminal("\u{1B}[\(trailingCharacters)D")
         }
     }

@@ -24,6 +24,7 @@ public enum Log {
     private static let directoryPathEnvironmentKey = "IMESSAGE_LOGGING_DIR_PATH"
 
     public static var consoleOutputEnabled = true
+    public static var consoleEmitter: (String) -> Void = { print($0) }
 
     /// A logger to be used for emitting error messages to the log when
     /// constructing exceptions or other errors.
@@ -73,7 +74,7 @@ public enum Log {
 
     public static func emitToConsole(_ line: String) {
         guard consoleOutputEnabled else { return }
-        print(line)
+        consoleEmitter(line)
     }
 }
 
