@@ -140,21 +140,31 @@ public extension IMDatabase {
     func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: MappedMessageRow] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let messageColumns = try tableColumns("message")
-        let placeholders = chatRowIDs.map { _ in "?" }.joined(separator: ", ")
+        let requestedChatRows = chatRowIDs.map { _ in "(?)" }.joined(separator: ", ")
         let sql = """
+        WITH requested_chat(rowid) AS (
+          VALUES \(requestedChatRows)
+        ),
+        latest_join AS (
+          SELECT
+            requested_chat.rowid AS chat_id,
+            (
+              SELECT cmj.message_id
+              FROM chat_message_join AS cmj
+              WHERE cmj.chat_id = requested_chat.rowid
+              ORDER BY cmj.message_date DESC, cmj.message_id DESC
+              LIMIT 1
+            ) AS message_id
+          FROM requested_chat
+        )
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
-        FROM message AS m
-        \(messageJoins)
-        WHERE cmj.chat_id IN (\(placeholders))
-        AND m.ROWID = (
-          SELECT latest.message_id
-          FROM chat_message_join AS latest
-          INNER JOIN message AS latest_message ON latest_message.ROWID = latest.message_id
-          WHERE latest.chat_id = cmj.chat_id
-          ORDER BY latest_message.date DESC
-          LIMIT 1
-        )
+        FROM latest_join
+        INNER JOIN message AS m ON m.ROWID = latest_join.message_id
+        LEFT JOIN chat AS t ON latest_join.chat_id = t.ROWID
+        LEFT JOIN handle AS h ON m.handle_id = h.ROWID
+        LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID
+        ORDER BY m.date DESC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
