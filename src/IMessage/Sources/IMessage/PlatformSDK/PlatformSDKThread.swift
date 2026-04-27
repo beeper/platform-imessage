@@ -16,16 +16,6 @@ extension PlatformSDK {
         public let senderID: UserID?
         public let attachments: [Attachment]?
 
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "PartialLastMessage")
-            text = jsonObject.string("text")
-            isSender = jsonObject.bool("isSender")
-            senderID = jsonObject.string("senderID")
-            attachments = try jsonObject.hasValue("attachments")
-                ? PlatformSDKJSON.objectArray(jsonObject["attachments"]).map(Attachment.init(jsonObject:))
-                : nil
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "id": id,
@@ -113,40 +103,6 @@ extension PlatformSDK {
             self.isMarkedUnread = isMarkedUnread
             self.lastReadMessageSortKey = lastReadMessageSortKey
             self.isLowPriority = isLowPriority
-        }
-
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "Thread")
-            folderName = jsonObject.string("folderName")
-            title = jsonObject.string("title")
-            let unreadCount = PlatformSDKJSON.int(jsonObject["unreadCount"])
-            self.unreadCount = unreadCount
-            isMarkedUnread = jsonObject.bool("isMarkedUnread")
-            isUnread = jsonObject.bool("isUnread") ?? isMarkedUnread ?? ((unreadCount ?? 0) > 0)
-            lastReadMessageID = jsonObject.string("lastReadMessageID")
-            isReadOnly = try PlatformSDKJSON.requiredBool(jsonObject, "isReadOnly", type: "Thread")
-            isArchived = jsonObject.bool("isArchived")
-            isPinned = jsonObject.bool("isPinned")
-            mutedUntil = jsonObject["mutedUntil"]
-            type = jsonObject.string("type").flatMap(ThreadType.init(rawValue:)) ?? .single
-            timestamp = PlatformSDKJSON.timestamp(jsonObject["timestamp"])
-            imgURL = jsonObject.string("imgURL")
-            createdAt = PlatformSDKJSON.timestamp(jsonObject["createdAt"])
-            description = jsonObject.string("description")
-            partialLastMessage = try jsonObject.dictionary("partialLastMessage").map(PartialLastMessage.init(jsonObject:))
-            messageExpirySeconds = PlatformSDKJSON.int(jsonObject["messageExpirySeconds"])
-            messages = try Paginated<Message>(
-                jsonObject: jsonObject.dictionary("messages") ?? ["items": [], "hasMore": false],
-                item: Message.init(jsonObject:)
-            )
-            participants = try Paginated<Participant>(
-                jsonObject: jsonObject.dictionary("participants") ?? ["items": [], "hasMore": false],
-                item: Participant.init(jsonObject:)
-            )
-            extra = jsonObject["extra"]
-            original = jsonObject.string("_original")
-            lastReadMessageSortKey = PlatformSDKJSON.timestamp(jsonObject["lastReadMessageSortKey"])
-            isLowPriority = jsonObject.bool("isLowPriority")
         }
 
         public var jsonObject: JSONObject {

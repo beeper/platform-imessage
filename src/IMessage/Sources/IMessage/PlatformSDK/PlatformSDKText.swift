@@ -11,13 +11,6 @@ extension PlatformSDK {
             self.heDecode = heDecode
         }
 
-        public init(jsonObject: JSONObject) throws {
-            entities = try jsonObject.hasValue("entities")
-                ? PlatformSDKJSON.objectArray(jsonObject["entities"]).map(TextEntity.init(jsonObject:))
-                : nil
-            heDecode = jsonObject.bool("heDecode")
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "entities": entities?.map(\.jsonObject),
@@ -80,25 +73,6 @@ extension PlatformSDK {
             self.mentionedUser = mentionedUser
         }
 
-        public init(jsonObject: JSONObject) throws {
-            from = try PlatformSDKJSON.int(jsonObject["from"]).orThrow(ErrorMessage("Bad TextEntity: missing from"))
-            to = try PlatformSDKJSON.int(jsonObject["to"]).orThrow(ErrorMessage("Bad TextEntity: missing to"))
-            bold = jsonObject.bool("bold")
-            italic = jsonObject.bool("italic")
-            underline = jsonObject.bool("underline")
-            strikethrough = jsonObject.bool("strikethrough")
-            quote = jsonObject.bool("quote")
-            spoiler = jsonObject.bool("spoiler")
-            code = jsonObject.bool("code")
-            pre = jsonObject.bool("pre")
-            codeLanguage = jsonObject.string("codeLanguage")
-            markdown = jsonObject.string("markdown")
-            replaceWith = jsonObject.string("replaceWith")
-            replaceWithMedia = try jsonObject.dictionary("replaceWithMedia").map(ReplaceWithMediaEntity.init(jsonObject:))
-            link = jsonObject.string("link")
-            mentionedUser = jsonObject.dictionary("mentionedUser").map(MentionedUser.init(jsonObject:))
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "from": from,
@@ -128,14 +102,6 @@ extension PlatformSDK {
         public let loop: Bool?
         public let rounded: Bool?
 
-        public init(jsonObject: JSONObject) throws {
-            mediaType = jsonObject.string("mediaType").flatMap(AttachmentType.init(rawValue:)) ?? .img
-            srcURL = try PlatformSDKJSON.requiredString(jsonObject, "srcURL", type: "ReplaceWithMediaEntity")
-            size = try jsonObject.dictionary("size").map(Size.init(jsonObject:))
-            loop = jsonObject.bool("loop")
-            rounded = jsonObject.bool("rounded")
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "mediaType": mediaType.rawValue,
@@ -154,11 +120,6 @@ extension PlatformSDK {
         public init(username: String? = nil, id: UserID? = nil) {
             self.username = username
             self.id = id
-        }
-
-        public init(jsonObject: JSONObject) {
-            username = jsonObject.string("username")
-            id = jsonObject.string("id")
         }
 
         public var jsonObject: JSONObject {

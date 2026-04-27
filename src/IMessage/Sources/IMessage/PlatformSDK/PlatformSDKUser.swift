@@ -14,20 +14,6 @@ extension PlatformSDK {
         public let isSelf: Bool?
         public let social: JSONObject?
 
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "User")
-            username = jsonObject.string("username")
-            phoneNumber = jsonObject.string("phoneNumber")
-            email = jsonObject.string("email")
-            fullName = jsonObject.string("fullName")
-            nickname = jsonObject.string("nickname")
-            imgURL = jsonObject.string("imgURL")
-            isVerified = jsonObject.bool("isVerified")
-            cannotMessage = jsonObject.bool("cannotMessage")
-            isSelf = jsonObject.bool("isSelf")
-            social = jsonObject.dictionary("social")
-        }
-
         public init(
             id: UserID,
             username: String? = nil,
@@ -103,13 +89,6 @@ extension PlatformSDK {
         public let addedBy: UserID?
         public let isAdmin: Bool?
         public let hasExited: Bool?
-
-        public init(jsonObject: JSONObject) throws {
-            user = try User(jsonObject: jsonObject)
-            addedBy = jsonObject.string("addedBy")
-            isAdmin = jsonObject.bool("isAdmin")
-            hasExited = jsonObject.bool("hasExited")
-        }
 
         public init(user: User, addedBy: UserID? = nil, isAdmin: Bool? = nil, hasExited: Bool? = nil) {
             self.user = user

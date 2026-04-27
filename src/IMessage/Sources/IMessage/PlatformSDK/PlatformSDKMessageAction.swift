@@ -23,50 +23,6 @@ extension PlatformSDK {
         case messageReactionCreated(PartialMessageReactionAction)
         case messageReactionDeleted(PartialMessageReactionAction)
 
-        public init(jsonObject: JSONObject) throws {
-            let type = try PlatformSDKJSON.requiredString(jsonObject, "type", type: "MessageAction")
-            switch MessageActionType(rawValue: type) {
-            case .threadTitleUpdated:
-                self = .threadTitleUpdated(
-                    title: jsonObject.string("title"),
-                    actorParticipantID: try PlatformSDKJSON.requiredString(jsonObject, "actorParticipantID", type: "MessageAction")
-                )
-            case .threadParticipantsAdded:
-                self = .threadParticipantsAdded(
-                    participantIDs: (jsonObject["participantIDs"] as? [String]) ?? [],
-                    actorParticipantID: try PlatformSDKJSON.requiredString(jsonObject, "actorParticipantID", type: "MessageAction"),
-                    participants: try jsonObject.hasValue("participants")
-                        ? PlatformSDKJSON.objectArray(jsonObject["participants"]).map(Participant.init(jsonObject:))
-                        : nil
-                )
-            case .threadParticipantsRemoved:
-                self = .threadParticipantsRemoved(
-                    participantIDs: (jsonObject["participantIDs"] as? [String]) ?? [],
-                    actorParticipantID: try PlatformSDKJSON.requiredString(jsonObject, "actorParticipantID", type: "MessageAction"),
-                    participants: try jsonObject.hasValue("participants")
-                        ? PlatformSDKJSON.objectArray(jsonObject["participants"]).map(Participant.init(jsonObject:))
-                        : nil
-                )
-            case .groupThreadCreated:
-                self = .groupThreadCreated(
-                    title: try PlatformSDKJSON.requiredString(jsonObject, "title", type: "MessageAction"),
-                    actorParticipantID: try PlatformSDKJSON.requiredString(jsonObject, "actorParticipantID", type: "MessageAction")
-                )
-            case .threadImgChanged:
-                self = .threadImgChanged(
-                    actorParticipantID: try PlatformSDKJSON.requiredString(jsonObject, "actorParticipantID", type: "MessageAction")
-                )
-            case .messageRequestAccepted:
-                self = .messageRequestAccepted
-            case .messageReactionCreated:
-                self = .messageReactionCreated(PartialMessageReactionAction(jsonObject: jsonObject))
-            case .messageReactionDeleted:
-                self = .messageReactionDeleted(PartialMessageReactionAction(jsonObject: jsonObject))
-            case .none:
-                throw ErrorMessage("Bad MessageAction: unsupported type \(type)")
-            }
-        }
-
         public var jsonObject: JSONObject {
             switch self {
             case let .threadTitleUpdated(title, actorParticipantID):
@@ -136,15 +92,6 @@ extension PlatformSDK {
             self.imgURL = imgURL
             self.participantID = participantID
             self.emoji = emoji
-        }
-
-        public init(jsonObject: JSONObject) {
-            messageID = jsonObject.string("messageID")
-            id = jsonObject.string("id")
-            reactionKey = jsonObject.string("reactionKey")
-            imgURL = jsonObject.string("imgURL")
-            participantID = jsonObject.string("participantID")
-            emoji = jsonObject.bool("emoji")
         }
 
         public var jsonObject: JSONObject {

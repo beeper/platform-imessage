@@ -18,11 +18,6 @@ extension PlatformSDK {
             self.height = height
         }
 
-        public init(jsonObject: JSONObject) throws {
-            width = try PlatformSDKJSON.double(jsonObject["width"]).orThrow(ErrorMessage("Bad Size: missing width"))
-            height = try PlatformSDKJSON.double(jsonObject["height"]).orThrow(ErrorMessage("Bad Size: missing height"))
-        }
-
         public var jsonObject: JSONObject {
             [
                 "width": width,
@@ -80,24 +75,6 @@ extension PlatformSDK {
             self.srcURL = srcURL
             self.data = data
             self.extra = extra
-        }
-
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "Attachment")
-            type = jsonObject.string("type").flatMap(AttachmentType.init(rawValue:)) ?? .unknown
-            size = try jsonObject.dictionary("size").map(Size.init(jsonObject:))
-            posterImg = jsonObject.string("posterImg")
-            mimeType = jsonObject.string("mimeType")
-            fileName = jsonObject.string("fileName")
-            fileSize = PlatformSDKJSON.int64(jsonObject["fileSize"])
-            loading = jsonObject.bool("loading")
-            isGif = jsonObject.bool("isGif")
-            isSticker = jsonObject.bool("isSticker")
-            isVoiceNote = jsonObject.bool("isVoiceNote")
-            playStatus = jsonObject.string("playStatus")
-            srcURL = jsonObject.string("srcURL")
-            data = jsonObject["data"]
-            extra = jsonObject["extra"]
         }
 
         public var jsonObject: JSONObject {

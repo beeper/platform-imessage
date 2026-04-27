@@ -23,14 +23,6 @@ extension PlatformSDK {
             self.emoji = emoji
         }
 
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "MessageReaction")
-            reactionKey = try PlatformSDKJSON.requiredString(jsonObject, "reactionKey", type: "MessageReaction")
-            imgURL = jsonObject.string("imgURL")
-            participantID = try PlatformSDKJSON.requiredString(jsonObject, "participantID", type: "MessageReaction")
-            emoji = jsonObject.bool("emoji")
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "id": id,
@@ -47,20 +39,6 @@ extension PlatformSDK {
         case timestamp(Timestamp)
         case participants([UserID: ParticipantSeen])
 
-        public init(jsonValue: Any) throws {
-            if let value = jsonValue as? Bool {
-                self = .bool(value)
-            } else if let timestamp = PlatformSDKJSON.timestamp(jsonValue) {
-                self = .timestamp(timestamp)
-            } else if let object = jsonValue as? JSONObject {
-                self = .participants(Dictionary(uniqueKeysWithValues: object.compactMap { key, value in
-                    try? (key, ParticipantSeen(jsonValue: value))
-                }))
-            } else {
-                throw ErrorMessage("Bad MessageSeen")
-            }
-        }
-
         public var jsonValue: Any {
             switch self {
             case let .bool(value):
@@ -76,16 +54,6 @@ extension PlatformSDK {
     public enum ParticipantSeen: JSONValueConvertible {
         case bool(Bool)
         case timestamp(Timestamp)
-
-        init(jsonValue: Any) throws {
-            if let value = jsonValue as? Bool {
-                self = .bool(value)
-            } else if let timestamp = PlatformSDKJSON.timestamp(jsonValue) {
-                self = .timestamp(timestamp)
-            } else {
-                throw ErrorMessage("Bad ParticipantSeen")
-            }
-        }
 
         public var jsonValue: Any {
             switch self {
@@ -124,16 +92,6 @@ extension PlatformSDK {
             self.summary = summary
         }
 
-        public init(jsonObject: JSONObject) throws {
-            url = try PlatformSDKJSON.requiredString(jsonObject, "url", type: "MessageLink")
-            originalURL = jsonObject.string("originalURL")
-            favicon = jsonObject.string("favicon")
-            img = jsonObject.string("img")
-            imgSize = try jsonObject.dictionary("imgSize").map(Size.init(jsonObject:))
-            title = jsonObject.string("title") ?? ""
-            summary = jsonObject.string("summary")
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "url": url,
@@ -159,13 +117,6 @@ extension PlatformSDK {
                 self.name = name
                 self.username = username
                 self.isVerified = isVerified
-            }
-
-            public init(jsonObject: JSONObject) throws {
-                imgURL = try PlatformSDKJSON.requiredString(jsonObject, "imgURL", type: "Tweet.User")
-                name = jsonObject.string("name") ?? ""
-                username = try PlatformSDKJSON.requiredString(jsonObject, "username", type: "Tweet.User")
-                isVerified = jsonObject.bool("isVerified")
             }
 
             public var jsonObject: JSONObject {
@@ -207,19 +158,6 @@ extension PlatformSDK {
             self.quotedTweet = quotedTweet
         }
 
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "Tweet")
-            user = try User(jsonObject: try (jsonObject.dictionary("user")).orThrow(ErrorMessage("Bad Tweet: missing user")))
-            text = jsonObject.string("text") ?? ""
-            timestamp = PlatformSDKJSON.timestamp(jsonObject["timestamp"])
-            url = jsonObject.string("url")
-            textAttributes = try jsonObject.dictionary("textAttributes").map(TextAttributes.init(jsonObject:))
-            attachments = try jsonObject.hasValue("attachments")
-                ? PlatformSDKJSON.objectArray(jsonObject["attachments"]).map(Attachment.init(jsonObject:))
-                : nil
-            quotedTweet = try jsonObject.dictionary("quotedTweet").map { TweetBox(try Tweet(jsonObject: $0)) }
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "id": id,
@@ -249,16 +187,6 @@ extension PlatformSDK {
         public let senderID: UserID?
         public let attachments: [Attachment]?
 
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "MessagePreview")
-            threadID = jsonObject.string("threadID")
-            text = jsonObject.string("text")
-            senderID = jsonObject.string("senderID")
-            attachments = try jsonObject.hasValue("attachments")
-                ? PlatformSDKJSON.objectArray(jsonObject["attachments"]).map(Attachment.init(jsonObject:))
-                : nil
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "id": id,
@@ -273,11 +201,6 @@ extension PlatformSDK {
     public struct MessageButton: JSONObjectConvertible {
         public let label: String
         public let linkURL: String
-
-        public init(jsonObject: JSONObject) throws {
-            label = try PlatformSDKJSON.requiredString(jsonObject, "label", type: "MessageButton")
-            linkURL = try PlatformSDKJSON.requiredString(jsonObject, "linkURL", type: "MessageButton")
-        }
 
         public var jsonObject: JSONObject {
             [

@@ -116,55 +116,6 @@ extension PlatformSDK {
             self.original = original
         }
 
-        public init(jsonObject: JSONObject) throws {
-            id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "Message")
-            timestamp = try PlatformSDKJSON.requiredTimestamp(jsonObject, "timestamp", type: "Message")
-            editedTimestamp = PlatformSDKJSON.timestamp(jsonObject["editedTimestamp"])
-            expiresInSeconds = PlatformSDKJSON.int(jsonObject["expiresInSeconds"])
-            forwardedCount = PlatformSDKJSON.int(jsonObject["forwardedCount"])
-            forwardedFrom = jsonObject.dictionary("forwardedFrom")
-            senderID = try PlatformSDKJSON.requiredString(jsonObject, "senderID", type: "Message")
-            text = jsonObject.string("text")
-            textAttributes = try jsonObject.dictionary("textAttributes").map(TextAttributes.init(jsonObject:))
-            textHeading = jsonObject.string("textHeading")
-            textFooter = jsonObject.string("textFooter")
-            attachments = try jsonObject.hasValue("attachments")
-                ? PlatformSDKJSON.objectArray(jsonObject["attachments"]).map(Attachment.init(jsonObject:))
-                : nil
-            tweets = try jsonObject.hasValue("tweets")
-                ? PlatformSDKJSON.objectArray(jsonObject["tweets"]).map(Tweet.init(jsonObject:))
-                : nil
-            links = try jsonObject.hasValue("links")
-                ? PlatformSDKJSON.objectArray(jsonObject["links"]).map(MessageLink.init(jsonObject:))
-                : nil
-            iframeURL = jsonObject.string("iframeURL")
-            reactions = try jsonObject.hasValue("reactions")
-                ? PlatformSDKJSON.objectArray(jsonObject["reactions"]).map(MessageReaction.init(jsonObject:))
-                : nil
-            seen = try jsonObject["seen"].map(MessageSeen.init(jsonValue:))
-            isDelivered = jsonObject.bool("isDelivered")
-            isHidden = jsonObject.bool("isHidden")
-            isSender = jsonObject.bool("isSender")
-            isAction = jsonObject.bool("isAction")
-            isDeleted = jsonObject.bool("isDeleted")
-            isErrored = jsonObject.bool("isErrored")
-            parseTemplate = jsonObject.bool("parseTemplate")
-            linkedMessageThreadID = jsonObject.string("linkedMessageThreadID")
-            linkedMessageID = jsonObject.string("linkedMessageID")
-            linkedMessage = try jsonObject.dictionary("linkedMessage").map(MessagePreview.init(jsonObject:))
-            action = try jsonObject.dictionary("action").map(MessageAction.init(jsonObject:))
-            buttons = try jsonObject.hasValue("buttons")
-                ? PlatformSDKJSON.objectArray(jsonObject["buttons"]).map(MessageButton.init(jsonObject:))
-                : nil
-            behavior = jsonObject.string("behavior").flatMap(MessageBehavior.init(rawValue:))
-            accountID = jsonObject.string("accountID")
-            threadID = jsonObject.string("threadID")
-            sortKey = jsonObject["sortKey"]
-            cursor = jsonObject.string("cursor")
-            extra = jsonObject["extra"]
-            original = jsonObject.string("_original")
-        }
-
         public var jsonObject: JSONObject {
             compactDictionary([
                 "id": id,
