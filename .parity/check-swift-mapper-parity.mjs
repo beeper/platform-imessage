@@ -1,134 +1,54 @@
 import { app } from 'electron'
-import { execFileSync } from 'node:child_process'
-import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
-import { performance } from 'node:perf_hooks'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 import * as platformTestLib from '@textshq/platform-test-lib'
 
-const unwrapDefault = value => {
-  let current = value
-  while (current && typeof current !== 'function' && 'default' in current) {
-    current = current.default
-  }
-  return current
-}
+import {
+  ensureReferenceAPI,
+  formatLimit,
+  getArg,
+  parseArgs,
+  parseLimit,
+  unwrapDefault,
+} from './parity-utils.mjs'
+import {
+  closeAPIChildren,
+  spawnAPIChild,
+  timedCall,
+  runAPIChild,
+} from './parity-child-processes.mjs'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.basename(scriptDir) === 'scripts' ? path.resolve(scriptDir, '..') : process.cwd()
 const injectGlobals = unwrapDefault(platformTestLib)
 
-const args = new Map(
-  process.argv.slice(2).flatMap(arg => {
-    const match = arg.match(/^--([^=]+)=(.*)$/)
-    if (match) return [[match[1], match[2]]]
-    const flag = arg.match(/^--(.+)$/)
-    return flag ? [[flag[1], '1']] : []
-  }),
-)
-
-const getArg = (...names) => {
-  for (const name of names) {
-    if (args.has(name)) return args.get(name)
-  }
-}
-
-function parseLimit(value, argName) {
-  const normalized = String(value).trim().toLowerCase()
-  if (['all', 'inf', 'infinite', 'infinity', 'unlimited'].includes(normalized)) return Infinity
-  if (!/^\d+$/.test(normalized)) {
-    throw new Error(`${argName} must be a non-negative integer or "all"`)
-  }
-  return Number.parseInt(normalized, 10)
-}
-
-const formatLimit = value => Number.isFinite(value) ? value : 'all'
+const args = parseArgs(process.argv.slice(2))
 
 const referenceRoot = path.resolve(args.get('reference-root') ?? path.join(repoRoot, '.parity/platform-imessage-main'))
 const defaultReferenceIMessageNodePath = path.join(referenceRoot, 'binaries', `${process.platform}-${process.arch}`, 'IMessage.node')
 const referenceIMessageNodePath = args.get('reference-swift-server-node') ?? defaultReferenceIMessageNodePath
-const referenceBinariesDirPath = path.dirname(path.dirname(referenceIMessageNodePath))
+const referenceBinariesDirPath = args.get('reference-binaries-dir') ?? path.dirname(path.dirname(referenceIMessageNodePath))
 
 process.env.IMESSAGE_SKIP_EAGER_MC ??= '1'
 process.env.IMESSAGE_STRIP_INTERNAL_FIELDS ??= '1'
 process.env.IMESSAGE_SWIFT_MAP_MESSAGE_STRICT ??= '1'
 
 injectGlobals(true, false, repoRoot)
-globalThis.texts.getBinariesDirPath = () => path.join(repoRoot, 'binaries')
 
-const binariesDirPathLiteral = JSON.stringify(referenceBinariesDirPath)
-const buildBanner = `globalThis.texts={IS_DEV:true,isLoggingEnabled:false,log(){},error(){},constants:{USER_AGENT:'platform-imessage-parity',APP_VERSION:'1.0.0'},Sentry:{captureException(){},captureMessage(){},startTransaction(){}},async trackPlatformEvent(){},getBinariesDirPath(){return ${binariesDirPathLiteral}},fetch:globalThis.fetch,fetchStream:undefined,createHttpClient:undefined,nativeFetch:undefined,nativeFetchStream:undefined,runWorker:undefined,forkChildProcess:undefined,getOriginalObject:undefined,openBrowserWindow:undefined};`
-
-async function pathExists(filePath) {
-  return fs.access(filePath)
-    .then(() => true)
-    .catch(() => false)
-}
-
-function exec(command, commandArgs, cwd) {
-  execFileSync(command, commandArgs, { cwd, stdio: 'inherit' })
-}
-
-async function readDefaultReferenceRef() {
-  const refFile = path.join(repoRoot, '.parity/REFERENCE_REF')
-  try {
-    const contents = await fs.readFile(refFile, 'utf8')
-    const ref = contents.trim().split('\n').find(line => line && !line.startsWith('#'))
-    if (ref) return ref
-  } catch {
-    // file missing or unreadable; fall through
-  }
-  return 'main'
-}
-
-async function ensureReferenceAPI() {
-  const referenceRef = args.get('reference-ref') ?? await readDefaultReferenceRef()
-  const bundlePath = path.join(referenceRoot, '.parity-platform-api.compiled.mjs')
-  if (!await pathExists(path.join(referenceRoot, 'package.json'))) {
-    await fs.mkdir(path.dirname(referenceRoot), { recursive: true })
-    exec('git', ['worktree', 'add', '--detach', referenceRoot, referenceRef], repoRoot)
-  }
-  if (!args.has('skip-reference-rebuild') || args.has('rebuild-reference') || !await pathExists(bundlePath)) {
-    exec('yarn', [], referenceRoot)
-    exec('bun', ['build:swift', '--standalone'], referenceRoot)
-    exec('bun', [
-      'build',
-      'src/api.ts',
-      '--target=node',
-      '--format=esm',
-      '--external',
-      'electron',
-      '--external',
-      '@textshq/platform-test-lib',
-      '--external',
-      'node-mac-permissions',
-      '--banner',
-      buildBanner,
-      '--outfile',
-      bundlePath,
-    ], referenceRoot)
-  }
-  return bundlePath
-}
-
-const dataDirPath = await fs.mkdtemp(path.join(os.tmpdir(), 'platform-imessage-parity-current-'))
-const referenceDataDirPath = await fs.mkdtemp(path.join(os.tmpdir(), 'platform-imessage-parity-reference-'))
-const { default: AppleiMessage } = await import('../src/api.ts')
-const { default: ReferenceAppleiMessage } = await import(pathToFileURL(await ensureReferenceAPI()).href)
-const api = new AppleiMessage('default')
-const referenceAPI = new ReferenceAppleiMessage('default')
-
-const chatLimit = parseLimit(getArg('max-chats', 'chats') ?? 'all', '--max-chats')
+const chatLimit = parseLimit(getArg(args, 'max-chats', 'chats') ?? 'all', '--max-chats')
 const skipChats = parseLimit(args.get('skip-chats') ?? '0', '--skip-chats')
 if (!Number.isFinite(skipChats)) throw new Error('--skip-chats must be a non-negative integer')
-const messageLimit = parseLimit(getArg('max-messages-per-chat', 'max-messages', 'messages') ?? '100', '--max-messages-per-chat')
+const messageLimit = parseLimit(getArg(args, 'max-messages-per-chat', 'max-messages', 'messages') ?? '100', '--max-messages-per-chat')
 const getMessageSamplesArg = args.get('get-message-samples') ?? '1'
 const getMessageSamplesAll = getMessageSamplesArg === 'all'
 const getMessageSamples = getMessageSamplesAll ? Infinity : Number.parseInt(getMessageSamplesArg, 10)
 const progressEvery = Number.parseInt(args.get('progress-every') ?? '100', 10)
 const traceCurrent = args.has('trace-current')
+const childRole = args.get('child-role')
+if (childRole && !['current', 'reference'].includes(childRole)) {
+  throw new Error('--child-role must be one of: current, reference')
+}
 const perfDeltaMinMs = Number.parseFloat(args.get('perf-delta-ms') ?? '25')
 const perfDeltaMinRatio = Number.parseFloat(args.get('perf-delta-ratio') ?? '1.25')
 const perfDeltaLimit = Number.parseInt(args.get('perf-delta-limit') ?? '20', 10)
@@ -245,23 +165,6 @@ function isNotablePerfDelta(deltaMs, ratio) {
   return deltaMs >= perfDeltaMinMs && (ratio === null || ratio >= perfDeltaMinRatio)
 }
 
-async function timedCall(fn) {
-  const startedAt = performance.now()
-  try {
-    return {
-      ok: true,
-      value: await fn(),
-      ms: performance.now() - startedAt,
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      error,
-      ms: performance.now() - startedAt,
-    }
-  }
-}
-
 function recordPerfDelta(phase, context, currentMs, referenceMs) {
   const bucket = perfDeltasByPhase.get(phase) ?? {
     samples: 0,
@@ -313,10 +216,8 @@ function recordPerfDelta(phase, context, currentMs, referenceMs) {
 }
 
 async function timedPair(phase, context, currentFn, referenceFn) {
-  const [currentResult, referenceResult] = await Promise.all([
-    timedCall(currentFn),
-    timedCall(referenceFn),
-  ])
+  const currentResult = await timedCall(currentFn)
+  const referenceResult = await timedCall(referenceFn)
   recordPerfDelta(phase, context, currentResult.ms, referenceResult.ms)
   if (!currentResult.ok) throw currentResult.error
   if (!referenceResult.ok) throw referenceResult.error
@@ -371,10 +272,43 @@ function searchTermsFromMessage(message) {
     .filter(term => !term.includes('{{') && !term.includes('}}'))
 }
 
-try {
-  await api.init({}, { accountID: 'default', dataDirPath })
-  await referenceAPI.init({}, { accountID: 'default', dataDirPath: referenceDataDirPath })
+if (childRole) {
+  await runAPIChild({
+    role: childRole,
+    repoRoot,
+    referenceAPIPath: args.get('reference-api-bundle'),
+    referenceBinariesDirPath,
+  })
+  process.exit(0)
+}
 
+const referenceAPIPath = await ensureReferenceAPI({
+  args,
+  repoRoot,
+  referenceRoot,
+  referenceBinariesDirPath,
+})
+const childAPIs = [
+  spawnAPIChild({
+    role: 'current',
+    entrypointPath: fileURLToPath(import.meta.url),
+    repoRoot,
+    referenceAPIPath,
+    referenceBinariesDirPath,
+  }),
+  spawnAPIChild({
+    role: 'reference',
+    entrypointPath: fileURLToPath(import.meta.url),
+    repoRoot,
+    referenceAPIPath,
+    referenceBinariesDirPath,
+  }),
+]
+await Promise.all(childAPIs.map(child => child.ready))
+const api = childAPIs[0].api
+const referenceAPI = childAPIs[1].api
+
+try {
   const threads = explicitThreadIDs.map(id => ({ id }))
   const failures = []
   let threadCursor
@@ -594,6 +528,7 @@ try {
     chatLimit: formatLimit(chatLimit),
     skipChats,
     messageLimitPerChat: formatLimit(messageLimit),
+    processMode: 'child-processes',
     totalChatsDiscovered: threads.length,
     chatsChecked: selectedThreads.length,
     threadPagesChecked,
@@ -614,9 +549,6 @@ try {
 
   process.exitCode = failures.length === 0 ? 0 : 1
 } finally {
-  await Promise.resolve(api.dispose?.()).catch(() => {})
-  await Promise.resolve(referenceAPI.dispose?.()).catch(() => {})
-  await fs.rm(dataDirPath, { recursive: true, force: true }).catch(() => {})
-  await fs.rm(referenceDataDirPath, { recursive: true, force: true }).catch(() => {})
+  await closeAPIChildren(childAPIs)
   app.exit(process.exitCode ?? 0)
 }

@@ -36,7 +36,8 @@ DerivedData/
 
 *.compiled.mjs
 .parity/*
-!.parity/check-swift-mapper-parity.mjs
+!.parity/*.mjs
+.parity/*.compiled.mjs
 !.parity/mapper-parity.test.ts
 .*.history.json
 .claude
