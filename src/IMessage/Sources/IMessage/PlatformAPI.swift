@@ -28,14 +28,18 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 }
 
 public final class PlatformAPI {
+    private let runtime: Runtime
+    private var messagesControllerCleanupHook: CleanupHook?
+    private var watchCBQueue: CallbackQueue?
+
     private let accountID: String
-    private let runtime: PlatformAPIRuntime
+
     private let database = PlatformAPIDatabase()
     private let currentUserCache = Protected<CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
+
     private var messagesController: MessagesController?
-    private var messagesControllerCleanupHook: PlatformCleanupHook?
-    private var watchCBQueue: PlatformCallbackQueue?
+
     private let threadObserveRequestToken = Protected<UUID?>()
     private let hasBeenDisposed = Protected(false)
 
@@ -45,7 +49,7 @@ public final class PlatformAPI {
         self.init(accountID: accountID, runtime: .noop)
     }
 
-    public init(accountID: String, runtime: PlatformAPIRuntime) {
+    public init(accountID: String, runtime: Runtime) {
         self.accountID = accountID
         self.runtime = runtime
     }
@@ -371,7 +375,7 @@ public final class PlatformAPI {
         try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
-    public func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping PlatformEventSender) async throws {
+    public func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping EventSender) async throws {
         guard !publicThreadID.isEmpty else {
             return
         }
@@ -408,7 +412,7 @@ public final class PlatformAPI {
                 return
             }
 
-            var events: [PlatformEvent] = [
+            var events: [Event] = [
                 [
                     "type": "user_activity",
                     "activityType": statuses.contains(.typing) ? "typing" : "none",
@@ -443,7 +447,7 @@ public final class PlatformAPI {
         }
     }
 
-    public func getAsset(pathHex: String, methodName: String?) async throws -> PlatformAssetResult {
+    public func getAsset(pathHex: String, methodName: String?) async throws -> AssetResult {
         let database = database
         return try await DetachedWork.run {
             try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
@@ -521,7 +525,7 @@ public final class PlatformAPI {
     /// Disposes a controller. Clears the queue's idle callback and runs
     /// `controller.dispose()` inside the same `queue.sync` critical section
     /// so a pending idle callback can't fire against a half-disposed controller.
-    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: PlatformCleanupHook?) async throws {
+    private func disposeMessagesController(_ controller: MessagesController, cleanupHook: CleanupHook?) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         Self.messagesControllerQueue.queue.sync {
             Self.messagesControllerQueue.setIdleCallback(nil)
@@ -569,7 +573,7 @@ public final class PlatformAPI {
             }
         }
 
-        let watchCBQueue: PlatformCallbackQueue
+        let watchCBQueue: CallbackQueue
         if let existing = self.watchCBQueue {
             watchCBQueue = existing
         } else {
@@ -1219,7 +1223,7 @@ extension PlatformAPI {
         return String(associatedMessageGUID[upper...])
     }
 
-    nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> PlatformAssetResult {
+    nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> AssetResult {
         switch pathHex {
         case "hw":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
