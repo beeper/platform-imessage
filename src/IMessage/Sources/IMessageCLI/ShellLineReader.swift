@@ -336,10 +336,16 @@ final class ShellLineReader {
     }
 
     private func readByte() -> UInt8? {
-        var byte = UInt8.zero
-        let count = Darwin.read(STDIN_FILENO, &byte, 1)
-        guard count == 1 else { return nil }
-        return byte
+        while true {
+            var byte = UInt8.zero
+            let count = Darwin.read(STDIN_FILENO, &byte, 1)
+            let readErrno = errno
+            if count == 1 { return byte }
+            if count == -1 && (readErrno == EINTR || readErrno == EAGAIN) {
+                continue
+            }
+            return nil
+        }
     }
 
     private func writeTerminal(_ text: String) {
