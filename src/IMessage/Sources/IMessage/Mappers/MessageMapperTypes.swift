@@ -11,7 +11,7 @@ let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000
 
 enum MessagePart {
-    case text(index: Int, end: Int, text: String, attributes: JSONObject?)
+    case text(index: Int, end: Int, text: String, attributes: PlatformSDK.TextAttributes?)
     case attachment(index: Int, end: Int, attachmentID: String)
     case unsent(index: Int, end: Int)
 

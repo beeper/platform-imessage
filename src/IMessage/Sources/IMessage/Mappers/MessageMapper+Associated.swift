@@ -2,25 +2,25 @@ import Foundation
 import IMDatabase
 
 extension Mapper {
-    func footer() -> JSONObject {
+    func footer() -> MessagePatch {
         let expressiveSendStyleID = msgRow.expressiveSendStyleID ?? ""
         if let effect = expressiveMessages[expressiveSendStyleID] {
-            return ["textFooter": "(Sent with \(effect) effect)"]
+            return MessagePatch(textFooter: "(Sent with \(effect) effect)")
         }
         if let service = msgRow.service, let footer = serviceFooters[service] {
-            return ["textFooter": footer]
+            return MessagePatch(textFooter: footer)
         }
-        return [:]
+        return MessagePatch()
     }
 
     func associatedMessage(
-        messages: inout [JSONObject],
-        partialMessage: JSONObject,
+        messages: inout [MessageDraft],
+        partialMessage: MessageDraft,
         summaryInfo: JSONObject,
         isSMS: Bool,
         associatedGUID: String
-    ) -> JSONObject? {
-        let firstTextPart = messages.first { $0["text"] is String }
+    ) -> MessageDraft? {
+        let firstTextPart = messages.first { $0.text != nil }
         var message = firstTextPart ?? partialMessage
         let guidRange = NSRange(associatedGUID.startIndex ..< associatedGUID.endIndex, in: associatedGUID)
         let linkedMessageID = assocMsgGUIDPrefixRegex.stringByReplacingMatches(
@@ -28,7 +28,7 @@ extension Mapper {
             range: guidRange,
             withTemplate: ""
         )
-        message["linkedMessageID"] = linkedMessageID
+        message.linkedMessageID = linkedMessageID
         guard let assocMsgType = associatedMessageTypes[msgRow.associatedMessageType] else {
             return nil
         }
@@ -36,21 +36,21 @@ extension Mapper {
         switch assocMsgType {
         case "sticker":
             if !messages.isEmpty {
-                messages[0]["linkedMessageID"] = linkedMessageID
+                messages[0].linkedMessageID = linkedMessageID
             }
             return nil
         case "heading":
-            if var text = message.string("text") {
+            if var text = message.text {
                 let other = msgRow.participantID ?? ""
-                let isSender = message.bool("isSender") == true
+                let isSender = message.isSender == true
                 let senderName = isSender ? currentUserID : other
                 let receiverName = isSender ? other : currentUserID
                 text = text
                     .replacingOccurrences(of: receiverNamePlaceholder, with: "{{\(receiverName)}}")
                     .replacingOccurrences(of: senderNamePlaceholder, with: "{{\(senderName)}}")
-                message["text"] = text
+                message.text = text
             }
-            message["parseTemplate"] = true
+            message.parseTemplate = true
             return message
         default:
             return mapReactionAction(
@@ -62,8 +62,8 @@ extension Mapper {
         }
     }
 
-    func assignReactions(to message: inout JSONObject, filterIndex: Int?) {
-        var reactions = [JSONObject]()
+    func assignReactions(to message: inout MessageDraft, filterIndex: Int?) {
+        var reactions = [PlatformSDK.MessageReaction]()
         let filteredRows = reactionRows.filter { reaction in
             guard let filterIndex else {
                 return true
@@ -78,18 +78,18 @@ extension Mapper {
             }
             let participantID = senderID(for: reaction)
             if parts.actionType == "reacted" {
-                reactions.append(compactDictionary([
-                    "id": participantID,
-                    "reactionKey": parts.actionKey == "emoji" ? reaction.associatedMessageEmoji : parts.actionKey,
-                    "participantID": participantID,
-                    "imgURL": parts.actionKey == "sticker" ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
-                ]))
-            } else if parts.actionType == "unreacted", let index = reactions.firstIndex(where: { $0.string("id") == participantID }) {
+                reactions.append(PlatformSDK.MessageReaction(
+                    id: participantID,
+                    reactionKey: parts.actionKey == "emoji" ? (reaction.associatedMessageEmoji ?? "") : parts.actionKey,
+                    imgURL: parts.actionKey == "sticker" ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
+                    participantID: participantID
+                ))
+            } else if parts.actionType == "unreacted", let index = reactions.firstIndex(where: { $0.id == participantID }) {
                 reactions.remove(at: index)
             }
         }
         if !reactions.isEmpty {
-            message["reactions"] = reactions
+            message.reactions = reactions
         }
     }
 
@@ -110,34 +110,33 @@ extension Mapper {
 
     private func mapReactionAction(
         assocMsgType: String,
-        message inputMessage: JSONObject,
+        message inputMessage: MessageDraft,
         summaryInfo: JSONObject,
         isSMS: Bool
-    ) -> JSONObject {
+    ) -> MessageDraft {
         var message = inputMessage
         guard let parts = reactionParts(assocMsgType) else {
             return message
         }
-        guard let reactionType = [
-            "reacted": "message_reaction_created",
-            "unreacted": "message_reaction_deleted",
-        ][parts.actionType] else {
+        guard parts.actionType == "reacted" || parts.actionType == "unreacted" else {
             return message
         }
-        message["isAction"] = !isSMS
-        message["action"] = compactDictionary([
-            "type": reactionType,
-            "messageID": message.string("linkedMessageID"),
-            "participantID": message.string("senderID"),
-            "imgURL": assocMsgType == "reacted_sticker" ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
-            "reactionKey": parts.actionKey == "emoji" ? msgRow.associatedMessageEmoji : parts.actionKey,
-        ])
+        message.isAction = !isSMS
+        let action = PlatformSDK.PartialMessageReactionAction(
+            messageID: message.linkedMessageID,
+            reactionKey: parts.actionKey == "emoji" ? msgRow.associatedMessageEmoji : parts.actionKey,
+            imgURL: assocMsgType == "reacted_sticker" ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
+            participantID: message.senderID
+        )
+        message.action = parts.actionType == "reacted"
+            ? .messageReactionCreated(action)
+            : .messageReactionDeleted(action)
         if parts.actionKey == "emoji" || parts.actionKey == "sticker" || supportedReactionKeys.contains(parts.actionKey) {
-            message["parseTemplate"] = true
+            message.parseTemplate = true
             let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
             let target = summaryInfo.string("ams").map { "\"\($0)\"" } ?? "a message"
-            message["text"] = "\(actor) \(reactionVerbMap[assocMsgType] ?? "") \(target)"
-            message["isHidden"] = true
+            message.text = "\(actor) \(reactionVerbMap[assocMsgType] ?? "") \(target)"
+            message.isHidden = true
         }
         return message
     }

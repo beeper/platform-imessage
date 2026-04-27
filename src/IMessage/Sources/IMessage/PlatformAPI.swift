@@ -1132,25 +1132,24 @@ extension PlatformAPI {
             accountID: accountID
         )
         let mapped = try mapper.mapMessage().filter { shouldKeepForAPI($0) }
-        return try attachOriginalIfNeeded(
+        return attachOriginalIfNeeded(
             mapped,
             msgRow: msgRow.object,
             attachmentRows: attachmentRows.objects,
             currentUserID: currentUserID
         ).map(hashMessage)
-            .map(PlatformSDK.Message.init(jsonObject:))
     }
 
-    nonisolated static func shouldKeepForAPI(_ message: JSONObject) -> Bool {
-        !message.isEmpty
+    nonisolated static func shouldKeepForAPI(_ message: PlatformSDK.Message) -> Bool {
+        !message.id.isEmpty
     }
 
     nonisolated static func attachOriginalIfNeeded(
-        _ messages: [JSONObject],
+        _ messages: [PlatformSDK.Message],
         msgRow: JSONObject,
         attachmentRows: [JSONObject],
         currentUserID: String
-    ) -> [JSONObject] {
+    ) -> [PlatformSDK.Message] {
         guard !Preferences.stripInternalFields else {
             return messages
         }
@@ -1160,33 +1159,72 @@ extension PlatformAPI {
         serializedRow.removeValue(forKey: "message_summary_info")
         let original = (try? encodeJSON([serializedRow, attachmentRows, currentUserID])) ?? ""
         return messages.map { message in
-            var message = message
-            message["_original"] = original
-            return message
+            copyMessage(message, original: original)
         }
     }
 
-    nonisolated static func hashMessage(_ message: JSONObject) -> JSONObject {
-        var message = message
-        if let threadID = message.string("threadID") {
-            message["threadID"] = Hasher.thread.tokenizeRemembering(pii: threadID)
-        }
-        if let senderID = message.string("senderID") {
-            message["senderID"] = Hasher.participant.tokenizeRemembering(pii: senderID)
-        }
-        if let reactions = message["reactions"] as? [JSONObject] {
-            message["reactions"] = reactions.map { reaction in
-                var reaction = reaction
-                if let id = reaction.string("id") {
-                    reaction["id"] = Hasher.participant.tokenizeRemembering(pii: id)
-                }
-                if let participantID = reaction.string("participantID") {
-                    reaction["participantID"] = Hasher.participant.tokenizeRemembering(pii: participantID)
-                }
-                return reaction
-            }
-        }
-        return message
+    nonisolated static func hashMessage(_ message: PlatformSDK.Message) -> PlatformSDK.Message {
+        copyMessage(
+            message,
+            senderID: Hasher.participant.tokenizeRemembering(pii: message.senderID),
+            reactions: message.reactions?.map { reaction in
+                PlatformSDK.MessageReaction(
+                    id: Hasher.participant.tokenizeRemembering(pii: reaction.id),
+                    reactionKey: reaction.reactionKey,
+                    imgURL: reaction.imgURL,
+                    participantID: Hasher.participant.tokenizeRemembering(pii: reaction.participantID),
+                    emoji: reaction.emoji
+                )
+            },
+            threadID: message.threadID.map { Hasher.thread.tokenizeRemembering(pii: $0) }
+        )
+    }
+
+    nonisolated static func copyMessage(
+        _ message: PlatformSDK.Message,
+        senderID: PlatformSDK.UserID? = nil,
+        reactions: [PlatformSDK.MessageReaction]? = nil,
+        threadID: PlatformSDK.ThreadID? = nil,
+        original: String? = nil
+    ) -> PlatformSDK.Message {
+        PlatformSDK.Message(
+            id: message.id,
+            timestamp: message.timestamp,
+            editedTimestamp: message.editedTimestamp,
+            expiresInSeconds: message.expiresInSeconds,
+            forwardedCount: message.forwardedCount,
+            forwardedFrom: message.forwardedFrom,
+            senderID: senderID ?? message.senderID,
+            text: message.text,
+            textAttributes: message.textAttributes,
+            textHeading: message.textHeading,
+            textFooter: message.textFooter,
+            attachments: message.attachments,
+            tweets: message.tweets,
+            links: message.links,
+            iframeURL: message.iframeURL,
+            reactions: reactions ?? message.reactions,
+            seen: message.seen,
+            isDelivered: message.isDelivered,
+            isHidden: message.isHidden,
+            isSender: message.isSender,
+            isAction: message.isAction,
+            isDeleted: message.isDeleted,
+            isErrored: message.isErrored,
+            parseTemplate: message.parseTemplate,
+            linkedMessageThreadID: message.linkedMessageThreadID,
+            linkedMessageID: message.linkedMessageID,
+            linkedMessage: message.linkedMessage,
+            action: message.action,
+            buttons: message.buttons,
+            behavior: message.behavior,
+            accountID: message.accountID,
+            threadID: threadID ?? message.threadID,
+            sortKey: message.sortKey,
+            cursor: message.cursor,
+            extra: message.extra,
+            original: original ?? message.original
+        )
     }
 
     nonisolated static func decorateAttachments(_ attachmentRows: [MappedAttachmentRow]) -> [MappedAttachmentRow] {

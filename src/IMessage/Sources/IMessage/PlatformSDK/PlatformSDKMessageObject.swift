@@ -40,6 +40,82 @@ extension PlatformSDK {
         public let extra: Any?
         public let original: String?
 
+        public init(
+            id: MessageID,
+            timestamp: Timestamp,
+            editedTimestamp: Timestamp? = nil,
+            expiresInSeconds: Int? = nil,
+            forwardedCount: Int? = nil,
+            forwardedFrom: JSONObject? = nil,
+            senderID: UserID,
+            text: String? = nil,
+            textAttributes: TextAttributes? = nil,
+            textHeading: String? = nil,
+            textFooter: String? = nil,
+            attachments: [Attachment]? = nil,
+            tweets: [Tweet]? = nil,
+            links: [MessageLink]? = nil,
+            iframeURL: String? = nil,
+            reactions: [MessageReaction]? = nil,
+            seen: MessageSeen? = nil,
+            isDelivered: Bool? = nil,
+            isHidden: Bool? = nil,
+            isSender: Bool? = nil,
+            isAction: Bool? = nil,
+            isDeleted: Bool? = nil,
+            isErrored: Bool? = nil,
+            parseTemplate: Bool? = nil,
+            linkedMessageThreadID: ThreadID? = nil,
+            linkedMessageID: MessageID? = nil,
+            linkedMessage: MessagePreview? = nil,
+            action: MessageAction? = nil,
+            buttons: [MessageButton]? = nil,
+            behavior: MessageBehavior? = nil,
+            accountID: String? = nil,
+            threadID: ThreadID? = nil,
+            sortKey: Any? = nil,
+            cursor: String? = nil,
+            extra: Any? = nil,
+            original: String? = nil
+        ) {
+            self.id = id
+            self.timestamp = timestamp
+            self.editedTimestamp = editedTimestamp
+            self.expiresInSeconds = expiresInSeconds
+            self.forwardedCount = forwardedCount
+            self.forwardedFrom = forwardedFrom
+            self.senderID = senderID
+            self.text = text
+            self.textAttributes = textAttributes
+            self.textHeading = textHeading
+            self.textFooter = textFooter
+            self.attachments = attachments
+            self.tweets = tweets
+            self.links = links
+            self.iframeURL = iframeURL
+            self.reactions = reactions
+            self.seen = seen
+            self.isDelivered = isDelivered
+            self.isHidden = isHidden
+            self.isSender = isSender
+            self.isAction = isAction
+            self.isDeleted = isDeleted
+            self.isErrored = isErrored
+            self.parseTemplate = parseTemplate
+            self.linkedMessageThreadID = linkedMessageThreadID
+            self.linkedMessageID = linkedMessageID
+            self.linkedMessage = linkedMessage
+            self.action = action
+            self.buttons = buttons
+            self.behavior = behavior
+            self.accountID = accountID
+            self.threadID = threadID
+            self.sortKey = sortKey
+            self.cursor = cursor
+            self.extra = extra
+            self.original = original
+        }
+
         public init(jsonObject: JSONObject) throws {
             id = try PlatformSDKJSON.requiredString(jsonObject, "id", type: "Message")
             timestamp = try PlatformSDKJSON.requiredTimestamp(jsonObject, "timestamp", type: "Message")

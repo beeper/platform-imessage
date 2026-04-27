@@ -122,6 +122,22 @@ extension PlatformSDK {
         public let participantID: UserID?
         public let emoji: Bool?
 
+        public init(
+            messageID: MessageID? = nil,
+            id: ID? = nil,
+            reactionKey: String? = nil,
+            imgURL: String? = nil,
+            participantID: UserID? = nil,
+            emoji: Bool? = nil
+        ) {
+            self.messageID = messageID
+            self.id = id
+            self.reactionKey = reactionKey
+            self.imgURL = imgURL
+            self.participantID = participantID
+            self.emoji = emoji
+        }
+
         public init(jsonObject: JSONObject) {
             messageID = jsonObject.string("messageID")
             id = jsonObject.string("id")

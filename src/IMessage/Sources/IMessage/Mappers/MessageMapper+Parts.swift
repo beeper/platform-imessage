@@ -56,27 +56,26 @@ extension Mapper {
         return parts
     }
 
-    func mapTextEntity(_ attr: JSONObject) -> JSONObject {
-        var entity = JSONObject()
-        if attr.stringifying("__kIMTextBoldAttributeName") == "1" {
-            entity["bold"] = true
+    func mapTextEntity(_ attr: JSONObject, from: Int, to: Int) -> PlatformSDK.TextEntity? {
+        let bold = attr.stringifying("__kIMTextBoldAttributeName") == "1" ? true : nil
+        let italic = attr.stringifying("__kIMTextItalicAttributeName") == "1" ? true : nil
+        let underline = attr.stringifying("__kIMTextUnderlineAttributeName") == "1" ? true : nil
+        let strikethrough = attr.stringifying("__kIMTextStrikethroughAttributeName") == "1" ? true : nil
+        let link = attr.stringifying("__kIMLinkAttributeName").flatMap(\.nonEmpty)
+        let mentionedUser = (attr["__kIMMentionConfirmedMention"] as? String).map { PlatformSDK.MentionedUser(id: $0) }
+        guard bold != nil || italic != nil || underline != nil || strikethrough != nil || link != nil || mentionedUser != nil else {
+            return nil
         }
-        if attr.stringifying("__kIMTextItalicAttributeName") == "1" {
-            entity["italic"] = true
-        }
-        if attr.stringifying("__kIMTextUnderlineAttributeName") == "1" {
-            entity["underline"] = true
-        }
-        if attr.stringifying("__kIMTextStrikethroughAttributeName") == "1" {
-            entity["strikethrough"] = true
-        }
-        if let link = attr.stringifying("__kIMLinkAttributeName"), !link.isEmpty {
-            entity["link"] = link
-        }
-        if let mention = attr["__kIMMentionConfirmedMention"] as? String {
-            entity["mentionedUser"] = ["id": mention]
-        }
-        return entity
+        return PlatformSDK.TextEntity(
+            from: from,
+            to: to,
+            bold: bold,
+            italic: italic,
+            underline: underline,
+            strikethrough: strikethrough,
+            link: link,
+            mentionedUser: mentionedUser
+        )
     }
 
     private func appendTextFragment(
@@ -95,14 +94,10 @@ extension Mapper {
 
         let text = existingText + String(fragment.text).replacingOccurrences(of: imessageExtensionCharacter, with: "")
         var attributesForPart = existingAttributes
-        let entity = mapTextEntity(fragment.attributes)
-        if !entity.isEmpty {
-            var entities = (attributesForPart?["entities"] as? [JSONObject]) ?? []
-            var ranged = entity
-            ranged["from"] = from
-            ranged["to"] = end
-            entities.append(ranged)
-            attributesForPart = ["entities": entities]
+        if let entity = mapTextEntity(fragment.attributes, from: from, to: end) {
+            var entities = attributesForPart?.entities ?? []
+            entities.append(entity)
+            attributesForPart = PlatformSDK.TextAttributes(entities: entities)
         }
         parts[parts.count - 1] = .text(index: index, end: end, text: text, attributes: attributesForPart)
     }
@@ -128,16 +123,30 @@ extension Mapper {
         for index in 1 ..< parts.count {
             guard case let .text(partIndex, end, text, attributes) = parts[index],
                   case let previous = parts[index - 1],
-                  var entities = attributes?["entities"] as? [JSONObject] else {
+                  let entities = attributes?.entities else {
                 continue
             }
-            entities = entities.map { entity in
-                var adjusted = entity
-                adjusted["from"] = (entity.int("from") ?? 0) - previous.end
-                adjusted["to"] = (entity.int("to") ?? 0) - previous.end
-                return adjusted
+            let adjustedEntities = entities.map { entity in
+                PlatformSDK.TextEntity(
+                    from: entity.from - previous.end,
+                    to: entity.to - previous.end,
+                    bold: entity.bold,
+                    italic: entity.italic,
+                    underline: entity.underline,
+                    strikethrough: entity.strikethrough,
+                    quote: entity.quote,
+                    spoiler: entity.spoiler,
+                    code: entity.code,
+                    pre: entity.pre,
+                    codeLanguage: entity.codeLanguage,
+                    markdown: entity.markdown,
+                    replaceWith: entity.replaceWith,
+                    replaceWithMedia: entity.replaceWithMedia,
+                    link: entity.link,
+                    mentionedUser: entity.mentionedUser
+                )
             }
-            parts[index] = .text(index: partIndex, end: end, text: text, attributes: ["entities": entities])
+            parts[index] = .text(index: partIndex, end: end, text: text, attributes: PlatformSDK.TextAttributes(entities: adjustedEntities))
         }
     }
 }
