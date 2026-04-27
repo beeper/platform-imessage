@@ -1,5 +1,6 @@
 import path from 'path'
-import { maxBy, memoize } from 'lodash'
+import maxBy from 'lodash/maxBy'
+import memoize from 'lodash/memoize'
 import { OnServerEventCallback, texts, IAsyncSqlite, PaginationArg } from '@textshq/platform-sdk'
 import { setTimeout as setTimeoutAsync } from 'node:timers/promises'
 

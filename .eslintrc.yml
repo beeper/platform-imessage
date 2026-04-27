@@ -1,3 +1,14 @@
 extends: '@textshq/eslint-config/base.yml'
 parserOptions:
   project: ./tsconfig.json
+rules:
+  no-restricted-imports:
+    - error
+    - paths:
+        - name: lodash
+          message: Import lodash utilities from per-method paths like 'lodash/mapKeys'.
+  no-restricted-modules:
+    - error
+    - paths:
+        - name: lodash
+          message: Require lodash utilities from per-method paths like 'lodash/mapKeys'.
