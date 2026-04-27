@@ -3,6 +3,8 @@
 - [ ] contacts: use SwiftServer to resolve phone #s and emails and populate Thread.title, User.fullName, User.imgURL
 - [ ] improve readme, add screenshots
 - [ ] publish to npm
+- [ ] publish to homebrew
+- [ ] publish to gh releases
 - [ ] add example script that consumes the library
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>

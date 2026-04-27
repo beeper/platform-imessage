@@ -7,15 +7,15 @@ import { APP_BUNDLE_ID } from './constants'
 import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './common-constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
-import swiftServer, { type SwiftPlatformAPI } from './SwiftServer/lib'
+import imessage, { type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
 import { parseSwiftMessageAPIJSON } from './swift-json'
 
-swiftServer.isLoggingEnabled = texts.isLoggingEnabled
+imessage.isLoggingEnabled = texts.isLoggingEnabled
 if (process.env.IMESSAGE_USE_SECONDARY_INSTANCE) {
-  swiftServer.useSecondaryMessagesInstance = true
+  imessage.useSecondaryMessagesInstance = true
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -23,7 +23,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private persistence?: Persistence
 
-  private swiftPlatformAPI?: SwiftPlatformAPI
+  private swiftPlatformAPI?: NativePlatformAPI
 
   // used to make archive calls wait for any pending reactions/message sends,
   // to remove flicker from e.g. sending then quickly archiving manually.
@@ -64,7 +64,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private async ensureDB() {
     try {
-      await swiftServer.validateDatabaseAccess()
+      await imessage.validateDatabaseAccess()
     } catch (error: unknown) {
       texts.error("imsg: couldn't validate Messages database access:", error)
       throw new ReAuthError("Can't access iMessage data", { cause: error })
@@ -105,13 +105,13 @@ export default class AppleiMessage implements PlatformAPI {
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
     // (DESK-13231; removed until this actually works)
-    // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
-    swiftServer.enabledExperiments = this.experiments
-    texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
-    texts.log('imessage useSecondaryMessagesInstance', swiftServer.useSecondaryMessagesInstance)
+    // imessage.isPHTEnabled = prefs?.hide_messages_app ?? false
+    imessage.enabledExperiments = this.experiments
+    texts.log('imessage enabledExperiments', imessage.enabledExperiments)
+    texts.log('imessage useSecondaryMessagesInstance', imessage.useSecondaryMessagesInstance)
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
-    this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.accountID)
+    this.swiftPlatformAPI ??= new imessage.PlatformAPI(this.accountID)
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -126,22 +126,22 @@ export default class AppleiMessage implements PlatformAPI {
       const evs: ServerEvent[] = []
       events.forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
-          texts.Sentry.captureMessage(`iMessage SwiftServer: ${ev.toast.text}`)
+          texts.Sentry.captureMessage(`iMessage: ${ev.toast.text}`)
         } else {
           evs.push(ev)
         }
       })
       onEvent(evs)
     }
-    swiftServer.setEventCallback(this.onEvent)
-    if (swiftServer?.isMessagesAppInDock && swiftServer?.isPHTEnabled) {
+    imessage.setEventCallback(this.onEvent)
+    if (imessage?.isMessagesAppInDock && imessage?.isPHTEnabled) {
       this.removeMessagesAppInDock()
     }
   }
 
   startEventPollingFromCurrentState = async (): Promise<void> => {
     if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventPollingFromCurrentState')
-    await swiftServer.startPollingFromCurrentState()
+    await imessage.startPollingFromCurrentState()
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
@@ -300,14 +300,14 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private proxiedAuthFns = {
-    isMessagesAppSetup: () => swiftServer.validateDatabaseAccess().then(() => true, () => false),
-    canAccessMessagesDir: () => swiftServer.canAccessMessagesDir().then(() => true, () => false),
-    askForAutomationAccess: () => swiftServer.askForAutomationAccess().then(() => true),
-    askForMessagesDirAccess: () => swiftServer.askForMessagesDirAccess(),
-    confirmUNCPrompt: () => swiftServer.confirmUNCPrompt(),
-    disableMessagesNotifications: () => swiftServer.disableMessagesNotifications(),
-    startSysPrefsOnboarding: () => swiftServer.startSysPrefsOnboarding?.(),
-    stopSysPrefsOnboarding: () => swiftServer.stopSysPrefsOnboarding?.(),
+    isMessagesAppSetup: () => imessage.validateDatabaseAccess().then(() => true, () => false),
+    canAccessMessagesDir: () => imessage.canAccessMessagesDir().then(() => true, () => false),
+    askForAutomationAccess: () => imessage.askForAutomationAccess().then(() => true),
+    askForMessagesDirAccess: () => imessage.askForMessagesDirAccess(),
+    confirmUNCPrompt: () => imessage.confirmUNCPrompt(),
+    disableMessagesNotifications: () => imessage.disableMessagesNotifications(),
+    startSysPrefsOnboarding: () => imessage.startSysPrefsOnboarding?.(),
+    stopSysPrefsOnboarding: () => imessage.stopSysPrefsOnboarding?.(),
     isSIPEnabled: () => this.sipEnabled,
     revokeFDA: async () => {
       await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)
@@ -317,8 +317,8 @@ export default class AppleiMessage implements PlatformAPI {
       await shellExec('/usr/bin/tccutil', 'reset', 'All', 'com.googlecode.iterm2')
       return true
     },
-    isNotificationsEnabledForMessages: () => swiftServer.isNotificationsEnabledForMessages,
-    revealSettings: () => swiftServer.revealSettings?.(),
+    isNotificationsEnabledForMessages: () => imessage.isNotificationsEnabledForMessages,
+    revealSettings: () => imessage.revealSettings?.(),
   } satisfies Record<string, () => Awaitable<boolean | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {
@@ -337,8 +337,8 @@ export default class AppleiMessage implements PlatformAPI {
 
   // eslint-disable-next-line class-methods-use-this
   private removeMessagesAppInDock = () => {
-    swiftServer.removeMessagesFromDock()
-    swiftServer.killDock()
+    imessage.removeMessagesFromDock()
+    imessage.killDock()
   }
 
   setThreadReminder = async (threadID: string, reminder: ThreadReminder) => {

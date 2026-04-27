@@ -8,13 +8,13 @@
     "build:swift": {
       "inputs": [
         "!**/.DS_Store",
-        "!src/SwiftServer/.build/**",
-        "!src/SwiftServer/.swiftpm/**",
-        "src/SwiftServer/**",
+        "!src/IMessage/.build/**",
+        "!src/IMessage/.swiftpm/**",
+        "src/IMessage/**",
         "package.json"
       ],
       "outputs": [
-        "binaries/*/SwiftServer.node"
+        "binaries/*/IMessage.node"
       ]
     },
     "build:typescript": {

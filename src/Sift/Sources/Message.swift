@@ -36,7 +36,7 @@ private struct RustServerLogMessage: Decodable {
 
 extension Message {
     enum ParsingFormat {
-        case swiftServer
+        case imessage
         case rollingLogger
         case rustServer
     }
@@ -50,7 +50,7 @@ extension Message {
 
     init(parsing line: String, format: ParsingFormat) throws {
         switch format {
-        case .swiftServer:
+        case .imessage:
             // 2025-04-16 20:09:36 +0000 [debug:sws.app-elements] getMainWindow took 22.185087203979492ms
             let openingBracket = try line.firstIndex(of: "[").orThrow("couldn't find ]")
             let unparsedDate = line[..<openingBracket]

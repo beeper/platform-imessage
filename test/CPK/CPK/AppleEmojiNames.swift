@@ -1,4 +1,4 @@
-// duplicated from SwiftServer
+// duplicated from IMessage
 import Foundation
 
 enum AppleEmojiNames {

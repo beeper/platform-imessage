@@ -1,0 +1,175 @@
+import Foundation
+import IMessageCore
+
+func runOnMainThread<T>(fn: () throws -> T) rethrows -> T {
+    Log.default.debug("runOnMainThread: Thread.isMainThread=\(Thread.isMainThread) queueName=\(__dispatch_queue_get_label(nil))")
+    if Thread.isMainThread {
+        return try fn()
+    }
+    return try DispatchQueue.main.sync {
+        try fn()
+    }
+}
+
+func debounced(for timeInterval: TimeInterval, action: @escaping (() -> Void)) -> (() -> Void) {
+    var timer: Timer?
+    return {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { _ in
+            action()
+        }
+    }
+}
+
+// iMessage;-;hi@kishan.info → hi@kishan.info
+@inlinable func threadIDToAddress(_ threadID: String) -> String? {
+    splitThreadID(threadID)?.2
+}
+
+// iMessage;-;hi@kishan.info → ("iMessage", "-", "hi@kishan.info")
+@inlinable func splitThreadID(_ threadID: String) -> (String.SubSequence, String.SubSequence, String)? {
+    let components = threadID.split(separator: ";", maxSplits: 2)
+    guard components.count == 3 else { return nil }
+    return (components[0], components[1], String(components[2]))
+}
+
+func singleParticipantAddress(_ threadID: String) -> String? {
+    guard let (service, type, address) = splitThreadID(threadID),
+          type == "-",
+          service == "RCS" || service == "iMessage" || service == "any"
+    else {
+        return nil
+    }
+    return address
+}
+
+func threadIDIsForGroup(_ id: String) -> Bool {
+    splitThreadID(id).map { $0.1 == MessagesDeepLink.groupThreadType } == true
+}
+
+func containsLink(_ text: String) -> Bool {
+    linkCount(in: text) > 0
+}
+
+func linkCount(in text: String) -> Int {
+    let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    let matches = detector?.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+    return matches?.count ?? 0
+}
+
+func jsonStringify<T: Encodable>(_ input: T) throws -> String {
+    let data = try encoder.encode(input)
+    return String(decoding: data, as: UTF8.self)
+}
+
+public func encodeJSON(_ value: Any?) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: jsonSerializable(value), options: [.fragmentsAllowed])
+    return try String(data: data, encoding: .utf8).orThrow(ErrorMessage("Swift message API output wasn't utf8"))
+}
+
+private func jsonSerializable(_ value: Any?) -> Any {
+    guard let value else {
+        return NSNull()
+    }
+
+    if let optional = value as? OptionalProtocol {
+        return jsonSerializable(optional.anyValue)
+    }
+
+    switch value {
+    case let data as Data:
+        return "data:;base64,\(data.base64EncodedString())"
+    case let data as NSData:
+        return "data:;base64,\(data.base64EncodedString())"
+    case let dictionary as [String: Any]:
+        return dictionary.mapValues(jsonSerializable)
+    case let dictionary as NSDictionary:
+        var result = JSONObject()
+        for (key, child) in dictionary {
+            guard let key = key as? String else {
+                continue
+            }
+            result[key] = jsonSerializable(child)
+        }
+        return result
+    case let array as [Any]:
+        return array.map(jsonSerializable)
+    case let array as NSArray:
+        return array.map(jsonSerializable)
+    case let url as URL:
+        return url.absoluteString
+    case let url as NSURL:
+        return url.absoluteString ?? ""
+    default:
+        return value
+    }
+}
+
+private protocol OptionalProtocol {
+    var anyValue: Any? { get }
+}
+
+extension Optional: OptionalProtocol {
+    var anyValue: Any? {
+        switch self {
+        case .some(let value): return value
+        case .none: return nil
+        }
+    }
+}
+
+private let encoder = JSONEncoder()
+
+func fileURLString(_ filePath: String) -> String {
+    URL(fileURLWithPath: filePath).absoluteString
+}
+
+func waitForFileToExist(_ filePath: String, maxWait: TimeInterval) -> Bool {
+    let deadline = Date().addingTimeInterval(maxWait)
+    while !FileManager.default.fileExists(atPath: filePath) {
+        guard Date() <= deadline else {
+            return false
+        }
+        Thread.sleep(forTimeInterval: 0.02)
+    }
+    return true
+}
+
+func replaceTilde(_ string: String) -> String {
+    (string as NSString).expandingTildeInPath
+}
+
+struct System {
+    /// "Darwin"
+    let os: String
+    /// e.g. "hostname.local"
+    let node: String
+    /// e.g. "24.3.0" (XNU version)
+    let kernelVersion: String
+    /// e.g. "Darwin Kernel Version 24.3.0: …"
+    let kernelRelease: String
+    /// e.g. "arm64"
+    let architecture: String
+    /// e.g. "Version 15.3.2 (Build 24D81)"
+    let osVersion: String
+
+    init?() {
+        var info = utsname()
+        guard uname(&info) == 0 else {
+            return nil
+        }
+
+        func read<C>(_ keyPath: KeyPath<utsname, C>) -> String {
+            withUnsafePointer(to: info[keyPath: keyPath]) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { String(cString: $0) }
+            }
+        }
+
+        os = read(\.sysname)
+        node = read(\.nodename)
+        kernelVersion = read(\.release)
+        kernelRelease = read(\.version)
+        architecture = read(\.machine)
+        osVersion = ProcessInfo().operatingSystemVersionString
+    }
+}

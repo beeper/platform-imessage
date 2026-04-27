@@ -47,9 +47,9 @@ function parseLimit(value, argName) {
 const formatLimit = value => Number.isFinite(value) ? value : 'all'
 
 const referenceRoot = path.resolve(args.get('reference-root') ?? path.join(repoRoot, '.parity/platform-imessage-main'))
-const defaultReferenceSwiftServerNodePath = path.join(referenceRoot, 'binaries', `${process.platform}-${process.arch}`, 'SwiftServer.node')
-const referenceSwiftServerNodePath = args.get('reference-swift-server-node') ?? defaultReferenceSwiftServerNodePath
-const referenceBinariesDirPath = path.dirname(path.dirname(referenceSwiftServerNodePath))
+const defaultReferenceIMessageNodePath = path.join(referenceRoot, 'binaries', `${process.platform}-${process.arch}`, 'IMessage.node')
+const referenceIMessageNodePath = args.get('reference-swift-server-node') ?? defaultReferenceIMessageNodePath
+const referenceBinariesDirPath = path.dirname(path.dirname(referenceIMessageNodePath))
 
 process.env.IMESSAGE_SKIP_EAGER_MC ??= '1'
 process.env.IMESSAGE_STRIP_INTERNAL_FIELDS ??= '1'

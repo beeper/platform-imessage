@@ -1,12 +1,12 @@
 # platform-imessage
 
-A standalone JS library and CLI that lets you and your agents send/receive messages and fully automate iMessage locally on your Mac.
+A standalone Swift library and CLI that lets you and your agents send/receive messages and fully automate iMessage locally on your Mac.
 
 Reads `chat.db` and works with automation and accessibility APIs. Designed to run with [System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled since it does not hook into low level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~95% feature parity (reactions, threaded replies, edit message, undo send, typing indicators, notify anyway, rich text message formatting etc.) on macOS Tahoe.
 
-This also powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS.
+This powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS.
 
-Native code in Swift is exposed to JS via NAPI/[node-swift](https://github.com/kabiroberai/node-swift).
+Also present: NAPI bindings for JS via [node-swift](https://github.com/kabiroberai/node-swift).
 
 **What it won't do**: expose more features if you disable SIP, allow automating multiple iMessage accounts, work on Windows/Linux. Also see [TODOs](./todos.md).
 
