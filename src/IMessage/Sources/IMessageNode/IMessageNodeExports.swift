@@ -86,12 +86,14 @@ import IMessage
         }
     ]
 
-    dict["startSysPrefsOnboarding"] = try NodeFunction {
-        IMessageHost.startSysPrefsOnboarding()
-    }
-    dict["stopSysPrefsOnboarding"] = try NodeFunction {
-        IMessageHost.stopSysPrefsOnboarding()
-    }
+    dict["SystemSettingsOnboarding"] = try [
+        "start": NodeFunction {
+            SystemSettingsOnboarding.start()
+        },
+        "stop": NodeFunction {
+            SystemSettingsOnboarding.stop()
+        },
+    ]
     dict["PlatformAPI"] = try PlatformAPINodeWrapper.constructor()
 
     return dict

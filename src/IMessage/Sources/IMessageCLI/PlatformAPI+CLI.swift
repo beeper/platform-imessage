@@ -66,14 +66,6 @@ final class IMessageCLIAPI {
         try await IMessageHost.disableMessagesNotifications()
     }
 
-    func startSysPrefsOnboarding() {
-        IMessageHost.startSysPrefsOnboarding()
-    }
-
-    func stopSysPrefsOnboarding() {
-        IMessageHost.stopSysPrefsOnboarding()
-    }
-
     func revealSettings() async {
         IMessageHost.revealSettings()
     }

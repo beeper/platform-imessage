@@ -306,8 +306,8 @@ export default class AppleiMessage implements PlatformAPI {
     askForMessagesDirAccess: () => imessage.askForMessagesDirAccess(),
     confirmUNCPrompt: () => imessage.confirmUNCPrompt(),
     disableMessagesNotifications: () => imessage.disableMessagesNotifications(),
-    startSysPrefsOnboarding: () => imessage.startSysPrefsOnboarding?.(),
-    stopSysPrefsOnboarding: () => imessage.stopSysPrefsOnboarding?.(),
+    startSysPrefsOnboarding: () => imessage.SystemSettingsOnboarding.start(),
+    stopSysPrefsOnboarding: () => imessage.SystemSettingsOnboarding.stop(),
     isSIPEnabled: () => this.sipEnabled,
     revokeFDA: async () => {
       await shellExec('/usr/bin/tccutil', 'reset', 'SystemPolicyAllFiles', APP_BUNDLE_ID)

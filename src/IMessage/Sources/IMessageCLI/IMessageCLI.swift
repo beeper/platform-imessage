@@ -92,8 +92,8 @@ private enum AuthorizationRequirement: String {
         switch self {
         case .accessibility:
             openSystemSecurityPrefs("Privacy_Accessibility")
-            api.startSysPrefsOnboarding()
-            defer { api.stopSysPrefsOnboarding() }
+            SystemSettingsOnboarding.start()
+            defer { SystemSettingsOnboarding.stop() }
             _ = await pollAuthorization(timeout: 120) { AXIsProcessTrusted() }
         case .contacts:
             if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {

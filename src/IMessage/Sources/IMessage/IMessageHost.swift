@@ -194,11 +194,4 @@ public enum IMessageHost {
         }
     }
 
-    public static func startSysPrefsOnboarding() {
-        SysPrefsOnboarding.start()
-    }
-
-    public static func stopSysPrefsOnboarding() {
-        SysPrefsOnboarding.stop()
-    }
 }

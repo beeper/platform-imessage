@@ -1,14 +1,14 @@
-enum SysPrefsOnboarding {
+public enum SystemSettingsOnboarding {
     static var onboardingManager: OnboardingManager?
 
-    static func start() {
+    public static func start() {
         guard onboardingManager == nil else { return }
         let onboardingManager = OnboardingManager()
         self.onboardingManager = onboardingManager
         onboardingManager.createWindow()
     }
 
-    static func stop() {
+    public static func stop() {
         onboardingManager?.closeWindow()
         onboardingManager = nil
     }

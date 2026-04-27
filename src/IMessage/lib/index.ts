@@ -94,8 +94,10 @@ type IMessage = {
   askForMessagesDirAccess: () => Promise<void>
   askForAutomationAccess: () => Promise<void>
 
-  startSysPrefsOnboarding?: () => Promise<void>
-  stopSysPrefsOnboarding?: () => void
+  SystemSettingsOnboarding: {
+    start: () => void
+    stop: () => void
+  }
 
   confirmUNCPrompt: () => Promise<void>
   disableMessagesNotifications: () => Promise<void>

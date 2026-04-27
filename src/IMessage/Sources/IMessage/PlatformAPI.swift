@@ -464,7 +464,7 @@ public final class PlatformAPI {
         // and tear down polling so a logout/relogin in Messages.app while
         // Beeper restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
-        SysPrefsOnboarding.stop()
+        SystemSettingsOnboarding.stop()
         await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
         try await disposeCachedMessagesController()
     }
