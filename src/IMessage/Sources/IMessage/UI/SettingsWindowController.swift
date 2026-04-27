@@ -3,8 +3,6 @@ import SwiftUI
 
 @available(macOS 13, *)
 final class SettingsWindowController: NSWindowController {
-    private var settingsController: NSHostingController<SettingsView>?
-
     static let shared = SettingsWindowController()
 
     init() {

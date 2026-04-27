@@ -81,8 +81,6 @@ enum DefaultsKeys {
     static let spacesAlwaysUseUnknownSpace = "BEEPSpacesAlwaysUseUnknownSpace"
     /** destroys the hidden space on `SpacesWindowCoordinator` being deinitialized */
     static let spacesDestroySpaceOnDeinit = "BEEPSpacesDestroySpaceOnDeinit"
-    /** always create a space of type .user */
-    static let spacesAlwaysUseUserSpace = "BEEPSpacesAlwaysUseUserSpace"
     /** when a `.user` space is at play, recreate the hidden space when the dock relaunches */
     static let spacesObserveDock = "BEEPSpacesObserveDock"
     /** when a `.user` space is at play, move the window to the hidden space when the app is activated shortly after the space changes (our heuristic for the app being manually activated) */
@@ -91,7 +89,6 @@ enum DefaultsKeys {
     static let editingDelayBeforePressingMenuItem = "BEEPEditingDelayBeforePressingMenuItem"
     static let editingDelayBeforeReplacing = "BEEPEditingDelayBeforeReplacing"
     static let editingDelayBeforeFocusing = "BEEPEditingDelayBeforeFocusing"
-    static let editingDelayPressingReturn = "BEEPEditingDelayBeforePressingReturn"
     /** force all sends through the regular UI automation path instead of the OSA shortcut */
     static let disableOSAFastPath = "BEEPDisableOSAFastPath"
 

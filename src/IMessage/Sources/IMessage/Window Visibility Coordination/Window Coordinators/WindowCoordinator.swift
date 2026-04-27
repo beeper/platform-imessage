@@ -1,8 +1,5 @@
 import Cocoa
 import AccessibilityControl
-import Logging
-
-private let log = Logger(imessageLabel: "window-coordinator")
 
 /**
  * An abstraction over a way to make the Messages app automatable for short periods of time.
@@ -46,21 +43,6 @@ extension WindowCoordinator {
 
     func userManuallyDeactivated(_ app: NSRunningApplication) throws {
         // make this method optional
-    }
-}
-
-extension WindowCoordinator {
-    func automate<T>(window: Accessibility.Element, _ automation: () throws -> T) throws -> T {
-        try makeAutomatable(window)
-        defer {
-            do {
-                try automationDidComplete(window)
-            } catch {
-                log.error("automationDidComplete errored: \(String(reflecting: error))")
-            }
-        }
-
-        return try automation()
     }
 }
 

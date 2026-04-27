@@ -149,15 +149,6 @@ private extension Message {
     }
 }
 
-private extension Message {
-    var firstSelectablePart: (offset: Int, element: Part)? {
-        for (index, part) in parts.enumerated() where part.isSelectable {
-            return (index, part)
-        }
-        return nil
-    }
-}
-
 private extension Collection<Message> {
     var formattedForDebugging: String {
         "\n"

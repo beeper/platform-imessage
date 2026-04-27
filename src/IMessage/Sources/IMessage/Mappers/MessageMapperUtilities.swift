@@ -216,8 +216,4 @@ extension Dictionary where Key == String, Value == Any {
         }
         return !(value is NSNull)
     }
-
-    func data(_ key: String) -> Data? {
-        self[key] as? Data
-    }
 }

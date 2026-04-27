@@ -1,8 +1,5 @@
 import OSAKit
 import IMessageCore
-import Logging
-
-private let log = Logger(imessageLabel: "osa")
 
 enum OSA {
     private static func run(_ source: String, language: OSALanguage? = .init(forName: "JavaScript")) throws {

@@ -25,10 +25,6 @@ final class PollingLifecycle {
 
     private init() {}
 
-    var hasEventCallback: Bool {
-        state.withLock { $0.onEvent != nil }
-    }
-
     func setEventCallback(_ onEvent: @escaping PollingEventSender, reportToSentry: Poller.ReportToSentry? = nil) {
         let pendingCursor = state.withLock { state in
             state.onEvent = onEvent

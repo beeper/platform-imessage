@@ -13,16 +13,6 @@ import WindowControl
 private let log = Logger(imessageLabel: "messages-controller")
 private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 
-private final class TimerBlockWatcher {
-    let block: () -> Void
-    init(_ block: @escaping () -> Void) {
-        self.block = block
-    }
-    @objc func timerFired() {
-        block()
-    }
-}
-
 let messagesBundleID = "com.apple.MobileSMS"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
@@ -67,15 +57,11 @@ enum LocalizedStrings {
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 
-    static let whatsNewSyndicationDetailTitle = chatKitFramework.localizedString(forKey: "WHATS_NEW_SYNDICATION_DETAIL_TITLE", value: nil, table: nil)
-
     // "OK"
     static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
     // "OK"
     static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
 
-    // "Reply…"
-    static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
 }
 
 private enum MessageAction {
@@ -126,8 +112,6 @@ private enum ConveyorEvent {
 
 // external API is thread safe
 final class MessagesController {
-    private static let pollingInterval: TimeInterval = 1
-
     private let app: NSRunningApplication
     let elements: MessagesAppElements
 
@@ -146,15 +130,6 @@ final class MessagesController {
     private var reportToSentry: ((_ txt: String) -> Void)?
 
     let occlusionMonitor = OcclusionMonitor()
-
-    // this increases the viewport height so that mark as read works more reliably
-    static func resizeWindowToMaxHeight(_ window: Accessibility.Element) throws {
-        var frame = try window.frame()
-        frame.origin.y = 0
-        frame.size.height = Double.infinity
-
-        try window.setFrame(frame)
-    }
 
     // without expanding splitter, thread cells will not have custom ax actions (on monterey at least)
     private func expandSplitter() throws {

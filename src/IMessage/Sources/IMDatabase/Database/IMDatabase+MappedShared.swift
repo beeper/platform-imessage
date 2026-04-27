@@ -20,30 +20,3 @@ extension IMDatabase {
         return columns
     }
 }
-
-extension Row {
-    borrowing func object(columnNames: [String]) throws -> [String: Any] {
-        var result = [String: Any]()
-        for (index, name) in columnNames.enumerated() {
-            result[name] = try value(at: index)
-        }
-        return result
-    }
-
-    borrowing func value(at index: Int) throws -> Any {
-        switch self[index].type {
-        case .integer:
-            return try self[index].expectConverting(Int.self)
-        case .float:
-            return try self[index].expectConverting(Double.self)
-        case .text:
-            return try self[index].expect(String.self)
-        case .blob:
-            return try self[index].expect(Data.self)
-        case .null:
-            return NSNull()
-        default:
-            return NSNull()
-        }
-    }
-}
