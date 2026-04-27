@@ -44,7 +44,9 @@ const uploadDebugFilesToSentry = async (searchPath: string): Promise<void> => {
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR_PATH = path.join(dirname, '../..')
 const BUILD_DIR_PATH = path.join(ROOT_DIR_PATH, 'build')
-const PACKAGE_DIR_PATH = path.join(ROOT_DIR_PATH, 'src/IMessage')
+const SWIFT_SOURCE_DIR_PATH = path.join(ROOT_DIR_PATH, 'src/IMessage')
+
+process.env.IMESSAGE_INCLUDE_NODE_BRIDGE = '1'
 
 const xcArchMap = {
   arm64: 'arm64',
@@ -76,7 +78,7 @@ async function main() {
       // we isolate the build directory for arch and config because of this random error on subsequent builds if it's just isolated by config
       // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/IMessage.node']
       buildPath: path.join(BUILD_DIR_PATH, `${config}-${specificArch || 'universal'}`),
-      packagePath: PACKAGE_DIR_PATH,
+      packagePath: ROOT_DIR_PATH,
       product: 'IMessageNode',
       swiftFlags: '',
     }
@@ -169,5 +171,5 @@ if (process.argv.includes('--watch')) {
         .finally(() => { isBuilding = false })
     }
   }
-  fs.watch(PACKAGE_DIR_PATH, { encoding: 'utf-8', recursive: true }, listener)
+  fs.watch(SWIFT_SOURCE_DIR_PATH, { encoding: 'utf-8', recursive: true }, listener)
 }

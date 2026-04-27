@@ -10,6 +10,38 @@ Also present: NAPI bindings for JS via [node-swift](https://github.com/kabirober
 
 **What it won't do**: expose more features if you disable SIP, allow automating multiple iMessage accounts, work on Windows/Linux. Also see [TODOs](./todos.md).
 
+## Swift Package Manager
+
+The root `Package.swift` exposes only the Swift iMessage integration:
+
+- `IMessage`: library API for Messages access, polling, mapping, and sending operations.
+- `imessage`: command-line wrapper around the library API.
+
+The Node/N-API bridge, npm package, and `Sift` tool are intentionally not part of the published Swift package surface.
+
+Requirements:
+
+- macOS 11 or later
+- Swift 5.8 or later
+- A host process with the macOS permissions needed to read Messages data and automate Messages.app
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/beeper/platform-imessage.git", from: "0.1.0"),
+]
+```
+
+```swift
+targets: [
+    .target(
+        name: "YourTarget",
+        dependencies: [
+            .product(name: "IMessage", package: "platform-imessage"),
+        ]
+    ),
+]
+```
+
 ## Usage
 
 1. Setup:
