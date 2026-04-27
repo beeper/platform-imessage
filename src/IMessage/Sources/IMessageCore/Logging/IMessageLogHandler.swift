@@ -36,7 +36,7 @@ public struct IMessageLogHandler: LogHandler {
         let timestamp = dateFormatter.string(from: Date())
 
         let formattedMessage = "\(timestamp) [\(level):\(identifier)] \(message)"
-        print(formattedMessage)
+        Log.emitToConsole(formattedMessage)
 
         emitToFile(line: formattedMessage)
         emitToOSLog(swiftLogLevel: level, message: formattedMessage)

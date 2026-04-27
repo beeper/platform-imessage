@@ -23,6 +23,8 @@ public extension Logger {
 public enum Log {
     private static let directoryPathEnvironmentKey = "IMESSAGE_LOGGING_DIR_PATH"
 
+    public static var consoleOutputEnabled = true
+
     /// A logger to be used for emitting error messages to the log when
     /// constructing exceptions or other errors.
     public static let errors = Logger(imessageLabel: "errors")
@@ -67,6 +69,11 @@ public enum Log {
         }
 
         NSWorkspace.shared.activateFileViewerSelecting([file])
+    }
+
+    public static func emitToConsole(_ line: String) {
+        guard consoleOutputEnabled else { return }
+        print(line)
     }
 }
 

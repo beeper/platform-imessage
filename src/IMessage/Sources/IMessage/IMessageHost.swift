@@ -101,6 +101,7 @@ public enum IMessageHost {
         Preferences.setLoggingDirectory(dataDirPath)
         Preferences.setUseSecondaryInstance(useSecondaryInstance)
         Preferences.isLoggingEnabled = verbose
+        Log.consoleOutputEnabled = verbose
         Defaults.registerDefaults()
 
         bootstrapLock.lock()

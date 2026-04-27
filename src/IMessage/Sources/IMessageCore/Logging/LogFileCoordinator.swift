@@ -36,7 +36,7 @@ public actor LogFileCoordinator {
     }
 
     func reviveFileHandle() throws {
-        print("imsg: reviving file handle")
+        Log.emitToConsole("imsg: reviving file handle")
         handle = try Self.handleFor(fileURL)
     }
 
@@ -54,7 +54,7 @@ public actor LogFileCoordinator {
                 try reviveFileHandle()
                 try write()
             } catch {
-                print("imsg: couldn't revive log file handle and retry write: \(error)")
+                Log.emitToConsole("imsg: couldn't revive log file handle and retry write: \(error)")
             }
         }
 
@@ -97,7 +97,7 @@ extension LogFileCoordinator {
 
         let endOffset = Int(handle.offsetInFile)
         guard endOffset > preserved + newlineDiscoveryBufferLength else {
-            print("platform-imessage: not trimming, file is only \(endOffset + 1) bytes big")
+            Log.emitToConsole("platform-imessage: not trimming, file is only \(endOffset + 1) bytes big")
             return
         }
 
@@ -110,11 +110,11 @@ extension LogFileCoordinator {
         handle.seek(toFileOffset: UInt64(endOffset - preserved))
 
         guard let offset = try? findClosestPrecedingNewline() else {
-            print("platform-imessage: couldn't find newline while rewinding")
+            Log.emitToConsole("platform-imessage: couldn't find newline while rewinding")
             return
         }
 
-        print("platform-imessage: trimming, found appropriate offset at \(offset)")
+        Log.emitToConsole("platform-imessage: trimming, found appropriate offset at \(offset)")
         // go to the next line immediately after this newline
         try handle.seek(toOffset: UInt64(offset) + 1)
 
@@ -127,6 +127,6 @@ extension LogFileCoordinator {
             handle.write(Data("\n".utf8))
         }
 
-        print("platform-imessage: trimmed, new offset: \(handle.offsetInFile)")
+        Log.emitToConsole("platform-imessage: trimmed, new offset: \(handle.offsetInFile)")
     }
 }
