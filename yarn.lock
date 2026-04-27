@@ -1977,24 +1977,18 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@beeper/platform-imessage@workspace:."
   dependencies:
-    "@jxa/global-type": "npm:^1.3.5"
     "@sentry/cli": "npm:^2.50.2"
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main"
     "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053"
     "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main"
-    "@types/eslint": "npm:^8.4.10"
     "@types/jest": "npm:^28.1.6"
-    "@types/lodash": "npm:^4.14.182"
     "@types/node": "npm:20.17.19"
     "@types/react": "npm:^17.0.38"
     clsx: "npm:^1.2.1"
     concurrently: "npm:^9.1.2"
-    crc: "npm:^4.1.1"
     electron: "npm:^41.2.1"
     eslint: "npm:^8.30.0"
     jest: "npm:^28.1.3"
-    lodash: "npm:^4.17.21"
-    node-gyp: "npm:^11.0.0"
     node-mac-permissions: TextsHQ/node-mac-permissions.git
     node-swift: "https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
     react: "npm:^18"
@@ -2003,7 +1997,6 @@ __metadata:
     ts-node: "npm:^10.9.2"
     turbo: "npm:2.5.8"
     typescript: "npm:^5.8.3"
-    zod: "npm:^4.0.17"
   peerDependencies:
     node-mac-permissions: "*"
     react: "*"
@@ -2407,22 +2400,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jxa/global-type@npm:^1.3.5":
-  version: 1.3.5
-  resolution: "@jxa/global-type@npm:1.3.5"
-  dependencies:
-    "@jxa/types": "npm:^1.3.5"
-  checksum: 10/08536d232886763ce28ea8ec655584edac005f38d9585bbafed3eea30aeb7920ed8cb1ddf501ea3f6ddfd372376cc89023c8998a44b3e2f8ce2e424a8e5f67bf
-  languageName: node
-  linkType: hard
-
-"@jxa/types@npm:^1.3.5":
-  version: 1.3.5
-  resolution: "@jxa/types@npm:1.3.5"
-  checksum: 10/ac4f1ca04d7d31edfe7b731e8cb0ecd14f3ff1183a5779b9f68a9b985e3ca8308dbd0d31552d9538450ccb285308be80bf2e4484c5ec7ceac0414748a473f3a0
-  languageName: node
-  linkType: hard
-
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -2744,23 +2721,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/eslint@npm:^8.4.10":
-  version: 8.4.10
-  resolution: "@types/eslint@npm:8.4.10"
-  dependencies:
-    "@types/estree": "npm:*"
-    "@types/json-schema": "npm:*"
-  checksum: 10/ecba965435ff2be09c6f0ce1d21d7dd38d0c78eddd7c9b2867f4800880d7d43c7aab86e0ec09d7b20c8d939eed5042bb08c404efa1d4f723b9cd7ef601c22dba
-  languageName: node
-  linkType: hard
-
-"@types/estree@npm:*":
-  version: 0.0.50
-  resolution: "@types/estree@npm:0.0.50"
-  checksum: 10/188e022eec2da0e1bcf5f569314d1fd16fc28fb3758fed9843b9581ba131b78443b08d6e9ea9daed36c04e493234f47e98cdef8f081c9e9eb0845b2d80f5f8da
-  languageName: node
-  linkType: hard
-
 "@types/graceful-fs@npm:^4.1.3":
   version: 4.1.5
   resolution: "@types/graceful-fs@npm:4.1.5"
@@ -2812,7 +2772,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/json-schema@npm:*, @types/json-schema@npm:^7.0.9":
+"@types/json-schema@npm:^7.0.9":
   version: 7.0.9
   resolution: "@types/json-schema@npm:7.0.9"
   checksum: 10/7ceb41e396240aa69ae15c02ffbb6548ea2bb2f845a7378c711c7c908a9a8438a0330f3135f1ccb6e82e334b9e2ec5b94fb57a1435f2b15362d38e9d5109e5ea
@@ -2832,13 +2792,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10/e009a2bfb50e90ca9b7c6e8f648f8464067271fd99116f881073fa6fa76dc8d0133181dd65e6614d5fb1220d671d67b0124aef7d97dc02d7e342ab143a47779d
-  languageName: node
-  linkType: hard
-
-"@types/lodash@npm:^4.14.182":
-  version: 4.14.182
-  resolution: "@types/lodash@npm:4.14.182"
-  checksum: 10/6c0d3fa682331d7631676817acf4b8b74842a9df0fb63dacbbc6a31b94e266edca550ac096cec8ce95df4fc72cf550a6321322e27872d4dfa15c1003197f6c85
   languageName: node
   linkType: hard
 
@@ -4000,15 +3953,6 @@ __metadata:
     path-type: "npm:^4.0.0"
     yaml: "npm:^1.10.0"
   checksum: 10/861bf4c2c9e88e6c50f14278b25bb0509c484623de11fadf3788a3d543bc7c45178aeebeb6657293b12dc8bd1b86d926c5f25c803c4dc3821d628a1b24c3d20b
-  languageName: node
-  linkType: hard
-
-"crc@npm:^4.1.1":
-  version: 4.1.1
-  resolution: "crc@npm:4.1.1"
-  peerDependencies:
-    buffer: ">=6.0.3"
-  checksum: 10/d5330442586c4e008e6b67e2b28b037b0b557b6f920362141599bab5fcf189e6c34b8fd1019ab4740216d3833f30cb936600fb055206ab99493d7cf110ad4b46
   languageName: node
   linkType: hard
 
@@ -8915,12 +8859,5 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   version: 0.1.0
   resolution: "yocto-queue@npm:0.1.0"
   checksum: 10/f77b3d8d00310def622123df93d4ee654fc6a0096182af8bd60679ddcdfb3474c56c6c7190817c84a2785648cdee9d721c0154eb45698c62176c322fb46fc700
-  languageName: node
-  linkType: hard
-
-"zod@npm:^4.0.17":
-  version: 4.0.17
-  resolution: "zod@npm:4.0.17"
-  checksum: 10/bfdb7f1a7a3dd17e83c6720f9f763d522d4914962c81844fe408512e55df11378c6032d48dea4ec6ca6a260bdd9e92c59ec75bd40cb49f4c12115366744f2def
   languageName: node
   linkType: hard
