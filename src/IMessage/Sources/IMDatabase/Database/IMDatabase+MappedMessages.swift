@@ -12,6 +12,12 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 \(messageHandleJoins)
 """
 
+private let messageJoinsFromChatMessageJoin = """
+INNER JOIN message AS m ON m.ROWID = cmj.message_id
+LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+\(messageHandleJoins)
+"""
+
 private let latestMessageJoins = """
 INNER JOIN message AS m ON m.ROWID = latest_join.message_id
 LEFT JOIN chat AS t ON latest_join.chat_id = t.ROWID
@@ -93,28 +99,44 @@ public extension IMDatabase {
         let order = withCursor?.direction == .after ? "ASC" : "DESC"
         let dateExpression = comparisonOperator == ">" && messageColumns.contains("date_edited")
             ? "MAX(m.date, COALESCE(m.date_edited, 0))"
-            : "m.date"
+            : "cmj.message_date"
+
+        // The historical query filtered by chat guid after starting from
+        // `message ORDER BY date`. On large databases that can walk a huge
+        // date index to find a sparse chat. Starting from chat_message_join's
+        // chat_id/date indexes touches only the requested chat's messages.
+        guard let chatRowID = try mappedChatRowID(guid: chatGUID) else {
+            return []
+        }
 
         var sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
-        FROM message AS m
-        \(messageJoins)
-        WHERE t.guid = ?
+        FROM chat_message_join AS cmj
+        \(messageJoinsFromChatMessageJoin)
+        WHERE cmj.chat_id = ?
         """
         if let comparisonOperator {
             sql += "\nAND \(dateExpression) \(comparisonOperator) ?"
         }
-        sql += "\nORDER BY m.date \(order)\nLIMIT \(limit)"
+        sql += "\nORDER BY cmj.message_date \(order), cmj.message_id \(order)\nLIMIT \(limit)"
 
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         if let withCursor {
-            try statement.bind(chatGUID, withCursor.cursor)
+            try statement.bind(chatRowID, withCursor.cursor)
         } else {
-            try statement.bind(chatGUID)
+            try statement.bind(chatRowID)
         }
 
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
+    }
+
+    func mappedChatRowID(guid: String) throws -> Int? {
+        let statement = try cachedStatement(forEscapedSQL: "SELECT ROWID FROM chat WHERE guid = ?").reset()
+        try statement.bind(guid)
+        return try statement.compactMapRowsUntilDone { row in
+            try row[0].optionalConverting(Int.self)
+        }.first
     }
 
     func mappedMessageRow(guid: String) throws -> MappedMessageRow? {
