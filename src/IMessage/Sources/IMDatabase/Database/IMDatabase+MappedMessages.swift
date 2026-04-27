@@ -133,35 +133,23 @@ public extension IMDatabase {
                 return rows
             }
 
-            rows.append(contentsOf: try chatMessagesPage(
-                chatRowID: chatRowID,
-                cursor: withCursor.cursor,
-                comparisonOperator: ">",
-                order: "ASC",
-                messageColumns: messageColumns,
-                limit: limit - rows.count
-            ))
+            let remainingLimit = limit - rows.count
+            let newSQL = """
+            SELECT
+            \(messageSelectionSQL(messageColumns: messageColumns))
+            FROM chat_message_join AS cmj
+            \(messageJoinsFromChatMessageJoin)
+            WHERE cmj.chat_id = ?
+            AND cmj.message_date > ?
+            ORDER BY cmj.message_date ASC, cmj.message_id ASC
+            LIMIT \(remainingLimit)
+            """
+            let newStatement = try Statement.prepare(escapedSQL: newSQL, for: database)
+            try newStatement.bind(chatRowID, withCursor.cursor)
+            rows.append(contentsOf: try newStatement.mapRowsUntilDone(MappedMessageRow.self))
             return rows
         }
 
-        return try chatMessagesPage(
-            chatRowID: chatRowID,
-            cursor: withCursor?.cursor,
-            comparisonOperator: comparisonOperator,
-            order: order,
-            messageColumns: messageColumns,
-            limit: limit
-        )
-    }
-
-    private func chatMessagesPage(
-        chatRowID: Int,
-        cursor: Int?,
-        comparisonOperator: String?,
-        order: String,
-        messageColumns: [String],
-        limit: Int
-    ) throws -> [MappedMessageRow] {
         var sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
@@ -175,11 +163,12 @@ public extension IMDatabase {
         sql += "\nORDER BY cmj.message_date \(order), cmj.message_id \(order)\nLIMIT \(limit)"
 
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        if let cursor {
-            try statement.bind(chatRowID, cursor)
+        if let withCursor {
+            try statement.bind(chatRowID, withCursor.cursor)
         } else {
             try statement.bind(chatRowID)
         }
+
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
