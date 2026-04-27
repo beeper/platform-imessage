@@ -9,6 +9,16 @@ public enum MappedMessagePageDirection: String {
 private let messageJoins = """
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+\(messageHandleJoins)
+"""
+
+private let latestMessageJoins = """
+INNER JOIN message AS m ON m.ROWID = latest_join.message_id
+LEFT JOIN chat AS t ON latest_join.chat_id = t.ROWID
+\(messageHandleJoins)
+"""
+
+private let messageHandleJoins = """
 LEFT JOIN handle AS h ON m.handle_id = h.ROWID
 LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID
 """
@@ -129,7 +139,7 @@ public extension IMDatabase {
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        WHERE m.ROWID IN (\(rowIDs.map { _ in "?" }.joined(separator: ", ")))
+        WHERE m.ROWID IN (\(placeholders(count: rowIDs.count)))
         ORDER BY m.date DESC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
@@ -140,10 +150,9 @@ public extension IMDatabase {
     func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: MappedMessageRow] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let messageColumns = try tableColumns("message")
-        let requestedChatRows = chatRowIDs.map { _ in "(?)" }.joined(separator: ", ")
         let sql = """
         WITH requested_chat(rowid) AS (
-          VALUES \(requestedChatRows)
+          VALUES \(rowValuePlaceholders(count: chatRowIDs.count))
         ),
         latest_join AS (
           SELECT
@@ -160,10 +169,7 @@ public extension IMDatabase {
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM latest_join
-        INNER JOIN message AS m ON m.ROWID = latest_join.message_id
-        LEFT JOIN chat AS t ON latest_join.chat_id = t.ROWID
-        LEFT JOIN handle AS h ON m.handle_id = h.ROWID
-        LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID
+        \(latestMessageJoins)
         ORDER BY m.date DESC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
@@ -181,7 +187,7 @@ public extension IMDatabase {
         FROM message AS m
         LEFT JOIN message_attachment_join AS maj ON maj.message_id = m.ROWID
         LEFT JOIN attachment AS a ON a.ROWID = maj.attachment_id
-        WHERE m.ROWID IN (\(messageRowIDs.map { _ in "?" }.joined(separator: ", ")))
+        WHERE m.ROWID IN (\(placeholders(count: messageRowIDs.count)))
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(messageRowIDs.map { $0 as any SQLiteBindable })
@@ -254,4 +260,12 @@ private func messageSelectionSQL(messageColumns: [String]) -> String {
         "oh.id AS otherID",
     ]
     return selections.joined(separator: ",\n")
+}
+
+private func placeholders(count: Int) -> String {
+    Array(repeating: "?", count: count).joined(separator: ", ")
+}
+
+private func rowValuePlaceholders(count: Int) -> String {
+    Array(repeating: "(?)", count: count).joined(separator: ", ")
 }
