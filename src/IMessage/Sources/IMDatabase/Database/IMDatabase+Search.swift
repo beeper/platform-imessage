@@ -23,24 +23,28 @@ public extension IMDatabase {
         let queryLower = query.lowercased()
 
         // Build SQL query with optional filters
-        var sql: String
+        var sql = """
+        SELECT m.ROWID, m.text, m.attributedBody
+        FROM message m
+        """
+
+        // Add chat join if filtering by chatGUID
         if chatGUID != nil {
-            sql = """
-            SELECT m.ROWID, m.text, m.attributedBody
-            FROM chat AS t
-            INNER JOIN chat_message_join AS cmj ON cmj.chat_id = t.ROWID
-            INNER JOIN message AS m ON m.ROWID = cmj.message_id
-            WHERE t.guid = ?
-            AND (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
-            """
-        } else {
-            sql = """
-            SELECT m.ROWID, m.text, m.attributedBody
-            FROM message AS m
-            WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
+            sql += """
+
+            LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+            LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
             """
         }
 
+        sql += """
+
+        WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
+        """
+
+        if chatGUID != nil {
+            sql += "\nAND t.guid = ?"
+        }
         if mediaOnly {
             sql += "\nAND m.cache_has_attachments = 1"
         }
@@ -52,7 +56,7 @@ public extension IMDatabase {
 
         sql += """
 
-        ORDER BY \(chatGUID == nil ? "m.date DESC, m.ROWID DESC" : "cmj.message_date DESC, cmj.message_id DESC")
+        ORDER BY m.date DESC
         LIMIT ?
         """
 
