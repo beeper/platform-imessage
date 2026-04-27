@@ -62,6 +62,8 @@ enum LocalizedStrings {
     // "OK"
     static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
 
+    // "Reply…"
+    static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
 }
 
 private enum MessageAction {
