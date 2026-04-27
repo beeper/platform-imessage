@@ -136,6 +136,44 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     #expect(message.attachments?.count == 1)
 }
 
+@Test private func platformSDKJSONObjectMacroSerializesWireShape() throws {
+    let attachment = PlatformSDK.Attachment(
+        id: "attachment-id",
+        type: .img,
+        size: PlatformSDK.Size(width: 100, height: 200),
+        srcURL: "asset://attachment"
+    )
+    let message = PlatformSDK.Message(
+        id: "message-id",
+        timestamp: 1,
+        senderID: "sender-id",
+        attachments: [attachment],
+        behavior: .keepRead,
+        original: "raw-message"
+    )
+
+    let messageObject = message.jsonObject
+    #expect(messageObject["_original"] as? String == "raw-message")
+    #expect(messageObject["behavior"] as? String == "keep_read")
+    let attachments = try #require(messageObject["attachments"] as? [JSONObject])
+    #expect(attachments.first?["type"] as? String == "img")
+    #expect((attachments.first?["size"] as? JSONObject)?["width"] as? Double == 100)
+
+    let thread = PlatformSDK.Thread(
+        id: "thread-id",
+        isUnread: false,
+        isReadOnly: false,
+        type: .group,
+        messages: PlatformSDK.Paginated(items: [message], hasMore: false),
+        participants: PlatformSDK.Paginated(items: [], hasMore: false),
+        original: "raw-thread"
+    )
+    let threadObject = thread.jsonObject
+    #expect(threadObject["_original"] as? String == "raw-thread")
+    #expect(threadObject["type"] as? String == "group")
+    #expect((threadObject["messages"] as? JSONObject)?["hasMore"] as? Bool == false)
+}
+
 private func loadFixture(_ name: String) throws -> [Any] {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
     let data = try Data(contentsOf: url)

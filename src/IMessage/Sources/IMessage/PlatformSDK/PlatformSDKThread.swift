@@ -9,6 +9,7 @@ extension PlatformSDK {
         case broadcast
     }
 
+    @PlatformSDKJSONObject
     public struct PartialLastMessage: JSONObjectConvertible {
         public let id: MessageID
         public let text: String?
@@ -16,17 +17,9 @@ extension PlatformSDK {
         public let senderID: UserID?
         public let attachments: [Attachment]?
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "text": text,
-                "isSender": isSender,
-                "senderID": senderID,
-                "attachments": attachments?.map(\.jsonObject),
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct Thread: JSONObjectConvertible {
         public let id: ThreadID
         public let folderName: String?
@@ -47,7 +40,7 @@ extension PlatformSDK {
         public let messages: Paginated<Message>
         public let participants: Paginated<Participant>
         public let extra: Any?
-        public let original: String?
+        @PlatformSDKJSONKey("_original") public let original: String?
         public let unreadCount: Int?
         public let isMarkedUnread: Bool?
         public let lastReadMessageSortKey: Timestamp?
@@ -105,33 +98,5 @@ extension PlatformSDK {
             self.isLowPriority = isLowPriority
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "folderName": folderName,
-                "title": title,
-                "isUnread": isUnread,
-                "lastReadMessageID": lastReadMessageID,
-                "isReadOnly": isReadOnly,
-                "isArchived": isArchived,
-                "isPinned": isPinned,
-                "mutedUntil": mutedUntil,
-                "type": type.rawValue,
-                "timestamp": timestamp,
-                "imgURL": imgURL,
-                "createdAt": createdAt,
-                "description": description,
-                "partialLastMessage": partialLastMessage?.jsonObject,
-                "messageExpirySeconds": messageExpirySeconds,
-                "messages": messages.jsonObject,
-                "participants": participants.jsonObject,
-                "extra": extra,
-                "_original": original,
-                "unreadCount": unreadCount,
-                "isMarkedUnread": isMarkedUnread,
-                "lastReadMessageSortKey": lastReadMessageSortKey,
-                "isLowPriority": isLowPriority,
-            ])
-        }
     }
 }

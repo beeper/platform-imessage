@@ -70,6 +70,7 @@ extension PlatformSDK {
         }
     }
 
+    @PlatformSDKJSONObject
     public struct PartialMessageReactionAction: JSONObjectConvertible {
         public let messageID: MessageID?
         public let id: ID?
@@ -94,15 +95,5 @@ extension PlatformSDK {
             self.emoji = emoji
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "messageID": messageID,
-                "id": id,
-                "reactionKey": reactionKey,
-                "imgURL": imgURL,
-                "participantID": participantID,
-                "emoji": emoji,
-            ])
-        }
     }
 }

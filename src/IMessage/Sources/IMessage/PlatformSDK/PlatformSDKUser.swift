@@ -1,6 +1,7 @@
 import Foundation
 
 extension PlatformSDK {
+    @PlatformSDKJSONObject
     public struct User: JSONObjectConvertible {
         public let id: UserID
         public let username: String?
@@ -44,23 +45,9 @@ extension PlatformSDK {
             self.init(id: id, phoneNumber: phoneNumber, email: email, fullName: displayText, isSelf: true)
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "username": username,
-                "phoneNumber": phoneNumber,
-                "email": email,
-                "fullName": fullName,
-                "nickname": nickname,
-                "imgURL": imgURL,
-                "isVerified": isVerified,
-                "cannotMessage": cannotMessage,
-                "isSelf": isSelf,
-                "social": social,
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct CurrentUser: JSONObjectConvertible, Sendable {
         public let id: UserID
         public let displayText: String?
@@ -74,14 +61,6 @@ extension PlatformSDK {
             self.phoneNumber = phoneNumber
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "displayText": displayText,
-                "email": email,
-                "phoneNumber": phoneNumber,
-            ])
-        }
     }
 
     public struct Participant: JSONObjectConvertible {

@@ -9,6 +9,7 @@ extension PlatformSDK {
         case audio
     }
 
+    @PlatformSDKJSONObject
     public struct Size: JSONObjectConvertible, Sendable {
         public let width: Double
         public let height: Double
@@ -18,14 +19,9 @@ extension PlatformSDK {
             self.height = height
         }
 
-        public var jsonObject: JSONObject {
-            [
-                "width": width,
-                "height": height,
-            ]
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct Attachment: JSONObjectConvertible {
         public let id: AttachmentID
         public let type: AttachmentType
@@ -77,24 +73,5 @@ extension PlatformSDK {
             self.extra = extra
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "type": type.rawValue,
-                "size": size?.jsonObject,
-                "posterImg": posterImg,
-                "mimeType": mimeType,
-                "fileName": fileName,
-                "fileSize": fileSize,
-                "loading": loading,
-                "isGif": isGif,
-                "isSticker": isSticker,
-                "isVoiceNote": isVoiceNote,
-                "playStatus": playStatus,
-                "srcURL": srcURL,
-                "data": data,
-                "extra": extra,
-            ])
-        }
     }
 }

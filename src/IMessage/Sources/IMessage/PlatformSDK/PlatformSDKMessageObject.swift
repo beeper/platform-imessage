@@ -2,6 +2,7 @@ import Foundation
 import IMessageCore
 
 extension PlatformSDK {
+    @PlatformSDKJSONObject
     public struct Message: JSONObjectConvertible {
         public let id: MessageID
         public let timestamp: Timestamp
@@ -38,7 +39,7 @@ extension PlatformSDK {
         public let sortKey: Any?
         public let cursor: String?
         public let extra: Any?
-        public let original: String?
+        @PlatformSDKJSONKey("_original") public let original: String?
 
         public init(
             id: MessageID,
@@ -116,45 +117,5 @@ extension PlatformSDK {
             self.original = original
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "timestamp": timestamp,
-                "editedTimestamp": editedTimestamp,
-                "expiresInSeconds": expiresInSeconds,
-                "forwardedCount": forwardedCount,
-                "forwardedFrom": forwardedFrom,
-                "senderID": senderID,
-                "text": text,
-                "textAttributes": textAttributes?.jsonObject,
-                "textHeading": textHeading,
-                "textFooter": textFooter,
-                "attachments": attachments?.map(\.jsonObject),
-                "tweets": tweets?.map(\.jsonObject),
-                "links": links?.map(\.jsonObject),
-                "iframeURL": iframeURL,
-                "reactions": reactions?.map(\.jsonObject),
-                "seen": seen?.jsonValue,
-                "isDelivered": isDelivered,
-                "isHidden": isHidden,
-                "isSender": isSender,
-                "isAction": isAction,
-                "isDeleted": isDeleted,
-                "isErrored": isErrored,
-                "parseTemplate": parseTemplate,
-                "linkedMessageThreadID": linkedMessageThreadID,
-                "linkedMessageID": linkedMessageID,
-                "linkedMessage": linkedMessage?.jsonObject,
-                "action": action?.jsonObject,
-                "buttons": buttons?.map(\.jsonObject),
-                "behavior": behavior?.rawValue,
-                "accountID": accountID,
-                "threadID": threadID,
-                "sortKey": sortKey,
-                "cursor": cursor,
-                "extra": extra,
-                "_original": original,
-            ])
-        }
     }
 }

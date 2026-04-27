@@ -8,6 +8,7 @@ extension PlatformSDK {
         case dontNotify = "dont_notify"
     }
 
+    @PlatformSDKJSONObject
     public struct MessageReaction: JSONObjectConvertible {
         public let id: ID
         public let reactionKey: String
@@ -23,15 +24,6 @@ extension PlatformSDK {
             self.emoji = emoji
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "reactionKey": reactionKey,
-                "imgURL": imgURL,
-                "participantID": participantID,
-                "emoji": emoji,
-            ])
-        }
     }
 
     public enum MessageSeen: JSONValueConvertible {
@@ -65,6 +57,7 @@ extension PlatformSDK {
         }
     }
 
+    @PlatformSDKJSONObject
     public struct MessageLink: JSONObjectConvertible {
         public let url: String
         public let originalURL: String?
@@ -92,20 +85,11 @@ extension PlatformSDK {
             self.summary = summary
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "url": url,
-                "originalURL": originalURL,
-                "favicon": favicon,
-                "img": img,
-                "imgSize": imgSize?.jsonObject,
-                "title": title,
-                "summary": summary,
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct Tweet: JSONObjectConvertible {
+        @PlatformSDKJSONObject
         public struct User: JSONObjectConvertible {
             public let imgURL: String
             public let name: String
@@ -119,14 +103,6 @@ extension PlatformSDK {
                 self.isVerified = isVerified
             }
 
-            public var jsonObject: JSONObject {
-                compactDictionary([
-                    "imgURL": imgURL,
-                    "name": name,
-                    "username": username,
-                    "isVerified": isVerified,
-                ])
-            }
         }
 
         public let id: ID
@@ -158,28 +134,21 @@ extension PlatformSDK {
             self.quotedTweet = quotedTweet
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "user": user.jsonObject,
-                "text": text,
-                "timestamp": timestamp,
-                "url": url,
-                "textAttributes": textAttributes?.jsonObject,
-                "attachments": attachments?.map(\.jsonObject),
-                "quotedTweet": quotedTweet?.tweet.jsonObject,
-            ])
-        }
     }
 
-    public final class TweetBox {
+    public final class TweetBox: JSONValueConvertible {
         public let tweet: Tweet
 
         public init(_ tweet: Tweet) {
             self.tweet = tweet
         }
+
+        public var jsonValue: Any {
+            tweet.jsonObject
+        }
     }
 
+    @PlatformSDKJSONObject
     public struct MessagePreview: JSONObjectConvertible {
         public let id: MessageID
         public let threadID: ThreadID?
@@ -187,26 +156,12 @@ extension PlatformSDK {
         public let senderID: UserID?
         public let attachments: [Attachment]?
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "id": id,
-                "threadID": threadID,
-                "text": text,
-                "senderID": senderID,
-                "attachments": attachments?.map(\.jsonObject),
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct MessageButton: JSONObjectConvertible {
         public let label: String
         public let linkURL: String
 
-        public var jsonObject: JSONObject {
-            [
-                "label": label,
-                "linkURL": linkURL,
-            ]
-        }
     }
 }

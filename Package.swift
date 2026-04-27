@@ -1,6 +1,7 @@
-// swift-tools-version:5.8
+// swift-tools-version:5.9
 
 import PackageDescription
+import CompilerPluginSupport
 
 let includeNodeBridge = Context.environment["IMESSAGE_INCLUDE_NODE_BRIDGE"] == "1"
 
@@ -20,14 +21,26 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "601.0.1"),
 ]
 
 var targets: [Target] = [
+    .macro(
+        name: "IMessageMacros",
+        dependencies: [
+            .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            .product(name: "SwiftSyntax", package: "swift-syntax"),
+            .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+            .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+        ],
+        path: "src/IMessage/Sources/IMessageMacros"
+    ),
     .target(
         name: "IMessage",
         dependencies: [
             "BetterSwiftAX",
             "ExceptionCatcher",
+            "IMessageMacros",
             "IMessageCore",
             .product(name: "PHTClient", package: "PHTCommon"),
             "EmojiSPI",

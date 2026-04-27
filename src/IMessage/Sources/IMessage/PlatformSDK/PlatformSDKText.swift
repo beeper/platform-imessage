@@ -2,6 +2,7 @@ import Foundation
 import IMessageCore
 
 extension PlatformSDK {
+    @PlatformSDKJSONObject
     public struct TextAttributes: JSONObjectConvertible {
         public let entities: [TextEntity]?
         public let heDecode: Bool?
@@ -11,14 +12,9 @@ extension PlatformSDK {
             self.heDecode = heDecode
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "entities": entities?.map(\.jsonObject),
-                "heDecode": heDecode,
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct TextEntity: JSONObjectConvertible {
         public let from: Int
         public let to: Int
@@ -73,28 +69,9 @@ extension PlatformSDK {
             self.mentionedUser = mentionedUser
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "from": from,
-                "to": to,
-                "bold": bold,
-                "italic": italic,
-                "underline": underline,
-                "strikethrough": strikethrough,
-                "quote": quote,
-                "spoiler": spoiler,
-                "code": code,
-                "pre": pre,
-                "codeLanguage": codeLanguage,
-                "markdown": markdown,
-                "replaceWith": replaceWith,
-                "replaceWithMedia": replaceWithMedia?.jsonObject,
-                "link": link,
-                "mentionedUser": mentionedUser?.jsonObject,
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct ReplaceWithMediaEntity: JSONObjectConvertible {
         public let mediaType: AttachmentType
         public let srcURL: String
@@ -102,17 +79,9 @@ extension PlatformSDK {
         public let loop: Bool?
         public let rounded: Bool?
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "mediaType": mediaType.rawValue,
-                "srcURL": srcURL,
-                "size": size?.jsonObject,
-                "loop": loop,
-                "rounded": rounded,
-            ])
-        }
     }
 
+    @PlatformSDKJSONObject
     public struct MentionedUser: JSONObjectConvertible {
         public let username: String?
         public let id: UserID?
@@ -122,11 +91,5 @@ extension PlatformSDK {
             self.id = id
         }
 
-        public var jsonObject: JSONObject {
-            compactDictionary([
-                "username": username,
-                "id": id,
-            ])
-        }
     }
 }
