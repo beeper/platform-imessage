@@ -1,0 +1,102 @@
+name: Release iMessage CLI
+
+on:
+  push:
+    tags:
+      - 'imessage-cli-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create or update. Defaults to imessage-cli-v<package version>.'
+        required: false
+        type: string
+      draft:
+        description: 'Create the GitHub release as a draft'
+        required: true
+        default: false
+        type: boolean
+      prerelease:
+        description: 'Mark the GitHub release as a prerelease'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15 # matches CI's Xcode image requirement
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Xcode 26.1
+        shell: bash
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.1.app
+
+      - name: Inject access tokens
+        shell: bash
+        run: |
+          git config --global url."https://oauth2:${{ secrets.BEEPER_DEPS_TOKEN }}@github.com/beeper/".insteadOf "https://github.com/beeper/"
+
+      - name: Resolve release metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then
+            if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+              tag="$GITHUB_REF_NAME"
+            else
+              tag="imessage-cli-v${version}"
+            fi
+          fi
+
+          arch="$(uname -m)"
+          asset_name="imessage-cli-${version}-macos-${arch}.tar.gz"
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "asset-name=$asset_name"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build release CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          swift build -c release --product imessage
+          dist_dir="$RUNNER_TEMP/imessage-cli-release"
+          package_dir="$dist_dir/package"
+
+          rm -rf "$dist_dir"
+          mkdir -p "$package_dir"
+          cp "$(swift build -c release --product imessage --show-bin-path)/imessage" "$package_dir/imessage"
+          chmod +x "$package_dir/imessage"
+          strip "$package_dir/imessage"
+          tar -czf "$dist_dir/${{ steps.metadata.outputs.asset-name }}" -C "$package_dir" imessage
+          (
+            cd "$dist_dir"
+            shasum -a 256 "${{ steps.metadata.outputs.asset-name }}" > "${{ steps.metadata.outputs.asset-name }}.sha256"
+          )
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: iMessage CLI ${{ steps.metadata.outputs.version }}
+          body: macOS iMessage CLI release for @beeper/platform-imessage ${{ steps.metadata.outputs.version }}.
+          draft: ${{ inputs.draft || false }}
+          prerelease: ${{ inputs.prerelease || false }}
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: |
+            ${{ runner.temp }}/imessage-cli-release/${{ steps.metadata.outputs.asset-name }}
+            ${{ runner.temp }}/imessage-cli-release/${{ steps.metadata.outputs.asset-name }}.sha256
