@@ -27,7 +27,7 @@ public enum IMessageHost {
         Defaults.isNotificationsEnabledForApp(bundleID: messagesBundleID)
     }
 
-    public static var useSecondaryInstanceEnvironment: Bool {
+    public static var useSecondaryInstanceEnvironment: Bool? {
         Preferences.useSecondaryInstanceEnvironment
     }
 
@@ -69,6 +69,10 @@ public enum IMessageHost {
         Task {
             // We trim as we log (within reason), but always try to do it on startup.
             try? await LogFileCoordinator.shared?.tryTrimming()
+        }
+
+        if let useSecondaryInstance = Preferences.useSecondaryInstanceEnvironment {
+            Preferences.useSecondaryMessagesInstance = useSecondaryInstance
         }
 
         let greeting = "howdy from IMessage!"

@@ -27,8 +27,8 @@ struct IMessageCLI: AsyncParsableCommand {
     @Option(name: .long, help: "Store CLI state under PATH instead of a temp directory.")
     var dataDir: String?
 
-    @Flag(name: .long, help: "Use a secondary Messages.app instance.")
-    var useSecondaryInstance = false
+    @Flag(name: .long, inversion: .prefixedNo, help: "Use a secondary Messages.app instance.")
+    var useSecondaryInstance = true
 
     @Flag(name: .long, help: "Run one command, then stay open in the interactive shell.")
     var stayOpen = false
@@ -49,7 +49,7 @@ struct IMessageCLI: AsyncParsableCommand {
             keepAlive: stayOpen,
             loggingEnabled: verbose,
             subscribeToEvents: !noEvents,
-            useSecondaryInstance: useSecondaryInstance || IMessageHost.useSecondaryInstanceEnvironment
+            useSecondaryInstance: IMessageHost.useSecondaryInstanceEnvironment ?? useSecondaryInstance
         )
         try await Runner(options: options).run()
     }
@@ -760,7 +760,8 @@ private func printTopLevelHelp() {
         "",
         "Global options:",
         "  --data-dir PATH          Store CLI state under PATH instead of a temp directory",
-        "  --use-secondary-instance Use a secondary Messages.app instance",
+        "  --use-secondary-instance Use a secondary Messages.app instance (default)",
+        "  --no-use-secondary-instance Use the existing Messages.app instance",
         "  --no-events              Do not subscribe to server events after running commands",
         "  --stay-open              Run one command, then stay open in the interactive shell",
         "  --verbose                Enable verbose logging",

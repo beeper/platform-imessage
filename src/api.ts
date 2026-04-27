@@ -14,9 +14,6 @@ import Phaser from './phaser'
 import { parseSwiftMessageAPIJSON } from './swift-json'
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
-if (process.env.IMESSAGE_USE_SECONDARY_INSTANCE) {
-  imessage.useSecondaryMessagesInstance = true
-}
 
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}

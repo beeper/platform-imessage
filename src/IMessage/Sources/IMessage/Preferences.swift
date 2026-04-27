@@ -25,8 +25,10 @@ enum Preferences {
         ProcessInfo.processInfo.environment[stripInternalFieldsKey] == "1"
     }
 
-    static var useSecondaryInstanceEnvironment: Bool {
-        ProcessInfo.processInfo.environment[secondaryInstanceKey] != nil
+    static var useSecondaryInstanceEnvironment: Bool? {
+        guard let value = ProcessInfo.processInfo.environment[secondaryInstanceKey] else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !["0", "false", "no", "off"].contains(normalized)
     }
 
     static func applyCLIDefaults() {
