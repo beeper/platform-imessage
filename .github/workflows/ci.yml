@@ -68,6 +68,14 @@ jobs:
         run: |
           defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
 
+      - name: Run TypeScript tests
+        run: yarn test
+
+      - name: Run Swift tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: yarn test:swift
+
       - name: Build without publishing
         # We only want to publish if we're on the `main` branch and the version changed.
         # Otherwise, just build to provide diagnostics.

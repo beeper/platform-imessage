@@ -13,11 +13,9 @@ import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import Phaser from './phaser'
 import { parseSwiftMessageAPIJSON } from './swift-json'
 
-if (swiftServer) {
-  swiftServer.isLoggingEnabled = texts.isLoggingEnabled
-  if (process.env.IMESSAGE_USE_SECONDARY_INSTANCE) {
-    swiftServer.useSecondaryMessagesInstance = true
-  }
+swiftServer.isLoggingEnabled = texts.isLoggingEnabled
+if (process.env.IMESSAGE_USE_SECONDARY_INSTANCE) {
+  swiftServer.useSecondaryMessagesInstance = true
 }
 
 export default class AppleiMessage implements PlatformAPI {
@@ -106,13 +104,11 @@ export default class AppleiMessage implements PlatformAPI {
     if (session && !IS_BIG_SUR_OR_UP) throw new Error(MIN_MACOS_VERSION_ERROR)
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
-    if (swiftServer) {
-      // (DESK-13231; removed until this actually works)
-      // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
-      swiftServer.enabledExperiments = this.experiments
-      texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
-      texts.log('imessage useSecondaryMessagesInstance', swiftServer.useSecondaryMessagesInstance)
-    }
+    // (DESK-13231; removed until this actually works)
+    // swiftServer.isPHTEnabled = prefs?.hide_messages_app ?? false
+    swiftServer.enabledExperiments = this.experiments
+    texts.log('imessage enabledExperiments', swiftServer.enabledExperiments)
+    texts.log('imessage useSecondaryMessagesInstance', swiftServer.useSecondaryMessagesInstance)
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
     this.swiftPlatformAPI ??= new swiftServer.PlatformAPI(this.accountID)

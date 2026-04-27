@@ -1,5 +1,16 @@
 import Foundation
 
+// Preference storage in this module is split across three backends:
+//   1. `Preferences` (this enum) — in-memory toggles owned by Node module /
+//      CLI bootstrap. Lost on process exit.
+//   2. `Defaults.swiftServer` (UserDefaults) — durable user-tunable settings;
+//      see Defaults.swift for keys.
+//   3. `ProcessInfo.environment` — build/test escape hatches and CLI-set
+//      values (IMESSAGE_LOGGING_DIR_PATH, IMESSAGE_USE_SECONDARY_INSTANCE,
+//      IMESSAGE_STRIP_INTERNAL_FIELDS).
+//
+// When adding a setting, pick by lifecycle: process-only → here; durable user
+// pref → Defaults; build/test toggle → environment.
 enum Preferences {
     private static let stripInternalFieldsKey = "IMESSAGE_STRIP_INTERNAL_FIELDS"
     private static let loggingDirectoryKey = "IMESSAGE_LOGGING_DIR_PATH"

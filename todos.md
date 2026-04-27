@@ -13,7 +13,7 @@
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
 - [x] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
-- [ ] add handling for multiple instances of MessagesController (Beeper Desktop + CLI running at the same time)
+- [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs). Within a single process, SwiftServer is intentionally singleton-only.
 - [ ] store UserDefaults in dataDirPath
 
 ### Parity

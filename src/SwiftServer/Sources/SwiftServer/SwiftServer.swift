@@ -6,6 +6,11 @@ import IMDatabase
 
 private let log = Logger(swiftServerLabel: "swift-server")
 
+/// Process-wide entry point.
+///
+/// The SwiftServer package is intentionally singleton-only within a process:
+/// `Preferences`, `accessManager`, and `PollingLifecycle.shared` are shared
+/// state and are expected to be.
 public enum SwiftServerHost {
     public typealias EventCallback = @Sendable ([PASEvent]) async throws -> Void
     public typealias SentryReporter = @Sendable (String) -> Void
