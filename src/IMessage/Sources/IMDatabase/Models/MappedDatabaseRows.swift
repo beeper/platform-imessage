@@ -50,11 +50,6 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let error: Int
     public let date: Int?
     public let dateRead: Int?
-    public let dateString: AppleDateNanosecondsString
-    public let dateReadString: AppleDateNanosecondsString
-    public let dateDeliveredString: AppleDateNanosecondsString
-    public let dateEditedString: AppleDateNanosecondsString?
-    public let dateRetractedString: AppleDateNanosecondsString?
     public let isDelivered: Int
     public let isFromMe: Int
     public let isRead: Int
@@ -75,11 +70,19 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let threadOriginatorPart: String?
     public let wasDetonated: Int
     public let scheduleType: Int
+
+    // Extensions selected by mapped-message queries. These are not columns on
+    // the `message` table; they come from joins or computed SQL aliases.
     public let threadID: String?
     public let chatRowID: Int?
     public let roomName: String?
     public let participantID: String?
     public let otherID: String?
+    public let dateString: AppleDateNanosecondsString
+    public let dateReadString: AppleDateNanosecondsString
+    public let dateDeliveredString: AppleDateNanosecondsString
+    public let dateEditedString: AppleDateNanosecondsString?
+    public let dateRetractedString: AppleDateNanosecondsString?
 
     public init(object: [String: Any]) throws {
         rowID = try object.requiredInt("ROWID", row: Self.self)
@@ -221,6 +224,9 @@ public struct MappedChatRow: MappedDatabaseRow {
     public let lastAddressedHandle: String?
     public let displayName: String?
     public let groupID: String?
+
+    // Extensions selected by mapped-thread queries. These are not columns on
+    // the `chat` table; they are computed SQL aliases.
     public let msgDateString: AppleDateNanosecondsString?
     public let dateLastMessageReadString: AppleDateNanosecondsString?
 
@@ -265,6 +271,9 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
     public let isSticker: Int?
     public let attachmentID: String?
     public let transferState: Int?
+
+    // Extensions added after fetching attachment rows. These are not columns on
+    // the `attachment` table; they are derived from the file path/metadata.
     public let ext: String?
     public let fileName: String?
     public let filePath: String?
@@ -342,6 +351,8 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
 }
 
 public struct MappedHandleRow: MappedDatabaseRow {
+    // Extensions selected by mapped-handle queries. `chatID` comes from
+    // `chat_handle_join`, and `participantID` aliases `handle.id`.
     public let chatID: Int?
     public let participantID: String?
     public let uncanonicalizedID: String?
@@ -374,6 +385,9 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
     public let associatedMessageType: Int
     public let associatedMessageGUID: String
     public let associatedMessageEmoji: String?
+
+    // Extension selected by mapped-reaction queries. This aliases `handle.id`
+    // for the sender associated with the reaction message.
     public let participantID: String?
 
     public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
