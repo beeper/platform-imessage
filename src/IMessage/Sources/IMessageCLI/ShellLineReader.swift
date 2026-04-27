@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 
 private let historyFileName = ".cli.history.json"
+private let terminalNewline = "\r\n"
 
 private enum TerminalByte {
     static let maxUTF8SequenceLength = 4
@@ -134,7 +135,7 @@ final class ShellLineReader {
             return
         }
 
-        writeTerminal("\r\u{1B}[K\(line)\n\(prompt)\(activeLine)\u{1B}[K")
+        writeTerminal("\r\u{1B}[K\(line)\(terminalNewline)\(prompt)\(activeLine)\u{1B}[K")
         let trailingCharacters = activeLine.count - activeCursorOffset
         if trailingCharacters > 0 {
             writeTerminal("\u{1B}[\(trailingCharacters)D")
@@ -152,21 +153,21 @@ final class ShellLineReader {
 
         while true {
             guard let byte = readByte() else {
-                endInteractiveRead(trailingOutput: "\n")
+                endInteractiveRead(trailingOutput: terminalNewline)
                 return nil
             }
 
             switch byte {
             case TerminalByte.controlC:
-                endInteractiveRead(trailingOutput: "^C\n")
+                endInteractiveRead(trailingOutput: "^C\(terminalNewline)")
                 return ""
             case TerminalByte.controlD:
                 if line.isEmpty {
-                    endInteractiveRead(trailingOutput: "\n")
+                    endInteractiveRead(trailingOutput: terminalNewline)
                     return nil
                 }
             case TerminalByte.lineFeed, TerminalByte.carriageReturn:
-                endInteractiveRead(trailingOutput: "\n")
+                endInteractiveRead(trailingOutput: terminalNewline)
                 history.record(line)
                 return line
             case TerminalByte.backspace, TerminalByte.delete:
