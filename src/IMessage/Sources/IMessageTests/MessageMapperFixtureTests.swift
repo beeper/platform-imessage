@@ -1,6 +1,9 @@
 import Foundation
 @testable import IMessage
+import PlatformSDK
 import Testing
+
+private typealias FixtureJSONObject = [String: Any]
 
 private struct MapperFixture: Sendable {
     let fileName: String
@@ -80,9 +83,9 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     let values = try loadFixture(fixture.fileName)
     #expect(values.count == 5)
 
-    let msgRow = try #require(values[0] as? JSONObject)
-    let attachmentRows = try #require(values[1] as? [JSONObject])
-    let reactionRows = try #require(values[2] as? [JSONObject])
+    let msgRow = try #require(values[0] as? FixtureJSONObject)
+    let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
+    let reactionRows = try #require(values[2] as? [FixtureJSONObject])
     let currentUserID = try #require(values[3] as? String)
     let accountID = try #require(values[4] as? String)
 
@@ -155,9 +158,9 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     let messageObject = message.jsonObject
     #expect(messageObject["_original"] as? String == "raw-message")
     #expect(messageObject["behavior"] as? String == "keep_read")
-    let attachments = try #require(messageObject["attachments"] as? [JSONObject])
+    let attachments = try #require(messageObject["attachments"] as? [FixtureJSONObject])
     #expect(attachments.first?["type"] as? String == "img")
-    #expect((attachments.first?["size"] as? JSONObject)?["width"] as? Double == 100)
+    #expect((attachments.first?["size"] as? FixtureJSONObject)?["width"] as? Double == 100)
 
     let thread = PlatformSDK.Thread(
         id: "thread-id",
@@ -171,21 +174,21 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     let threadObject = thread.jsonObject
     #expect(threadObject["_original"] as? String == "raw-thread")
     #expect(threadObject["type"] as? String == "group")
-    #expect((threadObject["messages"] as? JSONObject)?["hasMore"] as? Bool == false)
+    #expect((threadObject["messages"] as? FixtureJSONObject)?["hasMore"] as? Bool == false)
 }
 
 private func loadFixture(_ name: String) throws -> [Any] {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
     let data = try Data(contentsOf: url)
     var values = try #require(JSONSerialization.jsonObject(with: data) as? [Any])
-    if var msgRow = values.first as? JSONObject {
+    if var msgRow = values.first as? FixtureJSONObject {
         try hydrateFixtureBlobs(in: &msgRow)
         values[0] = msgRow
     }
     return values
 }
 
-private func hydrateFixtureBlobs(in row: inout JSONObject) throws {
+private func hydrateFixtureBlobs(in row: inout FixtureJSONObject) throws {
     for key in ["attributedBody", "message_summary_info", "payload_data", "properties"] {
         guard let value = row[key] as? String else {
             continue
