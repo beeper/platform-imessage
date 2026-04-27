@@ -2,8 +2,8 @@
 
 - [ ] improve readme, add screenshots
 - [ ] publish to npm
-- [ ] publish to gh releases
-- [ ] publish to spm
+- [x] publish to gh releases
+- [x] publish to spm
 - [ ] publish to homebrew
 - [ ] add example JS+Swift script that consumes the library
 
