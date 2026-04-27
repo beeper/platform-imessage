@@ -1,4 +1,5 @@
 import Foundation
+import PlatformSDK
 @testable import IMessage
 import Testing
 

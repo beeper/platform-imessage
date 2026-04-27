@@ -1,4 +1,5 @@
 import Foundation
+import PlatformSDK
 
 public enum PASEvent {
     /// A PAS event with type `toast`.

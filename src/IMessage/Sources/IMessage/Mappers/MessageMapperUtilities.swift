@@ -1,5 +1,6 @@
 import Foundation
 import IMessageCore
+import PlatformSDK
 
 func appleDateMilliseconds(_ appleDate: Int?) -> Int64? {
     guard let appleDate, appleDate > 0 else {
@@ -26,15 +27,6 @@ func mapAccountLogin(_ accountLogin: String) -> String {
         return String(value.dropFirst(2))
     default:
         return accountLogin
-    }
-}
-
-func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
-    pairs.compactMapValues { value in
-        guard let value, !(value is NSNull) else {
-            return nil
-        }
-        return value
     }
 }
 

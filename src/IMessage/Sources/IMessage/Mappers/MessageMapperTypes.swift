@@ -1,9 +1,6 @@
 import Foundation
 import PlatformSDK
 
-public typealias JSONObject = [String: Any]
-public typealias JSONArray = [Any]
-
 let objectReplacementCharacter = "\u{fffc}"
 let imessageExtensionCharacter = "\u{fffd}"
 let assocMsgGUIDPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:([-\d]+)/|bp:)"#)

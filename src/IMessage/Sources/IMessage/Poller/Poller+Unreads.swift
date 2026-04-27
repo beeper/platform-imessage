@@ -1,5 +1,6 @@
 import IMDatabase
 import Logging
+import PlatformSDK
 
 private let log = Logger(imessageLabel: "poller.unreads")
 

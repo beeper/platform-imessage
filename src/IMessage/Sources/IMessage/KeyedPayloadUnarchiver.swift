@@ -1,4 +1,5 @@
 import Foundation
+import PlatformSDK
 
 func unarchiveKeyedPayload(_ plist: Any) -> Any? {
     guard let archive = plist as? JSONObject,

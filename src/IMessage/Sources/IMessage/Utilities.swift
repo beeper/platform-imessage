@@ -1,5 +1,6 @@
 import Foundation
 import IMessageCore
+import PlatformSDK
 
 func runOnMainThread<T>(fn: () throws -> T) rethrows -> T {
     Log.default.debug("runOnMainThread: Thread.isMainThread=\(Thread.isMainThread) queueName=\(__dispatch_queue_get_label(nil))")
