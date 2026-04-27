@@ -175,7 +175,6 @@ private final class Runner {
         state = try ensureRunnerState(options)
         guard let state else { return }
 
-        Log.consoleEmitter = ShellLineReader.emitConsoleLine
         IMessageCLIBootstrap.bootstrap(
             dataDirPath: state.dataDirPath,
             verbose: state.options.loggingEnabled,
@@ -276,6 +275,9 @@ private final class Runner {
     private func runShell() async throws {
         printTopLevelHelp()
         let lineReader = ShellLineReader(prompt: prompt)
+        Log.consoleEmitter = { [lineReader] line in
+            lineReader.printConsoleLine(line)
+        }
         while true {
             guard let input = lineReader.readLine() else {
                 try await shutdown()
@@ -963,11 +965,6 @@ private func runAuthorizationFlow(target rawTarget: String?, api: IMessageCLIAPI
 }
 
 private func authorizeAutomation(api: IMessageCLIAPI) async -> Bool {
-    if (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.accessibility.rawValue)) == .authorized {
-        Task {
-            try? await api.confirmUNCPrompt()
-        }
-    }
     do {
         try await api.askForAutomationAccess()
         return true
