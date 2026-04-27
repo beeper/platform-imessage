@@ -836,7 +836,7 @@ public final class PlatformAPI {
         return PlatformAPIPage(
             items: threads,
             hasMore: chatRows.count == mappedThreadsLimit,
-            oldestCursor: chatRows.last?.msgDateString
+            oldestCursor: chatRows.last?.msgDate.map(String.init)
         )
     }
 
@@ -981,7 +981,7 @@ public final class PlatformAPI {
         return PlatformAPIPage(
             items: messages.map(PlatformAPIMessage.init(jsonObject:)),
             hasMore: matchingRowIDs.count == effectiveLimit,
-            oldestCursor: msgRows.first?.dateString ?? ""
+            oldestCursor: msgRows.first?.date.map(String.init) ?? ""
         )
     }
 }

@@ -10,7 +10,6 @@ import Foundation
 #if false
 enum DatabaseSchemaNotes {
     typealias NumberBool = Int
-    typealias AppleDateNanosecondsString = String
 
     /// Columns observed in the `message` table, originally taken from
     /// `chat.db` on Big Sur and extended as newer macOS releases added fields.
@@ -38,17 +37,14 @@ enum DatabaseSchemaNotes {
         /// Numeric error code; `0` means success.
         var error: Int
 
-        /// Prefer reading this through SQLite as text or converting in Swift;
-        /// JavaScript `number` frequently loses precision for Apple nanosecond
-        /// timestamps.
+        /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+        /// needs to cross into JavaScript.
         var date: Int
-        /// Prefer reading this through SQLite as text or converting in Swift;
-        /// JavaScript `number` frequently loses precision for Apple nanosecond
-        /// timestamps.
+        /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+        /// needs to cross into JavaScript.
         var dateRead: Int
-        /// Prefer reading this through SQLite as text or converting in Swift;
-        /// JavaScript `number` frequently loses precision for Apple nanosecond
-        /// timestamps.
+        /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+        /// needs to cross into JavaScript.
         var dateDelivered: Int
 
         var isDelivered: Int
@@ -125,13 +121,11 @@ enum DatabaseSchemaNotes {
         var didNotifyRecipient: Int
 
         // Added in Ventura.
-        /// Prefer reading this through SQLite as text or converting in Swift;
-        /// JavaScript `number` frequently loses precision for Apple nanosecond
-        /// timestamps.
+        /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+        /// needs to cross into JavaScript.
         var dateRetracted: Int
-        /// Prefer reading this through SQLite as text or converting in Swift;
-        /// JavaScript `number` frequently loses precision for Apple nanosecond
-        /// timestamps.
+        /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
+        /// needs to cross into JavaScript.
         var dateEdited: Int
         var wasDetonated: NumberBool
         var partCount: Int
@@ -196,21 +190,11 @@ enum DatabaseSchemaNotes {
         var roomName: String?
         var participantID: String?
         var otherID: String?
-        var dateString: AppleDateNanosecondsString
-        var dateReadString: AppleDateNanosecondsString
-        var dateDeliveredString: AppleDateNanosecondsString
-
-        // Ventura and later.
-        var dateEditedString: AppleDateNanosecondsString?
-        var dateRetractedString: AppleDateNanosecondsString?
     }
 
     /// Extra fields selected by the historical mapped-chat SQL.
     struct MappedChatRow {
-        var msgDateString: AppleDateNanosecondsString
-        /// `last_read_message_timestamp`, but as a string to avoid precision
-        /// loss in JavaScript.
-        var dateLastMessageReadString: AppleDateNanosecondsString
+        var msgDate: Int?
     }
 
     /// Extra fields selected by the historical mapped-attachment SQL.

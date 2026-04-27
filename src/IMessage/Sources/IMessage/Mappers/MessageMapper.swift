@@ -134,7 +134,7 @@ struct Mapper {
         let sent = appleDateMilliseconds(dates.sent) ?? 0
         var message = compactDictionary([
             "id": msgRow.guid,
-            "cursor": dates.sent,
+            "cursor": dates.sent.map(String.init),
             "timestamp": sent,
             "sortKey": sent,
             "senderID": senderID(),
@@ -154,7 +154,7 @@ struct Mapper {
     }
 
     private func applyStatusFields(to message: inout JSONObject, dates: MessageDates) {
-        if dateStringIsTruthy(dates.retracted) || msgRow.wasDetonated == 1 {
+        if appleDateIsTruthy(dates.retracted) || msgRow.wasDetonated == 1 {
             message["isDeleted"] = true
         }
         if msgRow.isRead == 1 {
@@ -166,7 +166,7 @@ struct Mapper {
         let hasUnsendData = summaryInfo.dictionary("otr") != nil && summaryInfo.hasValue("rp")
         // Partial unsends update `date_edited`; don't expose that as a user-facing edit timestamp.
         guard !hasUnsendData,
-              dateStringIsTruthy(dates.edited),
+              appleDateIsTruthy(dates.edited),
               let edited = appleDateMilliseconds(dates.edited) else {
             return
         }
@@ -351,15 +351,15 @@ struct Mapper {
 }
 
 private struct MessageDates {
-    let sent: String?
-    let read: String?
-    let edited: String?
-    let retracted: String?
+    let sent: Int?
+    let read: Int?
+    let edited: Int?
+    let retracted: Int?
 
     init(row: MappedMessageRow) {
-        sent = row.dateString
-        read = row.dateReadString
-        edited = row.dateEditedString
-        retracted = row.dateRetractedString
+        sent = row.date
+        read = row.dateRead
+        edited = row.dateEdited
+        retracted = row.dateRetracted
     }
 }

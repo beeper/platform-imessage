@@ -1,14 +1,14 @@
 import Foundation
 import IMessageCore
 
-func appleDateMilliseconds(_ appleDate: String?) -> Int64? {
-    guard let appleDate, appleDate != "0", let nanos = Int64(appleDate) else {
+func appleDateMilliseconds(_ appleDate: Int?) -> Int64? {
+    guard let appleDate, appleDate > 0 else {
         return nil
     }
-    return (nanos / 1_000_000) + coreFoundationReferenceDateMilliseconds
+    return (Int64(appleDate) / 1_000_000) + coreFoundationReferenceDateMilliseconds
 }
 
-func dateStringIsTruthy(_ appleDate: String?) -> Bool {
+func appleDateIsTruthy(_ appleDate: Int?) -> Bool {
     appleDate.flatMap(appleDateMilliseconds) != nil
 }
 

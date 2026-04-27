@@ -254,13 +254,9 @@ public extension IMDatabase {
 }
 
 private func messageSelectionNames(messageColumns: [String]) -> [String] {
-    let dateAliases = ["dateString", "dateReadString", "dateDeliveredString"]
-        + (messageColumns.contains("date_edited") ? ["dateEditedString"] : [])
-        + (messageColumns.contains("date_retracted") ? ["dateRetractedString"] : [])
     return ["ROWID"]
         + messageColumns.filter { $0 != "ROWID" }
         + ["threadID", "chatRowID", "room_name", "participantID", "otherID"]
-        + dateAliases
 }
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
@@ -274,15 +270,6 @@ private func messageSelectionSQL(messageColumns: [String]) -> String {
         "t.room_name",
         "h.id AS participantID",
         "oh.id AS otherID",
-        "CAST(m.date AS TEXT) AS dateString",
-        "CAST(m.date_read AS TEXT) AS dateReadString",
-        "CAST(m.date_delivered AS TEXT) AS dateDeliveredString",
     ]
-    if messageColumns.contains("date_edited") {
-        selections.append("CAST(m.date_edited AS TEXT) AS dateEditedString")
-    }
-    if messageColumns.contains("date_retracted") {
-        selections.append("CAST(m.date_retracted AS TEXT) AS dateRetractedString")
-    }
     return selections.joined(separator: ",\n")
 }

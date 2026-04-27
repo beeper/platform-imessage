@@ -5,7 +5,6 @@ import SQLite
 /// DatabaseSchemaNotes.swift. Database queries decode into these structs
 /// directly; dictionaries are produced lazily only for `_original` payloads and
 /// final JSON surfaces.
-public typealias AppleDateNanosecondsString = String
 
 public protocol MappedDatabaseRow {
     var object: [String: Any] { get }
@@ -50,6 +49,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let error: Int
     public let date: Int?
     public let dateRead: Int?
+    public let dateDelivered: Int?
     public let isDelivered: Int
     public let isFromMe: Int
     public let isRead: Int
@@ -68,6 +68,8 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let messageSummaryInfo: Data?
     public let threadOriginatorGUID: String?
     public let threadOriginatorPart: String?
+    public let dateRetracted: Int?
+    public let dateEdited: Int?
     public let wasDetonated: Int
     public let scheduleType: Int
 
@@ -78,11 +80,6 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let roomName: String?
     public let participantID: String?
     public let otherID: String?
-    public let dateString: AppleDateNanosecondsString
-    public let dateReadString: AppleDateNanosecondsString
-    public let dateDeliveredString: AppleDateNanosecondsString
-    public let dateEditedString: AppleDateNanosecondsString?
-    public let dateRetractedString: AppleDateNanosecondsString?
 
     public init(object: [String: Any]) throws {
         rowID = try object.requiredInt("ROWID", row: Self.self)
@@ -94,11 +91,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
         error = object.int("error") ?? 0
         date = object.int("date")
         dateRead = object.int("date_read")
-        dateString = object.string("dateString") ?? object.string("date") ?? "0"
-        dateReadString = object.string("dateReadString") ?? object.string("date_read") ?? "0"
-        dateDeliveredString = object.string("dateDeliveredString") ?? object.string("date_delivered") ?? "0"
-        dateEditedString = object.string("dateEditedString") ?? object.string("date_edited")
-        dateRetractedString = object.string("dateRetractedString") ?? object.string("date_retracted")
+        dateDelivered = object.int("date_delivered")
         isDelivered = object.int("is_delivered") ?? 0
         isFromMe = object.int("is_from_me") ?? 0
         isRead = object.int("is_read") ?? 0
@@ -117,6 +110,8 @@ public struct MappedMessageRow: MappedDatabaseRow {
         messageSummaryInfo = object.data("message_summary_info")
         threadOriginatorGUID = object.string("thread_originator_guid")
         threadOriginatorPart = object.string("thread_originator_part")
+        dateRetracted = object.int("date_retracted")
+        dateEdited = object.int("date_edited")
         wasDetonated = object.int("was_detonated") ?? 0
         scheduleType = object.int("schedule_type") ?? 0
         threadID = object.string("threadID")
@@ -136,11 +131,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
         error = try row.int("error", columns: columns) ?? 0
         date = try row.int("date", columns: columns)
         dateRead = try row.int("date_read", columns: columns)
-        dateString = try row.requiredString("dateString", columns: columns, row: Self.self)
-        dateReadString = try row.requiredString("dateReadString", columns: columns, row: Self.self)
-        dateDeliveredString = try row.requiredString("dateDeliveredString", columns: columns, row: Self.self)
-        dateEditedString = try row.string("dateEditedString", columns: columns)
-        dateRetractedString = try row.string("dateRetractedString", columns: columns)
+        dateDelivered = try row.int("date_delivered", columns: columns)
         isDelivered = try row.int("is_delivered", columns: columns) ?? 0
         isFromMe = try row.int("is_from_me", columns: columns) ?? 0
         isRead = try row.int("is_read", columns: columns) ?? 0
@@ -159,6 +150,8 @@ public struct MappedMessageRow: MappedDatabaseRow {
         messageSummaryInfo = try row.data("message_summary_info", columns: columns)
         threadOriginatorGUID = try row.string("thread_originator_guid", columns: columns)
         threadOriginatorPart = try row.string("thread_originator_part", columns: columns)
+        dateRetracted = try row.int("date_retracted", columns: columns)
+        dateEdited = try row.int("date_edited", columns: columns)
         wasDetonated = try row.int("was_detonated", columns: columns) ?? 0
         scheduleType = try row.int("schedule_type", columns: columns) ?? 0
         threadID = try row.string("threadID", columns: columns)
@@ -179,11 +172,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
             "error": error,
             "date": date,
             "date_read": dateRead,
-            "dateString": dateString,
-            "dateReadString": dateReadString,
-            "dateDeliveredString": dateDeliveredString,
-            "dateEditedString": dateEditedString,
-            "dateRetractedString": dateRetractedString,
+            "date_delivered": dateDelivered,
             "is_delivered": isDelivered,
             "is_from_me": isFromMe,
             "is_read": isRead,
@@ -202,6 +191,8 @@ public struct MappedMessageRow: MappedDatabaseRow {
             "message_summary_info": messageSummaryInfo,
             "thread_originator_guid": threadOriginatorGUID,
             "thread_originator_part": threadOriginatorPart,
+            "date_retracted": dateRetracted,
+            "date_edited": dateEdited,
             "was_detonated": wasDetonated,
             "schedule_type": scheduleType,
             "threadID": threadID,
@@ -224,11 +215,11 @@ public struct MappedChatRow: MappedDatabaseRow {
     public let lastAddressedHandle: String?
     public let displayName: String?
     public let groupID: String?
+    public let lastReadMessageTimestamp: Int?
 
     // Extensions selected by mapped-thread queries. These are not columns on
     // the `chat` table; they are computed SQL aliases.
-    public let msgDateString: AppleDateNanosecondsString?
-    public let dateLastMessageReadString: AppleDateNanosecondsString?
+    public let msgDate: Int?
 
     public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
         rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
@@ -241,8 +232,8 @@ public struct MappedChatRow: MappedDatabaseRow {
         lastAddressedHandle = try row.string("last_addressed_handle", columns: columns)
         displayName = try row.string("display_name", columns: columns)
         groupID = try row.string("group_id", columns: columns)
-        msgDateString = try row.string("msgDateString", columns: columns)
-        dateLastMessageReadString = try row.string("dateLastMessageReadString", columns: columns)
+        lastReadMessageTimestamp = try row.int("last_read_message_timestamp", columns: columns)
+        msgDate = try row.int("msgDate", columns: columns)
     }
 
     public var object: [String: Any] {
@@ -257,8 +248,8 @@ public struct MappedChatRow: MappedDatabaseRow {
             "last_addressed_handle": lastAddressedHandle,
             "display_name": displayName,
             "group_id": groupID,
-            "msgDateString": msgDateString,
-            "dateLastMessageReadString": dateLastMessageReadString,
+            "last_read_message_timestamp": lastReadMessageTimestamp,
+            "msgDate": msgDate,
         ])
     }
 }

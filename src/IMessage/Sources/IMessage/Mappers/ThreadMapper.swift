@@ -27,17 +27,10 @@ enum ThreadMapper {
         }
         let (maxRowID, maxDateReadNanoseconds) = latestMessageRows.reduce(into: (0, 0)) { result, row in
             result.0 = max(result.0, row.rowID)
-            // Guard against bogus read dates that overflow Int64 — the source
-            // of these is unknown but they'd poison the polling cursor.
-            guard row.dateReadString < int64MaxString else {
-                return
-            }
             result.1 = max(result.1, row.dateRead ?? 0)
         }
         return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
-
-    private static let int64MaxString = String(Int.max)
 
     private static func mapThread(_ chat: MappedChatRow, context: Context) throws -> JSONObject {
         let guid = chat.guid
@@ -70,7 +63,7 @@ enum ThreadMapper {
             // from `isMarkedUnread || unreadCount > 0`.
             "unreadCount": unreadCount,
             "isMarkedUnread": unreadCount > 0,
-            "lastReadMessageSortKey": appleDateMilliseconds(chat.dateLastMessageReadString),
+            "lastReadMessageSortKey": appleDateMilliseconds(chat.lastReadMessageTimestamp),
             "messages": [
                 "hasMore": true,
                 "items": messages,
@@ -82,7 +75,7 @@ enum ThreadMapper {
             // Works around PAS's "map missing" behavior where the folder name
             // can otherwise be filled with the thread ID.
             "folderName": "normal",
-            "timestamp": appleDateMilliseconds(chat.msgDateString),
+            "timestamp": appleDateMilliseconds(chat.msgDate),
             "extra": compactDictionary([
                 "isSMS": (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;")) ? true : nil,
             ]),

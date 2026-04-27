@@ -20,9 +20,7 @@ public extension IMDatabase {
         var sql = """
         SELECT
         \(chatSelectionSQL(chatColumns: chatColumns)),
-        (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
-        CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
-        CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
+        (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
         FROM chat
         """
         if let comparisonOperator {
@@ -45,9 +43,7 @@ public extension IMDatabase {
         let sql = """
         SELECT
         \(chatSelectionSQL(chatColumns: chatColumns)),
-        (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate,
-        CAST((SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS TEXT) AS msgDateString,
-        CAST(last_read_message_timestamp AS TEXT) AS dateLastMessageReadString
+        (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
         FROM chat
         WHERE chat.guid = ?
         """
@@ -106,7 +102,7 @@ public extension IMDatabase {
 }
 
 private func chatSelectionNames(chatColumns: [String]) -> [String] {
-    ["ROWID"] + chatColumns.filter { $0 != "ROWID" } + ["msgDate", "msgDateString", "dateLastMessageReadString"]
+    ["ROWID"] + chatColumns.filter { $0 != "ROWID" } + ["msgDate"]
 }
 
 private func chatSelectionSQL(chatColumns: [String]) -> String {
