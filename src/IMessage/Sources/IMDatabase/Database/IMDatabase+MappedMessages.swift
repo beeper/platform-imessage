@@ -104,10 +104,7 @@ public extension IMDatabase {
             try statement.bind(chatGUID)
         }
 
-        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
-        return try statement.mapRowsUntilDone { row in
-            try MappedMessageRow(row: row, columns: columns)
-        }
+        return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
     func mappedMessageRow(guid: String) throws -> MappedMessageRow? {
@@ -121,10 +118,7 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(guid)
-        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
-        return try statement.compactMapRowsUntilDone { row in
-            try MappedMessageRow(row: row, columns: columns)
-        }.first
+        return try statement.mapRowsUntilDone(MappedMessageRow.self).first
     }
 
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
@@ -140,10 +134,7 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(rowIDs.map { $0 as any SQLiteBindable })
-        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
-        return try statement.mapRowsUntilDone { row in
-            try MappedMessageRow(row: row, columns: columns)
-        }
+        return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
     func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: MappedMessageRow] {
@@ -167,10 +158,7 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
-        let columns = MappedRowColumnIndexes(messageSelectionNames(messageColumns: messageColumns))
-        return try statement.mapRowsUntilDone { row in
-            try MappedMessageRow(row: row, columns: columns)
-        }.reduce(into: [:]) { result, messageRow in
+        return try statement.mapRowsUntilDone(MappedMessageRow.self).reduce(into: [:]) { result, messageRow in
             guard let threadID = messageRow.threadID else { return }
             result[threadID] = messageRow
         }
@@ -187,10 +175,7 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(messageRowIDs.map { $0 as any SQLiteBindable })
-        let columns = MappedRowColumnIndexes(["msgRowID", "filename", "transfer_name", "total_bytes", "is_sticker", "attachmentID", "transfer_state"])
-        return try statement.mapRowsUntilDone { row in
-            try MappedAttachmentRow(row: row, columns: columns)
-        }
+        return try statement.mapRowsUntilDone(MappedAttachmentRow.self)
     }
 
     func attachmentFilename(guid: String) throws -> String? {
@@ -216,12 +201,7 @@ public extension IMDatabase {
     func mappedReactionRows(messageGUIDs: [String], chatRowIDs: [Int]) throws -> [MappedReactionMessageRow] {
         guard !messageGUIDs.isEmpty, !chatRowIDs.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")
-        let hasAssociatedEmoji = messageColumns.contains("associated_message_emoji")
-        let columnNames = [
-            "ROWID", "is_from_me", "handle_id", "associated_message_type", "associated_message_guid",
-        ] + (hasAssociatedEmoji ? ["associated_message_emoji"] : []) + ["participantID"]
-        let columns = MappedRowColumnIndexes(columnNames)
-        let emojiColumn = hasAssociatedEmoji ? "associated_message_emoji," : ""
+        let emojiColumn = messageColumns.contains("associated_message_emoji") ? "associated_message_emoji," : ""
         let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
         let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
         let sql = """
@@ -236,9 +216,7 @@ public extension IMDatabase {
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
         bindings.append(contentsOf: chatRowIDs.map { $0 as any SQLiteBindable })
         try statement.bind(bindings)
-        return try statement.mapRowsUntilDone { row in
-            try MappedReactionMessageRow(row: row, columns: columns)
-        }
+        return try statement.mapRowsUntilDone(MappedReactionMessageRow.self)
     }
 
     func mappedReactionRows(messageGUIDs: [String], chatRowID: Int) throws -> [MappedReactionMessageRow] {
@@ -251,12 +229,6 @@ public extension IMDatabase {
         }
         return try mappedReactionRows(messageGUIDs: messageGUIDs, chatRowID: chatRowID)
     }
-}
-
-private func messageSelectionNames(messageColumns: [String]) -> [String] {
-    return ["ROWID"]
-        + messageColumns.filter { $0 != "ROWID" }
-        + ["threadID", "chatRowID", "room_name", "participantID", "otherID"]
 }
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {

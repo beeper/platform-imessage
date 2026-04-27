@@ -7,6 +7,7 @@ import SQLite
 /// final JSON surfaces.
 
 public protocol MappedDatabaseRow {
+    init(row: borrowing Row, columns: MappedRowColumnIndexes) throws
     var object: [String: Any] { get }
 }
 
@@ -17,6 +18,10 @@ public struct MappedRowColumnIndexes {
         indexesByName = Dictionary(uniqueKeysWithValues: names.enumerated().map { ($0.element, $0.offset) })
     }
 
+    public init(statement: Statement) {
+        self.init(statement.columnNames)
+    }
+
     func index(for name: String) -> Int? {
         indexesByName[name]
     }
@@ -25,6 +30,13 @@ public struct MappedRowColumnIndexes {
 public extension Sequence where Element: MappedDatabaseRow {
     var objects: [[String: Any]] {
         map(\.object)
+    }
+}
+
+public extension Statement {
+    func mapRowsUntilDone<T: MappedDatabaseRow>(_: T.Type) throws -> [T] {
+        let columns = MappedRowColumnIndexes(statement: self)
+        return try mapRowsUntilDone { try T(row: $0, columns: columns) }
     }
 }
 

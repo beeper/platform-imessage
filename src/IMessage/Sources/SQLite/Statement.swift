@@ -61,6 +61,10 @@ public extension Statement {
     var columnCount: Int {
         Int(sqlite3_column_count(handle))
     }
+
+    var columnNames: [String] {
+        (0 ..< columnCount).map { String(cString: sqlite3_column_name(handle, Int32($0))) }
+    }
 }
 
 // MARK: - Resetting, Clearing, and Binding

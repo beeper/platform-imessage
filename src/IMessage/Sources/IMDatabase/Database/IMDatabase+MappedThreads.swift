@@ -32,10 +32,7 @@ public extension IMDatabase {
         if let withCursor {
             try statement.bind(withCursor.cursor)
         }
-        let columns = MappedRowColumnIndexes(chatSelectionNames(chatColumns: chatColumns))
-        return try statement.mapRowsUntilDone { row in
-            try MappedChatRow(row: row, columns: columns)
-        }
+        return try statement.mapRowsUntilDone(MappedChatRow.self)
     }
 
     func mappedThreadRow(guid: String) throws -> MappedChatRow? {
@@ -49,10 +46,7 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(guid)
-        let columns = MappedRowColumnIndexes(chatSelectionNames(chatColumns: chatColumns))
-        return try statement.compactMapRowsUntilDone { row in
-            try MappedChatRow(row: row, columns: columns)
-        }.first
+        return try statement.mapRowsUntilDone(MappedChatRow.self).first
     }
 
     func mappedThreadParticipantRows(chatRowIDs: [Int]) throws -> [Int: [MappedHandleRow]] {
@@ -65,11 +59,7 @@ public extension IMDatabase {
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
-        let columns = MappedRowColumnIndexes(["chat_id", "uncanonicalized_id", "participantID"])
-        let rows = try statement.mapRowsUntilDone { row in
-            try MappedHandleRow(row: row, columns: columns)
-        }
-        return rows.reduce(into: [:]) { result, row in
+        return try statement.mapRowsUntilDone(MappedHandleRow.self).reduce(into: [:]) { result, row in
             result[row.chatID ?? -1, default: []].append(row)
         }
     }
@@ -99,10 +89,6 @@ public extension IMDatabase {
             result[pair.0] = pair.1
         }
     }
-}
-
-private func chatSelectionNames(chatColumns: [String]) -> [String] {
-    ["ROWID"] + chatColumns.filter { $0 != "ROWID" } + ["msgDate"]
 }
 
 private func chatSelectionSQL(chatColumns: [String]) -> String {
