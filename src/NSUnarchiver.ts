@@ -1,4 +1,4 @@
-import { mapValues } from 'lodash'
+import mapValues from 'lodash/mapValues'
 import { UID, Plist } from './bplist-parser'
 
 function mapObject(root: Plist, definedObjects?: Plist[]): Plist | null {

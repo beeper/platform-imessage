@@ -1,5 +1,5 @@
 import fsSync, { promises as fs } from 'fs'
-import { mapKeys } from 'lodash'
+import mapKeys from 'lodash/mapKeys'
 import url from 'url'
 import os from 'os'
 import path from 'path'
@@ -50,7 +50,7 @@ function getDNDState() {
   return new Set(arr)
 }
 export default class AppleiMessage implements PlatformAPI {
-  constructor(public readonly accountID: string) {}
+  constructor(public readonly accountID: string) { }
 
   currentUser: CurrentUser | undefined
 
@@ -186,7 +186,7 @@ export default class AppleiMessage implements PlatformAPI {
     // about disposing any existing handle.
     await Promise.all([
       MessagesControllerWrapper.dispose(),
-      fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => {}),
+      fs.rm(TMP_ATTACHMENT_DIR_PATH, { recursive: true }).catch(() => { }),
       this.cachedDB?.dispose(),
     ])
   }

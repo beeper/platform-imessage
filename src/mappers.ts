@@ -1,5 +1,6 @@
 import url from 'url'
-import { groupBy, omit } from 'lodash'
+import groupBy from 'lodash/groupBy'
+import omit from 'lodash/omit'
 import { Message, Participant, Attachment, AttachmentType, MessageActionType, MessageBehavior, MessageReaction, TextAttributes, TextEntity, InboxName, ThreadReminder } from '@textshq/platform-sdk'
 
 import { ASSOC_MSG_TYPE, EXPRESSIVE_MSGS, RECEIVER_NAME_CONSTANT, SENDER_NAME_CONSTANT, IMFileTransferState, BalloonBundleID, supportedReactions, REACTION_VERB_MAP } from './constants'
