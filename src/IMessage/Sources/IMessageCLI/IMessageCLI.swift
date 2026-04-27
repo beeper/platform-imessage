@@ -274,9 +274,9 @@ private final class Runner {
 
     private func runShell() async throws {
         printTopLevelHelp()
+        let lineReader = ShellLineReader(prompt: prompt)
         while true {
-            print(prompt, terminator: "")
-            guard let input = readLine() else {
+            guard let input = lineReader.readLine() else {
                 try await shutdown()
                 return
             }
@@ -743,8 +743,8 @@ private func printTopLevelHelp() {
         "platform-imessage Swift CLI",
         "",
         "Usage:",
-        "  IMessageCLI [global options]",
-        "  IMessageCLI COMMAND [ARGS...]",
+        "  imessage [global options]",
+        "  imessage COMMAND [ARGS...]",
         "",
         "Bare launch (or `shell`) opens the interactive shell.",
         "",
