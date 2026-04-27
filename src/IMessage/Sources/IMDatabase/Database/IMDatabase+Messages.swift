@@ -23,11 +23,11 @@ public struct MessageQueryFilter {
     }
 
     public static func before(_ date: Date) -> Self {
-        MessageQueryFilter(escapedSQLFragment: "date < \(date.nanosecondsSinceReferenceDate)")
+        MessageQueryFilter(escapedSQLFragment: "message_date < \(date.nanosecondsSinceReferenceDate)")
     }
 
     public static func after(_ date: Date) -> Self {
-        MessageQueryFilter(escapedSQLFragment: "date > \(date.nanosecondsSinceReferenceDate)")
+        MessageQueryFilter(escapedSQLFragment: "message_date > \(date.nanosecondsSinceReferenceDate)")
     }
 }
 
@@ -74,10 +74,13 @@ public extension IMDatabase {
         withAttachments includeAttachments: Bool = true,
         ) throws -> some Collection<Message> {
         let statement = try cachedStatement(forEscapedSQL: """
-        \(messagesQuerySharedPrelude)
+        SELECT c.guid, m.ROWID, m.guid, m.balloon_bundle_id, m.thread_originator_guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
+        FROM chat c
+        INNER JOIN chat_message_join cmj ON cmj.chat_id = c.ROWID
+        INNER JOIN message m ON m.ROWID = cmj.message_id
         WHERE c.guid = ?
-        \(filter.map { "AND m.\($0.sqlFragment)" } ?? "")
-        ORDER BY m.date \(order.sqlKeyword)
+        \(filter.map { "AND cmj.\($0.sqlFragment)" } ?? "")
+        ORDER BY cmj.message_date \(order.sqlKeyword), cmj.message_id \(order.sqlKeyword)
         LIMIT ?
         """).reset()
         try statement.bind(chatGUID, limit)

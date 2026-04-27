@@ -5,29 +5,36 @@ import IMessageCore
 
 private let log = Logger(label: "imdb.unreads")
 
-// TODO(skip): optimize; query takes ~70ms (!)
 let unreadStatesQuery = """
+WITH chats_with_messages AS (
+    SELECT chat_id
+    FROM chat_message_join
+    GROUP BY chat_id
+),
+unread_counts AS (
+    SELECT
+        cm.chat_id AS chat_id,
+        COUNT(*) AS unread_count
+    FROM
+        message m
+    INNER JOIN
+        chat_message_join cm ON m.ROWID = cm.message_id
+    WHERE
+        m.is_read = 0 AND m.is_from_me = 0 AND m.item_type = 0
+    GROUP BY
+        cm.chat_id
+)
 SELECT
     c.ROWID AS chat_id,
     c.guid AS chat_guid,
-    COUNT(
-        CASE
-            WHEN m.is_read = 0 AND m.is_from_me = 0 AND m.item_type = 0
-            THEN 1
-            ELSE NULL
-        END
-    ) AS unread_count,
+    COALESCE(unread_counts.unread_count, 0) AS unread_count,
     c.last_read_message_timestamp
 FROM
-    chat c
+    chats_with_messages
+INNER JOIN
+    chat c ON c.ROWID = chats_with_messages.chat_id
 LEFT JOIN
-    chat_message_join cm ON c.ROWID = cm.chat_id
-LEFT JOIN
-    message m ON m.ROWID = cm.message_id
-GROUP BY
-    c.ROWID
-HAVING
-    COUNT(cm.message_id) > 0
+    unread_counts ON unread_counts.chat_id = c.ROWID
 """
 
 public struct ChatState: Equatable {

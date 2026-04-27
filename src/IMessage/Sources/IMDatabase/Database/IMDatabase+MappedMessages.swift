@@ -12,6 +12,12 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 \(messageHandleJoins)
 """
 
+private let editedMessageJoins = """
+CROSS JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+\(messageHandleJoins)
+"""
+
 private let messageJoinsFromChatMessageJoin = """
 INNER JOIN message AS m ON m.ROWID = cmj.message_id
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
@@ -97,9 +103,7 @@ public extension IMDatabase {
         let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
         let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
         let order = withCursor?.direction == .after ? "ASC" : "DESC"
-        let dateExpression = comparisonOperator == ">" && messageColumns.contains("date_edited")
-            ? "MAX(m.date, COALESCE(m.date_edited, 0))"
-            : "cmj.message_date"
+        let includeMessagesEditedAfterCursor = withCursor?.direction == .after && messageColumns.contains("date_edited")
 
         // The historical query filtered by chat guid after starting from
         // `message ORDER BY date`. On large databases that can walk a huge
@@ -107,6 +111,43 @@ public extension IMDatabase {
         // chat_id/date indexes touches only the requested chat's messages.
         guard let chatRowID = try mappedChatRowID(guid: chatGUID) else {
             return []
+        }
+
+        if includeMessagesEditedAfterCursor, let withCursor {
+            let editedSQL = """
+            SELECT
+            \(messageSelectionSQL(messageColumns: messageColumns))
+            FROM message AS m
+            \(editedMessageJoins)
+            WHERE cmj.chat_id = ?
+            AND m.date_edited > ?
+            AND cmj.message_date <= ?
+            ORDER BY cmj.message_date ASC, cmj.message_id ASC
+            LIMIT \(limit)
+            """
+            let editedStatement = try Statement.prepare(escapedSQL: editedSQL, for: database)
+            try editedStatement.bind(chatRowID, withCursor.cursor, withCursor.cursor)
+
+            var rows = try editedStatement.mapRowsUntilDone(MappedMessageRow.self)
+            guard rows.count < limit else {
+                return rows
+            }
+
+            let remainingLimit = limit - rows.count
+            let newSQL = """
+            SELECT
+            \(messageSelectionSQL(messageColumns: messageColumns))
+            FROM chat_message_join AS cmj
+            \(messageJoinsFromChatMessageJoin)
+            WHERE cmj.chat_id = ?
+            AND cmj.message_date > ?
+            ORDER BY cmj.message_date ASC, cmj.message_id ASC
+            LIMIT \(remainingLimit)
+            """
+            let newStatement = try Statement.prepare(escapedSQL: newSQL, for: database)
+            try newStatement.bind(chatRowID, withCursor.cursor)
+            rows.append(contentsOf: try newStatement.mapRowsUntilDone(MappedMessageRow.self))
+            return rows
         }
 
         var sql = """
@@ -117,7 +158,7 @@ public extension IMDatabase {
         WHERE cmj.chat_id = ?
         """
         if let comparisonOperator {
-            sql += "\nAND \(dateExpression) \(comparisonOperator) ?"
+            sql += "\nAND cmj.message_date \(comparisonOperator) ?"
         }
         sql += "\nORDER BY cmj.message_date \(order), cmj.message_id \(order)\nLIMIT \(limit)"
 
