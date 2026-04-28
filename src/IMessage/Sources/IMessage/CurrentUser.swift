@@ -28,7 +28,7 @@ struct CurrentUser: Encodable, Sendable {
 
     private static func firstLoginValue(withPrefix prefix: String, in logins: [String]) -> String? {
         logins.first { $0.hasPrefix(prefix) }
-            .map { String($0.dropFirst(prefix.count)) }
+            .map(mapAccountLogin)
             .flatMap(\.nonEmpty)
     }
 }
