@@ -1301,8 +1301,7 @@ extension PlatformAPI {
                 data: Data([UInt8](hexString: pathHex)),
                 encoding: .utf8
             ).orThrow(ErrorMessage("couldn't decode asset path"))
-            let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
-            guard let pngData = CgBIPNG.dataForAsset(data) else {
+            guard let pngData = try CgBIPNG.convertedDataForAsset(at: URL(fileURLWithPath: filePath)) else {
                 return .url(fileURLString(filePath))
             }
             return .data(pngData)
