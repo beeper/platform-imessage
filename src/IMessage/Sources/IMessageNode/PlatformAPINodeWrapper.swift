@@ -2,6 +2,7 @@ import Foundation
 import NodeAPI
 import IMessage
 import IMessageCore
+import PlatformSDK
 
 @NodeActor @NodeClass final class PlatformAPINodeWrapper {
     private let api: PlatformAPI
@@ -20,13 +21,13 @@ import IMessageCore
         return try encodeJSON(messages.jsonObject)
     }
 
-    @NodeMethod func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> String {
-        let threads = try await api.getThreads(folderName: folderName, cursor: cursor, direction: direction)
+    @NodeMethod func getThreads(folderName: String, pagination: NodeObject?) async throws -> String {
+        let threads = try await api.getThreads(folderName: folderName, pagination: try paginationArg(from: pagination))
         return try encodeJSON(threads.jsonObject)
     }
 
-    @NodeMethod func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> String {
-        let messages = try await api.getMessages(threadID: threadID, cursor: cursor, direction: direction, limit: limit)
+    @NodeMethod func getMessages(threadID: String, pagination: NodeObject?) async throws -> String {
+        let messages = try await api.getMessages(threadID: threadID, pagination: try paginationArg(from: pagination))
         return try encodeJSON(messages.jsonObject)
     }
 
@@ -127,5 +128,18 @@ import IMessageCore
 
     @NodeMethod func dispose() async throws {
         try await api.dispose()
+    }
+
+    private func paginationArg(from object: NodeObject?) throws -> PlatformSDK.PaginationArg? {
+        guard let object else { return nil }
+        guard let cursor = try object["cursor"].as(String.self) else {
+            throw ErrorMessage("Bad PlatformAPI call: pagination.cursor must be a string")
+        }
+        guard let directionValue = try object["direction"].as(String.self),
+              let direction = PlatformSDK.PaginationDirection(rawValue: directionValue)
+        else {
+            throw ErrorMessage("Bad PlatformAPI call: pagination.direction must be 'after' or 'before'")
+        }
+        return PlatformSDK.PaginationArg(cursor: cursor, direction: direction)
     }
 }

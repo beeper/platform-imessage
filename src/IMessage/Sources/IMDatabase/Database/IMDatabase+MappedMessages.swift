@@ -1,11 +1,6 @@
 import Foundation
 import SQLite
 
-public enum MappedMessagePageDirection: String {
-    case after
-    case before
-}
-
 private let messageJoins = """
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
@@ -90,7 +85,7 @@ public extension IMDatabase {
     func mappedMessageRows(
         in chatGUID: String,
         cursor: String?,
-        direction: MappedMessagePageDirection?,
+        direction: MappedPageDirection?,
         limit: Int = 20
     ) throws -> [MappedMessageRow] {
         let messageColumns = try tableColumns("message")

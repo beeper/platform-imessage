@@ -1,17 +1,11 @@
-import Foundation
 import SQLite
-
-public enum MappedThreadPageDirection: String {
-    case after
-    case before
-}
 
 public let mappedThreadsLimit = 25
 
 public extension IMDatabase {
     func mappedThreadRows(
         cursor: String?,
-        direction: MappedThreadPageDirection?,
+        direction: MappedPageDirection?,
         limit: Int = mappedThreadsLimit
     ) throws -> [MappedChatRow] {
         let chatColumns = try tableColumns("chat")

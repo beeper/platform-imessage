@@ -167,8 +167,7 @@ export default class AppleiMessage implements PlatformAPI {
     if (texts.isLoggingEnabled) console.time('imsg getThreads')
     const response = parseSwiftMessageAPIJSON<PaginatedWithCursors<Thread>>(await this.swiftPlatformAPI!.getThreads(
       folderName,
-      pagination?.cursor,
-      pagination?.direction,
+      pagination,
     ))
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     return {
@@ -181,9 +180,7 @@ export default class AppleiMessage implements PlatformAPI {
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftAPI.getMessages(
       hashedThreadID,
-      pagination?.cursor,
-      pagination?.direction,
-      undefined,
+      pagination,
     ))
   }
 

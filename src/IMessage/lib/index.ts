@@ -28,15 +28,12 @@ export declare class NativePlatformAPI {
 
   getThreads: (
     folderName: ThreadFolderName,
-    cursor: string | undefined,
-    direction: PaginationArg['direction'] | undefined,
+    pagination: PaginationArg | undefined,
   ) => Promise<string>
 
   getMessages: (
     threadID: ThreadID,
-    cursor: string | undefined,
-    direction: PaginationArg['direction'] | undefined,
-    limit?: number,
+    pagination: PaginationArg | undefined,
   ) => Promise<string>
 
   getThread: (threadID: ThreadID) => Promise<string>
@@ -46,8 +43,6 @@ export declare class NativePlatformAPI {
   createThread: (userIDs: UserID[], title: string | undefined, messageText: string | undefined) => Promise<string>
 
   updateThread: (threadID: ThreadID, muted: boolean) => Promise<void>
-
-  deleteThread: NativeVoidPlatformAPIMethod<'deleteThread'>
 
   sendMessage: (
     threadID: ThreadID,
@@ -65,26 +60,23 @@ export declare class NativePlatformAPI {
 
   editMessage: (threadID: ThreadID, messageID: MessageID, content: string | undefined) => Promise<void>
 
-  sendActivityIndicator: NativeVoidPlatformAPIMethod<'sendActivityIndicator'>
-
   deleteMessage: (threadID: ThreadID, messageID: MessageID) => Promise<void>
 
   sendReadReceipt: (threadID: ThreadID) => Promise<void>
-
-  addReaction: NativeVoidPlatformAPIMethod<'addReaction'>
-
-  removeReaction: NativeVoidPlatformAPIMethod<'removeReaction'>
 
   setReaction: (threadID: ThreadID, messageID: MessageID, reaction: string, on: boolean) => Promise<void>
 
   markAsUnread: (threadID: ThreadID) => Promise<void>
 
-  notifyAnyway: NativeVoidPlatformAPIMethod<'notifyAnyway'>
-
   onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
 
   getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 
+  deleteThread: NativeVoidPlatformAPIMethod<'deleteThread'>
+  sendActivityIndicator: NativeVoidPlatformAPIMethod<'sendActivityIndicator'>
+  addReaction: NativeVoidPlatformAPIMethod<'addReaction'>
+  removeReaction: NativeVoidPlatformAPIMethod<'removeReaction'>
+  notifyAnyway: NativeVoidPlatformAPIMethod<'notifyAnyway'>
   dispose: NativeVoidPlatformAPIMethod<'dispose'>
 }
 

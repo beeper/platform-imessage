@@ -115,29 +115,26 @@ public final class PlatformAPI {
         }
     }
 
-    public func getThreads(folderName: String, cursor: String?, direction: String?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Thread> {
+    public func getThreads(folderName: String, pagination: PlatformSDK.PaginationArg?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Thread> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getThreads(
                 db: db,
                 folderName: folderName,
-                cursor: cursor,
-                direction: direction,
+                pagination: pagination,
                 currentUser: currentUser,
                 accountID: accountID
             )
         }
     }
 
-    public func getMessages(threadID: String, cursor: String?, direction: String?, limit: Int?) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
+    public func getMessages(threadID: String, pagination: PlatformSDK.PaginationArg?) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessages(
                 db: db,
                 threadID: threadID,
-                cursor: cursor,
-                direction: direction,
+                pagination: pagination,
                 currentUserID: currentUser.id,
-                accountID: accountID,
-                limit: limit
+                accountID: accountID
             )
         }
     }
@@ -798,8 +795,7 @@ public final class PlatformAPI {
     nonisolated static func getThreads(
         db: IMDatabase,
         folderName: String,
-        cursor: String?,
-        direction: String?,
+        pagination: PlatformSDK.PaginationArg?,
         currentUser: CurrentUser,
         accountID: String
     ) throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Thread> {
@@ -807,8 +803,8 @@ public final class PlatformAPI {
             return PlatformSDK.PaginatedWithCursors(items: [], hasMore: false, oldestCursor: "0")
         }
 
-        let pageDirection = direction.flatMap(MappedThreadPageDirection.init(rawValue:))
-        let chatRows = try db.mappedThreadRows(cursor: cursor, direction: pageDirection)
+        let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
+        let chatRows = try db.mappedThreadRows(cursor: pagination?.cursor, direction: pageDirection)
         let chatRowIDs = chatRows.map(\.rowID)
         let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: chatRows)
         let context = ThreadMapper.Context(
@@ -827,7 +823,7 @@ public final class PlatformAPI {
         let threads = try chatRows.map { try ThreadMapper.mapThread($0, context: context) }
         // TODO: Change the API design so getThreads is side-effect free and
         // the polling bootstrap is triggered by an explicit lifecycle call.
-        if cursor == nil, let pollingCursor = ThreadMapper.pollingCursor(from: Array(latestMessageRowsByChatGUID.values)) {
+        if pagination == nil, let pollingCursor = ThreadMapper.pollingCursor(from: Array(latestMessageRowsByChatGUID.values)) {
             PollingLifecycle.shared.startBootstrapIfNecessary(
                 lastRowID: pollingCursor.maxRowID,
                 lastDateRead: Date(nanosecondsSinceReferenceDate: pollingCursor.maxDateReadNanoseconds)
@@ -871,18 +867,17 @@ public final class PlatformAPI {
     nonisolated static func getMessages(
         db: IMDatabase,
         threadID publicThreadID: String,
-        cursor: String?,
-        direction: String?,
+        pagination: PlatformSDK.PaginationArg?,
         currentUserID: String,
         accountID: String,
         limit: Int? = nil
     ) throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
         let threadID = try originalThreadID(db: db, publicThreadID)
-        let pageDirection = direction.flatMap(MappedMessagePageDirection.init(rawValue:))
+        let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
         let effectiveLimit = limit ?? messagePageLimit
         var msgRows = try db.mappedMessageRows(
             in: threadID,
-            cursor: cursor,
+            cursor: pagination?.cursor,
             direction: pageDirection,
             limit: effectiveLimit
         )

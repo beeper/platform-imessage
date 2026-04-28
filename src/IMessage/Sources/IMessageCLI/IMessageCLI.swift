@@ -4,6 +4,7 @@ import Darwin
 import Foundation
 import IMessage
 import IMessageCore
+import PlatformSDK
 
 private let accountID = "default"
 private let prompt = "imessage> "
@@ -403,8 +404,8 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 0)
-        try await context.invoke("getThreads", args: ["normal", pagination.cursor as Any, pagination.direction as Any]) { api in
-            let threads = try await api.platformAPI.getThreads(folderName: "normal", cursor: pagination.cursor, direction: pagination.direction)
+        try await context.invoke("getThreads", args: ["normal", pagination.logArgument as Any]) { api in
+            let threads = try await api.platformAPI.getThreads(folderName: "normal", pagination: pagination.platformSDKArg)
             return try encodeJSON(threads.jsonObject)
         }
     },
@@ -432,8 +433,8 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 1)
         let threadID = pagination.positionals[0]
-        try await context.invoke("getMessages", args: [threadID, pagination.cursor as Any, pagination.direction as Any]) { api in
-            let messages = try await api.platformAPI.getMessages(threadID: threadID, cursor: pagination.cursor, direction: pagination.direction, limit: nil)
+        try await context.invoke("getMessages", args: [threadID, pagination.logArgument as Any]) { api in
+            let messages = try await api.platformAPI.getMessages(threadID: threadID, pagination: pagination.platformSDKArg)
             return try encodeJSON(messages.jsonObject)
         }
     },
@@ -826,6 +827,18 @@ private struct PaginationParseResult {
     var positionals: [String]
     var cursor: String?
     var direction: String?
+
+    var platformSDKArg: PlatformSDK.PaginationArg? {
+        guard let cursor, let directionValue = direction, let direction = PlatformSDK.PaginationDirection(rawValue: directionValue) else {
+            return nil
+        }
+        return PlatformSDK.PaginationArg(cursor: cursor, direction: direction)
+    }
+
+    var logArgument: [String: String]? {
+        guard let cursor, let direction else { return nil }
+        return ["cursor": cursor, "direction": direction]
+    }
 }
 
 private func parsePaginationArgs(_ command: CommandDefinition, _ args: [String], positionalCount: Int) throws -> PaginationParseResult {
