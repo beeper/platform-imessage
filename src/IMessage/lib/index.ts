@@ -1,11 +1,17 @@
 import path from 'node:path'
 import nodeModule from 'node:module'
-import type { ActivityType, MessageID, OnServerEventCallback, PaginationArg, ThreadFolderName, ThreadID, UserID } from '@textshq/platform-sdk'
+import type { MessageID, OnServerEventCallback, PaginationArg, PlatformAPI, ThreadFolderName, ThreadID, UserID } from '@textshq/platform-sdk'
 
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
 export type NativeMacPermissionAuthStatus = 'authorized' | 'denied' | 'restricted' | 'not determined'
 export type NativeMacPermissionAuthType = 'accessibility' | 'contacts' | 'full-disk-access'
+
+type PlatformAPIMethod<Name extends keyof PlatformAPI> = NonNullable<PlatformAPI[Name]>
+type NativeVoidPlatformAPIMethod<Name extends keyof PlatformAPI> =
+  PlatformAPIMethod<Name> extends (...args: infer Args) => unknown
+    ? (...args: Args) => Promise<void>
+    : never
 
 export declare class NativePlatformAPI {
   constructor(accountID: string)
@@ -41,7 +47,7 @@ export declare class NativePlatformAPI {
 
   updateThread: (threadID: ThreadID, muted: boolean) => Promise<void>
 
-  deleteThread: (threadID: ThreadID) => Promise<void>
+  deleteThread: NativeVoidPlatformAPIMethod<'deleteThread'>
 
   sendMessage: (
     threadID: ThreadID,
@@ -59,27 +65,27 @@ export declare class NativePlatformAPI {
 
   editMessage: (threadID: ThreadID, messageID: MessageID, content: string | undefined) => Promise<void>
 
-  sendActivityIndicator: (type: ActivityType, threadID: ThreadID | undefined) => Promise<void>
+  sendActivityIndicator: NativeVoidPlatformAPIMethod<'sendActivityIndicator'>
 
   deleteMessage: (threadID: ThreadID, messageID: MessageID) => Promise<void>
 
   sendReadReceipt: (threadID: ThreadID) => Promise<void>
 
-  addReaction: (threadID: ThreadID, messageID: MessageID, reactionKey: string) => Promise<void>
+  addReaction: NativeVoidPlatformAPIMethod<'addReaction'>
 
-  removeReaction: (threadID: ThreadID, messageID: MessageID, reactionKey: string) => Promise<void>
+  removeReaction: NativeVoidPlatformAPIMethod<'removeReaction'>
 
   setReaction: (threadID: ThreadID, messageID: MessageID, reaction: string, on: boolean) => Promise<void>
 
   markAsUnread: (threadID: ThreadID) => Promise<void>
 
-  notifyAnyway: (threadID: ThreadID) => Promise<void>
+  notifyAnyway: NativeVoidPlatformAPIMethod<'notifyAnyway'>
 
   onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
 
   getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 
-  dispose: () => Promise<void>
+  dispose: NativeVoidPlatformAPIMethod<'dispose'>
 }
 
 export type NativeMacPermissions = {
