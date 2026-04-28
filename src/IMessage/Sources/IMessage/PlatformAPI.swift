@@ -36,7 +36,7 @@ public final class PlatformAPI {
     private let accountID: String
 
     private let database = PlatformAPIDatabase()
-    private let currentUserCache = Protected<CurrentUser?>()
+    private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
 
     private var messagesController: MessagesController?
@@ -60,7 +60,7 @@ public final class PlatformAPI {
     /// Captures `accountID`, `database`, and `currentUserCache` before crossing
     /// into the @Sendable closure so `self` doesn't need to.
     private func runDBQuery<T>(
-        _ work: @escaping @Sendable (IMDatabase, CurrentUser, String /*accountID*/) throws -> T
+        _ work: @escaping @Sendable (IMDatabase, PlatformSDK.CurrentUser, String /*accountID*/) throws -> T
     ) async throws -> T {
         let accountID = accountID
         let database = database
@@ -73,13 +73,13 @@ public final class PlatformAPI {
         }.value
     }
 
-    nonisolated private static func currentUser(db: IMDatabase, cache: Protected<CurrentUser?>) throws -> CurrentUser {
+    nonisolated private static func currentUser(db: IMDatabase, cache: Protected<PlatformSDK.CurrentUser?>) throws -> PlatformSDK.CurrentUser {
         try cache.withLock { cachedUser in
             if let cachedUser {
                 return cachedUser
             }
 
-            let currentUser = try CurrentUser.fetch(from: db)
+            let currentUser = try PlatformSDK.CurrentUser.fetch(from: db)
             cachedUser = currentUser
             return currentUser
         }
@@ -90,13 +90,7 @@ public final class PlatformAPI {
         let currentUserCache = currentUserCache
         return try await DetachedWork.run {
             try database.withDatabase { db in
-                let currentUser = try Self.currentUser(db: db, cache: currentUserCache).hashed()
-                return PlatformSDK.CurrentUser(
-                    id: currentUser.id,
-                    displayText: currentUser.displayText,
-                    email: currentUser.email,
-                    phoneNumber: currentUser.phoneNumber
-                )
+                try Self.currentUser(db: db, cache: currentUserCache).hashed()
             }
         }
     }
@@ -797,7 +791,7 @@ public final class PlatformAPI {
         db: IMDatabase,
         folderName: String,
         pagination: PlatformSDK.PaginationArg?,
-        currentUser: CurrentUser,
+        currentUser: PlatformSDK.CurrentUser,
         accountID: String
     ) throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Thread> {
         guard folderName == "normal" else {
@@ -818,7 +812,7 @@ public final class PlatformAPI {
     nonisolated static func getThread(
         db: IMDatabase,
         threadID publicThreadID: String,
-        currentUser: CurrentUser,
+        currentUser: PlatformSDK.CurrentUser,
         accountID: String
     ) throws -> PlatformSDK.Thread? {
         let threadID = try originalThreadID(db: db, publicThreadID)
@@ -959,7 +953,7 @@ extension PlatformAPI {
     nonisolated static func threadMapperContext(
         db: IMDatabase,
         chatRows: [MappedChatRow],
-        currentUser: CurrentUser,
+        currentUser: PlatformSDK.CurrentUser,
         accountID: String
     ) throws -> ThreadMapper.Context {
         let chatRowIDs = chatRows.map(\.rowID)

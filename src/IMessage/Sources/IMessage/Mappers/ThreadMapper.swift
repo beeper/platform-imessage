@@ -14,7 +14,7 @@ enum ThreadMapper {
         var latestMessagesByChatGUID: [String: [PlatformSDK.Message]]
         var unreadCounts: [Int: Int]
         var dndState: Set<String>
-        var currentUser: CurrentUser
+        var currentUser: PlatformSDK.CurrentUser
         var accountID: String
     }
 

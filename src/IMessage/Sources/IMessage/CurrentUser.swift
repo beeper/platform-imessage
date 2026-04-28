@@ -1,18 +1,14 @@
 import Foundation
 import IMDatabase
 import IMessageCore
+import PlatformSDK
 
-struct CurrentUser: Encodable, Sendable {
-    var id: String
-    var displayText: String
-    var email: String?
-    var phoneNumber: String?
-
+extension PlatformSDK.CurrentUser {
     static func fetch(from db: IMDatabase) throws -> Self {
         let logins = try db.accountLogins()
         let unprefixed = logins.map(mapAccountLogin).compactMap(\.nonEmpty)
 
-        return CurrentUser(
+        return Self(
             id: unprefixed.first ?? "default",
             displayText: unprefixed.joined(separator: ", "),
             email: firstLoginValue(withPrefix: "E:", in: logins),
@@ -21,9 +17,12 @@ struct CurrentUser: Encodable, Sendable {
     }
 
     func hashed() -> Self {
-        var currentUser = self
-        currentUser.id = Hasher.participant.tokenizeRemembering(pii: id)
-        return currentUser
+        Self(
+            id: Hasher.participant.tokenizeRemembering(pii: id),
+            displayText: displayText,
+            email: email,
+            phoneNumber: phoneNumber
+        )
     }
 
     private static func firstLoginValue(withPrefix prefix: String, in logins: [String]) -> String? {
