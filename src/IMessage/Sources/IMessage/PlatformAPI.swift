@@ -805,30 +805,8 @@ public final class PlatformAPI {
 
         let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
         let chatRows = try db.mappedThreadRows(cursor: pagination?.cursor, direction: pageDirection)
-        let chatRowIDs = chatRows.map(\.rowID)
-        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: chatRows)
-        let context = ThreadMapper.Context(
-            handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
-            latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
-                db: db,
-                latestMessageRowsByChatGUID,
-                currentUserID: currentUser.id,
-                accountID: accountID
-            ),
-            unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
-            dndState: permanentDNDThreadIDs(),
-            currentUser: currentUser,
-            accountID: accountID
-        )
+        let context = try threadMapperContext(db: db, chatRows: chatRows, currentUser: currentUser, accountID: accountID)
         let threads = try chatRows.map { try ThreadMapper.mapThread($0, context: context) }
-        // TODO: Change the API design so getThreads is side-effect free and
-        // the polling bootstrap is triggered by an explicit lifecycle call.
-        if pagination == nil, let pollingCursor = ThreadMapper.pollingCursor(from: Array(latestMessageRowsByChatGUID.values)) {
-            PollingLifecycle.shared.startBootstrapIfNecessary(
-                lastRowID: pollingCursor.maxRowID,
-                lastDateRead: Date(nanosecondsSinceReferenceDate: pollingCursor.maxDateReadNanoseconds)
-            )
-        }
         return PlatformSDK.PaginatedWithCursors(
             items: threads,
             hasMore: chatRows.count == mappedThreadsLimit,
@@ -846,21 +824,7 @@ public final class PlatformAPI {
         guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
             return nil
         }
-        let chatRowIDs = [chatRow.rowID]
-        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: [chatRow])
-        let context = ThreadMapper.Context(
-            handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
-            latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
-                db: db,
-                latestMessageRowsByChatGUID,
-                currentUserID: currentUser.id,
-                accountID: accountID
-            ),
-            unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
-            dndState: permanentDNDThreadIDs(),
-            currentUser: currentUser,
-            accountID: accountID
-        )
+        let context = try threadMapperContext(db: db, chatRows: [chatRow], currentUser: currentUser, accountID: accountID)
         return try ThreadMapper.mapThread(chatRow, context: context)
     }
 
@@ -989,6 +953,29 @@ extension PlatformAPI {
 
     nonisolated static func latestThreadMessageRowsByChatGUID(db: IMDatabase, chatRows: [MappedChatRow]) throws -> [String: MappedMessageRow] {
         try db.mappedLatestMessageRows(chatRowIDs: chatRows.map(\.rowID))
+    }
+
+    nonisolated static func threadMapperContext(
+        db: IMDatabase,
+        chatRows: [MappedChatRow],
+        currentUser: CurrentUser,
+        accountID: String
+    ) throws -> ThreadMapper.Context {
+        let chatRowIDs = chatRows.map(\.rowID)
+        let latestMessageRowsByChatGUID = try latestThreadMessageRowsByChatGUID(db: db, chatRows: chatRows)
+        return ThreadMapper.Context(
+            handleRowsByChatRowID: try db.mappedThreadParticipantRows(chatRowIDs: chatRowIDs),
+            latestMessagesByChatGUID: try latestThreadMessagesByChatGUID(
+                db: db,
+                latestMessageRowsByChatGUID,
+                currentUserID: currentUser.id,
+                accountID: accountID
+            ),
+            unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
+            dndState: permanentDNDThreadIDs(),
+            currentUser: currentUser,
+            accountID: accountID
+        )
     }
 
     nonisolated static func latestThreadMessagesByChatGUID(

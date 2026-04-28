@@ -9,16 +9,9 @@ typealias PollingEventSender = @Sendable ([ServerEvent]) async throws -> Void
 final class PollingLifecycle {
     static let shared = PollingLifecycle()
 
-    private struct BootstrapCursor {
-        var lastRowID: Int
-        var lastDateRead: Date
-    }
-
     private struct State {
         var onEvent: PollingEventSender?
         var pollingTask: Task<Void, Never>?
-        var hasAttemptedBootstrap = false
-        var pendingBootstrapCursor: BootstrapCursor?
         var reportToSentry: Poller.ReportToSentry?
     }
 
@@ -27,60 +20,9 @@ final class PollingLifecycle {
     private init() {}
 
     func setEventCallback(_ onEvent: @escaping PollingEventSender, reportToSentry: Poller.ReportToSentry? = nil) {
-        let pendingCursor = state.withLock { state in
+        state.withLock { state in
             state.onEvent = onEvent
             state.reportToSentry = reportToSentry
-            defer { state.pendingBootstrapCursor = nil }
-            return state.pendingBootstrapCursor
-        }
-
-        guard let pendingCursor else { return }
-
-        do {
-            try startPolling(
-                onEvent: onEvent,
-                lastRowID: pendingCursor.lastRowID,
-                lastDateRead: pendingCursor.lastDateRead,
-                source: "deferred bootstrap"
-            )
-        } catch {
-            pollingLog.error("failed to start deferred bootstrap poller: \(String(reflecting: error))")
-        }
-    }
-
-    func startBootstrapIfNecessary(lastRowID: Int, lastDateRead: Date) {
-        let cursor = BootstrapCursor(lastRowID: lastRowID, lastDateRead: lastDateRead)
-        let onEvent = state.withLock { state -> PollingEventSender? in
-            guard !state.hasAttemptedBootstrap else { return nil }
-
-            state.hasAttemptedBootstrap = true
-            if let onEvent = state.onEvent {
-                return onEvent
-            }
-
-            pollingLog.debug("deferring bootstrap poller until event callback is registered")
-            state.pendingBootstrapCursor = cursor
-            return nil
-        }
-
-        guard let onEvent else { return }
-
-        do {
-            try startPolling(
-                onEvent: onEvent,
-                lastRowID: cursor.lastRowID,
-                lastDateRead: cursor.lastDateRead,
-                source: "bootstrap"
-            )
-        } catch {
-            pollingLog.error("failed to start bootstrap poller: \(String(reflecting: error))")
-        }
-    }
-
-    func markBootstrapSatisfied() {
-        state.withLock { state in
-            state.hasAttemptedBootstrap = true
-            state.pendingBootstrapCursor = nil
         }
     }
 
@@ -88,8 +30,6 @@ final class PollingLifecycle {
         let pollingTask = state.withLock { state in
             let pollingTask = state.pollingTask
             state.pollingTask = nil
-            state.hasAttemptedBootstrap = false
-            state.pendingBootstrapCursor = nil
             if clearEventCallback {
                 state.onEvent = nil
                 state.reportToSentry = nil
@@ -118,7 +58,6 @@ final class PollingLifecycle {
             lastDateRead: lastDateRead,
             source: "current state"
         )
-        markBootstrapSatisfied()
     }
 
     func startPolling(
