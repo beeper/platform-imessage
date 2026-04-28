@@ -147,46 +147,6 @@ extension Array {
     }
 }
 
-extension Dictionary where Key == String, Value == Any {
-    mutating func mutateDictionary(_ key: String, _ body: (inout JSONObject) -> Void) {
-        var value = dictionary(key) ?? [:]
-        body(&value)
-        self[key] = value
-    }
-
-    func stringifying(_ key: String) -> String? {
-        guard let value = self[key], !(value is NSNull) else {
-            return nil
-        }
-        return "\(value)"
-    }
-
-    func bool(_ key: String) -> Bool? {
-        if let value = self[key] as? Bool {
-            return value
-        }
-        if let value = self[key] as? NSNumber {
-            return value.boolValue
-        }
-        return nil
-    }
-
-    func dictionary(_ key: String) -> JSONObject? {
-        self[key] as? JSONObject
-    }
-
-    func array(_ key: String) -> [Any] {
-        (self[key] as? [Any]) ?? []
-    }
-
-    func hasValue(_ key: String) -> Bool {
-        guard let value = self[key] else {
-            return false
-        }
-        return !(value is NSNull)
-    }
-}
-
 extension PlatformSDK.TextEntity {
     func offsetting(by offset: Int) -> PlatformSDK.TextEntity {
         PlatformSDK.TextEntity(

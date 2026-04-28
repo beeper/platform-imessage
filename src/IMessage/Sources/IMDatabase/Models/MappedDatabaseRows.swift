@@ -464,19 +464,6 @@ private extension Dictionary where Key == String, Value == Any {
         return value
     }
 
-    func data(_ key: String) -> Data? {
-        guard let value = self[key], !(value is NSNull) else {
-            return nil
-        }
-        switch value {
-        case let data as Data:
-            return data
-        case let data as NSData:
-            return data as Data
-        default:
-            return nil
-        }
-    }
 }
 
 private extension Row {
