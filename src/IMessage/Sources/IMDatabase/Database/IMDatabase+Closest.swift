@@ -1,4 +1,5 @@
 import Foundation
+import IMessageCore
 import Logging
 
 private let log = Logger(imessageLabel: "imdb.closest")

@@ -1,4 +1,5 @@
 import Foundation
+import IMessageCore
 import SQLite
 
 /// Runtime counterparts to the historical TypeScript row types preserved in
@@ -188,7 +189,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
     }
 
     public var object: [String: Any] {
-        compactObject([
+        compactDictionary([
             "ROWID": rowID,
             "guid": guid,
             "text": text,
@@ -265,7 +266,7 @@ public struct MappedChatRow: MappedDatabaseRow {
     }
 
     public var object: [String: Any] {
-        compactObject([
+        compactDictionary([
             "ROWID": rowID,
             "guid": guid,
             "state": state,
@@ -353,7 +354,7 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
     }
 
     public var object: [String: Any] {
-        compactObject([
+        compactDictionary([
             "msgRowID": msgRowID,
             "filename": filename,
             "transfer_name": transferName,
@@ -395,7 +396,7 @@ public struct MappedHandleRow: MappedDatabaseRow {
     }
 
     public var object: [String: Any] {
-        compactObject([
+        compactDictionary([
             "chat_id": chatID,
             "participantID": participantID,
             "uncanonicalized_id": uncanonicalizedID,
@@ -436,7 +437,7 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
     }
 
     public var object: [String: Any] {
-        compactObject([
+        compactDictionary([
             "ROWID": rowID,
             "is_from_me": isFromMe,
             "handle_id": handleID,
@@ -445,15 +446,6 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
             "associated_message_emoji": associatedMessageEmoji,
             "participantID": participantID,
         ])
-    }
-}
-
-private func compactObject(_ pairs: [String: Any?]) -> [String: Any] {
-    pairs.compactMapValues { value in
-        guard let value, !(value is NSNull) else {
-            return nil
-        }
-        return value
     }
 }
 
@@ -470,36 +462,6 @@ private extension Dictionary where Key == String, Value == Any {
             throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: key)
         }
         return value
-    }
-
-    func string(_ key: String) -> String? {
-        guard let value = self[key], !(value is NSNull) else {
-            return nil
-        }
-        switch value {
-        case let string as String:
-            return string
-        case let number as NSNumber:
-            return "\(number)"
-        default:
-            return nil
-        }
-    }
-
-    func int(_ key: String) -> Int? {
-        guard let value = self[key], !(value is NSNull) else {
-            return nil
-        }
-        switch value {
-        case let integer as Int:
-            return integer
-        case let number as NSNumber:
-            return number.intValue
-        case let string as String:
-            return Int(string)
-        default:
-            return nil
-        }
     }
 
     func data(_ key: String) -> Data? {

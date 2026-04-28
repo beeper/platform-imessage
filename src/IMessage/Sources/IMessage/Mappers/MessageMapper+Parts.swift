@@ -127,26 +127,7 @@ extension Mapper {
                   let entities = attributes?.entities else {
                 continue
             }
-            let adjustedEntities = entities.map { entity in
-                PlatformSDK.TextEntity(
-                    from: entity.from - previous.end,
-                    to: entity.to - previous.end,
-                    bold: entity.bold,
-                    italic: entity.italic,
-                    underline: entity.underline,
-                    strikethrough: entity.strikethrough,
-                    quote: entity.quote,
-                    spoiler: entity.spoiler,
-                    code: entity.code,
-                    pre: entity.pre,
-                    codeLanguage: entity.codeLanguage,
-                    markdown: entity.markdown,
-                    replaceWith: entity.replaceWith,
-                    replaceWithMedia: entity.replaceWithMedia,
-                    link: entity.link,
-                    mentionedUser: entity.mentionedUser
-                )
-            }
+            let adjustedEntities = entities.map { $0.offsetting(by: -previous.end) }
             parts[index] = .text(index: partIndex, end: end, text: text, attributes: PlatformSDK.TextAttributes(entities: adjustedEntities))
         }
     }

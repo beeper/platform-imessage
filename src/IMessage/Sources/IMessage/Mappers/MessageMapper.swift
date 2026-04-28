@@ -331,26 +331,7 @@ struct Mapper {
         let currentText = message.text ?? ""
         message.text = "\(subject)\n\(currentText)"
         let subjectLength = subject.unicodeScalars.count
-        let existing = (message.textAttributes?.entities ?? []).map { entity in
-            PlatformSDK.TextEntity(
-                from: subjectLength + 1 + entity.from,
-                to: subjectLength + 1 + entity.to,
-                bold: entity.bold,
-                italic: entity.italic,
-                underline: entity.underline,
-                strikethrough: entity.strikethrough,
-                quote: entity.quote,
-                spoiler: entity.spoiler,
-                code: entity.code,
-                pre: entity.pre,
-                codeLanguage: entity.codeLanguage,
-                markdown: entity.markdown,
-                replaceWith: entity.replaceWith,
-                replaceWithMedia: entity.replaceWithMedia,
-                link: entity.link,
-                mentionedUser: entity.mentionedUser
-            )
-        }
+        let existing = (message.textAttributes?.entities ?? []).map { $0.offsetting(by: subjectLength + 1) }
         message.textAttributes = PlatformSDK.TextAttributes(entities: [
             PlatformSDK.TextEntity(from: 0, to: subjectLength, bold: true),
         ] + existing)

@@ -1,3 +1,4 @@
+import IMessageCore
 import Logging
 
 private let log = Logger(label: "imdb.chats")
@@ -67,12 +68,5 @@ public extension IMDatabase {
         return try statement.mapRowsUntilDone { row in
             try Handle(rowid: row[0].expect(Int.self), id: row[1].expect(String.self))
         }
-    }
-}
-
-private extension String {
-    var nonEmpty: String? {
-        guard !isEmpty else { return nil }
-        return self
     }
 }

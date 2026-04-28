@@ -154,34 +154,11 @@ extension Dictionary where Key == String, Value == Any {
         self[key] = value
     }
 
-    func string(_ key: String) -> String? {
-        if let value = self[key] as? String {
-            return value
-        }
-        if let number = self[key] as? NSNumber {
-            return "\(number)"
-        }
-        return nil
-    }
-
     func stringifying(_ key: String) -> String? {
         guard let value = self[key], !(value is NSNull) else {
             return nil
         }
         return "\(value)"
-    }
-
-    func int(_ key: String) -> Int? {
-        if let value = self[key] as? Int {
-            return value
-        }
-        if let value = self[key] as? NSNumber {
-            return value.intValue
-        }
-        if let value = self[key] as? String {
-            return Int(value)
-        }
-        return nil
     }
 
     func bool(_ key: String) -> Bool? {
@@ -207,5 +184,28 @@ extension Dictionary where Key == String, Value == Any {
             return false
         }
         return !(value is NSNull)
+    }
+}
+
+extension PlatformSDK.TextEntity {
+    func offsetting(by offset: Int) -> PlatformSDK.TextEntity {
+        PlatformSDK.TextEntity(
+            from: from + offset,
+            to: to + offset,
+            bold: bold,
+            italic: italic,
+            underline: underline,
+            strikethrough: strikethrough,
+            quote: quote,
+            spoiler: spoiler,
+            code: code,
+            pre: pre,
+            codeLanguage: codeLanguage,
+            markdown: markdown,
+            replaceWith: replaceWith,
+            replaceWithMedia: replaceWithMedia,
+            link: link,
+            mentionedUser: mentionedUser
+        )
     }
 }

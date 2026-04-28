@@ -3,7 +3,7 @@ import Foundation
 public typealias JSONObject = PlatformSDK.JSONObject
 public typealias JSONArray = PlatformSDK.JSONArray
 
-public func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
+func compactDictionary(_ pairs: [String: Any?]) -> JSONObject {
     pairs.compactMapValues { value in
         guard let value, !(value is NSNull) else {
             return nil
