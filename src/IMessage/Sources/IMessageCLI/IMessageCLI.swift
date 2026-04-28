@@ -1050,31 +1050,8 @@ private func prettyJSONString(_ raw: String) -> String {
 }
 
 private func formatValue(_ value: Any) -> String {
-    let object = jsonCompatible(value)
-    guard JSONSerialization.isValidJSONObject(object),
-          let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
-          let string = String(data: data, encoding: .utf8)
-    else {
-        return String(describing: value)
-    }
-    return string.replacingOccurrences(of: "\n", with: " ")
-}
-
-private func jsonCompatible(_ value: Any) -> Any {
-    if let optional = value as? OptionalProtocol {
-        return optional.anyValue.map(jsonCompatible) ?? NSNull()
-    }
-
-    switch value {
-    case let dictionary as [String: Any]:
-        return dictionary.mapValues(jsonCompatible)
-    case let array as [Any]:
-        return array.map(jsonCompatible)
-    case is NSNull:
-        return NSNull()
-    default:
-        return value
-    }
+    guard let string = try? encodeJSON(value) else { return String(describing: value) }
+    return prettyJSONString(string).replacingOccurrences(of: "\n", with: " ")
 }
 
 
