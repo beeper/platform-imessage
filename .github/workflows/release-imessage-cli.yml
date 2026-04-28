@@ -96,7 +96,7 @@ jobs:
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
           fail_on_unmatched_files: true
-          overwrite_files: true
+          overwrite_files: false
           files: |
             ${{ runner.temp }}/imessage-cli-release/${{ steps.metadata.outputs.asset-name }}
             ${{ runner.temp }}/imessage-cli-release/${{ steps.metadata.outputs.asset-name }}.sha256

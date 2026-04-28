@@ -1,19 +1,22 @@
 # TODOs
 
 - [ ] improve readme, add screenshots
-- [ ] publish to npm
 - [x] publish to gh releases
 - [x] publish to spm
 - [ ] publish to homebrew
-- [ ] add example JS+Swift script that consumes the library
+- [ ] add example Swift script that consumes the library
+- [ ] add example JS script that consumes the library
 
 - [ ] cli: w system contacts, resolve phone #s and emails and populate Thread.title, User.fullName, User.imgURL
 - [ ] cli: resolve thread id as email/phone # if `any;-;` prefix isn't passed
+- [ ] cli: notarize before gh release and do universal binary/x86 target
+
+- [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
+- [ ] remove polling side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps polling from the first thread fetch (`cursor == nil`) via `PollingLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting polling from inside it makes calls non-idempotent. Fix by moving polling bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventPollingFromCurrentState` / `IMessageHost.startPollingFromCurrentState` path.
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] tests for the cli
-- [ ] migrate parity test from worktree-of-main reference to snapshot-based regression once Swift fixture-snapshot port is live; remove `.parity` when no longer needed
-- [ ] remove polling side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps polling from the first thread fetch (`cursor == nil`) via `PollingLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting polling from inside it makes calls non-idempotent. Fix by moving polling bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventPollingFromCurrentState` / `IMessageHost.startPollingFromCurrentState` path.
+- [ ] remove `.parity` when no longer needed
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
