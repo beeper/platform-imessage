@@ -19,6 +19,10 @@ final class EventWatcherLifecycle {
 
     private init() {}
 
+    var isWatching: Bool {
+        state.withLock { $0.watchingTask != nil }
+    }
+
     func setEventCallback(_ onEvent: @escaping EventWatcherEventSender, reportToSentry: EventWatcher.ReportToSentry? = nil) {
         state.withLock { state in
             state.onEvent = onEvent

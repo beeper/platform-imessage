@@ -161,6 +161,10 @@ public enum IMessageHost {
         await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: false)
     }
 
+    public static var isEventWatching: Bool {
+        EventWatcherLifecycle.shared.isWatching
+    }
+
     public static func askForAutomationAccess() async throws {
         try await MainActor.run {
             try OSA.promptAutomationAccess()

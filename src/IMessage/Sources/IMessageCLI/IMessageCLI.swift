@@ -392,6 +392,16 @@ private let commandDefinitions: [CommandDefinition] = [
         context.showState()
     },
     CommandDefinition(
+        name: "watch-status",
+        category: .general,
+        summary: "Print event watcher subscription and running state.",
+        usage: ["watch-status"],
+        examples: ["watch-status"]
+    ) { args, context in
+        try requireExactArgs(context.command, args, 0)
+        print(IMessageHost.isEventWatching)
+    },
+    CommandDefinition(
         name: "start-watching",
         category: .general,
         summary: "Start watching Messages database changes and print server events.",
