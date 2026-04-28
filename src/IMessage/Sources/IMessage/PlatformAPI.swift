@@ -289,10 +289,6 @@ public final class PlatformAPI {
             return
         }
 
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
-
         guard type == "typing" || type == "none" else {
             return
         }
@@ -300,6 +296,10 @@ public final class PlatformAPI {
         guard (sendingMessagesCount ?? 0) == 0 else {
             platformLog.debug("skipping sendActivityIndicator")
             return
+        }
+
+        let threadID = try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
         }
 
         // Group chat typing indicators require Tahoe+.
@@ -341,7 +341,7 @@ public final class PlatformAPI {
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
-            try? self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
+            self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
         }
     }
 
@@ -638,7 +638,7 @@ public final class PlatformAPI {
             return context
         } onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
-            try? self.reportMessageToSentry("imessage \(name) failed: \(error)")
+            self.reportMessageToSentry("imessage \(name) failed: \(error)")
         }
     }
 
@@ -682,10 +682,9 @@ public final class PlatformAPI {
         let address = threadIDToAddress(threadID)
         let sentThreadIsValid = try await Self.onMessagesControllerQueue {
             sentThreadIDs.allSatisfy { sentThreadID in
-                sentThreadID == threadID || (
-                    sentThreadID != nil
-                        && controller.isSameContact(address, threadIDToAddress(sentThreadID!))
-                )
+                if sentThreadID == threadID { return true }
+                guard let sentThreadID else { return false }
+                return controller.isSameContact(address, threadIDToAddress(sentThreadID))
             }
         }
 
@@ -774,12 +773,12 @@ public final class PlatformAPI {
                 continue
             }
             platformLog.error("imsg: sent message with incorrect quoted message, intended: \(String(describing: expectedLinkedMessageID)), actual: \(String(describing: actual))")
-            try? reportMessageToSentry("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
+            reportMessageToSentry("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
         }
     }
 
-    private func reportMessageToSentry(_ message: String) throws {
-        try runtime.reportMessageToSentry(message)
+    private func reportMessageToSentry(_ message: String) {
+        try? runtime.reportMessageToSentry(message)
     }
 
     private static func onMessagesControllerQueue<T>(

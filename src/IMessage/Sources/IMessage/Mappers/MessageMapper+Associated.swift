@@ -150,17 +150,19 @@ extension Mapper {
         return (pieces[0], pieces[1])
     }
 
-    private func senderID(for row: MappedMessageRow) -> String {
-        if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {
-            return currentUserID
-        }
-        return row.participantID ?? ""
-    }
-
-    private func senderID(for row: MappedReactionMessageRow) -> String {
+    private func senderID(for row: any RowWithSenderFields) -> String {
         if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {
             return currentUserID
         }
         return row.participantID ?? ""
     }
 }
+
+private protocol RowWithSenderFields {
+    var isFromMe: Int { get }
+    var handleID: Int? { get }
+    var participantID: String? { get }
+}
+
+extension MappedMessageRow: RowWithSenderFields {}
+extension MappedReactionMessageRow: RowWithSenderFields {}

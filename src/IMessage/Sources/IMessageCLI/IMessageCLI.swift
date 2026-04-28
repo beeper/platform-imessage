@@ -9,7 +9,6 @@ private let accountID = "default"
 private let prompt = "imessage> "
 private let commandCategories: [Category] = [.general, .message, .chat]
 private let quitCommands: Set<String> = ["q", "quit", "exit"]
-private let isoFormatter = ISO8601DateFormatter()
 
 @main
 struct IMessageCLI: AsyncParsableCommand {
@@ -263,7 +262,7 @@ private final class Runner {
         guard !eventsStarted, options.subscribeToEvents else { return }
         eventsStarted = true
         api.subscribeToEvents { json in
-            print("[events \(isoFormatter.string(from: Date()))] \(prettyJSONString(json))")
+            print("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
         }
         do {
             try await api.startEventPollingFromCurrentState()
@@ -650,7 +649,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 1)
         try await context.invoke("onThreadSelected", args: args) { api in
             try await api.onThreadSelected(threadID: args[0]) { json in
-                print("[events \(isoFormatter.string(from: Date()))] \(prettyJSONString(json))")
+                print("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
             }
             return nil
         }

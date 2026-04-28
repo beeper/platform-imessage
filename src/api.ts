@@ -28,15 +28,6 @@ export default class AppleiMessage implements PlatformAPI {
   // resolve only after waitForSentMessageIDs sees the new row in chat.db.
   private threadPhaser = new Phaser<Thread['id']>()
 
-  /**
-   * We need to be constructable (and we should be able to handle our `init`
-   * being called) _without_ Messages.app data access, because those things
-   * always happen when the account is in the process of being added. To
-   * actually propagate failure when permissions aren't granted, `login` is
-   * used.
-   */
-  private hasValidatedMessagesDatabaseAccess = false
-
   private onEvent: OnServerEventCallback | undefined
 
   private applyPersistedThreadState(thread: Thread): Thread {

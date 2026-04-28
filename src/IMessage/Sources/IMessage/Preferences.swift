@@ -21,9 +21,11 @@ enum Preferences {
     static var enabledExperiments: String = ""
     static var useSecondaryMessagesInstance: Bool = false
 
-    static var stripInternalFields: Bool {
+    /// Read once at first access. The only writer is `applyCLIDefaults()`,
+    /// which runs during process bootstrap before any mapper hits this.
+    static let stripInternalFields: Bool = {
         ProcessInfo.processInfo.environment[stripInternalFieldsKey] == "1"
-    }
+    }()
 
     static var useSecondaryInstanceEnvironment: Bool? {
         guard let value = ProcessInfo.processInfo.environment[secondaryInstanceKey] else { return nil }
