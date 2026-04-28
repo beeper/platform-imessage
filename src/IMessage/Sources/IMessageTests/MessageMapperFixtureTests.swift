@@ -15,7 +15,7 @@ private struct MapperFixture: Sendable {
 
 private let mapperFixtures = [
     MapperFixture(
-        fileName: "fixture1",
+        fileName: "message_multipart_outgoing_with_reactions",
         messageIDs: [
             "262F0210-126B-40E1-8247-C3EECF585C66",
             "262F0210-126B-40E1-8247-C3EECF585C66_1",
@@ -27,7 +27,7 @@ private let mapperFixtures = [
         reactionCounts: [1, 1, 1, 1]
     ),
     MapperFixture(
-        fileName: "fixture2",
+        fileName: "message_multipart_incoming_with_attachments",
         messageIDs: [
             "829D7284-F1C6-4848-B7C7-C4190EA416BD",
             "829D7284-F1C6-4848-B7C7-C4190EA416BD_1",
@@ -40,7 +40,7 @@ private let mapperFixtures = [
         reactionCounts: [0, 0, 0, 1, 1]
     ),
     MapperFixture(
-        fileName: "partial_leading_unsends",
+        fileName: "message_partial_leading_unsends",
         messageIDs: [
             "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0",
             "B51D6CD9-86B6-4D1B-856F-2DA152A9F8A0_1",
@@ -51,7 +51,7 @@ private let mapperFixtures = [
         reactionCounts: [0, 0, 0]
     ),
     MapperFixture(
-        fileName: "partial_multiple_middle_adjacent_unsend",
+        fileName: "message_partial_multiple_middle_adjacent_unsends",
         messageIDs: [
             "3BC3F988-3263-4200-9863-8EBD537FE7EB",
             "3BC3F988-3263-4200-9863-8EBD537FE7EB_1",
@@ -66,7 +66,7 @@ private let mapperFixtures = [
         reactionCounts: [0, 0, 0]
     ),
     MapperFixture(
-        fileName: "partial_trailing_unsends",
+        fileName: "message_partial_trailing_unsends",
         messageIDs: [
             "FE617A4A-D6C3-42F8-8006-DACEF68FDEF1",
             "FE617A4A-D6C3-42F8-8006-DACEF68FDEF1_1",
