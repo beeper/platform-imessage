@@ -3,6 +3,7 @@ import WindowControl
 import IMessageCore
 import Logging
 import IMDatabase
+import PlatformSDK
 
 private let log = Logger(imessageLabel: "imessage")
 
@@ -12,7 +13,7 @@ private let log = Logger(imessageLabel: "imessage")
 /// `Preferences`, `accessManager`, and `PollingLifecycle.shared` are shared
 /// state and are expected to be.
 public enum IMessageHost {
-    public typealias EventCallback = @Sendable ([PASEvent]) async throws -> Void
+    public typealias EventCallback = @Sendable ([ServerEvent]) async throws -> Void
     public typealias SentryReporter = @Sendable (String) -> Void
 
     private static let accessManager = MessagesAccessManager()

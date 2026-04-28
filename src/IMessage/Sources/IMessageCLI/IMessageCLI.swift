@@ -670,7 +670,7 @@ private let commandDefinitions: [CommandDefinition] = [
         default: throw CLIError("usage: \(context.command.usage[0])")
         }
         try await context.invoke("sendActivityIndicator", args: [type, args[0]]) { api in
-            try await api.platformAPI.sendActivityIndicator(type: type, threadID: args[0], sendingMessagesCount: nil)
+            try await api.platformAPI.sendActivityIndicator(type: type, threadID: args[0])
             return nil
         }
     },

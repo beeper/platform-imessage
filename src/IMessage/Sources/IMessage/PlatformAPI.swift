@@ -283,18 +283,13 @@ public final class PlatformAPI {
         try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
-    public func sendActivityIndicator(type: String, threadID publicThreadID: String?, sendingMessagesCount: Int?) async throws {
+    public func sendActivityIndicator(type: String, threadID publicThreadID: String?) async throws {
         guard let publicThreadID, !publicThreadID.isEmpty else {
             platformLog.error("ignoring request to send an activity indicator, no thread id provided")
             return
         }
 
         guard type == "typing" || type == "none" else {
-            return
-        }
-
-        guard (sendingMessagesCount ?? 0) == 0 else {
-            platformLog.debug("skipping sendActivityIndicator")
             return
         }
 

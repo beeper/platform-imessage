@@ -1,6 +1,7 @@
 import Foundation
 import IMDatabase
 import Logging
+import PlatformSDK
 
 private let log = Logger(imessageLabel: "poller")
 
@@ -15,7 +16,7 @@ struct TimestampedChatState {
 }
 
 final class Poller {
-    typealias ServerEventSender = @Sendable (sending [PASEvent]) async throws -> Void
+    typealias ServerEventSender = @Sendable (sending [ServerEvent]) async throws -> Void
     typealias ReportToSentry = @Sendable (String) -> Void
 
     var db: IMDatabase
@@ -58,7 +59,7 @@ final class Poller {
                 log.debug("poller was informed about database change")
             }
 
-            var eventsToSend = [PASEvent]()
+            var eventsToSend = [ServerEvent]()
 
             do {
                 // Query unread states, compare to the previous set, and persist them.

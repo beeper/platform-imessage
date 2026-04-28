@@ -68,8 +68,8 @@ import IMessageCore
         try await api.editMessage(threadID: threadID, messageID: messageID, content: content)
     }
 
-    @NodeMethod func sendActivityIndicator(type: String, threadID: String?, sendingMessagesCount: Int?) async throws {
-        try await api.sendActivityIndicator(type: type, threadID: threadID, sendingMessagesCount: sendingMessagesCount)
+    @NodeMethod func sendActivityIndicator(type: String, threadID: String?) async throws {
+        try await api.sendActivityIndicator(type: type, threadID: threadID)
     }
 
     @NodeMethod func deleteMessage(threadID: String, messageID: String) async throws {

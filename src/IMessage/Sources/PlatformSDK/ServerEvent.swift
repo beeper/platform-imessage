@@ -1,33 +1,47 @@
 import Foundation
-import PlatformSDK
 
-public enum PASEvent {
-    /// A PAS event with type `toast`.
+extension PlatformSDK {
+    public enum ServerEventType: String {
+        case stateSync = "state_sync"
+        case toast
+        case threadMessagesRefresh = "thread_messages_refresh"
+        case userActivity = "user_activity"
+        case userPresenceUpdated = "user_presence_updated"
+        case sessionUpdated = "session_updated"
+        case refreshAccount = "refresh_account"
+    }
+}
+
+public enum ServerEvent {
+    /// A server event with type `toast`.
     ///
     /// Displays user-visible text in a dismissible notification.
     case toast(message: String, id: String?, timeoutMilliseconds: Int?)
-    /// A PAS event with type `thread_messages_refresh`.
-    case refreshMessagesInThread(id: String)
-    /// A PAS event with type `state_sync` that is used to `update` a
+    /// A server event with type `thread_messages_refresh`.
+    case refreshMessagesInThread(id: PlatformSDK.ThreadID)
+    /// A server event with type `state_sync` that is used to `update` a
     /// `thread`.
-    case stateSyncThread(id: String, patch: JSONObject)
-    /// A PAS event with type `state_sync` that is used to `delete`
+    case stateSyncThread(id: PlatformSDK.ThreadID, patch: JSONObject)
+    /// A server event with type `state_sync` that is used to `delete`
     /// one or more threads.
-    case deleteThreads(ids: [String])
+    case deleteThreads(ids: [PlatformSDK.ThreadID])
 }
 
-extension PASEvent {
+extension ServerEvent {
     public func jsonObject() -> JSONObject {
         switch self {
         case let .toast(message, id, timeout):
             return [
-                "id": id ?? NSNull(),
-                "text": message,
-                "timeoutMs": timeout ?? NSNull(),
+                "type": PlatformSDK.ServerEventType.toast.rawValue,
+                "toast": compactDictionary([
+                    "id": id,
+                    "text": message,
+                    "timeoutMs": timeout,
+                ]),
             ]
         case let .refreshMessagesInThread(id):
             return [
-                "type": "thread_messages_refresh",
+                "type": PlatformSDK.ServerEventType.threadMessagesRefresh.rawValue,
                 "threadID": id,
             ]
         case let .stateSyncThread(id, patch):
@@ -38,7 +52,7 @@ extension PASEvent {
             entry["id"] = id
 
             return [
-                "type": "state_sync",
+                "type": PlatformSDK.ServerEventType.stateSync.rawValue,
                 "objectIDs": ["threadID": NSNull(), "messageID": NSNull()],
                 "objectName": "thread",
                 "mutationType": "update",
@@ -46,7 +60,7 @@ extension PASEvent {
             ]
         case let .deleteThreads(ids):
             return [
-                "type": "state_sync",
+                "type": PlatformSDK.ServerEventType.stateSync.rawValue,
                 "objectIDs": ["threadID": NSNull(), "messageID": NSNull()],
                 "objectName": "thread",
                 "mutationType": "delete",

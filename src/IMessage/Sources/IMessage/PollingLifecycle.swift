@@ -1,9 +1,10 @@
 import Foundation
 import Logging
 import IMessageCore
+import PlatformSDK
 
 private let pollingLog = Logger(imessageLabel: "polling-lifecycle")
-typealias PollingEventSender = @Sendable ([PASEvent]) async throws -> Void
+typealias PollingEventSender = @Sendable ([ServerEvent]) async throws -> Void
 
 final class PollingLifecycle {
     static let shared = PollingLifecycle()

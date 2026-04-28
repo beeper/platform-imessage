@@ -59,7 +59,7 @@ export declare class NativePlatformAPI {
 
   editMessage: (threadID: ThreadID, messageID: MessageID, content: string | undefined) => Promise<void>
 
-  sendActivityIndicator: (type: ActivityType, threadID: ThreadID | undefined, sendingMessagesCount?: number) => Promise<void>
+  sendActivityIndicator: (type: ActivityType, threadID: ThreadID | undefined) => Promise<void>
 
   deleteMessage: (threadID: ThreadID, messageID: MessageID) => Promise<void>
 

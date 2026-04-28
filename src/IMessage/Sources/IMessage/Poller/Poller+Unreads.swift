@@ -11,11 +11,11 @@ private func traceUnreads(_ message: @autoclosure () -> Logger.Message) {
 
 extension Poller {
     /// Diffs current chat states against the previous snapshot and returns events for any changes.
-    func diffChatStates() throws -> [PASEvent] {
+    func diffChatStates() throws -> [ServerEvent] {
         // Grab the latest set, and remember them for the next poll.
         let currentChatStates: [ChatRef: ChatState] = try db.chatStates()
 
-        var eventsToSend = [PASEvent]()
+        var eventsToSend = [ServerEvent]()
         var changes = 0
 
         for (chatRef, currentState) in currentChatStates {
@@ -88,7 +88,7 @@ extension Poller {
                 // Otherwise, the unread count will become 2 (in the renderer's memory).
             }
 
-            eventsToSend.append(PASEvent.stateSyncThread(id: hashedThreadID, patch: patch))
+            eventsToSend.append(ServerEvent.stateSyncThread(id: hashedThreadID, patch: patch))
 
             traceUnreads("chat \(chatRef) unread state changed to: \(fresh)")
         }
@@ -109,7 +109,7 @@ extension Poller {
 
         if !deletedThreadIDs.isEmpty {
             eventsToSend.append(
-                PASEvent.deleteThreads(
+                ServerEvent.deleteThreads(
                     ids: deletedThreadIDs
                 )
             )

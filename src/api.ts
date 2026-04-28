@@ -255,8 +255,10 @@ export default class AppleiMessage implements PlatformAPI {
 
   deleteThread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.deleteThread(hashedThreadID)
 
-  sendActivityIndicator = (type: ActivityType, hashedThreadID?: ThreadID) =>
-    this.swiftPlatformAPI!.sendActivityIndicator(type, hashedThreadID, this.sendingMessagesCount)
+  sendActivityIndicator = async (type: ActivityType, hashedThreadID?: ThreadID) => {
+    if (this.sendingMessagesCount > 0) return
+    return this.swiftPlatformAPI!.sendActivityIndicator(type, hashedThreadID)
+  }
 
   addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
     this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.addReaction(hashedThreadID, messageID, reactionKey))

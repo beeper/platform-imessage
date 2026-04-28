@@ -1,6 +1,7 @@
 import Foundation
 import IMDatabase
 import Logging
+import PlatformSDK
 
 private let log = Logger(imessageLabel: "poller.updates")
 
@@ -9,7 +10,7 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
     log.debug(message())
 }
 
-private func threadRefreshEvents(forUpdatedChats latest: UpdatedChatsQueryResult) throws -> [PASEvent] {
+private func threadRefreshEvents(forUpdatedChats latest: UpdatedChatsQueryResult) throws -> [ServerEvent] {
     guard !latest.updatedChats.isEmpty else { return [] }
 
     return latest.updatedChats.compactMap { chat in
@@ -19,8 +20,8 @@ private func threadRefreshEvents(forUpdatedChats latest: UpdatedChatsQueryResult
         }
         traceMessageUpdates("chat \(chat) had message updates, queueing a refresh")
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
-        return PASEvent.refreshMessagesInThread(id: hashedThreadID)
-    } as [PASEvent]
+        return ServerEvent.refreshMessagesInThread(id: hashedThreadID)
+    } as [ServerEvent]
 }
 
 extension Poller {
@@ -31,7 +32,7 @@ extension Poller {
         let lastDateEdited: Date
     }
 
-    func pollMessageUpdates() throws -> [PASEvent] {
+    func pollMessageUpdates() throws -> [ServerEvent] {
         let lastRowID = updatesCursor.lastRowID
         let lastDateRead = updatesCursor.lastDateRead
 
