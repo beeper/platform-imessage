@@ -96,7 +96,7 @@ imessage> quit
 The shell will automatically subscribe to real time events (incoming messages etc.) unless you pass `--no-events`
 
 > [!NOTE]
-> Commands you run are recorded in plain text to `.cli.history.json` (next to the CLI bundle) for arrow-up recall. This includes the full text of any messages sent via `send`/`reply`/`edit`. Delete the file at any time to clear history.
+> Commands you run are kept in memory for arrow-up recall during the current shell session. In development, commands are also recorded in plain text to `.cli.history.json` at the repo root. This includes the full text of any messages sent via `send`/`reply`/`edit`. Released builds do not persist shell history unless `IMESSAGE_CLI_HISTORY_FILE` is set.
 
 ---
 

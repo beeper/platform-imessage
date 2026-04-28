@@ -29,12 +29,16 @@ private enum TerminalByte {
 private final class CLIHistory {
     private static let maxEntries = 1000
 
-    private let fileURL: URL
+    private let fileURL: URL?
     private(set) var entries: [String]
 
-    init(fileURL: URL) {
+    init(fileURL: URL?) {
         self.fileURL = fileURL
-        self.entries = Self.readEntries(from: fileURL)
+        if let fileURL {
+            self.entries = Self.readEntries(from: fileURL)
+        } else {
+            self.entries = []
+        }
     }
 
     func record(_ input: String) {
@@ -49,6 +53,8 @@ private final class CLIHistory {
     }
 
     private func writeEntries() {
+        guard let fileURL else { return }
+
         do {
             let parent = fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
@@ -354,7 +360,7 @@ final class ShellLineReader {
     }
 }
 
-private func defaultHistoryFileURL() -> URL {
+private func defaultHistoryFileURL() -> URL? {
     let fileManager = FileManager.default
     let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
 
@@ -368,16 +374,7 @@ private func defaultHistoryFileURL() -> URL {
         return packageManifest.deletingLastPathComponent().appendingPathComponent(historyFileName)
     }
 
-    let currentDirectoryHistory = currentDirectory.appendingPathComponent(historyFileName)
-    if fileManager.fileExists(atPath: currentDirectoryHistory.path) {
-        return currentDirectoryHistory
-    }
-
-    if let executableURL = Bundle.main.executableURL {
-        return executableURL.deletingLastPathComponent().appendingPathComponent(historyFileName)
-    }
-
-    return currentDirectory.appendingPathComponent(historyFileName)
+    return nil
 }
 
 private func absoluteFileURL(for path: String, relativeTo directory: URL) -> URL {
