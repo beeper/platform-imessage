@@ -43,8 +43,12 @@ const messageLimit = parseLimit(getArg(args, 'max-messages-per-chat', 'max-messa
 const getMessageSamplesArg = args.get('get-message-samples') ?? '1'
 const getMessageSamplesAll = getMessageSamplesArg === 'all'
 const getMessageSamples = getMessageSamplesAll ? Infinity : Number.parseInt(getMessageSamplesArg, 10)
-const progressEvery = Number.parseInt(args.get('progress-every') ?? '100', 10)
+const progressEvery = Number.parseInt(args.get('progress-every') ?? '10', 10)
+const callTimeoutMs = Number.parseInt(args.get('call-timeout-ms') ?? '5000', 10)
+if (!Number.isFinite(callTimeoutMs) || callTimeoutMs < 0) throw new Error('--call-timeout-ms must be a non-negative integer')
 const traceCurrent = args.has('trace-current')
+const forwardChildOutput = args.has('forward-child-output')
+const includeDiffValues = args.has('include-diff-values')
 const childRole = args.get('child-role')
 if (childRole && !['current', 'reference'].includes(childRole)) {
   throw new Error('--child-role must be one of: current, reference')
@@ -107,6 +111,13 @@ function normalizeForDelta(phase, value) {
 
 const valueType = value => Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value
 
+function allowCurrentOnlyReferenceDrift(key, swiftValue) {
+  // The legacy JS mapper intentionally omitted isUnread and let Desktop
+  // derive it from unreadCount/isMarkedUnread. Current Swift mirrors the SDK
+  // shape, so do not let that reference-era field drift swamp mapper parity.
+  return key === 'isUnread' && typeof swiftValue === 'boolean'
+}
+
 function diff(swiftValue, referenceValue, pathName = '$', diffs = []) {
   if (diffs.length >= 20 || Object.is(swiftValue, referenceValue)) return diffs
   const swiftType = valueType(swiftValue)
@@ -127,7 +138,11 @@ function diff(swiftValue, referenceValue, pathName = '$', diffs = []) {
     for (const key of [...keys].sort()) {
       if (diffs.length >= 20) break
       if (!(key in swiftValue)) diffs.push({ path: `${pathName}.${key}`, kind: 'missing-in-swift' })
-      else if (!(key in referenceValue)) diffs.push({ path: `${pathName}.${key}`, kind: 'missing-in-reference' })
+      else if (!(key in referenceValue)) {
+        if (!allowCurrentOnlyReferenceDrift(key, swiftValue[key])) {
+          diffs.push({ path: `${pathName}.${key}`, kind: 'missing-in-reference' })
+        }
+      }
       else diff(swiftValue[key], referenceValue[key], `${pathName}.${key}`, diffs)
     }
     return diffs
@@ -138,6 +153,18 @@ function diff(swiftValue, referenceValue, pathName = '$', diffs = []) {
 
 function failureSummary(error) {
   return { details: error instanceof Error ? error.message : String(error) }
+}
+
+function valueAtPath(value, pathName) {
+  if (pathName === '$') return value
+  let cursor = value
+  const matcher = /\.([^\.\[]+)|\[(\d+)\]/g
+  for (const match of pathName.matchAll(matcher)) {
+    if (cursor == null) return undefined
+    const key = match[1] ?? Number.parseInt(match[2], 10)
+    cursor = cursor[key]
+  }
+  return cursor
 }
 
 function isMissingReferenceSearchMessages(error) {
@@ -255,13 +282,22 @@ function summarizePerfDeltas() {
 }
 
 function recordDelta(failures, phase, context, swiftOutput, referenceOutput) {
-  const diffs = diff(normalizeForDelta(phase, swiftOutput), normalizeForDelta(phase, referenceOutput))
+  const normalizedSwiftOutput = normalizeForDelta(phase, swiftOutput)
+  const normalizedReferenceOutput = normalizeForDelta(phase, referenceOutput)
+  const diffs = diff(normalizedSwiftOutput, normalizedReferenceOutput)
   if (diffs.length === 0) return
-  failures.push({
+  const failure = {
     phase,
     ...context,
     details: diffs.map(delta => `${delta.path}:${delta.kind}`).join(','),
-  })
+  }
+  if (includeDiffValues) {
+    failure.values = Object.fromEntries(diffs.map(delta => [delta.path, {
+      current: valueAtPath(normalizedSwiftOutput, delta.path),
+      reference: valueAtPath(normalizedReferenceOutput, delta.path),
+    }]))
+  }
+  failures.push(failure)
 }
 
 function searchTermsFromMessage(message) {
@@ -295,6 +331,8 @@ const childAPIs = [
     repoRoot,
     referenceAPIPath,
     referenceBinariesDirPath,
+    forwardChildOutput,
+    callTimeoutMs,
   }),
   spawnAPIChild({
     role: 'reference',
@@ -302,8 +340,23 @@ const childAPIs = [
     repoRoot,
     referenceAPIPath,
     referenceBinariesDirPath,
+    forwardChildOutput,
+    callTimeoutMs,
   }),
 ]
+let isClosingChildren = false
+async function closeChildrenAndExit(exitCode) {
+  if (isClosingChildren) return
+  isClosingChildren = true
+  await closeAPIChildren(childAPIs)
+  app.exit(exitCode)
+}
+process.once('SIGINT', () => {
+  closeChildrenAndExit(130).finally(() => process.exit(130))
+})
+process.once('SIGTERM', () => {
+  closeChildrenAndExit(143).finally(() => process.exit(143))
+})
 await Promise.all(childAPIs.map(child => child.ready))
 const api = childAPIs[0].api
 const referenceAPI = childAPIs[1].api
@@ -377,9 +430,6 @@ try {
   for (const [index, thread] of selectedThreads.entries()) {
     const checkedThreadCount = index + 1
     const threadIndex = skipChats + checkedThreadCount
-    if (progressEvery > 0 && checkedThreadCount % progressEvery === 0) {
-      console.error(`[parity] checked ${checkedThreadCount}/${selectedThreads.length} chats (thread ${threadIndex})`)
-    }
     try {
       const [currentThread, referenceThread] = await timedPair(
         'getThread',
@@ -445,6 +495,9 @@ try {
         failures.push({ phase: 'getMessages', threadID: thread.id, pageIndex: pagesChecked, ...failureSummary(error) })
         break
       }
+    }
+    if (progressEvery > 0 && checkedThreadCount % progressEvery === 0) {
+      console.error(`[parity] checked ${checkedThreadCount}/${selectedThreads.length} chats (thread ${threadIndex})`)
     }
   }
 

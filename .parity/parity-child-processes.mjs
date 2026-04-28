@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import * as fsSync from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -62,25 +63,49 @@ async function createAPI({
 
 const ipcPrefix = '__PARITY_IPC__'
 
+function ipcFileDescriptor() {
+  const fd = Number.parseInt(process.env.PARITY_IPC_FD ?? '', 10)
+  return Number.isInteger(fd) && fd >= 0 ? fd : undefined
+}
+
+function writeAllSync(fd, text) {
+  const buffer = Buffer.from(text)
+  let offset = 0
+  while (offset < buffer.length) {
+    offset += fsSync.writeSync(fd, buffer, offset, buffer.length - offset)
+  }
+}
+
+function writeIPC(message) {
+  const payload = JSON.stringify(message)
+  const line = `${ipcPrefix}${Buffer.byteLength(payload)}:${payload}`
+  const fd = ipcFileDescriptor()
+  if (fd !== undefined) {
+    writeAllSync(fd, line)
+  } else {
+    process.stdout.write(`${line}\n`)
+  }
+}
+
 export async function runAPIChild(options) {
   let api
   let dataDirPath
   try {
     ;({ api, dataDirPath } = await createAPI(options))
-    console.log(`${ipcPrefix}${JSON.stringify({ type: 'ready' })}`)
+    writeIPC({ type: 'ready' })
     const lines = readline.createInterface({ input: process.stdin })
     for await (const line of lines) {
       if (!line.trim()) continue
       const request = JSON.parse(line)
       if (request.method === 'dispose') {
-        console.log(`${ipcPrefix}${JSON.stringify({ id: request.id, ok: true, ms: 0 })}`)
+        writeIPC({ id: request.id, ok: true, ms: 0 })
         break
       }
       const result = await timedCall(() => api[request.method](...(request.args ?? [])))
       if (result.ok) {
-        console.log(`${ipcPrefix}${JSON.stringify({ id: request.id, ok: true, value: result.value, ms: result.ms })}`)
+        writeIPC({ id: request.id, ok: true, value: result.value, ms: result.ms })
       } else {
-        console.log(`${ipcPrefix}${JSON.stringify({ id: request.id, ok: false, error: serializeError(result.error), ms: result.ms })}`)
+        writeIPC({ id: request.id, ok: false, error: serializeError(result.error), ms: result.ms })
       }
     }
   } finally {
@@ -95,6 +120,8 @@ export function spawnAPIChild({
   repoRoot,
   referenceAPIPath,
   referenceBinariesDirPath,
+  forwardChildOutput = false,
+  callTimeoutMs = 1000,
 }) {
   const childArgs = [
     entrypointPath,
@@ -108,8 +135,11 @@ export function spawnAPIChild({
   ]
   const child = spawn(process.execPath, childArgs, {
     cwd: repoRoot,
-    env: process.env,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      PARITY_IPC_FD: '3',
+    },
+    stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   })
   let nextID = 1
   let readyResolve
@@ -121,16 +151,24 @@ export function spawnAPIChild({
     readyReject = reject
   })
 
-  child.stderr.on('data', chunk => process.stderr.write(chunk))
+  child.stderr.on('data', chunk => {
+    if (forwardChildOutput) process.stderr.write(chunk)
+  })
 
-  readline.createInterface({ input: child.stdout }).on('line', line => {
-    if (!line.startsWith(ipcPrefix)) {
-      process.stderr.write(`${line}\n`)
-      return
-    }
+  if (forwardChildOutput) {
+    readline.createInterface({ input: child.stdout }).on('line', line => {
+      process.stderr.write(`[${role} stdout] ${line}\n`)
+    })
+  } else {
+    child.stdout.resume()
+  }
+
+  let ipcBuffer = Buffer.alloc(0)
+  const prefixBuffer = Buffer.from(ipcPrefix)
+  const handleIPCMessage = payloadText => {
     let message
     try {
-      message = JSON.parse(line.slice(ipcPrefix.length))
+      message = JSON.parse(payloadText)
     } catch (error) {
       readyReject(error)
       return
@@ -143,10 +181,51 @@ export function spawnAPIChild({
     const request = pending.get(message.id)
     if (!request) return
     pending.delete(message.id)
+    if (request.timeout) clearTimeout(request.timeout)
     if (message.ok) {
       request.resolve({ ok: true, value: message.value, ms: message.ms })
     } else {
       request.resolve({ ok: false, error: deserializeError(message.error), ms: message.ms })
+    }
+  }
+  child.stdio[3].on('data', chunk => {
+    ipcBuffer = Buffer.concat([ipcBuffer, chunk])
+    while (ipcBuffer.length > 0) {
+      if (!ipcBuffer.subarray(0, prefixBuffer.length).equals(prefixBuffer)) {
+        const nextPrefix = ipcBuffer.indexOf(prefixBuffer, 1)
+        const output = nextPrefix === -1 ? ipcBuffer : ipcBuffer.subarray(0, nextPrefix)
+        if (forwardChildOutput && output.length > 0) {
+          process.stderr.write(`[${role} ipc] ${output.toString('utf8')}\n`)
+        }
+        if (nextPrefix === -1) {
+          ipcBuffer = Buffer.alloc(0)
+          return
+        }
+        ipcBuffer = ipcBuffer.subarray(nextPrefix)
+      }
+
+      const separator = ipcBuffer.indexOf(58, prefixBuffer.length)
+      if (separator === -1) return
+
+      const lengthText = ipcBuffer.subarray(prefixBuffer.length, separator).toString('ascii')
+      const payloadLength = Number.parseInt(lengthText, 10)
+      if (!Number.isFinite(payloadLength) || payloadLength < 0) {
+        const error = new Error(`${role} parity child sent invalid IPC frame length: ${lengthText}`)
+        readyReject(error)
+        for (const request of pending.values()) {
+          if (request.timeout) clearTimeout(request.timeout)
+          request.reject(error)
+        }
+        pending.clear()
+        return
+      }
+
+      const payloadStart = separator + 1
+      const payloadEnd = payloadStart + payloadLength
+      if (ipcBuffer.length < payloadEnd) return
+
+      handleIPCMessage(ipcBuffer.subarray(payloadStart, payloadEnd).toString('utf8'))
+      ipcBuffer = ipcBuffer.subarray(payloadEnd)
     }
   })
 
@@ -154,7 +233,10 @@ export function spawnAPIChild({
     exited = true
     const error = new Error(`${role} parity child exited with ${signal ?? code}`)
     readyReject(error)
-    for (const request of pending.values()) request.reject(error)
+    for (const request of pending.values()) {
+      if (request.timeout) clearTimeout(request.timeout)
+      request.reject(error)
+    }
     pending.clear()
   })
 
@@ -163,10 +245,17 @@ export function spawnAPIChild({
     const id = nextID++
     const payload = JSON.stringify({ id, method, args: methodArgs })
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject })
+      const timeout = callTimeoutMs > 0
+        ? setTimeout(() => {
+          pending.delete(id)
+          reject(new Error(`${role}.${method} timed out after ${callTimeoutMs}ms`))
+        }, callTimeoutMs)
+        : undefined
+      pending.set(id, { resolve, reject, timeout })
       child.stdin.write(`${payload}\n`, error => {
         if (!error) return
         pending.delete(id)
+        if (timeout) clearTimeout(timeout)
         reject(error)
       })
     })

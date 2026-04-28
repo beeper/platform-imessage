@@ -135,7 +135,7 @@ extension Mapper {
         if parts.actionKey == "emoji" || parts.actionKey == "sticker" || supportedReactionKeys.contains(parts.actionKey) {
             message.parseTemplate = true
             let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
-            let target = summaryInfo.string("ams").map { "\"\($0)\"" } ?? "a message"
+            let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"
             message.text = "\(actor) \(reactionVerbMap[assocMsgType] ?? "") \(target)"
             message.isHidden = true
         }

@@ -64,15 +64,19 @@ export async function ensureReferenceAPI({
 }) {
   const referenceRef = args.get('reference-ref') ?? await readDefaultReferenceRef(repoRoot)
   const bundlePath = path.join(referenceRoot, '.parity-platform-api.compiled.mjs')
+  let didCreateReferenceRoot = false
   if (!await pathExists(path.join(referenceRoot, 'package.json'))) {
     await fs.mkdir(path.dirname(referenceRoot), { recursive: true })
     exec('git', ['worktree', 'add', '--detach', referenceRoot, referenceRef], repoRoot)
+    didCreateReferenceRoot = true
+  }
+  if (didCreateReferenceRoot) {
+    exec('yarn', [], referenceRoot)
+    exec('bun', ['build:swift', '--standalone'], referenceRoot)
   }
   if (!args.has('skip-reference-rebuild') || args.has('rebuild-reference') || !await pathExists(bundlePath)) {
     const binariesDirPathLiteral = JSON.stringify(referenceBinariesDirPath)
     const buildBanner = `globalThis.texts={IS_DEV:true,isLoggingEnabled:false,log(){},error(){},constants:{USER_AGENT:'platform-imessage-parity',APP_VERSION:'1.0.0'},Sentry:{captureException(){},captureMessage(){},startTransaction(){}},async trackPlatformEvent(){},getBinariesDirPath(){return ${binariesDirPathLiteral}},fetch:globalThis.fetch,fetchStream:undefined,createHttpClient:undefined,nativeFetch:undefined,nativeFetchStream:undefined,runWorker:undefined,forkChildProcess:undefined,getOriginalObject:undefined,openBrowserWindow:undefined};`
-    exec('yarn', [], referenceRoot)
-    exec('bun', ['build:swift', '--standalone'], referenceRoot)
     exec('bun', [
       'build',
       'src/api.ts',

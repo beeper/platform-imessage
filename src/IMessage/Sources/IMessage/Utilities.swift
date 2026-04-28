@@ -112,7 +112,9 @@ extension Optional: OptionalProtocol {
 private let encoder = JSONEncoder()
 
 func fileURLString(_ filePath: String) -> String {
-    URL(fileURLWithPath: filePath).absoluteString
+    let fileURL = URL(fileURLWithPath: filePath).absoluteString
+    // Match the legacy JS mapper's file URL escaping for filenames containing "~".
+    return fileURL.replacingOccurrences(of: "~", with: "%7E")
 }
 
 func waitForFileToExist(_ filePath: String, maxWait: TimeInterval) -> Bool {

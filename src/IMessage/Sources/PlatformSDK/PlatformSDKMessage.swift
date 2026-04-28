@@ -55,7 +55,7 @@ extension PlatformSDK {
         public let favicon: String?
         public let img: String?
         public let imgSize: Size?
-        public let title: String
+        public let title: String?
         public let summary: String?
 
     }

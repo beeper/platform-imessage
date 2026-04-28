@@ -65,7 +65,7 @@ extension Mapper {
            let icon = payloadAttachments[safe: iconIndex] {
             favicon = icon.srcURL
         }
-        let title = richLinkMetadata.string("title")
+        let title = richLinkMetadata.string("title").flatMap { $0.isEmpty ? nil : $0 }
         let summary = richLinkMetadata.string("summary")
         if imageAttachment?.srcURL == nil, title == nil, summary == nil, favicon == nil {
             return MessagePatch()
@@ -75,7 +75,7 @@ extension Mapper {
             favicon: favicon,
             img: imageAttachment?.srcURL,
             imgSize: imageAttachment?.size,
-            title: title ?? "",
+            title: title,
             summary: summary
         )
         return MessagePatch(
@@ -124,7 +124,10 @@ extension Mapper {
         }
         return MessagePatch(
             attachments: [],
-            links: [PlatformSDK.MessageLink(url: url, title: "\(unwrapped["ldtext"] ?? "")")]
+            links: [PlatformSDK.MessageLink(
+                url: url,
+                title: unwrapped["ldtext"].map { "\($0)" }.flatMap { $0.isEmpty ? nil : $0 }
+            )]
         )
     }
 
