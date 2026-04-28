@@ -165,6 +165,10 @@ private final class InvokeContext {
     func startEventWatching() async throws {
         try await runner.startEventWatching(await runner.api(), forceSubscription: true)
     }
+
+    func printEventJSON(_ json: String) {
+        runner.printEventJSON(json)
+    }
 }
 
 private final class Runner {
@@ -270,8 +274,8 @@ private final class Runner {
     func ensureEventSubscription(_ api: IMessageCLIAPI, force: Bool = false) async throws {
         guard !eventsSubscribed, force || options.subscribeToEvents else { return }
         eventsSubscribed = true
-        api.subscribeToEvents { json in
-            print("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
+        api.subscribeToEvents { [weak self] json in
+            self?.printEventJSON(json)
         }
     }
 
@@ -291,6 +295,14 @@ private final class Runner {
                 throw error
             }
         }
+    }
+
+    func printEventJSON(_ json: String) {
+        printConsoleLine("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
+    }
+
+    private func printConsoleLine(_ line: String) {
+        Log.consoleEmitter(line)
     }
 
     private func runShell() async throws {
@@ -712,7 +724,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 1)
         try await context.invoke("onThreadSelected", args: args) { api in
             try await api.onThreadSelected(threadID: args[0]) { json in
-                print("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
+                context.printEventJSON(json)
             }
             return nil
         }

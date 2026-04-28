@@ -141,11 +141,18 @@ final class ShellLineReader {
             return
         }
 
-        writeTerminal("\r\u{1B}[K\(line)\(terminalNewline)\(prompt)\(activeLine)\u{1B}[K")
+        writeTerminal("\r\u{1B}[K\(terminalOutput(line))\(terminalNewline)\(prompt)\(activeLine)\u{1B}[K")
         let trailingCharacters = activeLine.count - activeCursorOffset
         if trailingCharacters > 0 {
             writeTerminal("\u{1B}[\(trailingCharacters)D")
         }
+    }
+
+    private func terminalOutput(_ line: String) -> String {
+        line
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\n", with: terminalNewline)
     }
 
     private func readInteractiveLine() -> String? {
