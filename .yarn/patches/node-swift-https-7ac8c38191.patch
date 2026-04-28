@@ -1,0 +1,13 @@
+diff --git a/Package.swift b/Package.swift
+index f064fec513026675ed73c566fc26d310b92665f1..6e9a2760f6fd86df4561db574dfa412b1d3f442b 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -27,7 +27,7 @@ let package = Package(
+         ),
+     ],
+     dependencies: [
+-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "600.0.0"..<"602.0.0"),
++        .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.0-prerelease-2025-10-30"..<"604.0.0"),
+         .package(url: "https://github.com/pointfreeco/swift-macro-testing.git", .upToNextMinor(from: "0.6.2")),
+     ],
+     targets: [

@@ -1989,7 +1989,7 @@ __metadata:
     electron: "npm:^41.2.1"
     eslint: "npm:^8.30.0"
     jest: "npm:^28.1.3"
-    node-swift: "https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
+    node-swift: "patch:node-swift@https%3A//github.com/kabiroberai/node-swift.git%23commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71#~/.yarn/patches/node-swift-https-7ac8c38191.patch"
     react: "npm:^18"
     sass: "npm:^1.76.0"
     ts-jest: "npm:^28.0.7"
@@ -6876,7 +6876,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-swift@https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71":
+"node-swift@https://github.com/kabiroberai/node-swift.git#commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71":
   version: 1.0.0
   resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
   dependencies:
@@ -6884,6 +6884,17 @@ __metadata:
   bin:
     node-swift: ./lib/cli.js
   checksum: 10/3947a8993e36c382fa913bc9b2eca73a1db149020535eaa43dab619db5318060289a4a97f8fd2624e910197e088139bce1cc06f8bf10349128470cdf39c4fdfe
+  languageName: node
+  linkType: hard
+
+"node-swift@patch:node-swift@https%3A//github.com/kabiroberai/node-swift.git%23commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71#~/.yarn/patches/node-swift-https-7ac8c38191.patch":
+  version: 1.0.0
+  resolution: "node-swift@patch:node-swift@https%3A//github.com/kabiroberai/node-swift.git%23commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71#~/.yarn/patches/node-swift-https-7ac8c38191.patch::version=1.0.0&hash=d56ce9"
+  dependencies:
+    import-cwd: "npm:^3.0.0"
+  bin:
+    node-swift: ./lib/cli.js
+  checksum: 10/655de8d56bcc62cfa59eade92e771cc408f7b5fa5142ee5796db38bd14d4486741cdef7ce655f9fd823e45678122d8476032bebfa4a1f31923ee9b1c45f03dfe
   languageName: node
   linkType: hard
 
