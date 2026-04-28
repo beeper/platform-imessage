@@ -127,9 +127,9 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  startEventPollingFromCurrentState = async (): Promise<void> => {
-    if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventPollingFromCurrentState')
-    await imessage.startPollingFromCurrentState()
+  startEventWatchingFromCurrentState = async (): Promise<void> => {
+    if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventWatchingFromCurrentState')
+    await imessage.startEventWatchingFromCurrentState()
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {

@@ -3,10 +3,10 @@ import IMDatabase
 import Logging
 import PlatformSDK
 
-private let log = Logger(imessageLabel: "poller.updates")
+private let log = Logger(imessageLabel: "event-watcher.updates")
 
 private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
-    guard Defaults.pollerTraceMessageUpdates else { return }
+    guard Defaults.eventWatcherTraceMessageUpdates else { return }
     log.debug(message())
 }
 
@@ -24,7 +24,7 @@ private func threadRefreshEvents(forUpdatedChats latest: UpdatedChatsQueryResult
     } as [ServerEvent]
 }
 
-extension Poller {
+extension EventWatcher {
     // TODO: Maybe move this type into `IMDatabase` and have methods accept it.
     struct MessageUpdatesCursor {
         let lastRowID: Int
@@ -32,7 +32,7 @@ extension Poller {
         let lastDateEdited: Date
     }
 
-    func pollMessageUpdates() throws -> [ServerEvent] {
+    func collectMessageUpdateEvents() throws -> [ServerEvent] {
         let lastRowID = updatesCursor.lastRowID
         let lastDateRead = updatesCursor.lastDateRead
 

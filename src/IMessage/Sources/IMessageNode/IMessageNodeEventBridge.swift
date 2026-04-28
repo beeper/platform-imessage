@@ -4,8 +4,8 @@ import IMessage
 enum IMessageNodeEventBridge {
     @NodeActor
     static func setEventCallback(_ onEvent: NodeFunction) throws {
-        let eventQueue = try NodeAsyncQueue(label: "polling-lifecycle-events")
-        let sentryQueue = try? NodeAsyncQueue(label: "polling-lifecycle-sentry")
+        let eventQueue = try NodeAsyncQueue(label: "event-watcher-events")
+        let sentryQueue = try? NodeAsyncQueue(label: "event-watcher-sentry")
         let onEvent = SendableBox(onEvent)
         IMessageHost.setEventCallback { events in
             try eventQueue.run {

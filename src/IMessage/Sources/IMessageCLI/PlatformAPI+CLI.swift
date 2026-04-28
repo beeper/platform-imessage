@@ -34,8 +34,8 @@ final class IMessageCLIAPI {
         }
     }
 
-    func startEventPollingFromCurrentState() async throws {
-        try await IMessageHost.startPollingFromCurrentState()
+    func startEventWatchingFromCurrentState() async throws {
+        try await IMessageHost.startEventWatchingFromCurrentState()
     }
 
     func validateDatabaseAccess() async throws {

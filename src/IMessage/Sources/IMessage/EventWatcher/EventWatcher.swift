@@ -3,7 +3,7 @@ import IMDatabase
 import Logging
 import PlatformSDK
 
-private let log = Logger(imessageLabel: "poller")
+private let log = Logger(imessageLabel: "event-watcher")
 
 struct TimestampedChatState {
     var lastUpdated: Date
@@ -15,7 +15,7 @@ struct TimestampedChatState {
     }
 }
 
-final class Poller {
+final class EventWatcher {
     typealias ServerEventSender = @Sendable (sending [ServerEvent]) async throws -> Void
     typealias ReportToSentry = @Sendable (String) -> Void
 
@@ -34,7 +34,7 @@ final class Poller {
         reportToSentry: ReportToSentry? = nil
     ) throws {
         self.db = try IMDatabase()
-        if Defaults.pollerTraceChangeListening {
+        if Defaults.eventWatcherTraceChangeListening {
             log.debug("tracing change listening, telling IMDatabase to be noisy")
             self.db.noisy = true
         }
@@ -43,7 +43,7 @@ final class Poller {
         self.reportToSentry = reportToSentry
     }
 
-    func pollForever() async throws {
+    func watchForever() async throws {
         chatStates = try db.chatStates().mapValues { state in
             TimestampedChatState(minting: state)
         }
@@ -51,12 +51,12 @@ final class Poller {
 
         for try await _ in db.changes.subscribe() {
             guard !Task.isCancelled else {
-                log.info("woke up in response to db change but poller task was canceled, bailing")
+                log.info("woke up in response to db change but event watcher task was canceled, bailing")
                 return
             }
 
-            if Defaults.pollerTraceChangeListening {
-                log.debug("poller was informed about database change")
+            if Defaults.eventWatcherTraceChangeListening {
+                log.debug("event watcher was informed about database change")
             }
 
             var eventsToSend = [ServerEvent]()
@@ -66,13 +66,13 @@ final class Poller {
                 try eventsToSend.append(contentsOf: diffChatStates())
 
                 // Ditto, but for any new messages/read state changes.
-                try eventsToSend.append(contentsOf: pollMessageUpdates())
+                try eventsToSend.append(contentsOf: collectMessageUpdateEvents())
             }
 
             guard !eventsToSend.isEmpty else { continue }
             do {
                 guard !Task.isCancelled else {
-                    log.info("had \(eventsToSend.count) event(s) to send but poller task was canceled, bailing")
+                    log.info("had \(eventsToSend.count) event(s) to send but event watcher task was canceled, bailing")
                     return
                 }
                 #if DEBUG
@@ -81,7 +81,7 @@ final class Poller {
                 try await sender(eventsToSend)
             } catch {
                 log.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
-                reportToSentry?("imsg poller: couldn't send events to PAS: \(String(reflecting: error))")
+                reportToSentry?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
             }
         }
     }

@@ -117,7 +117,7 @@ final class MessagesController {
     private let app: NSRunningApplication
     let elements: MessagesAppElements
 
-    private var pollingConveyor: RunLoopConveyor<ConveyorEvent>?
+    private var lifecycleConveyor: RunLoopConveyor<ConveyorEvent>?
 
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
@@ -409,7 +409,7 @@ final class MessagesController {
         // }
         let observer = LifecycleObserver()
         lifecycleObserver = observer
-        setUpPollingConveyor(with: lifecycleObserver)
+        setUpLifecycleConveyor(with: lifecycleObserver)
 
         guard isValid else {
             dispose() // since deinit isn't called when init throws
@@ -423,8 +423,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         resetWindow()
     }
 
-    func setUpPollingConveyor(with observer: LifecycleObserver) {
-        let thread = RunLoopConveyor<ConveyorEvent>(name: "IMessage Polling RunLoop", oneTimeInitialization: { rlt in
+    func setUpLifecycleConveyor(with observer: LifecycleObserver) {
+        let thread = RunLoopConveyor<ConveyorEvent>(name: "IMessage Lifecycle RunLoop", oneTimeInitialization: { rlt in
             do {
                 try observer.beginObserving(app: self.elements.app)
             } catch {
@@ -497,7 +497,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         thread.qualityOfService = .userInteractive
         thread.start()
-        self.pollingConveyor = thread
+        self.lifecycleConveyor = thread
     }
 
     var isMessagesAppResponsive: Bool {
@@ -1628,7 +1628,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
-        pollingConveyor?.cancel()
+        lifecycleConveyor?.cancel()
         app.terminate()
     }
 

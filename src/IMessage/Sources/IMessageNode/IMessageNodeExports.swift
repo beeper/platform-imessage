@@ -56,8 +56,8 @@ import IMessageCore
             return // needed to resolve a compile-time type ambiguity apparently
         },
 
-        "startPollingFromCurrentState": NodeFunction { () async throws in
-            try await IMessageHost.startPollingFromCurrentState()
+        "startEventWatchingFromCurrentState": NodeFunction { () async throws in
+            try await IMessageHost.startEventWatchingFromCurrentState()
             return
         },
 

@@ -67,7 +67,7 @@ type RunnerState = RunnerOptions & {
 }
 
 type CliPlatformAPI = PlatformAPI & {
-  startEventPollingFromCurrentState?: () => Promise<void>
+  startEventWatchingFromCurrentState?: () => Promise<void>
 }
 
 type CommandDefinition = {
@@ -811,8 +811,8 @@ async function main(runnerOptions: RunnerOptions) {
     await Promise.resolve(api.subscribeToEvents(onEvent)).catch((error: unknown) => {
       console.error('event subscription failed:', error)
     })
-    await Promise.resolve(api.startEventPollingFromCurrentState?.()).catch((error: unknown) => {
-      console.error('event polling startup failed:', error)
+    await Promise.resolve(api.startEventWatchingFromCurrentState?.()).catch((error: unknown) => {
+      console.error('event watching startup failed:', error)
     })
   }
 

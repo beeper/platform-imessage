@@ -12,7 +12,7 @@
 - [ ] cli: notarize before gh release and do universal binary/x86 target
 
 - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
-- [ ] remove polling side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps polling from the first thread fetch (`cursor == nil`) via `PollingLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting polling from inside it makes calls non-idempotent. Fix by moving polling bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventPollingFromCurrentState` / `IMessageHost.startPollingFromCurrentState` path.
+- [ ] remove event-watching side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps event watching from the first thread fetch (`cursor == nil`) via `EventWatcherLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting event watching from inside it makes calls non-idempotent. Fix by moving event-watcher bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventWatchingFromCurrentState` / `IMessageHost.startEventWatchingFromCurrentState` path.
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] tests for the cli

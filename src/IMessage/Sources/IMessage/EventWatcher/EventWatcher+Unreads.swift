@@ -2,17 +2,17 @@ import IMDatabase
 import Logging
 import PlatformSDK
 
-private let log = Logger(imessageLabel: "poller.unreads")
+private let log = Logger(imessageLabel: "event-watcher.unreads")
 
 private func traceUnreads(_ message: @autoclosure () -> Logger.Message) {
-    guard Defaults.pollerTraceUnreads else { return }
+    guard Defaults.eventWatcherTraceUnreads else { return }
     log.debug(message())
 }
 
-extension Poller {
+extension EventWatcher {
     /// Diffs current chat states against the previous snapshot and returns events for any changes.
     func diffChatStates() throws -> [ServerEvent] {
-        // Grab the latest set, and remember them for the next poll.
+        // Grab the latest set, and remember it for the next database change.
         let currentChatStates: [ChatRef: ChatState] = try db.chatStates()
 
         var eventsToSend = [ServerEvent]()
@@ -95,7 +95,7 @@ extension Poller {
 
         traceUnreads("\(changes) unread state(s) changed this time around")
 
-        // Detect chats that were deleted from iMessage since the last poll.
+        // Detect chats that were deleted from iMessage since the last database change.
         let deletedChats = chatStates.keys.filter { currentChatStates[$0] == nil }
         let deletedThreadIDs = deletedChats.compactMap { chat -> String? in
             chatStates.removeValue(forKey: chat)

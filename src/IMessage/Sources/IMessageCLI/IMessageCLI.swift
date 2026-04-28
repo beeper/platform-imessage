@@ -270,9 +270,9 @@ private final class Runner {
             print("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
         }
         do {
-            try await api.startEventPollingFromCurrentState()
+            try await api.startEventWatchingFromCurrentState()
         } catch {
-            fputs("event polling startup failed: \(error)\n", stderr)
+            fputs("event watching startup failed: \(error)\n", stderr)
         }
     }
 

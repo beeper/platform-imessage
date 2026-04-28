@@ -4,7 +4,7 @@ import IMessageCore
 import PlatformSDK
 
 enum ThreadMapper {
-    struct PollingCursor {
+    struct EventWatchingCursor {
         var maxRowID: Int
         var maxDateReadNanoseconds: Int
     }
@@ -18,7 +18,7 @@ enum ThreadMapper {
         var accountID: String
     }
 
-    static func pollingCursor(from latestMessageRows: [MappedMessageRow]) -> PollingCursor? {
+    static func eventWatchingCursor(from latestMessageRows: [MappedMessageRow]) -> EventWatchingCursor? {
         guard !latestMessageRows.isEmpty else {
             return nil
         }
@@ -26,7 +26,7 @@ enum ThreadMapper {
             result.0 = max(result.0, row.rowID)
             result.1 = max(result.1, row.dateRead ?? 0)
         }
-        return PollingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
+        return EventWatchingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
     static func mapThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
@@ -48,7 +48,7 @@ enum ThreadMapper {
         let isReadOnly = chat.state == 0 && chat.properties != nil
         let props = propertyListDictionary(chat.properties)
         let unreadCount = context.unreadCounts[chat.rowID] ?? 0
-        // Mirrors Poller+Unreads.swift. Desktop computes unread state from
+        // Mirrors EventWatcher+Unreads.swift. Desktop computes unread state from
         // `isMarkedUnread || unreadCount > 0`.
         let isUnread = unreadCount > 0
 

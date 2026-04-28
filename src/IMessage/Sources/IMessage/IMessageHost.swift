@@ -10,7 +10,7 @@ private let log = Logger(imessageLabel: "imessage")
 /// Process-wide entry point.
 ///
 /// The IMessage package is intentionally singleton-only within a process:
-/// `Preferences`, `accessManager`, and `PollingLifecycle.shared` are shared
+/// `Preferences`, `accessManager`, and `EventWatcherLifecycle.shared` are shared
 /// state and are expected to be.
 public enum IMessageHost {
     public typealias EventCallback = @Sendable ([ServerEvent]) async throws -> Void
@@ -143,15 +143,15 @@ public enum IMessageHost {
         _ onEvent: @escaping EventCallback,
         reportToSentry: SentryReporter? = nil
     ) {
-        PollingLifecycle.shared.setEventCallback(onEvent, reportToSentry: reportToSentry)
+        EventWatcherLifecycle.shared.setEventCallback(onEvent, reportToSentry: reportToSentry)
     }
 
-    public static func startPollingFromCurrentState() async throws {
+    public static func startEventWatchingFromCurrentState() async throws {
         let (lastRowID, lastDateRead) = try await DetachedWork.run {
             let db = try IMDatabase()
             return (try db.lastMessageRowID(), try db.maxMessageDateRead())
         }
-        try PollingLifecycle.shared.startPollingFromCurrentState(
+        try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
             lastRowID: lastRowID,
             lastDateRead: lastDateRead
         )

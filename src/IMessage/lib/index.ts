@@ -115,7 +115,7 @@ type IMessage = {
   killDock: () => void
 
   setEventCallback: (cb: OnServerEventCallback) => void
-  startPollingFromCurrentState: () => Promise<void>
+  startEventWatchingFromCurrentState: () => Promise<void>
 
   revealSettings: () => void
 

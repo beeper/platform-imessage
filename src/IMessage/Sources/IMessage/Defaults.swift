@@ -92,10 +92,10 @@ enum DefaultsKeys {
     /** force all sends through the regular UI automation path instead of the OSA shortcut */
     static let disableOSAFastPath = "BEEPDisableOSAFastPath"
 
-    static let pollerTraceUnreads = "BEEPPollerTraceUnreads"
+    static let eventWatcherTraceUnreads = "BEEPEventWatcherTraceUnreads"
     // debugging for FSEvents, waking up when the iMessage SQLite file changes, etc.
-    static let pollerTraceChangeListening = "BEEPPollerTraceChangeListening"
-    static let pollerTraceMessageUpdates = "BEEPPollerTraceMessageUpdates"
+    static let eventWatcherTraceChangeListening = "BEEPEventWatcherTraceChangeListening"
+    static let eventWatcherTraceMessageUpdates = "BEEPEventWatcherTraceMessageUpdates"
     static let hashingDangerouslyLeakPII = "BEEPHashingDangerouslyLeakPII"
 }
 
@@ -158,12 +158,12 @@ enum Defaults {
             DefaultsKeys.editingDelayBeforeReplacing: 0.5,
             DefaultsKeys.disableOSAFastPath: false,
 
-            DefaultsKeys.pollerTraceUnreads: true,
+            DefaultsKeys.eventWatcherTraceUnreads: true,
         ]
 
         #if DEBUG
-        defaults[DefaultsKeys.pollerTraceUnreads] = true
-        defaults[DefaultsKeys.pollerTraceMessageUpdates] = true
+        defaults[DefaultsKeys.eventWatcherTraceUnreads] = true
+        defaults[DefaultsKeys.eventWatcherTraceMessageUpdates] = true
         #endif
 
         imessage.register(defaults: defaults)

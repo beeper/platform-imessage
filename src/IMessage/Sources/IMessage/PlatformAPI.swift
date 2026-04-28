@@ -455,11 +455,11 @@ public final class PlatformAPI {
 
         hasBeenDisposed.withLock { $0 = true }
         // OV2.A: clear cached current-user (and the Hasher tokens it implies)
-        // and tear down polling so a logout/relogin in Messages.app while
+        // and tear down event watching so a logout/relogin in Messages.app while
         // Beeper restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
         SystemSettingsOnboarding.stop()
-        await PollingLifecycle.shared.cancelPollingIfNecessary(clearEventCallback: true)
+        await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
         try await disposeCachedMessagesController()
     }
 

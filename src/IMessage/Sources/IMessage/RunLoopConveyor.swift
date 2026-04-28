@@ -7,7 +7,7 @@ private let log = Logger(imessageLabel: "conveyor")
 
 // this class solves two problems:
 //
-// 1. we need a run loop for polling and AX observation. Node doesn't offer us
+// 1. we need a run loop for timers and AX observation. Node doesn't offer us
 //    one (since it uses uv, which is incompatible with run loops)
 //
 // 2. we'd like to communicate with the run loop from any other thread (due to
