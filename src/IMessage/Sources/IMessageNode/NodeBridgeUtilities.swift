@@ -58,9 +58,9 @@ enum NodeBridgeUtilities {
         case let value as NSDate:
             return value.timeIntervalSince1970 * 1000
         case let value as Data:
-            return "data:;base64,\(value.base64EncodedString())"
+            return value.dataURL
         case let value as NSData:
-            return "data:;base64,\(value.base64EncodedString())"
+            return value.dataURL
         case let value as URL:
             return value.absoluteString
         case let value as NSURL:

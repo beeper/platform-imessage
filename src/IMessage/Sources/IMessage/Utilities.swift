@@ -69,9 +69,9 @@ private func jsonSerializable(_ value: Any?) -> Any {
 
     switch value {
     case let data as Data:
-        return "data:;base64,\(data.base64EncodedString())"
+        return data.dataURL
     case let data as NSData:
-        return "data:;base64,\(data.base64EncodedString())"
+        return data.dataURL
     case let dictionary as [String: Any]:
         return dictionary.mapValues(jsonSerializable)
     case let dictionary as NSDictionary:
@@ -96,18 +96,6 @@ private func jsonSerializable(_ value: Any?) -> Any {
     }
 }
 
-private protocol OptionalProtocol {
-    var anyValue: Any? { get }
-}
-
-extension Optional: OptionalProtocol {
-    var anyValue: Any? {
-        switch self {
-        case .some(let value): return value
-        case .none: return nil
-        }
-    }
-}
 
 private let encoder = JSONEncoder()
 

@@ -1032,18 +1032,6 @@ private func jsonCompatible(_ value: Any) -> Any {
     }
 }
 
-private protocol OptionalProtocol {
-    var anyValue: Any? { get }
-}
-
-extension Optional: OptionalProtocol {
-    var anyValue: Any? {
-        switch self {
-        case .some(let value): return value
-        case .none: return nil
-        }
-    }
-}
 
 private extension String {
     func optionValue(prefix: String) -> String? {

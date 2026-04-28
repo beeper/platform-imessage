@@ -124,9 +124,9 @@ func normalizeFoundationObject(_ value: Any) -> Any {
     case let url as NSURL:
         return ["NS.relative": url.absoluteString ?? ""]
     case let data as Data:
-        return "data:;base64,\(data.base64EncodedString())"
+        return data.dataURL
     case let data as NSData:
-        return "data:;base64,\(data.base64EncodedString())"
+        return data.dataURL
     default:
         return value
     }
