@@ -79,10 +79,10 @@ private enum AuthorizationRequirement: String {
     func currentStatus(api: IMessageCLIAPI) async -> (authorized: Bool, detail: String) {
         switch self {
         case .accessibility:
-            let ok = (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.accessibility.rawValue)) == .authorized
+            let ok = MacPermissions.getAuthStatus(.accessibility) == .authorized
             return (ok, ok ? "Your current Terminal app can control Messages.app." : "Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.")
         case .contacts:
-            let ok = (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.contacts.rawValue)) == .authorized
+            let ok = MacPermissions.getAuthStatus(.contacts) == .authorized
             return (ok, ok ? "Contacts lookups are available." : "Allow Contacts access if you want contact-name lookups from the CLI.")
         case .messagesData:
             let ok = await api.canAccessMessagesDir()
@@ -97,7 +97,7 @@ private enum AuthorizationRequirement: String {
             SystemSettingsOnboarding.start()
             defer { SystemSettingsOnboarding.stop() }
             _ = await pollAuthorization(timeout: 120) {
-                (try? MacPermissions.getAuthStatus(MacPermissions.AuthType.accessibility.rawValue)) == .authorized
+                MacPermissions.getAuthStatus(.accessibility) == .authorized
             }
         case .contacts:
             _ = try? await MacPermissions.askForContactsAccess()

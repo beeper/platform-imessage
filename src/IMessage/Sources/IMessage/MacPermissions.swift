@@ -19,12 +19,8 @@ public enum MacPermissions {
         case fullDiskAccess = "full-disk-access"
     }
 
-    public static func getAuthStatus(_ type: String) throws -> MacPermissionAuthStatus {
-        guard let authType = AuthType(rawValue: type) else {
-            throw ErrorMessage("unknown macOS permission type: \(type)")
-        }
-
-        switch authType {
+    public static func getAuthStatus(_ type: AuthType) -> MacPermissionAuthStatus {
+        switch type {
         case .accessibility:
             return AXIsProcessTrusted() ? .authorized : .denied
         case .contacts:

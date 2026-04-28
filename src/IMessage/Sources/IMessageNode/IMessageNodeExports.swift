@@ -1,6 +1,7 @@
 import Foundation
 import NodeAPI
 import IMessage
+import IMessageCore
 
 #NodeModule {
     IMessageHost.bootstrap()
@@ -96,7 +97,10 @@ import IMessage
     ]
     dict["MacPermissions"] = try [
         "getAuthStatus": NodeFunction { (type: String) in
-            try MacPermissions.getAuthStatus(type).rawValue
+            guard let authType = MacPermissions.AuthType(rawValue: type) else {
+                throw ErrorMessage("unknown macOS permission type: \(type)")
+            }
+            return MacPermissions.getAuthStatus(authType).rawValue
         },
         "askForAccessibilityAccess": NodeFunction {
             MacPermissions.askForAccessibilityAccess()
