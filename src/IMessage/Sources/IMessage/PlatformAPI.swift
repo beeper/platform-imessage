@@ -45,6 +45,7 @@ public final class PlatformAPI {
     private let hasBeenDisposed = Protected(false)
 
     private static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
+    private static let hasWarmedThreadHasher = Protected(false)
 
     public convenience init(accountID: String) {
         self.init(accountID: accountID, runtime: .noop)
@@ -1015,8 +1016,15 @@ extension PlatformAPI {
         do {
             return try Hasher.thread.recoverOriginal(fromToken: threadID)
         } catch {
-            for guid in try db.allThreadGUIDs() {
-                _ = Hasher.thread.tokenizeRemembering(pii: guid)
+            let shouldWarm = hasWarmedThreadHasher.withLock { hasWarmed in
+                guard !hasWarmed else { return false }
+                hasWarmed = true
+                return true
+            }
+            if shouldWarm {
+                for guid in try db.allThreadGUIDs() {
+                    _ = Hasher.thread.tokenizeRemembering(pii: guid)
+                }
             }
             return try Hasher.thread.recoverOriginal(fromToken: threadID)
         }
