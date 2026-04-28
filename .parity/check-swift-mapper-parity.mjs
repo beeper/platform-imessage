@@ -423,9 +423,12 @@ try {
 
   async function referenceSearchFromCurrentResults(currentSearch, options) {
     const items = []
-    for (const item of currentSearch.items) {
-      if (!item?.threadID || !item?.id) continue
-      const message = await referenceAPI.getMessage(item.threadID, item.id)
+    const messages = await Promise.all(currentSearch.items.map(item => (
+      item?.threadID && item?.id
+        ? referenceAPI.getMessage(item.threadID, item.id)
+        : undefined
+    )))
+    for (const message of messages) {
       if (!message) continue
       if (options?.threadID) {
         items.push(message)
