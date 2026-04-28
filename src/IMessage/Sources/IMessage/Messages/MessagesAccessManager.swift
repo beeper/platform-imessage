@@ -12,7 +12,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
 
     private static let messagesBookmarkKey = "TXTMessagesBookmark"
 
-    private var expectedURL: URL?
+    private let expectedURL = MessagesPaths.messagesDirectory
 
     var url: URL?
 
@@ -37,8 +37,20 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         isExpectedURL(url)
     }
 
+    @MainActor private func activateApp() {
+        let app = NSApplication.shared
+        guard app.mainWindow == nil else {
+            return
+        }
+        app.setActivationPolicy(.regular)
+        if #available(macOS 14, *) {
+            app.activate()
+        } else {
+            app.activate(ignoringOtherApps: true)
+        }
+    }
+
     @MainActor func requestAccess() async throws {
-        expectedURL = MessagesPaths.messagesDirectory
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
         openPanel.delegate = self
@@ -49,6 +61,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.prompt = buttonTitle
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
         openPanel.directoryURL = MessagesPaths.messagesDirectory
+        activateApp()
         if Accessibility.isTrusted() {
             DispatchQueue.global(qos: .background).async {
                 try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)
