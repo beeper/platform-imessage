@@ -96,7 +96,18 @@ var targets: [Target] = [
             "IMessageCore",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
-        path: "src/IMessage/Sources/IMessageCLI"
+        path: "src/IMessage/Sources/IMessageCLI",
+        plugins: ["GenerateIMessageCLIVersionPlugin"]
+    ),
+    .plugin(
+        name: "GenerateIMessageCLIVersionPlugin",
+        capability: .buildTool(),
+        dependencies: ["GenerateIMessageCLIVersion"],
+        path: "src/IMessage/Plugins/GenerateIMessageCLIVersionPlugin"
+    ),
+    .executableTarget(
+        name: "GenerateIMessageCLIVersion",
+        path: "src/IMessage/Plugins/GenerateIMessageCLIVersion"
     ),
     .testTarget(
         name: "EmojiSPITests",

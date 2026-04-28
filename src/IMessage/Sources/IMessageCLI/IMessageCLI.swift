@@ -15,10 +15,11 @@ private let quitCommands: Set<String> = ["q", "quit", "exit"]
 struct IMessageCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "imessage",
-        abstract: "Exercise the native iMessage PlatformAPI.",
+        abstract: "Send, read, and manage local iMessage chats from the command line.",
         discussion: """
-        Bare launch, or the `shell` command, opens the interactive shell.
-        Run `imessage help` for the command list or `imessage help COMMAND` for command help.
+        Run without a command, or with `shell`, to open the interactive shell.
+        Run `version` to print the embedded package version.
+        Run `help` for the command list or `help COMMAND` for command help.
         """
     )
 
@@ -49,6 +50,9 @@ struct IMessageCLI: AsyncParsableCommand {
             subscribeToEvents: !noEvents,
             useSecondaryInstance: IMessageHost.useSecondaryInstanceEnvironment ?? useSecondaryInstance
         )
+        if !options.keepAlive, try runBootstrapFreeCommandIfNeeded(options.commandArgs) {
+            return
+        }
         try await Runner(options: options).run()
     }
 }
@@ -356,6 +360,16 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
         context.showState()
+    },
+    CommandDefinition(
+        name: "version",
+        category: .general,
+        summary: "Print the platform-imessage package version.",
+        usage: ["version"],
+        examples: ["version"]
+    ) { args, context in
+        try requireExactArgs(context.command, args, 0)
+        printCLIVersion()
     },
     CommandDefinition(
         name: "current-user",
@@ -679,6 +693,23 @@ private let commandDefinitions: [CommandDefinition] = [
 
 private let commandMap = Dictionary(uniqueKeysWithValues: commandDefinitions.map { ($0.name, $0) })
 
+private func runBootstrapFreeCommandIfNeeded(_ commandArgs: [String]) throws -> Bool {
+    guard let name = commandArgs.first, name == "version" else { return false }
+    guard let command = commandMap[name] else { return false }
+    let args = Array(commandArgs.dropFirst())
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(command)
+    } else {
+        try requireExactArgs(command, args, 0)
+        printCLIVersion()
+    }
+    return true
+}
+
+private func printCLIVersion() {
+    print("platform-imessage \(IMessageCLIVersion.packageVersion)")
+}
+
 private func reactionCommand(
     name: String,
     methodName: String,
@@ -743,11 +774,12 @@ private func ensureRunnerState(_ options: RunnerOptions) throws -> RunnerState {
 
 private func printTopLevelHelp() {
     var lines = [
-        "platform-imessage Swift CLI",
+        "platform-imessage Swift CLI \(IMessageCLIVersion.packageVersion)",
         "",
         "Usage:",
         "  imessage [global options]",
         "  imessage COMMAND [ARGS...]",
+        "  imessage version",
         "",
         "Bare launch (or `shell`) opens the interactive shell.",
         "",
