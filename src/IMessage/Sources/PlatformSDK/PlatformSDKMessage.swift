@@ -14,7 +14,6 @@ extension PlatformSDK {
         public let imgURL: String?
         public let participantID: UserID
         public let emoji: Bool?
-
     }
 
     public enum MessageSeen: JSONValueConvertible {
@@ -57,7 +56,6 @@ extension PlatformSDK {
         public let imgSize: Size?
         public let title: String?
         public let summary: String?
-
     }
 
     @PlatformSDKJSONObject
@@ -68,7 +66,6 @@ extension PlatformSDK {
             public let name: String
             public let username: String
             public let isVerified: Bool?
-
         }
 
         public let id: ID
@@ -79,7 +76,6 @@ extension PlatformSDK {
         public let textAttributes: TextAttributes?
         public let attachments: [Attachment]?
         public let quotedTweet: TweetBox?
-
     }
 
     public final class TweetBox: JSONValueConvertible {
@@ -101,13 +97,11 @@ extension PlatformSDK {
         public let text: String?
         public let senderID: UserID?
         public let attachments: [Attachment]?
-
     }
 
     @PlatformSDKJSONObject
     public struct MessageButton: JSONObjectConvertible {
         public let label: String
         public let linkURL: String
-
     }
 }

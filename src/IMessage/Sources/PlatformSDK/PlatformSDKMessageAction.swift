@@ -77,6 +77,5 @@ extension PlatformSDK {
         public let imgURL: String?
         public let participantID: UserID?
         public let emoji: Bool?
-
     }
 }

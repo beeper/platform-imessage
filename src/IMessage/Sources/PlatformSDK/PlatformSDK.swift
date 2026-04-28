@@ -17,7 +17,6 @@ extension PlatformSDK {
     public struct Paginated<Item: JSONObjectConvertible>: JSONObjectConvertible {
         public let items: [Item]
         public let hasMore: Bool
-
     }
 
     @PlatformSDKJSONObject
@@ -26,6 +25,5 @@ extension PlatformSDK {
         public let hasMore: Bool
         public let oldestCursor: String?
         public let newestCursor: String?
-
     }
 }

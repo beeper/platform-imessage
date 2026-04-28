@@ -15,7 +15,6 @@ extension PlatformSDK {
         public let isSender: Bool?
         public let senderID: UserID?
         public let attachments: [Attachment]?
-
     }
 
     @PlatformSDKJSONObject
@@ -44,6 +43,5 @@ extension PlatformSDK {
         public let isMarkedUnread: Bool?
         public let lastReadMessageSortKey: Timestamp?
         public let isLowPriority: Bool?
-
     }
 }

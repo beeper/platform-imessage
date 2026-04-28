@@ -39,6 +39,5 @@ extension PlatformSDK {
         public let cursor: String?
         public let extra: Any?
         @PlatformSDKJSONKey("_original") public let original: String?
-
     }
 }

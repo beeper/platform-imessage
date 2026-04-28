@@ -27,7 +27,7 @@ private enum TerminalByte {
 }
 
 private final class CLIHistory {
-    private static let maxEntries = 1_000
+    private static let maxEntries = 1000
 
     private let fileURL: URL
     private(set) var entries: [String]

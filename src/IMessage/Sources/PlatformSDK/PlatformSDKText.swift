@@ -5,7 +5,6 @@ extension PlatformSDK {
     public struct TextAttributes: JSONObjectConvertible {
         public let entities: [TextEntity]?
         public let heDecode: Bool?
-
     }
 
     @PlatformSDKJSONObject
@@ -26,7 +25,6 @@ extension PlatformSDK {
         public let replaceWithMedia: ReplaceWithMediaEntity?
         public let link: String?
         public let mentionedUser: MentionedUser?
-
     }
 
     @PlatformSDKJSONObject
@@ -36,13 +34,11 @@ extension PlatformSDK {
         public let size: Size?
         public let loop: Bool?
         public let rounded: Bool?
-
     }
 
     @PlatformSDKJSONObject
     public struct MentionedUser: JSONObjectConvertible {
         public let username: String?
         public let id: UserID?
-
     }
 }

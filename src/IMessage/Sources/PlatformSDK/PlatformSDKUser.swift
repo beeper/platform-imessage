@@ -18,7 +18,6 @@ extension PlatformSDK {
         public init(id: UserID, displayText: String? = nil, email: String? = nil, phoneNumber: String? = nil) {
             self.init(id: id, phoneNumber: phoneNumber, email: email, fullName: displayText, isSelf: true)
         }
-
     }
 
     @PlatformSDKJSONObject
@@ -27,7 +26,6 @@ extension PlatformSDK {
         public let displayText: String?
         public let email: String?
         public let phoneNumber: String?
-
     }
 
     public struct Participant: JSONObjectConvertible {

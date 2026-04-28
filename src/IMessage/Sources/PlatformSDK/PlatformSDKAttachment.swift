@@ -12,7 +12,6 @@ extension PlatformSDK {
     public struct Size: JSONObjectConvertible, Sendable {
         public let width: Double
         public let height: Double
-
     }
 
     @PlatformSDKJSONObject
@@ -32,6 +31,5 @@ extension PlatformSDK {
         public let srcURL: String?
         public let data: Any?
         public let extra: Any?
-
     }
 }

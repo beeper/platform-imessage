@@ -51,8 +51,8 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
     private static func storedProperty(from member: MemberBlockItemSyntax) -> StoredProperty? {
         guard let variable = member.decl.as(VariableDeclSyntax.self),
               variable.modifiers.allSatisfy({ modifier in
-                  let text = modifier.name.text
-                  return text != "static" && text != "class"
+                let text = modifier.name.text
+                return text != "static" && text != "class"
               }),
               variable.bindings.count == 1,
               let binding = variable.bindings.first,

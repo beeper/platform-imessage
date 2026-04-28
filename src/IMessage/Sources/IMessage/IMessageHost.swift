@@ -198,5 +198,4 @@ public enum IMessageHost {
             window.makeKeyAndOrderFront(nil)
         }
     }
-
 }
