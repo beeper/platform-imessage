@@ -38,6 +38,10 @@ final class IMessageCLIAPI {
         try await IMessageHost.startEventWatchingFromCurrentState()
     }
 
+    func stopEventWatching() async {
+        await IMessageHost.stopEventWatching()
+    }
+
     func validateDatabaseAccess() async throws {
         try await IMessageHost.validateDatabaseAccess()
     }

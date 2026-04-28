@@ -30,6 +30,12 @@ export default class AppleiMessage implements PlatformAPI {
 
   private onEvent: OnServerEventCallback | undefined
 
+  private didFetchInitialThreads = false
+
+  private eventWatchingStarted = false
+
+  private eventWatchingStartInFlight?: Promise<void>
+
   private applyPersistedThreadState(thread: Thread): Thread {
     const archive = this.persistence?.getThreadProp(thread.id, 'archive')
     const reminder = this.persistence?.getThreadProp(thread.id, 'reminder')
@@ -125,11 +131,28 @@ export default class AppleiMessage implements PlatformAPI {
     if (imessage?.isMessagesAppInDock && imessage?.isPHTEnabled) {
       this.removeMessagesAppInDock()
     }
+    if (this.didFetchInitialThreads) await this.startEventWatchingAfterInitialThreads()
   }
 
   startEventWatchingFromCurrentState = async (): Promise<void> => {
     if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventWatchingFromCurrentState')
-    await imessage.startEventWatchingFromCurrentState()
+    if (this.eventWatchingStarted) return
+    if (this.eventWatchingStartInFlight) return this.eventWatchingStartInFlight
+    this.eventWatchingStartInFlight = imessage.startEventWatchingFromCurrentState()
+      .then(() => {
+        this.eventWatchingStarted = true
+      })
+      .finally(() => {
+        this.eventWatchingStartInFlight = undefined
+      })
+    return this.eventWatchingStartInFlight
+  }
+
+  private startEventWatchingAfterInitialThreads = async (): Promise<void> => {
+    if (!this.onEvent || this.eventWatchingStarted) return
+    await this.startEventWatchingFromCurrentState().catch(error => {
+      texts.error('imsg: event watching startup failed:', error)
+    })
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
@@ -170,6 +193,10 @@ export default class AppleiMessage implements PlatformAPI {
       pagination,
     ))
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
+    if (folderName === 'normal' && !pagination?.cursor) {
+      this.didFetchInitialThreads = true
+      await this.startEventWatchingAfterInitialThreads()
+    }
     return {
       ...response,
       items: response.items.map(thread => this.applyPersistedThreadState(thread)),

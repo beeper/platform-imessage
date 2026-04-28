@@ -157,6 +157,10 @@ public enum IMessageHost {
         )
     }
 
+    public static func stopEventWatching() async {
+        await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: false)
+    }
+
     public static func askForAutomationAccess() async throws {
         try await MainActor.run {
             try OSA.promptAutomationAccess()

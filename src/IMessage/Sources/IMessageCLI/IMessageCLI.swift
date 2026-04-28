@@ -161,6 +161,10 @@ private final class InvokeContext {
     func showState() {
         runner.showState()
     }
+
+    func startEventWatching() async throws {
+        try await runner.startEventWatching(await runner.api(), forceSubscription: true)
+    }
 }
 
 private final class Runner {
@@ -168,7 +172,7 @@ private final class Runner {
     private var state: RunnerState?
     private var apiInstance: IMessageCLIAPI?
     private var nextCallID = 1
-    private var eventsStarted = false
+    private var eventsSubscribed = false
     private var shuttingDown = false
 
     init(options: RunnerOptions) {
@@ -263,16 +267,29 @@ private final class Runner {
         ]))
     }
 
-    private func ensureEventSubscription(_ api: IMessageCLIAPI) async throws {
-        guard !eventsStarted, options.subscribeToEvents else { return }
-        eventsStarted = true
+    func ensureEventSubscription(_ api: IMessageCLIAPI, force: Bool = false) async throws {
+        guard !eventsSubscribed, force || options.subscribeToEvents else { return }
+        eventsSubscribed = true
         api.subscribeToEvents { json in
             print("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
         }
+    }
+
+    func startEventWatching(
+        _ api: IMessageCLIAPI,
+        forceSubscription: Bool = false,
+        reportStartupErrors: Bool = false
+    ) async throws {
+        try await ensureEventSubscription(api, force: forceSubscription)
+        guard eventsSubscribed else { return }
         do {
             try await api.startEventWatchingFromCurrentState()
         } catch {
-            fputs("event watching startup failed: \(error)\n", stderr)
+            if reportStartupErrors {
+                fputs("event watching startup failed: \(error)\n", stderr)
+            } else {
+                throw error
+            }
         }
     }
 
@@ -282,6 +299,7 @@ private final class Runner {
         Log.consoleEmitter = { [lineReader] line in
             lineReader.printConsoleLine(line)
         }
+        try await startEventWatching(await api(), reportStartupErrors: true)
         while true {
             guard let input = lineReader.readLine() else {
                 try await shutdown()
@@ -360,6 +378,36 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
         context.showState()
+    },
+    CommandDefinition(
+        name: "start-watching",
+        category: .general,
+        summary: "Start watching Messages database changes and print server events.",
+        usage: ["start-watching"],
+        examples: ["start-watching"],
+        notes: ["Most useful in the interactive shell, or with --stay-open."],
+        requiredAuthorization: readOnlyAuth
+    ) { args, context in
+        try requireExactArgs(context.command, args, 0)
+        try await context.invoke("startEventWatchingFromCurrentState", args: []) { api in
+            try await context.startEventWatching()
+            return nil
+        }
+    },
+    CommandDefinition(
+        name: "stop-watching",
+        category: .general,
+        summary: "Stop watching Messages database changes.",
+        usage: ["stop-watching"],
+        examples: ["stop-watching"],
+        notes: ["Stops the watcher task but keeps the CLI process open."],
+        requiredAuthorization: readOnlyAuth
+    ) { args, context in
+        try requireExactArgs(context.command, args, 0)
+        try await context.invoke("stopEventWatching", args: []) { api in
+            await api.stopEventWatching()
+            return nil
+        }
     },
     CommandDefinition(
         name: "version",
