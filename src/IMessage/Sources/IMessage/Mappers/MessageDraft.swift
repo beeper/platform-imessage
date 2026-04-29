@@ -1,4 +1,3 @@
-import Foundation
 import PlatformSDK
 
 struct MessageDraft {
@@ -30,66 +29,6 @@ struct MessageDraft {
     var sortKey: Any?
     var cursor: String?
     var extra = JSONObject()
-
-    init(
-        id: String,
-        timestamp: PlatformSDK.Timestamp,
-        editedTimestamp: PlatformSDK.Timestamp? = nil,
-        senderID: String,
-        text: String? = nil,
-        textAttributes: PlatformSDK.TextAttributes? = nil,
-        textHeading: String? = nil,
-        textFooter: String? = nil,
-        attachments: [PlatformSDK.Attachment]? = nil,
-        tweets: [PlatformSDK.Tweet]? = nil,
-        links: [PlatformSDK.MessageLink]? = nil,
-        iframeURL: String? = nil,
-        reactions: [PlatformSDK.MessageReaction]? = nil,
-        seen: PlatformSDK.MessageSeen? = nil,
-        isDelivered: Bool? = nil,
-        isHidden: Bool? = nil,
-        isSender: Bool? = nil,
-        isAction: Bool? = nil,
-        isDeleted: Bool? = nil,
-        isErrored: Bool? = nil,
-        parseTemplate: Bool? = nil,
-        linkedMessageID: String? = nil,
-        action: PlatformSDK.MessageAction? = nil,
-        behavior: PlatformSDK.MessageBehavior? = nil,
-        threadID: String? = nil,
-        sortKey: Any? = nil,
-        cursor: String? = nil,
-        extra: JSONObject = [:]
-    ) {
-        self.id = id
-        self.timestamp = timestamp
-        self.editedTimestamp = editedTimestamp
-        self.senderID = senderID
-        self.text = text
-        self.textAttributes = textAttributes
-        self.textHeading = textHeading
-        self.textFooter = textFooter
-        self.attachments = attachments
-        self.tweets = tweets
-        self.links = links
-        self.iframeURL = iframeURL
-        self.reactions = reactions
-        self.seen = seen
-        self.isDelivered = isDelivered
-        self.isHidden = isHidden
-        self.isSender = isSender
-        self.isAction = isAction
-        self.isDeleted = isDeleted
-        self.isErrored = isErrored
-        self.parseTemplate = parseTemplate
-        self.linkedMessageID = linkedMessageID
-        self.action = action
-        self.behavior = behavior
-        self.threadID = threadID
-        self.sortKey = sortKey
-        self.cursor = cursor
-        self.extra = extra
-    }
 
     func message() -> PlatformSDK.Message {
         PlatformSDK.Message(
@@ -133,24 +72,6 @@ struct MessagePatch {
     var links: [PlatformSDK.MessageLink]?
     var iframeURL: String?
     var linkedMessageID: String?
-
-    init(
-        textHeading: String? = nil,
-        textFooter: String? = nil,
-        attachments: [PlatformSDK.Attachment]? = nil,
-        tweets: [PlatformSDK.Tweet]? = nil,
-        links: [PlatformSDK.MessageLink]? = nil,
-        iframeURL: String? = nil,
-        linkedMessageID: String? = nil
-    ) {
-        self.textHeading = textHeading
-        self.textFooter = textFooter
-        self.attachments = attachments
-        self.tweets = tweets
-        self.links = links
-        self.iframeURL = iframeURL
-        self.linkedMessageID = linkedMessageID
-    }
 
     func apply(to message: inout MessageDraft) {
         if let textHeading {

@@ -99,7 +99,7 @@ extension Mapper {
             return PlatformSDK.Attachment(
                 id: srcURL,
                 type: .video,
-                size: PlatformSDK.Size(width: Double(size["width"] ?? 0), height: Double(size["height"] ?? 0)),
+                size: size,
                 srcURL: srcURL
             )
         }

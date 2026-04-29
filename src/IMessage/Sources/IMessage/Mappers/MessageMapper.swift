@@ -10,36 +10,6 @@ struct Mapper {
     let currentUserID: String
     let accountID: String
 
-    init(
-        msgRow: MappedMessageRow,
-        attachmentRows: [MappedAttachmentRow],
-        reactionRows: [MappedReactionMessageRow],
-        currentUserID: String,
-        accountID: String
-    ) {
-        self.msgRow = msgRow
-        self.attachmentRows = attachmentRows
-        self.reactionRows = reactionRows
-        self.currentUserID = currentUserID
-        self.accountID = accountID
-    }
-
-    init(
-        msgRow: JSONObject,
-        attachmentRows: [JSONObject],
-        reactionRows: [JSONObject],
-        currentUserID: String,
-        accountID: String
-    ) throws {
-        try self.init(
-            msgRow: MappedMessageRow(object: msgRow),
-            attachmentRows: attachmentRows.map(MappedAttachmentRow.init(object:)),
-            reactionRows: reactionRows.map(MappedReactionMessageRow.init(object:)),
-            currentUserID: currentUserID,
-            accountID: accountID
-        )
-    }
-
     func mapMessage() throws -> [PlatformSDK.Message] {
         guard msgRow.scheduleType == 0 else {
             return []
@@ -336,6 +306,24 @@ struct Mapper {
             PlatformSDK.TextEntity(from: 0, to: subjectLength, bold: true),
         ] + existing)
         return message
+    }
+}
+
+extension Mapper {
+    init(
+        msgRow: JSONObject,
+        attachmentRows: [JSONObject],
+        reactionRows: [JSONObject],
+        currentUserID: String,
+        accountID: String
+    ) throws {
+        try self.init(
+            msgRow: MappedMessageRow(object: msgRow),
+            attachmentRows: attachmentRows.map(MappedAttachmentRow.init(object:)),
+            reactionRows: reactionRows.map(MappedReactionMessageRow.init(object:)),
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
     }
 }
 

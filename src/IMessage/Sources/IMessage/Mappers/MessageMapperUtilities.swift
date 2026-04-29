@@ -41,7 +41,7 @@ func isUUID(_ string: String) -> Bool {
     UUID(uuidString: string) != nil
 }
 
-func parseSize(_ size: String?) -> [String: Int]? {
+func parseSize(_ size: String?) -> PlatformSDK.Size? {
     guard let size else {
         return nil
     }
@@ -60,7 +60,7 @@ func parseSize(_ size: String?) -> [String: Int]? {
           height > 0 else {
         return nil
     }
-    return ["width": width, "height": height]
+    return PlatformSDK.Size(width: Double(width), height: Double(height))
 }
 
 func relativeURL(_ value: Any?) -> String? {
