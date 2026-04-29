@@ -176,8 +176,7 @@ public final class PlatformAPI {
             }
 
             if let existingThread {
-                let controller = try await getMessagesController()
-                try await Self.onMessagesControllerQueue {
+                try await withMessagesController { controller in
                     try controller.sendMessage(
                         threadID: existingThreadID,
                         addresses: nil,
@@ -190,8 +189,7 @@ public final class PlatformAPI {
             }
         }
 
-        let controller = try await getMessagesController()
-        try await Self.onMessagesControllerQueue {
+        try await withMessagesController { controller in
             try controller.sendMessage(
                 threadID: nil,
                 addresses: userIDs,
@@ -463,8 +461,7 @@ public final class PlatformAPI {
         forceInvalidate: Bool = false,
         _ action: @escaping @Sendable (MessagesController) throws -> Void
     ) async throws {
-        let controller = try await getMessagesController(forceInvalidate: forceInvalidate)
-        try await Self.onMessagesControllerQueue { try action(controller) }
+        try await withMessagesController(forceInvalidate: forceInvalidate, action)
     }
 
     private func watchThreadActivity(
@@ -477,34 +474,6 @@ public final class PlatformAPI {
 
         // reset the idle callback in case we fail and bail out
         Self.messagesControllerQueue.setIdleCallback(nil)
-
-        let controller = try await getMessagesController()
-
-        // only watch thread activity for iMessage chats
-        // TODO: implement this for groups
-        if !threadID.hasPrefix("iMessage;-;") {
-            guard threadID.hasPrefix("any;-;") else {
-                // only bother checking the database if the GUID can't tell us what service the chat is for
-                // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-                #if DEBUG
-                platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-                #endif
-                return
-            }
-
-            let chat = try controller.db.chat(withGUID: threadID)
-            guard let chat else {
-                platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                return
-            }
-
-            guard chat.serviceName == .imessage else {
-                #if DEBUG
-                platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-                #endif
-                return
-            }
-        }
 
         let watchCBQueue: CallbackQueue
         if let existing = self.watchCBQueue {
@@ -519,22 +488,45 @@ public final class PlatformAPI {
             }
         }
 
-        // it's okay that we aren't using `onMessagesControllerQueue` here -
-        // the idle callback is itself submitted onto the queue, so everything's
-        // still serial
-        let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
-        Self.messagesControllerQueue.setIdleCallback { quiescence in
-            do {
-                try observe(quiescence)
-            } catch {
-                platformLog.error("failed to observe activity: \(error)")
-            }
-        }
-
         let requestID = UUID()
         threadObserveRequestToken.withLock { $0 = requestID }
 
-        try await Self.onMessagesControllerQueue {
+        try await withMessagesController { controller in
+            // only watch thread activity for iMessage chats
+            // TODO: implement this for groups
+            if !threadID.hasPrefix("iMessage;-;") {
+                guard threadID.hasPrefix("any;-;") else {
+                    // only bother checking the database if the GUID can't tell us what service the chat is for
+                    // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+                    #if DEBUG
+                    platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+                    #endif
+                    return
+                }
+
+                let chat = try controller.db.chat(withGUID: threadID)
+                guard let chat else {
+                    platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
+                    return
+                }
+
+                guard chat.serviceName == .imessage else {
+                    #if DEBUG
+                    platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+                    #endif
+                    return
+                }
+            }
+
+            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
+            Self.messagesControllerQueue.setIdleCallback { quiescence in
+                do {
+                    try observe(quiescence)
+                } catch {
+                    platformLog.error("failed to observe activity: \(error)")
+                }
+            }
+
             // if another watchThreadActivity request has been enqueued
             // after our current one (but before this block began executing),
             // then this check will fail and prevent the current block from
@@ -555,8 +547,7 @@ public final class PlatformAPI {
     ) async throws -> AttemptContext {
         try await retry(retries: retries) { attempt in
             let context = try await prepareAttempt()
-            let controller = try await getMessagesController(forceInvalidate: attempt > 0)
-            try await Self.onMessagesControllerQueue {
+            try await withMessagesController(forceInvalidate: attempt > 0) { controller in
                 try action(controller)
             }
             try await afterAttempt?(context)
@@ -603,9 +594,8 @@ public final class PlatformAPI {
     ) async throws -> PlatformSDK.MessageSendResult {
         let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
-        let controller = try await getMessagesController()
         let address = threadIDToAddress(threadID)
-        let sentThreadIsValid = try await Self.onMessagesControllerQueue {
+        let sentThreadIsValid = try await withMessagesController { controller in
             sentThreadIDs.allSatisfy { sentThreadID in
                 if sentThreadID == threadID { return true }
                 guard let sentThreadID else { return false }
