@@ -112,7 +112,7 @@ custom_rules:
   # SwiftLint custom rules are regex-based; keep this targeted to obvious static constants.
   static_var_constant:
     name: "Static Var Constant"
-    regex: '\b(?:public|internal|private|fileprivate|open)?\s*(?:static|class)\s+var\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^=\n{]+\{\s*(?:Self\s*\(|\.[A-Za-z_][A-Za-z0-9_]*|"(?:[^"\\]|\\.)*"|[0-9]+|true|false|nil)'
+    regex: '\b(?:public|internal|private|fileprivate|open)?\s*(?:static|class)\s+var\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^=\n{]+\{\s*(?:Self\s*\(|\.[A-Za-z_][A-Za-z0-9_]*\b(?!\s*\()|"(?:[^"\\]|\\.)*"|[0-9]+|true|false|nil)'
     message: "Use static let for constants instead of static var"
     severity: warning
 

@@ -22,10 +22,10 @@ public extension Attachment {
             self.rawValue = rawValue
         }
 
-        public static var notDownloaded: Self { Self(rawValue: 0) }
+        public static let notDownloaded = Self(rawValue: 0)
         // 1: unknown
-        public static var downloading: Self { Self(rawValue: 3) }
-        public static var downloaded: Self { Self(rawValue: 5) }
+        public static let downloading = Self(rawValue: 3)
+        public static let downloaded = Self(rawValue: 5)
         // 6: unknown
     }
 }

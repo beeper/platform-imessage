@@ -1,51 +1,27 @@
 import Foundation
 
 public extension NSAttributedString.Key {
-    static var imPart: Self {
-        NSAttributedString.Key("__kIMMessagePartAttributeName")
-    }
+    static let imPart = Self("__kIMMessagePartAttributeName")
 
-    static var imBaseWritingDirection: Self {
-        NSAttributedString.Key("__kIMBaseWritingDirectionAttributeName")
-    }
+    static let imBaseWritingDirection = Self("__kIMBaseWritingDirectionAttributeName")
 
-    static var imFileTransferGUID: Self {
-        NSAttributedString.Key("__kIMFileTransferGUIDAttributeName")
-    }
+    static let imFileTransferGUID = Self("__kIMFileTransferGUIDAttributeName")
 
-    static var imBold: Self {
-        NSAttributedString.Key("__kIMTextBoldAttributeName")
-    }
+    static let imBold = Self("__kIMTextBoldAttributeName")
 
-    static var imItalic: Self {
-        NSAttributedString.Key("__kIMTextItalicAttributeName")
-    }
+    static let imItalic = Self("__kIMTextItalicAttributeName")
 
-    static var imUnderline: Self {
-        NSAttributedString.Key("__kIMTextUnderlineAttributeName")
-    }
+    static let imUnderline = Self("__kIMTextUnderlineAttributeName")
 
-    static var imStrikethrough: Self {
-        NSAttributedString.Key("__kIMTextStrikethroughAttributeName")
-    }
+    static let imStrikethrough = Self("__kIMTextStrikethroughAttributeName")
 
-    static var imLink: Self {
-        NSAttributedString.Key("__kIMLinkAttributeName")
-    }
+    static let imLink = Self("__kIMLinkAttributeName")
 
-    static var imConfirmedMention: Self {
-        NSAttributedString.Key("__kIMMentionConfirmedMention")
-    }
+    static let imConfirmedMention = Self("__kIMMentionConfirmedMention")
 
-    static var imOneTimeCode: Self {
-        NSAttributedString.Key("__kIMOneTimeCodeAttributeName")
-    }
+    static let imOneTimeCode = Self("__kIMOneTimeCodeAttributeName")
 
-    static var imPluginPayload: Self {
-        NSAttributedString.Key("__kIMPluginPayloadAttributeName")
-    }
+    static let imPluginPayload = Self("__kIMPluginPayloadAttributeName")
 
-    static var imBreadcrumbTextMarker: Self {
-        NSAttributedString.Key("__kIMBreadcrumbTextMarkerAttributeName")
-    }
+    static let imBreadcrumbTextMarker = Self("__kIMBreadcrumbTextMarkerAttributeName")
 }

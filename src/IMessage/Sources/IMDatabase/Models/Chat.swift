@@ -13,9 +13,9 @@ public extension Chat {
     struct ServiceName: RawRepresentable, Hashable, Equatable, Sendable {
         public var rawValue: String
 
-        public static var rcs: Self { Self(rawValue: "RCS") }
-        public static var sms: Self { Self(rawValue: "SMS") }
-        public static var imessage: Self { Self(rawValue: "iMessage") }
+        public static let rcs = Self(rawValue: "RCS")
+        public static let sms = Self(rawValue: "SMS")
+        public static let imessage = Self(rawValue: "iMessage")
 
         public init(rawValue: String) {
             self.rawValue = rawValue
@@ -23,10 +23,8 @@ public extension Chat {
     }
 }
 
-private var businessGUIDPrefixes: [String] {
-    // RCS might not be a thing, but just in case
-    ["SMS;-;urn:biz:", "iMessage;-;urn:biz:", "RCS;-;urn:biz:", "any;-;urn:biz:"]
-}
+// RCS might not be a thing, but just in case
+private let businessGUIDPrefixes = ["SMS;-;urn:biz:", "iMessage;-;urn:biz:", "RCS;-;urn:biz:", "any;-;urn:biz:"]
 
 public extension Chat {
     var isBusiness: Bool {
