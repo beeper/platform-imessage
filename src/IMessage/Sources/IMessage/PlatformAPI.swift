@@ -385,59 +385,57 @@ public final class PlatformAPI {
         let singleParticipantID = singleParticipantAddress(threadID)
         platformLog.debug("activity/\(publicThreadID): watching")
 
-        try await watchThreadActivity(threadID: threadID) { [dndUserIDs] statuses in
-            platformLog.debug("activity/\(publicThreadID): received \(statuses.map(\.rawValue))")
-
-            let isDNDCanNotify = statuses.contains(.dndCanNotify)
-            let isDND = statuses.contains(.dnd) || isDNDCanNotify
-            let userID = threadIDToAddress(threadID) ?? ""
-            if isDND {
-                dndUserIDs.withLock {
-                    _ = $0.insert(userID)
-                }
-            } else {
-                dndUserIDs.withLock {
-                    _ = $0.remove(userID)
-                }
-            }
+        try await watchThreadActivity(threadID: threadID) { [dndUserIDs] status in
+            platformLog.debug("activity/\(publicThreadID): received \(status)")
 
             guard let singleParticipantID else {
-                platformLog.debug("activity/\(publicThreadID): NOT syncing; not a single participant \(statuses.map(\.rawValue))")
+                platformLog.debug("activity/\(publicThreadID): NOT syncing; not a single participant \(status)")
                 return
             }
 
-            var events: [Event] = [
-                [
-                    "type": "user_activity",
-                    "activityType": statuses.contains(.typing) ? "typing" : "none",
-                    "threadID": publicThreadID,
-                    "participantID": Hasher.participant.tokenizeRemembering(pii: singleParticipantID),
-                    "durationMs": 120_000,
-                ]
+            let hashedParticipantID = Hasher.participant.tokenizeRemembering(pii: singleParticipantID)
+            let hadDNDStatus = dndUserIDs.withLock { $0.contains(singleParticipantID) }
+            var events: [ServerEvent] = [
+                .userActivity(
+                    activityType: status.activityType,
+                    threadID: publicThreadID,
+                    participantID: hashedParticipantID,
+                    durationMilliseconds: 120_000,
+                    customLabel: nil
+                )
             ]
 
-            if isDND {
-                events.append([
-                    "type": "user_presence_updated",
-                    "presence": [
-                        "userID": Hasher.participant.tokenizeRemembering(pii: userID),
-                        "status": isDNDCanNotify ? "dnd_can_notify" : "dnd",
-                    ],
-                ])
-            } else if dndUserIDs.withLock({ $0.contains(userID) }) {
+            if let presenceStatus = status.presenceStatus {
                 dndUserIDs.withLock {
-                    _ = $0.remove(userID)
+                    _ = $0.insert(singleParticipantID)
                 }
-                events.append([
-                    "type": "user_presence_updated",
-                    "presence": [
-                        "userID": Hasher.participant.tokenizeRemembering(pii: userID),
-                        "status": "idle",
-                    ],
-                ])
+                events.append(
+                    .userPresenceUpdated(
+                        PlatformSDK.UserPresence(
+                            userID: hashedParticipantID,
+                            status: presenceStatus
+                        )
+                    )
+                )
+            } else if status.didObservePresence, hadDNDStatus {
+                dndUserIDs.withLock {
+                    _ = $0.remove(singleParticipantID)
+                }
+                events.append(
+                    .userPresenceUpdated(
+                        PlatformSDK.UserPresence(
+                            userID: hashedParticipantID,
+                            status: .idle
+                        )
+                    )
+                )
+            } else if status.didObservePresence {
+                dndUserIDs.withLock {
+                    _ = $0.remove(singleParticipantID)
+                }
             }
 
-            try sendEvents(events)
+            try sendEvents(events.map { $0.jsonObject() })
         }
     }
 
@@ -541,7 +539,7 @@ public final class PlatformAPI {
 
     private func watchThreadActivity(
         threadID: String,
-        statusSender: @escaping @Sendable ([ActivityStatus]) throws -> Void
+        statusSender: @escaping @Sendable (ThreadActivityObservation) throws -> Void
     ) async throws {
         guard Defaults.imessage.bool(forKey: DefaultsKeys.watchThreadActivity) else {
             return
@@ -585,9 +583,9 @@ public final class PlatformAPI {
             watchCBQueue = try await runtime.makeCallbackQueue("watch-imessage-callback")
             self.watchCBQueue = watchCBQueue
         }
-        let sendStatusOnQueue = { (statuses: [ActivityStatus]) in
+        let sendStatusOnQueue = { (status: ThreadActivityObservation) in
             try? watchCBQueue.run {
-                try statusSender(statuses)
+                try statusSender(status)
             }
             return
         }

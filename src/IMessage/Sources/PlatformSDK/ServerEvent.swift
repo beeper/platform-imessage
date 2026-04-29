@@ -13,6 +13,16 @@ extension PlatformSDK {
 }
 
 public enum ServerEvent {
+    /// A server event with type `user_activity`.
+    case userActivity(
+        activityType: PlatformSDK.ActivityType,
+        threadID: PlatformSDK.ThreadID,
+        participantID: PlatformSDK.UserID,
+        durationMilliseconds: Int?,
+        customLabel: String?
+    )
+    /// A server event with type `user_presence_updated`.
+    case userPresenceUpdated(PlatformSDK.UserPresence)
     /// A server event with type `toast`.
     ///
     /// Displays user-visible text in a dismissible notification.
@@ -30,6 +40,20 @@ public enum ServerEvent {
 extension ServerEvent {
     public func jsonObject() -> JSONObject {
         switch self {
+        case let .userActivity(activityType, threadID, participantID, durationMilliseconds, customLabel):
+            return compactDictionary([
+                "type": PlatformSDK.ServerEventType.userActivity.rawValue,
+                "activityType": activityType.rawValue,
+                "threadID": threadID,
+                "participantID": participantID,
+                "durationMs": durationMilliseconds,
+                "customLabel": customLabel,
+            ])
+        case let .userPresenceUpdated(presence):
+            return [
+                "type": PlatformSDK.ServerEventType.userPresenceUpdated.rawValue,
+                "presence": presence.jsonObject,
+            ]
         case let .toast(message, id, timeout):
             return [
                 "type": PlatformSDK.ServerEventType.toast.rawValue,

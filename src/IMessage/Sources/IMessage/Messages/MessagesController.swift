@@ -8,6 +8,7 @@ import IMDatabase
 import Logging
 import PHTClient
 import IMessageCore
+import PlatformSDK
 import WindowControl
 
 private let log = Logger(imessageLabel: "messages-controller")
@@ -96,6 +97,28 @@ private enum ThreadAction {
     }
 }
 
+struct ThreadActivityObservation: Equatable, Sendable, CustomStringConvertible {
+    let activityType: PlatformSDK.ActivityType
+    let presenceStatus: PlatformSDK.UserPresenceStatus?
+    let didObservePresence: Bool
+
+    static let unknown = ThreadActivityObservation(
+        activityType: .none,
+        presenceStatus: nil,
+        didObservePresence: false
+    )
+
+    var description: String {
+        var parts = ["activityType=\(activityType.rawValue)"]
+        if let presenceStatus {
+            parts.append("presenceStatus=\(presenceStatus.rawValue)")
+        } else if !didObservePresence {
+            parts.append("presenceStatus=unknown")
+        }
+        return parts.joined(separator: ",")
+    }
+}
+
 struct MessageCell: Codable {
     let messageGUID: String
     let offset: Int
@@ -122,8 +145,8 @@ final class MessagesController {
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
     private var lastThreadIDOpenedForObservation = Protected<String?>()
-    private var lastSentActivityStatus: [ActivityStatus]?
-    private var lastSentActivityStatusTime: Date?
+    private var lastSentActivityObservation: ThreadActivityObservation?
+    private var lastSentActivityObservationTime: Date?
 
     private var windowCoordinator: WindowCoordinator
     private var phtConnection: PHTConnection?
@@ -1462,25 +1485,25 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func activityStatus() -> [ActivityStatus] {
+    func activityObservation() -> ThreadActivityObservation {
         #if DEBUG
         let startTime = Date()
-        defer { log.debug("activityStatus took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("activityObservation took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
         func getTV() -> Accessibility.Element? {
             return try? elements.transcriptView
         }
         guard let transcript = getTV(),
               let count = try? transcript.children.count() else {
-            return [.unknown]
+            return .unknown
         }
         let cellsToCheck: [Accessibility.Element]
         switch count {
         case 0:
-            return [.unknown]
+            return .unknown
         case 1:
             guard let elt = try? transcript.children[0] else {
-                return [.unknown]
+                return .unknown
             }
             cellsToCheck = [elt]
         default:
@@ -1488,13 +1511,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // post-monterey, there can be <typing cell>, "...has notifications silenced", "Notify Anyway"
             let lastN = isMontereyOrUp ? 3 : 1
             guard let elts = try? transcript.children(range: (count - lastN)..<count), elts.count == lastN else {
-                return [.unknown]
+                return .unknown
             }
             cellsToCheck = elts
         }
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
-        let dndFlag: ActivityStatus? = {
+        let presenceStatus: PlatformSDK.UserPresenceStatus? = {
             guard isMontereyOrUp else { return nil }
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children[0] else { continue }
@@ -1517,7 +1540,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
             return (try? elt.roleDescription().isEmpty) != false
         }
-        return (isTyping ? [.typing] : [.notTyping]) + (dndFlag.flatMap { [$0] } ?? []) as [ActivityStatus]
+        return ThreadActivityObservation(
+            activityType: isTyping ? .typing : .none,
+            presenceStatus: presenceStatus,
+            didObservePresence: true
+        )
     }
 
     func notifyAnyway(threadID: String) throws {
@@ -1564,7 +1591,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /// returns a callback meant to be assigned to a `PassivelyAwareDispatchQueue` that observes a single thread once
     /// the passively aware dispatch queue should call the returned callback repeatedly
-    func idleCallback(observingThreadID threadID: String, statusSender: @escaping ([ActivityStatus]) -> Void) throws -> ((Quiescence) throws -> Void) {
+    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> ((Quiescence) throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         return { [weak self] _ in
@@ -1603,21 +1630,21 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             guard activityLock.tryLock() else { return }
             defer { activityLock.unlock() }
 
-            let statusToSend = activityStatus()
-            guard lastSentActivityStatus != statusToSend || (statusToSend.contains(.typing) && lastSentActivityStatusTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
+            let observationToSend = activityObservation()
+            guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
                 #if DEBUG
                 log.debug("activity: same activity or too recent, skipping activity update")
                 #endif
                 return
             }
             defer {
-                lastSentActivityStatus = statusToSend
-                lastSentActivityStatusTime = Date()
+                lastSentActivityObservation = observationToSend
+                lastSentActivityObservationTime = Date()
             }
             #if DEBUG
-            log.debug("activity: sending: \(statusToSend)")
+            log.debug("activity: sending: \(observationToSend)")
             #endif
-            statusSender(statusToSend)
+            statusSender(observationToSend)
         }
     }
 
