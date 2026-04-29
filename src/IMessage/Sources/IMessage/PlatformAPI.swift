@@ -454,9 +454,9 @@ public final class PlatformAPI {
 
     public func getAsset(pathHex: String, methodName: String?) async throws -> AssetResult {
         let database = database
-        return try await DetachedWork.run {
-            try Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
-        }
+        return try await Task.detached(priority: .userInitiated) {
+            try await Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
+        }.value
     }
 
     public func dispose() async throws {
@@ -702,7 +702,7 @@ public final class PlatformAPI {
         timeout: TimeInterval
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
-        return try await DetachedWork.run {
+        return try await Task.detached(priority: .userInitiated) {
             let start = Date()
             let expectedNewMessageIDCount = text.map { max(linkCount(in: $0), 1) } ?? 1
             var sentMessageIDs: [(rowID: Int, guid: String)] = []
@@ -716,15 +716,15 @@ public final class PlatformAPI {
                 if Date().timeIntervalSince(start) > timeout {
                     throw ErrorMessage("timed out waiting for sent messages")
                 }
-                Thread.sleep(forTimeInterval: sentMessagePollInterval)
+                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
             }
             return sentMessageIDs
-        }
+        }.value
     }
 
     private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
         let database = database
-        return try await DetachedWork.run {
+        return try await Task.detached(priority: .userInitiated) {
             let sentThreadIDs = {
                 try messageRowIDs.map { rowID in
                     try database.withDatabase { db in
@@ -735,14 +735,14 @@ public final class PlatformAPI {
             var threadIDs = try sentThreadIDs()
             let start = Date()
             while threadIDs.contains(where: { $0 == nil }) {
-                Thread.sleep(forTimeInterval: sentMessagePollInterval)
+                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
                 threadIDs = try sentThreadIDs()
                 if Date().timeIntervalSince(start) > waitForSentThreadTimeout {
                     break
                 }
             }
             return threadIDs
-        }
+        }.value
     }
 
     private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [PlatformSDK.Message] {
@@ -1295,7 +1295,7 @@ extension PlatformAPI {
         return String(associatedMessageGUID[upper...])
     }
 
-    nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) throws -> AssetResult {
+    nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) async throws -> AssetResult {
         switch pathHex {
         case "hw":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
@@ -1305,7 +1305,7 @@ extension PlatformAPI {
                 if let fileName = fileNames.first(where: { $0.hasPrefix(prefix) }) {
                     return .url(fileURLString(MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent(fileName).path))
                 }
-                Thread.sleep(forTimeInterval: 0.1)
+                try await Task.sleep(forTimeInterval: 0.1)
             }
             throw ErrorMessage("Couldn't fetch handwriting asset")
 
