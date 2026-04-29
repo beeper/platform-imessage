@@ -441,6 +441,17 @@ public final class PlatformAPI {
         }
     }
 
+    public func getOriginalObject(objName: String, objectID: String) async throws -> String {
+        try await runDBQuery { db, currentUser, _ in
+            try Self.getOriginalObject(
+                db: db,
+                objName: objName,
+                objectID: objectID,
+                currentUserID: currentUser.id
+            )
+        }
+    }
+
     public func getAsset(pathHex: String, methodName: String?) async throws -> AssetResult {
         let database = database
         return try await DetachedWork.run {
@@ -1111,34 +1122,72 @@ extension PlatformAPI {
             accountID: accountID
         )
         let mapped = try mapper.mapMessage().filter { shouldKeepForAPI($0) }
-        return attachOriginalIfNeeded(
-            mapped,
-            msgRow: msgRow.object,
-            attachmentRows: attachmentRows.objects,
-            currentUserID: currentUserID
-        ).map(hashMessage)
+        return mapped.map(hashMessage)
     }
 
     nonisolated static func shouldKeepForAPI(_ message: PlatformSDK.Message) -> Bool {
         !message.id.isEmpty
     }
 
-    nonisolated static func attachOriginalIfNeeded(
-        _ messages: [PlatformSDK.Message],
-        msgRow: JSONObject,
-        attachmentRows: [JSONObject],
+    nonisolated static func messageOriginalPayload(
+        msgRow: MappedMessageRow,
+        attachmentRows: [MappedAttachmentRow],
         currentUserID: String
-    ) -> [PlatformSDK.Message] {
-        guard !Preferences.stripInternalFields else {
-            return messages
-        }
-
-        var serializedRow = msgRow
+    ) -> [Any] {
+        var serializedRow = msgRow.object
         serializedRow.removeValue(forKey: "attributedBody")
         serializedRow.removeValue(forKey: "message_summary_info")
-        let original = (try? encodeJSON([serializedRow, attachmentRows, currentUserID])) ?? ""
-        return messages.map { message in
-            copyMessage(message, original: original)
+        return [serializedRow, attachmentRows.map(\.object), currentUserID]
+    }
+
+    nonisolated static func threadOriginalPayload(
+        chatRow: MappedChatRow,
+        handleRows: [MappedHandleRow]
+    ) -> [Any] {
+        [chatRow.object, handleRows.map(\.object)]
+    }
+
+    nonisolated static func getOriginalObject(
+        db: IMDatabase,
+        objName: String,
+        objectID: String,
+        currentUserID: String
+    ) throws -> String {
+        switch objName {
+        case "message":
+            let messageGUID = objectID.components(separatedBy: "_").first ?? objectID
+            guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
+                return ""
+            }
+            let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID]))
+            return encodeOriginalPayload(messageOriginalPayload(
+                msgRow: msgRow,
+                attachmentRows: attachmentRows,
+                currentUserID: currentUserID
+            ))
+
+        case "thread":
+            let threadID = try originalThreadID(db: db, objectID)
+            guard let chatRow = try db.mappedThreadRow(guid: threadID) else {
+                return ""
+            }
+            let handleRowsByChatRowID = try db.mappedThreadParticipantRows(chatRowIDs: [chatRow.rowID])
+            return encodeOriginalPayload(threadOriginalPayload(
+                chatRow: chatRow,
+                handleRows: handleRowsByChatRowID[chatRow.rowID] ?? []
+            ))
+
+        default:
+            throw ErrorMessage("Bad PlatformAPI call: getOriginalObject objName must be 'thread' or 'message'")
+        }
+    }
+
+    nonisolated private static func encodeOriginalPayload(_ payload: Any) -> String {
+        do {
+            return try encodeJSON(payload)
+        } catch {
+            platformLog.error("failed to encode original object payload: \(error)")
+            return ""
         }
     }
 

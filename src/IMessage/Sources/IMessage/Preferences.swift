@@ -6,13 +6,11 @@ import Foundation
 //   2. `Defaults.imessage` (UserDefaults) — durable user-tunable settings;
 //      see Defaults.swift for keys.
 //   3. `ProcessInfo.environment` — build/test escape hatches and CLI-set
-//      values (IMESSAGE_LOGGING_DIR_PATH, IMESSAGE_USE_SECONDARY_INSTANCE,
-//      IMESSAGE_STRIP_INTERNAL_FIELDS).
+//      values (IMESSAGE_LOGGING_DIR_PATH, IMESSAGE_USE_SECONDARY_INSTANCE).
 //
 // When adding a setting, pick by lifecycle: process-only → here; durable user
 // pref → Defaults; build/test toggle → environment.
 enum Preferences {
-    private static let stripInternalFieldsKey = "IMESSAGE_STRIP_INTERNAL_FIELDS"
     private static let loggingDirectoryKey = "IMESSAGE_LOGGING_DIR_PATH"
     private static let secondaryInstanceKey = "IMESSAGE_USE_SECONDARY_INSTANCE"
 
@@ -21,20 +19,10 @@ enum Preferences {
     static var enabledExperiments: String = ""
     static var useSecondaryMessagesInstance: Bool = false
 
-    /// Read once at first access. The only writer is `applyCLIDefaults()`,
-    /// which runs during process bootstrap before any mapper hits this.
-    static let stripInternalFields: Bool = {
-        ProcessInfo.processInfo.environment[stripInternalFieldsKey] == "1"
-    }()
-
     static var useSecondaryInstanceEnvironment: Bool? {
         guard let value = ProcessInfo.processInfo.environment[secondaryInstanceKey] else { return nil }
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return !["0", "false", "no", "off"].contains(normalized)
-    }
-
-    static func applyCLIDefaults() {
-        setDefault(stripInternalFieldsKey, value: "1")
     }
 
     static func setLoggingDirectory(_ path: String) {
@@ -44,10 +32,5 @@ enum Preferences {
     static func setUseSecondaryInstance(_ enabled: Bool) {
         setenv(secondaryInstanceKey, enabled ? "1" : "0", 1)
         useSecondaryMessagesInstance = enabled
-    }
-
-    private static func setDefault(_ key: String, value: String) {
-        guard ProcessInfo.processInfo.environment[key] == nil else { return }
-        setenv(key, value, 0)
     }
 }

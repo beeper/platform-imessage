@@ -98,7 +98,6 @@ public enum IMessageHost {
     }
 
     public static func bootstrapWithOptions(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool) {
-        Preferences.applyCLIDefaults()
         Preferences.setLoggingDirectory(dataDirPath)
         Preferences.setUseSecondaryInstance(useSecondaryInstance)
         Preferences.isLoggingEnabled = verbose

@@ -41,6 +41,10 @@ import PlatformSDK
         return try encodeJSON(message?.jsonObject)
     }
 
+    @NodeMethod func getOriginalObject(objName: String, objectID: String) async throws -> String {
+        try await api.getOriginalObject(objName: objName, objectID: objectID)
+    }
+
     @NodeMethod func createThread(userIDs userIDsValue: NodeArray, title: String?, messageText: String?) async throws -> String {
         let userIDs = try userIDsValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
         let result = try await api.createThread(userIDs: userIDs, title: title, messageText: messageText)

@@ -70,7 +70,6 @@ enum ThreadMapper {
             extra: compactDictionary([
                 "isSMS": (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;")) ? true : nil,
             ]),
-            original: Preferences.stripInternalFields ? nil : (try? encodeJSON([chat.object, handleRows.objects])) ?? "",
             unreadCount: unreadCount,
             isMarkedUnread: isUnread,
             lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp),

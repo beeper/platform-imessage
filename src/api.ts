@@ -220,6 +220,9 @@ export default class AppleiMessage implements PlatformAPI {
     return parsed ?? undefined
   }
 
+  getOriginalObject = async (objName: 'thread' | 'message', objectID: ThreadID | MessageID): Promise<string> =>
+    this.swiftPlatformAPI!.getOriginalObject(objName, objectID)
+
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<PaginatedWithCursors<Message>>(await swiftAPI.searchMessages(

@@ -4,12 +4,12 @@ import SQLite
 
 /// Runtime counterparts to the historical TypeScript row types preserved in
 /// DatabaseSchemaNotes.swift. Database queries decode into these structs
-/// directly; dictionaries are produced lazily only for `_original` payloads and
-/// final JSON surfaces.
+/// directly. Concrete row types still expose dictionary bridges for legacy
+/// fixture/original-payload paths, but normal row mapping does not require that
+/// surface.
 
 public protocol MappedDatabaseRow {
     init(row: borrowing Row, columns: MappedRowColumnIndexes) throws
-    var object: [String: Any] { get }
 }
 
 public struct MappedRowColumnIndexes {
@@ -25,12 +25,6 @@ public struct MappedRowColumnIndexes {
 
     func index(for name: String) -> Int? {
         indexesByName[name]
-    }
-}
-
-public extension Sequence where Element: MappedDatabaseRow {
-    var objects: [[String: Any]] {
-        map(\.object)
     }
 }
 
