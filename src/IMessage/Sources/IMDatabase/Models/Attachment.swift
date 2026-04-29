@@ -7,36 +7,30 @@ public struct Attachment: Identifiable {
     /** seemingly the basename of the file path, e.g. `IMG_5553.png` */
     public var transferName: String?
     public var isSticker: Bool
-    public var transferState: TransferState?
+    public var transferState: IMFileTransferState?
     // TODO: not using UTType due to deployment target
     public var uti: String?
 }
 
-// MARK: - Attachment+Transfer State
+// MARK: - Attachment+IMFileTransferState
 
 public extension Attachment {
-    struct TransferState: RawRepresentable, Equatable, Hashable {
+    struct IMFileTransferState: RawRepresentable, Equatable, Hashable {
         public var rawValue: Int
 
         public init(rawValue: Int) {
             self.rawValue = rawValue
         }
 
-        public static let notDownloaded = Self(rawValue: 0)
-        // 1: unknown
-        public static let downloading = Self(rawValue: 3)
-        public static let downloaded = Self(rawValue: 5)
-        // 6: unknown
-    }
-}
-
-extension Attachment.TransferState: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .notDownloaded: "not downloaded"
-        case .downloading: "downloading"
-        case .downloaded: "downloaded"
-        default: "unknown (\(rawValue))"
-        }
+        public static let waitingForAccept = Self(rawValue: 0)
+        public static let accepted = Self(rawValue: 1)
+        public static let preparing = Self(rawValue: 2)
+        public static let transferring = Self(rawValue: 3)
+        public static let finalizing = Self(rawValue: 4)
+        public static let finished = Self(rawValue: 5)
+        public static let error = Self(rawValue: 6)
+        public static let recoverableError = Self(rawValue: 7)
+        public static let rejected = Self(rawValue: 8)
+        public static let thumbnail = Self(rawValue: 9)
     }
 }

@@ -68,7 +68,7 @@ extension Attachment {
         let fileName = try row[3].optionalConverting(String.self)
         let transferName = try row[4].optionalConverting(String.self)
         let isSticker = try row[5].looseBool()
-        let transferState = try Attachment.TransferState(rawValue: row[6].expectConverting(Int.self))
+        let transferState = try Attachment.IMFileTransferState(rawValue: row[6].expectConverting(Int.self))
         let uti = try row[7].optionalConverting(String.self)
 
         self = Attachment(

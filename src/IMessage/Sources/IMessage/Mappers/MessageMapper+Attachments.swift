@@ -30,7 +30,7 @@ extension Mapper {
                 size: size,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
-                loading: transferState != IMFileTransferState.finished,
+                loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
                 isSticker: attachmentRow.isSticker == 1,
                 srcURL: imageSrcURL
             )
@@ -41,7 +41,7 @@ extension Mapper {
                 type: .video,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
-                loading: transferState != IMFileTransferState.finished,
+                loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
                 srcURL: srcURL
             )
         }
@@ -51,7 +51,7 @@ extension Mapper {
                 type: .audio,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
-                loading: transferState != IMFileTransferState.finished,
+                loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
                 isVoiceNote: msgRow.isAudioMessage == 1,
                 srcURL: srcURL
             )
@@ -61,7 +61,7 @@ extension Mapper {
             type: .unknown,
             fileName: fileName,
             fileSize: attachmentRow.totalBytes.map(Int64.init),
-            loading: transferState != IMFileTransferState.finished,
+            loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
             srcURL: srcURL
         )
     }

@@ -44,10 +44,6 @@ enum BalloonBundleID {
     static let youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
 }
 
-enum IMFileTransferState {
-    static let finished = 5
-}
-
 let imageExtensions: Set<String> = [
     "3dv", "ai", "amf", "art", "ase", "awg", "blp", "bmp", "bw", "cd5", "cdr", "cgm", "cit", "cmx", "cpt",
     "cr2", "cur", "cut", "dds", "dib", "djvu", "dxf", "e2d", "ecw", "egt", "emf", "eps", "exif", "fs",
