@@ -6,7 +6,6 @@ import Contacts
 import EmojiSPI
 import IMDatabase
 import Logging
-import PHTClient
 import IMessageCore
 import PlatformSDK
 import WindowControl
@@ -141,6 +140,7 @@ final class MessagesController {
     let elements: MessagesAppElements
 
     private var lifecycleConveyor: RunLoopConveyor<ConveyorEvent>?
+    private var lifecycleEventsTask: Task<Void, Never>?
 
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
@@ -149,7 +149,6 @@ final class MessagesController {
     private var lastSentActivityObservationTime: Date?
 
     private var windowCoordinator: WindowCoordinator
-    private var phtConnection: PHTConnection?
     private let keyPresser: KeyPresser
     let contacts = Contacts()
     private var reportToSentry: ((_ txt: String) -> Void)?
@@ -350,10 +349,6 @@ final class MessagesController {
         try assertSelectedThread(threadID: threadID)
     }
 
-    private static func getRunningMessagesApps() -> [NSRunningApplication] {
-        NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-    }
-
     init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
         self.reportToSentry = reportToSentry
         guard Accessibility.isTrusted() else {
@@ -361,15 +356,6 @@ final class MessagesController {
         }
 
         windowCoordinator = try getBestWindowCoordinator()
-
-        if Preferences.isPHTEnabled, Defaults.imessage.bool(forKey: DefaultsKeys.phtAllowConnection) {
-            do {
-                let allowInstall = Defaults.imessage.bool(forKey: DefaultsKeys.phtAllowInstallation)
-                phtConnection = try PHTConnection.create(allowInstall: allowInstall)
-            } catch {
-                log.error("failed to create PHT connection: \(String(reflecting: error))")
-            }
-        }
 
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
             // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
@@ -388,7 +374,7 @@ final class MessagesController {
                 hiding: false
             )
         } else {
-            var messagesApps = Self.getRunningMessagesApps()
+            var messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
             if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
                 log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
                 messagesApps.forEach { try? Self.terminateApp($0) }
@@ -416,9 +402,11 @@ final class MessagesController {
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
         let selectedApp = app
+        
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
             try Self.openDeepLink(url, targeting: selectedApp)
         })
+        
         keyPresser = KeyPresser(pid: app.processIdentifier)
 
         // if app.isHidden {
@@ -460,7 +448,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             // this task doesn't run on the thread with the run loop
-            Task.detached {
+            self.lifecycleEventsTask = Task.detached {
                 func debuggingStatus() -> String {
                     let app = self.app
 
@@ -498,11 +486,15 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         printLifecycle(event: "FOCUSED: \(focusedDescription)")
                         #endif
                     case .windowCreated:
-                        printLifecycle(event: "WINDOW created")
-                        // for now, reset our window-local observations whenever we
-                        // see that a window was created (even if it was just e.g.
-                        // the settings window).
-                        rlt.enqueue(.observeWindow(window: try self.elements.mainWindow))
+                        do {
+                            printLifecycle(event: "WINDOW created")
+                            // for now, reset our window-local observations whenever we
+                            // see that a window was created (even if it was just e.g.
+                            // the settings window).
+                            try rlt.enqueue(.observeWindow(window: self.elements.mainWindow))
+                        } catch {
+                            log.error("fetching mainWindow failed", error: error)
+                        }
                     }
                 }
             }
@@ -538,12 +530,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         defer {
             activityLock.lock()
-        }
-
-        do {
-            try phtConnection?.setMessagesHidden(true)
-        } catch {
-            log.error("failed to hide messages app via pht: \(error)")
         }
 
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
@@ -1459,11 +1445,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
         }
-        do {
-            try phtConnection?.setMessagesHidden(false)
-        } catch {
-            log.error("failed to show messages app via pht: \(error)")
-        }
     }
 
     private func deactivateMessages() {
@@ -1656,6 +1637,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         lifecycleConveyor?.cancel()
+        lifecycleEventsTask?.cancel()
+        
         app.terminate()
     }
 

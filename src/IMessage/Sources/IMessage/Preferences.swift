@@ -15,7 +15,6 @@ enum Preferences {
     private static let secondaryInstanceKey = "IMESSAGE_USE_SECONDARY_INSTANCE"
 
     static var isLoggingEnabled: Bool = false
-    static var isPHTEnabled: Bool = false
     static var enabledExperiments: String = ""
     static var useSecondaryMessagesInstance: Bool = false
 
