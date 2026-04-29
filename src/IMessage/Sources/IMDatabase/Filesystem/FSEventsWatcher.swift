@@ -58,7 +58,6 @@ public final class FSEventsWatcher {
     }
 
     deinit {
-        print("fsevents watcher deinit")
         FSEventStreamStop(stream)
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)

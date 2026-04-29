@@ -204,16 +204,12 @@ public final class PlatformAPI {
     }
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
         try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
     }
 
     public func deleteThread(threadID publicThreadID: String) async throws {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
         try await performOnController { try $0.deleteThread(threadID: threadID) }
     }
 
@@ -267,9 +263,7 @@ public final class PlatformAPI {
             throw ErrorMessage("Tried to edit message to have empty content")
         }
 
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
         try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
@@ -283,9 +277,7 @@ public final class PlatformAPI {
             return
         }
 
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
 
         // Group chat typing indicators require Tahoe+.
         guard isTahoeOrUp || singleParticipantAddress(threadID) != nil else {
@@ -302,9 +294,7 @@ public final class PlatformAPI {
     }
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
         try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
@@ -354,28 +344,21 @@ public final class PlatformAPI {
     }
 
     public func markAsUnread(threadID publicThreadID: String) async throws {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
         try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
     public func notifyAnyway(threadID publicThreadID: String) async throws {
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
         try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
-    // TODO: (@pmanot) - review later (not important)
     public func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping EventSender) async throws {
         guard !publicThreadID.isEmpty else {
             return
         }
 
-        let threadID = try database.withDatabase { db in
-            try Self.originalThreadID(db: db, publicThreadID)
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
 
         guard !Preferences.enabledExperiments.contains("no_watch_thread") else {
             return
@@ -462,13 +445,18 @@ public final class PlatformAPI {
         }
 
         hasBeenDisposed.withLock { $0 = true }
-        // OV2.A: clear cached current-user so future reads derive fresh public IDs
-        // and tear down event watching so a logout/relogin in Messages.app while
-        // Beeper restarts the account doesn't reuse stale state.
+        // Clear cached state so logout/relogin in Messages.app while Beeper
+        // restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
         SystemSettingsOnboarding.stop()
         await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
         try await disposeCachedMessagesController()
+    }
+
+    private func originalThreadID(for publicThreadID: String) throws -> String {
+        try database.withDatabase { db in
+            try Self.originalThreadID(db: db, publicThreadID)
+        }
     }
 
     private func performOnController(
@@ -526,10 +514,9 @@ public final class PlatformAPI {
             self.watchCBQueue = watchCBQueue
         }
         let sendStatusOnQueue = { (status: ThreadActivityObservation) in
-            try? watchCBQueue.run {
+            _ = try? watchCBQueue.run {
                 try statusSender(status)
             }
-            return
         }
 
         // it's okay that we aren't using `onMessagesControllerQueue` here -
