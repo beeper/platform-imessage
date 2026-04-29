@@ -296,8 +296,8 @@ CREATE INDEX attachment_idx_purged_attachments_v2 ON attachment(
   hide_attachment,
   ck_sync_state,
   transfer_state
-) WHERE hide_attachment=0 
-    AND(ck_sync_state=1 OR ck_sync_state=4) 
+) WHERE hide_attachment=0
+    AND(ck_sync_state=1 OR ck_sync_state=4)
     AND transfer_state=0;
 CREATE INDEX message_idx_thread_originator_guid ON message(
   thread_originator_guid
@@ -345,12 +345,12 @@ CREATE INDEX message_idx_undelivered_one_to_one_imessage ON message(
   is_delivered,
   was_downgraded,
   item_type
-) where cache_roomnames IS NULL 
-    AND service IN('iMessage','RCS') 
-    AND is_sent = 1 
-    AND is_delivered = 0 
-    AND was_downgraded = 0 
-    AND item_type == 0 
+) where cache_roomnames IS NULL
+    AND service IN('iMessage','RCS')
+    AND is_sent = 1
+    AND is_delivered = 0
+    AND was_downgraded = 0
+    AND item_type == 0
     AND schedule_type == 0;
 CREATE INDEX message_idx_is_pending_satellite_message ON message(
   is_pending_satellite_send
@@ -391,10 +391,10 @@ CREATE INDEX message_idx_isRead_isFromMe_itemType ON message(
   item_type,
   is_finished,
   is_system_message
-) WHERE is_read = 0 
-    AND is_from_me = 0 
-    AND item_type = 0 
-    AND is_finished = 1 
+) WHERE is_read = 0
+    AND is_from_me = 0
+    AND item_type = 0
+    AND is_finished = 1
     AND is_system_message = 0;
 CREATE INDEX attachment_idx_ck_sync_state ON attachment(ck_sync_state);
 CREATE INDEX chat_message_join_idx_metrics_rebuild ON chat_message_join(
@@ -407,15 +407,15 @@ CREATE INDEX message_idx_isRead_1_isFromMe_0_itemType_0_isFinished_1_isSystemMes
   is_finished,
   is_system_message,
   date DESC
-) WHERE is_read = 1 
-    AND is_from_me = 0 
-    AND item_type = 0 
-    AND is_finished = 1 
+) WHERE is_read = 1
+    AND is_from_me = 0
+    AND item_type = 0
+    AND is_finished = 1
     AND is_system_message = 0;
 CREATE INDEX handle_idx_id ON handle(id, rowid);
 CREATE INDEX message_idx_invalid_index_state ON message(
   rowid
-) WHERE index_state != 2 
+) WHERE index_state != 2
     AND(((associated_message_type not between 2000 and 2007) and associated_message_type != 0) or item_type != 0);
 CREATE INDEX message_idx_composite_scheduled_message ON message(
   schedule_type,
@@ -453,8 +453,8 @@ CREATE INDEX message_idx_unread_finished_not_from_me_newest_first ON message(
   is_from_me,
   date DESC,
   ROWID DESC
-) WHERE is_read = 0 
-    AND is_finished = 1 
+) WHERE is_read = 0
+    AND is_finished = 1
     AND is_from_me = 0;
 CREATE INDEX message_idx_indexed_messages_guid ON message(
   guid
