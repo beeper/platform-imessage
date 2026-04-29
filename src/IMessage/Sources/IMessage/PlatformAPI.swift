@@ -367,6 +367,7 @@ public final class PlatformAPI {
         try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
+    // TODO: (@pmanot) - review later (not important)
     public func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping EventSender) async throws {
         guard !publicThreadID.isEmpty else {
             return
@@ -482,7 +483,8 @@ public final class PlatformAPI {
         threadID: String,
         statusSender: @escaping @Sendable (ThreadActivityObservation) throws -> Void
     ) async throws {
-        guard Defaults.imessage.bool(forKey: DefaultsKeys.watchThreadActivity) else {
+        
+        guard Defaults.watchThreadActivity else {
             return
         }
 

@@ -122,7 +122,7 @@ public struct EclipsingRect: Identifiable {
 
     func reoriented(displayingOn screen: NSScreen) -> CGRect {
         let position = rect.origin
-        var screenOrigin = screen.frame.origin
+        let screenOrigin = screen.frame.origin
         let newOrigin = CGPoint(x: position.x - screenOrigin.x, y: position.y - screenOrigin.y)
         return CGRect(origin: newOrigin, size: rect.size)
     }

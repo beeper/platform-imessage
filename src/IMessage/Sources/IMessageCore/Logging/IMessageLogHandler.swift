@@ -24,22 +24,14 @@ public struct IMessageLogHandler: LogHandler {
         self.metadata = metadata
     }
 
-    public func log(
-        level: SwiftLogger.Level,
-        message: SwiftLogger.Message,
-        metadata: SwiftLogger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    public func log(event: LogEvent) {
         let timestamp = dateFormatter.string(from: Date())
 
-        let formattedMessage = "\(timestamp) [\(level):\(identifier)] \(message)"
+        let formattedMessage = "\(timestamp) [\(event.level):\(identifier)] \(event.message)"
         Log.emitToConsole(formattedMessage)
 
         emitToFile(line: formattedMessage)
-        emitToOSLog(swiftLogLevel: level, message: formattedMessage)
+        emitToOSLog(swiftLogLevel: event.level, message: formattedMessage)
     }
 
     private func emitToOSLog(swiftLogLevel: SwiftLogger.Level, message: String) {
