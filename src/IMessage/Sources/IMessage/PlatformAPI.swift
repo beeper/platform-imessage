@@ -483,7 +483,6 @@ public final class PlatformAPI {
         threadID: String,
         statusSender: @escaping @Sendable (ThreadActivityObservation) throws -> Void
     ) async throws {
-        
         guard Defaults.watchThreadActivity else {
             return
         }

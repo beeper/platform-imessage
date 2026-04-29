@@ -15,12 +15,12 @@ extension PlatformSDK {
 public enum ServerEvent {
     /// A server event with type `user_activity`.
     case userActivity(
-        activityType: PlatformSDK.ActivityType,
-        threadID: PlatformSDK.ThreadID,
-        participantID: PlatformSDK.UserID,
-        durationMilliseconds: Int?,
-        customLabel: String?
-    )
+            activityType: PlatformSDK.ActivityType,
+            threadID: PlatformSDK.ThreadID,
+            participantID: PlatformSDK.UserID,
+            durationMilliseconds: Int?,
+            customLabel: String?
+         )
     /// A server event with type `user_presence_updated`.
     case userPresenceUpdated(PlatformSDK.UserPresence)
     /// A server event with type `toast`.

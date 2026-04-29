@@ -1133,7 +1133,6 @@ private func formatValue(_ value: Any) -> String {
     return prettyJSONString(string).replacingOccurrences(of: "\n", with: " ")
 }
 
-
 private extension String {
     func optionValue(prefix: String) -> String? {
         guard hasPrefix(prefix) else { return nil }
