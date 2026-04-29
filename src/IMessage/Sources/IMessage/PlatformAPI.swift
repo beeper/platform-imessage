@@ -1312,7 +1312,7 @@ extension PlatformAPI {
         case "dt":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
             let filePath = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(uuid).mov").path
-            _ = waitForFileToExist(filePath, maxWait: 5)
+            _ = try await waitForFileToExist(filePath, maxWait: 5)
             return .url(fileURLString(filePath))
 
         case "reaction-sticker":
