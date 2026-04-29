@@ -151,12 +151,11 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
         timestamp: 1,
         senderID: "sender-id",
         attachments: [attachment],
-        behavior: .keepRead,
-        original: "raw-message"
+        behavior: .keepRead
     )
 
     let messageObject = message.jsonObject
-    #expect(messageObject["_original"] as? String == "raw-message")
+    #expect(messageObject["_original"] == nil)
     #expect(messageObject["behavior"] as? String == "keep_read")
     let attachments = try #require(messageObject["attachments"] as? [FixtureJSONObject])
     #expect(attachments.first?["type"] as? String == "img")
@@ -168,11 +167,10 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
         isReadOnly: false,
         type: .group,
         messages: PlatformSDK.Paginated(items: [message], hasMore: false),
-        participants: PlatformSDK.Paginated(items: [], hasMore: false),
-        original: "raw-thread"
+        participants: PlatformSDK.Paginated(items: [], hasMore: false)
     )
     let threadObject = thread.jsonObject
-    #expect(threadObject["_original"] as? String == "raw-thread")
+    #expect(threadObject["_original"] == nil)
     #expect(threadObject["type"] as? String == "group")
     #expect((threadObject["messages"] as? FixtureJSONObject)?["hasMore"] as? Bool == false)
 }

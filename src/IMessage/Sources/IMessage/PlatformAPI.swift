@@ -1212,8 +1212,7 @@ extension PlatformAPI {
         _ message: PlatformSDK.Message,
         senderID: PlatformSDK.UserID? = nil,
         reactions: [PlatformSDK.MessageReaction]? = nil,
-        threadID: PlatformSDK.ThreadID? = nil,
-        original: String? = nil
+        threadID: PlatformSDK.ThreadID? = nil
     ) -> PlatformSDK.Message {
         PlatformSDK.Message(
             id: message.id,
@@ -1250,8 +1249,7 @@ extension PlatformAPI {
             threadID: threadID ?? message.threadID,
             sortKey: message.sortKey,
             cursor: message.cursor,
-            extra: message.extra,
-            original: original ?? message.original
+            extra: message.extra
         )
     }
 

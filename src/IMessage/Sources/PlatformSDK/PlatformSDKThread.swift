@@ -38,7 +38,6 @@ extension PlatformSDK {
         public let messages: Paginated<Message>
         public let participants: Paginated<Participant>
         public let extra: Any?
-        @PlatformSDKJSONKey("_original") public let original: String?
         public let unreadCount: Int?
         public let isMarkedUnread: Bool?
         public let lastReadMessageSortKey: Timestamp?

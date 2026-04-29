@@ -38,6 +38,5 @@ extension PlatformSDK {
         public let sortKey: Any?
         public let cursor: String?
         public let extra: Any?
-        @PlatformSDKJSONKey("_original") public let original: String?
     }
 }

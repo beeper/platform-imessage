@@ -30,7 +30,6 @@ struct MessageDraft {
     var sortKey: Any?
     var cursor: String?
     var extra = JSONObject()
-    var original: String?
 
     init(
         id: String,
@@ -60,8 +59,7 @@ struct MessageDraft {
         threadID: String? = nil,
         sortKey: Any? = nil,
         cursor: String? = nil,
-        extra: JSONObject = [:],
-        original: String? = nil
+        extra: JSONObject = [:]
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -91,7 +89,6 @@ struct MessageDraft {
         self.sortKey = sortKey
         self.cursor = cursor
         self.extra = extra
-        self.original = original
     }
 
     func message() -> PlatformSDK.Message {
@@ -123,8 +120,7 @@ struct MessageDraft {
             threadID: threadID,
             sortKey: sortKey,
             cursor: cursor,
-            extra: extra.isEmpty ? nil : extra,
-            original: original
+            extra: extra.isEmpty ? nil : extra
         )
     }
 }
