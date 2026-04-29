@@ -458,7 +458,7 @@ public final class PlatformAPI {
 
     public func dispose() async throws {
         defer {
-            Self.cleanupTemporaryAttachmentDirectory()
+            try? FileManager.default.removeItem(at: MessagesPaths.temporaryPlatformAttachmentDirectory)
         }
 
         hasBeenDisposed.withLock { $0 = true }
@@ -1011,12 +1011,8 @@ extension PlatformAPI {
         })
     }
 
-    nonisolated private static func temporaryAttachmentDirectoryURL() -> URL {
-        MessagesPaths.temporaryPlatformAttachmentDirectory
-    }
-
     nonisolated private static func writeTemporaryAttachmentFile(data: Data, fileName: String?) throws -> String {
-        let directoryURL = temporaryAttachmentDirectoryURL()
+        let directoryURL = MessagesPaths.temporaryPlatformAttachmentDirectory
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
         let effectiveFileName: String
@@ -1028,10 +1024,6 @@ extension PlatformAPI {
         let fileURL = directoryURL.appendingPathComponent(effectiveFileName)
         try data.write(to: fileURL)
         return fileURL.path
-    }
-
-    nonisolated private static func cleanupTemporaryAttachmentDirectory() {
-        try? FileManager.default.removeItem(at: temporaryAttachmentDirectoryURL())
     }
 
     nonisolated private static func messagePayloadRows(
