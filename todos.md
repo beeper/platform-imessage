@@ -12,7 +12,6 @@
 - [ ] cli: notarize before gh release and do universal binary/x86 target
 
 - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
-- [ ] remove event-watching side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps event watching from the first thread fetch (`cursor == nil`) via `EventWatcherLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting event watching from inside it makes calls non-idempotent. Fix by moving event-watcher bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventWatchingFromCurrentState` / `IMessageHost.startEventWatchingFromCurrentState` path.
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] tests for the cli
@@ -23,8 +22,10 @@
 
 - [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs). Within a single process, IMessage is intentionally singleton-only.
 - [ ] store UserDefaults in dataDirPath
+
 - [x] transpile to pure Swift with TypeScript/Electron bindings
 - [x] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
+- [x] remove event-watching side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps event watching from the first thread fetch (`cursor == nil`) via `EventWatcherLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting event watching from inside it makes calls non-idempotent. Fix by moving event-watcher bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventWatchingFromCurrentState` / `IMessageHost.startEventWatchingFromCurrentState` path.
 
 - [ ] improve misfire prevention and robustness
 
