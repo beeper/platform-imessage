@@ -212,12 +212,7 @@ public final class PlatformAPI {
     }
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
-        let database = database
-        let threadID = try await Task.detached(priority: .userInitiated) {
-            try database.withDatabase { db in
-                try Self.originalThreadID(db: db, publicThreadID)
-            }
-        }.value
+        let threadID = try originalThreadID(for: publicThreadID)
 
         if threadID.hasPrefix("SMS;-;"), threadID.contains("@") {
             throw ErrorMessage("Cannot send message to email address over SMS")
@@ -331,12 +326,7 @@ public final class PlatformAPI {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
         }
 
-        let database = database
-        let threadID = try await Task.detached(priority: .userInitiated) {
-            try database.withDatabase { db in
-                try Self.originalThreadID(db: db, publicThreadID)
-            }
-        }.value
+        let threadID = try originalThreadID(for: publicThreadID)
 
         try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
     }
