@@ -14,12 +14,11 @@ var products: [Product] = [
         name: "IMessage",
         targets: ["IMessage"]
     ),
-    .executable(name: "imessage", targets: ["IMessageCLI"]),
+    .executable(name: "imessage-cli", targets: ["IMessageCLI"]),
 ]
 
 var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/sindresorhus/ExceptionCatcher", from: "2.0.1"),
-    .package(url: "https://github.com/beeper/PHTCommon.git", from: "0.1.0"),
     .package(url: "https://github.com/beeper/BetterSwiftAX.git", from: "0.1.0"),
     .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
@@ -52,7 +51,6 @@ var targets: [Target] = [
             "BetterSwiftAX",
             "ExceptionCatcher",
             "IMessageCore",
-            .product(name: "PHTClient", package: "PHTCommon"),
             "EmojiSPI",
             "IMDatabase",
             "PlatformSDK",

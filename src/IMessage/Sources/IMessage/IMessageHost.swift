@@ -1,5 +1,4 @@
 import Foundation
-import WindowControl
 import IMessageCore
 import Logging
 import IMDatabase
@@ -19,10 +18,6 @@ public enum IMessageHost {
     private static let accessManager = MessagesAccessManager()
     private static let bootstrapLock = NSLock()
     private static var didBootstrap = false
-
-    public static var isMessagesAppInDock: Bool {
-        Defaults.isAppInDock(bundleID: messagesBundleID)
-    }
 
     public static var isNotificationsEnabledForMessages: Bool {
         Defaults.isNotificationsEnabledForApp(bundleID: messagesBundleID)
@@ -45,11 +40,6 @@ public enum IMessageHost {
     public static var isLoggingEnabled: Bool {
         get { Preferences.isLoggingEnabled }
         set { Preferences.isLoggingEnabled = newValue }
-    }
-
-    public static var isPHTEnabled: Bool {
-        get { Preferences.isPHTEnabled }
-        set { Preferences.isPHTEnabled = newValue }
     }
 
     public static func bootstrap() {
@@ -181,14 +171,6 @@ public enum IMessageHost {
             _ = try PromptAutomation.disableNotificationsForApp(named: "Messages")
             Defaults.playSoundEffects = false
         }
-    }
-
-    public static func removeMessagesFromDock() {
-        Defaults.removeAppFromDock(bundleID: messagesBundleID)
-    }
-
-    public static func killDock() {
-        Dock.runningApplication()?.terminate()
     }
 
     public static func revealSettings() {

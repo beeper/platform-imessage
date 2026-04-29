@@ -7,10 +7,6 @@ import IMessageCore
     IMessageHost.bootstrap()
 
     var dict: [String: NodePropertyConvertible] = try [
-        "isMessagesAppInDock": NodeProperty { _ in
-            IMessageHost.isMessagesAppInDock
-        },
-
         "isNotificationsEnabledForMessages": NodeProperty { _ in
             IMessageHost.isNotificationsEnabledForMessages
         },
@@ -31,12 +27,6 @@ import IMessageCore
             IMessageHost.isLoggingEnabled
         } set: { args in
             IMessageHost.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
-        },
-
-        "isPHTEnabled": NodeProperty { _ in
-            IMessageHost.isPHTEnabled
-        } set: { args in
-            IMessageHost.isPHTEnabled = try args.first?.as(Bool.self) ?? false
         },
 
         "askForMessagesDirAccess": NodeFunction {
@@ -83,14 +73,6 @@ import IMessageCore
 
         "disableMessagesNotifications": NodeFunction {
             try await IMessageHost.disableMessagesNotifications()
-        },
-
-        "removeMessagesFromDock": NodeFunction {
-            IMessageHost.removeMessagesFromDock()
-        },
-
-        "killDock": NodeFunction {
-            IMessageHost.killDock()
         },
 
         "revealSettings": NodeFunction {

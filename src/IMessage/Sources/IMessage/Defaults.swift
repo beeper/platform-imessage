@@ -16,9 +16,6 @@ private func randomCase(_ input: String) -> String {
 }
 
 enum DefaultsKeys {
-    static let phtAllowInstallation = "BEEPPHTAllowInstallation"
-    static let phtAllowConnection = "BEEPPHTAllowConnection"
-
     /** controls whether window coordination happens at all, respected on the fly */
     static let windowCoordination = "BEEPWindowCoordination"
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
@@ -105,15 +102,10 @@ enum Defaults {
     // Suite name kept as "swift-server" to preserve users' existing prefs
     // after the package rename — changing it would orphan their stored values.
     public static let imessage = UserDefaults(suiteName: "com.automattic.beeper.desktop.swift-server")!
-    private static let dock = UserDefaults(suiteName: "com.apple.dock")
     private static let ncPrefs = UserDefaults(suiteName: "com.apple.ncprefs")
 
     static func registerDefaults() {
         var defaults: [String: Any] = [
-            // (DESK-13231; removed until this actually works)
-            DefaultsKeys.phtAllowConnection: false,
-            DefaultsKeys.phtAllowInstallation: false,
-
             DefaultsKeys.windowCoordination: true,
 
             DefaultsKeys.watchThreadActivity: true,
@@ -233,40 +225,6 @@ enum Defaults {
 
     static func pinnedThreadsCount() -> Int? {
         pinnedThreads()?.count
-    }
-
-    // sync w desktop
-    static func isAppInDock(bundleID: String) -> Bool {
-        guard let dock, let persistentApps = dock.array(forKey: "persistent-apps") as? [[String: Any]] else {
-            return false
-        }
-        for app in persistentApps {
-            if let td = app["tile-data"] as? [String: Any],
-               let bi = td["bundle-identifier"] as? String,
-               bundleID == bi {
-                return true
-            }
-        }
-        return false
-    }
-
-    // sync w desktop
-    static func removeAppFromDock(bundleID: String) {
-        guard let dock, var persistentApps = dock.array(forKey: "persistent-apps") as? [[String: Any]] else {
-            return
-        }
-        let appIndex = persistentApps.firstIndex { app in
-            guard let tileData = app["tile-data"] as? [String: Any],
-                  let bundleIdentifier = tileData["bundle-identifier"] as? String else {
-                return false
-            }
-            return bundleIdentifier == bundleID
-        }
-        guard let appIndex else {
-            return
-        }
-        persistentApps.remove(at: appIndex)
-        dock.set(persistentApps, forKey: "persistent-apps")
     }
 
     static func isNotificationsEnabledForApp(bundleID: String) -> Bool {

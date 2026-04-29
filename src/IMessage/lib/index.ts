@@ -91,10 +91,8 @@ export type NativeMacPermissions = {
 
 type IMessage = {
   isLoggingEnabled: boolean
-  isPHTEnabled: boolean
   enabledExperiments: string
   useSecondaryMessagesInstance: boolean
-  isMessagesAppInDock: string
   isNotificationsEnabledForMessages: boolean
 
   PlatformAPI: typeof NativePlatformAPI
@@ -112,9 +110,6 @@ type IMessage = {
 
   confirmUNCPrompt: () => Promise<void>
   disableMessagesNotifications: () => Promise<void>
-
-  removeMessagesFromDock: () => void
-  killDock: () => void
 
   setEventCallback: (cb: OnServerEventCallback) => void
   startEventWatchingFromCurrentState: () => Promise<void>

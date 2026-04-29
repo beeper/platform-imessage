@@ -98,8 +98,6 @@ export default class AppleiMessage implements PlatformAPI {
     if (session && !IS_BIG_SUR_OR_UP) throw new Error(MIN_MACOS_VERSION_ERROR)
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')
-    // (DESK-13231; removed until this actually works)
-    // imessage.isPHTEnabled = prefs?.hide_messages_app ?? false
     imessage.enabledExperiments = this.experiments
     texts.log('imessage enabledExperiments', imessage.enabledExperiments)
     texts.log('imessage useSecondaryMessagesInstance', imessage.useSecondaryMessagesInstance)
@@ -128,9 +126,6 @@ export default class AppleiMessage implements PlatformAPI {
       onEvent(evs)
     }
     imessage.setEventCallback(this.onEvent)
-    if (imessage?.isMessagesAppInDock && imessage?.isPHTEnabled) {
-      this.removeMessagesAppInDock()
-    }
     if (this.didFetchInitialThreads) await this.startEventWatchingAfterInitialThreads()
   }
 
@@ -355,12 +350,6 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     return this.swiftPlatformAPI!.getAsset(pathHex, methodName)
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  private removeMessagesAppInDock = () => {
-    imessage.removeMessagesFromDock()
-    imessage.killDock()
   }
 
   setThreadReminder = async (threadID: string, reminder: ThreadReminder) => {
