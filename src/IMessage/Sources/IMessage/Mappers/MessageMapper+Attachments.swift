@@ -11,13 +11,14 @@ extension Mapper {
         let fileName = attachmentRow.fileName
         let filePath = attachmentRow.filePath
         let id = attachmentRow.attachmentID ?? ""
-        var srcURL: String?
+        let srcURL: String?
         if let filePath, !filePath.isEmpty {
             srcURL = fileURLString(filePath)
         } else {
-            srcURL = attachmentRow.filePath
+            srcURL = filePath
         }
         let size = attachmentRow.size.flatMap(PlatformSDK.Size.init(size:))
+        let loading = transferState != Attachment.IMFileTransferState.finished.rawValue
 
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             var imageSrcURL = srcURL
@@ -30,7 +31,7 @@ extension Mapper {
                 size: size,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
-                loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
+                loading: loading,
                 isSticker: attachmentRow.isSticker == 1,
                 srcURL: imageSrcURL
             )
@@ -41,7 +42,7 @@ extension Mapper {
                 type: .video,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
-                loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
+                loading: loading,
                 srcURL: srcURL
             )
         }
@@ -51,7 +52,7 @@ extension Mapper {
                 type: .audio,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
-                loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
+                loading: loading,
                 isVoiceNote: msgRow.isAudioMessage == 1,
                 srcURL: srcURL
             )
@@ -61,7 +62,7 @@ extension Mapper {
             type: .unknown,
             fileName: fileName,
             fileSize: attachmentRow.totalBytes.map(Int64.init),
-            loading: transferState != Attachment.IMFileTransferState.finished.rawValue,
+            loading: loading,
             srcURL: srcURL
         )
     }
