@@ -1,18 +1,19 @@
 import Foundation
+import IMDatabase
 import IMessageCore
 import PlatformSDK
 
 extension Mapper {
     func decodeAttributedMessageParts(summaryInfo: JSONObject) -> [MessagePart] {
         guard let data = msgRow.attributedBody,
-              let decoded = try? AttributedStringDecoder.decodeAttributedString(from: data) else {
+              let decoded = try? AttributedBodyDecoder.fragments(from: data) else {
             return []
         }
         return decodeMessageParts(fragments: decoded, messageSummaryInfo: summaryInfo)
     }
 
     func decodeMessageParts(
-        fragments: [AttributedStringDecoder.Fragment],
+        fragments: [AttributedBodyDecoder.Fragment],
         messageSummaryInfo: JSONObject
     ) -> [MessagePart] {
         var parts = [MessagePart]()
@@ -80,7 +81,7 @@ extension Mapper {
     }
 
     private func appendTextFragment(
-        _ fragment: AttributedStringDecoder.Fragment,
+        _ fragment: AttributedBodyDecoder.Fragment,
         part: String?,
         from: Int,
         end: Int,

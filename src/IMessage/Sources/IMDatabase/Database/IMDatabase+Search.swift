@@ -1,7 +1,5 @@
-import ExceptionCatcher
 import Foundation
 import SQLite
-import IMessageCore
 
 public extension IMDatabase {
     /// Searches messages by text content, properly decoding attributedBody.
@@ -85,11 +83,8 @@ public extension IMDatabase {
             // Try to get text from attributedBody first (more complete), fall back to text column
             var messageText: String?
 
-            if let data = attributedBodyData,
-               let unarchiver = NSUnarchiver(forReadingWith: data),
-               let decoded = try? ExceptionCatcher.catch(callback: { unarchiver.decodeObject() }),
-               let attributedString = decoded as? NSAttributedString {
-                messageText = attributedString.string
+            if let data = attributedBodyData {
+                messageText = try? AttributedBodyDecoder.plainText(from: data)
             }
 
             // Fall back to plain text column

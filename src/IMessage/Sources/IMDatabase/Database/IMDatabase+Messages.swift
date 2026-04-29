@@ -1,8 +1,6 @@
 import Collections
-import ExceptionCatcher
 import Foundation
 import SQLite
-import IMessageCore
 
 public enum DateOrdering {
     case newestFirst
@@ -109,7 +107,7 @@ private extension Message {
                 Sensitive(.messageText, hiding: $0)
             },
             attributedBody: row[6].optional(Data.self).flatMap {
-                try Sensitive(.messageAttributedBody, hiding: unarchiveAttributedString(from: $0))
+                try Sensitive(.messageAttributedBody, hiding: AttributedBodyDecoder.attributedString(from: $0))
             },
             isFromMe: row[7].looseBool(),
             isSent: row[8].looseBool(),
@@ -118,18 +116,4 @@ private extension Message {
             summaryInfo: row[11].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
             )
     }
-}
-
-private func unarchiveAttributedString(from data: Data) throws -> NSAttributedString {
-    guard let unarchiver = NSUnarchiver(forReadingWith: data) else {
-        throw ErrorMessage("couldn't create NSUnarchiver")
-    }
-
-    // this is technically unsafe (https://iosdevelopers.slack.com/archives/C031X84F6/p1658329958824499?thread_ts=1658147279.256379&cid=C031X84F6)
-    let anything = try ExceptionCatcher.catch { unarchiver.decodeObject() }
-    guard let attributedString = anything as? NSAttributedString else {
-        throw ErrorMessage("couldn't cast to attributed string (was actually \(type(of: anything))")
-    }
-
-    return attributedString
 }
