@@ -86,11 +86,11 @@ public final class PlatformAPI {
     public func getCurrentUser() async throws -> PlatformSDK.CurrentUser {
         let database = database
         let currentUserCache = currentUserCache
-        return try await DetachedWork.run {
+        return try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
                 try Self.currentUser(db: db, cache: currentUserCache).hashed()
             }
-        }
+        }.value
     }
 
     public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
@@ -213,11 +213,11 @@ public final class PlatformAPI {
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
         let database = database
-        let threadID = try await DetachedWork.run {
+        let threadID = try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
                 try Self.originalThreadID(db: db, publicThreadID)
             }
-        }
+        }.value
 
         if threadID.hasPrefix("SMS;-;"), threadID.contains("@") {
             throw ErrorMessage("Cannot send message to email address over SMS")
@@ -246,9 +246,9 @@ public final class PlatformAPI {
     }
 
     public func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
-        let filePath = try await DetachedWork.run {
+        let filePath = try await Task.detached(priority: .userInitiated) {
             try Self.writeTemporaryAttachmentFile(data: fileBuffer, fileName: fileName)
-        }
+        }.value
         return try await sendMessage(threadID: publicThreadID, text: nil, filePath: filePath, quotedMessageID: quotedMessageID)
     }
 
@@ -299,12 +299,12 @@ public final class PlatformAPI {
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
         try await retry(retries: 1, interval: 1) { attempt in
-            let (threadID, isRead) = try await DetachedWork.run {
+            let (threadID, isRead) = try await Task.detached(priority: .userInitiated) {
                 try database.withDatabase { db in
                     let threadID = try Self.originalThreadID(db: db, publicThreadID)
                     return (threadID, try db.isThreadRead(chatGUID: threadID))
                 }
-            }
+            }.value
             guard !isRead else {
                 return
             }
@@ -332,11 +332,11 @@ public final class PlatformAPI {
         }
 
         let database = database
-        let threadID = try await DetachedWork.run {
+        let threadID = try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
                 try Self.originalThreadID(db: db, publicThreadID)
             }
-        }
+        }.value
 
         try await retryReactionOperation(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
     }
@@ -578,11 +578,11 @@ public final class PlatformAPI {
 
     private func lastMessageRowID() async throws -> Int {
         let database = database
-        return try await DetachedWork.run {
+        return try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
                 try db.lastMessageRowID()
             }
-        }
+        }.value
     }
 
     private func waitForMessageSend(
