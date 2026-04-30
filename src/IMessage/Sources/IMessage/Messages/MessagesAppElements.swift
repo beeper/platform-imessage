@@ -54,13 +54,13 @@ final class MessagesAppElements {
         try transcriptView.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
     }
 
-    static func notifyAnywayButton(inTranscriptCell transcriptCell: Accessibility.Element) -> Accessibility.Element? {
-        guard let child = try? transcriptCell.children[0],
-              (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway,
-              (try? child.role()) == Accessibility.Role.button else {
-            return nil
-        }
-        return child
+    static func threadActivityCells(in transcriptView: Accessibility.Element) throws -> [Accessibility.Element] {
+        let count = try transcriptView.children.count()
+        guard count > 0 else { return [] }
+
+        // Send Later cells can render after live activity/presence rows on Sequoia+.
+        let lastN = isSequoiaOrUp ? 10 : (isMontereyOrUp ? 3 : 1)
+        return try transcriptView.children(range: (count - min(count, lastN))..<count)
     }
 
     private let runningApp: NSRunningApplication
@@ -508,9 +508,14 @@ final class MessagesAppElements {
             let startTime = Date()
             defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
             let transcriptView = try self.transcriptView
-            let cells = try transcriptView.children()
+            let cells = try Self.threadActivityCells(in: transcriptView)
             return try cells.lazy.reversed().compactMap {
-                Self.notifyAnywayButton(inTranscriptCell: $0)
+                guard let child = try? $0.children[0],
+                      (try? child.role()) == Accessibility.Role.button,
+                      (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway else {
+                    return nil
+                }
+                return child
             }.first.orThrow(ErrorMessage("notifyAnywayButton not found"))
         }
     }

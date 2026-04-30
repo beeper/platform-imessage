@@ -1429,22 +1429,24 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             return try? elements.transcriptView
         }
         guard let transcript = getTV(),
-              let cellsToCheck = try? transcript.children(),
+              let cellsToCheck = try? MessagesAppElements.threadActivityCells(in: transcript),
               !cellsToCheck.isEmpty else {
             return .unknown
         }
-        // Send Later cells render after live activity/presence rows, so the interesting cells are not always the transcript tail.
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let presenceStatus: PlatformSDK.UserPresenceStatus? = {
             guard isMontereyOrUp else { return nil }
             for elt in cellsToCheck.reversed() {
-                if MessagesAppElements.notifyAnywayButton(inTranscriptCell: elt) != nil {
+                guard let child = try? elt.children[0] else { continue }
+                let childRole = try? child.role()
+                let childDescription = try? child.localizedDescription()
+                if childRole == Accessibility.Role.button,
+                   childDescription == LocalizedStrings.notifyAnyway {
                     return .dndCanNotify
                 }
-                guard let child = try? elt.children[0] else { continue }
-                if (try? child.role()) == Accessibility.Role.staticText,
-                   (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
+                if childRole == Accessibility.Role.staticText,
+                   childDescription?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
                 }
             }
