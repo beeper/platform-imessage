@@ -71,16 +71,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          swift build -c release --product imessage
+          swift build -c release --product imessage-cli
           dist_dir="$RUNNER_TEMP/imessage-cli-release"
           package_dir="$dist_dir/package"
 
           rm -rf "$dist_dir"
           mkdir -p "$package_dir"
-          cp "$(swift build -c release --product imessage --show-bin-path)/imessage" "$package_dir/imessage"
-          chmod +x "$package_dir/imessage"
-          strip "$package_dir/imessage"
-          tar -czf "$dist_dir/${{ steps.metadata.outputs.asset-name }}" -C "$package_dir" imessage
+          cp "$(swift build -c release --product imessage-cli --show-bin-path)/imessage-cli" "$package_dir/imessage-cli"
+          chmod +x "$package_dir/imessage-cli"
+          strip "$package_dir/imessage-cli"
+          tar -czf "$dist_dir/${{ steps.metadata.outputs.asset-name }}" -C "$package_dir" imessage-cli
           (
             cd "$dist_dir"
             shasum -a 256 "${{ steps.metadata.outputs.asset-name }}" > "${{ steps.metadata.outputs.asset-name }}.sha256"

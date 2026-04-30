@@ -15,7 +15,7 @@ Also present: NAPI bindings for JS via [node-swift](https://github.com/kabirober
 The root `Package.swift` exposes only the Swift iMessage integration:
 
 - `IMessage`: library API for Messages access, event watching, mapping, and sending operations.
-- `imessage`: command-line wrapper around the library API.
+- `imessage-cli`: command-line wrapper around the library API.
 
 Requirements: macOS 11 or later, Swift 5.9 or later
 

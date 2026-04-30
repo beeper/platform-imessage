@@ -14,7 +14,7 @@ private let quitCommands: Set<String> = ["q", "quit", "exit"]
 @main
 struct IMessageCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "imessage",
+        commandName: "imessage-cli",
         abstract: "Send, read, and manage local iMessage chats from the command line.",
         discussion: """
         Run without a command, or with `shell`, to open the interactive shell.
@@ -848,9 +848,9 @@ private func printTopLevelHelp() {
         "platform-imessage Swift CLI \(IMessageCLIVersion.packageVersion)",
         "",
         "Usage:",
-        "  imessage [global options]",
-        "  imessage COMMAND [ARGS...]",
-        "  imessage version",
+        "  imessage-cli [global options]",
+        "  imessage-cli COMMAND [ARGS...]",
+        "  imessage-cli version",
         "",
         "Bare launch (or `shell`) opens the interactive shell.",
         "",
