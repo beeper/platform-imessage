@@ -54,6 +54,15 @@ final class MessagesAppElements {
         try transcriptView.children().first { (try? $0.children[0].isSelected()) == true }?.children[0]
     }
 
+    static func notifyAnywayButton(inTranscriptCell transcriptCell: Accessibility.Element) -> Accessibility.Element? {
+        guard let child = try? transcriptCell.children[0],
+              (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway,
+              (try? child.role()) == Accessibility.Role.button else {
+            return nil
+        }
+        return child
+    }
+
     private let runningApp: NSRunningApplication
     private let openDeepLink: (URL) throws -> Void
 
@@ -499,12 +508,10 @@ final class MessagesAppElements {
             let startTime = Date()
             defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
             let transcriptView = try self.transcriptView
-            let count = try transcriptView.children.count()
-            let group = try transcriptView.children(range: (count - 2)..<count).first(where: {
-                let child = try $0.children[0]
-                return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == Accessibility.Role.button
-            }).orThrow(ErrorMessage("notifyAnywayButton not found"))
-            return try group.children[0]
+            let cells = try transcriptView.children()
+            return try cells.lazy.reversed().compactMap {
+                Self.notifyAnywayButton(inTranscriptCell: $0)
+            }.first.orThrow(ErrorMessage("notifyAnywayButton not found"))
         }
     }
 

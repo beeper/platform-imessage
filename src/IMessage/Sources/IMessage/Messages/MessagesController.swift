@@ -1429,37 +1429,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             return try? elements.transcriptView
         }
         guard let transcript = getTV(),
-              let count = try? transcript.children.count() else {
+              let cellsToCheck = try? transcript.children(),
+              !cellsToCheck.isEmpty else {
             return .unknown
         }
-        let cellsToCheck: [Accessibility.Element]
-        switch count {
-        case 0:
-            return .unknown
-        case 1:
-            guard let elt = try? transcript.children[0] else {
-                return .unknown
-            }
-            cellsToCheck = [elt]
-        default:
-            // pre-monterey, there can only be one <typing cell>
-            // post-monterey, there can be <typing cell>, "...has notifications silenced", "Notify Anyway"
-            let lastN = isMontereyOrUp ? 3 : 1
-            guard let elts = try? transcript.children(range: (count - lastN)..<count), elts.count == lastN else {
-                return .unknown
-            }
-            cellsToCheck = elts
-        }
+        // Send Later cells render after live activity/presence rows, so the interesting cells are not always the transcript tail.
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let presenceStatus: PlatformSDK.UserPresenceStatus? = {
             guard isMontereyOrUp else { return nil }
             for elt in cellsToCheck.reversed() {
-                guard let child = try? elt.children[0] else { continue }
-                if (try? child.role()) == Accessibility.Role.button,
-                   (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway {
+                if MessagesAppElements.notifyAnywayButton(inTranscriptCell: elt) != nil {
                     return .dndCanNotify
                 }
+                guard let child = try? elt.children[0] else { continue }
                 if (try? child.role()) == Accessibility.Role.staticText,
                    (try? child.localizedDescription())?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
                     return .dnd
