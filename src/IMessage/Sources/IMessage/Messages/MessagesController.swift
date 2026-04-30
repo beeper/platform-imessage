@@ -402,11 +402,11 @@ final class MessagesController {
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try app.waitForLaunch()
         let selectedApp = app
-        
+
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
             try Self.openDeepLink(url, targeting: selectedApp)
         })
-        
+
         keyPresser = KeyPresser(pid: app.processIdentifier)
 
         // if app.isHidden {
@@ -575,8 +575,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             .orThrow(ErrorMessage("MessageAction.\(action) not found"))
     }
 
+    private func threadCellAction(threadCell: Accessibility.Element, namePrefix: String) throws -> Accessibility.Action? {
+        try threadCell.supportedActions().first { $0.name.value.hasPrefix("Name:\(namePrefix)") }
+    }
+
+    private func threadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws -> Accessibility.Action? {
+        try threadCellAction(threadCell: threadCell, namePrefix: action.localized)
+    }
+
     private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
-        let action = try threadCell.supportedActions().first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
+        let action = try threadCellAction(threadCell: threadCell, action: action)
             .orThrow(ErrorMessage("ThreadAction.\(action) not found"))
         try action()
     }
@@ -1106,10 +1114,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
-            // at least on Monterey: for pinned thread cells, this should be
-            // Defaults.isSelectedThreadCellPinned() ? LocalizedStrings.hideAlerts : LocalizedStrings.hideAlerts + ", On"
-            let action = muted || Defaults.isSelectedThreadCellPinned() ? ThreadAction.hideAlerts : ThreadAction.showAlerts
-            try triggerThreadCellAction(threadID: threadID, action: action)
+            let selectedThreadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+            if muted {
+                try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
+            } else if let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts) {
+                try showAlertsAction()
+            } else {
+                let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
+                let action = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
+                    .orThrow(ErrorMessage("ThreadAction.showAlerts and \(hideAlertsOn) not found"))
+                try action()
+            }
         }
     }
 
@@ -1638,7 +1653,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         isDisposed = true
         lifecycleConveyor?.cancel()
         lifecycleEventsTask?.cancel()
-        
+
         app.terminate()
     }
 
