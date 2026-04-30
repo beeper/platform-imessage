@@ -20,52 +20,6 @@ let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSys
 let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
 let isTahoeOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
 
-enum LocalizedStrings {
-    private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
-    private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
-    private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
-
-    static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
-    static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")
-
-    static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
-    static let markAsUnread = chatKitFramework.localizedString(forKey: "MARK_AS_UNREAD", value: nil, table: "ChatKit")
-    static let delete = chatKitFramework.localizedString(forKey: "DELETE", value: nil, table: "ChatKit")
-    static let pin = chatKitFramework.localizedString(forKey: "PIN", value: nil, table: "ChatKit")
-    static let unpin = chatKitFramework.localizedString(forKey: "UNPIN", value: nil, table: "ChatKit")
-
-    static let hasNotificationsSilencedSuffix = chatKitFramework.localizedString(forKey: "UNAVAILABILITY_INDICATOR_TITLE_FORMAT", value: nil, table: "ChatKit").replacingOccurrences(of: "%@", with: "")
-    static let notifyAnyway = chatKitFramework.localizedString(forKey: "NOTIFY_ANYWAY_BUTTON_TITLE", value: nil, table: "ChatKit")
-
-    static let buddyTyping = chatKitFrameworkAxBundle.localizedString(forKey: "contact.typing.message", value: nil, table: "Accessibility")
-
-    static let replyTranscript = chatKitFrameworkAxBundle.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility")
-
-    static let showAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "show.alerts.collection.view.cell", value: nil, table: "Accessibility")
-    static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
-
-    static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
-    static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
-    static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
-
-    /// "Send edit"
-    static let editingConfirm = chatKitFrameworkAxBundle.localizedString(forKey: "editing.confirm.button", value: nil, table: "Accessibility")
-    /// "Cancel edit"
-    static let editingReject = chatKitFrameworkAxBundle.localizedString(forKey: "editing.reject.button", value: nil, table: "Accessibility")
-    /// "Edit"
-    static let editButton = chatKitFrameworkAxBundle.localizedString(forKey: "edit.button", value: nil, table: "Accessibility")
-
-    static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
-
-    // "OK"
-    static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
-    // "OK"
-    static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
-
-    // "Reply…"
-    static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
-}
-
 private enum MessageAction {
     case react, reply, undoSend
     /// might've been added around macOS 15; unknown
@@ -1517,7 +1471,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let childCount = try? elt.children.count()
             // kabir: children can briefly be 0 for newly sent messages as well, so that by itself isn't a good enough heuristic
             if childCount != 0 { return false }
-            if (try? elt.localizedDescription()) == LocalizedStrings.buddyTyping { return true }
+            let description = try? elt.localizedDescription()
+            if description == LocalizedStrings.contactTyping { return true }
+            if !LocalizedStrings.contactWithNameTypingSuffix.isEmpty,
+               description?.hasSuffix(LocalizedStrings.contactWithNameTypingSuffix) == true { return true }
             // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
             return (try? elt.roleDescription().isEmpty) != false
         }
@@ -1578,7 +1535,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         return { [weak self] _ in
             guard let self else { return }
 
-            guard !messagesIsManuallyActivated else {
+            guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
                 log.debug("not observing activity, Messages is manually activated")
                 return
             }
