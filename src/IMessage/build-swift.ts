@@ -26,6 +26,19 @@ const strip = async (src: string, dest?: string) => {
   await shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
 }
 
+const ensureXcodeWorkspace = async (packagePath: string) => {
+  const workspaceFile = path.join(packagePath, '.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata')
+  await fsp.mkdir(path.dirname(workspaceFile), { recursive: true })
+  await fsp.writeFile(workspaceFile, `<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "self:">
+   </FileRef>
+</Workspace>
+`)
+}
+
 const uploadDebugFilesToSentry = async (searchPath: string): Promise<void> => {
   const token = process.env.SENTRY_AUTH_TOKEN
   if (!token) {
@@ -89,6 +102,7 @@ async function main() {
     console.log(`build-swift: building ${specificArch || 'universal'} target...`)
 
     if (NO_SPACES) buildOptions.swiftFlags += '-DNO_SPACES'
+    if (!USE_SWIFT_PM) await ensureXcodeWorkspace(ROOT_DIR_PATH)
 
     // forcefully disable stripping, we can do it manually and we'd like to
     // upload symbols to sentry
