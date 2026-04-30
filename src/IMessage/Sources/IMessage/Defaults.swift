@@ -28,10 +28,8 @@ enum DefaultsKeys {
 
     /** ensures that we've correctly selected threads before trying to interact with them */
     static let misfirePrevention = "BEEPMisfirePrevention"
-    /** what we do when we can't read mobilesms defaults (`title-prediction`, `layout-waiter`, or `focus-waiter`) */
+    /** how misfire prevention verifies thread selection (`title-prediction`, `layout-waiter`, or `focus-waiter`) */
     static let misfirePreventionFallbackStrategy = "BEEPMisfirePreventionFallbackStrategy"
-    /** whether to always attempt the fallback strat, even if we have defaults access */
-    static let misfirePreventionAlwaysFallback = "BEEPMisfirePreventionAlwaysFallback"
     /** if we don't want to use a real fallback strat, how long to sleep for */
     static let misfirePreventionSleepInterval = "BEEPMisfirePreventionSleepInterval"
     static let deepLinkTracingPII = "BEEPDeepLinkTracingPII"
@@ -183,19 +181,8 @@ enum Defaults {
         return UserDefaults(suiteName: bundleID)
     }
 
-    static func getSelectedThreadID() -> String? {
-        // CKLastSelectedItemIdentifier => "list-iMessage;-;hi@kishan.info"
-        // CKLastSelectedItemIdentifier => "pinned-iMessage;-;hi@kishan.info"
-        // CKLastSelectedItemIdentifier => CKConversationListNewMessageCellIdentifier
-        getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier")?.split(separator: "-", maxSplits: 1).last.flatMap(String.init)
-    }
-
     static func isSelectedThreadCellPinned() -> Bool {
         getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
-    }
-
-    static func isSelectedThreadCellCompose() -> Bool {
-        getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier") == "CKConversationListNewMessageCellIdentifier"
     }
 
     static var playSoundEffects: Bool {

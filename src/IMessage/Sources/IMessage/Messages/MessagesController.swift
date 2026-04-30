@@ -244,6 +244,10 @@ final class MessagesController {
         return desc?.split(separator: ",").lazy.reversed().map { String($0).trimmingCharacters(in: .whitespaces) }
     }
 
+    private func isComposeThreadSelected() -> Bool {
+        (try? elements.toFieldPopupButton) != nil
+    }
+
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
     private func assertSelectedThread(threadID: String) throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
@@ -252,26 +256,10 @@ final class MessagesController {
             return
         }
 
-        let (_, type, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
+        let (_, _, addressToMatch) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID"))
 
         if Defaults.misfirePreventionTracing {
             log.debug("ensuring selected thread: \(hashedThreadID)")
-        }
-
-        func assertSelectedThreadViaDefault(value selectedThreadID: String) throws {
-            guard selectedThreadID != "CKConversationListNewMessageCellIdentifier" else {
-                throw ErrorMessage("misfire prevention: compose thread is selected")
-            }
-
-            let selectedAddress = try threadIDToAddress(selectedThreadID)
-                .orThrow(ErrorMessage("misfire prevention: cannot extract address from selected thread id"))
-
-            guard selectedAddress == addressToMatch ||
-                    (type == MessagesDeepLink.singleThreadType && isSameContact(selectedAddress, addressToMatch))
-            else {
-                log.error("assertSelectedThread: failed to select thread")
-                throw ErrorMessage("misfire prevention: desired thread is not selected")
-            }
         }
 
         func assertSelectedThreadViaLastChange(of date: Protected<Date?>, type: String, emoji: String) throws {
@@ -289,23 +277,16 @@ final class MessagesController {
 
         var attempt = 0
         let beganEnsuringThreadSelection = Date()
-        var hasLoggedAboutFallback = false
+        var hasLoggedAboutStrategy = false
 
         try retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
-                // always prefer reading the default if we can (impossible on recent macOS; see DESK-10725)
-                if !Defaults.misfirePreventionAlwaysFallback, let selectedThreadID = Defaults.getSelectedThreadID() {
-                    return try assertSelectedThreadViaDefault(value: selectedThreadID)
-                }
-
                 let strategy = Defaults.imessage.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy)
-                if Defaults.misfirePreventionTracing, !hasLoggedAboutFallback {
-                    log.debug("misfire prevention: no access to Messages defaults, falling back (strategy: \"\(strategy ?? "<nil>")\")")
-                    hasLoggedAboutFallback = true
+                if Defaults.misfirePreventionTracing, !hasLoggedAboutStrategy {
+                    log.debug("misfire prevention: using strategy \"\(strategy ?? "<nil>")\"")
+                    hasLoggedAboutStrategy = true
                 }
-                // we can't read the default, fall back to a designated strategy to ensure that
-                // Messages is focused to our desired chat:
 
                 switch strategy {
                 case "title-prediction":
@@ -595,11 +576,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func selectNextThreadAndScroll() throws {
-        let threadID = Defaults.getSelectedThreadID()
+        let selectedThreadCell = elements.selectedThreadCell
         // ctrlTab() acts differently, has no effect?
         try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
         try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
-            guard Defaults.getSelectedThreadID() != threadID else { throw ErrorMessage("diff thread not selected") }
+            let nextThreadCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
+            if let selectedThreadCell, nextThreadCell == selectedThreadCell {
+                throw ErrorMessage("diff thread not selected")
+            }
         }
     }
 
@@ -1168,7 +1152,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try? retry(withTimeout: 0.8, interval: 0.1) {
             // this doesn't ever focus in compose thread for some reason
             try messageField.isFocused(assign: true)
-            if Defaults.isSelectedThreadCellCompose() { return }
+            if isComposeThreadSelected() { return }
             guard try messageField.isFocused() else {
                 throw ErrorMessage("Could not focus message field")
             }
@@ -1360,7 +1344,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if quotedMessage != nil {
                 try waitUntilReplyTranscriptVisible()
             }
-            if Defaults.isSelectedThreadCellCompose() {
+            if isComposeThreadSelected() {
                 // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                 log.debug("waiting 3s for address to resolve")
                 Thread.sleep(forTimeInterval: 3)

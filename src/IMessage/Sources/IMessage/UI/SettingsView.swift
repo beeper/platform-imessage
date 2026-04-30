@@ -11,7 +11,6 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.imessage) var hidingCoordinatorDebounce = 0.75
 
     @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.imessage) var misfirePrevention = true
-    @AppStorage(DefaultsKeys.misfirePreventionAlwaysFallback, store: Defaults.imessage) var misfirePreventionAlwaysFallback = false
     @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.imessage) var imCoreSPI = true
     @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.imessage) var contactsAttemptFormattingWithShortStyle = true
     @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.imessage) var predictionPredictsGroupChats = true
@@ -171,10 +170,6 @@ struct SettingsView: View {
             Toggle(isOn: $misfirePrevention) {
                 Text("Misfire prevention")
                 Text("Reduce the chance of acting on the wrong chat when selecting threads.")
-            }
-
-            Toggle(isOn: $misfirePreventionAlwaysFallback) {
-                Text("Always use fallback strategy")
             }
 
             Toggle(isOn: $imCoreSPI) {
