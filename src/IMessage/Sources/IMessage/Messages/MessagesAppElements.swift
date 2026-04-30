@@ -547,6 +547,7 @@ final class MessagesAppElements {
         }
     }
 
+    // only works when there's an address in the field, not for empty compose threads
     var toFieldPopupButton: Accessibility.Element {
         get throws {
             try find("toFieldPopupButton") {
