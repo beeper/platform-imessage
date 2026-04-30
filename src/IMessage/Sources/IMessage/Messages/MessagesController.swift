@@ -187,12 +187,13 @@ final class MessagesController {
         hiding: Bool = true,
         targeting app: NSRunningApplication? = nil
     ) throws -> NSRunningApplication {
+        let shouldHide = hiding && Defaults.shouldCoordinateWindow
         if Preferences.useSecondaryMessagesInstance, let app {
             try MessagesInstanceTarget.sendDeepLink(url, to: app)
             if activating {
                 app.activate()
             }
-            if hiding {
+            if shouldHide {
                 app.hide()
             }
             return app
@@ -200,7 +201,7 @@ final class MessagesController {
 
         let openOptions = NSWorkspace.OpenConfiguration()
         openOptions.activates = activating
-        openOptions.hides = hiding
+        openOptions.hides = shouldHide
 
         let horribleWaiter = DispatchSemaphore(value: 0)
         var result: Result<NSRunningApplication, Error>?
@@ -211,9 +212,9 @@ final class MessagesController {
             let builtForDebugging = false
             #endif
             if Defaults.deepLinkTracingPII || builtForDebugging {
-                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(shouldHide))")
             } else {
-                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
+                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(shouldHide))")
             }
 
             if let error {
