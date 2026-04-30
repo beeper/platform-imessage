@@ -40,6 +40,7 @@ final class SettingsWindowController: NSWindowController {
     @MainActor
     static func revealAndRunEventLoopUntilClosed() {
         activateApplication(finishLaunching: true)
+        installCommandMenu()
         shared.showSettingsWindow()
         shared.runEventLoopUntilClosed()
     }
@@ -56,6 +57,38 @@ final class SettingsWindowController: NSWindowController {
         } else {
             app.activate(ignoringOtherApps: true)
         }
+    }
+
+    @MainActor
+    private static func installCommandMenu() {
+        let mainMenu = NSMenu()
+
+        let appMenu = NSMenu()
+        let appName = ProcessInfo.processInfo.processName
+        let quitItem = NSMenuItem(
+            title: "Quit \(appName)",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        quitItem.target = NSApp
+        appMenu.addItem(quitItem)
+
+        let appMenuItem = NSMenuItem()
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(NSMenuItem(
+            title: "Close Window",
+            action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w"
+        ))
+
+        let fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        fileMenuItem.submenu = fileMenu
+        mainMenu.addItem(fileMenuItem)
+
+        NSApp.mainMenu = mainMenu
     }
 
     @MainActor
