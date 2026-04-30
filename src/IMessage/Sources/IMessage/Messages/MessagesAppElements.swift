@@ -500,10 +500,11 @@ final class MessagesAppElements {
             defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
             let transcriptView = try self.transcriptView
             let count = try transcriptView.children.count()
-            return try transcriptView.children(range: (count - 2)..<count).first(where: {
+            let group = try transcriptView.children(range: (count - 2)..<count).first(where: {
                 let child = try $0.children[0]
                 return (try? child.localizedDescription()) == LocalizedStrings.notifyAnyway && (try? child.role()) == Accessibility.Role.button
             }).orThrow(ErrorMessage("notifyAnywayButton not found"))
+            return try group.children[0]
         }
     }
 
