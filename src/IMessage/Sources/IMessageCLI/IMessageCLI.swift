@@ -146,8 +146,8 @@ private final class InvokeContext {
         self.runner = runner
     }
 
-    func api() async -> PlatformAPI {
-        await runner.api()
+    func api() async throws -> PlatformAPI {
+        try await runner.api()
     }
 
     func invoke(_ methodName: String, args: [Any], _ operation: @escaping (PlatformAPI) async throws -> String?) async throws {
@@ -214,11 +214,11 @@ private final class Runner {
         try await runShell()
     }
 
-    func api() async -> PlatformAPI {
+    func api() async throws -> PlatformAPI {
         if let apiInstance {
             return apiInstance
         }
-        let created = PlatformAPI(accountID: accountID)
+        let created = try PlatformAPI(accountID: accountID)
         apiInstance = created
         return created
     }
@@ -229,7 +229,7 @@ private final class Runner {
         args: [Any],
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
-        let api = await api()
+        let api = try await api()
         try await ensureEventSubscription()
 
         let id = String(format: "%05d", nextCallID)

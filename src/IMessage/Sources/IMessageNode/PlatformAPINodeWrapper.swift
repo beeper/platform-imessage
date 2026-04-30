@@ -7,8 +7,8 @@ import PlatformSDK
 @NodeActor @NodeClass final class PlatformAPINodeWrapper {
     private let api: PlatformAPI
 
-    @NodeConstructor init(accountID: String) {
-        api = PlatformAPI(accountID: accountID, runtime: PlatformAPINodeRuntime.makeRuntime())
+    @NodeConstructor init(accountID: String) throws {
+        api = try PlatformAPI(accountID: accountID, runtime: PlatformAPINodeRuntime.makeRuntime())
     }
 
     @NodeMethod func getCurrentUser() async throws -> String {

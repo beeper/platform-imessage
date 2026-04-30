@@ -33,6 +33,8 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 /// `IMessageHost` owns singleton process state, so callers should create only one
 /// PlatformAPI instance per process and share it across wrapper surfaces.
 public final class PlatformAPI {
+    private static let activeInstance = Protected<ObjectIdentifier?>()
+
     let runtime: Runtime
     private var watchCBQueue: CallbackQueue?
 
@@ -45,13 +47,30 @@ public final class PlatformAPI {
     private let threadObserveRequestToken = Protected<UUID?>()
     let hasBeenDisposed = Protected(false)
 
-    public convenience init(accountID: String) {
-        self.init(accountID: accountID, runtime: .noop)
+    public convenience init(accountID: String) throws {
+        try self.init(accountID: accountID, runtime: .noop)
     }
 
-    public init(accountID: String, runtime: Runtime) {
+    public init(accountID: String, runtime: Runtime) throws {
         self.accountID = accountID
         self.runtime = runtime
+        try Self.claimActiveInstance(ObjectIdentifier(self))
+    }
+
+    private static func claimActiveInstance(_ owner: ObjectIdentifier) throws {
+        try activeInstance.withLock { activeInstance in
+            guard activeInstance == nil else {
+                throw ErrorMessage("iMessage PlatformAPI is a singleton and can only be constructed once in this process")
+            }
+            activeInstance = owner
+        }
+    }
+
+    private static func releaseActiveInstance(_ owner: ObjectIdentifier) {
+        activeInstance.withLock { activeInstance in
+            guard activeInstance == owner else { return }
+            activeInstance = nil
+        }
     }
 
     /// Runs a DB query off the caller actor with the cached current user resolved.
@@ -430,6 +449,9 @@ public final class PlatformAPI {
     public func dispose() async throws {
         defer {
             try? FileManager.default.removeItem(at: MessagesPaths.temporaryPlatformAttachmentDirectory)
+        }
+        defer {
+            Self.releaseActiveInstance(ObjectIdentifier(self))
         }
 
         hasBeenDisposed.withLock { $0 = true }
