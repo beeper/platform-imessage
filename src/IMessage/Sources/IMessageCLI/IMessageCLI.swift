@@ -464,7 +464,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
         try await context.invoke("revealSettings", args: []) { api in
-            await IMessageHost.revealSettingsAndWaitUntilClosed()
+            await revealSettingsWindowFromCLI()
             return nil
         }
     },
@@ -1086,6 +1086,78 @@ private func authorizeAutomation() async -> Bool {
     } catch {
         print("  note: Automation prompt failed: \(error)")
         return false
+    }
+}
+
+private func revealSettingsWindowFromCLI() async {
+    await MainActor.run {
+        prepareSettingsWindowApplication()
+        installSettingsWindowCommandMenu()
+    }
+    await IMessageHost.revealSettingsForUserInteraction()
+    await MainActor.run {
+        runSettingsWindowEventLoopUntilClosed()
+    }
+}
+
+@MainActor
+private func prepareSettingsWindowApplication() {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.regular)
+    app.finishLaunching()
+    if #available(macOS 14, *) {
+        app.activate()
+    } else {
+        app.activate(ignoringOtherApps: true)
+    }
+}
+
+@MainActor
+private func installSettingsWindowCommandMenu() {
+    let mainMenu = NSMenu()
+
+    let appMenu = NSMenu()
+    let appName = ProcessInfo.processInfo.processName
+    let quitItem = NSMenuItem(
+        title: "Quit \(appName)",
+        action: #selector(NSApplication.terminate(_:)),
+        keyEquivalent: "q"
+    )
+    quitItem.target = NSApp
+    appMenu.addItem(quitItem)
+
+    let appMenuItem = NSMenuItem()
+    appMenuItem.submenu = appMenu
+    mainMenu.addItem(appMenuItem)
+
+    let fileMenu = NSMenu(title: "File")
+    fileMenu.addItem(NSMenuItem(
+        title: "Close Window",
+        action: #selector(NSWindow.performClose(_:)),
+        keyEquivalent: "w"
+    ))
+
+    let fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+    fileMenuItem.submenu = fileMenu
+    mainMenu.addItem(fileMenuItem)
+
+    NSApp.mainMenu = mainMenu
+}
+
+@MainActor
+private func runSettingsWindowEventLoopUntilClosed() {
+    while IMessageHost.isSettingsWindowVisible {
+        autoreleasepool {
+            if let event = NSApp.nextEvent(
+                matching: .any,
+                until: Date.distantFuture,
+                inMode: .default,
+                dequeue: true
+            ) {
+                NSApp.sendEvent(event)
+                NSApp.updateWindows()
+            }
+        }
     }
 }
 

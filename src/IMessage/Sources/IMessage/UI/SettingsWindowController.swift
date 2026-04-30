@@ -33,25 +33,19 @@ final class SettingsWindowController: NSWindowController {
 
     @MainActor
     static func reveal() {
-        activateApplication(finishLaunching: false)
+        activateApplication()
         shared.showSettingsWindow()
     }
 
     @MainActor
-    static func revealAndRunEventLoopUntilClosed() {
-        activateApplication(finishLaunching: true)
-        installCommandMenu()
-        shared.showSettingsWindow()
-        shared.runEventLoopUntilClosed()
+    static var isVisible: Bool {
+        shared.window?.isVisible == true
     }
 
     @MainActor
-    private static func activateApplication(finishLaunching: Bool) {
+    private static func activateApplication() {
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)
-        if finishLaunching {
-            app.finishLaunching()
-        }
         if #available(macOS 14, *) {
             app.activate()
         } else {
@@ -60,60 +54,9 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @MainActor
-    private static func installCommandMenu() {
-        let mainMenu = NSMenu()
-
-        let appMenu = NSMenu()
-        let appName = ProcessInfo.processInfo.processName
-        let quitItem = NSMenuItem(
-            title: "Quit \(appName)",
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
-        quitItem.target = NSApp
-        appMenu.addItem(quitItem)
-
-        let appMenuItem = NSMenuItem()
-        appMenuItem.submenu = appMenu
-        mainMenu.addItem(appMenuItem)
-
-        let fileMenu = NSMenu(title: "File")
-        fileMenu.addItem(NSMenuItem(
-            title: "Close Window",
-            action: #selector(NSWindow.performClose(_:)),
-            keyEquivalent: "w"
-        ))
-
-        let fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
-        fileMenuItem.submenu = fileMenu
-        mainMenu.addItem(fileMenuItem)
-
-        NSApp.mainMenu = mainMenu
-    }
-
-    @MainActor
     private func showSettingsWindow() {
         guard let window else { return }
 
         window.makeKeyAndOrderFront(nil)
-    }
-
-    @MainActor
-    private func runEventLoopUntilClosed() {
-        guard let window else { return }
-
-        while window.isVisible {
-            autoreleasepool {
-                if let event = NSApp.nextEvent(
-                    matching: .any,
-                    until: Date.distantFuture,
-                    inMode: .default,
-                    dequeue: true
-                ) {
-                    NSApp.sendEvent(event)
-                    NSApp.updateWindows()
-                }
-            }
-        }
     }
 }
