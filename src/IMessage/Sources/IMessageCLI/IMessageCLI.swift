@@ -464,7 +464,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
         try await context.invoke("revealSettings", args: []) { api in
-            IMessageHost.revealSettings()
+            await IMessageHost.revealSettingsAndWaitUntilClosed()
             return nil
         }
     },

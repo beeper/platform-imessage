@@ -16,6 +16,7 @@ final class SettingsWindowController: NSWindowController {
         }()
         let window = NSWindow(contentViewController: settingsController)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 600, height: 900))
         window.contentMinSize = NSSize(width: 600, height: 900)
         // the window is sometimes titled "Untitled" for some reason, even
@@ -28,5 +29,58 @@ final class SettingsWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("can't make SettingsWindowController from coder")
+    }
+
+    @MainActor
+    static func reveal() {
+        activateApplication(finishLaunching: false)
+        shared.showSettingsWindow()
+    }
+
+    @MainActor
+    static func revealAndRunEventLoopUntilClosed() {
+        activateApplication(finishLaunching: true)
+        shared.showSettingsWindow()
+        shared.runEventLoopUntilClosed()
+    }
+
+    @MainActor
+    private static func activateApplication(finishLaunching: Bool) {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+        if finishLaunching {
+            app.finishLaunching()
+        }
+        if #available(macOS 14, *) {
+            app.activate()
+        } else {
+            app.activate(ignoringOtherApps: true)
+        }
+    }
+
+    @MainActor
+    private func showSettingsWindow() {
+        guard let window else { return }
+
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    @MainActor
+    private func runEventLoopUntilClosed() {
+        guard let window else { return }
+
+        while window.isVisible {
+            autoreleasepool {
+                if let event = NSApp.nextEvent(
+                    matching: .any,
+                    until: Date.distantFuture,
+                    inMode: .default,
+                    dequeue: true
+                ) {
+                    NSApp.sendEvent(event)
+                    NSApp.updateWindows()
+                }
+            }
+        }
     }
 }

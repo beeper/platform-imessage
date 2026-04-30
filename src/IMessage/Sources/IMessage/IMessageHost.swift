@@ -174,18 +174,32 @@ public enum IMessageHost {
     }
 
     public static func revealSettings() {
+        Task {
+            await revealSettingsForUserInteraction()
+        }
+    }
+
+    public static func revealSettingsForUserInteraction() async {
         log.debug("told to reveal settings window")
-        Task { @MainActor in
+        await MainActor.run {
             guard #available(macOS 13, *) else {
                 log.error("can't reveal settings on macOS <13")
                 return
             }
-            guard let window = SettingsWindowController.shared.window else {
-                log.error("can't reveal settings, no window?")
+            log.debug("revealing settings window")
+            SettingsWindowController.reveal()
+        }
+    }
+
+    public static func revealSettingsAndWaitUntilClosed() async {
+        log.debug("told to reveal settings window and wait")
+        await MainActor.run {
+            guard #available(macOS 13, *) else {
+                log.error("can't reveal settings on macOS <13")
                 return
             }
-            log.debug("revealing settings window")
-            window.makeKeyAndOrderFront(nil)
+            log.debug("revealing settings window with event loop")
+            SettingsWindowController.revealAndRunEventLoopUntilClosed()
         }
     }
 }

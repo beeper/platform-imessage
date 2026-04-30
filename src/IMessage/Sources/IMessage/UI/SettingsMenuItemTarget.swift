@@ -5,9 +5,8 @@ import Foundation
 @MainActor
 final class SettingsMenuItemTarget {
     static let shared = SettingsMenuItemTarget()
-    private lazy var settingsWindowController = SettingsWindowController()
 
     @objc func openSettings() {
-        settingsWindowController.window?.makeKeyAndOrderFront(nil)
+        SettingsWindowController.reveal()
     }
 }
