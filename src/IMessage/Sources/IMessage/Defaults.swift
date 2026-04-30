@@ -168,7 +168,7 @@ enum Defaults {
         getUserDefaults(bundleID: messagesBundleID)?.set(2, forKey: "BusinessChatPrivacyPageDisplayed") // shown when a biz chat is selected for the first time
     }
 
-    private static func getUserDefaults(bundleID: String) -> UserDefaultsProtocol? {
+    private static func getUserDefaults(bundleID: String) -> UserDefaults? {
         if #available(macOS 14, *) {
             let randomCasedBundleID = randomCase(bundleID)
             // these are prob non-deterministic no-ops
