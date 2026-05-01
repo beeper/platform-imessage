@@ -191,15 +191,11 @@ public enum IMessageHost {
         }
     }
 
-    public static func revealSettingsAndWaitUntilClosed() async {
-        log.debug("told to reveal settings window and wait")
-        await MainActor.run {
-            guard #available(macOS 13, *) else {
-                log.error("can't reveal settings on macOS <13")
-                return
-            }
-            log.debug("revealing settings window with event loop")
-            SettingsWindowController.revealAndRunEventLoopUntilClosed()
+    @MainActor
+    public static var isSettingsWindowVisible: Bool {
+        guard #available(macOS 13, *) else {
+            return false
         }
+        return SettingsWindowController.isVisible
     }
 }
