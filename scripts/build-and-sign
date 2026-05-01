@@ -8,7 +8,7 @@ fi
 target="$1"
 
 here="$(dirname -- "${BASH_SOURCE[0]}")"
-cd "$here/../src/SwiftServer"
+cd "$here/.."
 
 xcrun swift build -c debug --product "$target"
 # (set CODESIGNING_IDENTITY to the name of a stable signing identity; needed so

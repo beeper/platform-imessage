@@ -4,7 +4,7 @@ _*
 /src/RustServer/target
 /src/AppleScriptServer/Release
 /build
-/src/SwiftServer/.build
+.build
 
 *.node
 libNodeAPI.dylib
