@@ -6,15 +6,15 @@ import PlatformSDK
 
 @NodeActor @NodeClass final class PlatformAPINodeWrapper {
     private let api: PlatformAPI
+    private let threadActivityEventQueue: NodeAsyncQueue
     private var cleanupHook: AsyncCleanupHook?
 
     @NodeConstructor init(accountID: String) throws {
-        let sentryQueue = try? NodeAsyncQueue(label: "platform-api-sentry")
-        api = try PlatformAPI(accountID: accountID, reportErrorMessage: { message in
-            try sentryQueue?.run {
-                try Node.texts.Sentry.captureMessage(message)
-            }
-        })
+        threadActivityEventQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
+        api = try PlatformAPI(
+            accountID: accountID,
+            reportErrorMessage: IMessageNodeExports.reportToSentry
+        )
         let api = SendableBox(api)
         cleanupHook = try? NodeEnvironment.current.addCleanupHook { completion in
             Task {
@@ -127,7 +127,7 @@ import PlatformSDK
         }
 
         let sendEvents = SendableBox(sendEventsFunction)
-        let eventQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
+        let eventQueue = threadActivityEventQueue
         try await api.onThreadSelected(threadID: threadID) { events in
             try eventQueue.run {
                 _ = try sendEvents.value.dynamicallyCall(withArguments: [try NodeBridgeUtilities.nodeArray(from: events)])
@@ -145,7 +145,12 @@ import PlatformSDK
     }
 
     @NodeMethod func dispose() async throws {
-        try await api.dispose()
+        do {
+            try await api.dispose()
+        } catch {
+            try? removeCleanupHook()
+            throw error
+        }
         try removeCleanupHook()
     }
 

@@ -3,8 +3,21 @@ import NodeAPI
 import IMessage
 import IMessageCore
 
+enum IMessageNodeExports {
+    @NodeActor
+    static let reportToSentry: @Sendable (String) -> Void = {
+        let sentryQueue = try? NodeAsyncQueue(label: "imessage-node-sentry")
+        return { message in
+            try? sentryQueue?.run {
+                try Node.texts.Sentry.captureMessage(message)
+            }
+        }
+    }()
+}
+
 #NodeModule {
     IMessageHost.bootstrap()
+    let reportToSentry = IMessageNodeExports.reportToSentry
 
     var dict: [String: NodePropertyConvertible] = try [
         "isNotificationsEnabledForMessages": NodeProperty { _ in
@@ -43,18 +56,13 @@ import IMessageCore
 
         "setEventCallback": NodeFunction { (onEvent: NodeFunction) in
             let eventQueue = try NodeAsyncQueue(label: "event-watcher-events")
-            let sentryQueue = try? NodeAsyncQueue(label: "event-watcher-sentry")
             let onEvent = SendableBox(onEvent)
-            IMessageHost.setEventCallback { events in
+            IMessageHost.setEventCallback({ events in
                 try eventQueue.run {
                     let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
                     try onEvent.value.call([nodeEvents])
                 }
-            } reportToSentry: { message in
-                try? sentryQueue?.run {
-                    try Node.texts.Sentry.captureMessage(message)
-                }
-            }
+            }, reportToSentry: reportToSentry)
             return // needed to resolve a compile-time type ambiguity apparently
         },
 

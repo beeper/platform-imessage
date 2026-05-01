@@ -491,6 +491,7 @@ public final class PlatformAPI {
         Self.messagesControllerQueue.setIdleCallback(nil)
 
         let requestID = UUID()
+        let threadObserveRequestToken = threadObserveRequestToken
         threadObserveRequestToken.withLock { $0 = requestID }
 
         let sendStatus = { (status: ThreadActivityObservation) in
@@ -528,8 +529,11 @@ public final class PlatformAPI {
                 }
             }
 
+            guard threadObserveRequestToken.read() == requestID else { return }
+
             let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
             Self.messagesControllerQueue.setIdleCallback { quiescence in
+                guard threadObserveRequestToken.read() == requestID else { return }
                 do {
                     try observe(quiescence)
                 } catch {
@@ -541,7 +545,7 @@ public final class PlatformAPI {
             // after our current one (but before this block began executing),
             // then this check will fail and prevent the current block from
             // unnecessarily running
-            guard self.threadObserveRequestToken.read() == requestID else { return }
+            guard threadObserveRequestToken.read() == requestID else { return }
 
             try observe(.began)
         }
