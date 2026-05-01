@@ -130,7 +130,8 @@ import PlatformSDK
         let eventQueue = threadActivityEventQueue
         try await api.onThreadSelected(threadID: threadID) { events in
             try eventQueue.run {
-                _ = try sendEvents.value.dynamicallyCall(withArguments: [try NodeBridgeUtilities.nodeArray(from: events)])
+                let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
+                _ = try sendEvents.value.dynamicallyCall(withArguments: [nodeEvents])
             }
         }
     }

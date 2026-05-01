@@ -35,8 +35,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 public final class PlatformAPI {
     private static let activeInstance = Protected<ObjectIdentifier?>()
 
-    public typealias Event = [String: Any]
-    public typealias EventSender = @Sendable ([Event]) throws -> Void
     public typealias ReportErrorMessage = @Sendable (_ message: String) throws -> Void
 
     public enum AssetResult: Sendable {
@@ -363,7 +361,10 @@ public final class PlatformAPI {
         try await performOnController { try $0.notifyAnyway(threadID: threadID) }
     }
 
-    public func onThreadSelected(threadID publicThreadID: String, sendEvents: @escaping EventSender) async throws {
+    public func onThreadSelected(
+        threadID publicThreadID: String,
+        sendEvents: @escaping @Sendable ([ServerEvent]) throws -> Void
+    ) async throws {
         guard !publicThreadID.isEmpty else {
             return
         }
@@ -427,7 +428,7 @@ public final class PlatformAPI {
                 }
             }
 
-            try sendEvents(events.map { $0.jsonObject() })
+            try sendEvents(events)
         }
     }
 

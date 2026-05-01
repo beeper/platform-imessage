@@ -734,7 +734,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try requireExactArgs(context.command, args, 1)
         try await context.invoke("onThreadSelected", args: args) { api in
             try await api.onThreadSelected(threadID: args[0]) { events in
-                let json = try encodeJSON(events)
+                let json = try encodeJSON(events.map { $0.jsonObject() })
                 context.printEventJSON(json)
             }
             return nil
