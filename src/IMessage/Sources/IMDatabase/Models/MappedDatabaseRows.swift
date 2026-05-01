@@ -1,10 +1,9 @@
 import Foundation
 import SQLite
 
-/// Runtime counterparts to the historical TypeScript row types preserved in
-/// DatabaseSchemaNotes.swift. Database queries decode into these structs
-/// directly. Legacy fixture/original-payload dictionary bridges live in
-/// MappedDatabaseRows+DictionaryBridges.swift.
+/// Runtime counterparts to the historical TypeScript row shapes. Database
+/// queries decode into these structs directly. Legacy fixture/original-payload
+/// dictionary bridges live in MappedDatabaseRows+DictionaryBridges.swift.
 
 public protocol MappedDatabaseRow {
     init(row: borrowing Row, columns: MappedRowColumnIndexes) throws
@@ -76,6 +75,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let shareStatus: Int
     public let associatedMessageGUID: String?
     public let associatedMessageType: Int
+    /// Added in Sequoia.
     public let associatedMessageEmoji: String?
     public let balloonBundleID: String?
     public let payloadData: Data?
@@ -83,12 +83,13 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let messageSummaryInfo: Data?
     public let threadOriginatorGUID: String?
     public let threadOriginatorPart: String?
-    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
-    /// needs to cross into JavaScript.
+    /// Added in Ventura. Apple nanosecond timestamp. Stringify at JSON/API
+    /// boundaries when it needs to cross into JavaScript.
     public let dateRetracted: Int?
-    /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
-    /// needs to cross into JavaScript.
+    /// Added in Ventura. Apple nanosecond timestamp. Stringify at JSON/API
+    /// boundaries when it needs to cross into JavaScript.
     public let dateEdited: Int?
+    /// Added in Ventura.
     public let wasDetonated: Int
     public let scheduleType: Int
 
@@ -188,6 +189,7 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
     // Extensions added after fetching attachment rows. These are not columns on
     // the `attachment` table; they are derived from the file path/metadata.
     public let ext: String?
+    /// This is not `filename`, intentionally.
     public let fileName: String?
     public let filePath: String?
     public let size: [String: Int]?
@@ -263,6 +265,7 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
     public let handleID: Int?
     public let associatedMessageType: Int
     public let associatedMessageGUID: String
+    /// Added in Sequoia.
     public let associatedMessageEmoji: String?
 
     // Extension selected by mapped-reaction queries. This aliases `handle.id`

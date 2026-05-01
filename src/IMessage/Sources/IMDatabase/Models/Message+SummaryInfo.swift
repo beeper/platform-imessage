@@ -4,13 +4,24 @@ import IMessageCore
 
 public extension Message {
     struct SummaryInfo: Decodable {
-        /** present on (partially) unsent/edited messages, `otr` */
+        /// Ordered record representing the structure of the original message
+        /// body, present on partially unsent or edited messages.
+        ///
+        /// The attributed body at this point only reflects the latest state and
+        /// completely lacks unsent portions. This data can be used to determine
+        /// where to interleave UI indicating that parts of a message were
+        /// unsent.
+        ///
+        /// The property-list keys are ascending numerical strings. The values
+        /// describe the starting indexes and lengths of each part of the
+        /// original body. This may be a dictionary rather than an array because
+        /// other keys may be possible.
         var originalParts: [Part.Index: UnsentPart]?
 
-        /** which parts in `originalParts` have been unsent, `rp` */
+        /// Indexes in `originalParts` that have been unsent, `rp`.
         var unsentParts: OrderedSet<Part.Index>?
 
-        /** which parts in `originalParts` have been edited, `ep` */
+        /// Indexes in `originalParts` that have been edited, `ep`.
         var editedParts: OrderedSet<Part.Index>?
 
         enum CodingKeys: String, CodingKey {
@@ -20,11 +31,13 @@ public extension Message {
         }
 
         public init(blob: Data) throws {
-            // `amc`
-            // `ust`
-            // `amsa`
-            // `ams`
-            // `ec`: edit history
+            // `amc`: observed values include 0 and 3.
+            // `ust`: observed value example: 1.
+            // `amsa`: observed value example: com.apple.siri.
+            // `ams`: observed value example: summarized text.
+            // `ec`: message edit history, present for messages that have been
+            // partially edited. TODO: check if this is present for edited
+            // non-partial messages. The index corresponds to `otr`.
 
             var format = PropertyListSerialization.PropertyListFormat.binary
             let plist = try PropertyListSerialization.propertyList(from: blob, options: [], format: &format)
@@ -60,8 +73,12 @@ public extension Message {
 
 extension Message.SummaryInfo {
     struct UnsentPart: CustomStringConvertible, Equatable, Codable {
+        /// The zero-based index pointing to the beginning of this part of the
+        /// original message.
         let originalStartIndex: Int
-        // what is this in? bytes? UTF-16 code units? etc.
+        /// The length of this part of the original message.
+        ///
+        /// TODO: what is this in? Bytes? UTF-16 code units?
         let originalLength: Int
 
         var description: String {
