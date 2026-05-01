@@ -1063,9 +1063,13 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
     let resolved = (trimmed?.isEmpty == false ? trimmed : nil) ?? "all"
     let names: [String] = resolved == "all" ? ["accessibility", "contacts", "messages-data", "automation"] : [resolved]
 
+    func printStatus(_ requirement: AuthorizationRequirement, _ status: (authorized: Bool, detail: String)) {
+        print("  \(status.authorized ? "[ok]" : "[ ]") \(requirement.title) - \(status.detail)")
+    }
+
     for name in names {
         if name == "automation" {
-            print("  [ ] Automation - Not yet verified; requesting Apple Events access.")
+            print("  Checking Automation - verifying Apple Events access to Messages.app.")
             let ok = await authorizeAutomation()
             print("  \(ok ? "[ok]" : "[ ]") Automation - \(ok ? "Apple Events access to Messages.app is available." : "Automation access was denied or unavailable.")")
             continue
@@ -1074,8 +1078,12 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
             throw CLIError("unknown authorization target \"\(name)\".\nusage: authorize [all|accessibility|contacts|messages-data|automation]")
         }
         let status = await req.currentStatus()
-        print("  \(status.authorized ? "[ok]" : "[ ]") \(req.title) - \(status.detail)")
-        if !status.authorized { try await req.request() }
+        printStatus(req, status)
+        if !status.authorized {
+            print("  Requesting \(req.title)...")
+            try await req.request()
+            printStatus(req, await req.currentStatus())
+        }
     }
 }
 
