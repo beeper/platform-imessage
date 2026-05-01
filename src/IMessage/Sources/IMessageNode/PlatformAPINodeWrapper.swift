@@ -114,8 +114,9 @@ import PlatformSDK
         }
 
         let sendEvents = SendableBox(sendEventsFunction)
+        let eventQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
         try await api.onThreadSelected(threadID: threadID) { events in
-            try NodeActor.unsafeAssumeIsolated {
+            try eventQueue.run {
                 _ = try sendEvents.value.dynamicallyCall(withArguments: [try NodeBridgeUtilities.nodeArray(from: events)])
             }
         }

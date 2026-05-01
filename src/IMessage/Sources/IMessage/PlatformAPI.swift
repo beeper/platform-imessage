@@ -36,7 +36,6 @@ public final class PlatformAPI {
     private static let activeInstance = Protected<ObjectIdentifier?>()
 
     let runtime: Runtime
-    private var watchCBQueue: CallbackQueue?
 
     private let accountID: String
 
@@ -487,21 +486,16 @@ public final class PlatformAPI {
         // reset the idle callback in case we fail and bail out
         Self.messagesControllerQueue.setIdleCallback(nil)
 
-        let watchCBQueue: CallbackQueue
-        if let existing = self.watchCBQueue {
-            watchCBQueue = existing
-        } else {
-            watchCBQueue = try await runtime.makeCallbackQueue("watch-imessage-callback")
-            self.watchCBQueue = watchCBQueue
-        }
-        let sendStatusOnQueue = { (status: ThreadActivityObservation) in
-            _ = try? watchCBQueue.run {
-                try statusSender(status)
-            }
-        }
-
         let requestID = UUID()
         threadObserveRequestToken.withLock { $0 = requestID }
+
+        let sendStatus = { (status: ThreadActivityObservation) in
+            do {
+                try statusSender(status)
+            } catch {
+                platformLog.error("failed to send activity status: \(String(reflecting: error))")
+            }
+        }
 
         try await withMessagesController { controller in
             // only watch thread activity for iMessage chats
@@ -530,7 +524,7 @@ public final class PlatformAPI {
                 }
             }
 
-            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatusOnQueue)
+            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
             Self.messagesControllerQueue.setIdleCallback { quiescence in
                 do {
                     try observe(quiescence)
