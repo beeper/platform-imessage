@@ -5,7 +5,6 @@ private let platformMessagesControllerLog = Logger(imessageLabel: "platform-api"
 
 private struct MessagesControllerEntry: @unchecked Sendable {
     var controller: MessagesController
-    var cleanupHook: PlatformAPI.CleanupHook?
 }
 
 private enum MessagesControllerCoordinatorError: Error {
@@ -60,14 +59,14 @@ private actor MessagesControllerCoordinator {
         if let pendingController {
             do {
                 let created = try await pendingController.value
-                try await dispose(created, removeCleanupHook: true)
+                try await dispose(created)
             } catch {
                 pendingError = error
             }
         }
 
         if let entry {
-            try await dispose(entry, removeCleanupHook: true)
+            try await dispose(entry)
         }
 
         if let pendingError {
@@ -75,18 +74,6 @@ private actor MessagesControllerCoordinator {
         }
     }
 
-    func disposeFromCleanupHook(_ controller: MessagesController) async {
-        guard let entry = current, entry.controller === controller else {
-            try? await dispose(
-                MessagesControllerEntry(controller: controller, cleanupHook: nil),
-                removeCleanupHook: false
-            )
-            return
-        }
-
-        current = nil
-        try? await dispose(entry, removeCleanupHook: false)
-    }
 }
 
 private extension MessagesControllerCoordinator {
@@ -132,7 +119,7 @@ private extension MessagesControllerCoordinator {
             pendingController = nil
 
             guard !hasBeenDisposed.read() else {
-                try await dispose(entry, removeCleanupHook: true)
+                try await dispose(entry)
                 throw ErrorMessage("PlatformAPI has been disposed")
             }
 
@@ -148,13 +135,7 @@ private extension MessagesControllerCoordinator {
 
     static func makeControllerEntry(runtime: PlatformAPI.Runtime) async throws -> MessagesControllerEntry {
         let controller = try await PlatformAPI.makeMessagesController(runtime: runtime)
-        let cleanupHook = try await runtime.addCleanupHook { completion in
-            Task {
-                await PlatformAPI.messagesControllerCoordinator.disposeFromCleanupHook(controller)
-                completion()
-            }
-        }
-        return MessagesControllerEntry(controller: controller, cleanupHook: cleanupHook)
+        return MessagesControllerEntry(controller: controller)
     }
 
     func disposeIfCurrent(_ entry: MessagesControllerEntry) async throws {
@@ -162,17 +143,14 @@ private extension MessagesControllerCoordinator {
             return
         }
         current = nil
-        try await dispose(entry, removeCleanupHook: true)
+        try await dispose(entry)
     }
 
-    func dispose(_ entry: MessagesControllerEntry, removeCleanupHook: Bool) async throws {
+    func dispose(_ entry: MessagesControllerEntry) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         try await PlatformAPI.onMessagesControllerQueue {
             PlatformAPI.messagesControllerQueue.setIdleCallback(nil)
             entry.controller.dispose()
-        }
-        if removeCleanupHook {
-            try await entry.cleanupHook?.remove()
         }
     }
 }

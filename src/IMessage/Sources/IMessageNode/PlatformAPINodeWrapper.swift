@@ -6,9 +6,17 @@ import PlatformSDK
 
 @NodeActor @NodeClass final class PlatformAPINodeWrapper {
     private let api: PlatformAPI
+    private var cleanupHook: AsyncCleanupHook?
 
     @NodeConstructor init(accountID: String) throws {
         api = try PlatformAPI(accountID: accountID, runtime: PlatformAPINodeRuntime.makeRuntime())
+        let api = SendableBox(api)
+        cleanupHook = try? NodeEnvironment.current.addCleanupHook { completion in
+            Task {
+                try? await api.value.dispose()
+                completion()
+            }
+        }
     }
 
     @NodeMethod func getCurrentUser() async throws -> String {
@@ -133,6 +141,16 @@ import PlatformSDK
 
     @NodeMethod func dispose() async throws {
         try await api.dispose()
+        try removeCleanupHook()
+    }
+
+    private func removeCleanupHook() throws {
+        guard let cleanupHook else {
+            return
+        }
+
+        try NodeEnvironment.current.removeCleanupHook(cleanupHook)
+        self.cleanupHook = nil
     }
 
     private func paginationArg(from object: NodeObject?) throws -> PlatformSDK.PaginationArg? {
