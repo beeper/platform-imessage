@@ -17,7 +17,7 @@ struct TimestampedChatState {
 
 final class EventWatcher {
     typealias ServerEventSender = @Sendable (sending [ServerEvent]) async throws -> Void
-    typealias ReportToSentry = @Sendable (String) -> Void
+    typealias ReportErrorMessage = @Sendable (String) -> Void
 
     var db: IMDatabase
 
@@ -26,12 +26,12 @@ final class EventWatcher {
     var updatesCursor: MessageUpdatesCursor
 
     private var sender: ServerEventSender
-    private let reportToSentry: ReportToSentry?
+    private let reportErrorMessage: ReportErrorMessage?
 
     init(
         serverEventSender sender: @escaping ServerEventSender,
         initialUpdatesCursor: MessageUpdatesCursor,
-        reportToSentry: ReportToSentry? = nil
+        reportErrorMessage: ReportErrorMessage? = nil
     ) throws {
         self.db = try IMDatabase()
         if Defaults.eventWatcherTraceChangeListening {
@@ -40,7 +40,7 @@ final class EventWatcher {
         }
         self.sender = sender
         self.updatesCursor = initialUpdatesCursor
-        self.reportToSentry = reportToSentry
+        self.reportErrorMessage = reportErrorMessage
     }
 
     func watchForever() async throws {
@@ -81,7 +81,7 @@ final class EventWatcher {
                 try await sender(eventsToSend)
             } catch {
                 log.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
-                reportToSentry?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
+                reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
             }
         }
     }

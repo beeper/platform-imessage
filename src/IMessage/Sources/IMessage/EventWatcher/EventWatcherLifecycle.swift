@@ -12,7 +12,7 @@ final class EventWatcherLifecycle {
     private struct State {
         var onEvent: EventWatcherEventSender?
         var watchingTask: Task<Void, Never>?
-        var reportToSentry: EventWatcher.ReportToSentry?
+        var reportErrorMessage: EventWatcher.ReportErrorMessage?
     }
 
     private let state = Protected(State())
@@ -23,10 +23,10 @@ final class EventWatcherLifecycle {
         state.withLock { $0.watchingTask != nil }
     }
 
-    func setEventCallback(_ onEvent: @escaping EventWatcherEventSender, reportToSentry: EventWatcher.ReportToSentry? = nil) {
+    func setEventCallback(_ onEvent: @escaping EventWatcherEventSender, reportErrorMessage: EventWatcher.ReportErrorMessage? = nil) {
         state.withLock { state in
             state.onEvent = onEvent
-            state.reportToSentry = reportToSentry
+            state.reportErrorMessage = reportErrorMessage
         }
     }
 
@@ -36,7 +36,7 @@ final class EventWatcherLifecycle {
             state.watchingTask = nil
             if clearEventCallback {
                 state.onEvent = nil
-                state.reportToSentry = nil
+                state.reportErrorMessage = nil
             }
             return watchingTask
         }
@@ -82,7 +82,7 @@ final class EventWatcherLifecycle {
 
         eventWatchingLog.debug("starting event watcher from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
-        let reportToSentry = state.withLock { $0.reportToSentry }
+        let reportErrorMessage = state.withLock { $0.reportErrorMessage }
 
         let eventWatcher = try EventWatcher(
             serverEventSender: { events in
@@ -92,7 +92,7 @@ final class EventWatcherLifecycle {
                 try await onEvent(events)
             },
             initialUpdatesCursor: EventWatcher.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()),
-            reportToSentry: reportToSentry
+            reportErrorMessage: reportErrorMessage
         )
 
         let watchingTask = Task {
@@ -101,7 +101,7 @@ final class EventWatcherLifecycle {
                 try await eventWatcher.watchForever()
             } catch {
                 eventWatchingLog.error("event watcher died: \(String(reflecting: error))")
-                reportToSentry?("imsg event watcher died: \(String(reflecting: error))")
+                reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
             }
         }
 

@@ -5,7 +5,7 @@ import IMessageCore
 
 enum IMessageNodeExports {
     @NodeActor
-    static let reportToSentry: @Sendable (String) -> Void = {
+    static let reportErrorMessage: @Sendable (String) -> Void = {
         let sentryQueue = try? NodeAsyncQueue(label: "imessage-node-sentry")
         return { message in
             try? sentryQueue?.run {
@@ -17,7 +17,7 @@ enum IMessageNodeExports {
 
 #NodeModule {
     IMessageHost.bootstrap()
-    let reportToSentry = IMessageNodeExports.reportToSentry
+    let reportErrorMessage = IMessageNodeExports.reportErrorMessage
 
     var dict: [String: NodePropertyConvertible] = try [
         "isNotificationsEnabledForMessages": NodeProperty { _ in
@@ -62,7 +62,7 @@ enum IMessageNodeExports {
                     let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
                     try onEvent.value.call([nodeEvents])
                 }
-            }, reportToSentry: reportToSentry)
+            }, reportErrorMessage: reportErrorMessage)
             return // needed to resolve a compile-time type ambiguity apparently
         },
 

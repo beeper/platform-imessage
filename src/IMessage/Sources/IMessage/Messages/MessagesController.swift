@@ -105,7 +105,7 @@ final class MessagesController {
     private var windowCoordinator: WindowCoordinator
     private let keyPresser: KeyPresser
     let contacts = Contacts()
-    private var reportToSentry: ((_ txt: String) -> Void)?
+    private var reportErrorMessage: ((_ txt: String) -> Void)?
 
     let occlusionMonitor = OcclusionMonitor()
 
@@ -285,8 +285,8 @@ final class MessagesController {
         try assertSelectedThread(threadID: threadID)
     }
 
-    init(reportToSentry: @escaping (_ txt: String) -> Void) throws {
-        self.reportToSentry = reportToSentry
+    init(reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
+        self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
@@ -1024,7 +1024,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         }
                     }
                     if Defaults.pinnedThreadsCount() != pinnedCount {
-                        reportToSentry?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
+                        reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                     }
                 }
                 try triggerThreadCellAction(threadID: threadID, action: .pin)
@@ -1260,7 +1260,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 }
             } catch {
-                reportToSentry?("osa err: \(error)")
+                reportErrorMessage?("osa err: \(error)")
                 // fall back to regular send
             }
         }

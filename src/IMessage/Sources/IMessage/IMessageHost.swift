@@ -13,7 +13,7 @@ private let log = Logger(imessageLabel: "imessage")
 /// state and are expected to be.
 public enum IMessageHost {
     public typealias EventCallback = @Sendable ([ServerEvent]) async throws -> Void
-    public typealias SentryReporter = @Sendable (String) -> Void
+    public typealias ReportErrorMessage = @Sendable (String) -> Void
 
     private static let accessManager = MessagesAccessManager()
     private static let bootstrapLock = NSLock()
@@ -130,9 +130,9 @@ public enum IMessageHost {
 
     public static func setEventCallback(
         _ onEvent: @escaping EventCallback,
-        reportToSentry: SentryReporter? = nil
+        reportErrorMessage: ReportErrorMessage? = nil
     ) {
-        EventWatcherLifecycle.shared.setEventCallback(onEvent, reportToSentry: reportToSentry)
+        EventWatcherLifecycle.shared.setEventCallback(onEvent, reportErrorMessage: reportErrorMessage)
     }
 
     public static func startEventWatchingFromCurrentState() async throws {

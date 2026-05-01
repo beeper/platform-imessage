@@ -189,7 +189,7 @@ extension PlatformAPI {
 
     static func makeMessagesController(reportErrorMessage: ReportErrorMessage?) async throws -> MessagesController {
         try await Self.onMessagesControllerQueue {
-            try MessagesController(reportToSentry: { txt in
+            try MessagesController(reportErrorMessage: { txt in
                 platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
                 try? reportErrorMessage?(txt)
             })
