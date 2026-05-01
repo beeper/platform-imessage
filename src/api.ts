@@ -379,7 +379,7 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  archiveThread = async (hashedThreadID: string, archived: boolean) => {
+  archiveThread = async (hashedThreadID: string, archived: boolean, _markReadOnArchive?: boolean, minimumArchiveOrder?: number) => {
     const stateSyncThread = (patch: Partial<BeeperThread>) => {
       texts.log(`imsg/archive/${hashedThreadID}: syncing thread ${hashedThreadID} with patch: ${JSON.stringify(patch)}`)
       this.onEvent?.([{
@@ -411,10 +411,13 @@ export default class AppleiMessage implements PlatformAPI {
       // `isArchivedUpToOrder`, and its cache can outrun the DB when a message
       // was deleted for all devices (gone from `chat_message_join`) — we don't
       // observe those deletions, so `now` is the only value guaranteed to cover
-      // anything still cached.
+      // anything still cached. Callers may provide an explicit minimum cutoff
+      // for messages they know are already renderer-visible, such as
+      // send-and-archive's just-sent message.
       const now = new Date()
-      const newArchivalOrder = now.getTime()
-      const persistedArchivedAt = makeAppleDate(now)
+      const minimumOrder = Number(minimumArchiveOrder)
+      const newArchivalOrder = Math.max(now.getTime(), Number.isFinite(minimumOrder) ? minimumOrder : 0)
+      const persistedArchivedAt = makeAppleDate(new Date(newArchivalOrder))
       texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder=${newArchivalOrder} ("${persistedArchivedAt}")`)
 
       this.persistence?.setThreadProp(hashedThreadID, 'archive', {
