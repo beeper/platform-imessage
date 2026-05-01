@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 
+export const DEFAULT_REFERENCE_REF = '0c18d446704e8170bf7f026b31241a258dcb8634'
+
 export const unwrapDefault = value => {
   let current = value
   while (current && typeof current !== 'function' && 'default' in current) {
@@ -53,7 +55,7 @@ export async function readDefaultReferenceRef(repoRoot) {
   } catch {
     // file missing or unreadable; fall through
   }
-  return 'main'
+  return DEFAULT_REFERENCE_REF
 }
 
 export async function ensureReferenceAPI({
