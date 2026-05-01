@@ -18,3 +18,15 @@ extension NSRunningApplication {
         Thread.sleep(forTimeInterval: 0.01)
     }
 }
+
+extension String {
+    var containsLink: Bool {
+        linkCount > 0
+    }
+
+    var linkCount: Int {
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let matches = detector?.matches(in: self, options: [], range: NSRange(location: 0, length: utf16.count))
+        return matches?.count ?? 0
+    }
+}

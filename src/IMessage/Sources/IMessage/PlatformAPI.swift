@@ -636,7 +636,7 @@ public final class PlatformAPI {
         let database = database
         return try await Task.detached(priority: .userInitiated) {
             let start = Date()
-            let expectedNewMessageIDCount = text.map { max(linkCount(in: $0), 1) } ?? 1
+            let expectedNewMessageIDCount = text.map { max($0.linkCount, 1) } ?? 1
             var sentMessageIDs: [(rowID: Int, guid: String)] = []
             while sentMessageIDs.count != expectedNewMessageIDCount {
                 sentMessageIDs = try database.withDatabase { db in

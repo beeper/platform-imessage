@@ -1240,7 +1240,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         if !Defaults.disableOSAFastPath, !Preferences.useSecondaryMessagesInstance, let threadID, quotedMessage == nil { // fast path using OSA
             do {
                 if let text {
-                    if !text.contains("@"), !containsLink(text) { // no mentions and no links
+                    if !text.contains("@"), !text.containsLink { // no mentions and no links
                         // skipping the deeplink and thread ID check is safe since we're simply clearing the textfield.
                         // there are two possible scenarios:
                         // A. [expected] we're in the correct chat (same thread ID as the one we're sending a message to using OSA). we can safely clear the textfield since we've sent the message and we don't need to show a typing indicator.
