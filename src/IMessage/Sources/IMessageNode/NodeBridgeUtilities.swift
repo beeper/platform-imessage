@@ -6,14 +6,6 @@ import IMessageCore
 
 private let log = Logger(imessageLabel: "node-bridge")
 
-final class SendableBox<T>: @unchecked Sendable {
-    let value: T
-
-    init(_ value: T) {
-        self.value = value
-    }
-}
-
 enum NodeBridgeUtilities {
     @NodeActor
     static func nodeArray(from values: [Any]) throws -> NodeArray {

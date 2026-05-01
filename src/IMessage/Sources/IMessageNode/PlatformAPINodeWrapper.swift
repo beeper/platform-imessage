@@ -15,7 +15,7 @@ import PlatformSDK
             accountID: accountID,
             reportErrorMessage: IMessageNodeExports.reportErrorMessage
         )
-        let api = SendableBox(api)
+        let api = UncheckedSendableBox(api)
         cleanupHook = try? NodeEnvironment.current.addCleanupHook { completion in
             Task {
                 try? await api.value.dispose()
@@ -126,7 +126,7 @@ import PlatformSDK
             throw ErrorMessage("Bad PlatformAPI call: \(#function)")
         }
 
-        let sendEvents = SendableBox(sendEventsFunction)
+        let sendEvents = UncheckedSendableBox(sendEventsFunction)
         let eventQueue = threadActivityEventQueue
         try await api.onThreadSelected(threadID: threadID) { events in
             try eventQueue.run {

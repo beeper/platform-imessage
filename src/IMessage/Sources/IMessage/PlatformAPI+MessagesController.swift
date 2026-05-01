@@ -3,9 +3,7 @@ import Logging
 
 private let platformMessagesControllerLog = Logger(imessageLabel: "platform-api")
 
-private struct MessagesControllerEntry: @unchecked Sendable {
-    var controller: MessagesController
-}
+private typealias MessagesControllerEntry = UncheckedSendableBox<MessagesController>
 
 private enum MessagesControllerCoordinatorError: Error {
     case cachedControllerInvalid
@@ -35,10 +33,10 @@ private actor MessagesControllerCoordinator {
                     guard !hasBeenDisposed.read() else {
                         throw ErrorMessage("PlatformAPI has been disposed")
                     }
-                    guard entry.controller.isValid else {
+                    guard entry.value.isValid else {
                         throw MessagesControllerCoordinatorError.cachedControllerInvalid
                     }
-                    return try action(entry.controller)
+                    return try action(entry.value)
                 }
             } catch MessagesControllerCoordinatorError.cachedControllerInvalid {
                 platformMessagesControllerLog.debug("disposing cached MessagesController because it became invalid")
@@ -108,7 +106,7 @@ private extension MessagesControllerCoordinator {
         do {
             let entry = try await controllerTask.value
 
-            if let current, current.controller === entry.controller {
+            if let current, current.value === entry.value {
                 return current
             }
 
@@ -135,11 +133,11 @@ private extension MessagesControllerCoordinator {
 
     static func makeControllerEntry(reportErrorMessage: PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry {
         let controller = try await PlatformAPI.makeMessagesController(reportErrorMessage: reportErrorMessage)
-        return MessagesControllerEntry(controller: controller)
+        return MessagesControllerEntry(controller)
     }
 
     func disposeIfCurrent(_ entry: MessagesControllerEntry) async throws {
-        guard current?.controller === entry.controller else {
+        guard current?.value === entry.value else {
             return
         }
         current = nil
@@ -150,7 +148,7 @@ private extension MessagesControllerCoordinator {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         try await PlatformAPI.onMessagesControllerQueue {
             PlatformAPI.messagesControllerQueue.setIdleCallback(nil)
-            entry.controller.dispose()
+            entry.value.dispose()
         }
     }
 }

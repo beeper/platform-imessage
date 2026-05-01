@@ -56,7 +56,7 @@ enum IMessageNodeExports {
 
         "setEventCallback": NodeFunction { (onEvent: NodeFunction) in
             let eventQueue = try NodeAsyncQueue(label: "event-watcher-events")
-            let onEvent = SendableBox(onEvent)
+            let onEvent = UncheckedSendableBox(onEvent)
             IMessageHost.setEventCallback({ events in
                 try eventQueue.run {
                     let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
