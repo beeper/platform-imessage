@@ -18,7 +18,7 @@ private actor MessagesControllerCoordinator {
     private var pendingController: Task<MessagesControllerEntry, Error>?
 
     func withController<T>(
-        runtime: PlatformAPI.Runtime,
+        reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>,
         forceInvalidate: Bool = false,
         _ action: @escaping @Sendable (MessagesController) throws -> T
@@ -28,7 +28,7 @@ private actor MessagesControllerCoordinator {
         }
 
         while true {
-            let entry = try await currentControllerEntry(runtime: runtime, hasBeenDisposed: hasBeenDisposed)
+            let entry = try await currentControllerEntry(reportErrorMessage: reportErrorMessage, hasBeenDisposed: hasBeenDisposed)
 
             do {
                 return try await PlatformAPI.onMessagesControllerQueue {
@@ -78,7 +78,7 @@ private actor MessagesControllerCoordinator {
 
 private extension MessagesControllerCoordinator {
     func currentControllerEntry(
-        runtime: PlatformAPI.Runtime,
+        reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>
     ) async throws -> MessagesControllerEntry {
         guard !hasBeenDisposed.read() else {
@@ -89,13 +89,13 @@ private extension MessagesControllerCoordinator {
             return current
         }
 
-        let controllerTask = pendingController ?? startControllerCreation(runtime: runtime)
+        let controllerTask = pendingController ?? startControllerCreation(reportErrorMessage: reportErrorMessage)
         return try await installPendingController(controllerTask, hasBeenDisposed: hasBeenDisposed)
     }
 
-    private func startControllerCreation(runtime: PlatformAPI.Runtime) -> Task<MessagesControllerEntry, Error> {
+    private func startControllerCreation(reportErrorMessage: PlatformAPI.ReportErrorMessage?) -> Task<MessagesControllerEntry, Error> {
         let task = Task {
-            try await Self.makeControllerEntry(runtime: runtime)
+            try await Self.makeControllerEntry(reportErrorMessage: reportErrorMessage)
         }
         pendingController = task
         return task
@@ -133,8 +133,8 @@ private extension MessagesControllerCoordinator {
         }
     }
 
-    static func makeControllerEntry(runtime: PlatformAPI.Runtime) async throws -> MessagesControllerEntry {
-        let controller = try await PlatformAPI.makeMessagesController(runtime: runtime)
+    static func makeControllerEntry(reportErrorMessage: PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry {
+        let controller = try await PlatformAPI.makeMessagesController(reportErrorMessage: reportErrorMessage)
         return MessagesControllerEntry(controller: controller)
     }
 
@@ -166,7 +166,7 @@ extension PlatformAPI {
         _ action: @escaping @Sendable (MessagesController) throws -> T
     ) async throws -> T {
         try await Self.messagesControllerCoordinator.withController(
-            runtime: runtime,
+            reportErrorMessage: errorMessageReporter,
             hasBeenDisposed: hasBeenDisposed,
             forceInvalidate: forceInvalidate,
             action
@@ -187,11 +187,11 @@ extension PlatformAPI {
         }
     }
 
-    static func makeMessagesController(runtime: Runtime) async throws -> MessagesController {
+    static func makeMessagesController(reportErrorMessage: ReportErrorMessage?) async throws -> MessagesController {
         try await Self.onMessagesControllerQueue {
             try MessagesController(reportToSentry: { txt in
                 platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
-                try? runtime.reportMessageToSentry(txt)
+                try? reportErrorMessage?(txt)
             })
         }
     }

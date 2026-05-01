@@ -35,9 +35,17 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 public final class PlatformAPI {
     private static let activeInstance = Protected<ObjectIdentifier?>()
 
-    let runtime: Runtime
+    public typealias Event = [String: Any]
+    public typealias EventSender = @Sendable ([Event]) throws -> Void
+    public typealias ReportErrorMessage = @Sendable (_ message: String) throws -> Void
+
+    public enum AssetResult: Sendable {
+        case url(String)
+        case data(Data)
+    }
 
     private let accountID: String
+    let errorMessageReporter: ReportErrorMessage?
 
     private let database = PlatformAPIDatabase()
     private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
@@ -46,13 +54,9 @@ public final class PlatformAPI {
     private let threadObserveRequestToken = Protected<UUID?>()
     let hasBeenDisposed = Protected(false)
 
-    public convenience init(accountID: String) throws {
-        try self.init(accountID: accountID, runtime: .noop)
-    }
-
-    public init(accountID: String, runtime: Runtime) throws {
+    public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil) throws {
         self.accountID = accountID
-        self.runtime = runtime
+        self.errorMessageReporter = reportErrorMessage
         try Self.claimActiveInstance(ObjectIdentifier(self))
     }
 
@@ -327,7 +331,7 @@ public final class PlatformAPI {
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
-            self.reportMessageToSentry("imessage sendReadReceipt failed: \(error)")
+            self.reportErrorMessage("imessage sendReadReceipt failed: \(error)")
         }
     }
 
@@ -560,7 +564,7 @@ public final class PlatformAPI {
             return context
         } onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
-            self.reportMessageToSentry("imessage \(name) failed: \(error)")
+            self.reportErrorMessage("imessage \(name) failed: \(error)")
         }
     }
 
@@ -694,12 +698,12 @@ public final class PlatformAPI {
                 continue
             }
             platformLog.error("imsg: sent message with incorrect quoted message, intended: \(String(describing: expectedLinkedMessageID)), actual: \(String(describing: actual))")
-            reportMessageToSentry("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
+            reportErrorMessage("imessage sent message with incorrect quoted message, intended=\(expectedLinkedMessageID != nil) actual=\(actual != nil)")
         }
     }
 
-    private func reportMessageToSentry(_ message: String) {
-        try? runtime.reportMessageToSentry(message)
+    private func reportErrorMessage(_ message: String) {
+        try? errorMessageReporter?(message)
     }
 
     nonisolated static func getThreads(

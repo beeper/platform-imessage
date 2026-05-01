@@ -9,7 +9,12 @@ import PlatformSDK
     private var cleanupHook: AsyncCleanupHook?
 
     @NodeConstructor init(accountID: String) throws {
-        api = try PlatformAPI(accountID: accountID, runtime: PlatformAPINodeRuntime.makeRuntime())
+        let sentryQueue = try? NodeAsyncQueue(label: "platform-api-sentry")
+        api = try PlatformAPI(accountID: accountID, reportErrorMessage: { message in
+            try sentryQueue?.run {
+                try Node.texts.Sentry.captureMessage(message)
+            }
+        })
         let api = SendableBox(api)
         cleanupHook = try? NodeEnvironment.current.addCleanupHook { completion in
             Task {
