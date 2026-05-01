@@ -3,6 +3,7 @@ import OrderedCollections
 import IMessageCore
 
 public extension Message {
+    /// Notes for the `message_summary_info` bplist payload.
     struct SummaryInfo: Decodable {
         /// Ordered record representing the structure of the original message
         /// body, present on partially unsent or edited messages.
@@ -37,7 +38,9 @@ public extension Message {
             // `ams`: observed value example: summarized text.
             // `ec`: message edit history, present for messages that have been
             // partially edited. TODO: check if this is present for edited
-            // non-partial messages. The index corresponds to `otr`.
+            // non-partial messages. The index corresponds to `otr`; each item
+            // contains `t` (likely an attributed string) and `d` (likely the
+            // timestamp of when this part of the message was edited).
 
             var format = PropertyListSerialization.PropertyListFormat.binary
             let plist = try PropertyListSerialization.propertyList(from: blob, options: [], format: &format)

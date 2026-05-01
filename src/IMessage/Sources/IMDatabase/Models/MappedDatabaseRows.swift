@@ -4,6 +4,44 @@ import SQLite
 /// Runtime counterparts to the historical TypeScript row shapes. Database
 /// queries decode into these structs directly. Legacy fixture/original-payload
 /// dictionary bridges live in MappedDatabaseRows+DictionaryBridges.swift.
+///
+/// Historical schema observations migrated from the old TypeScript raw row
+/// types are preserved here as comments. These notes are checked against the
+/// schema fixtures in `fixtures/`; a field can disappear across macOS releases,
+/// so don't assume older observations are still present without comparing the
+/// fixtures.
+///
+/// Message table columns were originally observed in `chat.db` on Big Sur and
+/// extended as newer macOS releases added fields. Mapped columns carry their
+/// notes inline below. Additional observed columns that are not currently
+/// decoded by these mapped rows:
+/// - `replace`: Observed by kb as `0` for all messages.
+/// - `country`: Observed by kb as `NULL` for all messages.
+/// - `version`: Observed by kb as `10` for all messages.
+/// - `is_finished`: Observed by kb as `1` for all messages.
+/// - `is_sent`: Slightly different from `is_from_me`.
+/// - `is_forward`: Observed by kb as `0` for all messages.
+/// - `is_archive`: Observed by kb as `0` for all messages.
+/// - `date_played`: Prefer reading this through SQLite as text or converting in
+///   Swift; JavaScript `number` frequently loses precision for Apple nanosecond
+///   timestamps.
+/// - `is_corrupt`: Observed by kb as `0` for all messages.
+/// - `is_spam`: Observed by kb as `0` for all messages.
+/// - `syndication_ranges`, `synced_syndication_ranges`,
+///   `was_delivered_quietly`, `did_notify_recipient`: Added in Monterey.
+/// - `part_count`: Added in Ventura.
+/// - `is_stewie`: Added in Ventura 13.1.
+/// - `is_sos`, `is_critical`, `bia_reference_id`: Observed in Tahoe.
+/// - `is_kt_verified`: Added in Ventura 13.2 through 13.4.1.
+/// - `fallback_hash`: Observed in Tahoe.
+/// - `is_time_sensitive`, `ck_chat_id`, `index_state`: Observed in Tahoe.
+///
+/// Chat table columns were originally observed in `chat.db` on Big Sur and
+/// extended as newer macOS releases added fields. Additional observed columns
+/// that are not currently decoded by these mapped rows:
+/// - `syndication_date`, `syndication_type`: Added in Monterey.
+/// - `is_recovered`: Added in Ventura.
+/// - `is_deleting_incoming_messages`, `is_pending_review`: Observed in Tahoe.
 
 public protocol MappedDatabaseRow {
     init(row: borrowing Row, columns: MappedRowColumnIndexes) throws
