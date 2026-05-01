@@ -306,12 +306,15 @@ private final class Runner {
     }
 
     private func runShell() async throws {
+        let shouldStartEventWatching = try await runShellAuthorizationFlowIfNeeded()
         printTopLevelHelp()
         let lineReader = ShellLineReader(prompt: prompt)
         Log.consoleEmitter = { [lineReader] line in
             lineReader.printConsoleLine(line)
         }
-        try await startEventWatching(reportStartupErrors: true)
+        if shouldStartEventWatching {
+            try await startEventWatching(reportStartupErrors: true)
+        }
         while true {
             guard let input = lineReader.readLine() else {
                 try await shutdown()
@@ -332,6 +335,23 @@ private final class Runner {
                 fputs("\(error)\n", stderr)
             }
         }
+    }
+
+    private func runShellAuthorizationFlowIfNeeded() async throws -> Bool {
+        let messagesDataStatus = await AuthorizationRequirement.messagesData.currentStatus()
+        guard !messagesDataStatus.authorized else { return options.subscribeToEvents }
+
+        let missingSetup = await missingAuthorizationRequirements([.accessibility, .contacts, .messagesData])
+        let authTarget = missingSetup.count > 1 ? "all" : AuthorizationRequirement.messagesData.rawValue
+        print("imessage-cli requires certain permissions to function. Launching authorization flow...")
+        try await runAuthorizationFlow(target: authTarget)
+
+        let updated = await AuthorizationRequirement.messagesData.currentStatus()
+        guard updated.authorized else {
+            fputs("event watching startup skipped: Messages Data was not granted. \(updated.detail)\n", stderr)
+            return false
+        }
+        return options.subscribeToEvents
     }
 
     private func runParsedCommand(name: String, args: [String]) async throws {
@@ -373,6 +393,16 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         if args.count > 1 { throw CLIError("usage: help [COMMAND]") }
         try context.showHelp(args.first)
+    },
+    CommandDefinition(
+        name: "version",
+        category: .general,
+        summary: "Print the platform-imessage package version.",
+        usage: ["version"],
+        examples: ["version"]
+    ) { args, context in
+        try requireExactArgs(context.command, args, 0)
+        printCLIVersion()
     },
     CommandDefinition(
         name: "shell",
@@ -430,16 +460,6 @@ private let commandDefinitions: [CommandDefinition] = [
             await IMessageHost.stopEventWatching()
             return nil
         }
-    },
-    CommandDefinition(
-        name: "version",
-        category: .general,
-        summary: "Print the platform-imessage package version.",
-        usage: ["version"],
-        examples: ["version"]
-    ) { args, context in
-        try requireExactArgs(context.command, args, 0)
-        printCLIVersion()
     },
     CommandDefinition(
         name: "current-user",
@@ -1058,6 +1078,16 @@ private func runPreflightAuthCheck(commandName: String, requirements: [Authoriza
     }
 }
 
+private func missingAuthorizationRequirements(_ requirements: [AuthorizationRequirement]) async -> [AuthorizationRequirement] {
+    var missing = [AuthorizationRequirement]()
+    for requirement in requirements {
+        if !(await requirement.currentStatus().authorized) {
+            missing.append(requirement)
+        }
+    }
+    return missing
+}
+
 private func runAuthorizationFlow(target rawTarget: String?) async throws {
     let trimmed = rawTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
     let resolved = (trimmed?.isEmpty == false ? trimmed : nil) ?? "all"
@@ -1081,6 +1111,9 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
         printStatus(req, status)
         if !status.authorized {
             print("  Requesting \(req.title)...")
+            if req == .messagesData {
+                print("  note: After granting Messages Data, macOS may terminate imessage-cli; if it exits, run it again.")
+            }
             try await req.request()
             printStatus(req, await req.currentStatus())
         }

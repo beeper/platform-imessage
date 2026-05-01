@@ -23,7 +23,9 @@
 
 - [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs w secondary instance off)
 - [ ] store UserDefaults in dataDirPath
-- [ ] `thread_messages_refresh` events should be state sync message upserts
+- [ ] new incoming messages should be state sync message upserts instead of `thread_messages_refresh`
+- [ ] edited messages should be state sync message upserts/update instead of `thread_messages_refresh`
+- [ ] message getting read should be a state sync message update instead of `thread_messages_refresh`
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] improve misfire prevention and robustness
 
