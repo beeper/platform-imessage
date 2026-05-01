@@ -23,8 +23,6 @@ export default class AppleiMessage implements PlatformAPI {
 
   private onEvent: OnServerEventCallback | undefined
 
-  private didFetchInitialThreads = false
-
   private eventWatchingStarted = false
 
   private eventWatchingStartInFlight?: Promise<void>
@@ -119,11 +117,9 @@ export default class AppleiMessage implements PlatformAPI {
       onEvent(evs)
     }
     imessage.setEventCallback(this.onEvent)
-    if (this.didFetchInitialThreads) await this.startEventWatchingAfterInitialThreads()
   }
 
   startEventWatchingFromCurrentState = async (): Promise<void> => {
-    if (!this.onEvent) throw new Error('subscribeToEvents must be called before startEventWatchingFromCurrentState')
     if (this.eventWatchingStarted) return
     if (this.eventWatchingStartInFlight) return this.eventWatchingStartInFlight
     this.eventWatchingStartInFlight = imessage.startEventWatchingFromCurrentState()
@@ -182,7 +178,6 @@ export default class AppleiMessage implements PlatformAPI {
     ))
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
     if (folderName === 'normal' && !pagination?.cursor) {
-      this.didFetchInitialThreads = true
       await this.startEventWatchingAfterInitialThreads()
     }
     return {
