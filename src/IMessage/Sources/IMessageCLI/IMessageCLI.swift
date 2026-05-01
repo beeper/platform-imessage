@@ -8,7 +8,7 @@ import PlatformSDK
 
 private let accountID = "default"
 private let prompt = "imessage> "
-private let commandCategories: [Category] = [.general, .message, .chat]
+private let commandCategories: [Category] = [.general, .watching, .message, .chat]
 private let quitCommands: Set<String> = ["q", "quit", "exit"]
 
 @main
@@ -32,7 +32,7 @@ struct IMessageCLI: AsyncParsableCommand {
     @Flag(name: .long, help: "Run one command, then stay open in the interactive shell.")
     var stayOpen = false
 
-    @Flag(name: .long, help: "Do not subscribe to server events after running commands.")
+    @Flag(name: .long, help: "Do not subscribe to new DB changes after running commands.")
     var noEvents = false
 
     @Flag(name: .long, help: "Enable verbose logging.")
@@ -59,6 +59,7 @@ struct IMessageCLI: AsyncParsableCommand {
 
 private enum Category: String {
     case general = "General"
+    case watching = "Watching"
     case message = "Message"
     case chat = "Chat"
 }
@@ -423,7 +424,7 @@ private let commandDefinitions: [CommandDefinition] = [
     },
     CommandDefinition(
         name: "watch-status",
-        category: .general,
+        category: .watching,
         summary: "Print event watcher subscription and running state.",
         usage: ["watch-status"],
         examples: ["watch-status"]
@@ -433,8 +434,8 @@ private let commandDefinitions: [CommandDefinition] = [
     },
     CommandDefinition(
         name: "start-watching",
-        category: .general,
-        summary: "Start watching Messages database changes and print server events.",
+        category: .watching,
+        summary: "Start watching Messages database changes and print new DB changes.",
         usage: ["start-watching"],
         examples: ["start-watching"],
         notes: ["Most useful in the interactive shell, or with --stay-open."],
@@ -448,7 +449,7 @@ private let commandDefinitions: [CommandDefinition] = [
     },
     CommandDefinition(
         name: "stop-watching",
-        category: .general,
+        category: .watching,
         summary: "Stop watching Messages database changes.",
         usage: ["stop-watching"],
         examples: ["stop-watching"],
@@ -876,9 +877,8 @@ private func printTopLevelHelp() {
         "",
         "Global options:",
         "  --data-dir PATH          Store CLI state under PATH instead of a temp directory",
-        "  --use-secondary-instance Use a secondary Messages.app instance (default)",
-        "  --no-use-secondary-instance Use the existing Messages.app instance",
-        "  --no-events              Do not subscribe to server events after running commands",
+        "  --use-secondary-instance Use a secondary Messages.app instance (default). Pass --no-use-secondary-instance to disable",
+        "  --no-events              Do not subscribe to new DB changes after running commands",
         "  --stay-open              Run one command, then stay open in the interactive shell",
         "  --verbose                Enable verbose logging",
         "",
