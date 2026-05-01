@@ -2,12 +2,16 @@ name: Release iMessage CLI
 
 on:
   push:
+    branches:
+      - main
+    paths:
+      - package.json
     tags:
-      - 'imessage-cli-v*'
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to create or update. Defaults to imessage-cli-v<package version>.'
+        description: 'Release tag to create or update. Defaults to v<package version>.'
         required: false
         type: string
       draft:
@@ -30,6 +34,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use Xcode 26.1
         shell: bash
@@ -49,11 +55,23 @@ jobs:
 
           version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
           tag="${{ inputs.tag }}"
+          should_release="true"
           if [ -z "$tag" ]; then
             if [ "$GITHUB_REF_TYPE" = "tag" ]; then
               tag="$GITHUB_REF_NAME"
             else
-              tag="imessage-cli-v${version}"
+              tag="v${version}"
+            fi
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ]; then
+            before="${{ github.event.before }}"
+            previous_version=""
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$before:package.json" 2>/dev/null; then
+              previous_version="$(git show "$before:package.json" | python3 -c 'import json, sys; print(json.load(sys.stdin)["version"])')"
+            fi
+            if [ "$previous_version" = "$version" ]; then
+              should_release="false"
             fi
           fi
 
@@ -64,9 +82,11 @@ jobs:
             echo "version=$version"
             echo "tag=$tag"
             echo "asset-name=$asset_name"
+            echo "should-release=$should_release"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build release CLI
+        if: ${{ steps.metadata.outputs.should-release == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -87,6 +107,7 @@ jobs:
           )
 
       - name: Publish GitHub release
+        if: ${{ steps.metadata.outputs.should-release == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.metadata.outputs.tag }}
