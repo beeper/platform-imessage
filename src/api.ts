@@ -14,6 +14,16 @@ import { parseSwiftMessageAPIJSON } from './swift-json'
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
 
+const messageArchiveOrder = (message: Message): number | undefined => {
+  const sortKey = Number(message.sortKey)
+  if (Number.isFinite(sortKey)) return sortKey
+
+  const timestamp = message.timestamp instanceof Date
+    ? message.timestamp.getTime()
+    : Number(message.timestamp)
+  return Number.isFinite(timestamp) ? timestamp : undefined
+}
+
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
 
@@ -22,6 +32,8 @@ export default class AppleiMessage implements PlatformAPI {
   private swiftPlatformAPI?: NativePlatformAPI
 
   private onEvent: OnServerEventCallback | undefined
+
+  private sentMessageArchiveOrders = new Map<ThreadID, number>()
 
   private didFetchInitialThreads = false
 
@@ -230,18 +242,41 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendingMessagesCount = 0
 
+  private recordSentMessageArchiveOrder(threadID: ThreadID, messages: Message[]) {
+    const latestOrder = messages.reduce((latest, message) => {
+      const order = messageArchiveOrder(message)
+      return order == null ? latest : Math.max(latest, order)
+    }, Number.NEGATIVE_INFINITY)
+    if (!Number.isFinite(latestOrder)) return
+
+    this.sentMessageArchiveOrders.set(
+      threadID,
+      Math.max(this.sentMessageArchiveOrders.get(threadID) ?? 0, latestOrder),
+    )
+  }
+
   sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
     // if (IS_TAHOE_OR_UP && options.quotedMessageID) throw Error('replies are not supported on macOS Tahoe')
     try {
       this.sendingMessagesCount++
       const { quotedMessageID } = options
+      let result: boolean | Message[]
       if (content.fileBuffer) {
-        return this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
+        result = await this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
+      } else if (content.filePath) {
+        result = await this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
+      } else {
+        result = parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(hashedThreadID, content.text, undefined, quotedMessageID))
       }
-      if (content.filePath) {
-        return this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
+
+      if (Array.isArray(result)) {
+        this.recordSentMessageArchiveOrder(hashedThreadID, result)
+      } else if (result) {
+        const thread = await this.getThread(hashedThreadID)
+        const messages = thread?.messages?.items
+        if (messages?.length) this.recordSentMessageArchiveOrder(hashedThreadID, messages)
       }
-      return parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(hashedThreadID, content.text, undefined, quotedMessageID))
+      return result
     } finally {
       this.sendingMessagesCount--
     }
@@ -409,16 +444,22 @@ export default class AppleiMessage implements PlatformAPI {
       // Archive cutoff is `now`, not the DB's latest-message date: the renderer
       // un-archives when its cached latest-message sortKey exceeds
       // `isArchivedUpToOrder`, and its cache can outrun the DB when a message
-      // was deleted for all devices (gone from `chat_message_join`) — we don't
+      // was deleted for all devices (gone from `chat_message_join`); we don't
       // observe those deletions, so `now` is the only value guaranteed to cover
       // anything still cached. Callers may provide an explicit minimum cutoff
       // for messages they know are already renderer-visible, such as
       // send-and-archive's just-sent message.
       const now = new Date()
+      const sentMessageArchiveOrder = this.sentMessageArchiveOrders.get(hashedThreadID)
+      this.sentMessageArchiveOrders.delete(hashedThreadID)
       const minimumOrder = Number(minimumArchiveOrder)
-      const newArchivalOrder = Math.max(now.getTime(), Number.isFinite(minimumOrder) ? minimumOrder : 0)
+      const newArchivalOrder = Math.max(
+        now.getTime(),
+        Number.isFinite(minimumOrder) ? minimumOrder : 0,
+        sentMessageArchiveOrder ?? 0,
+      )
       const persistedArchivedAt = makeAppleDate(new Date(newArchivalOrder))
-      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder=${newArchivalOrder} ("${persistedArchivedAt}")`)
+      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder=${newArchivalOrder} ("${persistedArchivedAt}", now=${now.getTime()}, minimumArchiveOrder=${minimumArchiveOrder}, sentMessageArchiveOrder=${sentMessageArchiveOrder})`)
 
       this.persistence?.setThreadProp(hashedThreadID, 'archive', {
         archivedAt: persistedArchivedAt,
