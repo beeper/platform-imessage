@@ -10,7 +10,6 @@ import { shellExec } from './util'
 import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
-import Phaser from './phaser'
 import { parseSwiftMessageAPIJSON } from './swift-json'
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
@@ -21,12 +20,6 @@ export default class AppleiMessage implements PlatformAPI {
   private persistence?: Persistence
 
   private swiftPlatformAPI?: NativePlatformAPI
-
-  // used to make archive calls wait for any pending reactions/message sends,
-  // to remove flicker from e.g. sending then quickly archiving manually.
-  // No delayMsAfterWaiting needed: PlatformAPI.sendMessage / setReaction
-  // resolve only after waitForSentMessageIDs sees the new row in chat.db.
-  private threadPhaser = new Phaser<Thread['id']>()
 
   private onEvent: OnServerEventCallback | undefined
 
@@ -237,10 +230,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendingMessagesCount = 0
 
-  sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> =>
-    this.threadPhaser.bracketed(hashedThreadID, this.actuallySendMessage(hashedThreadID, content, options))
-
-  private actuallySendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+  sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
     // if (IS_TAHOE_OR_UP && options.quotedMessageID) throw Error('replies are not supported on macOS Tahoe')
     try {
       this.sendingMessagesCount++
@@ -283,10 +273,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
-    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.addReaction(hashedThreadID, messageID, reactionKey))
+    this.swiftPlatformAPI!.addReaction(hashedThreadID, messageID, reactionKey)
 
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
-    this.threadPhaser.bracketed(hashedThreadID, this.swiftPlatformAPI!.removeReaction(hashedThreadID, messageID, reactionKey))
+    this.swiftPlatformAPI!.removeReaction(hashedThreadID, messageID, reactionKey)
 
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     const swiftAPI = this.swiftPlatformAPI!
@@ -390,11 +380,6 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   archiveThread = async (hashedThreadID: string, archived: boolean) => {
-    // wait for any pending message sends/reactions before archiving. the
-    // phaser has an artificial delay, which was introduced in the hopes that
-    // the latest message id is used
-    await this.threadPhaser.waitForAnyCurrentlyPending(hashedThreadID)
-
     const stateSyncThread = (patch: Partial<BeeperThread>) => {
       texts.log(`imsg/archive/${hashedThreadID}: syncing thread ${hashedThreadID} with patch: ${JSON.stringify(patch)}`)
       this.onEvent?.([{
