@@ -1,5 +1,15 @@
 import AppKit
-import SwiftUI
+
+// only exists because `NSMenuItem` needs a target
+@available(macOS 13, *)
+@MainActor
+private final class SettingsMenuItemTarget {
+    static let shared = SettingsMenuItemTarget()
+
+    @objc func openSettings() {
+        SettingsWindowController.reveal()
+    }
+}
 
 @available(macOS 13, *)
 extension SettingsView {

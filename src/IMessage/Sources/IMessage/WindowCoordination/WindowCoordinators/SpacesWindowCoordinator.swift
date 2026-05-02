@@ -27,7 +27,7 @@ final class SpacesWindowCoordinator {
     private var lastManualActivation: Date?
 
     init() throws {
-        log.debug(Self.canUseUnknownSpace ? "can use known spaces" : "can't use unknown spaces")
+        log.debug(Self.canUseUnknownSpace ? "can use unknown spaces" : "can't use unknown spaces")
 
         if Self.canUseUnknownSpace || Defaults.imessage.bool(forKey: DefaultsKeys.spacesAlwaysUseUnknownSpace) {
             unknownSpace = Space(newSpaceOfKind: .unknown)
