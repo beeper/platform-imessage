@@ -6,18 +6,16 @@ import { BeeperMessage } from './desktop-types'
 const canQuote = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part
 const canReact = !IS_MONTEREY_OR_UP ? isSelectable : (message: BeeperMessage) => !message.extra?.part && (message.linkedMessageID ? isSelectable(message) : true)
 
+const icon = '<svg width="20" height="18" viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.99995 0.892499C4.76618 0.892499 0.523438 4.26842 0.523438 8.43459C0.527791 11.0813 2.2748 13.531 5.12747 14.8925C4.75456 15.6911 4.19448 16.4397 3.47043 17.108C4.87355 16.8723 6.19107 16.3787 7.3185 15.6633C8.1891 15.8685 9.09162 15.9739 9.99995 15.9753C15.2337 15.9753 19.4764 12.5994 19.4764 8.4332C19.4764 4.26842 15.2337 0.891113 9.99995 0.891113V0.892499Z" fill="white"/> </svg>'
+
 const info: PlatformInfo = {
   name: 'imessage',
   version: '1.0.0',
   displayName: 'iMessage',
-  icon: `
-<svg width="20" height="18" viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M9.99995 0.892499C4.76618 0.892499 0.523438 4.26842 0.523438 8.43459C0.527791 11.0813 2.2748 13.531 5.12747 14.8925C4.75456 15.6911 4.19448 16.4397 3.47043 17.108C4.87355 16.8723 6.19107 16.3787 7.3185 15.6633C8.1891 15.8685 9.09162 15.9739 9.99995 15.9753C15.2337 15.9753 19.4764 12.5994 19.4764 8.4332C19.4764 4.26842 15.2337 0.891113 9.99995 0.891113V0.892499Z" fill="white"/>
-</svg>
-  `,
+  icon,
   brand: {
-    iconBackground: '#19BA3B',
-    iconName: 'imessage',
+    background: '#19BA3B',
+    icon,
   },
   loginMode: 'custom',
   deletionMode: IS_VENTURA_OR_UP ? MessageDeletionMode.UNSEND : MessageDeletionMode.UNSUPPORTED,

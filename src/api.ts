@@ -285,10 +285,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
 
-  onThreadSelected = async (hashedThreadID: ThreadID) => {
-    // Drop empty/null thread IDs. Beeper Desktop depends on its own vendored
-    // fork of platform-sdk that lets the thread ID be null. We currently don't
-    // use that fork, but we ought to.
+  onThreadSelected = async (hashedThreadID: ThreadID | null) => {
     if (!hashedThreadID) return
     if (!this.onEvent) return
 

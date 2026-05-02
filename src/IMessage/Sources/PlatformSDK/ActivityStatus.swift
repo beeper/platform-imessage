@@ -19,6 +19,11 @@ extension PlatformSDK {
         case custom
     }
 
+    public enum AppState: String, Sendable {
+        case suspending
+        case resuming
+    }
+
     @PlatformSDKJSONObject
     public struct UserPresence: JSONObjectConvertible {
         public let userID: UserID
