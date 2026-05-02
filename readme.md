@@ -4,7 +4,7 @@ A standalone Swift library and CLI that lets you and your agents send/receive me
 
 Reads `chat.db` and works with automation and accessibility APIs – similar to [Codex Computer Use](https://developers.openai.com/codex/app/computer-use) but surgical and faster. Designed to run with the normal macOS security model ([System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled) since it does not hook into low-level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~95% feature parity on macOS Tahoe.
 
-This library powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS. NAPI bindings for Node/Electron are powered by [node-swift](https://github.com/kabiroberai/node-swift).
+This library powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS. N-API bindings for Node/Electron are powered by [node-swift](https://github.com/kabiroberai/node-swift).
 
 **What it won't do**: expose more features if you disable SIP, allow automating multiple iMessage accounts, work on Windows/Linux. Also see [TODOs](./todos.md).
 
@@ -18,20 +18,20 @@ This library powers the iMessage integration on [Beeper](https://www.beeper.com/
 | Send text messages | ✅ | ✅ |
 | Send attachments | ✅ | ✅ |
 | Create 1:1 chats | ✅ | ✅ |
-| Create group chats | ✅ | ❌* |
-| Send replies / quoted messages | ✅ | ❌* |
-| Send / remove tapbacks/reactions | ✅ | ❌* |
-| Edit sent messages | ✅ | ❌* |
-| Undo send | ✅ | ❌* |
-| Mark chats read / unread in Messages.app | ✅ | ❌* |
-| Send typing indicators | ✅ | ❌* |
-| Notify anyway / Focus bypass | ✅ | ❌* |
-| Search messages | ✅ | Partial* |
-| Group management: rename, add/remove members, leave, update photo | Planned | ❌* |
-| Rich sends: effects, subjects, attachment captions | Planned | ❌* |
+| Create group chats | ✅ | ❌<sup>*</sup> |
+| Send replies / quoted messages | ✅ | ❌<sup>*</sup> |
+| Send / remove tapbacks/reactions | ✅ | ❌<sup>*</sup> |
+| Edit sent messages | ✅ | ❌<sup>*</sup> |
+| Undo send | ✅ | ❌<sup>*</sup> |
+| Mark chats read / unread in Messages.app | ✅ | ❌<sup>*</sup> |
+| Send typing indicators | ✅ | ❌<sup>*</sup> |
+| Notify anyway / Focus bypass | ✅ | ❌<sup>*</sup> |
+| Search messages | ✅ | Partial<sup>*</sup> |
+| Group management: rename, add/remove members, leave, update photo | Planned | ❌<sup>*</sup> |
+| Rich sends: effects, subjects, attachment captions | Planned | ❌<sup>*</sup> |
 | Self-hosted relay, REST API, push notifications | No | ✅ |
 
-*BlueBubbles supports this through its Private API helper, which requires disabling SIP.
+<sup>*</sup> BlueBubbles supports this through its Private API helper, which requires disabling SIP.
 
 ## Usage
 
@@ -40,12 +40,12 @@ This library powers the iMessage integration on [Beeper](https://www.beeper.com/
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
 yarn
-yarn cli # launches authorization flow (Accessibility, Contacts, Messages Data, Automation) and then the repl
+yarn cli # launches authorization flow (Accessibility, Contacts, Messages Data, Automation) and then the REPL
 ```
 
 2. Run one-off commands:
 ```sh
-yarn cli current-user                                                                   # fetch logged in user
+yarn cli current-user                                                                   # fetch logged-in user
 yarn cli threads                                                                        # fetch chats
 yarn cli messages 'any;-;sjobs@apple.com'                                               # fetch messages for an existing chat
 
@@ -87,7 +87,7 @@ imessage> help create-thread
 imessage> quit
 ```
 
-The shell will automatically subscribe to real time events (incoming messages etc.) unless you pass `--no-events`
+The shell will automatically subscribe to real-time events (incoming messages, etc.) unless you pass `--no-events`.
 
 > [!NOTE]
 > For arrow-up recall, in development, commands you run are recorded in plain text to `.cli.history.json` at the repo root. This includes the plaintext of any messages sent via `send`/`reply`/`edit`. Released builds do not persist shell history unless `IMESSAGE_CLI_HISTORY_FILE` is set.
@@ -115,7 +115,7 @@ targets: [
 
 ## JavaScript/TypeScript Usage
 
-1. Setup with
+1. Set up with:
 ```
 yarn build:swift --debug --standalone
 yarn build:cli:js
