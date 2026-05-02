@@ -43,6 +43,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
             return
         }
         app.setActivationPolicy(.regular)
+        app.finishLaunching()
         if #available(macOS 14, *) {
             app.activate()
         } else {
@@ -67,17 +68,19 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
                 try? PromptAutomation.confirmDirectoryAccess(buttonTitle: buttonTitle)
             }
         }
-        let response = if let mw = NSApp.mainWindow {
-            await openPanel.beginSheetModal(for: mw)
+        let response = if let window = NSApp.mainWindow {
+            await openPanel.beginSheetModal(for: window)
         } else {
-            await openPanel.begin()
+            openPanel.runModal()
         }
+        
         defer {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
                 UserDefaults.standard.removeObject(forKey: "NSNavLastRootDirectory") // to make sure future NSOpenPanels don't show the Messages directory
                 UserDefaults.standard.synchronize()
             }
         }
+        
         guard response == .OK else {
             throw AccessError.userCancelled
         }
