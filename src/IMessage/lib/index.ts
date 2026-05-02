@@ -66,8 +66,6 @@ export declare class NativePlatformAPI {
 
   sendReadReceipt: (threadID: ThreadID) => Promise<void>
 
-  setReaction: (threadID: ThreadID, messageID: MessageID, reaction: string, on: boolean) => Promise<void>
-
   markAsUnread: (threadID: ThreadID) => Promise<void>
 
   onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>

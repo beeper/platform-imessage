@@ -121,10 +121,6 @@ import PlatformSDK
         try await api.removeReaction(threadID: threadID, messageID: messageID, reactionKey: reactionKey)
     }
 
-    @NodeMethod func setReaction(threadID: String, messageID: String, reaction: String, on: Bool) async throws {
-        try await api.setReaction(threadID: threadID, messageID: messageID, reaction: reaction, on: on)
-    }
-
     @NodeMethod func markAsUnread(threadID: String) async throws {
         try await api.markAsUnread(threadID: threadID)
     }

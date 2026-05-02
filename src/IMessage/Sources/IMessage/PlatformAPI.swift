@@ -359,7 +359,7 @@ public final class PlatformAPI {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
     }
 
-    public func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
+    private func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
         if reaction == "sticker" {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
         }
@@ -595,7 +595,7 @@ public final class PlatformAPI {
 
     private func retryReactionOperation(threadID: String, messageID: String, reaction: String, on: Bool) async throws {
         try await performControllerOperation(
-            name: "setReaction",
+            name: on ? "addReaction" : "removeReaction",
             retries: 2,
             prepareAttempt: { try await self.lastMessageRowID() }
         ) { controller in
