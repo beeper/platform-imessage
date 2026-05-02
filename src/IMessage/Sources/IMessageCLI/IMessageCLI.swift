@@ -103,7 +103,7 @@ private enum AuthorizationRequirement: String {
         case .contacts:
             _ = try? await MacPermissions.askForContactsAccess()
         case .messagesData:
-            try? await IMessageHost.askForMessagesDirAccess()
+            try? await MacPermissions.askForMessagesDirAccess()
             if !(await canAccessMessagesDir()) {
                 print("  note: Opening Full Disk Access as a fallback.")
                 MacPermissions.askForFullDiskAccess()
@@ -163,8 +163,8 @@ private final class InvokeContext {
         runner.showState()
     }
 
-    func startEventWatching() async throws {
-        try await runner.startEventWatching(forceSubscription: true)
+    func startEventWatching(api: PlatformAPI) async throws {
+        try await runner.startEventWatching(api: api, forceSubscription: true)
     }
 
     func printEventJSON(_ json: String) {
@@ -231,7 +231,7 @@ private final class Runner {
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
         let api = try await api()
-        try await ensureEventSubscription()
+        try await ensureEventSubscription(api: api)
 
         let id = String(format: "%05d", nextCallID)
         nextCallID += 1
@@ -272,23 +272,24 @@ private final class Runner {
         ]))
     }
 
-    func ensureEventSubscription(force: Bool = false) async throws {
+    func ensureEventSubscription(api: PlatformAPI, force: Bool = false) async throws {
         guard !eventsSubscribed, force || options.subscribeToEvents else { return }
         eventsSubscribed = true
-        IMessageHost.setEventCallback { [weak self] events in
+        api.subscribeToEvents { [weak self] events in
             let json = try encodeJSON(events.map { $0.jsonObject() })
             self?.printEventJSON(json)
         }
     }
 
     func startEventWatching(
+        api: PlatformAPI,
         forceSubscription: Bool = false,
         reportStartupErrors: Bool = false
     ) async throws {
-        try await ensureEventSubscription(force: forceSubscription)
+        try await ensureEventSubscription(api: api, force: forceSubscription)
         guard eventsSubscribed else { return }
         do {
-            try await IMessageHost.startEventWatchingFromCurrentState()
+            try await api.startEventWatchingFromCurrentState()
         } catch {
             if reportStartupErrors {
                 fputs("event watching startup failed: \(error)\n", stderr)
@@ -314,7 +315,8 @@ private final class Runner {
             lineReader.printConsoleLine(line)
         }
         if shouldStartEventWatching {
-            try await startEventWatching(reportStartupErrors: true)
+            let api = try await api()
+            try await startEventWatching(api: api, reportStartupErrors: true)
         }
         while true {
             guard let input = lineReader.readLine() else {
@@ -443,7 +445,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
         try await context.invoke("startEventWatchingFromCurrentState", args: []) { api in
-            try await context.startEventWatching()
+            try await context.startEventWatching(api: api)
             return nil
         }
     },
@@ -1122,7 +1124,7 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
 
 private func authorizeAutomation() async -> Bool {
     do {
-        try await IMessageHost.askForAutomationAccess()
+        try await MacPermissions.askForAutomationAccess()
         return true
     } catch {
         print("  note: Automation prompt failed: \(error)")
@@ -1204,7 +1206,7 @@ private func runSettingsWindowEventLoopUntilClosed() {
 
 private func canAccessMessagesDir() async -> Bool {
     do {
-        return try await IMessageHost.canAccessMessagesDir()
+        return try await MacPermissions.canAccessMessagesDir()
     } catch {
         return false
     }

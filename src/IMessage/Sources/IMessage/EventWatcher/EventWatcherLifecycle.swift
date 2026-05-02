@@ -4,15 +4,14 @@ import IMessageCore
 import PlatformSDK
 
 private let eventWatchingLog = Logger(imessageLabel: "event-watcher-lifecycle")
-typealias EventWatcherEventSender = @Sendable ([ServerEvent]) async throws -> Void
 
 final class EventWatcherLifecycle {
     static let shared = EventWatcherLifecycle()
 
     private struct State {
-        var onEvent: EventWatcherEventSender?
+        var onEvent: PlatformAPI.EventCallback?
         var watchingTask: Task<Void, Never>?
-        var reportErrorMessage: EventWatcher.ReportErrorMessage?
+        var reportErrorMessage: PlatformAPI.ReportErrorMessage?
     }
 
     private let state = Protected(State())
@@ -23,7 +22,7 @@ final class EventWatcherLifecycle {
         state.withLock { $0.watchingTask != nil }
     }
 
-    func setEventCallback(_ onEvent: @escaping EventWatcherEventSender, reportErrorMessage: EventWatcher.ReportErrorMessage? = nil) {
+    func subscribeToEvents(_ onEvent: @escaping PlatformAPI.EventCallback, reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil) {
         state.withLock { state in
             state.onEvent = onEvent
             state.reportErrorMessage = reportErrorMessage
@@ -65,7 +64,7 @@ final class EventWatcherLifecycle {
     }
 
     func startWatching(
-        onEvent: @escaping EventWatcherEventSender,
+        onEvent: @escaping PlatformAPI.EventCallback,
         lastRowID: Int,
         lastDateRead: Date,
         source: String
@@ -101,7 +100,7 @@ final class EventWatcherLifecycle {
                 try await eventWatcher.watchForever()
             } catch {
                 eventWatchingLog.error("event watcher died: \(String(reflecting: error))")
-                reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
+                try? reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
             }
         }
 

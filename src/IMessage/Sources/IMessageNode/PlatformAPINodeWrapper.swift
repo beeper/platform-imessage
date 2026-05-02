@@ -29,6 +29,21 @@ import PlatformSDK
         return try encodeJSON(currentUser.jsonObject)
     }
 
+    @NodeMethod func subscribeToEvents(_ onEvent: NodeFunction) throws {
+        let eventQueue = try NodeAsyncQueue(label: "event-watcher-events")
+        let onEvent = UncheckedSendableBox(onEvent)
+        api.subscribeToEvents { events in
+            try eventQueue.run {
+                let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
+                try onEvent.value.call([nodeEvents])
+            }
+        }
+    }
+
+    @NodeMethod func startEventWatchingFromCurrentState() async throws {
+        try await api.startEventWatchingFromCurrentState()
+    }
+
     @NodeMethod func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
         let messages = try await api.searchMessages(typed: typed, threadID: threadID, mediaOnly: mediaOnly, sender: sender, limit: limit)
         return try encodeJSON(messages.jsonObject)

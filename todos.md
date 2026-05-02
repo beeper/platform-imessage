@@ -7,15 +7,9 @@
 - [ ] add example Swift script that consumes the library
 - [ ] add example JS script that consumes the library
 
-- [ ] cli: w system contacts, resolve phone #s and emails and populate Thread.title, User.fullName, User.imgURL
-- [ ] cli: resolve thread id as email/phone # if `any;-;` prefix isn't passed
-- [ ] cli: notarize before gh release and do universal binary/x86 target
-- [ ] cli: one off command to print presence (dnd / dnd w notify) and typing status
-
 - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
-- [ ] tests for the cli
 - [ ] remove `.parity` when no longer needed
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
@@ -25,6 +19,14 @@
 - [ ] store UserDefaults in dataDirPath
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] improve misfire prevention and robustness
+- [ ] consider folding callback from `PlatformAPI.onThreadSelected` into `subscribeToEvents`
+
+- cli
+  - [ ] w system contacts, resolve phone #s and emails and populate Thread.title, User.fullName, User.imgURL
+  - [ ] resolve thread id as email/phone # if `any;-;` prefix isn't passed
+  - [ ] notarize before gh release and do universal binary/x86 target
+  - [ ] one off command to print presence (dnd / dnd w notify) and typing status
+  - [ ] tests
 
 - instead of `thread_messages_refresh`
   - [ ] new incoming messages should be state sync message upserts 

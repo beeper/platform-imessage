@@ -35,6 +35,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 public final class PlatformAPI {
     private static let activeInstance = Protected<ObjectIdentifier?>()
 
+    public typealias EventCallback = @Sendable ([ServerEvent]) async throws -> Void
     public typealias ReportErrorMessage = @Sendable (_ message: String) throws -> Void
 
     public enum AssetResult: Sendable {
@@ -111,6 +112,23 @@ public final class PlatformAPI {
                 try Self.currentUser(db: db, cache: currentUserCache).hashed()
             }
         }.value
+    }
+
+    public func subscribeToEvents(_ onEvent: @escaping EventCallback) {
+        EventWatcherLifecycle.shared.subscribeToEvents(onEvent, reportErrorMessage: errorMessageReporter)
+    }
+
+    public func startEventWatchingFromCurrentState() async throws {
+        let database = database
+        let (lastRowID, lastDateRead) = try await Task.detached(priority: .userInitiated) {
+            try database.withDatabase { db in
+                (try db.lastMessageRowID(), try db.maxMessageDateRead())
+            }
+        }.value
+        try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
+            lastRowID: lastRowID,
+            lastDateRead: lastDateRead
+        )
     }
 
     public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
@@ -363,7 +381,7 @@ public final class PlatformAPI {
 
     public func onThreadSelected(
         threadID publicThreadID: String,
-        sendEvents: @escaping @Sendable ([ServerEvent]) throws -> Void
+        sendEvents: @escaping EventCallback
     ) async throws {
         guard !publicThreadID.isEmpty else {
             return
@@ -428,7 +446,7 @@ public final class PlatformAPI {
                 }
             }
 
-            try sendEvents(events)
+            try await sendEvents(events)
         }
     }
 
@@ -482,7 +500,7 @@ public final class PlatformAPI {
 
     private func watchThreadActivity(
         threadID: String,
-        statusSender: @escaping @Sendable (ThreadActivityObservation) throws -> Void
+        statusSender: @escaping @Sendable (ThreadActivityObservation) async throws -> Void
     ) async throws {
         guard Defaults.watchThreadActivity else {
             return
@@ -495,11 +513,13 @@ public final class PlatformAPI {
         let threadObserveRequestToken = threadObserveRequestToken
         threadObserveRequestToken.withLock { $0 = requestID }
 
-        let sendStatus = { (status: ThreadActivityObservation) in
-            do {
-                try statusSender(status)
-            } catch {
-                platformLog.error("failed to send activity status: \(String(reflecting: error))")
+        @Sendable func sendStatus(_ status: ThreadActivityObservation) {
+            Task {
+                do {
+                    try await statusSender(status)
+                } catch {
+                    platformLog.error("failed to send activity status: \(String(reflecting: error))")
+                }
             }
         }
 

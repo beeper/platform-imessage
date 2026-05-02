@@ -1,21 +1,15 @@
 import Foundation
 import IMessageCore
 import Logging
-import IMDatabase
-import PlatformSDK
 
 private let log = Logger(imessageLabel: "imessage")
 
 /// Process-wide entry point.
 ///
 /// The IMessage package is intentionally singleton-only within a process:
-/// `Preferences`, `accessManager`, and `EventWatcherLifecycle.shared` are shared
-/// state and are expected to be.
+/// `Preferences` and `EventWatcherLifecycle.shared` are shared state and are
+/// expected to be.
 public enum IMessageHost {
-    public typealias EventCallback = @Sendable ([ServerEvent]) async throws -> Void
-    public typealias ReportErrorMessage = @Sendable (String) -> Void
-
-    private static let accessManager = MessagesAccessManager()
     private static let bootstrapLock = NSLock()
     private static var didBootstrap = false
 
@@ -111,53 +105,12 @@ public enum IMessageHost {
         }
     }
 
-    public static func askForMessagesDirAccess() async throws {
-        try await accessManager.requestAccess()
-    }
-
-    public static func canAccessMessagesDir() async throws -> Bool {
-        try await Task.detached(priority: .userInitiated) {
-            _ = try IMDatabase()
-            return true
-        }.value
-    }
-
-    public static func validateDatabaseAccess() async throws {
-        try await Task.detached(priority: .userInitiated) {
-            _ = try IMDatabase(createIndexes: true)
-        }.value
-    }
-
-    public static func setEventCallback(
-        _ onEvent: @escaping EventCallback,
-        reportErrorMessage: ReportErrorMessage? = nil
-    ) {
-        EventWatcherLifecycle.shared.setEventCallback(onEvent, reportErrorMessage: reportErrorMessage)
-    }
-
-    public static func startEventWatchingFromCurrentState() async throws {
-        let (lastRowID, lastDateRead) = try await Task.detached(priority: .userInitiated) {
-            let db = try IMDatabase()
-            return (try db.lastMessageRowID(), try db.maxMessageDateRead())
-        }.value
-        try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
-            lastRowID: lastRowID,
-            lastDateRead: lastDateRead
-        )
-    }
-
     public static func stopEventWatching() async {
         await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: false)
     }
 
     public static var isEventWatching: Bool {
         EventWatcherLifecycle.shared.isWatching
-    }
-
-    public static func askForAutomationAccess() async throws {
-        try await MainActor.run {
-            try OSA.promptAutomationAccess()
-        }
     }
 
     public static func confirmUNCPrompt() async throws {

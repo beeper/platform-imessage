@@ -3,6 +3,7 @@ import ApplicationServices
 import Contacts
 import Darwin
 import Foundation
+import IMDatabase
 import IMessageCore
 
 public enum MacPermissionAuthStatus: String, Sendable {
@@ -13,6 +14,8 @@ public enum MacPermissionAuthStatus: String, Sendable {
 }
 
 public enum MacPermissions {
+    private static let accessManager = MessagesAccessManager()
+
     public enum AuthType: String {
         case accessibility
         case contacts
@@ -57,6 +60,29 @@ public enum MacPermissions {
 
     public static func askForFullDiskAccess() {
         openSystemSecurityPrefs("Privacy_AllFiles")
+    }
+
+    public static func askForMessagesDirAccess() async throws {
+        try await accessManager.requestAccess()
+    }
+
+    public static func canAccessMessagesDir() async throws -> Bool {
+        try await Task.detached(priority: .userInitiated) {
+            _ = try IMDatabase()
+            return true
+        }.value
+    }
+
+    public static func validateDatabaseAccess() async throws {
+        try await Task.detached(priority: .userInitiated) {
+            _ = try IMDatabase(createIndexes: true)
+        }.value
+    }
+
+    public static func askForAutomationAccess() async throws {
+        try await MainActor.run {
+            try OSA.promptAutomationAccess()
+        }
     }
 
     private static func contactsAuthStatus(_ status: CNAuthorizationStatus = CNContactStore.authorizationStatus(for: .contacts)) -> MacPermissionAuthStatus {

@@ -17,7 +17,6 @@ enum IMessageNodeExports {
 
 #NodeModule {
     IMessageHost.bootstrap()
-    let reportErrorMessage = IMessageNodeExports.reportErrorMessage
 
     var dict: [String: NodePropertyConvertible] = try [
         "isNotificationsEnabledForMessages": NodeProperty { _ in
@@ -40,39 +39,6 @@ enum IMessageNodeExports {
             IMessageHost.isLoggingEnabled
         } set: { args in
             IMessageHost.isLoggingEnabled = try args.first?.as(Bool.self) ?? false
-        },
-
-        "askForMessagesDirAccess": NodeFunction {
-            try await IMessageHost.askForMessagesDirAccess()
-        },
-
-        "canAccessMessagesDir": NodeFunction {
-            try await IMessageHost.canAccessMessagesDir()
-        },
-
-        "validateDatabaseAccess": NodeFunction {
-            try await IMessageHost.validateDatabaseAccess()
-        },
-
-        "setEventCallback": NodeFunction { (onEvent: NodeFunction) in
-            let eventQueue = try NodeAsyncQueue(label: "event-watcher-events")
-            let onEvent = UncheckedSendableBox(onEvent)
-            IMessageHost.setEventCallback({ events in
-                try eventQueue.run {
-                    let nodeEvents = try NodeBridgeUtilities.nodeArray(from: events.map { $0.jsonObject() })
-                    try onEvent.value.call([nodeEvents])
-                }
-            }, reportErrorMessage: reportErrorMessage)
-            return // needed to resolve a compile-time type ambiguity apparently
-        },
-
-        "startEventWatchingFromCurrentState": NodeFunction { () async throws in
-            try await IMessageHost.startEventWatchingFromCurrentState()
-            return
-        },
-
-        "askForAutomationAccess": NodeFunction {
-            try await IMessageHost.askForAutomationAccess()
         },
 
         "confirmUNCPrompt": NodeFunction {
@@ -114,6 +80,18 @@ enum IMessageNodeExports {
         "askForFullDiskAccess": NodeFunction {
             MacPermissions.askForFullDiskAccess()
             return undefined
+        },
+        "askForMessagesDirAccess": NodeFunction {
+            try await MacPermissions.askForMessagesDirAccess()
+        },
+        "canAccessMessagesDir": NodeFunction {
+            try await MacPermissions.canAccessMessagesDir()
+        },
+        "validateDatabaseAccess": NodeFunction {
+            try await MacPermissions.validateDatabaseAccess()
+        },
+        "askForAutomationAccess": NodeFunction {
+            try await MacPermissions.askForAutomationAccess()
         },
     ]
     dict["PlatformAPI"] = try PlatformAPINodeWrapper.constructor()

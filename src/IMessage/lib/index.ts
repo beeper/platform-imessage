@@ -72,6 +72,10 @@ export declare class NativePlatformAPI {
 
   onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
 
+  subscribeToEvents: NativeVoidPlatformAPIMethod<'subscribeToEvents'>
+
+  startEventWatchingFromCurrentState: () => Promise<void>
+
   getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 
   deleteThread: NativeVoidPlatformAPIMethod<'deleteThread'>
@@ -87,6 +91,10 @@ export type NativeMacPermissions = {
   askForAccessibilityAccess: () => void
   askForContactsAccess: () => Promise<NativeMacPermissionAuthStatus>
   askForFullDiskAccess: () => void
+  canAccessMessagesDir: () => Promise<boolean>
+  validateDatabaseAccess: () => Promise<void>
+  askForMessagesDirAccess: () => Promise<void>
+  askForAutomationAccess: () => Promise<void>
 }
 
 type IMessage = {
@@ -98,11 +106,6 @@ type IMessage = {
   PlatformAPI: typeof NativePlatformAPI
   MacPermissions: NativeMacPermissions
 
-  canAccessMessagesDir: () => Promise<boolean>
-  validateDatabaseAccess: () => Promise<void>
-  askForMessagesDirAccess: () => Promise<void>
-  askForAutomationAccess: () => Promise<void>
-
   SystemSettingsOnboarding: {
     start: () => void
     stop: () => void
@@ -111,11 +114,7 @@ type IMessage = {
   confirmUNCPrompt: () => Promise<void>
   disableMessagesNotifications: () => Promise<void>
 
-  setEventCallback: (cb: OnServerEventCallback) => void
-  startEventWatchingFromCurrentState: () => Promise<void>
-
   revealSettings: () => void
-
 }
 
 const imessageBinaryPath = path.join(ARCH_BINARIES_DIR_PATH, 'IMessage.node')

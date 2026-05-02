@@ -49,7 +49,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private async ensureDB() {
     try {
-      await imessage.validateDatabaseAccess()
+      await imessage.MacPermissions.validateDatabaseAccess()
     } catch (error: unknown) {
       texts.error("imsg: couldn't validate Messages database access:", error)
       throw new ReAuthError("Can't access iMessage data", { cause: error })
@@ -116,13 +116,13 @@ export default class AppleiMessage implements PlatformAPI {
       })
       onEvent(evs)
     }
-    imessage.setEventCallback(this.onEvent)
+    await this.swiftPlatformAPI!.subscribeToEvents(this.onEvent)
   }
 
   startEventWatchingFromCurrentState = async (): Promise<void> => {
     if (this.eventWatchingStarted) return
     if (this.eventWatchingStartInFlight) return this.eventWatchingStartInFlight
-    this.eventWatchingStartInFlight = imessage.startEventWatchingFromCurrentState()
+    this.eventWatchingStartInFlight = this.swiftPlatformAPI!.startEventWatchingFromCurrentState()
       .then(() => {
         this.eventWatchingStarted = true
       })
@@ -297,10 +297,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   private proxiedAuthFns = {
-    isMessagesAppSetup: () => imessage.validateDatabaseAccess().then(() => true, () => false),
-    canAccessMessagesDir: () => imessage.canAccessMessagesDir().then(() => true, () => false),
-    askForAutomationAccess: () => imessage.askForAutomationAccess().then(() => true),
-    askForMessagesDirAccess: () => imessage.askForMessagesDirAccess(),
+    isMessagesAppSetup: () => imessage.MacPermissions.validateDatabaseAccess().then(() => true, () => false),
+    canAccessMessagesDir: () => imessage.MacPermissions.canAccessMessagesDir().then(() => true, () => false),
+    askForAutomationAccess: () => imessage.MacPermissions.askForAutomationAccess().then(() => true),
+    askForMessagesDirAccess: () => imessage.MacPermissions.askForMessagesDirAccess(),
     getAccessibilityAuthStatus: () => imessage.MacPermissions.getAuthStatus('accessibility'),
     getContactsAuthStatus: () => imessage.MacPermissions.getAuthStatus('contacts'),
     getFullDiskAccessAuthStatus: () => imessage.MacPermissions.getAuthStatus('full-disk-access'),

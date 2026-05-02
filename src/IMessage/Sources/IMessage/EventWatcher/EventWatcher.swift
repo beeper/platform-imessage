@@ -16,22 +16,19 @@ struct TimestampedChatState {
 }
 
 final class EventWatcher {
-    typealias ServerEventSender = @Sendable (sending [ServerEvent]) async throws -> Void
-    typealias ReportErrorMessage = @Sendable (String) -> Void
-
     var db: IMDatabase
 
     /// Tracks the last known state of every chat.
     var chatStates = [ChatRef: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
 
-    private var sender: ServerEventSender
-    private let reportErrorMessage: ReportErrorMessage?
+    private var sender: PlatformAPI.EventCallback
+    private let reportErrorMessage: PlatformAPI.ReportErrorMessage?
 
     init(
-        serverEventSender sender: @escaping ServerEventSender,
+        serverEventSender sender: @escaping PlatformAPI.EventCallback,
         initialUpdatesCursor: MessageUpdatesCursor,
-        reportErrorMessage: ReportErrorMessage? = nil
+        reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
         self.db = try IMDatabase()
         if Defaults.eventWatcherTraceChangeListening {
@@ -81,7 +78,7 @@ final class EventWatcher {
                 try await sender(eventsToSend)
             } catch {
                 log.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
-                reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
+                try? reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
             }
         }
     }
