@@ -8,6 +8,7 @@
     "./auth": "./dist/auth/index.js",
     "./capabilities": "./dist/capabilities.js",
     "./info": "./dist/info.js",
+    "./capabilities": "./dist/capabilities.js",
     ".": "./dist/index.js"
   },
   "files": [
