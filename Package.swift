@@ -43,7 +43,8 @@ var targets: [Target] = [
         dependencies: [
             "PlatformSDKMacros",
         ],
-        path: "src/IMessage/Sources/PlatformSDK"
+        path: "src/IMessage/Sources/PlatformSDK",
+        exclude: ["readme.md"]
     ),
     .target(
         name: "IMessage",
