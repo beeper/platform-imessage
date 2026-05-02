@@ -211,7 +211,7 @@ private extension Message.ParsingFormat {
     init(rageshakeFilename: String) {
         switch rageshakeFilename {
         case "platform-imessage-poller.log.gz": self = .rustServer
-        case "platform-imessage.log.gz": self = .swiftServer
+        case "platform-imessage.log.gz": self = .imessage
         default: self = .rollingLogger
         }
     }

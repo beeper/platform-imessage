@@ -76,13 +76,10 @@ export interface BeeperThreadExtra {
 }
 
 // (2025-07-04)
-export interface BeeperMessage extends Omit<Message, 'extra' | '_original' | 'sortKey' | 'threadID'> {
+export interface BeeperMessage extends Omit<Message, 'extra' | 'sortKey' | 'threadID'> {
   extra?: BeeperMessageExtra
   sortKey: string | number
   threadID: string
-  // NOTE: this is actually typed as `undefined`, but we need to set this for
-  // now. eliminate the need for this since it's a defunct concept
-  _original?: unknown
   isRetrying?: boolean
   eventID?: string
 }

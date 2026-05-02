@@ -4,7 +4,7 @@ _*
 /src/RustServer/target
 /src/AppleScriptServer/Release
 /build
-/src/SwiftServer/.build
+.build
 
 *.node
 libNodeAPI.dylib
@@ -35,6 +35,12 @@ DerivedData/
 .turbo
 
 *.compiled.mjs
+.parity/*
+!.parity/*.mjs
+!.parity/parity-diff.cjs
+!.parity/parity-diff.d.cts
+.parity/*.compiled.mjs
+!.parity/mapper-parity.test.ts
 .*.history.json
 .claude
 .build

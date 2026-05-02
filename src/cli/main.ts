@@ -28,6 +28,7 @@ const DATA_DIR_FLAG = '--data-dir'
 const NO_EVENTS_FLAG = '--no-events'
 const VERBOSE_FLAG = '--verbose'
 const USE_SECONDARY_INSTANCE_FLAG = '--use-secondary-instance'
+const NO_SECONDARY_INSTANCE_FLAG = '--no-secondary-instance'
 const SHELL_COMMAND = 'shell'
 const HELP_COMMAND = 'help'
 const PROMPT = 'imessage> '
@@ -35,6 +36,7 @@ const SHUTDOWN_TIMEOUT_MS = 2_000
 const GLOBAL_CLI_OPTIONS = {
   'data-dir': { type: 'string' },
   'use-secondary-instance': { type: 'boolean' },
+  'no-secondary-instance': { type: 'boolean' },
   'stay-open': { type: 'boolean' },
   'no-events': { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -65,7 +67,7 @@ type RunnerState = RunnerOptions & {
 }
 
 type CliPlatformAPI = PlatformAPI & {
-  startEventPollingFromCurrentState?: () => Promise<void>
+  startEventWatchingFromCurrentState?: () => Promise<void>
 }
 
 type CommandDefinition = {
@@ -138,7 +140,11 @@ function parseCliArgs(argv: string[]): RunnerOptions {
   })
 
   const commandArgs = values.help ? [HELP_COMMAND, ...commandArgsRaw] : commandArgsRaw
-  const useSecondaryInstance = values['use-secondary-instance'] ?? !!process.env.IMESSAGE_USE_SECONDARY_INSTANCE
+  if (values['use-secondary-instance'] && values['no-secondary-instance']) {
+    throw new Error('Use only one of --use-secondary-instance or --no-secondary-instance.')
+  }
+  const useSecondaryInstance = values['no-secondary-instance'] ? false
+    : values['use-secondary-instance'] ?? true
 
   return {
     commandArgs,
@@ -304,7 +310,8 @@ function tokenizeInput(input: string): string[] {
 function formatGlobalFlags() {
   return [
     `  ${DATA_DIR_FLAG} PATH     Store CLI state under PATH instead of a temp directory`,
-    `  ${USE_SECONDARY_INSTANCE_FLAG}  Use a secondary Messages.app instance`,
+    `  ${USE_SECONDARY_INSTANCE_FLAG}  Use a secondary Messages.app instance (default)`,
+    `  ${NO_SECONDARY_INSTANCE_FLAG}   Use the existing Messages.app instance`,
     `  ${NO_EVENTS_FLAG}        Do not subscribe to server events after running commands`,
     `  ${KEEP_ALIVE_FLAG}       Run one command, then stay open in the interactive shell`,
     `  ${VERBOSE_FLAG}          Enable verbose logging`,
@@ -804,8 +811,8 @@ async function main(runnerOptions: RunnerOptions) {
     await Promise.resolve(api.subscribeToEvents(onEvent)).catch((error: unknown) => {
       console.error('event subscription failed:', error)
     })
-    await Promise.resolve(api.startEventPollingFromCurrentState?.()).catch((error: unknown) => {
-      console.error('event polling startup failed:', error)
+    await Promise.resolve(api.startEventWatchingFromCurrentState?.()).catch((error: unknown) => {
+      console.error('event watching startup failed:', error)
     })
   }
 

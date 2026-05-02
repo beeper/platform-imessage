@@ -3,6 +3,8 @@ import { setTimeout as sleep } from 'node:timers/promises'
 
 import type { PlatformAPI } from '@textshq/platform-sdk'
 
+import type { NativeMacPermissionAuthStatus, NativeMacPermissionAuthType } from '../IMessage/lib'
+
 type AuthApi = Pick<PlatformAPI, 'getAsset'>
 
 export const AUTHORIZATION_REQUIREMENTS = ['accessibility', 'contacts', 'messages-data'] as const
@@ -25,30 +27,21 @@ type CliAuthorizationStatus = {
 
 type ProxiedAuthMethod =
   | 'askForAutomationAccess'
+  | 'askForContactsAccess'
+  | 'askForFullDiskAccess'
   | 'askForMessagesDirAccess'
   | 'canAccessMessagesDir'
   | 'confirmUNCPrompt'
+  | 'getAccessibilityAuthStatus'
+  | 'getContactsAuthStatus'
   | 'isMessagesAppSetup'
   | 'startSysPrefsOnboarding'
   | 'stopSysPrefsOnboarding'
 
-type MacAuthType = 'accessibility' | 'contacts' | 'full-disk-access'
-type MacAuthStatus = 'authorized' | 'denied' | 'restricted' | 'not determined'
-
-type Nmp = {
-  askForContactsAccess: () => Promise<unknown>
-  askForFullDiskAccess: () => void
-  getAuthStatus: (type: MacAuthType) => MacAuthStatus
-}
-
-type Deps = { api: AuthApi, nmp: Nmp }
+type Deps = { api: AuthApi }
 
 async function loadDeps(api: AuthApi): Promise<Deps> {
-  const imported = await import('node-mac-permissions')
-  // `node-mac-permissions` is CommonJS, and in the bundled Electron CLI the
-  // callable API lives under the default export rather than as named exports.
-  const nmp = ('default' in imported ? imported.default : imported) as Nmp
-  return { api, nmp }
+  return { api }
 }
 
 async function callProxied<T>({ api }: Deps, method: ProxiedAuthMethod): Promise<T> {
@@ -83,14 +76,14 @@ const formatStatusLine = (status: CliAuthorizationStatus) =>
   `  ${status.authorized ? '[ok]' : '[ ]'} ${status.title} - ${status.detail}`
 
 async function pollForAuthorization(
-  { nmp }: Deps,
-  authType: Extract<MacAuthType, 'accessibility' | 'contacts'>,
+  deps: Deps,
+  authType: Extract<NativeMacPermissionAuthType, 'accessibility' | 'contacts'>,
   durationMs = 120_000,
   intervalMs = 250,
 ): Promise<boolean> {
   const deadline = Date.now() + durationMs
   do {
-    if (nmp.getAuthStatus(authType) === 'authorized') return true
+    if (await getAuthStatus(deps, authType) === 'authorized') return true
     if (Date.now() >= deadline) return false
     await sleep(intervalMs)
   } while (true)
@@ -106,30 +99,41 @@ const automationResultStatus = (ok: boolean) =>
     ok ? 'Apple Events access to Messages.app is available.'
        : 'Automation access was denied or unavailable.')
 
+async function getAuthStatus(deps: Deps, authType: Extract<NativeMacPermissionAuthType, 'accessibility' | 'contacts'>): Promise<NativeMacPermissionAuthStatus> {
+  return callProxied<NativeMacPermissionAuthStatus>(
+    deps,
+    authType === 'accessibility' ? 'getAccessibilityAuthStatus' : 'getContactsAuthStatus',
+  )
+}
+
 async function getAuthorizationStatuses(
   deps: Deps,
   only?: readonly CliAuthorizationStatusKey[],
 ): Promise<CliAuthorizationStatus[]> {
   const wants = (key: CliAuthorizationStatusKey) => !only || only.includes(key)
-  const { nmp } = deps
+  const needMessagesDir = wants('messages-data') || wants('messages-app-setup')
+
+  const [axStatus, contactsStatus, messagesDirOk] = await Promise.all([
+    wants('accessibility') ? getAuthStatus(deps, 'accessibility') : undefined,
+    wants('contacts') ? getAuthStatus(deps, 'contacts') : undefined,
+    needMessagesDir ? callProxied<boolean>(deps, 'canAccessMessagesDir') : false,
+  ])
+
   const statuses: CliAuthorizationStatus[] = []
 
   if (wants('accessibility')) {
-    const ok = nmp.getAuthStatus('accessibility') === 'authorized'
+    const ok = axStatus === 'authorized'
     statuses.push(makeStatus('accessibility', ok,
       ok ? 'Your current Terminal app can control Messages.app.'
          : 'Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.'))
   }
 
   if (wants('contacts')) {
-    const ok = nmp.getAuthStatus('contacts') === 'authorized'
+    const ok = contactsStatus === 'authorized'
     statuses.push(makeStatus('contacts', ok,
       ok ? 'Contacts lookups are available.'
          : 'Allow Contacts access if you want contact-name lookups from the CLI.'))
   }
-
-  const needMessagesDir = wants('messages-data') || wants('messages-app-setup')
-  const messagesDirOk = needMessagesDir ? await callProxied<boolean>(deps, 'canAccessMessagesDir') : false
 
   if (wants('messages-data')) {
     statuses.push(makeStatus('messages-data', messagesDirOk,
@@ -182,7 +186,7 @@ async function authorizeAccessibility(deps: Deps) {
 }
 
 async function authorizeContacts(deps: Deps) {
-  await deps.nmp.askForContactsAccess().catch(() => undefined)
+  await callProxied<void>(deps, 'askForContactsAccess').catch(() => undefined)
   await pollForAuthorization(deps, 'contacts', 2_000)
 }
 
@@ -195,12 +199,12 @@ async function authorizeMessagesData(deps: Deps) {
 
   if (!await callProxied<boolean>(deps, 'canAccessMessagesDir')) {
     console.log('  note: Opening Full Disk Access as a fallback.')
-    deps.nmp.askForFullDiskAccess()
+    await callProxied<void>(deps, 'askForFullDiskAccess')
   }
 }
 
 async function authorizeAutomation(deps: Deps): Promise<boolean> {
-  if (deps.nmp.getAuthStatus('accessibility') === 'authorized') {
+  if (await getAuthStatus(deps, 'accessibility') === 'authorized') {
     void callProxied<void>(deps, 'confirmUNCPrompt').catch(error => {
       console.log(`  note: Could not auto-confirm the automation prompt: ${String(error)}`)
     })

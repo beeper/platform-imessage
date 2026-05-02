@@ -1,19 +1,19 @@
 // Scratch extraction from branch `purav/puppet-instance`.
 //
-// This file is intentionally outside `src/SwiftServer/Sources` so it is not
+// This file is intentionally outside `src/IMessage/Sources` so it is not
 // compiled yet. It distills the older branch down to the utilities that look
-// directly useful for adding a SwiftServer "secondary Messages instance" mode:
+// directly useful for adding a IMessage "secondary Messages instance" mode:
 //
 // - launch a fresh Messages.app instance with LaunchServices private options
 // - target an existing NSRunningApplication with an imessage:// deep link
 // - optionally hide/suppress the secondary instance from Dock/app switcher
 //
 // Source files consulted:
-// - src/SwiftServer/Sources/LSLauncherTool/Sources/LSLauncher/OpenConfiguration+Private.swift
-// - src/SwiftServer/Sources/LSLauncherTool/Sources/LSLauncher/LSApplicationLauncher.swift
-// - src/SwiftServer/Sources/LSLauncherTool/Sources/LSLauncher/LaunchConfiguration.swift
-// - src/SwiftServer/Sources/LSLauncherTool/Sources/LSLauncher/RunningApplication+Extensions.swift
-// - src/SwiftServer/Sources/SwiftServer/Messages/MessagesApplication.swift
+// - src/IMessage/Sources/LSLauncherTool/Sources/LSLauncher/OpenConfiguration+Private.swift
+// - src/IMessage/Sources/LSLauncherTool/Sources/LSLauncher/LSApplicationLauncher.swift
+// - src/IMessage/Sources/LSLauncherTool/Sources/LSLauncher/LaunchConfiguration.swift
+// - src/IMessage/Sources/LSLauncherTool/Sources/LSLauncher/RunningApplication+Extensions.swift
+// - src/IMessage/Sources/IMessage/Messages/MessagesApplication.swift
 
 import AppKit
 import Carbon.HIToolbox
@@ -155,7 +155,7 @@ enum PuppetMessagesInstanceUtilities {
     /// Lower-level C AppleEvent variant from the old LSLauncher tool.
     ///
     /// The NSAppleEventDescriptor version above is easier to integrate in
-    /// SwiftServer. This version is useful if diagnostics show descriptor sends
+    /// IMessage. This version is useful if diagnostics show descriptor sends
     /// are flaky or need no-reply behavior without throwing.
     @discardableResult
     static func sendDeepLinkWithCAPI(

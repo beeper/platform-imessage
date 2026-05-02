@@ -1977,41 +1977,26 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@beeper/platform-imessage@workspace:."
   dependencies:
-    "@jxa/global-type": "npm:^1.3.5"
     "@sentry/cli": "npm:^2.50.2"
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main"
-    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053"
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
     "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main"
-    "@types/eslint": "npm:^8.4.10"
     "@types/jest": "npm:^28.1.6"
-    "@types/lodash": "npm:^4.14.182"
     "@types/node": "npm:20.17.19"
     "@types/react": "npm:^17.0.38"
-    ansi-colors: "npm:^4.1.3"
     clsx: "npm:^1.2.1"
     concurrently: "npm:^9.1.2"
-    crc: "npm:^4.1.1"
     electron: "npm:^41.2.1"
     eslint: "npm:^8.30.0"
     jest: "npm:^28.1.3"
-    lodash: "npm:^4.17.21"
-    node-gyp: "npm:^11.0.0"
-    node-mac-permissions: TextsHQ/node-mac-permissions.git
-    node-swift: "https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
-    p-queue: "npm:^8"
-    p-retry: "npm:^6"
+    node-swift: "patch:node-swift@https%3A//github.com/kabiroberai/node-swift.git%23commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71#~/.yarn/patches/node-swift-https-7ac8c38191.patch"
     react: "npm:^18"
     sass: "npm:^1.76.0"
     ts-jest: "npm:^28.0.7"
     ts-node: "npm:^10.9.2"
     turbo: "npm:2.5.8"
     typescript: "npm:^5.8.3"
-    url-regex: "npm:^5.0.0"
-    zod: "npm:^4.0.17"
   peerDependencies:
-    node-mac-permissions: "*"
-    p-queue: ^8
-    p-retry: ^6
     react: "*"
   languageName: unknown
   linkType: soft
@@ -2413,22 +2398,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jxa/global-type@npm:^1.3.5":
-  version: 1.3.5
-  resolution: "@jxa/global-type@npm:1.3.5"
-  dependencies:
-    "@jxa/types": "npm:^1.3.5"
-  checksum: 10/08536d232886763ce28ea8ec655584edac005f38d9585bbafed3eea30aeb7920ed8cb1ddf501ea3f6ddfd372376cc89023c8998a44b3e2f8ce2e424a8e5f67bf
-  languageName: node
-  linkType: hard
-
-"@jxa/types@npm:^1.3.5":
-  version: 1.3.5
-  resolution: "@jxa/types@npm:1.3.5"
-  checksum: 10/ac4f1ca04d7d31edfe7b731e8cb0ecd14f3ff1183a5779b9f68a9b985e3ca8308dbd0d31552d9538450ccb285308be80bf2e4484c5ec7ceac0414748a473f3a0
-  languageName: node
-  linkType: hard
-
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -2646,13 +2615,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#450f733b0d496b793ae6cab273759a1246ee6053":
+"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83":
   version: 0.4.4
-  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=450f733b0d496b793ae6cab273759a1246ee6053"
+  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
   dependencies:
     emoji-regex: "npm:^10.1.0"
+    lodash: "npm:^4.17.21"
     qrcode.react: "npm:^3.1.0"
-  checksum: 10/ab8b660ddc940e6396f9f221c90a76e1315f29a6dc6bc9e911b7723e3e1398c782c84526f551c6fe189efdc851271316d7087cc21274e7295bae74714534b036
+    ws: "npm:^8.15.1"
+  dependenciesMeta:
+    lodash:
+      optional: true
+    ws:
+      optional: true
+  checksum: 10/4f831cfc9a275760c916c554bfdd04920741525756b98041c6c0e1e1110038d96603a5e6a0f68b8c2c037093ed73d2a120a104fb9e62f61e48f21535709abb62
   languageName: node
   linkType: hard
 
@@ -2750,23 +2726,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/eslint@npm:^8.4.10":
-  version: 8.4.10
-  resolution: "@types/eslint@npm:8.4.10"
-  dependencies:
-    "@types/estree": "npm:*"
-    "@types/json-schema": "npm:*"
-  checksum: 10/ecba965435ff2be09c6f0ce1d21d7dd38d0c78eddd7c9b2867f4800880d7d43c7aab86e0ec09d7b20c8d939eed5042bb08c404efa1d4f723b9cd7ef601c22dba
-  languageName: node
-  linkType: hard
-
-"@types/estree@npm:*":
-  version: 0.0.50
-  resolution: "@types/estree@npm:0.0.50"
-  checksum: 10/188e022eec2da0e1bcf5f569314d1fd16fc28fb3758fed9843b9581ba131b78443b08d6e9ea9daed36c04e493234f47e98cdef8f081c9e9eb0845b2d80f5f8da
-  languageName: node
-  linkType: hard
-
 "@types/graceful-fs@npm:^4.1.3":
   version: 4.1.5
   resolution: "@types/graceful-fs@npm:4.1.5"
@@ -2818,7 +2777,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/json-schema@npm:*, @types/json-schema@npm:^7.0.9":
+"@types/json-schema@npm:^7.0.9":
   version: 7.0.9
   resolution: "@types/json-schema@npm:7.0.9"
   checksum: 10/7ceb41e396240aa69ae15c02ffbb6548ea2bb2f845a7378c711c7c908a9a8438a0330f3135f1ccb6e82e334b9e2ec5b94fb57a1435f2b15362d38e9d5109e5ea
@@ -2838,13 +2797,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10/e009a2bfb50e90ca9b7c6e8f648f8464067271fd99116f881073fa6fa76dc8d0133181dd65e6614d5fb1220d671d67b0124aef7d97dc02d7e342ab143a47779d
-  languageName: node
-  linkType: hard
-
-"@types/lodash@npm:^4.14.182":
-  version: 4.14.182
-  resolution: "@types/lodash@npm:4.14.182"
-  checksum: 10/6c0d3fa682331d7631676817acf4b8b74842a9df0fb63dacbbc6a31b94e266edca550ac096cec8ce95df4fc72cf550a6321322e27872d4dfa15c1003197f6c85
   languageName: node
   linkType: hard
 
@@ -2911,13 +2863,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10/6ac4b35723429b11b117e813c7acc42c3af8b5554caaf1fc750404c1ae59f9b7376bc69b9e9e194a5a97357a597c2228b7173d317320f0360d617b6425212f58
-  languageName: node
-  linkType: hard
-
-"@types/retry@npm:0.12.2":
-  version: 0.12.2
-  resolution: "@types/retry@npm:0.12.2"
-  checksum: 10/e5675035717b39ce4f42f339657cae9637cf0c0051cf54314a6a2c44d38d91f6544be9ddc0280587789b6afd056be5d99dbe3e9f4df68c286c36321579b1bf4a
   languageName: node
   linkType: hard
 
@@ -3168,13 +3113,6 @@ __metadata:
     json-schema-traverse: "npm:^0.4.1"
     uri-js: "npm:^4.2.2"
   checksum: 10/48d6ad21138d12eb4d16d878d630079a2bda25a04e745c07846a4ad768319533031e28872a9b3c5790fa1ec41aabdf2abed30a56e5a03ebc2cf92184b8ee306c
-  languageName: node
-  linkType: hard
-
-"ansi-colors@npm:^4.1.3":
-  version: 4.1.3
-  resolution: "ansi-colors@npm:4.1.3"
-  checksum: 10/43d6e2fc7b1c6e4dc373de708ee76311ec2e0433e7e8bd3194e7ff123ea6a747428fc61afdcf5969da5be3a5f0fd054602bec56fc0ebe249ce2fcde6e649e3c2
   languageName: node
   linkType: hard
 
@@ -4023,15 +3961,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"crc@npm:^4.1.1":
-  version: 4.1.1
-  resolution: "crc@npm:4.1.1"
-  peerDependencies:
-    buffer: ">=6.0.3"
-  checksum: 10/d5330442586c4e008e6b67e2b28b037b0b557b6f920362141599bab5fcf189e6c34b8fd1019ab4740216d3833f30cb936600fb055206ab99493d7cf110ad4b46
-  languageName: node
-  linkType: hard
-
 "create-require@npm:^1.1.0":
   version: 1.1.1
   resolution: "create-require@npm:1.1.1"
@@ -4824,13 +4753,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eventemitter3@npm:^5.0.1":
-  version: 5.0.1
-  resolution: "eventemitter3@npm:5.0.1"
-  checksum: 10/ac6423ec31124629c84c7077eed1e6987f6d66c31cf43c6fcbf6c87791d56317ce808d9ead483652436df171b526fc7220eccdc9f3225df334e81582c3cf7dd5
-  languageName: node
-  linkType: hard
-
 "execa@npm:^5.0.0":
   version: 5.1.1
   resolution: "execa@npm:5.1.1"
@@ -5615,13 +5537,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ip-regex@npm:^4.1.0":
-  version: 4.3.0
-  resolution: "ip-regex@npm:4.3.0"
-  checksum: 10/7ff904b891221b1847f3fdf3dbb3e6a8660dc39bc283f79eb7ed88f5338e1a3d1104b779bc83759159be266249c59c2160e779ee39446d79d4ed0890dfd06f08
-  languageName: node
-  linkType: hard
-
 "is-arrayish@npm:^0.2.1":
   version: 0.2.1
   resolution: "is-arrayish@npm:0.2.1"
@@ -5732,13 +5647,6 @@ __metadata:
   version: 2.0.1
   resolution: "is-negative-zero@npm:2.0.1"
   checksum: 10/3a017d57c2d5e04e9584b82282016dbf8bda34104a40f580e296a9de9bd74a5d9f75a5460bdad0ab98f7a7124bb3d193ffa799cdfdad7bbb547cd9daffa649a8
-  languageName: node
-  linkType: hard
-
-"is-network-error@npm:^1.0.0":
-  version: 1.1.0
-  resolution: "is-network-error@npm:1.1.0"
-  checksum: 10/b2fe6aac07f814a9de275efd05934c832c129e7ba292d27614e9e8eec9e043b7a0bbeaeca5d0916b0f462edbec2aa2eaee974ee0a12ac095040e9515c222c251
   languageName: node
   linkType: hard
 
@@ -6920,15 +6828,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-addon-api@npm:^3.0.2":
-  version: 3.2.1
-  resolution: "node-addon-api@npm:3.2.1"
-  dependencies:
-    node-gyp: "npm:latest"
-  checksum: 10/681b52dfa3e15b0a8e5cf283cc0d8cd5fd2a57c559ae670fcfd20544cbb32f75de7648674110defcd17ab2c76ebef630aa7d2d2f930bc7a8cc439b20fe233518
-  languageName: node
-  linkType: hard
-
 "node-fetch@npm:^2.6.7":
   version: 2.7.0
   resolution: "node-fetch@npm:2.7.0"
@@ -6970,17 +6869,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-node-mac-permissions@TextsHQ/node-mac-permissions.git:
-  version: 2.2.1
-  resolution: "node-mac-permissions@https://github.com/TextsHQ/node-mac-permissions.git#commit=28b6f426191a933874f9f94f3a884df64b7b7366"
-  dependencies:
-    bindings: "npm:^1.5.0"
-    node-addon-api: "npm:^3.0.2"
-  checksum: 10/89693c313173459d07c25db6fba8b61f877460cb0fc74c943c1cef764732cb032ec673a68df648d586cbf2d2a20f717c15036321f0b340c823a14e98fdf5a2be
-  conditions: os=darwin
-  languageName: node
-  linkType: hard
-
 "node-releases@npm:^2.0.1":
   version: 2.0.1
   resolution: "node-releases@npm:2.0.1"
@@ -6995,7 +6883,7 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"node-swift@https://github.com/kabiroberai/node-swift#2c1db896c643f2a9e6bebd9a45d2703ae5f69b71":
+"node-swift@https://github.com/kabiroberai/node-swift.git#commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71":
   version: 1.0.0
   resolution: "node-swift@https://github.com/kabiroberai/node-swift.git#commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71"
   dependencies:
@@ -7003,6 +6891,17 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   bin:
     node-swift: ./lib/cli.js
   checksum: 10/3947a8993e36c382fa913bc9b2eca73a1db149020535eaa43dab619db5318060289a4a97f8fd2624e910197e088139bce1cc06f8bf10349128470cdf39c4fdfe
+  languageName: node
+  linkType: hard
+
+"node-swift@patch:node-swift@https%3A//github.com/kabiroberai/node-swift.git%23commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71#~/.yarn/patches/node-swift-https-7ac8c38191.patch":
+  version: 1.0.0
+  resolution: "node-swift@patch:node-swift@https%3A//github.com/kabiroberai/node-swift.git%23commit=2c1db896c643f2a9e6bebd9a45d2703ae5f69b71#~/.yarn/patches/node-swift-https-7ac8c38191.patch::version=1.0.0&hash=d56ce9"
+  dependencies:
+    import-cwd: "npm:^3.0.0"
+  bin:
+    node-swift: ./lib/cli.js
+  checksum: 10/655de8d56bcc62cfa59eade92e771cc408f7b5fa5142ee5796db38bd14d4486741cdef7ce655f9fd823e45678122d8476032bebfa4a1f31923ee9b1c45f03dfe
   languageName: node
   linkType: hard
 
@@ -7215,34 +7114,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   dependencies:
     aggregate-error: "npm:^3.0.0"
   checksum: 10/7ba4a2b1e24c05e1fc14bbaea0fc6d85cf005ae7e9c9425d4575550f37e2e584b1af97bcde78eacd7559208f20995988d52881334db16cf77bc1bcf68e48ed7c
-  languageName: node
-  linkType: hard
-
-"p-queue@npm:^8":
-  version: 8.0.1
-  resolution: "p-queue@npm:8.0.1"
-  dependencies:
-    eventemitter3: "npm:^5.0.1"
-    p-timeout: "npm:^6.1.2"
-  checksum: 10/8dcf8fbb8339675eba7d369f6eebac9e249e2412280ad73938403b83a28a2627a2072c732890d22ef98837cef89ff09eecd839cbac358cdc532d00ef4f736d0d
-  languageName: node
-  linkType: hard
-
-"p-retry@npm:^6":
-  version: 6.2.1
-  resolution: "p-retry@npm:6.2.1"
-  dependencies:
-    "@types/retry": "npm:0.12.2"
-    is-network-error: "npm:^1.0.0"
-    retry: "npm:^0.13.1"
-  checksum: 10/7104ef13703b155d70883b0d3654ecc03148407d2711a4516739cf93139e8bec383451e14925e25e3c1ae04dbace3ed53c26dc3853c1e9b9867fcbdde25f4cdc
-  languageName: node
-  linkType: hard
-
-"p-timeout@npm:^6.1.2":
-  version: 6.1.3
-  resolution: "p-timeout@npm:6.1.3"
-  checksum: 10/f4ecc8986323a156f80ec5d13b46f644a7fc1dc31bf840d499c24c95528448203b20040e02c2fe19d5f50b8fcf955636adccec551e83ad7c95cc35c235361dcd
   languageName: node
   linkType: hard
 
@@ -7771,13 +7642,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   version: 0.12.0
   resolution: "retry@npm:0.12.0"
   checksum: 10/1f914879f97e7ee931ad05fe3afa629bd55270fc6cf1c1e589b6a99fab96d15daad0fa1a52a00c729ec0078045fe3e399bd4fd0c93bcc906957bdc17f89cb8e6
-  languageName: node
-  linkType: hard
-
-"retry@npm:^0.13.1":
-  version: 0.13.1
-  resolution: "retry@npm:0.13.1"
-  checksum: 10/6125ec2e06d6e47e9201539c887defba4e47f63471db304c59e4b82fc63c8e89ca06a77e9d34939a9a42a76f00774b2f46c0d4a4cbb3e287268bd018ed69426d
   languageName: node
   linkType: hard
 
@@ -8377,15 +8241,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"tlds@npm:^1.203.0":
-  version: 1.239.0
-  resolution: "tlds@npm:1.239.0"
-  bin:
-    tlds: bin.js
-  checksum: 10/2fdecbaced96fb8fb82e296a81cc3bd4f88f95b9540057a1c481d4b8983b6738f0127a9fca7da0f462ca8550e517cf5ae3601f51cadd112ad3145e670effd59d
-  languageName: node
-  linkType: hard
-
 "tmpl@npm:1.0.5":
   version: 1.0.5
   resolution: "tmpl@npm:1.0.5"
@@ -8775,16 +8630,6 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
-"url-regex@npm:^5.0.0":
-  version: 5.0.0
-  resolution: "url-regex@npm:5.0.0"
-  dependencies:
-    ip-regex: "npm:^4.1.0"
-    tlds: "npm:^1.203.0"
-  checksum: 10/cfda13c17c7c259bbcf9841992149515e7dce89bc9610fc0ad7454f743061b90681aaf07aad9a1ff492213ee7b0ff52900f5aab8039789a05ca4f2681acd5d61
-  languageName: node
-  linkType: hard
-
 "util-deprecate@npm:^1.0.1":
   version: 1.0.2
   resolution: "util-deprecate@npm:1.0.2"
@@ -8917,6 +8762,21 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   languageName: node
   linkType: hard
 
+"ws@npm:^8.15.1":
+  version: 8.20.0
+  resolution: "ws@npm:8.20.0"
+  peerDependencies:
+    bufferutil: ^4.0.1
+    utf-8-validate: ">=5.0.2"
+  peerDependenciesMeta:
+    bufferutil:
+      optional: true
+    utf-8-validate:
+      optional: true
+  checksum: 10/b7ab934b21ffdea9f25a5af5097e8c1ec7625db553bca026c5a23e35b7c236f3fb89782f2b57fab9da553864512f9aa7d245827ef998d26ffa1b2187a19a6d10
+  languageName: node
+  linkType: hard
+
 "y18n@npm:^5.0.5":
   version: 5.0.8
   resolution: "y18n@npm:5.0.8"
@@ -9010,12 +8870,5 @@ node-mac-permissions@TextsHQ/node-mac-permissions.git:
   version: 0.1.0
   resolution: "yocto-queue@npm:0.1.0"
   checksum: 10/f77b3d8d00310def622123df93d4ee654fc6a0096182af8bd60679ddcdfb3474c56c6c7190817c84a2785648cdee9d721c0154eb45698c62176c322fb46fc700
-  languageName: node
-  linkType: hard
-
-"zod@npm:^4.0.17":
-  version: 4.0.17
-  resolution: "zod@npm:4.0.17"
-  checksum: 10/bfdb7f1a7a3dd17e83c6720f9f763d522d4914962c81844fe408512e55df11378c6032d48dea4ec6ca6a260bdd9e92c59ec75bd40cb49f4c12115366744f2def
   languageName: node
   linkType: hard
