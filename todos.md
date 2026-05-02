@@ -7,19 +7,20 @@
 - [ ] add example Swift script that consumes the library
 - [ ] add example JS script that consumes the library
 
-- [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
-
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
+- [ ] replace SQLite w https://github.com/pointfreeco/sqlite-data and benchmark
+
 - [ ] remove `.parity` when no longer needed
+- [ ] consider folding callback from `PlatformAPI.onThreadSelected` into `subscribeToEvents`
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
+- [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
 - [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs w secondary instance off)
 - [ ] separate `UserDefaults` somehow so that CLI and other consumers don't share the prefs
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] improve misfire prevention and robustness
-- [ ] consider folding callback from `PlatformAPI.onThreadSelected` into `subscribeToEvents`
 
 - cli
   - [ ] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
