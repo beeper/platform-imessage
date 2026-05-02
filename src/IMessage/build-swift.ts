@@ -26,6 +26,13 @@ const strip = async (src: string, dest?: string) => {
   await shellExec('strip', ...(dest ? ['-ur', src, '-o', dest] : ['-ur', src]))
 }
 
+const removeOutputBeforeWrite = (dest: string) =>
+  // copyFile/lipo/strip can follow an existing symlink and update the build
+  // artifact it points at, leaving binaries/*/IMessage.node as a symlink.
+  // That breaks standalone CLI runs because dyld resolves @loader_path from the
+  // symlink target in build/* instead of from binaries/* next to NodeAPI.framework.
+  fsp.rm(dest, { force: true })
+
 const ensureXcodeWorkspace = async (packagePath: string) => {
   const workspaceFile = path.join(packagePath, '.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata')
   await fsp.mkdir(path.dirname(workspaceFile), { recursive: true })
@@ -132,6 +139,7 @@ async function main() {
       const outdir = path.join(ROOT_DIR_PATH, `binaries/${process.platform}-${specificArch}`)
       await fsp.mkdir(outdir, { recursive: true })
       const dest = `${outdir}/IMessage.node`
+      await removeOutputBeforeWrite(dest)
       if (config === 'release') {
         await strip(binaryPath, dest)
       } else {
@@ -147,6 +155,7 @@ async function main() {
             console.log(`build-swift: thinning for ${arch}, outputting to ${archOutDir}`)
             await fsp.mkdir(archOutDir, { recursive: true })
             const archDest = path.join(archOutDir, 'IMessage.node')
+            await removeOutputBeforeWrite(archDest)
             await lipoThin(arch, binaryPath, archDest)
             await strip(archDest, archDest)
             if (STANDALONE) await makeStandalone(archDest, frameworkSrc)
