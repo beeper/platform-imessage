@@ -71,7 +71,6 @@ private actor MessagesControllerCoordinator {
             throw pendingError
         }
     }
-
 }
 
 private extension MessagesControllerCoordinator {

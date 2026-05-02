@@ -23,14 +23,14 @@ extension String {
     var containsLink: Bool {
         let detector: NSDataDetector? = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let match: NSTextCheckingResult? = detector?.firstMatch(in: self, options: [], range: NSRange(location: 0, length: utf16.count))
-        
+
         return match == nil
     }
 
     var linkCount: Int {
         let detector: NSDataDetector? = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches = detector?.matches(in: self, options: [], range: NSRange(location: 0, length: utf16.count))
-        
+
         return matches?.count ?? 0
     }
 }

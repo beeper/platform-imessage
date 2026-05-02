@@ -59,12 +59,12 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
             return nil
         }
 
-            return StoredProperty(
-                name: identifier,
-                type: type,
-                hasInitializer: binding.initializer != nil,
-                hasNilDefault: type.hasSuffix("?")
-            )
+        return StoredProperty(
+            name: identifier,
+            type: type,
+            hasInitializer: binding.initializer != nil,
+            hasNilDefault: type.hasSuffix("?")
+        )
     }
 
     private static func hasMemberwiseInitializer(in declaration: some DeclGroupSyntax, assigning properties: [StoredProperty]) -> Bool {
@@ -100,5 +100,4 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
         }
         """
     }
-
 }
