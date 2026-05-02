@@ -147,12 +147,17 @@ private final class InvokeContext {
         self.runner = runner
     }
 
-    func api() async throws -> PlatformAPI {
-        try await runner.api()
-    }
-
-    func invoke(_ methodName: String, args: [Any], _ operation: @escaping (PlatformAPI) async throws -> String?) async throws {
-        try await runner.invoke(commandName: command.name, methodName: methodName, args: args, operation)
+    func invoke(
+        _ methodName: String,
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> String?
+    ) async throws {
+        try await runner.invoke(
+            commandName: command.name,
+            methodName: methodName,
+            args: args,
+            operation
+        )
     }
 
     func showHelp(_ commandName: String?) throws {
@@ -164,7 +169,7 @@ private final class InvokeContext {
     }
 
     func startEventWatching(api: PlatformAPI) async throws {
-        try await runner.startEventWatching(api: api, forceSubscription: true)
+        try await runner.startEventWatching(api: api)
     }
 
     func printEventJSON(_ json: String) {
@@ -215,7 +220,15 @@ private final class Runner {
         try await runShell()
     }
 
-    func api() async throws -> PlatformAPI {
+    func api() throws -> PlatformAPI {
+        guard let apiInstance else {
+            throw CLIError("PlatformAPI has not been initialized")
+        }
+        return apiInstance
+    }
+
+    @discardableResult
+    func initializeAPIIfNeeded() throws -> PlatformAPI {
         if let apiInstance {
             return apiInstance
         }
@@ -230,8 +243,10 @@ private final class Runner {
         args: [Any],
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
-        let api = try await api()
-        try await ensureEventSubscription(api: api)
+        let api = try api()
+        if options.subscribeToEvents {
+            ensureEventSubscription(api: api)
+        }
 
         let id = String(format: "%05d", nextCallID)
         nextCallID += 1
@@ -272,8 +287,8 @@ private final class Runner {
         ]))
     }
 
-    func ensureEventSubscription(api: PlatformAPI, force: Bool = false) async throws {
-        guard !eventsSubscribed, force || options.subscribeToEvents else { return }
+    func ensureEventSubscription(api: PlatformAPI) {
+        guard !eventsSubscribed else { return }
         eventsSubscribed = true
         api.subscribeToEvents { [weak self] events in
             let json = try encodeJSON(events.map { $0.jsonObject() })
@@ -283,11 +298,9 @@ private final class Runner {
 
     func startEventWatching(
         api: PlatformAPI,
-        forceSubscription: Bool = false,
         reportStartupErrors: Bool = false
     ) async throws {
-        try await ensureEventSubscription(api: api, force: forceSubscription)
-        guard eventsSubscribed else { return }
+        ensureEventSubscription(api: api)
         do {
             try await api.startEventWatchingFromCurrentState()
         } catch {
@@ -315,7 +328,7 @@ private final class Runner {
             lineReader.printConsoleLine(line)
         }
         if shouldStartEventWatching {
-            let api = try await api()
+            let api = try initializeAPIIfNeeded()
             try await startEventWatching(api: api, reportStartupErrors: true)
         }
         while true {
@@ -369,6 +382,7 @@ private final class Runner {
         let context = InvokeContext(command: command, runner: self)
         if !command.requiredAuthorization.isEmpty {
             try await runPreflightAuthCheck(commandName: command.name, requirements: command.requiredAuthorization)
+            try initializeAPIIfNeeded()
         }
         try await command.execute(args, context)
     }
@@ -486,10 +500,7 @@ private let commandDefinitions: [CommandDefinition] = [
         examples: ["open-settings"]
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        try await context.invoke("revealSettings", args: []) { api in
-            await revealSettingsWindowFromCLI()
-            return nil
-        }
+        await revealSettingsWindowFromCLI()
     },
     CommandDefinition(
         name: "authorize",
