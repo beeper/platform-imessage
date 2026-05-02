@@ -75,12 +75,20 @@ final class OnboardingManager {
 
     func closeWindow() {
         log.info("OnboardingManager: closing window")
-        DispatchQueue.main.sync {
+
+        let close = {
             self.onboardingWindow?.close()
             self.onboardingWindow = nil
+            self.initialWidth = nil
+            self.pollingTimer?.invalidate()
+            self.pollingTimer = nil
         }
-        self.initialWidth = nil
-        self.pollingTimer?.invalidate()
+
+        if Thread.isMainThread {
+            close()
+        } else {
+            DispatchQueue.main.sync(execute: close)
+        }
     }
 
     deinit {
