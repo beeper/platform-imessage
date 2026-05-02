@@ -40,44 +40,41 @@ This library powers the iMessage integration on [Beeper](https://www.beeper.com/
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
 yarn
-yarn rebuild:native
-yarn build:swift --debug --standalone
-yarn build:cli
-yarn cli authorize # authorize permissions like Accessibility/Automation/Contacts
+yarn cli # launches authorization flow (Accessibility, Contacts, Messages Data, Automation) and then the repl
 ```
 
 2. Run one-off commands:
 ```sh
-yarn cli current-user                                                                    # fetch logged in user
-yarn cli threads                                                                         # fetch chats
-yarn cli messages any;-;sjobs@apple.com                                                  # fetch messages for an existing chat
+yarn cli current-user                                                                   # fetch logged in user
+yarn cli threads                                                                        # fetch chats
+yarn cli messages 'any;-;sjobs@apple.com'                                               # fetch messages for an existing chat
 
-yarn cli send any;-;sjobs@apple.com "hello from shell"                                   # text an email
-yarn cli send any;-;+14155551234 "hello from shell"                                      # text a phone number
+yarn cli send 'any;-;sjobs@apple.com' "hello from shell"                                # text an email
+yarn cli send 'any;-;+14155551234' "hello from shell"                                   # text a phone number
 
-yarn cli send-file any;-;+14155551234 ./image.png                                        # send a file
+yarn cli send-file 'any;-;+14155551234' ./image.png                                      # send a file
 
-yarn cli create-thread +14155551234 --message "hey this is steve"                        # start a new chat with a number or email
-yarn cli create-thread +15551234567 +15557654321 --message "new group"                   # create a group chat
-yarn cli reply any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "sounds good"     # reply to an existing message
-yarn cli reply-file any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./doc.pdf    # send a file as a reply
-yarn cli react any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh             # haha react to a message
-yarn cli react any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart             # heart a message
-yarn cli unreact any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh           # remove laugh from message
+yarn cli create-thread +14155551234 --message "hey this is steve"                       # start a new chat with a number or email
+yarn cli create-thread +15551234567 +15557654321 --message "new group"                  # create a group chat
+yarn cli reply 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "sounds good"  # reply to an existing message
+yarn cli reply-file 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./doc.pdf  # send a file as a reply
+yarn cli react 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh          # haha react to a message
+yarn cli react 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart          # heart a message
+yarn cli unreact 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh        # remove laugh from message
 
-yarn cli edit any;-;+14155551234 C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "updated text"     # edit a message
+yarn cli edit 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "updated text"  # edit a message
 
-yarn cli search "project status"                                                         # search messages
+yarn cli search "project status"                                                        # search messages
 
-yarn cli select-thread any;-;sjobs@apple.com                                             # select chat in messages.app
-yarn cli typing any;-;sjobs@apple.com on                                                 # send typing indicator
+yarn cli select-thread 'any;-;sjobs@apple.com'                                          # select chat in messages.app
+yarn cli typing 'any;-;sjobs@apple.com' on                                              # send typing indicator
 
-yarn cli mark-read any;-;sjobs@apple.com
-yarn cli mark-unread any;-;sjobs@apple.com
-yarn cli mute any;-;sjobs@apple.com
-yarn cli unmute any;-;sjobs@apple.com
-yarn cli notify-anyway any;-;sjobs@apple.com                                             # if the recipient is on DND, hit the "notify anyway" button if present
-yarn cli delete-thread any;-;sjobs@apple.com                                             # delete the entire chat
+yarn cli mark-read 'any;-;sjobs@apple.com'
+yarn cli mark-unread 'any;-;sjobs@apple.com'
+yarn cli mute 'any;-;sjobs@apple.com'
+yarn cli unmute 'any;-;sjobs@apple.com'
+yarn cli notify-anyway 'any;-;sjobs@apple.com'                                          # if the recipient is on DND, hit the "notify anyway" button if present
+yarn cli delete-thread 'any;-;sjobs@apple.com'                                          # delete the entire chat
 ```
 
 Or open the shell with `yarn cli`:
@@ -115,6 +112,16 @@ targets: [
     ),
 ]
 ```
+
+## JavaScript/TypeScript Usage
+
+1. Setup with
+```
+yarn build:swift --debug --standalone
+yarn build:cli:js
+```
+
+2. Run with `yarn cli:js`. Also see [`src/cli/main.ts`](./src/cli/main.ts)
 
 ## License
 
