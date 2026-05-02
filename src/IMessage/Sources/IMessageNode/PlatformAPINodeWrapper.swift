@@ -13,7 +13,8 @@ import PlatformSDK
         threadActivityEventQueue = try NodeAsyncQueue(label: "watch-imessage-callback")
         api = try PlatformAPI(
             accountID: accountID,
-            reportErrorMessage: IMessageNodeExports.reportErrorMessage
+            reportErrorMessage: IMessageNodeExports.reportErrorMessage,
+            enforceSingleton: false
         )
         let api = UncheckedSendableBox(api)
         cleanupHook = try? NodeEnvironment.current.addCleanupHook { completion in

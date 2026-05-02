@@ -53,10 +53,12 @@ public final class PlatformAPI {
     private let threadObserveRequestToken = Protected<UUID?>()
     let hasBeenDisposed = Protected(false)
 
-    public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil) throws {
+    public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
         self.accountID = accountID
         self.errorMessageReporter = reportErrorMessage
-        try Self.claimActiveInstance(ObjectIdentifier(self))
+        if enforceSingleton {
+            try Self.claimActiveInstance(ObjectIdentifier(self))
+        }
     }
 
     private static func claimActiveInstance(_ owner: ObjectIdentifier) throws {
