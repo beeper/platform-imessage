@@ -16,13 +16,13 @@
 - [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
 - [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs w secondary instance off)
-- [ ] store UserDefaults in dataDirPath
+- [ ] separate `UserDefaults` somehow so that CLI and other consumers don't share the prefs
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] improve misfire prevention and robustness
 - [ ] consider folding callback from `PlatformAPI.onThreadSelected` into `subscribeToEvents`
 
 - cli
-  - [ ] w system contacts, resolve phone #s and emails and populate Thread.title, User.fullName, User.imgURL
+  - [ ] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
   - [ ] resolve thread id as email/phone # if `any;-;` prefix isn't passed
   - [ ] notarize before gh release and do universal binary/x86 target
   - [ ] one off command to print presence (dnd / dnd w notify) and typing status
