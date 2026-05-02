@@ -19,18 +19,25 @@ extension NSRunningApplication {
     }
 }
 
+private extension NSDataDetector {
+    static let linkDetector: NSDataDetector? = {
+        do {
+            return try NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        } catch {
+            Log.default.error("failed to create link data detector", error: error)
+            return nil
+        }
+    }()
+}
+
 extension String {
     var containsLink: Bool {
-        let detector: NSDataDetector? = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let match: NSTextCheckingResult? = detector?.firstMatch(in: self, options: [], range: NSRange(location: 0, length: utf16.count))
+        let match = NSDataDetector.linkDetector?.firstMatch(in: self, options: [], range: NSRange(location: 0, length: utf16.count))
 
-        return match == nil
+        return match != nil
     }
 
     var linkCount: Int {
-        let detector: NSDataDetector? = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(in: self, options: [], range: NSRange(location: 0, length: utf16.count))
-
-        return matches?.count ?? 0
+        NSDataDetector.linkDetector?.numberOfMatches(in: self, options: [], range: NSRange(location: 0, length: utf16.count)) ?? 0
     }
 }
