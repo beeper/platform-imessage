@@ -243,12 +243,12 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await performOnController { try $0.muteThread(threadID: threadID, muted: muted) }
+        try await withMessagesController { try $0.muteThread(threadID: threadID, muted: muted) }
     }
 
     public func deleteThread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await performOnController { try $0.deleteThread(threadID: threadID) }
+        try await withMessagesController { try $0.deleteThread(threadID: threadID) }
     }
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
@@ -297,7 +297,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: publicThreadID)
-        try await performOnController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
+        try await withMessagesController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
     public func sendActivityIndicator(type: String, threadID publicThreadID: String?) async throws {
@@ -317,7 +317,7 @@ public final class PlatformAPI {
             return
         }
 
-        try await performOnController { controller in
+        try await withMessagesController { controller in
             if type == "typing" {
                 try controller.sendTypingStatus(threadID: threadID)
             } else {
@@ -328,7 +328,7 @@ public final class PlatformAPI {
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await performOnController { try $0.undoSend(threadID: threadID, messageID: messageID) }
+        try await withMessagesController { try $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
@@ -344,7 +344,7 @@ public final class PlatformAPI {
                 return
             }
 
-            try await performOnController(forceInvalidate: attempt > 0) {
+            try await withMessagesController(forceInvalidate: attempt > 0) {
                 try $0.toggleThreadRead(threadID: threadID, read: true)
             }
         } onError: { _, retriesLeft, error in
@@ -373,12 +373,12 @@ public final class PlatformAPI {
 
     public func markAsUnread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await performOnController { try $0.toggleThreadRead(threadID: threadID, read: false) }
+        try await withMessagesController { try $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
     public func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await performOnController { try $0.notifyAnyway(threadID: threadID) }
+        try await withMessagesController { try $0.notifyAnyway(threadID: threadID) }
     }
 
     public func onThreadSelected(
@@ -491,13 +491,6 @@ public final class PlatformAPI {
         try database.withDatabase { db in
             try Self.originalThreadID(db: db, publicThreadID)
         }
-    }
-
-    private func performOnController(
-        forceInvalidate: Bool = false,
-        _ action: @escaping @Sendable (MessagesController) throws -> Void
-    ) async throws {
-        try await withMessagesController(forceInvalidate: forceInvalidate, action)
     }
 
     private func watchThreadActivity(
@@ -1051,7 +1044,9 @@ extension PlatformAPI {
         case "dt":
             let uuid = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
             let filePath = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(uuid).mov").path
-            _ = try await waitForFileToExist(filePath, maxWait: 5)
+            guard try await waitForFileToExist(filePath, maxWait: 5) else {
+                throw ErrorMessage("Couldn't fetch digital touch asset")
+            }
             return .url(fileURLString(filePath))
 
         case "reaction-sticker":
