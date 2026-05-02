@@ -37,11 +37,11 @@ protocol WindowCoordinator {
 }
 
 extension WindowCoordinator {
-    func userManuallyActivated(_ app: NSRunningApplication) throws {
+    func userManuallyActivated(_: NSRunningApplication) throws {
         // make this method optional
     }
 
-    func userManuallyDeactivated(_ app: NSRunningApplication) throws {
+    func userManuallyDeactivated(_: NSRunningApplication) throws {
         // make this method optional
     }
 }

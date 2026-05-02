@@ -194,18 +194,6 @@ enum Defaults {
         }
     }
 
-    #if DEBUG
-    static func pinnedData() -> [String: Any]? {
-        getUserDefaults(bundleID: pinningBundleID)?.dictionary(forKey: "pD")
-    }
-
-    static func changePinnedData(_ val: [String: Any]) {
-        var modval = val
-        modval["pT"] = NSDate()
-        UserDefaults(suiteName: pinningBundleID)?.setValue(modval, forKey: "pD")
-    }
-    #endif
-
     static func pinnedThreads() -> [String]? {
         getUserDefaults(bundleID: pinningBundleID)?.dictionary(forKey: "pD")?["pP"] as? [String]
     }

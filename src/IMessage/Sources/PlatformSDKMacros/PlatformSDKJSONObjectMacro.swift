@@ -7,7 +7,6 @@ import SwiftSyntaxMacros
 struct PlatformSDKMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         PlatformSDKJSONObjectMacro.self,
-        PlatformSDKJSONKeyMacro.self,
     ]
 }
 
@@ -20,8 +19,7 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
     ) throws -> [DeclSyntax] {
         let properties = declaration.memberBlock.members.compactMap(storedProperty)
         let entries = properties.map { property in
-            let key = jsonKey(in: property.attributes) ?? property.name
-            return #""\#(key)": PlatformSDKJSONEncoding.encode(\#(property.name)),"#
+            #""\#(property.name)": PlatformSDKJSONEncoding.encode(\#(property.name)),"#
         }
 
         let body = entries.map { "            \($0)" }.joined(separator: "\n")
@@ -43,7 +41,6 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
     private struct StoredProperty {
         let name: String
         let type: String
-        let attributes: AttributeListSyntax
         let hasInitializer: Bool
         let hasNilDefault: Bool
     }
@@ -62,13 +59,12 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
             return nil
         }
 
-        return StoredProperty(
-            name: identifier,
-            type: type,
-            attributes: variable.attributes,
-            hasInitializer: binding.initializer != nil,
-            hasNilDefault: type.hasSuffix("?")
-        )
+            return StoredProperty(
+                name: identifier,
+                type: type,
+                hasInitializer: binding.initializer != nil,
+                hasNilDefault: type.hasSuffix("?")
+            )
     }
 
     private static func hasMemberwiseInitializer(in declaration: some DeclGroupSyntax, assigning properties: [StoredProperty]) -> Bool {
@@ -105,28 +101,4 @@ public enum PlatformSDKJSONObjectMacro: MemberMacro {
         """
     }
 
-    private static func jsonKey(in attributes: AttributeListSyntax) -> String? {
-        for attribute in attributes {
-            guard let attribute = attribute.as(AttributeSyntax.self),
-                  attribute.attributeName.trimmedDescription == "PlatformSDKJSONKey",
-                  let arguments = attribute.arguments?.as(LabeledExprListSyntax.self),
-                  let expression = arguments.first?.expression.as(StringLiteralExprSyntax.self) else {
-                continue
-            }
-            return expression.segments.compactMap { segment in
-                segment.as(StringSegmentSyntax.self)?.content.text
-            }.joined()
-        }
-        return nil
-    }
-}
-
-public enum PlatformSDKJSONKeyMacro: PeerMacro {
-    public static func expansion(
-        of node: AttributeSyntax,
-        providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
-    ) throws -> [DeclSyntax] {
-        []
-    }
 }

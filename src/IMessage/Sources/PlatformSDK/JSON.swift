@@ -32,9 +32,6 @@ public extension PlatformSDK.JSONObjectConvertible {
 @attached(member, names: named(init), named(jsonObject))
 public macro PlatformSDKJSONObject() = #externalMacro(module: "PlatformSDKMacros", type: "PlatformSDKJSONObjectMacro")
 
-@attached(peer)
-public macro PlatformSDKJSONKey(_ name: String) = #externalMacro(module: "PlatformSDKMacros", type: "PlatformSDKJSONKeyMacro")
-
 enum PlatformSDKJSONEncoding {
     static func encode(_ value: Any?) -> Any? {
         guard let value, !(value is NSNull) else {
@@ -49,10 +46,6 @@ enum PlatformSDKJSONEncoding {
 
     static func encode<Value: PlatformSDK.JSONValueConvertible>(_ value: [Value]?) -> Any? {
         value?.map(\.jsonValue)
-    }
-
-    static func encode<Value: PlatformSDK.JSONValueConvertible>(_ value: [String: Value]?) -> Any? {
-        value?.mapValues(\.jsonValue)
     }
 
     static func encode<Value: RawRepresentable>(_ value: Value?) -> Any? where Value.RawValue == String {

@@ -31,7 +31,6 @@ public final class IMDatabase {
     public let changes = Topic<Void>()
 
     private var fsEventsQueue = DispatchQueue(label: "imdb.fs-events")
-    private var messagesDirectoryWatcher: FSEventsWatcher?
     // file watchers for `chat.db` and `chat.db-wal`; these need to be
     // dynamically populated because the WAL can be deleted and (re)created at
     // any time

@@ -4,11 +4,6 @@ import IMessageCore
 import PlatformSDK
 
 enum ThreadMapper {
-    struct EventWatchingCursor {
-        var maxRowID: Int
-        var maxDateReadNanoseconds: Int
-    }
-
     struct Context {
         var handleRowsByChatRowID: [Int: [MappedHandleRow]]
         var latestMessagesByChatGUID: [String: [PlatformSDK.Message]]
@@ -16,17 +11,6 @@ enum ThreadMapper {
         var dndState: Set<String>
         var currentUser: PlatformSDK.CurrentUser
         var accountID: String
-    }
-
-    static func eventWatchingCursor(from latestMessageRows: [MappedMessageRow]) -> EventWatchingCursor? {
-        guard !latestMessageRows.isEmpty else {
-            return nil
-        }
-        let (maxRowID, maxDateReadNanoseconds) = latestMessageRows.reduce(into: (0, 0)) { result, row in
-            result.0 = max(result.0, row.rowID)
-            result.1 = max(result.1, row.dateRead ?? 0)
-        }
-        return EventWatchingCursor(maxRowID: maxRowID, maxDateReadNanoseconds: maxDateReadNanoseconds)
     }
 
     static func mapThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {

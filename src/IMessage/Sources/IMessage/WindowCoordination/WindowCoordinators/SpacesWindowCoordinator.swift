@@ -79,11 +79,11 @@ extension SpacesWindowCoordinator: WindowCoordinator {
         try (window.window()).moveToSpace(currentSpace)
     }
 
-    func automationDidComplete(_ window: Accessibility.Element) throws {
+    func automationDidComplete(_: Accessibility.Element) throws {
         // after automating, keep the window on the hidden space
     }
 
-    func userManuallyActivated(_ app: NSRunningApplication) throws {
+    func userManuallyActivated(_: NSRunningApplication) throws {
         lastManualActivation = Date()
     }
 }

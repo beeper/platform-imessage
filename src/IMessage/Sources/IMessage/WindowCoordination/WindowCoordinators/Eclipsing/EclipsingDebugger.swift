@@ -19,12 +19,6 @@ final class OverlayWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
-private extension NSScreen {
-    static var screenWithMouse: NSScreen? {
-        Self.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-    }
-}
-
 @available(macOS 14, *)
 final class EclipsingWindowController: NSWindowController {
     var state: EclipsingDebuggerState? {

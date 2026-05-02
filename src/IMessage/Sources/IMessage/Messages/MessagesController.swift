@@ -737,7 +737,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func resolveMessageCell(threadID: String, messageGUID: String, partIndex: Int?, allowOverlay: Bool = true) throws -> MessageCell {
+    func resolveMessageCell(threadID _: String, messageGUID: String, partIndex: Int?, allowOverlay: Bool = true) throws -> MessageCell {
         let guid = GUID<Message>(stringLiteral: messageGUID)
 
         guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {

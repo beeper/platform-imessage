@@ -129,7 +129,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
     }
 
-    func automationDidComplete(_ window: Accessibility.Element) throws {
+    func automationDidComplete(_: Accessibility.Element) throws {
         hideDebouncer.requestHide()
     }
 
@@ -150,11 +150,11 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         try window.setFrame(originalFrame)
     }
 
-    func userManuallyActivated(_ app: NSRunningApplication) throws {
+    func userManuallyActivated(_: NSRunningApplication) throws {
         hideDebouncer.immediatelyUnhide()
     }
 
-    func userManuallyDeactivated(_ app: NSRunningApplication) throws {
+    func userManuallyDeactivated(_: NSRunningApplication) throws {
         hideDebouncer.requestHide()
     }
 }
@@ -181,10 +181,6 @@ private extension EclipsingWindowCoordinator {
 
 private extension NSRect {
     var area: Double { size.area }
-
-    func encompasses(_ other: CGRect) -> Bool {
-        size.encompasses(other.size)
-    }
 
     var formatted: String {
         "@\(origin.x),\(origin.y)[\(size.width)x\(size.height)]"

@@ -148,13 +148,11 @@ private final class InvokeContext {
     }
 
     func invoke(
-        _ methodName: String,
         args: [Any],
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
         try await runner.invoke(
             commandName: command.name,
-            methodName: methodName,
             args: args,
             operation
         )
@@ -239,7 +237,6 @@ private final class Runner {
 
     func invoke(
         commandName: String,
-        methodName: String,
         args: [Any],
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
@@ -458,7 +455,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        try await context.invoke("startEventWatchingFromCurrentState", args: []) { api in
+        try await context.invoke(args: []) { api in
             try await context.startEventWatching(api: api)
             return nil
         }
@@ -473,7 +470,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        try await context.invoke("stopEventWatching", args: []) { api in
+        try await context.invoke(args: []) { api in
             await IMessageHost.stopEventWatching()
             return nil
         }
@@ -487,7 +484,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        try await context.invoke("getCurrentUser", args: []) { api in
+        try await context.invoke(args: []) { api in
             let currentUser = try await api.getCurrentUser()
             return try encodeJSON(currentUser.jsonObject)
         }
@@ -522,7 +519,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 0)
-        try await context.invoke("getThreads", args: ["normal", pagination.logArgument as Any]) { api in
+        try await context.invoke(args: ["normal", pagination.logArgument as Any]) { api in
             let threads = try await api.getThreads(folderName: "normal", pagination: pagination.platformSDKArg)
             return try encodeJSON(threads.jsonObject)
         }
@@ -536,7 +533,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("getThread", args: [args[0]]) { api in
+        try await context.invoke(args: [args[0]]) { api in
             let thread = try await api.getThread(threadID: args[0])
             return try encodeJSON(thread?.jsonObject)
         }
@@ -551,7 +548,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 1)
         let threadID = pagination.positionals[0]
-        try await context.invoke("getMessages", args: [threadID, pagination.logArgument as Any]) { api in
+        try await context.invoke(args: [threadID, pagination.logArgument as Any]) { api in
             let messages = try await api.getMessages(threadID: threadID, pagination: pagination.platformSDKArg)
             return try encodeJSON(messages.jsonObject)
         }
@@ -565,7 +562,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
-        try await context.invoke("getMessage", args: args) { api in
+        try await context.invoke(args: args) { api in
             let message = try await api.getMessage(threadID: args[0], messageID: args[1])
             return try encodeJSON(message?.jsonObject)
         }
@@ -580,7 +577,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireMinArgs(context.command, args, 1)
         let query = args.joined(separator: " ")
-        try await context.invoke("searchMessages", args: [query]) { api in
+        try await context.invoke(args: [query]) { api in
             let messages = try await api.searchMessages(typed: query, threadID: nil, mediaOnly: false, sender: nil, limit: nil)
             return try encodeJSON(messages.jsonObject)
         }
@@ -596,7 +593,7 @@ private let commandDefinitions: [CommandDefinition] = [
         let parsed = try parseStringOption(args, optionName: "message")
         try requireMinArgs(context.command, parsed.positionals, 1)
         let message = try requireStringOption(context.command, optionName: "--message TEXT", value: parsed.value)
-        try await context.invoke("createThread", args: [parsed.positionals, message]) { api in
+        try await context.invoke(args: [parsed.positionals, message]) { api in
             let result = try await api.createThread(userIDs: parsed.positionals, title: nil, messageText: message)
             return try encodeJSON(result.jsonValue)
         }
@@ -611,7 +608,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireMinArgs(context.command, args, 2)
         let text = try joinText(context.command, args, startIndex: 1)
-        try await context.invoke("sendMessage", args: [args[0], ["text": text]]) { api in
+        try await context.invoke(args: [args[0], ["text": text]]) { api in
             let result = try await api.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: nil)
             return try encodeJSON(result.jsonValue)
         }
@@ -626,7 +623,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireMinArgs(context.command, args, 3)
         let text = try joinText(context.command, args, startIndex: 2)
-        try await context.invoke("sendMessage", args: [args[0], ["text": text], ["quotedMessageID": args[1]]]) { api in
+        try await context.invoke(args: [args[0], ["text": text], ["quotedMessageID": args[1]]]) { api in
             let result = try await api.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: args[1])
             return try encodeJSON(result.jsonValue)
         }
@@ -641,7 +638,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
         let filePath = absolutePath(args[1])
-        try await context.invoke("sendMessage", args: [args[0], ["filePath": filePath]]) { api in
+        try await context.invoke(args: [args[0], ["filePath": filePath]]) { api in
             let result = try await api.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: nil)
             return try encodeJSON(result.jsonValue)
         }
@@ -656,7 +653,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireExactArgs(context.command, args, 3)
         let filePath = absolutePath(args[2])
-        try await context.invoke("sendMessage", args: [args[0], ["filePath": filePath], ["quotedMessageID": args[1]]]) { api in
+        try await context.invoke(args: [args[0], ["filePath": filePath], ["quotedMessageID": args[1]]]) { api in
             let result = try await api.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: args[1])
             return try encodeJSON(result.jsonValue)
         }
@@ -672,7 +669,7 @@ private let commandDefinitions: [CommandDefinition] = [
     ) { args, context in
         try requireMinArgs(context.command, args, 3)
         let text = try joinText(context.command, args, startIndex: 2)
-        try await context.invoke("editMessage", args: [args[0], args[1], ["text": text]]) { api in
+        try await context.invoke(args: [args[0], args[1], ["text": text]]) { api in
             try await api.editMessage(threadID: args[0], messageID: args[1], content: text)
             return nil
         }
@@ -687,15 +684,15 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
-        try await context.invoke("deleteMessage", args: args) { api in
+        try await context.invoke(args: args) { api in
             try await api.deleteMessage(threadID: args[0], messageID: args[1])
             return nil
         }
     },
-    reactionCommand(name: "react", methodName: "addReaction", summaryVerb: "Add", preposition: "to") { api, threadID, messageID, key in
+    reactionCommand(name: "react", summaryVerb: "Add", preposition: "to") { api, threadID, messageID, key in
         try await api.addReaction(threadID: threadID, messageID: messageID, reactionKey: key)
     },
-    reactionCommand(name: "unreact", methodName: "removeReaction", summaryVerb: "Remove", preposition: "from") { api, threadID, messageID, key in
+    reactionCommand(name: "unreact", summaryVerb: "Remove", preposition: "from") { api, threadID, messageID, key in
         try await api.removeReaction(threadID: threadID, messageID: messageID, reactionKey: key)
     },
     CommandDefinition(
@@ -707,7 +704,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("sendReadReceipt", args: args) { api in
+        try await context.invoke(args: args) { api in
             try await api.sendReadReceipt(threadID: args[0])
             return nil
         }
@@ -721,7 +718,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("markAsUnread", args: args) { api in
+        try await context.invoke(args: args) { api in
             try await api.markAsUnread(threadID: args[0])
             return nil
         }
@@ -736,7 +733,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("deleteThread", args: args) { api in
+        try await context.invoke(args: args) { api in
             try await api.deleteThread(threadID: args[0])
             return nil
         }
@@ -750,7 +747,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("notifyAnyway", args: args) { api in
+        try await context.invoke(args: args) { api in
             try await api.notifyAnyway(threadID: args[0])
             return nil
         }
@@ -766,7 +763,7 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke("onThreadSelected", args: args) { api in
+        try await context.invoke(args: args) { api in
             try await api.onThreadSelected(threadID: args[0]) { events in
                 let json = try encodeJSON(events.map { $0.jsonObject() })
                 context.printEventJSON(json)
@@ -789,7 +786,7 @@ private let commandDefinitions: [CommandDefinition] = [
         case "off": type = "none"
         default: throw CLIError("usage: \(context.command.usage[0])")
         }
-        try await context.invoke("sendActivityIndicator", args: [type, args[0]]) { api in
+        try await context.invoke(args: [type, args[0]]) { api in
             try await api.sendActivityIndicator(type: type, threadID: args[0])
             return nil
         }
@@ -817,7 +814,6 @@ private func printCLIVersion() {
 
 private func reactionCommand(
     name: String,
-    methodName: String,
     summaryVerb: String,
     preposition: String,
     apply: @escaping (PlatformAPI, String, String, String) async throws -> Void
@@ -835,7 +831,7 @@ private func reactionCommand(
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 3)
-        try await context.invoke(methodName, args: args) { api in
+        try await context.invoke(args: args) { api in
             try await apply(api, args[0], args[1], args[2])
             return nil
         }
@@ -853,7 +849,7 @@ private func muteCommand(name: String, muted: Bool) -> CommandDefinition {
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         let mutedUntil: Any = muted ? "forever" : NSNull()
-        try await context.invoke("updateThread", args: [args[0], ["mutedUntil": mutedUntil]]) { api in
+        try await context.invoke(args: [args[0], ["mutedUntil": mutedUntil]]) { api in
             try await api.updateThread(threadID: args[0], muted: muted)
             return nil
         }
