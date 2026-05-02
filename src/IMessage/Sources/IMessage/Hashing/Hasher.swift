@@ -25,6 +25,11 @@ public final class Hasher {
     }
 }
 
+extension Hasher {
+    static let thread = Hasher(kind: "thread")
+    static let participant = Hasher(kind: "participant")
+}
+
 // lock is used
 extension Hasher: @unchecked Sendable {}
 

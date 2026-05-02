@@ -1,7 +1,7 @@
 import IMDatabase
 
 // A bit gross, but `IMDatabase` shouldn't know what a hasher is.
-extension ChatRef: @retroactive CustomStringConvertible {
+extension ChatRef: CustomStringConvertible {
     public var description: String {
         if let guid {
             Hasher.thread.tokenizeRemembering(pii: guid)
