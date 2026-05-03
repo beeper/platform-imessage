@@ -50,29 +50,16 @@ extension EventWatcher {
             return []
         }
 
-        let msgRows = try queryResult.updatedMessages
-            .map(\.rowID)
-            .chunked(into: maxMessageUpdateRowFetchBatchSize)
-            .flatMap { try db.mappedMessageRows(rowIDs: Array($0)) }
+        let msgRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
         let msgRowsByRowID = Dictionary(uniqueKeysWithValues: msgRows.map { ($0.rowID, $0) })
 
         var rowsToMapByThreadID = [PlatformSDK.ThreadID: [MappedMessageRow]]()
         var scheduledRowIDsByThreadID = [PlatformSDK.ThreadID: Set<Int>]()
         var normalChangesByRowID = [Int: UpdatedMessageChange]()
         var reactionAddRowIDs = Set<Int>()
-        var hashedThreadIDs = [PlatformSDK.ThreadID: PlatformSDK.ThreadID]()
         var updatesByThreadID = [PlatformSDK.ThreadID: [JSONObject]]()
         var deletesByThreadID = [PlatformSDK.ThreadID: [PlatformSDK.MessageID]]()
         var reactionTargets = Set<ReactionTarget>()
-
-        func hashedThreadID(for originalThreadID: PlatformSDK.ThreadID) -> PlatformSDK.ThreadID {
-            if let hashedThreadID = hashedThreadIDs[originalThreadID] {
-                return hashedThreadID
-            }
-            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: originalThreadID)
-            hashedThreadIDs[originalThreadID] = hashedThreadID
-            return hashedThreadID
-        }
 
         func scheduleMapping(_ msgRow: MappedMessageRow, threadID originalThreadID: PlatformSDK.ThreadID) {
             if scheduledRowIDsByThreadID[originalThreadID, default: []].insert(msgRow.rowID).inserted {
@@ -101,7 +88,8 @@ extension EventWatcher {
                     case .unreacted:
                         if let replyToGUID = msgRow.replyToGUID {
                             // Delete the hidden added-reaction message.
-                            deletesByThreadID[hashedThreadID(for: originalThreadID), default: []].append(replyToGUID)
+                            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: originalThreadID)
+                            deletesByThreadID[hashedThreadID, default: []].append(replyToGUID)
                         }
                     }
                 }
@@ -122,9 +110,9 @@ extension EventWatcher {
         }
 
         var upsertsByThreadID = [PlatformSDK.ThreadID: [PlatformSDK.Message]]()
+        let mappedMessagesByRowID = try mapMessagesByRowID(rowsToMapByThreadID.values.flatMap { $0 }, threadID: "")
         for (originalThreadID, rows) in rowsToMapByThreadID {
-            let mappedMessagesByRowID = try mapMessagesByRowID(rows, threadID: originalThreadID)
-            let hashedThreadID = hashedThreadID(for: originalThreadID)
+            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: originalThreadID)
             for row in rows {
                 let mappedMessages = mappedMessagesByRowID[row.rowID] ?? []
                 if reactionAddRowIDs.contains(row.rowID) {
@@ -151,7 +139,8 @@ extension EventWatcher {
         }
 
         for (threadID, patches) in try reactionTargetUpdatePatches(reactionTargets) {
-            updatesByThreadID[hashedThreadID(for: threadID), default: []].append(contentsOf: patches)
+            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
+            updatesByThreadID[hashedThreadID, default: []].append(contentsOf: patches)
         }
 
         return stateSyncEvents(
@@ -170,42 +159,44 @@ extension EventWatcher {
             return nil
         }
 
-        var patch: JSONObject = ["id": message.id]
-        patch["seen"] = message.seen?.jsonValue
-        patch["behavior"] = message.behavior?.rawValue
-        patch["isDelivered"] = message.isDelivered
-        patch["isErrored"] = message.isErrored
+        let patch = compactDictionary([
+            "id": message.id,
+            "seen": message.seen?.jsonValue,
+            "behavior": message.behavior?.rawValue,
+            "isDelivered": message.isDelivered,
+            "isErrored": message.isErrored,
+        ])
         return patch.count > 1 ? patch : nil
     }
 
     private func reactionTargetUpdatePatches(
         _ reactionTargets: Set<ReactionTarget>
     ) throws -> [PlatformSDK.ThreadID: [JSONObject]] {
+        guard !reactionTargets.isEmpty else {
+            return [:]
+        }
+
         var patchesByThreadID = [PlatformSDK.ThreadID: [JSONObject]]()
-        for (threadID, targets) in Dictionary(grouping: reactionTargets, by: \.threadID) {
-            let targetGUIDs = Array(Set(targets.map { $0.target.messageGUID }))
-            let targetRows = try targetGUIDs
-                .chunked(into: maxMessageUpdateRowFetchBatchSize)
-                .flatMap { try db.mappedMessageRows(guids: Array($0)) }
-            let targetRowsByGUID = Dictionary(uniqueKeysWithValues: targetRows.map { ($0.guid, $0) })
-            let targetMessages = try mapMessagesByRowID(targetRows, threadID: threadID).values.flatMap { $0 }
-            let targetMessagesByID = Dictionary(uniqueKeysWithValues: targetMessages.map { ($0.id, $0) })
+        let targetGUIDs = Array(Set(reactionTargets.map { $0.target.messageGUID }))
+        let targetRows = try db.mappedMessageRows(guids: targetGUIDs)
+        let targetRowsByGUID = Dictionary(uniqueKeysWithValues: targetRows.map { ($0.guid, $0) })
+        let targetMessages = try mapMessagesByRowID(targetRows, threadID: "").values.flatMap { $0 }
+        let targetMessagesByID = Dictionary(uniqueKeysWithValues: targetMessages.map { ($0.id, $0) })
 
-            for target in targets {
-                guard targetRowsByGUID[target.target.messageGUID] != nil else {
-                    log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
-                    continue
-                }
-                guard let targetMessage = targetMessagesByID[target.target.messageID] else {
-                    log.error("reaction target \(target.target.messageID) wasn't present in mapped messages, dropping original message update")
-                    continue
-                }
-
-                patchesByThreadID[threadID, default: []].append([
-                    "id": targetMessage.id,
-                    "reactions": targetMessage.reactions?.map(\.jsonObject) ?? [],
-                ])
+        for target in reactionTargets {
+            guard targetRowsByGUID[target.target.messageGUID] != nil else {
+                log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
+                continue
             }
+            guard let targetMessage = targetMessagesByID[target.target.messageID] else {
+                log.error("reaction target \(target.target.messageID) wasn't present in mapped messages, dropping original message update")
+                continue
+            }
+
+            patchesByThreadID[target.threadID, default: []].append([
+                "id": targetMessage.id,
+                "reactions": targetMessage.reactions?.map(\.jsonObject) ?? [],
+            ])
         }
         return patchesByThreadID
     }
@@ -253,26 +244,16 @@ extension EventWatcher {
     }
 
     private func reactionAction(for msgRow: MappedMessageRow) -> ReactionAction? {
-        guard let assocMsgType = associatedMessageTypes[msgRow.associatedMessageType],
-              let parts = reactionParts(assocMsgType) else {
+        guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType],
+              case let .reaction(reaction) = associatedMessageType else {
             return nil
         }
-        return parts.action
+        return reaction.action
     }
 
     private func reactionTarget(threadID: PlatformSDK.ThreadID, associatedMessageGUID: String) -> ReactionTarget? {
         let target = parseAssociatedMessageTarget(associatedMessageGUID)
         guard !target.messageGUID.isEmpty else { return nil }
         return ReactionTarget(threadID: threadID, target: target)
-    }
-}
-
-private let maxMessageUpdateRowFetchBatchSize = 500
-
-private extension Array {
-    func chunked(into size: Int) -> [ArraySlice<Element>] {
-        stride(from: startIndex, to: endIndex, by: size).map { start in
-            self[start ..< Swift.min(start + size, endIndex)]
-        }
     }
 }

@@ -22,6 +22,9 @@ export const swiftMapperReviver = (key: string, value: unknown): unknown => {
 }
 
 export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
+  // Intentionally mutates already-parsed Swift bridge payloads in place. These
+  // values are transient event objects, and avoiding deep clones keeps event
+  // normalization cheap on busy state-sync paths.
   const revive = (key: string, item: unknown): unknown => {
     if (Array.isArray(item)) {
       const array = item

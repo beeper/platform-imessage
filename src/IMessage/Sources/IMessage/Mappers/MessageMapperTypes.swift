@@ -38,12 +38,64 @@ enum ReactionAction: String {
     case unreacted
 }
 
-func reactionParts(_ assocMsgType: String) -> (action: ReactionAction, key: String)? {
-    let pieces = assocMsgType.components(separatedBy: "_")
-    guard pieces.count == 2, let action = ReactionAction(rawValue: pieces[0]) else {
-        return nil
+enum AssociatedReactionKey: String {
+    case heart
+    case like
+    case dislike
+    case laugh
+    case emphasize
+    case question
+    case emoji
+    case sticker
+}
+
+struct AssociatedReaction {
+    let action: ReactionAction
+    let key: AssociatedReactionKey
+
+    func platformReactionKey(emoji: String?) -> String? {
+        switch key {
+        case .emoji:
+            return emoji
+        default:
+            return key.rawValue
+        }
     }
-    return (action, pieces[1])
+
+    var isSticker: Bool {
+        key == .sticker
+    }
+
+    var includesStickerAssetInAction: Bool {
+        action == .reacted && isSticker
+    }
+
+    var verb: String {
+        switch (action, key) {
+        case (.reacted, .heart): return "loved"
+        case (.reacted, .like): return "liked"
+        case (.reacted, .dislike): return "disliked"
+        case (.reacted, .laugh): return "laughed at"
+        case (.reacted, .emphasize): return "emphasized"
+        case (.reacted, .question): return "questioned"
+        case (.reacted, .emoji): return "reacted to"
+        case (.reacted, .sticker): return "reacted with a sticker to"
+        case (.unreacted, .heart): return "removed a heart from"
+        case (.unreacted, .like): return "removed a like from"
+        case (.unreacted, .dislike): return "removed a dislike from"
+        case (.unreacted, .laugh): return "removed a laugh from"
+        case (.unreacted, .emphasize): return "removed an exclamation from"
+        case (.unreacted, .question): return "removed a question mark from"
+        case (.unreacted, .emoji): return "unreacted from"
+        case (.unreacted, .sticker): return "removed a sticker from"
+        }
+    }
+}
+
+enum AssociatedMessageType {
+    case heading
+    case sticker
+    case reaction(AssociatedReaction)
 }
 
 enum MessagePart {
@@ -105,47 +157,30 @@ let videoExtensions: Set<String> = [
     "svi", "vob", "webm", "wmv", "yuv",
 ]
 
-let associatedMessageTypes: [Int: String] = [
-    3: "heading",
-    1000: "sticker",
-    2000: "reacted_heart",
-    2001: "reacted_like",
-    2002: "reacted_dislike",
-    2003: "reacted_laugh",
-    2004: "reacted_emphasize",
-    2005: "reacted_question",
-    2006: "reacted_emoji",
-    2007: "reacted_sticker",
-    3000: "unreacted_heart",
-    3001: "unreacted_like",
-    3002: "unreacted_dislike",
-    3003: "unreacted_laugh",
-    3004: "unreacted_emphasize",
-    3005: "unreacted_question",
-    3006: "unreacted_emoji",
-    3007: "unreacted_sticker",
-]
+private func associatedReaction(_ action: ReactionAction, _ key: AssociatedReactionKey) -> AssociatedMessageType {
+    .reaction(AssociatedReaction(action: action, key: key))
+}
 
-let reactionVerbMap = [
-    "reacted_heart": "loved",
-    "reacted_like": "liked",
-    "reacted_dislike": "disliked",
-    "reacted_laugh": "laughed at",
-    "reacted_emphasize": "emphasized",
-    "reacted_question": "questioned",
-    "reacted_emoji": "reacted to",
-    "reacted_sticker": "reacted with a sticker to",
-    "unreacted_heart": "removed a heart from",
-    "unreacted_like": "removed a like from",
-    "unreacted_dislike": "removed a dislike from",
-    "unreacted_laugh": "removed a laugh from",
-    "unreacted_emphasize": "removed an exclamation from",
-    "unreacted_question": "removed a question mark from",
-    "unreacted_emoji": "unreacted from",
-    "unreacted_sticker": "removed a sticker from",
+let associatedMessageTypes: [Int: AssociatedMessageType] = [
+    3: .heading,
+    1000: .sticker,
+    2000: associatedReaction(.reacted, .heart),
+    2001: associatedReaction(.reacted, .like),
+    2002: associatedReaction(.reacted, .dislike),
+    2003: associatedReaction(.reacted, .laugh),
+    2004: associatedReaction(.reacted, .emphasize),
+    2005: associatedReaction(.reacted, .question),
+    2006: associatedReaction(.reacted, .emoji),
+    2007: associatedReaction(.reacted, .sticker),
+    3000: associatedReaction(.unreacted, .heart),
+    3001: associatedReaction(.unreacted, .like),
+    3002: associatedReaction(.unreacted, .dislike),
+    3003: associatedReaction(.unreacted, .laugh),
+    3004: associatedReaction(.unreacted, .emphasize),
+    3005: associatedReaction(.unreacted, .question),
+    3006: associatedReaction(.unreacted, .emoji),
+    3007: associatedReaction(.unreacted, .sticker),
 ]
-
-let supportedReactionKeys: Set<String> = ["heart", "like", "dislike", "laugh", "emphasize", "question"]
 
 let expressiveMessages = [
     "com.apple.messages.effect.CKEchoEffect": "Echo screen",

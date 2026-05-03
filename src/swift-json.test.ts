@@ -42,4 +42,21 @@ describe('swift-json', () => {
     })
     expect(revived.entries[0].sortKey).toBe(4)
   })
+
+  it('mutates already-parsed Swift values while reviving', () => {
+    const event = {
+      entries: [{
+        timestamp: 1,
+        seen: { alice: 2 },
+      }],
+    }
+
+    const revived = reviveSwiftMessageAPIValue(event)
+
+    expect(revived).toBe(event)
+    expect(event.entries[0].timestamp).toEqual(new Date(1))
+    expect(event.entries[0].seen.alice).toEqual(new Date(2))
+    expect(revived.entries[0].timestamp).toEqual(new Date(1))
+    expect(revived.entries[0].seen.alice).toEqual(new Date(2))
+  })
 })

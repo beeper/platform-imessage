@@ -41,14 +41,18 @@ extension PlatformAPI {
             return []
         }
 
-        let messagesByRowID = try mapAndHashMessagesByRowID(
-            msgRows: msgRows,
-            attachmentRows: attachmentRows,
-            reactionRows: reactionRows,
-            currentUserID: currentUserID,
-            accountID: accountID
-        )
-        return msgRows.flatMap { messagesByRowID[$0.rowID] ?? [] }
+        let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
+        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
+
+        return try msgRows.flatMap { msgRow -> [PlatformSDK.Message] in
+            try mapAndHashMessage(
+                msgRow: msgRow,
+                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
+                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
+        }
     }
 
     nonisolated static func mapAndHashMessagesByRowID(

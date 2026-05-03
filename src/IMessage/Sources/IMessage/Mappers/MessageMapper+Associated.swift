@@ -25,17 +25,17 @@ extension Mapper {
         var message = firstTextPart ?? partialMessage
         let linkedMessageID = parseAssociatedMessageTarget(associatedGUID).messageID
         message.linkedMessageID = linkedMessageID
-        guard let assocMsgType = associatedMessageTypes[msgRow.associatedMessageType] else {
+        guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType] else {
             return nil
         }
 
-        switch assocMsgType {
-        case "sticker":
+        switch associatedMessageType {
+        case .sticker:
             if !messages.isEmpty {
                 messages[0].linkedMessageID = linkedMessageID
             }
             return nil
-        case "heading":
+        case .heading:
             if var text = message.text {
                 let other = msgRow.participantID ?? ""
                 let isSender = message.isSender == true
@@ -48,9 +48,9 @@ extension Mapper {
             }
             message.parseTemplate = true
             return message
-        default:
+        case let .reaction(reaction):
             return mapReactionAction(
-                assocMsgType: assocMsgType,
+                reaction: reaction,
                 message: message,
                 summaryInfo: summaryInfo,
                 isSMS: isSMS
@@ -67,17 +67,16 @@ extension Mapper {
             return reaction.associatedMessageGUID.hasPrefix("p:\(filterIndex)/")
         }
         for reaction in filteredRows {
-            guard let assocMsgType = associatedMessageTypes[reaction.associatedMessageType],
-                  let parts = reactionParts(assocMsgType),
-                  assocMsgType != "sticker" else {
+            guard let associatedMessageType = associatedMessageTypes[reaction.associatedMessageType],
+                  case let .reaction(parts) = associatedMessageType else {
                 continue
             }
             let participantID = senderID(for: reaction)
             if parts.action == .reacted {
                 reactions.append(PlatformSDK.MessageReaction(
                     id: participantID,
-                    reactionKey: parts.key == "emoji" ? (reaction.associatedMessageEmoji ?? "") : parts.key,
-                    imgURL: parts.key == "sticker" ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
+                    reactionKey: parts.platformReactionKey(emoji: reaction.associatedMessageEmoji) ?? "",
+                    imgURL: parts.isSticker ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
                     participantID: participantID
                 ))
             } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.id == participantID }) {
@@ -105,32 +104,27 @@ extension Mapper {
     }
 
     private func mapReactionAction(
-        assocMsgType: String,
+        reaction: AssociatedReaction,
         message inputMessage: MessageDraft,
         summaryInfo: JSONObject,
         isSMS: Bool
     ) -> MessageDraft {
         var message = inputMessage
-        guard let parts = reactionParts(assocMsgType) else {
-            return message
-        }
         message.isAction = !isSMS
         let action = PlatformSDK.PartialMessageReactionAction(
             messageID: message.linkedMessageID,
-            reactionKey: parts.key == "emoji" ? msgRow.associatedMessageEmoji : parts.key,
-            imgURL: assocMsgType == "reacted_sticker" ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
+            reactionKey: reaction.platformReactionKey(emoji: msgRow.associatedMessageEmoji),
+            imgURL: reaction.includesStickerAssetInAction ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
             participantID: message.senderID
         )
-        message.action = parts.action == .reacted
+        message.action = reaction.action == .reacted
             ? .messageReactionCreated(action)
             : .messageReactionDeleted(action)
-        if parts.key == "emoji" || parts.key == "sticker" || supportedReactionKeys.contains(parts.key) {
-            message.parseTemplate = true
-            let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
-            let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"
-            message.text = "\(actor) \(reactionVerbMap[assocMsgType] ?? "") \(target)"
-            message.isHidden = true
-        }
+        message.parseTemplate = true
+        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
+        let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"
+        message.text = "\(actor) \(reaction.verb) \(target)"
+        message.isHidden = true
         return message
     }
 

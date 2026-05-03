@@ -1,4 +1,5 @@
 import Foundation
+import IMessageCore
 import SQLite
 
 private let messageJoins = """
@@ -140,11 +141,10 @@ public extension IMDatabase {
 
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
-        guard guids.count <= maxMappedMessageRowsGUIDBatchSize else {
+        guard guids.count <= maxMappedMessageRowsBatchSize else {
             var rows = [MappedMessageRow]()
-            for start in stride(from: guids.startIndex, to: guids.endIndex, by: maxMappedMessageRowsGUIDBatchSize) {
-                let end = Swift.min(start + maxMappedMessageRowsGUIDBatchSize, guids.endIndex)
-                rows.append(contentsOf: try mappedMessageRows(guids: Array(guids[start ..< end])))
+            for chunk in guids.chunks(ofCount: maxMappedMessageRowsBatchSize) {
+                rows.append(contentsOf: try mappedMessageRows(guids: Array(chunk)))
             }
             return rows
         }
@@ -164,6 +164,14 @@ public extension IMDatabase {
 
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
         guard !rowIDs.isEmpty else { return [] }
+        guard rowIDs.count <= maxMappedMessageRowsBatchSize else {
+            var rows = [MappedMessageRow]()
+            for chunk in rowIDs.chunks(ofCount: maxMappedMessageRowsBatchSize) {
+                rows.append(contentsOf: try mappedMessageRows(rowIDs: Array(chunk)))
+            }
+            return rows.sorted { ($0.date ?? 0) > ($1.date ?? 0) }
+        }
+
         let messageColumns = try tableColumns("message")
         let sql = """
         SELECT
@@ -279,7 +287,7 @@ public extension IMDatabase {
     }
 }
 
-private let maxMappedMessageRowsGUIDBatchSize = 500
+private let maxMappedMessageRowsBatchSize = 500
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]
