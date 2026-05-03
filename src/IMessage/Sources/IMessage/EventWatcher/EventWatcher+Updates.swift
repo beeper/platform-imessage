@@ -69,16 +69,6 @@ extension EventWatcher {
         var deletesByThreadID = [PlatformSDK.ThreadID: [PlatformSDK.MessageID]]()
         var reactionTargets = Set<ReactionTarget>()
 
-        func appendUpserts(_ messages: [PlatformSDK.Message], threadID: PlatformSDK.ThreadID) {
-            guard !messages.isEmpty else { return }
-            upsertsByThreadID[threadID, default: []].append(contentsOf: messages)
-        }
-
-        func appendUpdates(_ patches: [JSONObject], threadID: PlatformSDK.ThreadID) {
-            guard !patches.isEmpty else { return }
-            updatesByThreadID[threadID, default: []].append(contentsOf: patches)
-        }
-
         for change in queryResult.updatedMessages {
             guard let msgRow = msgRowsByRowID[change.rowID] else {
                 log.error("message update row \(change.rowID) couldn't be mapped, dropping")
@@ -96,7 +86,9 @@ extension EventWatcher {
                 if change.isNew {
                     switch reactionKind {
                     case .add:
-                        appendUpserts(try mapMessages([msgRow], threadID: originalThreadID), threadID: hashedThreadID)
+                        upsertsByThreadID[hashedThreadID, default: []].append(
+                            contentsOf: try mapMessages([msgRow], threadID: originalThreadID)
+                        )
                     case .remove:
                         if let replyToGUID = msgRow.replyToGUID {
                             deletesByThreadID[hashedThreadID, default: []].append(replyToGUID)
@@ -117,17 +109,19 @@ extension EventWatcher {
 
             let mappedMessages = try mapMessages([msgRow], threadID: originalThreadID)
             if change.isNew {
-                appendUpserts(mappedMessages, threadID: hashedThreadID)
+                upsertsByThreadID[hashedThreadID, default: []].append(contentsOf: mappedMessages)
             }
 
             if change.wasEdited || change.wasRead {
-                appendUpdates(mappedMessages.compactMap { message in
-                    Self.messageUpdatePatch(
-                        for: message,
-                        wasEdited: change.wasEdited,
-                        wasRead: change.wasRead
-                    )
-                }, threadID: hashedThreadID)
+                updatesByThreadID[hashedThreadID, default: []].append(
+                    contentsOf: mappedMessages.compactMap { message in
+                        Self.messageUpdatePatch(
+                            for: message,
+                            wasEdited: change.wasEdited,
+                            wasRead: change.wasRead
+                        )
+                    }
+                )
             }
         }
 
@@ -144,12 +138,10 @@ extension EventWatcher {
             }
 
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: target.threadID)
-            appendUpdates([
-                [
-                    "id": targetMessage.id,
-                    "reactions": targetMessage.reactions?.map(\.jsonObject) ?? [],
-                ],
-            ], threadID: hashedThreadID)
+            updatesByThreadID[hashedThreadID, default: []].append([
+                "id": targetMessage.id,
+                "reactions": targetMessage.reactions?.map(\.jsonObject) ?? [],
+            ])
         }
 
         return stateSyncEvents(
@@ -167,18 +159,12 @@ extension EventWatcher {
 
         var patch: JSONObject = ["id": message.id]
         if wasRead {
-            copy(keys: readMessageUpdateKeys, from: messageObject, to: &patch)
+            for key in readMessageUpdateKeys {
+                patch[key] = messageObject[key]
+            }
         }
 
         return patch.count > 1 ? patch : nil
-    }
-
-    private static func copy(keys: [String], from messageObject: JSONObject, to patch: inout JSONObject) {
-        for key in keys {
-            if let value = messageObject[key] {
-                patch[key] = value
-            }
-        }
     }
 
     private func mapMessages(_ msgRows: [MappedMessageRow], threadID: String) throws -> [PlatformSDK.Message] {
