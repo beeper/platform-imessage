@@ -110,7 +110,7 @@ extension EventWatcher {
         }
 
         var upsertsByThreadID = [PlatformSDK.ThreadID: [PlatformSDK.Message]]()
-        let mappedMessagesByRowID = try mapMessagesByRowID(rowsToMapByThreadID.values.flatMap { $0 }, threadID: "")
+        let mappedMessagesByRowID = try mapMessagesByRowID(rowsToMapByThreadID.values.flatMap { $0 })
         for (originalThreadID, rows) in rowsToMapByThreadID {
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: originalThreadID)
             for row in rows {
@@ -180,7 +180,7 @@ extension EventWatcher {
         let targetGUIDs = Array(Set(reactionTargets.map { $0.target.messageGUID }))
         let targetRows = try db.mappedMessageRows(guids: targetGUIDs)
         let targetRowsByGUID = Dictionary(uniqueKeysWithValues: targetRows.map { ($0.guid, $0) })
-        let targetMessages = try mapMessagesByRowID(targetRows, threadID: "").values.flatMap { $0 }
+        let targetMessages = try mapMessagesByRowID(targetRows).values.flatMap { $0 }
         let targetMessagesByID = Dictionary(uniqueKeysWithValues: targetMessages.map { ($0.id, $0) })
 
         for target in reactionTargets {
@@ -201,14 +201,11 @@ extension EventWatcher {
         return patchesByThreadID
     }
 
-    private func mapMessagesByRowID(
-        _ msgRows: [MappedMessageRow],
-        threadID: PlatformSDK.ThreadID
-    ) throws -> [Int: [PlatformSDK.Message]] {
+    private func mapMessagesByRowID(_ msgRows: [MappedMessageRow]) throws -> [Int: [PlatformSDK.Message]] {
         try PlatformAPI.mapAndHashMessagesByRowID(
             db: db,
             msgRows: msgRows,
-            threadID: threadID,
+            threadID: "",
             currentUserID: currentUserID,
             accountID: accountID
         )

@@ -33,7 +33,7 @@ func parseAssociatedMessageTarget(_ associatedMessageGUID: String) -> Associated
     return AssociatedMessageTarget(part: part, messageGUID: messageGUID)
 }
 
-enum ReactionAction: String {
+enum ReactionAction {
     case reacted
     case unreacted
 }

@@ -22,9 +22,8 @@ export const swiftMapperReviver = (key: string, value: unknown): unknown => {
 }
 
 const reviveSwiftDateFields = (record: Record<string, unknown>): void => {
-  const mutableRecord = record
   SWIFT_DATE_FIELDS.forEach(field => {
-    if (field in mutableRecord) mutableRecord[field] = swiftMapperReviver(field, mutableRecord[field])
+    if (field in record) record[field] = swiftMapperReviver(field, record[field])
   })
 }
 
