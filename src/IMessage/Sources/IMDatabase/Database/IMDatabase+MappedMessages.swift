@@ -142,9 +142,9 @@ public extension IMDatabase {
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
         guard guids.count <= maxMappedMessageRowsBatchSize else {
-            return try guids.chunks(ofCount: maxMappedMessageRowsBatchSize).flatMap { chunk in
-                try mappedMessageRows(guids: Array(chunk))
-            }
+            return try guids
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .flatMap { try mappedMessageRows(guids: Array($0)) }
         }
 
         let messageColumns = try tableColumns("message")
@@ -163,10 +163,10 @@ public extension IMDatabase {
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
         guard !rowIDs.isEmpty else { return [] }
         guard rowIDs.count <= maxMappedMessageRowsBatchSize else {
-            return try rowIDs.chunks(ofCount: maxMappedMessageRowsBatchSize).flatMap { chunk in
-                try mappedMessageRows(rowIDs: Array(chunk))
-            }
-            .sorted { ($0.date ?? 0) > ($1.date ?? 0) }
+            return try rowIDs
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .flatMap { try mappedMessageRows(rowIDs: Array($0)) }
+                .sorted { ($0.date ?? 0) > ($1.date ?? 0) }
         }
 
         let messageColumns = try tableColumns("message")
