@@ -8,7 +8,6 @@ SELECT
     m.ROWID,
     m.date_read,
     m.date_edited,
-    c.ROWID,
     c.guid
 FROM
     message m
@@ -22,7 +21,7 @@ ORDER BY
 
 package struct UpdatedMessageChange {
     package var rowID: Int
-    package var chat: ChatRef
+    package var chatGUID: String
     package var isNew: Bool
     package var wasRead: Bool
     package var wasEdited: Bool
@@ -83,7 +82,7 @@ extension IMDatabase {
                 }
             }
 
-            guard let rowID = try row[3].optional(Int.self), let guid = try row[4].optional(String.self) else {
+            guard let guid = try row[3].optional(String.self) else {
                 // For whatever reason it's possible for messages to not be
                 // joinable with chats. Right now I have one of these for a SMS
                 // TOTP verification code, which might've been automatically
@@ -100,7 +99,7 @@ extension IMDatabase {
 
             return UpdatedMessageChange(
                 rowID: messageRowID,
-                chat: .both(rowID: rowID, guid: guid),
+                chatGUID: guid,
                 isNew: isNew,
                 wasRead: wasRead,
                 wasEdited: wasEdited

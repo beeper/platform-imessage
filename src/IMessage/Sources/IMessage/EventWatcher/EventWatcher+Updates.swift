@@ -72,16 +72,13 @@ extension EventWatcher {
                 log.error("message update row \(change.rowID) couldn't be mapped, dropping")
                 continue
             }
-            guard let originalThreadID = msgRow.threadID ?? change.chat.guid else {
-                log.error("message update row \(change.rowID) didn't have a thread id, dropping")
-                continue
-            }
+            let originalThreadID = msgRow.threadID ?? change.chatGUID
 
             let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty
 
-            if let associatedGUID, let reactionAction = reactionAction(for: msgRow) {
+            if let associatedGUID, let reaction = reaction(for: msgRow) {
                 if change.isNew {
-                    switch reactionAction {
+                    switch reaction.action {
                     case .reacted:
                         scheduleMapping(msgRow, threadID: originalThreadID)
                         reactionAddRowIDs.insert(msgRow.rowID)
@@ -179,12 +176,12 @@ extension EventWatcher {
         var patchesByThreadID = [PlatformSDK.ThreadID: [JSONObject]]()
         let targetGUIDs = Array(Set(reactionTargets.map { $0.target.messageGUID }))
         let targetRows = try db.mappedMessageRows(guids: targetGUIDs)
-        let targetRowsByGUID = Dictionary(uniqueKeysWithValues: targetRows.map { ($0.guid, $0) })
+        let targetRowGUIDs = Set(targetRows.map(\.guid))
         let targetMessages = try mapMessagesByRowID(targetRows).values.flatMap { $0 }
         let targetMessagesByID = Dictionary(uniqueKeysWithValues: targetMessages.map { ($0.id, $0) })
 
         for target in reactionTargets {
-            guard targetRowsByGUID[target.target.messageGUID] != nil else {
+            guard targetRowGUIDs.contains(target.target.messageGUID) else {
                 log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
                 continue
             }
@@ -240,12 +237,12 @@ extension EventWatcher {
         }
     }
 
-    private func reactionAction(for msgRow: MappedMessageRow) -> ReactionAction? {
+    private func reaction(for msgRow: MappedMessageRow) -> AssociatedReaction? {
         guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType],
               case let .reaction(reaction) = associatedMessageType else {
             return nil
         }
-        return reaction.action
+        return reaction
     }
 
     private func reactionTarget(threadID: PlatformSDK.ThreadID, associatedMessageGUID: String) -> ReactionTarget? {
