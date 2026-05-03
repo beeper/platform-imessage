@@ -21,28 +21,37 @@ export const swiftMapperReviver = (key: string, value: unknown): unknown => {
   return value
 }
 
+const reviveSwiftDateFields = (record: Record<string, unknown>): void => {
+  const mutableRecord = record
+  SWIFT_DATE_FIELDS.forEach(field => {
+    if (field in mutableRecord) mutableRecord[field] = swiftMapperReviver(field, mutableRecord[field])
+  })
+}
+
+const reviveSwiftEventEntry = (entry: unknown): void => {
+  if (isMutableRecord(entry)) reviveSwiftDateFields(entry)
+}
+
 export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
   // Intentionally mutates already-parsed Swift bridge payloads in place. These
-  // values are transient event objects, and avoiding deep clones keeps event
-  // normalization cheap on busy state-sync paths.
-  const revive = (key: string, item: unknown): unknown => {
-    if (Array.isArray(item)) {
-      const array = item
-      array.forEach((entry, index) => {
-        array[index] = revive('', entry)
-      })
-      return array
-    }
-    if (isMutableRecord(item)) {
-      const record = item
-      Object.entries(record).forEach(([childKey, childValue]) => {
-        record[childKey] = revive(childKey, childValue)
-      })
-      return swiftMapperReviver(key, record)
-    }
-    return swiftMapperReviver(key, item)
+  // values are transient event objects. Keep the work targeted to the event
+  // envelope and state-sync entries instead of walking attachments/extras.
+  if (Array.isArray(value)) {
+    value.forEach(reviveSwiftEventEntry)
+    return value
   }
-  return revive('', value) as T
+  if (!isMutableRecord(value)) return swiftMapperReviver('', value) as T
+
+  reviveSwiftDateFields(value)
+
+  if (Array.isArray(value.entries)) {
+    value.entries.forEach(reviveSwiftEventEntry)
+  }
+  if (isMutableRecord(value.presence)) {
+    reviveSwiftDateFields(value.presence)
+  }
+
+  return value
 }
 
 export const parseSwiftMessageAPIJSON = <T>(json: string): T =>

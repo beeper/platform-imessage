@@ -59,7 +59,7 @@
 - [x] fix notify anyway on tahoe
 - [x] fix unmute thread on tahoe
 - instead of `thread_messages_refresh`
-  - [x] new incoming messages should be state sync message upserts 
+  - [x] new incoming messages should be state sync message upserts
   - [x] new added/removed reactions should be state sync message upserts/deletes (for the hidden reaction message) and a state sync message update (for the og message)
   - [x] messages edited should be state sync message updates
-  - [X] messages getting read should be state sync message updates
+  - [x] messages getting read should be state sync message updates
