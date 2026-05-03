@@ -23,12 +23,7 @@ extension Mapper {
     ) -> MessageDraft? {
         let firstTextPart = messages.first { $0.text != nil }
         var message = firstTextPart ?? partialMessage
-        let guidRange = NSRange(associatedGUID.startIndex ..< associatedGUID.endIndex, in: associatedGUID)
-        let linkedMessageID = assocMsgGUIDPrefixRegex.stringByReplacingMatches(
-            in: associatedGUID,
-            range: guidRange,
-            withTemplate: ""
-        )
+        let linkedMessageID = parseAssociatedMessageTarget(associatedGUID).messageID
         message.linkedMessageID = linkedMessageID
         guard let assocMsgType = associatedMessageTypes[msgRow.associatedMessageType] else {
             return nil
@@ -142,13 +137,6 @@ extension Mapper {
         return message
     }
 
-    private func reactionParts(_ assocMsgType: String) -> (actionType: String, actionKey: String)? {
-        let pieces = assocMsgType.components(separatedBy: "_")
-        guard pieces.count == 2 else {
-            return nil
-        }
-        return (pieces[0], pieces[1])
-    }
 
     private func senderID(for row: any RowWithSenderFields) -> String {
         if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {

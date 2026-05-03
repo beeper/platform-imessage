@@ -135,17 +135,22 @@ public extension IMDatabase {
     }
 
     func mappedMessageRow(guid: String) throws -> MappedMessageRow? {
+        try mappedMessageRows(guids: [guid]).first
+    }
+
+    func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
+        guard !guids.isEmpty else { return [] }
         let messageColumns = try tableColumns("message")
         let sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        WHERE m.guid = ?
+        WHERE m.guid IN (\(placeholders(count: guids.count)))
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(guid)
-        return try statement.mapRowsUntilDone(MappedMessageRow.self).first
+        try statement.bind(guids.map { $0 as any SQLiteBindable })
+        return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {

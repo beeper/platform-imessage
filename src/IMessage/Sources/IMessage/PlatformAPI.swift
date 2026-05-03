@@ -1023,12 +1023,7 @@ extension PlatformAPI {
     }
 
     nonisolated static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
-        let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
-        guard let match = assocMsgGUIDPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
-              let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
-            return associatedMessageGUID
-        }
-        return String(associatedMessageGUID[upper...])
+        parseAssociatedMessageTarget(associatedMessageGUID).messageGUID
     }
 
     nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) async throws -> AssetResult {

@@ -8,6 +8,39 @@ let uuidStart = 11
 let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000
 
+struct AssociatedMessageTarget {
+    let part: String?
+    let messageGUID: String
+
+    var messageID: PlatformSDK.MessageID {
+        if let part, part != "0" {
+            return "\(messageGUID)_\(part)"
+        }
+        return messageGUID
+    }
+}
+
+func parseAssociatedMessageTarget(_ associatedMessageGUID: String) -> AssociatedMessageTarget {
+    let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
+    guard let match = assocMsgGUIDPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
+          let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
+        return AssociatedMessageTarget(part: nil, messageGUID: associatedMessageGUID)
+    }
+
+    let part = Range(match.range(at: 1), in: associatedMessageGUID).map { String(associatedMessageGUID[$0]) }
+    let rawMessageGUID = String(associatedMessageGUID[upper...])
+    let messageGUID = rawMessageGUID.hasPrefix("bp:") ? String(rawMessageGUID.dropFirst(3)) : rawMessageGUID
+    return AssociatedMessageTarget(part: part, messageGUID: messageGUID)
+}
+
+func reactionParts(_ assocMsgType: String) -> (actionType: String, actionKey: String)? {
+    let pieces = assocMsgType.components(separatedBy: "_")
+    guard pieces.count == 2 else {
+        return nil
+    }
+    return (pieces[0], pieces[1])
+}
+
 enum MessagePart {
     case text(index: Int, end: Int, text: String, attributes: PlatformSDK.TextAttributes?)
     case attachment(index: Int, end: Int, attachmentID: String)
