@@ -86,7 +86,7 @@ extension ServerEvent {
 
             return [
                 "type": PlatformSDK.ServerEventType.stateSync.rawValue,
-                "objectIDs": ["threadID": NSNull(), "messageID": NSNull()],
+                "objectIDs": [],
                 "objectName": "thread",
                 "mutationType": "update",
                 "entries": [entry],
@@ -94,7 +94,7 @@ extension ServerEvent {
         case let .deleteThreads(ids):
             return [
                 "type": PlatformSDK.ServerEventType.stateSync.rawValue,
-                "objectIDs": ["threadID": NSNull(), "messageID": NSNull()],
+                "objectIDs": [],
                 "objectName": "thread",
                 "mutationType": "delete",
                 "entries": ids,
@@ -123,7 +123,7 @@ extension ServerEvent {
     private func messageStateSyncJSON(threadID: PlatformSDK.ThreadID, mutationType: String, entries: Any) -> JSONObject {
         [
             "type": PlatformSDK.ServerEventType.stateSync.rawValue,
-            "objectIDs": ["threadID": threadID, "messageID": NSNull()],
+            "objectIDs": ["threadID": threadID],
             "objectName": "message",
             "mutationType": mutationType,
             "entries": entries,
