@@ -19,7 +19,7 @@ final class EventWatcher {
     var db: IMDatabase
 
     /// Tracks the last known state of every chat.
-    var chatStates = [ChatRef: TimestampedChatState]()
+    var chatStates = [String: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
 
     let currentUserID: String
