@@ -8,11 +8,15 @@ private let eventWatchingLog = Logger(imessageLabel: "event-watcher-lifecycle")
 final class EventWatcherLifecycle {
     static let shared = EventWatcherLifecycle()
 
-    private struct State {
-        var onEvent: PlatformAPI.EventCallback?
-        var watchingTask: Task<Void, Never>?
+    private struct Subscription {
+        var onEvent: PlatformAPI.EventCallback
         var reportErrorMessage: PlatformAPI.ReportErrorMessage?
-        var accountID: String?
+        var accountID: String
+    }
+
+    private struct State {
+        var subscription: Subscription?
+        var watchingTask: Task<Void, Never>?
     }
 
     private let state = Protected(State())
@@ -29,9 +33,11 @@ final class EventWatcherLifecycle {
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) {
         state.withLock { state in
-            state.onEvent = onEvent
-            state.reportErrorMessage = reportErrorMessage
-            state.accountID = accountID
+            state.subscription = Subscription(
+                onEvent: onEvent,
+                reportErrorMessage: reportErrorMessage,
+                accountID: accountID
+            )
         }
     }
 
@@ -40,9 +46,7 @@ final class EventWatcherLifecycle {
             let watchingTask = state.watchingTask
             state.watchingTask = nil
             if clearEventCallback {
-                state.onEvent = nil
-                state.reportErrorMessage = nil
-                state.accountID = nil
+                state.subscription = nil
             }
             return watchingTask
         }
@@ -59,19 +63,19 @@ final class EventWatcherLifecycle {
     }
 
     func startEventWatchingFromCurrentState(lastRowID: Int, lastDateRead: Date) throws {
-        guard let onEvent = state.withLock({ $0.onEvent }) else {
+        guard let subscription = state.withLock({ $0.subscription }) else {
             throw ErrorMessage("subscribeToEvents must be called before startEventWatchingFromCurrentState")
         }
         try startWatching(
-            onEvent: onEvent,
+            subscription: subscription,
             lastRowID: lastRowID,
             lastDateRead: lastDateRead,
             source: "current state"
         )
     }
 
-    func startWatching(
-        onEvent: @escaping PlatformAPI.EventCallback,
+    private func startWatching(
+        subscription: Subscription,
         lastRowID: Int,
         lastDateRead: Date,
         source: String
@@ -88,21 +92,16 @@ final class EventWatcherLifecycle {
 
         eventWatchingLog.debug("starting event watcher from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
-        let reportErrorMessage = state.withLock { $0.reportErrorMessage }
-        guard let accountID = state.withLock({ $0.accountID }) else {
-            throw ErrorMessage("subscribeToEvents must be called before startWatching")
-        }
-
         let eventWatcher = try EventWatcher(
             serverEventSender: { events in
                 #if DEBUG
                 eventWatchingLog.debug("handing over \(events.count) value(s) to the event callback")
                 #endif
-                try await onEvent(events)
+                try await subscription.onEvent(events)
             },
             initialUpdatesCursor: EventWatcher.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()),
-            accountID: accountID,
-            reportErrorMessage: reportErrorMessage
+            accountID: subscription.accountID,
+            reportErrorMessage: subscription.reportErrorMessage
         )
 
         let watchingTask = Task {
@@ -111,7 +110,7 @@ final class EventWatcherLifecycle {
                 try await eventWatcher.watchForever()
             } catch {
                 eventWatchingLog.error("event watcher died: \(String(reflecting: error))")
-                try? reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
+                try? subscription.reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
             }
         }
 

@@ -61,21 +61,7 @@ extension IMDatabase {
             var wasRead = false
             var wasEdited = false
 
-            dateRead: do {
-                // IMCore typically uses `0` to represent absence, but fall back
-                // to `0` explicitly just in case.
-                let nanoseconds = try row[1].optional(Int.self) ?? 0
-
-                // If the message hasn't been read yet or has a bogus read date,
-                // then don't update the "latest read date" at all. I'm not sure
-                // what causes bogus read dates, but if you let it leak into the
-                // rest of the program then it can cause an integer overflow
-                // crash.
-                guard nanoseconds > 0, nanoseconds < .max else {
-                    break dateRead
-                }
-
-                let dateRead = Date(nanosecondsSinceReferenceDate: nanoseconds)
+            if let dateRead = try row[1].imCoreDate() {
                 wasRead = dateRead > lastDateRead
                 if wasRead {
                     latestMessageDateRead = if let latestMessageDateRead {
@@ -86,10 +72,7 @@ extension IMDatabase {
                 }
             }
 
-            dateEdited: do {
-                let nanoseconds = try row[2].optional(Int.self) ?? 0
-                guard nanoseconds > 0, nanoseconds < .max else { break dateEdited }
-                let dateEdited = Date(nanosecondsSinceReferenceDate: nanoseconds)
+            if let dateEdited = try row[2].imCoreDate() {
                 wasEdited = dateEdited > lastDateEdited
                 if wasEdited {
                     latestDateEdited = if let latestDateEdited {

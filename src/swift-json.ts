@@ -7,26 +7,35 @@ const SWIFT_DATE_FIELDS = new Set([
   'timestamp',
 ])
 
+const isMutableRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
+
 export const swiftMapperReviver = (key: string, value: unknown): unknown => {
   if (SWIFT_DATE_FIELDS.has(key) && typeof value === 'number') return new Date(value)
-  if (key === 'seen' && value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-    return Object.fromEntries(Object.entries(value).map(([participantID, seenValue]) => [
-      participantID,
-      typeof seenValue === 'number' ? new Date(seenValue) : seenValue,
-    ]))
+  if (key === 'seen' && isMutableRecord(value)) {
+    const seenByParticipantID = value
+    Object.entries(seenByParticipantID).forEach(([participantID, seenValue]) => {
+      if (typeof seenValue === 'number') seenByParticipantID[participantID] = new Date(seenValue)
+    })
   }
   return value
 }
 
 export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
   const revive = (key: string, item: unknown): unknown => {
-    if (Array.isArray(item)) return item.map(entry => revive('', entry))
-    if (item && typeof item === 'object' && !(item instanceof Date)) {
-      const revivedObject = Object.fromEntries(Object.entries(item).map(([childKey, childValue]) => [
-        childKey,
-        revive(childKey, childValue),
-      ]))
-      return swiftMapperReviver(key, revivedObject)
+    if (Array.isArray(item)) {
+      const array = item
+      array.forEach((entry, index) => {
+        array[index] = revive('', entry)
+      })
+      return array
+    }
+    if (isMutableRecord(item)) {
+      const record = item
+      Object.entries(record).forEach(([childKey, childValue]) => {
+        record[childKey] = revive(childKey, childValue)
+      })
+      return swiftMapperReviver(key, record)
     }
     return swiftMapperReviver(key, item)
   }

@@ -8,7 +8,7 @@ let uuidStart = 11
 let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000
 
-struct AssociatedMessageTarget {
+struct AssociatedMessageTarget: Hashable {
     let part: String?
     let messageGUID: String
 
@@ -33,12 +33,17 @@ func parseAssociatedMessageTarget(_ associatedMessageGUID: String) -> Associated
     return AssociatedMessageTarget(part: part, messageGUID: messageGUID)
 }
 
-func reactionParts(_ assocMsgType: String) -> (actionType: String, actionKey: String)? {
+enum ReactionAction: String {
+    case reacted
+    case unreacted
+}
+
+func reactionParts(_ assocMsgType: String) -> (action: ReactionAction, key: String)? {
     let pieces = assocMsgType.components(separatedBy: "_")
-    guard pieces.count == 2 else {
+    guard pieces.count == 2, let action = ReactionAction(rawValue: pieces[0]) else {
         return nil
     }
-    return (pieces[0], pieces[1])
+    return (action, pieces[1])
 }
 
 enum MessagePart {

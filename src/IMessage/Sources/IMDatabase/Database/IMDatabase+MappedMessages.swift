@@ -140,6 +140,15 @@ public extension IMDatabase {
 
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
+        guard guids.count <= maxMappedMessageRowsGUIDBatchSize else {
+            var rows = [MappedMessageRow]()
+            for start in stride(from: guids.startIndex, to: guids.endIndex, by: maxMappedMessageRowsGUIDBatchSize) {
+                let end = Swift.min(start + maxMappedMessageRowsGUIDBatchSize, guids.endIndex)
+                rows.append(contentsOf: try mappedMessageRows(guids: Array(guids[start ..< end])))
+            }
+            return rows
+        }
+
         let messageColumns = try tableColumns("message")
         let sql = """
         SELECT
@@ -269,6 +278,8 @@ public extension IMDatabase {
         return try mappedReactionRows(messageGUIDs: messageGUIDs, chatRowID: chatRowID)
     }
 }
+
+private let maxMappedMessageRowsGUIDBatchSize = 500
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]

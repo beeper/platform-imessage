@@ -884,7 +884,7 @@ public final class PlatformAPI {
 }
 
 extension PlatformAPI {
-    struct MessagePayloadRows {
+    private struct MessagePayloadRows {
         var attachmentRows: [MappedAttachmentRow]
         var reactionRows: [MappedReactionMessageRow]
     }
@@ -924,18 +924,17 @@ extension PlatformAPI {
     ) throws -> [String: [PlatformSDK.Message]] {
         let msgRows = Array(latestMessageRowsByChatGUID.values)
         let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: "")
-        let attachmentRowsByMessageID = Dictionary(grouping: payloadRows.attachmentRows, by: \.msgRowID)
-        let reactionRowsByMessageGUID = Dictionary(grouping: payloadRows.reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
+        let messagesByRowID = try mapAndHashMessagesByRowID(
+            msgRows: msgRows,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
 
         var latestMessagesByChatGUID = [String: [PlatformSDK.Message]]()
         for (guid, msgRow) in latestMessageRowsByChatGUID {
-            latestMessagesByChatGUID[guid] = try mapAndHashMessage(
-                msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
+            latestMessagesByChatGUID[guid] = messagesByRowID[msgRow.rowID] ?? []
         }
         return latestMessagesByChatGUID
     }
@@ -961,7 +960,24 @@ extension PlatformAPI {
         return fileURL.path
     }
 
-    nonisolated static func messagePayloadRows(
+    nonisolated static func mapAndHashMessagesByRowID(
+        db: IMDatabase,
+        msgRows: [MappedMessageRow],
+        threadID: String,
+        currentUserID: String,
+        accountID: String
+    ) throws -> [Int: [PlatformSDK.Message]] {
+        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
+        return try mapAndHashMessagesByRowID(
+            msgRows: msgRows,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+    }
+
+    nonisolated private static func messagePayloadRows(
         db: IMDatabase,
         msgRows: [MappedMessageRow],
         threadID: String

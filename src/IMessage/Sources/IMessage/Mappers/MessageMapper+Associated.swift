@@ -73,14 +73,14 @@ extension Mapper {
                 continue
             }
             let participantID = senderID(for: reaction)
-            if parts.actionType == "reacted" {
+            if parts.action == .reacted {
                 reactions.append(PlatformSDK.MessageReaction(
                     id: participantID,
-                    reactionKey: parts.actionKey == "emoji" ? (reaction.associatedMessageEmoji ?? "") : parts.actionKey,
-                    imgURL: parts.actionKey == "sticker" ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
+                    reactionKey: parts.key == "emoji" ? (reaction.associatedMessageEmoji ?? "") : parts.key,
+                    imgURL: parts.key == "sticker" ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
                     participantID: participantID
                 ))
-            } else if parts.actionType == "unreacted", let index = reactions.firstIndex(where: { $0.id == participantID }) {
+            } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.id == participantID }) {
                 reactions.remove(at: index)
             }
         }
@@ -114,20 +114,17 @@ extension Mapper {
         guard let parts = reactionParts(assocMsgType) else {
             return message
         }
-        guard parts.actionType == "reacted" || parts.actionType == "unreacted" else {
-            return message
-        }
         message.isAction = !isSMS
         let action = PlatformSDK.PartialMessageReactionAction(
             messageID: message.linkedMessageID,
-            reactionKey: parts.actionKey == "emoji" ? msgRow.associatedMessageEmoji : parts.actionKey,
+            reactionKey: parts.key == "emoji" ? msgRow.associatedMessageEmoji : parts.key,
             imgURL: assocMsgType == "reacted_sticker" ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
             participantID: message.senderID
         )
-        message.action = parts.actionType == "reacted"
+        message.action = parts.action == .reacted
             ? .messageReactionCreated(action)
             : .messageReactionDeleted(action)
-        if parts.actionKey == "emoji" || parts.actionKey == "sticker" || supportedReactionKeys.contains(parts.actionKey) {
+        if parts.key == "emoji" || parts.key == "sticker" || supportedReactionKeys.contains(parts.key) {
             message.parseTemplate = true
             let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
             let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"

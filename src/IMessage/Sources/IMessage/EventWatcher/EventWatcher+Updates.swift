@@ -11,15 +11,9 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
     log.debug(message())
 }
 
-private enum ReactionRowKind {
-    case add
-    case remove
-}
-
 private struct ReactionTarget: Hashable {
     var threadID: PlatformSDK.ThreadID
-    var messageGUID: String
-    var messageID: PlatformSDK.MessageID
+    var target: AssociatedMessageTarget
 }
 
 extension EventWatcher {
@@ -98,14 +92,15 @@ extension EventWatcher {
 
             let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty
 
-            if let associatedGUID, let reactionKind = reactionRowKind(for: msgRow) {
+            if let associatedGUID, let reactionAction = reactionAction(for: msgRow) {
                 if change.isNew {
-                    switch reactionKind {
-                    case .add:
+                    switch reactionAction {
+                    case .reacted:
                         scheduleMapping(msgRow, threadID: originalThreadID)
                         reactionAddRowIDs.insert(msgRow.rowID)
-                    case .remove:
+                    case .unreacted:
                         if let replyToGUID = msgRow.replyToGUID {
+                            // Delete the hidden added-reaction message.
                             deletesByThreadID[hashedThreadID(for: originalThreadID), default: []].append(replyToGUID)
                         }
                     }
@@ -155,11 +150,9 @@ extension EventWatcher {
             }
         }
 
-        try appendReactionTargetUpdates(
-            reactionTargets,
-            hashedThreadID: hashedThreadID(for:),
-            updatesByThreadID: &updatesByThreadID
-        )
+        for (threadID, patches) in try reactionTargetUpdatePatches(reactionTargets) {
+            updatesByThreadID[hashedThreadID(for: threadID), default: []].append(contentsOf: patches)
+        }
 
         return stateSyncEvents(
             upsertsByThreadID: upsertsByThreadID,
@@ -185,58 +178,49 @@ extension EventWatcher {
         return patch.count > 1 ? patch : nil
     }
 
-    private func appendReactionTargetUpdates(
-        _ reactionTargets: Set<ReactionTarget>,
-        hashedThreadID: (PlatformSDK.ThreadID) -> PlatformSDK.ThreadID,
-        updatesByThreadID: inout [PlatformSDK.ThreadID: [JSONObject]]
-    ) throws {
+    private func reactionTargetUpdatePatches(
+        _ reactionTargets: Set<ReactionTarget>
+    ) throws -> [PlatformSDK.ThreadID: [JSONObject]] {
+        var patchesByThreadID = [PlatformSDK.ThreadID: [JSONObject]]()
         for (threadID, targets) in Dictionary(grouping: reactionTargets, by: \.threadID) {
-            let targetRows = try db.mappedMessageRows(guids: Array(Set(targets.map(\.messageGUID))))
+            let targetGUIDs = Array(Set(targets.map { $0.target.messageGUID }))
+            let targetRows = try targetGUIDs
+                .chunked(into: maxMessageUpdateRowFetchBatchSize)
+                .flatMap { try db.mappedMessageRows(guids: Array($0)) }
             let targetRowsByGUID = Dictionary(uniqueKeysWithValues: targetRows.map { ($0.guid, $0) })
             let targetMessages = try mapMessagesByRowID(targetRows, threadID: threadID).values.flatMap { $0 }
             let targetMessagesByID = Dictionary(uniqueKeysWithValues: targetMessages.map { ($0.id, $0) })
-            let hashedThreadID = hashedThreadID(threadID)
 
             for target in targets {
-                guard targetRowsByGUID[target.messageGUID] != nil else {
-                    log.error("reaction target \(target.messageGUID) couldn't be mapped, dropping original message update")
+                guard targetRowsByGUID[target.target.messageGUID] != nil else {
+                    log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
                     continue
                 }
-                guard let targetMessage = targetMessagesByID[target.messageID] else {
-                    log.error("reaction target \(target.messageID) wasn't present in mapped messages, dropping original message update")
+                guard let targetMessage = targetMessagesByID[target.target.messageID] else {
+                    log.error("reaction target \(target.target.messageID) wasn't present in mapped messages, dropping original message update")
                     continue
                 }
 
-                updatesByThreadID[hashedThreadID, default: []].append([
+                patchesByThreadID[threadID, default: []].append([
                     "id": targetMessage.id,
                     "reactions": targetMessage.reactions?.map(\.jsonObject) ?? [],
                 ])
             }
         }
+        return patchesByThreadID
     }
 
     private func mapMessagesByRowID(
         _ msgRows: [MappedMessageRow],
         threadID: PlatformSDK.ThreadID
     ) throws -> [Int: [PlatformSDK.Message]] {
-        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
-        let attachmentRowsByMessageID = Dictionary(grouping: payloadRows.attachmentRows, by: \.msgRowID)
-        let reactionRowsByMessageGUID = Dictionary(
-            grouping: payloadRows.reactionRows,
-            by: { PlatformAPI.reactionMessageGUID($0.associatedMessageGUID) }
+        try PlatformAPI.mapAndHashMessagesByRowID(
+            db: db,
+            msgRows: msgRows,
+            threadID: threadID,
+            currentUserID: currentUserID,
+            accountID: accountID
         )
-
-        var messagesByRowID = [Int: [PlatformSDK.Message]]()
-        for msgRow in msgRows {
-            messagesByRowID[msgRow.rowID] = try PlatformAPI.mapAndHashMessage(
-                msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
-        }
-        return messagesByRowID
     }
 
     private func stateSyncEvents(
@@ -268,25 +252,18 @@ extension EventWatcher {
         }
     }
 
-    private func reactionRowKind(for msgRow: MappedMessageRow) -> ReactionRowKind? {
+    private func reactionAction(for msgRow: MappedMessageRow) -> ReactionAction? {
         guard let assocMsgType = associatedMessageTypes[msgRow.associatedMessageType],
               let parts = reactionParts(assocMsgType) else {
             return nil
         }
-        switch parts.actionType {
-        case "reacted":
-            return .add
-        case "unreacted":
-            return .remove
-        default:
-            return nil
-        }
+        return parts.action
     }
 
     private func reactionTarget(threadID: PlatformSDK.ThreadID, associatedMessageGUID: String) -> ReactionTarget? {
         let target = parseAssociatedMessageTarget(associatedMessageGUID)
         guard !target.messageGUID.isEmpty else { return nil }
-        return ReactionTarget(threadID: threadID, messageGUID: target.messageGUID, messageID: target.messageID)
+        return ReactionTarget(threadID: threadID, target: target)
     }
 }
 
