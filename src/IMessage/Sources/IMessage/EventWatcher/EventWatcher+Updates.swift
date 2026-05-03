@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import IMDatabase
 import IMessageCore
@@ -14,6 +15,14 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
 private struct ReactionTarget: Hashable {
     var threadID: PlatformSDK.ThreadID
     var target: AssociatedMessageTarget
+}
+
+private struct ThreadBatch {
+    let threadID: PlatformSDK.ThreadID
+    var rowsToMapByRowID = OrderedDictionary<Int, MappedMessageRow>()
+    var upserts: [PlatformSDK.Message] = []
+    var updates: [JSONObject] = []
+    var deletes: [PlatformSDK.MessageID] = []
 }
 
 extension EventWatcher {
@@ -51,28 +60,21 @@ extension EventWatcher {
         }
 
         let msgRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
-        let msgRowsByRowID = Dictionary(uniqueKeysWithValues: msgRows.map { ($0.rowID, $0) })
+        // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
+        // chats yields multiple rows with the same ROWID. Keep first.
+        let msgRowsByRowID = Dictionary(msgRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
 
-        var rowsToMapByThreadID = [PlatformSDK.ThreadID: [MappedMessageRow]]()
-        var scheduledRowIDsByThreadID = [PlatformSDK.ThreadID: Set<Int>]()
+        var batchesByThreadID = [PlatformSDK.ThreadID: ThreadBatch]()
         var normalChangesByRowID = [Int: UpdatedMessageChange]()
         var reactionAddRowIDs = Set<Int>()
-        var updatesByThreadID = [PlatformSDK.ThreadID: [JSONObject]]()
-        var deletesByThreadID = [PlatformSDK.ThreadID: [PlatformSDK.MessageID]]()
         var reactionTargets = Set<ReactionTarget>()
-
-        func scheduleMapping(_ msgRow: MappedMessageRow, threadID originalThreadID: PlatformSDK.ThreadID) {
-            if scheduledRowIDsByThreadID[originalThreadID, default: []].insert(msgRow.rowID).inserted {
-                rowsToMapByThreadID[originalThreadID, default: []].append(msgRow)
-            }
-        }
 
         for change in queryResult.updatedMessages {
             guard let msgRow = msgRowsByRowID[change.rowID] else {
                 log.error("message update row \(change.rowID) couldn't be mapped, dropping")
                 continue
             }
-            let originalThreadID = msgRow.threadID ?? change.chatGUID
+            let threadID = msgRow.threadID ?? change.chatGUID
 
             let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty
 
@@ -80,18 +82,17 @@ extension EventWatcher {
                 if change.isNew {
                     switch reaction.action {
                     case .reacted:
-                        scheduleMapping(msgRow, threadID: originalThreadID)
+                        batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].rowsToMapByRowID[msgRow.rowID] = msgRow
                         reactionAddRowIDs.insert(msgRow.rowID)
                     case .unreacted:
                         if let replyToGUID = msgRow.replyToGUID {
                             // Delete the hidden added-reaction message.
-                            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: originalThreadID)
-                            deletesByThreadID[hashedThreadID, default: []].append(replyToGUID)
+                            batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].deletes.append(replyToGUID)
                         }
                     }
                 }
 
-                if let target = reactionTarget(threadID: originalThreadID, associatedMessageGUID: associatedGUID) {
+                if let target = reactionTarget(threadID: threadID, associatedMessageGUID: associatedGUID) {
                     reactionTargets.insert(target)
                 }
                 continue
@@ -102,26 +103,24 @@ extension EventWatcher {
                 continue
             }
 
-            scheduleMapping(msgRow, threadID: originalThreadID)
+            batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].rowsToMapByRowID[msgRow.rowID] = msgRow
             normalChangesByRowID[msgRow.rowID] = change
         }
 
-        var upsertsByThreadID = [PlatformSDK.ThreadID: [PlatformSDK.Message]]()
-        let mappedMessagesByRowID = try mapMessagesByRowID(rowsToMapByThreadID.values.flatMap { $0 })
-        for (originalThreadID, rows) in rowsToMapByThreadID {
-            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: originalThreadID)
-            for row in rows {
+        let mappedMessagesByRowID = try mapMessagesByRowID(batchesByThreadID.values.flatMap(\.rowsToMapByRowID.values))
+        for threadID in batchesByThreadID.keys {
+            for row in batchesByThreadID[threadID]!.rowsToMapByRowID.values {
                 let mappedMessages = mappedMessagesByRowID[row.rowID] ?? []
                 if reactionAddRowIDs.contains(row.rowID) {
-                    upsertsByThreadID[hashedThreadID, default: []].append(contentsOf: mappedMessages)
+                    batchesByThreadID[threadID]!.upserts.append(contentsOf: mappedMessages)
                 }
                 if let change = normalChangesByRowID[row.rowID] {
                     if change.isNew {
-                        upsertsByThreadID[hashedThreadID, default: []].append(contentsOf: mappedMessages)
+                        batchesByThreadID[threadID]!.upserts.append(contentsOf: mappedMessages)
                     }
 
                     if change.wasEdited || change.wasRead {
-                        updatesByThreadID[hashedThreadID, default: []].append(
+                        batchesByThreadID[threadID]!.updates.append(
                             contentsOf: mappedMessages.compactMap { message in
                                 Self.messageUpdatePatch(
                                     for: message,
@@ -135,16 +134,20 @@ extension EventWatcher {
             }
         }
 
+        // Reaction-target patches are appended AFTER main-loop patches so that
+        // `deduplicatedUpdatePatches` (last-write-wins per key) lets the
+        // reaction-target's `reactions` field override the `reactions` carried
+        // inside a same-batch full-message edit patch. Reordering these two
+        // appends will silently corrupt reactions on edited messages.
         for (threadID, patches) in try reactionTargetUpdatePatches(reactionTargets) {
-            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-            updatesByThreadID[hashedThreadID, default: []].append(contentsOf: patches)
+            batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].updates.append(contentsOf: patches)
         }
 
-        return stateSyncEvents(
-            upsertsByThreadID: upsertsByThreadID,
-            updatesByThreadID: deduplicatingUpdatePatches(in: updatesByThreadID),
-            deletesByThreadID: deletesByThreadID
-        )
+        for threadID in batchesByThreadID.keys {
+            batchesByThreadID[threadID]!.updates = deduplicatedUpdatePatches(batchesByThreadID[threadID]!.updates)
+        }
+
+        return stateSyncEvents(batches: batchesByThreadID.values)
     }
 
     static func messageUpdatePatch(for message: PlatformSDK.Message, wasEdited: Bool, wasRead: Bool) -> JSONObject? {
@@ -178,7 +181,9 @@ extension EventWatcher {
         let targetRows = try db.mappedMessageRows(guids: targetGUIDs)
         let targetRowGUIDs = Set(targetRows.map(\.guid))
         let targetMessages = try mapMessagesByRowID(targetRows).values.flatMap { $0 }
-        let targetMessagesByID = Dictionary(uniqueKeysWithValues: targetMessages.map { ($0.id, $0) })
+        // Same multi-chat de-dup as in messageUpdateEvents: a target row may map to
+        // multiple `Message` values via different chat joins; keep first.
+        let targetMessagesByID = Dictionary(targetMessages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         for target in reactionTargets {
             guard targetRowGUIDs.contains(target.target.messageGUID) else {
@@ -208,33 +213,27 @@ extension EventWatcher {
         )
     }
 
-    private func stateSyncEvents(
-        upsertsByThreadID: [PlatformSDK.ThreadID: [PlatformSDK.Message]],
-        updatesByThreadID: [PlatformSDK.ThreadID: [JSONObject]],
-        deletesByThreadID: [PlatformSDK.ThreadID: [PlatformSDK.MessageID]]
-    ) -> [ServerEvent] {
+    private func stateSyncEvents(batches: Dictionary<PlatformSDK.ThreadID, ThreadBatch>.Values) -> [ServerEvent] {
         var events = [ServerEvent]()
-        for (threadID, messages) in upsertsByThreadID where !messages.isEmpty {
-            events.append(.upsertMessages(threadID: threadID, messages: messages))
+        for batch in batches where !batch.upserts.isEmpty {
+            events.append(.upsertMessages(threadID: Hasher.thread.tokenizeRemembering(pii: batch.threadID), messages: batch.upserts))
         }
-        for (threadID, patches) in updatesByThreadID where !patches.isEmpty {
-            events.append(.updateMessages(threadID: threadID, patches: patches))
+        for batch in batches where !batch.updates.isEmpty {
+            events.append(.updateMessages(threadID: Hasher.thread.tokenizeRemembering(pii: batch.threadID), patches: batch.updates))
         }
-        for (threadID, ids) in deletesByThreadID where !ids.isEmpty {
-            events.append(.deleteMessages(threadID: threadID, ids: ids))
+        for batch in batches where !batch.deletes.isEmpty {
+            events.append(.deleteMessages(threadID: Hasher.thread.tokenizeRemembering(pii: batch.threadID), ids: batch.deletes))
         }
         return events
     }
 
-    private func deduplicatingUpdatePatches(in updatesByThreadID: [PlatformSDK.ThreadID: [JSONObject]]) -> [PlatformSDK.ThreadID: [JSONObject]] {
-        updatesByThreadID.mapValues { patches in
-            var patchesByID = [String: JSONObject]()
-            for patch in patches {
-                guard let id = patch["id"] as? String else { continue }
-                patchesByID[id] = (patchesByID[id] ?? [:]).merging(patch, uniquingKeysWith: { _, new in new })
-            }
-            return Array(patchesByID.values)
+    private func deduplicatedUpdatePatches(_ patches: [JSONObject]) -> [JSONObject] {
+        var patchesByID = [String: JSONObject]()
+        for patch in patches {
+            guard let id = patch["id"] as? String else { continue }
+            patchesByID[id] = (patchesByID[id] ?? [:]).merging(patch, uniquingKeysWith: { _, new in new })
         }
+        return Array(patchesByID.values)
     }
 
     private func reaction(for msgRow: MappedMessageRow) -> AssociatedReaction? {
