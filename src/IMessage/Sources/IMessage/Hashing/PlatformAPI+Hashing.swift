@@ -37,21 +37,15 @@ extension PlatformAPI {
         currentUserID: String,
         accountID: String
     ) throws -> [PlatformSDK.Message] {
-        guard !msgRows.isEmpty else {
-            return []
-        }
-
-        let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
-        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
-
-        return try msgRows.flatMap { msgRow -> [PlatformSDK.Message] in
-            try mapAndHashMessage(
-                msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
+        let messagesByRowID = try mapAndHashMessagesByRowID(
+            msgRows: msgRows,
+            attachmentRows: attachmentRows,
+            reactionRows: reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        return msgRows.flatMap { msgRow in
+            messagesByRowID[msgRow.rowID] ?? []
         }
     }
 
