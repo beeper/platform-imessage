@@ -3,7 +3,7 @@ import Logging
 
 private let log = Logger(label: "imdb.updates")
 
-let updatedChatsSinceQuery = """
+let updatedMessagesSinceQuery = """
 SELECT
     m.ROWID,
     m.date_read,
@@ -16,24 +16,32 @@ LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
 WHERE
     m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
-GROUP BY
-    c.guid
 ORDER BY
-    date DESC
+    m.ROWID ASC
 """
 
-public struct UpdatedChatsQueryResult {
-    public var updatedChats: [ChatRef]
-    /// This maximum is local to the set of updated chats.
-    public var latestMessageRowID: Int?
-    /// This maximum is local to the set of updated chats.
-    public var latestMessageDateRead: Date?
-    public var latestDateEdited: Date?
+package struct UpdatedMessageChange {
+    package var rowID: Int
+    package var chat: ChatRef
+    package var isNew: Bool
+    package var wasRead: Bool
+    package var wasEdited: Bool
 }
 
-public extension IMDatabase {
-    func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedChatsQueryResult {
-        let statement = try cachedStatement(forEscapedSQL: updatedChatsSinceQuery)
+package struct UpdatedMessagesQueryResult {
+    package var updatedMessages: [UpdatedMessageChange]
+    /// This maximum is local to the set of newly inserted message rows.
+    package var latestMessageRowID: Int?
+    /// This maximum is local to the set of read updates.
+    package var latestMessageDateRead: Date?
+    /// This maximum is local to the set of edit updates.
+    package var latestDateEdited: Date?
+}
+
+extension IMDatabase {
+    package
+    func messages(newerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedMessagesQueryResult {
+        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 
         try statement.reset()
         try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
@@ -43,9 +51,15 @@ public extension IMDatabase {
         var latestDateEdited: Date?
         var timesWarnedAboutOrphanedMessage = 0
 
-        let updatedChats: [ChatRef] = try statement.compactMapRowsUntilDone { row in
+        let updatedMessages: [UpdatedMessageChange] = try statement.compactMapRowsUntilDone { row in
             let messageRowID = try row[0].expect(Int.self)
-            newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
+            let isNew = messageRowID > lastRowID
+            if isNew {
+                newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
+            }
+
+            var wasRead = false
+            var wasEdited = false
 
             dateRead: do {
                 // IMCore typically uses `0` to represent absence, but fall back
@@ -62,10 +76,13 @@ public extension IMDatabase {
                 }
 
                 let dateRead = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestMessageDateRead = if let latestMessageDateRead, dateRead < .distantFuture {
-                    max(dateRead, latestMessageDateRead)
-                } else {
-                    dateRead
+                wasRead = dateRead > lastDateRead
+                if wasRead {
+                    latestMessageDateRead = if let latestMessageDateRead {
+                        max(dateRead, latestMessageDateRead)
+                    } else {
+                        dateRead
+                    }
                 }
             }
 
@@ -73,10 +90,13 @@ public extension IMDatabase {
                 let nanoseconds = try row[2].optional(Int.self) ?? 0
                 guard nanoseconds > 0, nanoseconds < .max else { break dateEdited }
                 let dateEdited = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestDateEdited = if let latestDateEdited, dateEdited < .distantFuture {
-                    max(dateEdited, latestDateEdited)
-                } else {
-                    dateEdited
+                wasEdited = dateEdited > lastDateEdited
+                if wasEdited {
+                    latestDateEdited = if let latestDateEdited {
+                        max(dateEdited, latestDateEdited)
+                    } else {
+                        dateEdited
+                    }
                 }
             }
 
@@ -95,11 +115,17 @@ public extension IMDatabase {
                 return nil
             }
 
-            return ChatRef(rowID: rowID, guid: guid)
+            return UpdatedMessageChange(
+                rowID: messageRowID,
+                chat: .both(rowID: rowID, guid: guid),
+                isNew: isNew,
+                wasRead: wasRead,
+                wasEdited: wasEdited
+            )
         }
 
-        return UpdatedChatsQueryResult(
-            updatedChats: updatedChats,
+        return UpdatedMessagesQueryResult(
+            updatedMessages: updatedMessages,
             latestMessageRowID: newestMessageRowID,
             latestMessageDateRead: latestMessageDateRead,
             latestDateEdited: latestDateEdited

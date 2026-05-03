@@ -22,12 +22,15 @@ final class EventWatcher {
     var chatStates = [ChatRef: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
 
+    let currentUserID: String
+    let accountID: String
     private var sender: PlatformAPI.EventCallback
     private let reportErrorMessage: PlatformAPI.ReportErrorMessage?
 
     init(
         serverEventSender sender: @escaping PlatformAPI.EventCallback,
         initialUpdatesCursor: MessageUpdatesCursor,
+        accountID: String,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
         self.db = try IMDatabase()
@@ -37,6 +40,8 @@ final class EventWatcher {
         }
         self.sender = sender
         self.updatesCursor = initialUpdatesCursor
+        self.currentUserID = try PlatformSDK.CurrentUser.fetch(from: db).id
+        self.accountID = accountID
         self.reportErrorMessage = reportErrorMessage
     }
 

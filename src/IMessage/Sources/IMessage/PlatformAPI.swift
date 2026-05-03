@@ -117,7 +117,11 @@ public final class PlatformAPI {
     }
 
     public func subscribeToEvents(_ onEvent: @escaping EventCallback) {
-        EventWatcherLifecycle.shared.subscribeToEvents(onEvent, reportErrorMessage: errorMessageReporter)
+        EventWatcherLifecycle.shared.subscribeToEvents(
+            onEvent,
+            accountID: accountID,
+            reportErrorMessage: errorMessageReporter
+        )
     }
 
     public func startEventWatchingFromCurrentState() async throws {
@@ -880,7 +884,7 @@ public final class PlatformAPI {
 }
 
 extension PlatformAPI {
-    private struct MessagePayloadRows {
+    struct MessagePayloadRows {
         var attachmentRows: [MappedAttachmentRow]
         var reactionRows: [MappedReactionMessageRow]
     }
@@ -957,7 +961,7 @@ extension PlatformAPI {
         return fileURL.path
     }
 
-    nonisolated private static func messagePayloadRows(
+    nonisolated static func messagePayloadRows(
         db: IMDatabase,
         msgRows: [MappedMessageRow],
         threadID: String

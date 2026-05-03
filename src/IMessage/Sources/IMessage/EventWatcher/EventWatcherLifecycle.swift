@@ -12,6 +12,7 @@ final class EventWatcherLifecycle {
         var onEvent: PlatformAPI.EventCallback?
         var watchingTask: Task<Void, Never>?
         var reportErrorMessage: PlatformAPI.ReportErrorMessage?
+        var accountID: String?
     }
 
     private let state = Protected(State())
@@ -22,10 +23,15 @@ final class EventWatcherLifecycle {
         state.withLock { $0.watchingTask != nil }
     }
 
-    func subscribeToEvents(_ onEvent: @escaping PlatformAPI.EventCallback, reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil) {
+    func subscribeToEvents(
+        _ onEvent: @escaping PlatformAPI.EventCallback,
+        accountID: String,
+        reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
+    ) {
         state.withLock { state in
             state.onEvent = onEvent
             state.reportErrorMessage = reportErrorMessage
+            state.accountID = accountID
         }
     }
 
@@ -36,6 +42,7 @@ final class EventWatcherLifecycle {
             if clearEventCallback {
                 state.onEvent = nil
                 state.reportErrorMessage = nil
+                state.accountID = nil
             }
             return watchingTask
         }
@@ -82,6 +89,9 @@ final class EventWatcherLifecycle {
         eventWatchingLog.debug("starting event watcher from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead))")
 
         let reportErrorMessage = state.withLock { $0.reportErrorMessage }
+        guard let accountID = state.withLock({ $0.accountID }) else {
+            throw ErrorMessage("subscribeToEvents must be called before startWatching")
+        }
 
         let eventWatcher = try EventWatcher(
             serverEventSender: { events in
@@ -91,6 +101,7 @@ final class EventWatcherLifecycle {
                 try await onEvent(events)
             },
             initialUpdatesCursor: EventWatcher.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()),
+            accountID: accountID,
             reportErrorMessage: reportErrorMessage
         )
 

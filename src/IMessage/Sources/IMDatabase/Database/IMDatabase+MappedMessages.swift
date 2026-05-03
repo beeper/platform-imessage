@@ -244,6 +244,7 @@ public extension IMDatabase {
         LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
         WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (\(messageGUIDPlaceholders))
         AND cmj.chat_id IN (\(chatRowIDPlaceholders))
+        ORDER BY m.ROWID ASC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }

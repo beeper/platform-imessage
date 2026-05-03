@@ -119,6 +119,9 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let payloadData: Data?
     public let expressiveSendStyleID: String?
     public let messageSummaryInfo: Data?
+    /// GUID of a related message. iMessage uses this for reaction removal rows
+    /// to point back at the hidden reaction-add message row.
+    public let replyToGUID: String?
     public let threadOriginatorGUID: String?
     public let threadOriginatorPart: String?
     /// Added in Ventura. Apple nanosecond timestamp. Stringify at JSON/API
@@ -166,6 +169,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
         payloadData = try row.data("payload_data", columns: columns)
         expressiveSendStyleID = try row.string("expressive_send_style_id", columns: columns)
         messageSummaryInfo = try row.data("message_summary_info", columns: columns)
+        replyToGUID = try row.string("reply_to_guid", columns: columns)
         threadOriginatorGUID = try row.string("thread_originator_guid", columns: columns)
         threadOriginatorPart = try row.string("thread_originator_part", columns: columns)
         dateRetracted = try row.int("date_retracted", columns: columns)

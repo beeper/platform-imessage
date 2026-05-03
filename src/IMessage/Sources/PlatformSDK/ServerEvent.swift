@@ -35,6 +35,15 @@ public enum ServerEvent {
     /// A server event with type `state_sync` that is used to `delete`
     /// one or more threads.
     case deleteThreads(ids: [PlatformSDK.ThreadID])
+    /// A server event with type `state_sync` that is used to `upsert`
+    /// messages in a thread.
+    case upsertMessages(threadID: PlatformSDK.ThreadID, messages: [PlatformSDK.Message])
+    /// A server event with type `state_sync` that is used to `update`
+    /// messages in a thread.
+    case updateMessages(threadID: PlatformSDK.ThreadID, patches: [JSONObject])
+    /// A server event with type `state_sync` that is used to `delete`
+    /// messages in a thread.
+    case deleteMessages(threadID: PlatformSDK.ThreadID, ids: [PlatformSDK.MessageID])
 }
 
 extension ServerEvent {
@@ -90,7 +99,35 @@ extension ServerEvent {
                 "mutationType": "delete",
                 "entries": ids,
             ]
+        case let .upsertMessages(threadID, messages):
+            return messageStateSyncJSON(
+                threadID: threadID,
+                mutationType: "upsert",
+                entries: messages.map(\.jsonObject)
+            )
+        case let .updateMessages(threadID, patches):
+            return messageStateSyncJSON(
+                threadID: threadID,
+                mutationType: "update",
+                entries: patches
+            )
+        case let .deleteMessages(threadID, ids):
+            return messageStateSyncJSON(
+                threadID: threadID,
+                mutationType: "delete",
+                entries: ids
+            )
         }
+    }
+
+    private func messageStateSyncJSON(threadID: PlatformSDK.ThreadID, mutationType: String, entries: Any) -> JSONObject {
+        [
+            "type": PlatformSDK.ServerEventType.stateSync.rawValue,
+            "objectIDs": ["threadID": threadID, "messageID": NSNull()],
+            "objectName": "message",
+            "mutationType": mutationType,
+            "entries": entries,
+        ]
     }
 
     private func jsonObjectValue(_ value: Any) -> Any {

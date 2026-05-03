@@ -10,7 +10,7 @@ import { shellExec } from './util'
 import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
-import { parseSwiftMessageAPIJSON } from './swift-json'
+import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-json'
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
 
@@ -107,7 +107,7 @@ export default class AppleiMessage implements PlatformAPI {
   subscribeToEvents = async (onEvent: OnServerEventCallback): Promise<void> => {
     this.onEvent = (events: ServerEvent[]) => {
       const evs: ServerEvent[] = []
-      events.forEach(ev => {
+      reviveSwiftMessageAPIValue(events).forEach(ev => {
         if (ev.type === ServerEventType.TOAST) {
           texts.Sentry.captureMessage(`iMessage: ${ev.toast.text}`)
         } else {
