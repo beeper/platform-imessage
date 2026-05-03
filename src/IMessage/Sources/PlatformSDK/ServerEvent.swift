@@ -86,7 +86,7 @@ extension ServerEvent {
 
             return [
                 "type": PlatformSDK.ServerEventType.stateSync.rawValue,
-                "objectIDs": [],
+                "objectIDs": JSONObject(),
                 "objectName": "thread",
                 "mutationType": "update",
                 "entries": [entry],
@@ -94,7 +94,7 @@ extension ServerEvent {
         case let .deleteThreads(ids):
             return [
                 "type": PlatformSDK.ServerEventType.stateSync.rawValue,
-                "objectIDs": [],
+                "objectIDs": JSONObject(),
                 "objectName": "thread",
                 "mutationType": "delete",
                 "entries": ids,
