@@ -76,9 +76,12 @@ extension EventWatcher {
             }
             let threadID = msgRow.threadID ?? change.chatGUID
 
-            let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty
+            if let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty {
+                guard let reaction = reaction(for: msgRow) else {
+                    traceMessageUpdates("message row \(msgRow.rowID) is associated but not a reaction; skipping state sync")
+                    continue
+                }
 
-            if let associatedGUID, let reaction = reaction(for: msgRow) {
                 if change.isNew {
                     switch reaction.action {
                     case .reacted:
@@ -86,7 +89,6 @@ extension EventWatcher {
                         reactionAddRowIDs.insert(msgRow.rowID)
                     case .unreacted:
                         if let replyToGUID = msgRow.replyToGUID {
-                            // Delete the hidden added-reaction message.
                             batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].deletes.append(replyToGUID)
                         }
                     }
@@ -95,11 +97,6 @@ extension EventWatcher {
                 if let target = reactionTarget(threadID: threadID, associatedMessageGUID: associatedGUID) {
                     reactionTargets.insert(target)
                 }
-                continue
-            }
-
-            guard associatedGUID == nil else {
-                traceMessageUpdates("message row \(msgRow.rowID) is associated but not a reaction; skipping state sync")
                 continue
             }
 
@@ -119,15 +116,9 @@ extension EventWatcher {
                         batchesByThreadID[threadID]!.upserts.append(contentsOf: mappedMessages)
                     }
 
-                    if change.wasEdited || change.wasRead {
+                    if let kind = MessageUpdateKind(change) {
                         batchesByThreadID[threadID]!.updates.append(
-                            contentsOf: mappedMessages.compactMap { message in
-                                Self.messageUpdatePatch(
-                                    for: message,
-                                    wasEdited: change.wasEdited,
-                                    wasRead: change.wasRead
-                                )
-                            }
+                            contentsOf: mappedMessages.compactMap { Self.messageUpdatePatch(for: $0, kind: kind) }
                         )
                     }
                 }
@@ -150,23 +141,31 @@ extension EventWatcher {
         return stateSyncEvents(batches: batchesByThreadID.values)
     }
 
-    static func messageUpdatePatch(for message: PlatformSDK.Message, wasEdited: Bool, wasRead: Bool) -> JSONObject? {
-        if wasEdited {
+    enum MessageUpdateKind {
+        case edited, read
+
+        init?(_ change: UpdatedMessageChange) {
+            // Edits dominate read receipts: a same-tick edit+read becomes a full-message patch.
+            if change.wasEdited { self = .edited }
+            else if change.wasRead { self = .read }
+            else { return nil }
+        }
+    }
+
+    static func messageUpdatePatch(for message: PlatformSDK.Message, kind: MessageUpdateKind) -> JSONObject? {
+        switch kind {
+        case .edited:
             return message.jsonObject
+        case .read:
+            let patch = compactDictionary([
+                "id": message.id,
+                "seen": message.seen?.jsonValue,
+                "behavior": message.behavior?.rawValue,
+                "isDelivered": message.isDelivered,
+                "isErrored": message.isErrored,
+            ])
+            return patch.count > 1 ? patch : nil
         }
-
-        guard wasRead else {
-            return nil
-        }
-
-        let patch = compactDictionary([
-            "id": message.id,
-            "seen": message.seen?.jsonValue,
-            "behavior": message.behavior?.rawValue,
-            "isDelivered": message.isDelivered,
-            "isErrored": message.isErrored,
-        ])
-        return patch.count > 1 ? patch : nil
     }
 
     private func reactionTargetUpdatePatches(
@@ -179,19 +178,14 @@ extension EventWatcher {
         var patchesByThreadID = [PlatformSDK.ThreadID: [JSONObject]]()
         let targetGUIDs = Array(Set(reactionTargets.map { $0.target.messageGUID }))
         let targetRows = try db.mappedMessageRows(guids: targetGUIDs)
-        let targetRowGUIDs = Set(targetRows.map(\.guid))
         let targetMessages = try mapMessagesByRowID(targetRows).values.flatMap { $0 }
         // Same multi-chat de-dup as in messageUpdateEvents: a target row may map to
         // multiple `Message` values via different chat joins; keep first.
         let targetMessagesByID = Dictionary(targetMessages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         for target in reactionTargets {
-            guard targetRowGUIDs.contains(target.target.messageGUID) else {
-                log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
-                continue
-            }
             guard let targetMessage = targetMessagesByID[target.target.messageID] else {
-                log.error("reaction target \(target.target.messageID) wasn't present in mapped messages, dropping original message update")
+                log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
                 continue
             }
 
@@ -228,10 +222,12 @@ extension EventWatcher {
     }
 
     private func deduplicatedUpdatePatches(_ patches: [JSONObject]) -> [JSONObject] {
-        var patchesByID = [String: JSONObject]()
+        // OrderedDictionary preserves first-seen patch order so identical inputs produce
+        // identical event sequences; plain `Dictionary` value order is undefined.
+        var patchesByID = OrderedDictionary<String, JSONObject>()
         for patch in patches {
             guard let id = patch["id"] as? String else { continue }
-            patchesByID[id] = (patchesByID[id] ?? [:]).merging(patch, uniquingKeysWith: { _, new in new })
+            patchesByID[id, default: [:]].merge(patch) { _, new in new }
         }
         return Array(patchesByID.values)
     }
