@@ -47,6 +47,27 @@ public extension IMDatabase {
         return Date(nanosecondsSinceReferenceDate: nanoseconds)
     }
 
+    func messageUpdateCursorSnapshot() throws -> (lastRowID: Int, lastDateRead: Date, lastDateEdited: Date) {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT
+            COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'message'), 0),
+            COALESCE((SELECT MAX(date_read) FROM message), 0),
+            COALESCE((SELECT MAX(date_edited) FROM message), 0)
+        """).reset()
+
+        return try statement.mapRowsUntilDone { row in
+            (
+                lastRowID: try row[0].optionalConverting(Int.self) ?? 0,
+                lastDateRead: imCoreDate(nanoseconds: try row[1].optionalConverting(Int.self) ?? 0),
+                lastDateEdited: imCoreDate(nanoseconds: try row[2].optionalConverting(Int.self) ?? 0)
+            )
+        }.first ?? (
+            lastRowID: 0,
+            lastDateRead: imCoreDate(nanoseconds: 0),
+            lastDateEdited: imCoreDate(nanoseconds: 0)
+        )
+    }
+
     func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT ROWID, guid
@@ -312,4 +333,17 @@ private func placeholders(count: Int) -> String {
 
 private func rowValuePlaceholders(count: Int) -> String {
     Array(repeating: "(?)", count: count).joined(separator: ", ")
+}
+
+private func imCoreDate(nanoseconds: Int) -> Date {
+    guard nanoseconds > 0 else {
+        return Date(nanosecondsSinceReferenceDate: 0)
+    }
+
+    let date = Date(nanosecondsSinceReferenceDate: nanoseconds)
+    guard date < .distantFuture else {
+        return Date(nanosecondsSinceReferenceDate: 0)
+    }
+
+    return date
 }

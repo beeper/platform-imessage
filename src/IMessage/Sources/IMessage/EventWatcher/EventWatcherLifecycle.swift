@@ -62,7 +62,7 @@ final class EventWatcherLifecycle {
         }
     }
 
-    func startEventWatchingFromCurrentState(lastRowID: Int, lastDateRead: Date) throws {
+    func startEventWatchingFromCurrentState(lastRowID: Int, lastDateRead: Date, lastDateEdited: Date) throws {
         guard let subscription = state.withLock({ $0.subscription }) else {
             throw ErrorMessage("subscribeToEvents must be called before startEventWatchingFromCurrentState")
         }
@@ -70,6 +70,7 @@ final class EventWatcherLifecycle {
             subscription: subscription,
             lastRowID: lastRowID,
             lastDateRead: lastDateRead,
+            lastDateEdited: lastDateEdited,
             source: "current state"
         )
     }
@@ -78,6 +79,7 @@ final class EventWatcherLifecycle {
         subscription: Subscription,
         lastRowID: Int,
         lastDateRead: Date,
+        lastDateEdited: Date,
         source: String
     ) throws {
         let existingTask = state.withLock { state in
@@ -90,7 +92,7 @@ final class EventWatcherLifecycle {
             existingTask.cancel()
         }
 
-        eventWatchingLog.debug("starting event watcher from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead))")
+        eventWatchingLog.debug("starting event watcher from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead), last date edited: \(lastDateEdited))")
 
         let eventWatcher = try EventWatcher(
             serverEventSender: { events in
@@ -99,7 +101,7 @@ final class EventWatcherLifecycle {
                 #endif
                 try await subscription.onEvent(events)
             },
-            initialUpdatesCursor: EventWatcher.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: Date()),
+            initialUpdatesCursor: EventWatcher.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: lastDateEdited),
             accountID: subscription.accountID,
             reportErrorMessage: subscription.reportErrorMessage
         )
