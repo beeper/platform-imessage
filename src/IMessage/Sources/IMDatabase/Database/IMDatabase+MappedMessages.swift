@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import IMessageCore
 import SQLite
@@ -141,8 +142,7 @@ public extension IMDatabase {
 
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
-        var seenGUIDs = Set<String>()
-        let uniqueGUIDs = guids.filter { seenGUIDs.insert($0).inserted }
+        let uniqueGUIDs = Array(OrderedSet(guids))
 
         guard uniqueGUIDs.count <= maxMappedMessageRowsBatchSize else {
             return try uniqueGUIDs
