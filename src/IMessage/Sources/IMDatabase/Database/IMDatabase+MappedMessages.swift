@@ -165,8 +165,10 @@ public extension IMDatabase {
 
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
         guard !rowIDs.isEmpty else { return [] }
-        guard rowIDs.count <= maxMappedMessageRowsBatchSize else {
-            return try rowIDs
+        let uniqueRowIDs = Array(OrderedSet(rowIDs))
+
+        guard uniqueRowIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueRowIDs
                 .chunks(ofCount: maxMappedMessageRowsBatchSize)
                 .flatMap { try mappedMessageRows(rowIDs: Array($0)) }
                 .sorted { ($0.date ?? 0) > ($1.date ?? 0) }
@@ -178,11 +180,11 @@ public extension IMDatabase {
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        WHERE m.ROWID IN (\(placeholders(count: rowIDs.count)))
+        WHERE m.ROWID IN (\(placeholders(count: uniqueRowIDs.count)))
         ORDER BY m.date DESC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(rowIDs.map { $0 as any SQLiteBindable })
+        try statement.bind(uniqueRowIDs.map { $0 as any SQLiteBindable })
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
