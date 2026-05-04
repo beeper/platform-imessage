@@ -17,9 +17,18 @@ private struct ReactionTarget: Hashable {
     var target: AssociatedMessageTarget
 }
 
+private enum PendingMessageKind {
+    case reactionAdd
+    case normal(UpdatedMessageChange)
+}
+
+private struct PendingMessage {
+    let row: MappedMessageRow
+    let kind: PendingMessageKind
+}
+
 private struct ThreadBatch {
     let threadID: PlatformSDK.ThreadID
-    var rowsToMapByRowID = OrderedDictionary<Int, MappedMessageRow>()
     var upserts: [PlatformSDK.Message] = []
     var updates: [JSONObject] = []
     var deletes: [PlatformSDK.MessageID] = []
@@ -65,8 +74,7 @@ extension EventWatcher {
         let msgRowsByRowID = Dictionary(msgRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
 
         var batchesByThreadID = [PlatformSDK.ThreadID: ThreadBatch]()
-        var normalChangesByRowID = [Int: UpdatedMessageChange]()
-        var reactionAddRowIDs = Set<Int>()
+        var pendingByThreadID = [PlatformSDK.ThreadID: OrderedDictionary<Int, PendingMessage>]()
         var reactionTargets = Set<ReactionTarget>()
 
         for change in queryResult.updatedMessages {
@@ -85,8 +93,7 @@ extension EventWatcher {
                 if change.isNew {
                     switch reaction.action {
                     case .reacted:
-                        batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].rowsToMapByRowID[msgRow.rowID] = msgRow
-                        reactionAddRowIDs.insert(msgRow.rowID)
+                        pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAdd)
                     case .unreacted:
                         if let replyToGUID = msgRow.replyToGUID {
                             batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].deletes.append(replyToGUID)
@@ -94,35 +101,36 @@ extension EventWatcher {
                     }
                 }
 
-                if let target = reactionTarget(threadID: threadID, associatedMessageGUID: associatedGUID) {
-                    reactionTargets.insert(target)
+                let target = parseAssociatedMessageTarget(associatedGUID)
+                if !target.messageGUID.isEmpty {
+                    reactionTargets.insert(ReactionTarget(threadID: threadID, target: target))
                 }
                 continue
             }
 
-            batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].rowsToMapByRowID[msgRow.rowID] = msgRow
-            normalChangesByRowID[msgRow.rowID] = change
+            pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .normal(change))
         }
 
-        let mappedMessagesByRowID = try mapMessagesByRowID(batchesByThreadID.values.flatMap(\.rowsToMapByRowID.values))
-        for threadID in batchesByThreadID.keys {
-            for row in batchesByThreadID[threadID]!.rowsToMapByRowID.values {
-                let mappedMessages = mappedMessagesByRowID[row.rowID] ?? []
-                if reactionAddRowIDs.contains(row.rowID) {
-                    batchesByThreadID[threadID]!.upserts.append(contentsOf: mappedMessages)
-                }
-                if let change = normalChangesByRowID[row.rowID] {
-                    if change.isNew {
-                        batchesByThreadID[threadID]!.upserts.append(contentsOf: mappedMessages)
-                    }
+        let allPendingRows = pendingByThreadID.values.flatMap { $0.values.map(\.row) }
+        let mappedMessagesByRowID = try mapMessagesByRowID(allPendingRows)
 
+        for (threadID, pendings) in pendingByThreadID {
+            var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
+            for pending in pendings.values {
+                let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
+                switch pending.kind {
+                case .reactionAdd:
+                    batch.upserts.append(contentsOf: mappedMessages)
+                case .normal(let change):
+                    if change.isNew {
+                        batch.upserts.append(contentsOf: mappedMessages)
+                    }
                     if let kind = MessageUpdateKind(change) {
-                        batchesByThreadID[threadID]!.updates.append(
-                            contentsOf: mappedMessages.compactMap { Self.messageUpdatePatch(for: $0, kind: kind) }
-                        )
+                        batch.updates.append(contentsOf: mappedMessages.compactMap { kind.patch(for: $0) })
                     }
                 }
             }
+            batchesByThreadID[threadID] = batch
         }
 
         // Reaction-target patches are appended AFTER main-loop patches so that
@@ -134,8 +142,10 @@ extension EventWatcher {
             batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].updates.append(contentsOf: patches)
         }
 
-        for threadID in batchesByThreadID.keys {
-            batchesByThreadID[threadID]!.updates = deduplicatedUpdatePatches(batchesByThreadID[threadID]!.updates)
+        batchesByThreadID = batchesByThreadID.mapValues { batch in
+            var batch = batch
+            batch.updates = deduplicatedUpdatePatches(batch.updates)
+            return batch
         }
 
         return stateSyncEvents(batches: batchesByThreadID.values)
@@ -150,21 +160,22 @@ extension EventWatcher {
             else if change.wasRead { self = .read }
             else { return nil }
         }
-    }
 
-    static func messageUpdatePatch(for message: PlatformSDK.Message, kind: MessageUpdateKind) -> JSONObject? {
-        switch kind {
-        case .edited:
-            return message.jsonObject
-        case .read:
-            let patch = compactDictionary([
-                "id": message.id,
-                "seen": message.seen?.jsonValue,
-                "behavior": message.behavior?.rawValue,
-                "isDelivered": message.isDelivered,
-                "isErrored": message.isErrored,
-            ])
-            return patch.count > 1 ? patch : nil
+        func patch(for message: PlatformSDK.Message) -> JSONObject? {
+            switch self {
+            case .edited:
+                return message.jsonObject
+            case .read:
+                var patch = compactDictionary([
+                    "seen": message.seen?.jsonValue,
+                    "behavior": message.behavior?.rawValue,
+                    "isDelivered": message.isDelivered,
+                    "isErrored": message.isErrored,
+                ])
+                guard !patch.isEmpty else { return nil }
+                patch["id"] = message.id
+                return patch
+            }
         }
     }
 
@@ -222,6 +233,7 @@ extension EventWatcher {
     }
 
     private func deduplicatedUpdatePatches(_ patches: [JSONObject]) -> [JSONObject] {
+        guard patches.count > 1 else { return patches }
         // OrderedDictionary preserves first-seen patch order so identical inputs produce
         // identical event sequences; plain `Dictionary` value order is undefined.
         var patchesByID = OrderedDictionary<String, JSONObject>()
@@ -238,11 +250,5 @@ extension EventWatcher {
             return nil
         }
         return reaction
-    }
-
-    private func reactionTarget(threadID: PlatformSDK.ThreadID, associatedMessageGUID: String) -> ReactionTarget? {
-        let target = parseAssociatedMessageTarget(associatedMessageGUID)
-        guard !target.messageGUID.isEmpty else { return nil }
-        return ReactionTarget(threadID: threadID, target: target)
     }
 }
