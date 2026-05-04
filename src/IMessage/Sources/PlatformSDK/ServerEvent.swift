@@ -46,6 +46,12 @@ public enum ServerEvent {
     /// A server event with type `state_sync` that is used to `delete`
     /// messages in a thread.
     case deleteMessages(threadID: PlatformSDK.ThreadID, ids: [PlatformSDK.MessageID])
+    /// A server event with type `state_sync` that is used to `upsert`
+    /// reactions for a message.
+    case upsertMessageReactions(threadID: PlatformSDK.ThreadID, messageID: PlatformSDK.MessageID, reactions: [PlatformSDK.MessageReaction])
+    /// A server event with type `state_sync` that is used to `delete`
+    /// reactions for a message.
+    case deleteMessageReactions(threadID: PlatformSDK.ThreadID, messageID: PlatformSDK.MessageID, ids: [PlatformSDK.ID])
 }
 
 extension ServerEvent {
@@ -119,6 +125,20 @@ extension ServerEvent {
                 mutationType: "delete",
                 entries: ids
             )
+        case let .upsertMessageReactions(threadID, messageID, reactions):
+            return messageReactionStateSyncJSON(
+                threadID: threadID,
+                messageID: messageID,
+                mutationType: "upsert",
+                entries: reactions.map(\.jsonObject)
+            )
+        case let .deleteMessageReactions(threadID, messageID, ids):
+            return messageReactionStateSyncJSON(
+                threadID: threadID,
+                messageID: messageID,
+                mutationType: "delete",
+                entries: ids
+            )
         }
     }
 
@@ -127,6 +147,19 @@ extension ServerEvent {
             "type": PlatformSDK.ServerEventType.stateSync.rawValue,
             "objectIDs": ["threadID": threadID],
             "objectName": "message",
+            "mutationType": mutationType,
+            "entries": entries,
+        ]
+    }
+
+    private func messageReactionStateSyncJSON(threadID: PlatformSDK.ThreadID, messageID: PlatformSDK.MessageID, mutationType: String, entries: Any) -> JSONObject {
+        [
+            "type": PlatformSDK.ServerEventType.stateSync.rawValue,
+            "objectIDs": [
+                "threadID": threadID,
+                "messageID": messageID,
+            ],
+            "objectName": "message_reaction",
             "mutationType": mutationType,
             "entries": entries,
         ]

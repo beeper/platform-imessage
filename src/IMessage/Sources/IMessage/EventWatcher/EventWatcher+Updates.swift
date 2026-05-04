@@ -12,11 +12,6 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
     log.debug(message())
 }
 
-private struct ReactionTarget: Hashable {
-    var threadID: PlatformSDK.ThreadID
-    var target: AssociatedMessageTarget
-}
-
 private enum PendingMessageKind {
     case reactionAdd
     case normal(UpdatedMessageChange)
@@ -32,6 +27,8 @@ private struct ThreadBatch {
     var upserts: [PlatformSDK.Message] = []
     var updates: [JSONObject] = []
     var deletes: [PlatformSDK.MessageID] = []
+    var reactionUpsertsByMessageID = OrderedDictionary<PlatformSDK.MessageID, [PlatformSDK.MessageReaction]>()
+    var reactionDeletesByMessageID = OrderedDictionary<PlatformSDK.MessageID, [PlatformSDK.ID]>()
 }
 
 extension EventWatcher {
@@ -75,7 +72,6 @@ extension EventWatcher {
 
         var batchesByThreadID = [PlatformSDK.ThreadID: ThreadBatch]()
         var pendingByThreadID = [PlatformSDK.ThreadID: OrderedDictionary<Int, PendingMessage>]()
-        var reactionTargets = Set<ReactionTarget>()
 
         for change in queryResult.updatedMessages {
             guard let msgRow = msgRowsByRowID[change.rowID] else {
@@ -90,21 +86,33 @@ extension EventWatcher {
                     continue
                 }
 
-                if change.isNew {
-                    switch reaction.action {
-                    case .reacted:
-                        pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAdd)
-                    case .unreacted:
-                        if let replyToGUID = msgRow.replyToGUID {
-                            batchesByThreadID[threadID, default: ThreadBatch(threadID: threadID)].deletes.append(replyToGUID)
-                        }
-                    }
+                let target = parseAssociatedMessageTarget(associatedGUID)
+                guard !target.messageID.isEmpty else {
+                    log.error("message row \(msgRow.rowID) is a reaction but doesn't point at a message, dropping reaction state sync")
+                    continue
                 }
 
-                let target = parseAssociatedMessageTarget(associatedGUID)
-                if !target.messageGUID.isEmpty {
-                    reactionTargets.insert(ReactionTarget(threadID: threadID, target: target))
+                if change.isNew {
+                    var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
+                    switch reaction.action {
+                    case .reacted:
+                        if let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID) {
+                            batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
+                        } else {
+                            log.error("message row \(msgRow.rowID) is a reaction but couldn't be mapped, dropping reaction state sync")
+                        }
+                        pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAdd)
+                    case .unreacted:
+                        batch.reactionDeletesByMessageID[target.messageID, default: []].append(
+                            PlatformAPI.hashedParticipantID(messageSenderID(for: msgRow, currentUserID: currentUserID))
+                        )
+                        if let replyToGUID = msgRow.replyToGUID {
+                            batch.deletes.append(replyToGUID)
+                        }
+                    }
+                    batchesByThreadID[threadID] = batch
                 }
+
                 continue
             }
 
@@ -132,13 +140,6 @@ extension EventWatcher {
             }
             batchesByThreadID[threadID] = batch
         }
-
-        // Reaction-target patches must be appended AFTER main-loop patches: the
-        // dedup pass below is last-write-wins per ID, so the reaction-target's
-        // `reactions` field needs to override the `reactions` carried inside a
-        // same-batch full-message edit patch. Reordering silently corrupts
-        // reactions on edited messages.
-        try appendReactionTargetUpdatePatches(reactionTargets, into: &batchesByThreadID)
 
         for threadID in batchesByThreadID.keys {
             guard var batch = batchesByThreadID[threadID], batch.updates.count > 1 else { continue }
@@ -177,35 +178,6 @@ extension EventWatcher {
         }
     }
 
-    private func appendReactionTargetUpdatePatches(
-        _ reactionTargets: Set<ReactionTarget>,
-        into batchesByThreadID: inout [PlatformSDK.ThreadID: ThreadBatch]
-    ) throws {
-        guard !reactionTargets.isEmpty else { return }
-
-        let targetGUIDs = Array(Set(reactionTargets.map { $0.target.messageGUID }))
-        let targetRows = try db.mappedMessageRows(guids: targetGUIDs)
-        // Same multi-chat de-dup as in messageUpdateEvents: a target row may map to
-        // multiple `Message` values via different chat joins; keep first.
-        var targetMessagesByID = [PlatformSDK.MessageID: PlatformSDK.Message]()
-        for messages in try mapMessagesByRowID(targetRows).values {
-            for message in messages where targetMessagesByID[message.id] == nil {
-                targetMessagesByID[message.id] = message
-            }
-        }
-
-        for target in reactionTargets {
-            guard let targetMessage = targetMessagesByID[target.target.messageID] else {
-                log.error("reaction target \(target.target.messageGUID) couldn't be mapped, dropping original message update")
-                continue
-            }
-            batchesByThreadID[target.threadID, default: ThreadBatch(threadID: target.threadID)].updates.append([
-                "id": targetMessage.id,
-                "reactions": targetMessage.reactions?.map(\.jsonObject) ?? [],
-            ])
-        }
-    }
-
     private func mapMessagesByRowID(_ msgRows: [MappedMessageRow]) throws -> [Int: [PlatformSDK.Message]] {
         try PlatformAPI.mapAndHashMessagesByRowID(
             db: db,
@@ -218,16 +190,27 @@ extension EventWatcher {
 
     private func stateSyncEvents(batches: Dictionary<PlatformSDK.ThreadID, ThreadBatch>.Values) -> [ServerEvent] {
         var events = [ServerEvent]()
-        // Per-thread emit order is upsert→update→delete: updates assume the row
-        // exists, and a delete after both supersedes them.
+        // Per-thread emit order keeps creates before updates and deletes after
+        // both; reaction events are scoped to their target message via
+        // objectIDs.messageID.
         for batch in batches {
-            guard !batch.upserts.isEmpty || !batch.updates.isEmpty || !batch.deletes.isEmpty else { continue }
+            guard !batch.upserts.isEmpty ||
+                    !batch.updates.isEmpty ||
+                    !batch.deletes.isEmpty ||
+                    !batch.reactionUpsertsByMessageID.isEmpty ||
+                    !batch.reactionDeletesByMessageID.isEmpty else { continue }
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: batch.threadID)
+            for (messageID, reactions) in batch.reactionUpsertsByMessageID where !reactions.isEmpty {
+                events.append(.upsertMessageReactions(threadID: hashedThreadID, messageID: messageID, reactions: reactions))
+            }
             if !batch.upserts.isEmpty {
                 events.append(.upsertMessages(threadID: hashedThreadID, messages: batch.upserts))
             }
             if !batch.updates.isEmpty {
                 events.append(.updateMessages(threadID: hashedThreadID, patches: batch.updates))
+            }
+            for (messageID, ids) in batch.reactionDeletesByMessageID where !ids.isEmpty {
+                events.append(.deleteMessageReactions(threadID: hashedThreadID, messageID: messageID, ids: ids))
             }
             if !batch.deletes.isEmpty {
                 events.append(.deleteMessages(threadID: hashedThreadID, ids: batch.deletes))

@@ -71,15 +71,11 @@ extension Mapper {
                   case let .reaction(parts) = associatedMessageType else {
                 continue
             }
-            let participantID = senderID(for: reaction)
             if parts.action == .reacted {
-                reactions.append(PlatformSDK.MessageReaction(
-                    id: participantID,
-                    reactionKey: parts.platformReactionKey(emoji: reaction.associatedMessageEmoji) ?? "",
-                    imgURL: parts.isSticker ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
-                    participantID: participantID
-                ))
-            } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.id == participantID }) {
+                if let messageReaction = mapMessageReaction(row: reaction, reaction: parts, currentUserID: currentUserID, accountID: accountID) {
+                    reactions.append(messageReaction)
+                }
+            } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.id == messageSenderID(for: reaction, currentUserID: currentUserID) }) {
                 reactions.remove(at: index)
             }
         }
@@ -96,11 +92,11 @@ extension Mapper {
     }
 
     func senderID() -> String {
-        senderID(for: msgRow)
+        messageSenderID(for: msgRow, currentUserID: currentUserID)
     }
 
     func reactionStickerAssetURL(rowID: Int) -> String {
-        "asset://\(accountID)/reaction-sticker/\(rowID).heic"
+        reactionStickerAssetURLString(accountID: accountID, rowID: rowID)
     }
 
     private func mapReactionAction(
@@ -128,20 +124,60 @@ extension Mapper {
         return message
     }
 
-
-    private func senderID(for row: any RowWithSenderFields) -> String {
-        if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {
-            return currentUserID
-        }
-        return row.participantID ?? ""
-    }
 }
 
-private protocol RowWithSenderFields {
+protocol RowWithSenderFields {
     var isFromMe: Int { get }
     var handleID: Int? { get }
     var participantID: String? { get }
 }
 
+protocol MessageReactionRowFields: RowWithSenderFields {
+    var rowID: Int { get }
+    var associatedMessageType: Int { get }
+    var associatedMessageEmoji: String? { get }
+}
+
 extension MappedMessageRow: RowWithSenderFields {}
 extension MappedReactionMessageRow: RowWithSenderFields {}
+extension MappedMessageRow: MessageReactionRowFields {}
+extension MappedReactionMessageRow: MessageReactionRowFields {}
+
+func messageSenderID(for row: any RowWithSenderFields, currentUserID: String) -> String {
+    if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {
+        return currentUserID
+    }
+    return row.participantID ?? ""
+}
+
+func reactionStickerAssetURLString(accountID: String, rowID: Int) -> String {
+    "asset://\(accountID)/reaction-sticker/\(rowID).heic"
+}
+
+func mapMessageReaction(
+    row: any MessageReactionRowFields,
+    currentUserID: String,
+    accountID: String
+) -> PlatformSDK.MessageReaction? {
+    guard let associatedMessageType = associatedMessageTypes[row.associatedMessageType],
+          case let .reaction(reaction) = associatedMessageType else {
+        return nil
+    }
+    return mapMessageReaction(row: row, reaction: reaction, currentUserID: currentUserID, accountID: accountID)
+}
+
+func mapMessageReaction(
+    row: any MessageReactionRowFields,
+    reaction: AssociatedReaction,
+    currentUserID: String,
+    accountID: String
+) -> PlatformSDK.MessageReaction? {
+    let reactionKey = reaction.platformReactionKey(emoji: row.associatedMessageEmoji) ?? ""
+    let participantID = messageSenderID(for: row, currentUserID: currentUserID)
+    return PlatformSDK.MessageReaction(
+        id: participantID,
+        reactionKey: reactionKey,
+        imgURL: reaction.includesStickerAssetInAction ? reactionStickerAssetURLString(accountID: accountID, rowID: row.rowID) : nil,
+        participantID: participantID
+    )
+}

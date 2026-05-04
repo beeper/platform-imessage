@@ -98,16 +98,18 @@ extension PlatformAPI {
         copyMessage(
             message,
             senderID: Hasher.participant.tokenizeRemembering(pii: message.senderID),
-            reactions: message.reactions?.map { reaction in
-                PlatformSDK.MessageReaction(
-                    id: Hasher.participant.tokenizeRemembering(pii: reaction.id),
-                    reactionKey: reaction.reactionKey,
-                    imgURL: reaction.imgURL,
-                    participantID: Hasher.participant.tokenizeRemembering(pii: reaction.participantID),
-                    emoji: reaction.emoji
-                )
-            },
+            reactions: message.reactions?.map(hashReaction),
             threadID: message.threadID.map { Hasher.thread.tokenizeRemembering(pii: $0) }
+        )
+    }
+
+    nonisolated static func hashReaction(_ reaction: PlatformSDK.MessageReaction) -> PlatformSDK.MessageReaction {
+        PlatformSDK.MessageReaction(
+            id: Hasher.participant.tokenizeRemembering(pii: reaction.id),
+            reactionKey: reaction.reactionKey,
+            imgURL: reaction.imgURL,
+            participantID: Hasher.participant.tokenizeRemembering(pii: reaction.participantID),
+            emoji: reaction.emoji
         )
     }
 
