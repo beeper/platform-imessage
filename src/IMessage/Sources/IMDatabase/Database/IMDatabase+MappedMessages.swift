@@ -141,8 +141,11 @@ public extension IMDatabase {
 
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
-        guard guids.count <= maxMappedMessageRowsBatchSize else {
-            return try guids
+        var seenGUIDs = Set<String>()
+        let uniqueGUIDs = guids.filter { seenGUIDs.insert($0).inserted }
+
+        guard uniqueGUIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueGUIDs
                 .chunks(ofCount: maxMappedMessageRowsBatchSize)
                 .flatMap { try mappedMessageRows(guids: Array($0)) }
         }
@@ -153,10 +156,10 @@ public extension IMDatabase {
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        WHERE m.guid IN (\(placeholders(count: guids.count)))
+        WHERE m.guid IN (\(placeholders(count: uniqueGUIDs.count)))
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(guids.map { $0 as any SQLiteBindable })
+        try statement.bind(uniqueGUIDs.map { $0 as any SQLiteBindable })
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
