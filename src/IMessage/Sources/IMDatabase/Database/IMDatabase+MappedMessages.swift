@@ -58,13 +58,13 @@ public extension IMDatabase {
         return try statement.mapRowsUntilDone { row in
             (
                 lastRowID: try row[0].optionalConverting(Int.self) ?? 0,
-                lastDateRead: imCoreDateOrReferenceDate(nanoseconds: try row[1].optionalConverting(Int.self) ?? 0),
-                lastDateEdited: imCoreDateOrReferenceDate(nanoseconds: try row[2].optionalConverting(Int.self) ?? 0)
+                lastDateRead: try row[1].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0),
+                lastDateEdited: try row[2].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0)
             )
         }.first ?? (
             lastRowID: 0,
-            lastDateRead: imCoreDateOrReferenceDate(nanoseconds: 0),
-            lastDateEdited: imCoreDateOrReferenceDate(nanoseconds: 0)
+            lastDateRead: Date(nanosecondsSinceReferenceDate: 0),
+            lastDateEdited: Date(nanosecondsSinceReferenceDate: 0)
         )
     }
 
@@ -333,8 +333,4 @@ private func placeholders(count: Int) -> String {
 
 private func rowValuePlaceholders(count: Int) -> String {
     Array(repeating: "(?)", count: count).joined(separator: ", ")
-}
-
-private func imCoreDateOrReferenceDate(nanoseconds: Int) -> Date {
-    Date.imCoreDate(nanoseconds: nanoseconds) ?? Date(nanosecondsSinceReferenceDate: 0)
 }
