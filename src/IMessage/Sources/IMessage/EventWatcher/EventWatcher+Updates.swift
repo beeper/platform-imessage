@@ -81,39 +81,38 @@ extension EventWatcher {
             let threadID = msgRow.threadID ?? change.chatGUID
 
             if let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty {
-                guard let reaction = reaction(for: msgRow) else {
-                    traceMessageUpdates("message row \(msgRow.rowID) is associated but not a reaction; skipping state sync")
-                    continue
-                }
-
-                let target = parseAssociatedMessageTarget(associatedGUID)
-                guard !target.messageID.isEmpty else {
-                    log.error("message row \(msgRow.rowID) is a reaction but doesn't point at a message, dropping reaction state sync")
-                    continue
-                }
-
-                if change.isNew {
-                    var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
-                    switch reaction.action {
-                    case .reacted:
-                        if let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID) {
-                            batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
-                        } else {
-                            log.error("message row \(msgRow.rowID) is a reaction but couldn't be mapped, dropping reaction state sync")
-                        }
-                        pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAdd)
-                    case .unreacted:
-                        batch.reactionDeletesByMessageID[target.messageID, default: []].append(
-                            PlatformAPI.hashedParticipantID(messageSenderID(for: msgRow, currentUserID: currentUserID))
-                        )
-                        if let replyToGUID = msgRow.replyToGUID {
-                            batch.deletes.append(replyToGUID)
-                        }
+                if let reaction = reaction(for: msgRow) {
+                    let target = parseAssociatedMessageTarget(associatedGUID)
+                    guard !target.messageID.isEmpty else {
+                        log.error("message row \(msgRow.rowID) is a reaction but doesn't point at a message, dropping reaction state sync")
+                        continue
                     }
-                    batchesByThreadID[threadID] = batch
+
+                    if change.isNew {
+                        var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
+                        switch reaction.action {
+                        case .reacted:
+                            if let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID) {
+                                batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
+                            } else {
+                                log.error("message row \(msgRow.rowID) is a reaction but couldn't be mapped, dropping reaction state sync")
+                            }
+                            pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAdd)
+                        case .unreacted:
+                            batch.reactionDeletesByMessageID[target.messageID, default: []].append(
+                                PlatformAPI.hashedParticipantID(messageSenderID(for: msgRow, currentUserID: currentUserID))
+                            )
+                            if let replyToGUID = msgRow.replyToGUID {
+                                batch.deletes.append(replyToGUID)
+                            }
+                        }
+                        batchesByThreadID[threadID] = batch
+                    }
+
+                    continue
                 }
 
-                continue
+                traceMessageUpdates("message row \(msgRow.rowID) is associated but not a reaction; treating as a message state sync")
             }
 
             pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .normal(change))
