@@ -4,6 +4,7 @@ extension PlatformSDK {
     public enum ServerEventType: String {
         case stateSync = "state_sync"
         case toast
+        @available(*, deprecated, message: "Use state_sync message events instead.")
         case threadMessagesRefresh = "thread_messages_refresh"
         case userActivity = "user_activity"
         case userPresenceUpdated = "user_presence_updated"
@@ -28,6 +29,7 @@ public enum ServerEvent {
     /// Displays user-visible text in a dismissible notification.
     case toast(message: String, id: String?, timeoutMilliseconds: Int?)
     /// A server event with type `thread_messages_refresh`.
+    @available(*, deprecated, message: "Use state_sync message events instead.")
     case refreshMessagesInThread(id: PlatformSDK.ThreadID)
     /// A server event with type `state_sync` that is used to `update` a
     /// `thread`.
@@ -74,7 +76,7 @@ extension ServerEvent {
             ]
         case let .refreshMessagesInThread(id):
             return [
-                "type": PlatformSDK.ServerEventType.threadMessagesRefresh.rawValue,
+                "type": "thread_messages_refresh",
                 "threadID": id,
             ]
         case let .stateSyncThread(id, patch):
