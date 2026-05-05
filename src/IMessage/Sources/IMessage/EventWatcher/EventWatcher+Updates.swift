@@ -105,8 +105,8 @@ extension EventWatcher {
                         // iMessage only keeps one hidden reaction/removal action row
                         // per participant+target. New reaction rows can point back at
                         // the previous hidden action row so clients can delete it.
-                        if let replyToGUID = msgRow.replyToGUID?.nonEmpty {
-                            batch.deletes.append(replyToGUID)
+                        if let previousActionMessageID = previousReactionActionMessageID(replyToGUID: msgRow.replyToGUID, target: target) {
+                            batch.deletes.append(previousActionMessageID)
                         }
                         pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAction)
                         batchesByThreadID[threadID] = batch
@@ -240,4 +240,18 @@ extension EventWatcher {
         }
         return reaction
     }
+}
+
+func previousReactionActionMessageID(replyToGUID: String?, target: AssociatedMessageTarget) -> PlatformSDK.MessageID? {
+    guard let replyToGUID = replyToGUID?.nonEmpty else {
+        return nil
+    }
+    // For fresh reactions, `reply_to_guid` can point at the original target
+    // message. Only delete when it points at a prior hidden reaction/removal
+    // action row.
+    guard replyToGUID != target.messageGUID,
+          replyToGUID != target.messageID else {
+        return nil
+    }
+    return replyToGUID
 }
