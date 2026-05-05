@@ -29,65 +29,57 @@ package struct UpdatedMessageChange {
 
 package struct UpdatedMessagesQueryResult {
     package let updatedMessages: [UpdatedMessageChange]
-    /// This maximum is local to the set of newly inserted message rows.
-    package let latestMessageRowID: Int?
-    /// This maximum is local to the set of read updates.
-    package let latestMessageDateRead: Date?
-    /// This maximum is local to the set of edit updates.
-    package let latestDateEdited: Date?
+    package let nextCursor: MessageUpdatesCursor
 }
 
 extension IMDatabase {
     package
     func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
-        try messages(
-            newerThanRowID: cursor.lastRowID,
-            orReadSince: cursor.lastDateRead,
-            orEditedSince: cursor.lastDateEdited
-        )
-    }
-
-    package
-    func messages(newerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedMessagesQueryResult {
         let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 
         try statement.reset()
-        try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
+        try statement.bind(
+            cursor.lastRowID,
+            cursor.lastDateRead.nanosecondsSinceReferenceDate,
+            cursor.lastDateEdited.nanosecondsSinceReferenceDate
+        )
 
-        var newestMessageRowID: Int?
-        var latestMessageDateRead: Date?
-        var latestDateEdited: Date?
+        var nextCursor = cursor
         var timesWarnedAboutOrphanedMessage = 0
 
         let updatedMessages: [UpdatedMessageChange] = try statement.compactMapRowsUntilDone { row in
             let messageRowID = try row[0].expect(Int.self)
-            let isNew = messageRowID > lastRowID
+            let isNew = messageRowID > cursor.lastRowID
             if isNew {
-                newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
+                nextCursor = MessageUpdatesCursor(
+                    lastRowID: max(messageRowID, nextCursor.lastRowID),
+                    lastDateRead: nextCursor.lastDateRead,
+                    lastDateEdited: nextCursor.lastDateEdited
+                )
             }
 
             var wasRead = false
             var wasEdited = false
 
             if let dateRead = try row[1].imCoreDate() {
-                wasRead = dateRead > lastDateRead
+                wasRead = dateRead > cursor.lastDateRead
                 if wasRead {
-                    latestMessageDateRead = if let latestMessageDateRead {
-                        max(dateRead, latestMessageDateRead)
-                    } else {
-                        dateRead
-                    }
+                    nextCursor = MessageUpdatesCursor(
+                        lastRowID: nextCursor.lastRowID,
+                        lastDateRead: max(dateRead, nextCursor.lastDateRead),
+                        lastDateEdited: nextCursor.lastDateEdited
+                    )
                 }
             }
 
             if let dateEdited = try row[2].imCoreDate() {
-                wasEdited = dateEdited > lastDateEdited
+                wasEdited = dateEdited > cursor.lastDateEdited
                 if wasEdited {
-                    latestDateEdited = if let latestDateEdited {
-                        max(dateEdited, latestDateEdited)
-                    } else {
-                        dateEdited
-                    }
+                    nextCursor = MessageUpdatesCursor(
+                        lastRowID: nextCursor.lastRowID,
+                        lastDateRead: nextCursor.lastDateRead,
+                        lastDateEdited: max(dateEdited, nextCursor.lastDateEdited)
+                    )
                 }
             }
 
@@ -117,9 +109,7 @@ extension IMDatabase {
 
         return UpdatedMessagesQueryResult(
             updatedMessages: updatedMessages,
-            latestMessageRowID: newestMessageRowID,
-            latestMessageDateRead: latestMessageDateRead,
-            latestDateEdited: latestDateEdited
+            nextCursor: nextCursor
         )
     }
 }

@@ -38,13 +38,8 @@ extension EventWatcher {
         traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
 
         let events = try messageUpdateEvents(for: queryResult)
-        let newCursor = MessageUpdatesCursor(
-            lastRowID: max(queryResult.latestMessageRowID ?? previousCursor.lastRowID, previousCursor.lastRowID),
-            lastDateRead: max(queryResult.latestMessageDateRead ?? previousCursor.lastDateRead, previousCursor.lastDateRead),
-            lastDateEdited: max(queryResult.latestDateEdited ?? previousCursor.lastDateEdited, previousCursor.lastDateEdited)
-        )
-        traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(newCursor)")
-        updatesCursor = newCursor
+        traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
+        updatesCursor = queryResult.nextCursor
         return events
     }
 
