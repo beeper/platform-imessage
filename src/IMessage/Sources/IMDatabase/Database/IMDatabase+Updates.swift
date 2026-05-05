@@ -25,6 +25,14 @@ package struct UpdatedMessageChange {
     package let isNew: Bool
     package let wasRead: Bool
     package let wasEdited: Bool
+
+    package init(rowID: Int, chatGUID: String, isNew: Bool, wasRead: Bool, wasEdited: Bool) {
+        self.rowID = rowID
+        self.chatGUID = chatGUID
+        self.isNew = isNew
+        self.wasRead = wasRead
+        self.wasEdited = wasEdited
+    }
 }
 
 package struct UpdatedMessagesQueryResult {

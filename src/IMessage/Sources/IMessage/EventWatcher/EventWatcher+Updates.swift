@@ -31,32 +31,23 @@ private struct ThreadBatch {
 }
 
 extension EventWatcher {
-    func collectMessageUpdateEvents() throws -> [ServerEvent] {
-        let previousCursor = updatesCursor
-        let queryResult = try db.messages(since: previousCursor)
-        traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
-
-        let events = try messageUpdateEvents(for: queryResult)
-        traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
-        updatesCursor = queryResult.nextCursor
-        return events
-    }
-
-    private func messageUpdateEvents(for queryResult: UpdatedMessagesQueryResult) throws -> [ServerEvent] {
-        guard !queryResult.updatedMessages.isEmpty else {
+    static func messageUpdateEvents(
+        changes: [UpdatedMessageChange],
+        msgRowsByRowID: [Int: MappedMessageRow],
+        attachmentRows: [MappedAttachmentRow],
+        reactionRows: [MappedReactionMessageRow],
+        currentUserID: String,
+        accountID: String
+    ) throws -> [ServerEvent] {
+        guard !changes.isEmpty else {
             traceMessageUpdates("no messages updated this time around")
             return []
         }
 
-        let msgRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
-        // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
-        // chats yields multiple rows with the same ROWID. Keep first.
-        let msgRowsByRowID = Dictionary(msgRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
-
         var batchesByThreadID = [PlatformSDK.ThreadID: ThreadBatch]()
         var pendingByThreadID = [PlatformSDK.ThreadID: OrderedDictionary<Int, PendingMessage>]()
 
-        for change in queryResult.updatedMessages {
+        for change in changes {
             guard let msgRow = msgRowsByRowID[change.rowID] else {
                 log.error("message update row \(change.rowID) couldn't be mapped, dropping")
                 continue
@@ -64,7 +55,7 @@ extension EventWatcher {
             let threadID = msgRow.threadID ?? change.chatGUID
 
             if let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty {
-                if let reaction = reaction(for: msgRow) {
+                if let reaction = Self.reaction(for: msgRow) {
                     let target = parseAssociatedMessageTarget(associatedGUID)
                     guard !target.messageID.isEmpty else {
                         log.error("message row \(msgRow.rowID) is a reaction but doesn't point at a message, dropping reaction state sync")
@@ -102,11 +93,10 @@ extension EventWatcher {
         }
 
         let allPendingRows = pendingByThreadID.values.flatMap { $0.values.map(\.row) }
-        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, msgRows: allPendingRows, threadID: "")
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
             msgRows: allPendingRows,
-            attachmentRows: payloadRows.attachmentRows,
-            reactionRows: payloadRows.reactionRows,
+            attachmentRows: attachmentRows,
+            reactionRows: reactionRows,
             currentUserID: currentUserID,
             accountID: accountID
         )
@@ -132,11 +122,44 @@ extension EventWatcher {
 
         for threadID in batchesByThreadID.keys {
             guard var batch = batchesByThreadID[threadID], batch.updates.count > 1 else { continue }
-            batch.updates = deduplicatedUpdatePatches(batch.updates)
+            batch.updates = Self.deduplicatedUpdatePatches(batch.updates)
             batchesByThreadID[threadID] = batch
         }
 
-        return stateSyncEvents(batchesByThreadID)
+        return Self.stateSyncEvents(batchesByThreadID)
+    }
+
+    func collectMessageUpdateEvents() throws -> [ServerEvent] {
+        let previousCursor = updatesCursor
+        let queryResult = try db.messages(since: previousCursor)
+        traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
+
+        let events = try messageUpdateEvents(for: queryResult)
+        traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
+        updatesCursor = queryResult.nextCursor
+        return events
+    }
+
+    private func messageUpdateEvents(for queryResult: UpdatedMessagesQueryResult) throws -> [ServerEvent] {
+        guard !queryResult.updatedMessages.isEmpty else {
+            traceMessageUpdates("no messages updated this time around")
+            return []
+        }
+
+        let msgRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
+        // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
+        // chats yields multiple rows with the same ROWID. Keep first.
+        let msgRowsByRowID = Dictionary(msgRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
+
+        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, msgRows: Array(msgRowsByRowID.values), threadID: "")
+        return try Self.messageUpdateEvents(
+            changes: queryResult.updatedMessages,
+            msgRowsByRowID: msgRowsByRowID,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
     }
 
     private enum MessageUpdateKind {
@@ -167,7 +190,7 @@ extension EventWatcher {
         }
     }
 
-    private func stateSyncEvents(_ batchesByThreadID: [PlatformSDK.ThreadID: ThreadBatch]) -> [ServerEvent] {
+    private static func stateSyncEvents(_ batchesByThreadID: [PlatformSDK.ThreadID: ThreadBatch]) -> [ServerEvent] {
         var events = [ServerEvent]()
         // Emit target-message reaction mutations before hidden action message
         // mutations, and keep deletes after upserts so replacement action rows
@@ -198,7 +221,7 @@ extension EventWatcher {
         return events
     }
 
-    private func deduplicatedUpdatePatches(_ patches: [JSONObject]) -> [JSONObject] {
+    private static func deduplicatedUpdatePatches(_ patches: [JSONObject]) -> [JSONObject] {
         guard patches.count > 1 else { return patches }
         // OrderedDictionary preserves first-seen patch order so identical inputs produce
         // identical event sequences; plain `Dictionary` value order is undefined.
@@ -210,7 +233,7 @@ extension EventWatcher {
         return Array(patchesByID.values)
     }
 
-    private func reaction(for msgRow: MappedMessageRow) -> AssociatedReaction? {
+    private static func reaction(for msgRow: MappedMessageRow) -> AssociatedReaction? {
         guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType],
               case let .reaction(reaction) = associatedMessageType else {
             return nil
