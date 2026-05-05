@@ -12,22 +12,23 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
     log.debug(message())
 }
 
-private enum PendingMessageKind {
-    case reactionAction
-    case normal(UpdatedMessageChange)
-}
+private enum PendingMessage {
+    case reactionAction(
+        threadID: PlatformSDK.ThreadID,
+        row: MappedMessageRow,
+        reaction: AssociatedReaction,
+        target: AssociatedMessageTarget,
+        previousActionMessageID: PlatformSDK.MessageID?
+    )
+    case normal(threadID: PlatformSDK.ThreadID, row: MappedMessageRow, change: UpdatedMessageChange)
 
-private struct PendingMessage {
-    let row: MappedMessageRow
-    let kind: PendingMessageKind
-}
-
-private struct ThreadBatch {
-    var upserts: [PlatformSDK.Message] = []
-    var updates: [JSONObject] = []
-    var deletes: [PlatformSDK.MessageID] = []
-    var reactionUpsertsByMessageID = OrderedDictionary<PlatformSDK.MessageID, [PlatformSDK.MessageReaction]>()
-    var reactionDeletesByMessageID = OrderedDictionary<PlatformSDK.MessageID, [PlatformSDK.ID]>()
+    var row: MappedMessageRow {
+        switch self {
+        case let .reactionAction(_, row, _, _, _),
+             let .normal(_, row, _):
+            return row
+        }
+    }
 }
 
 extension EventWatcher {
@@ -44,8 +45,7 @@ extension EventWatcher {
             return []
         }
 
-        var batchesByThreadID = [PlatformSDK.ThreadID: ThreadBatch]()
-        var pendingByThreadID = [PlatformSDK.ThreadID: OrderedDictionary<Int, PendingMessage>]()
+        var pendingByRowID = OrderedDictionary<Int, PendingMessage>()
 
         for change in changes {
             guard let msgRow = msgRowsByRowID[change.rowID] else {
@@ -63,24 +63,19 @@ extension EventWatcher {
                     }
 
                     if change.isNew {
-                        var batch = batchesByThreadID[threadID] ?? ThreadBatch()
-                        switch reaction.action {
-                        case .reacted:
-                            let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID)
-                            batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
-                        case .unreacted:
-                            batch.reactionDeletesByMessageID[target.messageID, default: []].append(
-                                Hasher.participant.tokenizeRemembering(pii: messageSenderID(for: msgRow, currentUserID: currentUserID))
-                            )
-                        }
                         // iMessage only keeps one hidden reaction/removal action row
                         // per participant+target. New reaction rows can point back at
                         // the previous hidden action row so clients can delete it.
-                        if let previousActionMessageID = previousReactionActionMessageID(replyToGUID: msgRow.replyToGUID, target: target) {
-                            batch.deletes.append(previousActionMessageID)
-                        }
-                        pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAction)
-                        batchesByThreadID[threadID] = batch
+                        pendingByRowID[msgRow.rowID] = .reactionAction(
+                            threadID: threadID,
+                            row: msgRow,
+                            reaction: reaction,
+                            target: target,
+                            previousActionMessageID: previousReactionActionMessageID(
+                                replyToGUID: msgRow.replyToGUID,
+                                target: target
+                            )
+                        )
                     }
 
                     continue
@@ -89,44 +84,71 @@ extension EventWatcher {
                 traceMessageUpdates("message row \(msgRow.rowID) is associated but not a reaction; treating as a message state sync")
             }
 
-            pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .normal(change))
+            pendingByRowID[msgRow.rowID] = .normal(
+                threadID: threadID,
+                row: msgRow,
+                change: change
+            )
         }
 
-        let allPendingRows = pendingByThreadID.values.flatMap { $0.values.map(\.row) }
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
-            msgRows: allPendingRows,
+            msgRows: pendingByRowID.values.map(\.row),
             attachmentRows: attachmentRows,
             reactionRows: reactionRows,
             currentUserID: currentUserID,
             accountID: accountID
         )
 
-        for (threadID, pendings) in pendingByThreadID {
-            var batch = batchesByThreadID[threadID] ?? ThreadBatch()
-            for pending in pendings.values {
-                let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
-                switch pending.kind {
-                case .reactionAction:
-                    batch.upserts.append(contentsOf: mappedMessages)
-                case .normal(let change):
-                    if change.isNew {
-                        batch.upserts.append(contentsOf: mappedMessages)
-                    }
-                    if let kind = MessageUpdateKind(change) {
-                        batch.updates.append(contentsOf: mappedMessages.compactMap { kind.patch(for: $0) })
-                    }
+        var events = [ServerEvent]()
+        for pending in pendingByRowID.values {
+            let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
+            switch pending {
+            case let .reactionAction(threadID, row, reaction, target, previousActionMessageID):
+                let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
+                switch reaction.action {
+                case .reacted:
+                    let messageReaction = mapMessageReaction(
+                        row: row,
+                        reaction: reaction,
+                        currentUserID: currentUserID,
+                        accountID: accountID
+                    )
+                    events.append(.upsertMessageReactions(
+                        threadID: hashedThreadID,
+                        messageID: target.messageID,
+                        reactions: [PlatformAPI.hashReaction(messageReaction)]
+                    ))
+                case .unreacted:
+                    events.append(.deleteMessageReactions(
+                        threadID: hashedThreadID,
+                        messageID: target.messageID,
+                        ids: [
+                            Hasher.participant.tokenizeRemembering(
+                                pii: messageSenderID(for: row, currentUserID: currentUserID)
+                            ),
+                        ]
+                    ))
+                }
+                if !mappedMessages.isEmpty {
+                    events.append(.upsertMessages(threadID: hashedThreadID, messages: mappedMessages))
+                }
+                if let previousActionMessageID {
+                    events.append(.deleteMessages(threadID: hashedThreadID, ids: [previousActionMessageID]))
+                }
+            case let .normal(threadID, _, change):
+                let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
+                if change.isNew, !mappedMessages.isEmpty {
+                    events.append(.upsertMessages(threadID: hashedThreadID, messages: mappedMessages))
+                }
+                guard let kind = MessageUpdateKind(change) else { continue }
+                let patches = mappedMessages.compactMap { kind.patch(for: $0) }
+                if !patches.isEmpty {
+                    events.append(.updateMessages(threadID: hashedThreadID, patches: patches))
                 }
             }
-            batchesByThreadID[threadID] = batch
         }
 
-        for threadID in batchesByThreadID.keys {
-            guard var batch = batchesByThreadID[threadID], batch.updates.count > 1 else { continue }
-            batch.updates = Self.deduplicatedUpdatePatches(batch.updates)
-            batchesByThreadID[threadID] = batch
-        }
-
-        return Self.stateSyncEvents(batchesByThreadID)
+        return events
     }
 
     func collectMessageUpdateEvents() throws -> [ServerEvent] {
@@ -188,49 +210,6 @@ extension EventWatcher {
                 return patch
             }
         }
-    }
-
-    private static func stateSyncEvents(_ batchesByThreadID: [PlatformSDK.ThreadID: ThreadBatch]) -> [ServerEvent] {
-        var events = [ServerEvent]()
-        // Emit target-message reaction mutations before hidden action message
-        // mutations, and keep deletes after upserts so replacement action rows
-        // are visible before prior rows disappear.
-        for (threadID, batch) in batchesByThreadID {
-            guard !batch.upserts.isEmpty ||
-                    !batch.updates.isEmpty ||
-                    !batch.deletes.isEmpty ||
-                    !batch.reactionUpsertsByMessageID.isEmpty ||
-                    !batch.reactionDeletesByMessageID.isEmpty else { continue }
-            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-            for (messageID, reactions) in batch.reactionUpsertsByMessageID {
-                events.append(.upsertMessageReactions(threadID: hashedThreadID, messageID: messageID, reactions: reactions))
-            }
-            for (messageID, ids) in batch.reactionDeletesByMessageID {
-                events.append(.deleteMessageReactions(threadID: hashedThreadID, messageID: messageID, ids: ids))
-            }
-            if !batch.upserts.isEmpty {
-                events.append(.upsertMessages(threadID: hashedThreadID, messages: batch.upserts))
-            }
-            if !batch.updates.isEmpty {
-                events.append(.updateMessages(threadID: hashedThreadID, patches: batch.updates))
-            }
-            if !batch.deletes.isEmpty {
-                events.append(.deleteMessages(threadID: hashedThreadID, ids: batch.deletes))
-            }
-        }
-        return events
-    }
-
-    private static func deduplicatedUpdatePatches(_ patches: [JSONObject]) -> [JSONObject] {
-        guard patches.count > 1 else { return patches }
-        // OrderedDictionary preserves first-seen patch order so identical inputs produce
-        // identical event sequences; plain `Dictionary` value order is undefined.
-        var patchesByID = OrderedDictionary<String, JSONObject>()
-        for patch in patches {
-            guard let id = patch["id"] as? String else { continue }
-            patchesByID[id, default: [:]].merge(patch) { _, new in new }
-        }
-        return Array(patchesByID.values)
     }
 
     private static func reaction(for msgRow: MappedMessageRow) -> AssociatedReaction? {
