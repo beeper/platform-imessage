@@ -401,6 +401,7 @@ public final class PlatformAPI {
         }
 
         let singleParticipantID = singleParticipantAddress(threadID)
+        let hashedThreadID = Self.hashedThreadID(threadID)
         platformLog.debug("activity/\(publicThreadID): watching")
 
         try await watchThreadActivity(threadID: threadID) { [dndUserIDs] status in
@@ -416,7 +417,7 @@ public final class PlatformAPI {
             var events: [ServerEvent] = [
                 .userActivity(
                     activityType: status.activityType,
-                    threadID: publicThreadID,
+                    threadID: hashedThreadID,
                     participantID: hashedParticipantID,
                     durationMilliseconds: 120_000,
                     customLabel: nil

@@ -30,6 +30,10 @@ extension PlatformAPI {
         Hasher.participant.tokenizeRemembering(pii: participantID)
     }
 
+    nonisolated static func hashedThreadID(_ threadID: PlatformSDK.ThreadID) -> PlatformSDK.ThreadID {
+        Hasher.thread.tokenizeRemembering(pii: threadID)
+    }
+
     nonisolated static func mapAndHashMessages(
         msgRows: [MappedMessageRow],
         attachmentRows: [MappedAttachmentRow],
