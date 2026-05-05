@@ -23,7 +23,6 @@ private struct PendingMessage {
 }
 
 private struct ThreadBatch {
-    let threadID: PlatformSDK.ThreadID
     var upserts: [PlatformSDK.Message] = []
     var updates: [JSONObject] = []
     var deletes: [PlatformSDK.MessageID] = []
@@ -73,7 +72,7 @@ extension EventWatcher {
                     }
 
                     if change.isNew {
-                        var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
+                        var batch = batchesByThreadID[threadID] ?? ThreadBatch()
                         switch reaction.action {
                         case .reacted:
                             let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID)
@@ -113,7 +112,7 @@ extension EventWatcher {
         )
 
         for (threadID, pendings) in pendingByThreadID {
-            var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
+            var batch = batchesByThreadID[threadID] ?? ThreadBatch()
             for pending in pendings.values {
                 let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
                 switch pending.kind {
@@ -137,7 +136,7 @@ extension EventWatcher {
             batchesByThreadID[threadID] = batch
         }
 
-        return stateSyncEvents(batches: batchesByThreadID.values)
+        return stateSyncEvents(batchesByThreadID)
     }
 
     private enum MessageUpdateKind {
@@ -168,18 +167,18 @@ extension EventWatcher {
         }
     }
 
-    private func stateSyncEvents(batches: Dictionary<PlatformSDK.ThreadID, ThreadBatch>.Values) -> [ServerEvent] {
+    private func stateSyncEvents(_ batchesByThreadID: [PlatformSDK.ThreadID: ThreadBatch]) -> [ServerEvent] {
         var events = [ServerEvent]()
         // Emit target-message reaction mutations before hidden action message
         // mutations, and keep deletes after upserts so replacement action rows
         // are visible before prior rows disappear.
-        for batch in batches {
+        for (threadID, batch) in batchesByThreadID {
             guard !batch.upserts.isEmpty ||
                     !batch.updates.isEmpty ||
                     !batch.deletes.isEmpty ||
                     !batch.reactionUpsertsByMessageID.isEmpty ||
                     !batch.reactionDeletesByMessageID.isEmpty else { continue }
-            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: batch.threadID)
+            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
             for (messageID, reactions) in batch.reactionUpsertsByMessageID where !reactions.isEmpty {
                 events.append(.upsertMessageReactions(threadID: hashedThreadID, messageID: messageID, reactions: reactions))
             }

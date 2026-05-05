@@ -21,14 +21,12 @@ export const swiftMapperReviver = (key: string, value: unknown): unknown => {
   return value
 }
 
-const reviveSwiftDateFields = (record: Record<string, unknown>): void => {
-  SWIFT_DATE_FIELDS.forEach(field => {
-    if (field in record) record[field] = swiftMapperReviver(field, record[field])
-  })
-}
+const reviveSwiftDateFields = (value: unknown): void => {
+  if (!isMutableRecord(value)) return
 
-const reviveSwiftEventEntry = (entry: unknown): void => {
-  if (isMutableRecord(entry)) reviveSwiftDateFields(entry)
+  SWIFT_DATE_FIELDS.forEach(field => {
+    if (field in value) value[field] = swiftMapperReviver(field, value[field])
+  })
 }
 
 export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
@@ -36,7 +34,7 @@ export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
   // values are transient event objects. Keep the work targeted to the event
   // envelope and state-sync entries instead of walking attachments/extras.
   if (Array.isArray(value)) {
-    value.forEach(reviveSwiftEventEntry)
+    value.forEach(reviveSwiftDateFields)
     return value
   }
   if (!isMutableRecord(value)) return value
@@ -44,11 +42,9 @@ export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
   reviveSwiftDateFields(value)
 
   if (Array.isArray(value.entries)) {
-    value.entries.forEach(reviveSwiftEventEntry)
+    value.entries.forEach(reviveSwiftDateFields)
   }
-  if (isMutableRecord(value.presence)) {
-    reviveSwiftDateFields(value.presence)
-  }
+  reviveSwiftDateFields(value.presence)
 
   return value
 }

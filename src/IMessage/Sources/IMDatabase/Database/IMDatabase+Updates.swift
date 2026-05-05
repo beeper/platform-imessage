@@ -44,18 +44,16 @@ extension IMDatabase {
             cursor.lastDateEdited.nanosecondsSinceReferenceDate
         )
 
-        var nextCursor = cursor
+        var nextLastRowID = cursor.lastRowID
+        var nextLastDateRead = cursor.lastDateRead
+        var nextLastDateEdited = cursor.lastDateEdited
         var timesWarnedAboutOrphanedMessage = 0
 
         let updatedMessages: [UpdatedMessageChange] = try statement.compactMapRowsUntilDone { row in
             let messageRowID = try row[0].expect(Int.self)
             let isNew = messageRowID > cursor.lastRowID
             if isNew {
-                nextCursor = MessageUpdatesCursor(
-                    lastRowID: max(messageRowID, nextCursor.lastRowID),
-                    lastDateRead: nextCursor.lastDateRead,
-                    lastDateEdited: nextCursor.lastDateEdited
-                )
+                nextLastRowID = max(messageRowID, nextLastRowID)
             }
 
             var wasRead = false
@@ -64,22 +62,14 @@ extension IMDatabase {
             if let dateRead = try row[1].imCoreDate() {
                 wasRead = dateRead > cursor.lastDateRead
                 if wasRead {
-                    nextCursor = MessageUpdatesCursor(
-                        lastRowID: nextCursor.lastRowID,
-                        lastDateRead: max(dateRead, nextCursor.lastDateRead),
-                        lastDateEdited: nextCursor.lastDateEdited
-                    )
+                    nextLastDateRead = max(dateRead, nextLastDateRead)
                 }
             }
 
             if let dateEdited = try row[2].imCoreDate() {
                 wasEdited = dateEdited > cursor.lastDateEdited
                 if wasEdited {
-                    nextCursor = MessageUpdatesCursor(
-                        lastRowID: nextCursor.lastRowID,
-                        lastDateRead: nextCursor.lastDateRead,
-                        lastDateEdited: max(dateEdited, nextCursor.lastDateEdited)
-                    )
+                    nextLastDateEdited = max(dateEdited, nextLastDateEdited)
                 }
             }
 
@@ -109,7 +99,11 @@ extension IMDatabase {
 
         return UpdatedMessagesQueryResult(
             updatedMessages: updatedMessages,
-            nextCursor: nextCursor
+            nextCursor: MessageUpdatesCursor(
+                lastRowID: nextLastRowID,
+                lastDateRead: nextLastDateRead,
+                lastDateEdited: nextLastDateEdited
+            )
         )
     }
 }

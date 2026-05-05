@@ -140,7 +140,7 @@ func messageSenderID(for row: any RowWithSenderFields, currentUserID: String) ->
     return row.participantID ?? ""
 }
 
-func reactionStickerAssetURL(accountID: String, rowID: Int) -> String {
+private func reactionStickerAssetURL(accountID: String, rowID: Int) -> String {
     "asset://\(accountID)/reaction-sticker/\(rowID).heic"
 }
 
