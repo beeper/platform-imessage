@@ -72,9 +72,7 @@ extension Mapper {
                 continue
             }
             if parts.action == .reacted {
-                if let messageReaction = mapMessageReaction(row: reaction, reaction: parts, currentUserID: currentUserID, accountID: accountID) {
-                    reactions.append(messageReaction)
-                }
+                reactions.append(mapMessageReaction(row: reaction, reaction: parts, currentUserID: currentUserID, accountID: accountID))
             } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.id == messageSenderID(for: reaction, currentUserID: currentUserID) }) {
                 reactions.remove(at: index)
             }
@@ -156,22 +154,10 @@ func reactionStickerAssetURLString(accountID: String, rowID: Int) -> String {
 
 func mapMessageReaction(
     row: any MessageReactionRowFields,
-    currentUserID: String,
-    accountID: String
-) -> PlatformSDK.MessageReaction? {
-    guard let associatedMessageType = associatedMessageTypes[row.associatedMessageType],
-          case let .reaction(reaction) = associatedMessageType else {
-        return nil
-    }
-    return mapMessageReaction(row: row, reaction: reaction, currentUserID: currentUserID, accountID: accountID)
-}
-
-func mapMessageReaction(
-    row: any MessageReactionRowFields,
     reaction: AssociatedReaction,
     currentUserID: String,
     accountID: String
-) -> PlatformSDK.MessageReaction? {
+) -> PlatformSDK.MessageReaction {
     let reactionKey = reaction.platformReactionKey(emoji: row.associatedMessageEmoji) ?? ""
     let participantID = messageSenderID(for: row, currentUserID: currentUserID)
     return PlatformSDK.MessageReaction(

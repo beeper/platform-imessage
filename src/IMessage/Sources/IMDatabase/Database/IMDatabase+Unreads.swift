@@ -3,7 +3,7 @@ import SQLite
 import IMessageCore
 
 // TODO(skip): optimize; query takes ~70ms (!)
-let unreadStatesQuery = """
+private let unreadStatesQuery = """
 SELECT
     c.guid AS chat_guid,
     COUNT(

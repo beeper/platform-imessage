@@ -92,11 +92,8 @@ extension EventWatcher {
                         var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
                         switch reaction.action {
                         case .reacted:
-                            if let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID) {
-                                batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
-                            } else {
-                                log.error("message row \(msgRow.rowID) is a reaction but couldn't be mapped, dropping reaction state sync")
-                            }
+                            let messageReaction = mapMessageReaction(row: msgRow, reaction: reaction, currentUserID: currentUserID, accountID: accountID)
+                            batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
                         case .unreacted:
                             batch.reactionDeletesByMessageID[target.messageID, default: []].append(
                                 PlatformAPI.hashedParticipantID(messageSenderID(for: msgRow, currentUserID: currentUserID))
@@ -122,7 +119,13 @@ extension EventWatcher {
         }
 
         let allPendingRows = pendingByThreadID.values.flatMap { $0.values.map(\.row) }
-        let mappedMessagesByRowID = try mapMessagesByRowID(allPendingRows)
+        let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
+            db: db,
+            msgRows: allPendingRows,
+            threadID: "",
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
 
         for (threadID, pendings) in pendingByThreadID {
             var batch = batchesByThreadID[threadID] ?? ThreadBatch(threadID: threadID)
@@ -152,7 +155,7 @@ extension EventWatcher {
         return stateSyncEvents(batches: batchesByThreadID.values)
     }
 
-    enum MessageUpdateKind {
+    private enum MessageUpdateKind {
         case edited, read
 
         init?(_ change: UpdatedMessageChange) {
@@ -178,16 +181,6 @@ extension EventWatcher {
                 return patch
             }
         }
-    }
-
-    private func mapMessagesByRowID(_ msgRows: [MappedMessageRow]) throws -> [Int: [PlatformSDK.Message]] {
-        try PlatformAPI.mapAndHashMessagesByRowID(
-            db: db,
-            msgRows: msgRows,
-            threadID: "",
-            currentUserID: currentUserID,
-            accountID: accountID
-        )
     }
 
     private func stateSyncEvents(batches: Dictionary<PlatformSDK.ThreadID, ThreadBatch>.Values) -> [ServerEvent] {
@@ -242,7 +235,7 @@ extension EventWatcher {
     }
 }
 
-func previousReactionActionMessageID(replyToGUID: String?, target: AssociatedMessageTarget) -> PlatformSDK.MessageID? {
+private func previousReactionActionMessageID(replyToGUID: String?, target: AssociatedMessageTarget) -> PlatformSDK.MessageID? {
     guard let replyToGUID = replyToGUID?.nonEmpty else {
         return nil
     }

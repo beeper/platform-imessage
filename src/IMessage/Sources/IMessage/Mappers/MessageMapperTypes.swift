@@ -8,7 +8,7 @@ let uuidStart = 11
 let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000
 
-struct AssociatedMessageTarget: Hashable {
+struct AssociatedMessageTarget {
     let part: String?
     let messageGUID: String
 
@@ -62,12 +62,8 @@ struct AssociatedReaction {
         }
     }
 
-    var isSticker: Bool {
-        key == .sticker
-    }
-
     var includesStickerAssetInAction: Bool {
-        action == .reacted && isSticker
+        action == .reacted && key == .sticker
     }
 
     var verb: String {

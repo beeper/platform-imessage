@@ -39,7 +39,7 @@ export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
     value.forEach(reviveSwiftEventEntry)
     return value
   }
-  if (!isMutableRecord(value)) return swiftMapperReviver('', value) as T
+  if (!isMutableRecord(value)) return value
 
   reviveSwiftDateFields(value)
 

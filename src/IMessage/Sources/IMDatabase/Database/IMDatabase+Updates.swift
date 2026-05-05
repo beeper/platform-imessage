@@ -3,7 +3,7 @@ import Logging
 
 private let log = Logger(label: "imdb.updates")
 
-let updatedMessagesSinceQuery = """
+private let updatedMessagesSinceQuery = """
 SELECT
     m.ROWID,
     m.date_read,
@@ -20,21 +20,21 @@ ORDER BY
 """
 
 package struct UpdatedMessageChange {
-    package var rowID: Int
-    package var chatGUID: String
-    package var isNew: Bool
-    package var wasRead: Bool
-    package var wasEdited: Bool
+    package let rowID: Int
+    package let chatGUID: String
+    package let isNew: Bool
+    package let wasRead: Bool
+    package let wasEdited: Bool
 }
 
 package struct UpdatedMessagesQueryResult {
-    package var updatedMessages: [UpdatedMessageChange]
+    package let updatedMessages: [UpdatedMessageChange]
     /// This maximum is local to the set of newly inserted message rows.
-    package var latestMessageRowID: Int?
+    package let latestMessageRowID: Int?
     /// This maximum is local to the set of read updates.
-    package var latestMessageDateRead: Date?
+    package let latestMessageDateRead: Date?
     /// This maximum is local to the set of edit updates.
-    package var latestDateEdited: Date?
+    package let latestDateEdited: Date?
 }
 
 extension IMDatabase {
