@@ -48,11 +48,15 @@ public extension IMDatabase {
     }
 
     func messageUpdateCursorSnapshot() throws -> (lastRowID: Int, lastDateRead: Date, lastDateEdited: Date) {
+        let messageSchema = try schema().message
+        let dateEditedSelection = messageSchema.has(.dateEdited)
+            ? "COALESCE((SELECT MAX(\(MessageTable.Column.dateEdited.sqlName)) FROM \(MessageTable.sqlName)), 0)"
+            : "0"
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT
-            COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'message'), 0),
-            COALESCE((SELECT MAX(date_read) FROM message), 0),
-            COALESCE((SELECT MAX(date_edited) FROM message), 0)
+            COALESCE((SELECT \(SQLiteSequenceTable.Column.seq.sqlName) FROM \(SQLiteSequenceTable.sqlName) WHERE \(SQLiteSequenceTable.Column.name.sqlName) = '\(MessageTable.sqlName)'), 0),
+            COALESCE((SELECT MAX(\(MessageTable.Column.dateRead.sqlName)) FROM \(MessageTable.sqlName)), 0),
+            \(dateEditedSelection)
         """).reset()
 
         return try statement.mapRowsUntilDone { row in
@@ -111,13 +115,13 @@ public extension IMDatabase {
         direction: MappedPageDirection?,
         limit: Int = 20
     ) throws -> [MappedMessageRow] {
-        let messageColumns = try tableColumns("message")
+        let messageSchema = try schema().message
         let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
         let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
         let order = withCursor?.direction == .after ? "ASC" : "DESC"
-        let dateExpression = comparisonOperator == ">" && messageColumns.contains("date_edited")
-            ? "MAX(m.date, COALESCE(m.date_edited, 0))"
-            : "cmj.message_date"
+        let dateExpression = comparisonOperator == ">" && messageSchema.has(.dateEdited)
+            ? "MAX(m.\(MessageTable.Column.date.sqlName), COALESCE(m.\(MessageTable.Column.dateEdited.sqlName), 0))"
+            : "cmj.\(ChatMessageJoinTable.Column.messageDate.sqlName)"
 
         // The historical query filtered by chat guid after starting from
         // `message ORDER BY date`. On large databases that can walk a huge
@@ -129,7 +133,7 @@ public extension IMDatabase {
 
         var sql = """
         SELECT
-        \(messageSelectionSQL(messageColumns: messageColumns))
+        \(messageSelectionSQL(messageSchema: messageSchema))
         FROM chat_message_join AS cmj
         \(messageJoinsFromChatMessageJoin)
         WHERE cmj.chat_id = ?
@@ -171,10 +175,10 @@ public extension IMDatabase {
                 .flatMap { try mappedMessageRows(guids: Array($0)) }
         }
 
-        let messageColumns = try tableColumns("message")
+        let messageSchema = try schema().message
         let sql = """
         SELECT
-        \(messageSelectionSQL(messageColumns: messageColumns))
+        \(messageSelectionSQL(messageSchema: messageSchema))
         FROM message AS m
         \(messageJoins)
         WHERE m.guid IN (\(placeholders(count: uniqueGUIDs.count)))
@@ -195,10 +199,10 @@ public extension IMDatabase {
                 .sorted { ($0.date ?? 0) > ($1.date ?? 0) }
         }
 
-        let messageColumns = try tableColumns("message")
+        let messageSchema = try schema().message
         let sql = """
         SELECT
-        \(messageSelectionSQL(messageColumns: messageColumns))
+        \(messageSelectionSQL(messageSchema: messageSchema))
         FROM message AS m
         \(messageJoins)
         WHERE m.ROWID IN (\(placeholders(count: uniqueRowIDs.count)))
@@ -211,7 +215,7 @@ public extension IMDatabase {
 
     func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: MappedMessageRow] {
         guard !chatRowIDs.isEmpty else { return [:] }
-        let messageColumns = try tableColumns("message")
+        let messageSchema = try schema().message
         let sql = """
         WITH requested_chat(rowid) AS (
           VALUES \(rowValuePlaceholders(count: chatRowIDs.count))
@@ -229,7 +233,7 @@ public extension IMDatabase {
           FROM requested_chat
         )
         SELECT
-        \(messageSelectionSQL(messageColumns: messageColumns))
+        \(messageSelectionSQL(messageSchema: messageSchema))
         FROM latest_join
         \(latestMessageJoins)
         ORDER BY m.date DESC
@@ -278,8 +282,10 @@ public extension IMDatabase {
 
     func mappedReactionRows(messageGUIDs: [String], chatRowIDs: [Int]) throws -> [MappedReactionMessageRow] {
         guard !messageGUIDs.isEmpty, !chatRowIDs.isEmpty else { return [] }
-        let messageColumns = try tableColumns("message")
-        let emojiColumn = messageColumns.contains("associated_message_emoji") ? "associated_message_emoji," : ""
+        let messageSchema = try schema().message
+        let emojiColumn = messageSchema.has(.associatedMessageEmoji)
+            ? "m.\(MessageTable.Column.associatedMessageEmoji.sqlName) AS \(MessageTable.Column.associatedMessageEmoji.sqlName),"
+            : ""
         let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
         let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
         let sql = """
@@ -312,9 +318,9 @@ public extension IMDatabase {
 
 private let maxMappedMessageRowsBatchSize = 500
 
-private func messageSelectionSQL(messageColumns: [String]) -> String {
+private func messageSelectionSQL(messageSchema: TableSchema<MessageTable>) -> String {
     var selections = ["m.ROWID AS ROWID"]
-    selections += messageColumns
+    selections += messageSchema.columns
         .filter { $0 != "ROWID" }
         .map { "m.\($0) AS \($0)" }
     selections += [

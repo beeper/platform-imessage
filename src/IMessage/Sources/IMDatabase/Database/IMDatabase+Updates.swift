@@ -3,22 +3,6 @@ import Logging
 
 private let log = Logger(label: "imdb.updates")
 
-let updatedMessagesSinceQuery = """
-SELECT
-    m.ROWID,
-    m.date_read,
-    m.date_edited,
-    c.guid
-FROM
-    message m
-LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat c ON cmj.chat_id = c.ROWID
-WHERE
-    m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
-ORDER BY
-    m.ROWID ASC
-"""
-
 package struct UpdatedMessageChange {
     package var rowID: Int
     package var chatGUID: String
@@ -40,7 +24,11 @@ package struct UpdatedMessagesQueryResult {
 extension IMDatabase {
     package
     func messages(newerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedMessagesQueryResult {
-        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
+        let messageSchema = try schema().message
+        let dateEditedExpression = messageSchema.has(.dateEdited)
+            ? "m.\(MessageTable.Column.dateEdited.sqlName)"
+            : "0"
+        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery(dateEditedExpression: dateEditedExpression))
 
         try statement.reset()
         try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
@@ -113,4 +101,22 @@ extension IMDatabase {
             latestDateEdited: latestDateEdited
         )
     }
+}
+
+private func updatedMessagesSinceQuery(dateEditedExpression: String) -> String {
+    """
+    SELECT
+        m.\(MessageTable.Column.rowID.sqlName),
+        m.\(MessageTable.Column.dateRead.sqlName),
+        \(dateEditedExpression) AS \(MessageTable.Column.dateEdited.sqlName),
+        c.\(ChatTable.Column.guid.sqlName)
+    FROM
+        \(MessageTable.sqlName) m
+    LEFT JOIN \(ChatMessageJoinTable.sqlName) cmj ON cmj.\(ChatMessageJoinTable.Column.messageID.sqlName) = m.\(MessageTable.Column.rowID.sqlName)
+    LEFT JOIN \(ChatTable.sqlName) c ON cmj.\(ChatMessageJoinTable.Column.chatID.sqlName) = c.\(ChatTable.Column.rowID.sqlName)
+    WHERE
+        m.\(MessageTable.Column.rowID.sqlName) > ? OR m.\(MessageTable.Column.dateRead.sqlName) > ? OR \(dateEditedExpression) > ?
+    ORDER BY
+        m.\(MessageTable.Column.rowID.sqlName) ASC
+    """
 }

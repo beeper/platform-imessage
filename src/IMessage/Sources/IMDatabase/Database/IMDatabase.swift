@@ -14,9 +14,9 @@ private func chatDatabaseWalFile(in messagesDataURL: URL) -> URL {
 
 private let log = Logger(label: "imdb")
 
-private let messageIndexes = [
-    ("message_idx_date_read", "date_read"),
-    ("message_idx_date_edited", "date_edited"),
+private let messageIndexes: [(name: String, column: MessageTable.Column)] = [
+    ("message_idx_date_read", .dateRead),
+    ("message_idx_date_edited", .dateEdited),
 ]
 
 public final class IMDatabase {
@@ -44,6 +44,7 @@ public final class IMDatabase {
 
     private var statementCache = [String: Statement]()
     var tableColumnCache = [String: [String]]()
+    var schemaCache: IMDatabaseSchema?
 
     public init(messagesDataBaseURL: URL? = nil, createIndexes: Bool = false) throws {
         let messagesDataDirectory = messagesDataBaseURL ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Messages/")
@@ -82,10 +83,10 @@ public final class IMDatabase {
 private extension IMDatabase {
     static func createIndexesIfNecessary(in messagesDataDirectory: URL) throws {
         let database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readWrite)
-        let messageColumns = try database.tableColumns("message")
+        let messageSchema = TableSchema<MessageTable>(columns: try database.tableColumns(MessageTable.sqlName))
 
-        for (indexName, columnName) in messageIndexes where messageColumns.contains(columnName) {
-            try database.execute(sqlWithoutEscaping: "CREATE INDEX IF NOT EXISTS \(indexName) ON message (\(columnName))")
+        for (indexName, column) in messageIndexes where messageSchema.has(column) {
+            try database.execute(sqlWithoutEscaping: "CREATE INDEX IF NOT EXISTS \(indexName) ON \(MessageTable.sqlName) (\(column.sqlName))")
         }
     }
 }

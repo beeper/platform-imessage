@@ -8,12 +8,12 @@ public extension IMDatabase {
         direction: MappedPageDirection?,
         limit: Int = mappedThreadsLimit
     ) throws -> [MappedChatRow] {
-        let chatColumns = try tableColumns("chat")
+        let chatSchema = try schema().chat
         let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
         let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
         var sql = """
         SELECT
-        \(chatSelectionSQL(chatColumns: chatColumns)),
+        \(chatSelectionSQL(chatSchema: chatSchema)),
         (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
         FROM chat
         """
@@ -30,10 +30,10 @@ public extension IMDatabase {
     }
 
     func mappedThreadRow(guid: String) throws -> MappedChatRow? {
-        let chatColumns = try tableColumns("chat")
+        let chatSchema = try schema().chat
         let sql = """
         SELECT
-        \(chatSelectionSQL(chatColumns: chatColumns)),
+        \(chatSelectionSQL(chatSchema: chatSchema)),
         (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
         FROM chat
         WHERE chat.guid = ?
@@ -85,9 +85,9 @@ public extension IMDatabase {
     }
 }
 
-private func chatSelectionSQL(chatColumns: [String]) -> String {
+private func chatSelectionSQL(chatSchema: TableSchema<ChatTable>) -> String {
     var selections = ["chat.ROWID AS ROWID"]
-    selections += chatColumns
+    selections += chatSchema.columns
         .filter { $0 != "ROWID" }
         .map { "chat.\($0) AS \($0)" }
     return selections.joined(separator: ",\n")
