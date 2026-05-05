@@ -80,7 +80,7 @@ extension EventWatcher {
                             batch.reactionUpsertsByMessageID[target.messageID, default: []].append(PlatformAPI.hashReaction(messageReaction))
                         case .unreacted:
                             batch.reactionDeletesByMessageID[target.messageID, default: []].append(
-                                PlatformAPI.hashedParticipantID(messageSenderID(for: msgRow, currentUserID: currentUserID))
+                                Hasher.participant.tokenizeRemembering(pii: messageSenderID(for: msgRow, currentUserID: currentUserID))
                             )
                         }
                         // iMessage only keeps one hidden reaction/removal action row

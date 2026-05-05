@@ -404,7 +404,7 @@ public final class PlatformAPI {
         }
 
         let singleParticipantID = singleParticipantAddress(threadID)
-        let hashedThreadID = Self.hashedThreadID(threadID)
+        let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         platformLog.debug("activity/\(publicThreadID): watching")
 
         try await watchThreadActivity(threadID: threadID) { [dndUserIDs] status in
@@ -415,7 +415,7 @@ public final class PlatformAPI {
                 return
             }
 
-            let hashedParticipantID = Self.hashedParticipantID(singleParticipantID)
+            let hashedParticipantID = Hasher.participant.tokenizeRemembering(pii: singleParticipantID)
             let hadDNDStatus = dndUserIDs.withLock { $0.contains(singleParticipantID) }
             var events: [ServerEvent] = [
                 .userActivity(

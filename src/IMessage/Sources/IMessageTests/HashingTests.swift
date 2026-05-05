@@ -14,9 +14,9 @@ import Testing
     #expect(hasher.originals.count == 1)
 }
 
-@Test func platformAPIHashesThreadIDs() throws {
+@Test func threadHasherTokenizesThreadIDs() throws {
     let threadID = "any;-;sjobs@apple.com"
-    let hashedThreadID = PlatformAPI.hashedThreadID(threadID)
+    let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
 
     #expect(hashedThreadID.hasPrefix("imsg##thread:"))
     #expect(hashedThreadID != threadID)
