@@ -39,6 +39,15 @@ package struct UpdatedMessagesQueryResult {
 
 extension IMDatabase {
     package
+    func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
+        try messages(
+            newerThanRowID: cursor.lastRowID,
+            orReadSince: cursor.lastDateRead,
+            orEditedSince: cursor.lastDateEdited
+        )
+    }
+
+    package
     func messages(newerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedMessagesQueryResult {
         let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 

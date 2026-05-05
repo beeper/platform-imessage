@@ -34,7 +34,7 @@ public extension IMDatabase {
         }.first ?? 0
     }
 
-    func messageUpdateCursorSnapshot() throws -> (lastRowID: Int, lastDateRead: Date, lastDateEdited: Date) {
+    func messageUpdateCursorSnapshot() throws -> MessageUpdatesCursor {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT
             COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'message'), 0),
@@ -43,16 +43,12 @@ public extension IMDatabase {
         """).reset()
 
         return try statement.mapRowsUntilDone { row in
-            (
+            MessageUpdatesCursor(
                 lastRowID: try row[0].optionalConverting(Int.self) ?? 0,
                 lastDateRead: try row[1].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0),
                 lastDateEdited: try row[2].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0)
             )
-        }.first ?? (
-            lastRowID: 0,
-            lastDateRead: Date(nanosecondsSinceReferenceDate: 0),
-            lastDateEdited: Date(nanosecondsSinceReferenceDate: 0)
-        )
+        }.first ?? .empty
     }
 
     func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {

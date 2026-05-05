@@ -32,20 +32,9 @@ private struct ThreadBatch {
 }
 
 extension EventWatcher {
-    // TODO: Maybe move this type into `IMDatabase` and have methods accept it.
-    struct MessageUpdatesCursor {
-        let lastRowID: Int
-        let lastDateRead: Date
-        let lastDateEdited: Date
-    }
-
     func collectMessageUpdateEvents() throws -> [ServerEvent] {
         let previousCursor = updatesCursor
-        let queryResult = try db.messages(
-            newerThanRowID: previousCursor.lastRowID,
-            orReadSince: previousCursor.lastDateRead,
-            orEditedSince: previousCursor.lastDateEdited
-        )
+        let queryResult = try db.messages(since: previousCursor)
         traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
 
         let events = try messageUpdateEvents(for: queryResult)

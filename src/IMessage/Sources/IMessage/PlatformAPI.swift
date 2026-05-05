@@ -126,15 +126,18 @@ public final class PlatformAPI {
 
     public func startEventWatchingFromCurrentState() async throws {
         let database = database
-        let cursorSnapshot = try await Task.detached(priority: .userInitiated) {
+        let currentUserCache = currentUserCache
+        let snapshot = try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
-                try db.messageUpdateCursorSnapshot()
+                (
+                    cursor: try db.messageUpdateCursorSnapshot(),
+                    currentUserID: try Self.currentUser(db: db, cache: currentUserCache).id
+                )
             }
         }.value
         try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
-            lastRowID: cursorSnapshot.lastRowID,
-            lastDateRead: cursorSnapshot.lastDateRead,
-            lastDateEdited: cursorSnapshot.lastDateEdited
+            cursor: snapshot.cursor,
+            currentUserID: snapshot.currentUserID
         )
     }
 

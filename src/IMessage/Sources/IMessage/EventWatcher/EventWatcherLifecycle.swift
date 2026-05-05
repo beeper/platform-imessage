@@ -1,4 +1,5 @@
 import Foundation
+import IMDatabase
 import Logging
 import IMessageCore
 import PlatformSDK
@@ -62,24 +63,22 @@ final class EventWatcherLifecycle {
         }
     }
 
-    func startEventWatchingFromCurrentState(lastRowID: Int, lastDateRead: Date, lastDateEdited: Date) throws {
+    func startEventWatchingFromCurrentState(cursor: MessageUpdatesCursor, currentUserID: String) throws {
         guard let subscription = state.withLock({ $0.subscription }) else {
             throw ErrorMessage("subscribeToEvents must be called before startEventWatchingFromCurrentState")
         }
         try startWatching(
             subscription: subscription,
-            lastRowID: lastRowID,
-            lastDateRead: lastDateRead,
-            lastDateEdited: lastDateEdited,
+            initialUpdatesCursor: cursor,
+            currentUserID: currentUserID,
             source: "current state"
         )
     }
 
     private func startWatching(
         subscription: Subscription,
-        lastRowID: Int,
-        lastDateRead: Date,
-        lastDateEdited: Date,
+        initialUpdatesCursor: MessageUpdatesCursor,
+        currentUserID: String,
         source: String
     ) throws {
         let existingTask = state.withLock { state in
@@ -92,7 +91,7 @@ final class EventWatcherLifecycle {
             existingTask.cancel()
         }
 
-        eventWatchingLog.debug("starting event watcher from \(source) (last row id: \(lastRowID), last date read: \(lastDateRead), last date edited: \(lastDateEdited))")
+        eventWatchingLog.debug("starting event watcher from \(source) with cursor: \(initialUpdatesCursor)")
 
         let eventWatcher = try EventWatcher(
             serverEventSender: { events in
@@ -101,7 +100,8 @@ final class EventWatcherLifecycle {
                 #endif
                 try await subscription.onEvent(events)
             },
-            initialUpdatesCursor: EventWatcher.MessageUpdatesCursor(lastRowID: lastRowID, lastDateRead: lastDateRead, lastDateEdited: lastDateEdited),
+            initialUpdatesCursor: initialUpdatesCursor,
+            currentUserID: currentUserID,
             accountID: subscription.accountID,
             reportErrorMessage: subscription.reportErrorMessage
         )

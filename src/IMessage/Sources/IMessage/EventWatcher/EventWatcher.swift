@@ -30,6 +30,7 @@ final class EventWatcher {
     init(
         serverEventSender sender: @escaping PlatformAPI.EventCallback,
         initialUpdatesCursor: MessageUpdatesCursor,
+        currentUserID: String,
         accountID: String,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
@@ -40,7 +41,7 @@ final class EventWatcher {
         }
         self.sender = sender
         self.updatesCursor = initialUpdatesCursor
-        self.currentUserID = try PlatformSDK.CurrentUser.fetch(from: db).id
+        self.currentUserID = currentUserID
         self.accountID = accountID
         self.reportErrorMessage = reportErrorMessage
     }
