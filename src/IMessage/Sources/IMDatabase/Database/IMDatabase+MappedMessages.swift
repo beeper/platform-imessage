@@ -167,6 +167,30 @@ public extension IMDatabase {
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
+    func existingMessageGUIDs(among guids: [String]) throws -> Set<String> {
+        guard !guids.isEmpty else { return [] }
+        let uniqueGUIDs = Array(OrderedSet(guids))
+
+        guard uniqueGUIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueGUIDs
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .reduce(into: Set<String>()) { result, chunk in
+                    try result.formUnion(existingMessageGUIDs(among: Array(chunk)))
+                }
+        }
+
+        let sql = """
+        SELECT guid
+        FROM message
+        WHERE guid IN (\(placeholders(count: uniqueGUIDs.count)))
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind(uniqueGUIDs.map { $0 as any SQLiteBindable })
+        return Set(try statement.compactMapRowsUntilDone { row in
+            try row[0].optionalConverting(String.self)
+        })
+    }
+
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
         guard !rowIDs.isEmpty else { return [] }
         let uniqueRowIDs = Array(OrderedSet(rowIDs))
