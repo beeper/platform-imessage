@@ -62,8 +62,8 @@ struct AssociatedReaction {
         }
     }
 
-    var includesStickerAssetInAction: Bool {
-        action == .reacted && key == .sticker
+    var isSticker: Bool {
+        key == .sticker
     }
 
     var verb: String {

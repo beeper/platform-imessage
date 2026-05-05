@@ -108,7 +108,7 @@ extension Mapper {
         let action = PlatformSDK.PartialMessageReactionAction(
             messageID: message.linkedMessageID,
             reactionKey: reaction.platformReactionKey(emoji: msgRow.associatedMessageEmoji),
-            imgURL: reaction.includesStickerAssetInAction ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
+            imgURL: reaction.isSticker ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
             participantID: message.senderID
         )
         message.action = reaction.action == .reacted
@@ -163,7 +163,7 @@ func mapMessageReaction(
     return PlatformSDK.MessageReaction(
         id: participantID,
         reactionKey: reactionKey,
-        imgURL: reaction.includesStickerAssetInAction ? reactionStickerAssetURLString(accountID: accountID, rowID: row.rowID) : nil,
+        imgURL: reaction.isSticker ? reactionStickerAssetURLString(accountID: accountID, rowID: row.rowID) : nil,
         participantID: participantID
     )
 }
