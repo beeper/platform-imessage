@@ -34,19 +34,6 @@ public extension IMDatabase {
         }.first ?? 0
     }
 
-    func maxMessageDateRead() throws -> Date {
-        let statement = try cachedStatement(forEscapedSQL: "SELECT MAX(date_read) FROM message").reset()
-        let nanoseconds = try statement.compactMapRowsUntilDone { row in
-            try row[0].optionalConverting(Int.self)
-        }.first ?? 0
-
-        guard nanoseconds > 0, nanoseconds < .max else {
-            return Date(nanosecondsSinceReferenceDate: 0)
-        }
-
-        return Date(nanosecondsSinceReferenceDate: nanoseconds)
-    }
-
     func messageUpdateCursorSnapshot() throws -> (lastRowID: Int, lastDateRead: Date, lastDateEdited: Date) {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT
