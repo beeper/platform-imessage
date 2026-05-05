@@ -89,14 +89,6 @@ extension Mapper {
         return subject
     }
 
-    func senderID() -> String {
-        messageSenderID(for: msgRow, currentUserID: currentUserID)
-    }
-
-    func reactionStickerAssetURL(rowID: Int) -> String {
-        reactionStickerAssetURLString(accountID: accountID, rowID: rowID)
-    }
-
     private func mapReactionAction(
         reaction: AssociatedReaction,
         message inputMessage: MessageDraft,
@@ -108,7 +100,7 @@ extension Mapper {
         let action = PlatformSDK.PartialMessageReactionAction(
             messageID: message.linkedMessageID,
             reactionKey: reaction.platformReactionKey(emoji: msgRow.associatedMessageEmoji),
-            imgURL: reaction.isSticker ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
+            imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: msgRow.rowID) : nil,
             participantID: message.senderID
         )
         message.action = reaction.action == .reacted
@@ -148,7 +140,7 @@ func messageSenderID(for row: any RowWithSenderFields, currentUserID: String) ->
     return row.participantID ?? ""
 }
 
-func reactionStickerAssetURLString(accountID: String, rowID: Int) -> String {
+func reactionStickerAssetURL(accountID: String, rowID: Int) -> String {
     "asset://\(accountID)/reaction-sticker/\(rowID).heic"
 }
 
@@ -163,7 +155,7 @@ func mapMessageReaction(
     return PlatformSDK.MessageReaction(
         id: participantID,
         reactionKey: reactionKey,
-        imgURL: reaction.isSticker ? reactionStickerAssetURLString(accountID: accountID, rowID: row.rowID) : nil,
+        imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: row.rowID) : nil,
         participantID: participantID
     )
 }
