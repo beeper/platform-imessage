@@ -13,7 +13,7 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
 }
 
 private enum PendingMessageKind {
-    case reactionAdd
+    case reactionAction
     case normal(UpdatedMessageChange)
 }
 
@@ -97,15 +97,18 @@ extension EventWatcher {
                             } else {
                                 log.error("message row \(msgRow.rowID) is a reaction but couldn't be mapped, dropping reaction state sync")
                             }
-                            pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAdd)
                         case .unreacted:
                             batch.reactionDeletesByMessageID[target.messageID, default: []].append(
                                 PlatformAPI.hashedParticipantID(messageSenderID(for: msgRow, currentUserID: currentUserID))
                             )
-                            if let replyToGUID = msgRow.replyToGUID {
-                                batch.deletes.append(replyToGUID)
-                            }
                         }
+                        // iMessage only keeps one hidden reaction/removal action row
+                        // per participant+target. New reaction rows can point back at
+                        // the previous hidden action row so clients can delete it.
+                        if let replyToGUID = msgRow.replyToGUID?.nonEmpty {
+                            batch.deletes.append(replyToGUID)
+                        }
+                        pendingByThreadID[threadID, default: [:]][msgRow.rowID] = PendingMessage(row: msgRow, kind: .reactionAction)
                         batchesByThreadID[threadID] = batch
                     }
 
@@ -126,7 +129,7 @@ extension EventWatcher {
             for pending in pendings.values {
                 let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
                 switch pending.kind {
-                case .reactionAdd:
+                case .reactionAction:
                     batch.upserts.append(contentsOf: mappedMessages)
                 case .normal(let change):
                     if change.isNew {
@@ -189,9 +192,9 @@ extension EventWatcher {
 
     private func stateSyncEvents(batches: Dictionary<PlatformSDK.ThreadID, ThreadBatch>.Values) -> [ServerEvent] {
         var events = [ServerEvent]()
-        // Per-thread emit order keeps creates before updates and deletes after
-        // both; reaction events are scoped to their target message via
-        // objectIDs.messageID.
+        // Emit target-message reaction mutations before hidden action message
+        // mutations, and keep deletes after upserts so replacement action rows
+        // are visible before prior rows disappear.
         for batch in batches {
             guard !batch.upserts.isEmpty ||
                     !batch.updates.isEmpty ||
@@ -202,14 +205,14 @@ extension EventWatcher {
             for (messageID, reactions) in batch.reactionUpsertsByMessageID where !reactions.isEmpty {
                 events.append(.upsertMessageReactions(threadID: hashedThreadID, messageID: messageID, reactions: reactions))
             }
+            for (messageID, ids) in batch.reactionDeletesByMessageID where !ids.isEmpty {
+                events.append(.deleteMessageReactions(threadID: hashedThreadID, messageID: messageID, ids: ids))
+            }
             if !batch.upserts.isEmpty {
                 events.append(.upsertMessages(threadID: hashedThreadID, messages: batch.upserts))
             }
             if !batch.updates.isEmpty {
                 events.append(.updateMessages(threadID: hashedThreadID, patches: batch.updates))
-            }
-            for (messageID, ids) in batch.reactionDeletesByMessageID where !ids.isEmpty {
-                events.append(.deleteMessageReactions(threadID: hashedThreadID, messageID: messageID, ids: ids))
             }
             if !batch.deletes.isEmpty {
                 events.append(.deleteMessages(threadID: hashedThreadID, ids: batch.deletes))
