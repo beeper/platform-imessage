@@ -202,10 +202,10 @@ extension EventWatcher {
                     !batch.reactionUpsertsByMessageID.isEmpty ||
                     !batch.reactionDeletesByMessageID.isEmpty else { continue }
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-            for (messageID, reactions) in batch.reactionUpsertsByMessageID where !reactions.isEmpty {
+            for (messageID, reactions) in batch.reactionUpsertsByMessageID {
                 events.append(.upsertMessageReactions(threadID: hashedThreadID, messageID: messageID, reactions: reactions))
             }
-            for (messageID, ids) in batch.reactionDeletesByMessageID where !ids.isEmpty {
+            for (messageID, ids) in batch.reactionDeletesByMessageID {
                 events.append(.deleteMessageReactions(threadID: hashedThreadID, messageID: messageID, ids: ids))
             }
             if !batch.upserts.isEmpty {
