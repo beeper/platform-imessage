@@ -108,10 +108,11 @@ extension EventWatcher {
         }
 
         let allPendingRows = pendingByThreadID.values.flatMap { $0.values.map(\.row) }
+        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, msgRows: allPendingRows, threadID: "")
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
-            db: db,
             msgRows: allPendingRows,
-            threadID: "",
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
             accountID: accountID
         )

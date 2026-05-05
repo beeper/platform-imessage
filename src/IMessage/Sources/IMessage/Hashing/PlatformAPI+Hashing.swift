@@ -46,7 +46,7 @@ extension PlatformAPI {
         }
 
         let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
-        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
+        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { parseAssociatedMessageTarget($0.associatedMessageGUID).messageGUID })
 
         return try msgRows.flatMap { msgRow -> [PlatformSDK.Message] in
             try mapAndHashMessage(
@@ -71,7 +71,7 @@ extension PlatformAPI {
         }
 
         let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
-        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
+        let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { parseAssociatedMessageTarget($0.associatedMessageGUID).messageGUID })
 
         var messagesByRowID = [Int: [PlatformSDK.Message]]()
         for msgRow in msgRows {

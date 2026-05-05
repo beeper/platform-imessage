@@ -889,7 +889,7 @@ public final class PlatformAPI {
 }
 
 extension PlatformAPI {
-    private struct MessagePayloadRows {
+    struct MessagePayloadRows {
         var attachmentRows: [MappedAttachmentRow]
         var reactionRows: [MappedReactionMessageRow]
     }
@@ -965,24 +965,7 @@ extension PlatformAPI {
         return fileURL.path
     }
 
-    nonisolated static func mapAndHashMessagesByRowID(
-        db: IMDatabase,
-        msgRows: [MappedMessageRow],
-        threadID: String,
-        currentUserID: String,
-        accountID: String
-    ) throws -> [Int: [PlatformSDK.Message]] {
-        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
-        return try mapAndHashMessagesByRowID(
-            msgRows: msgRows,
-            attachmentRows: payloadRows.attachmentRows,
-            reactionRows: payloadRows.reactionRows,
-            currentUserID: currentUserID,
-            accountID: accountID
-        )
-    }
-
-    nonisolated private static func messagePayloadRows(
+    nonisolated static func messagePayloadRows(
         db: IMDatabase,
         msgRows: [MappedMessageRow],
         threadID: String
@@ -1041,10 +1024,6 @@ extension PlatformAPI {
                 size: size
             )
         }
-    }
-
-    nonisolated static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
-        parseAssociatedMessageTarget(associatedMessageGUID).messageGUID
     }
 
     nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) async throws -> AssetResult {
