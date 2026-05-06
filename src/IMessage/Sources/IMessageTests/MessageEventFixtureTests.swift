@@ -31,6 +31,9 @@ private let groupThreadID = hashedThread("any;+;chat27499326783338645")
 private let jobsThreadID = hashedThread("any;-;sjobs@apple.com")
 private let jobsParticipantID = hashedParticipant("sjobs@apple.com")
 private let phoneParticipantID = hashedParticipant("+15557654321")
+// `heart` is the Platform SDK key for the iMessage heart tapback; desktop renders
+// it as ❤️ via supportedReactions, but state-sync delete IDs use reactionKey.
+private let heartReactionKey = "heart"
 
 private let messageEventFixtures = [
     MessageEventFixture(
@@ -115,7 +118,7 @@ private let messageEventFixtures = [
             .deleteMessageReactions(
                 threadID: directThreadID,
                 messageID: "EFA8FBDE-A18F-44D9-966F-019DEB5E3571",
-                ids: [phoneParticipantID]
+                ids: ["\(phoneParticipantID)\(heartReactionKey)"]
             ),
             .upsertMessages(
                 threadID: directThreadID,
