@@ -40,6 +40,77 @@ import Testing
     #expect(deleteEntries == [reactionID])
 }
 
+@Test func existingReadChangesEmitMessageUpdate() throws {
+    let threadID = "any;-;+15551234567"
+    let row = try normalMessageRow(rowID: 5, guid: "MESSAGE-1", threadID: threadID, dateRead: 1_000_000_000)
+
+    let events = try EventWatcher.messageUpdateEvents(
+        changes: [
+            UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: false, wasRead: true, wasEdited: false),
+        ],
+        msgRowsByRowID: [row.rowID: row],
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "me@example.com",
+        accountID: "default"
+    )
+
+    let eventObject = try #require(events.first?.jsonObject())
+    let entries = try #require(eventObject["entries"] as? [JSONObject])
+    let patch = try #require(entries.first)
+
+    #expect(events.count == 1)
+    #expect(eventObject["objectName"] as? String == "message")
+    #expect(eventObject["mutationType"] as? String == "update")
+    #expect(patch["id"] as? String == "MESSAGE-1")
+    #expect(patch["seen"] != nil)
+    #expect(patch["behavior"] as? String == "keep_read")
+}
+
+@Test func newMessagesOnlyEmitUpsertEvenWhenRead() throws {
+    let threadID = "any;-;+15551234567"
+    let row = try normalMessageRow(rowID: 6, guid: "MESSAGE-2", threadID: threadID, dateRead: 1_000_000_000)
+
+    let events = try EventWatcher.messageUpdateEvents(
+        changes: [
+            UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: true, wasRead: true, wasEdited: false),
+        ],
+        msgRowsByRowID: [row.rowID: row],
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "me@example.com",
+        accountID: "default"
+    )
+
+    let eventObject = try #require(events.first?.jsonObject())
+
+    #expect(events.count == 1)
+    #expect(eventObject["objectName"] as? String == "message")
+    #expect(eventObject["mutationType"] as? String == "upsert")
+}
+
+private func normalMessageRow(
+    rowID: Int,
+    guid: String,
+    threadID: String,
+    dateRead: Int? = nil
+) throws -> MappedMessageRow {
+    try MappedMessageRow(object: [
+        "ROWID": rowID,
+        "guid": guid,
+        "date": rowID,
+        "date_read": dateRead as Any,
+        "is_from_me": 0,
+        "is_read": dateRead == nil ? 0 : 1,
+        "handle_id": 1,
+        "item_type": 0,
+        "service": "iMessage",
+        "text": "hello",
+        "threadID": threadID,
+        "participantID": "+15551234567",
+    ])
+}
+
 private func reactionActionRow(
     rowID: Int,
     guid: String,

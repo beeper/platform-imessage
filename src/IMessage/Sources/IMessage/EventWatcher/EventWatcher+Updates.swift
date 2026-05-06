@@ -126,8 +126,11 @@ extension EventWatcher {
                 }
             case let .normal(threadID, _, change):
                 let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-                if change.isNew, !mappedMessages.isEmpty {
-                    events.append(.upsertMessages(threadID: hashedThreadID, messages: mappedMessages))
+                if change.isNew {
+                    if !mappedMessages.isEmpty {
+                        events.append(.upsertMessages(threadID: hashedThreadID, messages: mappedMessages))
+                    }
+                    continue
                 }
                 guard let kind = MessageUpdateKind(change) else { continue }
                 let patches = mappedMessages.compactMap { kind.patch(for: $0) }
