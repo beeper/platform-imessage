@@ -65,7 +65,26 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-identity="Developer ID Application: Automattic, Inc. (${team_id})"
+# Resolve the codesigning identity from the keychain by team id so the
+# script works for any Developer ID cert, not just the hardcoded org name.
+# `IDENTITY` env var bypasses the lookup if you need to force a specific cert.
+identity="${IDENTITY:-}"
+if [ -z "$identity" ]; then
+  identity="$(security find-identity -v -p codesigning | awk -v team="(${team_id})" '
+    /Developer ID Application:/ && index($0, team) {
+      sub(/^[^"]*"/, "")
+      sub(/"[^"]*$/, "")
+      print
+      exit
+    }
+  ')"
+fi
+if [ -z "$identity" ]; then
+  printf >&2 "no Developer ID Application identity for team %s in keychain\n" "$team_id"
+  printf >&2 "(set IDENTITY=... to override)\n"
+  exit 1
+fi
+
 entitlements="$repo_root/scripts/imessage-cli.entitlements"
 
 build_arch() {
