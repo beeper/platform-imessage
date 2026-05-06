@@ -18,6 +18,10 @@ fi
 
 asset_name="imessage-cli-${version}-macos-universal.tar.gz"
 
+echo "--- :key: install Developer ID cert into the agent keychain"
+install_gems
+bundle exec fastlane set_up_signing
+
 echo "--- :hammer_and_wrench: build, sign, notarize"
 ./scripts/sign-and-notarize-cli
 
