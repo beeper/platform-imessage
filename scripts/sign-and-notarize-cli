@@ -27,6 +27,11 @@ swift build -c release --product imessage-cli
 bin_dir="$(swift build -c release --product imessage-cli --show-bin-path)"
 binary="$bin_dir/imessage-cli"
 
+printf "==> stripping debug symbols\n"
+# strip must happen before codesign — stripping invalidates an existing
+# signature, and the release asset shrinks meaningfully without it
+strip "$binary"
+
 printf "==> codesigning %s\n" "$binary"
 codesign --force \
   --options runtime \
