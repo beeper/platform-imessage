@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+team_id="${1:-PZYM8XX95Q}"
+prefix="APP_STORE_CONNECT_API_KEY_${team_id}"
+key_id_var="${prefix}_KEY_ID"
+issuer_id_var="${prefix}_ISSUER_ID"
+key_var="${prefix}_KEY"
+key_id="${!key_id_var-}"
+issuer_id="${!issuer_id_var-}"
+key_pem="${!key_var-}"
+
+if [ -z "$key_id" ] || [ -z "$issuer_id" ] || [ -z "$key_pem" ]; then
+  printf >&2 "missing env: %s_{KEY_ID,ISSUER_ID,KEY}\n" "$prefix"
+  exit 1
+fi
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+identity="Developer ID Application: Automattic, Inc. (${team_id})"
+entitlements="$repo_root/scripts/imessage-cli.entitlements"
+
+printf "==> building release imessage-cli\n"
+swift build -c release --product imessage-cli
+bin_dir="$(swift build -c release --product imessage-cli --show-bin-path)"
+binary="$bin_dir/imessage-cli"
+
+printf "==> codesigning %s\n" "$binary"
+codesign --force \
+  --options runtime \
+  --timestamp \
+  --entitlements "$entitlements" \
+  --sign "$identity" \
+  "$binary"
+
+printf "==> verifying codesign\n"
+codesign --verify --strict --verbose=2 "$binary"
+codesign --display --verbose=2 "$binary" 2>&1 | grep -E "Authority|TeamIdentifier|Signature|flags|Hash" || true
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+p8="$work/AuthKey_${key_id}.p8"
+# the env var stores the PEM with `\n` as literal backslash-n; %b decodes
+# the escapes into real newlines. Trailing \n is required — notarytool
+# rejects PEM that doesn't end with a newline as `invalidPEMDocument`
+printf '%b\n' "$key_pem" > "$p8"
+chmod 600 "$p8"
+
+zip_path="$work/imessage-cli.zip"
+ditto -c -k "$binary" "$zip_path"
+
+printf "==> submitting to notarytool (this can take a few minutes)\n"
+submit_json="$work/submit.json"
+xcrun notarytool submit "$zip_path" \
+  --key "$p8" \
+  --key-id "$key_id" \
+  --issuer "$issuer_id" \
+  --wait \
+  --output-format json \
+  > "$submit_json"
+
+cat "$submit_json"
+printf "\n"
+
+status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$submit_json")"
+submission_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$submit_json")"
+
+if [ "$status" != "Accepted" ]; then
+  printf >&2 "==> notarization status: %s — fetching log\n" "$status"
+  xcrun notarytool log "$submission_id" \
+    --key "$p8" --key-id "$key_id" --issuer "$issuer_id"
+  exit 1
+fi
+
+printf "==> notarization accepted (id=%s)\n" "$submission_id"
+printf "==> signed binary at: %s\n" "$binary"
