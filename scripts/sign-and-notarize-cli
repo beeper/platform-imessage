@@ -2,7 +2,38 @@
 
 set -euo pipefail
 
-team_id="${1:-PZYM8XX95Q}"
+team_id="PZYM8XX95Q"
+arch="universal"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --arch)
+      arch="$2"
+      shift 2
+      ;;
+    --team-id)
+      team_id="$2"
+      shift 2
+      ;;
+    -h|--help)
+      printf "usage: %s [--arch arm64|x86_64|universal] [--team-id TEAM_ID]\n" "${0##*/}"
+      exit 0
+      ;;
+    *)
+      printf >&2 "unknown arg: %s\n" "$1"
+      exit 1
+      ;;
+  esac
+done
+
+case "$arch" in
+  arm64|x86_64|universal) ;;
+  *)
+    printf >&2 "invalid --arch: %s (expected: arm64, x86_64, universal)\n" "$arch"
+    exit 1
+    ;;
+esac
+
 prefix="APP_STORE_CONNECT_API_KEY_${team_id}"
 key_id_var="${prefix}_KEY_ID"
 issuer_id_var="${prefix}_ISSUER_ID"
@@ -22,10 +53,30 @@ cd "$repo_root"
 identity="Developer ID Application: Automattic, Inc. (${team_id})"
 entitlements="$repo_root/scripts/imessage-cli.entitlements"
 
-printf "==> building release imessage-cli\n"
-swift build -c release --product imessage-cli
-bin_dir="$(swift build -c release --product imessage-cli --show-bin-path)"
-binary="$bin_dir/imessage-cli"
+build_arch() {
+  local target_arch="$1"
+  printf "==> building %s\n" "$target_arch"
+  swift build -c release --triple "${target_arch}-apple-macosx11" --product imessage-cli
+}
+
+bin_for_arch() {
+  swift build -c release --triple "${1}-apple-macosx11" --product imessage-cli --show-bin-path
+}
+
+if [ "$arch" = "universal" ]; then
+  build_arch arm64
+  build_arch x86_64
+  arm64_bin="$(bin_for_arch arm64)/imessage-cli"
+  x86_bin="$(bin_for_arch x86_64)/imessage-cli"
+  out_dir="$repo_root/.build/universal/release"
+  mkdir -p "$out_dir"
+  binary="$out_dir/imessage-cli"
+  printf "==> creating universal binary\n"
+  lipo -create "$arm64_bin" "$x86_bin" -output "$binary"
+else
+  build_arch "$arch"
+  binary="$(bin_for_arch "$arch")/imessage-cli"
+fi
 
 printf "==> stripping debug symbols\n"
 # strip must happen before codesign — stripping invalidates an existing
