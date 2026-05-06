@@ -106,11 +106,12 @@ extension PlatformAPI {
     }
 
     nonisolated static func hashReaction(_ reaction: PlatformSDK.MessageReaction) -> PlatformSDK.MessageReaction {
-        PlatformSDK.MessageReaction(
-            id: Hasher.participant.tokenizeRemembering(pii: reaction.id),
+        let participantID = Hasher.participant.tokenizeRemembering(pii: reaction.participantID)
+        return PlatformSDK.MessageReaction(
+            id: messageReactionID(participantID: participantID, reactionKey: reaction.reactionKey),
             reactionKey: reaction.reactionKey,
             imgURL: reaction.imgURL,
-            participantID: Hasher.participant.tokenizeRemembering(pii: reaction.participantID),
+            participantID: participantID,
             emoji: reaction.emoji
         )
     }

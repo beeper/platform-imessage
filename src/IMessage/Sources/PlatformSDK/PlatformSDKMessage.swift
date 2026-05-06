@@ -9,6 +9,7 @@ extension PlatformSDK {
 
     @PlatformSDKJSONObject
     public struct MessageReaction: JSONObjectConvertible {
+        /// Stable reaction ID, always `${participantID}${reactionKey}`.
         public let id: ID
         public let reactionKey: String
         public let imgURL: String?

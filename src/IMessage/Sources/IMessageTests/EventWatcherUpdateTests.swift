@@ -24,12 +24,20 @@ import Testing
         accountID: "default"
     )
 
-    let reactionMutationTypes = events
+    let reactionEvents = events
         .map { $0.jsonObject() }
         .filter { $0["objectName"] as? String == "message_reaction" }
-        .map { $0["mutationType"] as? String }
+    let reactionMutationTypes = reactionEvents.map { $0["mutationType"] as? String }
+    let participantID = Hasher.participant.tokenizeRemembering(pii: "me@example.com")
+    let reactionID = "\(participantID)like"
+    let firstUpsertEntries = try #require(reactionEvents.first?["entries"] as? [JSONObject])
+    let firstUpsert = try #require(firstUpsertEntries.first)
+    let deleteEntries = try #require(reactionEvents.dropFirst().first?["entries"] as? [String])
 
     #expect(reactionMutationTypes == ["upsert", "delete", "upsert"])
+    #expect(firstUpsert["id"] as? String == reactionID)
+    #expect(firstUpsert["participantID"] as? String == participantID)
+    #expect(deleteEntries == [reactionID])
 }
 
 private func reactionActionRow(

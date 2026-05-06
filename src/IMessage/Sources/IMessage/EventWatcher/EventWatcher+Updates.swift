@@ -115,14 +115,10 @@ extension EventWatcher {
                         pii: messageSenderID(for: row, currentUserID: currentUserID)
                     )
                     let reactionKey = reaction.platformReactionKey(emoji: row.associatedMessageEmoji) ?? ""
-                    // Keep this in sync with Desktop's message_reaction delete predicate:
-                    // desktop/src/renderer/stores/AccountStore.ts matches `${r.participantID}${r.reactionKey}`.
-                    // That intentionally differs from MessageReaction.id for single-reaction platforms so deleting
-                    // an old reaction cannot remove a newer optimistic reaction from the same participant.
                     events.append(.deleteMessageReactions(
                         threadID: hashedThreadID,
                         messageID: target.messageID,
-                        ids: ["\(participantID)\(reactionKey)"]
+                        ids: [messageReactionID(participantID: participantID, reactionKey: reactionKey)]
                     ))
                 }
                 if !mappedMessages.isEmpty {

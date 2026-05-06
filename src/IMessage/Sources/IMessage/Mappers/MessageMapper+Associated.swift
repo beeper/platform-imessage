@@ -71,9 +71,10 @@ extension Mapper {
                   case let .reaction(parts) = associatedMessageType else {
                 continue
             }
+            let participantID = messageSenderID(for: reaction, currentUserID: currentUserID)
             if parts.action == .reacted {
                 reactions.append(mapMessageReaction(row: reaction, reaction: parts, currentUserID: currentUserID, accountID: accountID))
-            } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.id == messageSenderID(for: reaction, currentUserID: currentUserID) }) {
+            } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.participantID == participantID }) {
                 reactions.remove(at: index)
             }
         }
@@ -140,6 +141,10 @@ func messageSenderID(for row: any RowWithSenderFields, currentUserID: String) ->
     return row.participantID ?? ""
 }
 
+func messageReactionID(participantID: PlatformSDK.UserID, reactionKey: String) -> PlatformSDK.ID {
+    "\(participantID)\(reactionKey)"
+}
+
 private func reactionStickerAssetURL(accountID: String, rowID: Int) -> String {
     "asset://\(accountID)/reaction-sticker/\(rowID).heic"
 }
@@ -153,7 +158,7 @@ func mapMessageReaction(
     let reactionKey = reaction.platformReactionKey(emoji: row.associatedMessageEmoji) ?? ""
     let participantID = messageSenderID(for: row, currentUserID: currentUserID)
     return PlatformSDK.MessageReaction(
-        id: participantID,
+        id: messageReactionID(participantID: participantID, reactionKey: reactionKey),
         reactionKey: reactionKey,
         imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: row.rowID) : nil,
         participantID: participantID
