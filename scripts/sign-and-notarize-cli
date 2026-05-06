@@ -5,22 +5,37 @@ set -euo pipefail
 team_id="PZYM8XX95Q"
 arch="universal"
 
+usage() {
+  printf "usage: %s [--arch arm64|x86_64|universal] [--team-id TEAM_ID]\n" "${0##*/}"
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --arch)
+      if [ $# -lt 2 ]; then
+        printf >&2 "missing value for --arch\n"
+        usage >&2
+        exit 1
+      fi
       arch="$2"
       shift 2
       ;;
     --team-id)
+      if [ $# -lt 2 ]; then
+        printf >&2 "missing value for --team-id\n"
+        usage >&2
+        exit 1
+      fi
       team_id="$2"
       shift 2
       ;;
     -h|--help)
-      printf "usage: %s [--arch arm64|x86_64|universal] [--team-id TEAM_ID]\n" "${0##*/}"
+      usage
       exit 0
       ;;
     *)
       printf >&2 "unknown arg: %s\n" "$1"
+      usage >&2
       exit 1
       ;;
   esac
