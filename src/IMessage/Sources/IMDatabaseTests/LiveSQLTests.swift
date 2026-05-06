@@ -19,14 +19,53 @@ private enum LocalMessagesDatabase {
         FileManager.default.isReadableFile(atPath: chatDBURL.path)
     }
 
+    static let fullDiskAccessRequest: Void = {
+        guard !isReadable else { return }
+        do {
+            try Process.run(
+                URL(fileURLWithPath: "/usr/bin/open"),
+                arguments: ["x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"]
+            )
+        } catch {}
+    }()
+
+    static func requireReadable() throws {
+        guard isReadable else {
+            _ = fullDiskAccessRequest
+            throw FullDiskAccessRequired(chatDBURL: chatDBURL)
+        }
+    }
+
     static func imDatabase() throws -> IMDatabase {
-        try IMDatabase(messagesDataBaseURL: messagesDirectory)
+        try requireReadable()
+        return try IMDatabase(messagesDataBaseURL: messagesDirectory)
     }
 
     static func queue() throws -> DatabaseQueue {
+        try requireReadable()
         var configuration = Configuration()
         configuration.readonly = true
         return try DatabaseQueue(path: chatDBURL.path, configuration: configuration)
+    }
+}
+
+private struct FullDiskAccessRequired: Error, CustomStringConvertible {
+    var chatDBURL: URL
+
+    var description: String {
+        """
+        IMDatabaseLiveSQLTests need Full Disk Access to read \(chatDBURL.path).
+
+        The test runner opened System Settings > Privacy & Security > Full Disk Access.
+        Grant access to the app that launched these tests, then rerun the suite.
+
+        Common cases:
+        - Xcode test run: grant Xcode Full Disk Access.
+        - Terminal swift test: grant that terminal app Full Disk Access.
+        - Codex/local tool run: grant the host app Full Disk Access.
+
+        Override the Messages directory with IMDATABASE_TEST_MESSAGES_DIR if needed.
+        """
     }
 }
 
@@ -44,7 +83,7 @@ private struct SampleMessage {
     var messageDate: Int?
 }
 
-@Suite("IMDatabase live SQL", .serialized, .enabled(if: LocalMessagesDatabase.isReadable))
+@Suite("IMDatabase live SQL", .serialized)
 struct IMDatabaseLiveSQLTests {
     @Test("loads schema from local chat.db")
     func schemaLoadsAllKnownTables() throws {
