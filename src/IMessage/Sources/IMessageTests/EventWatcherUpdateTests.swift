@@ -3,12 +3,6 @@ import IMDatabase
 import PlatformSDK
 import Testing
 
-private struct OrderedEventMockDatabase: MessageUpdateEventDatabase {
-    func existingMessageGUIDs(among guids: [String]) throws -> Set<PlatformSDK.MessageID> {
-        []
-    }
-}
-
 @Test func reactionStateSyncEventsPreserveChangeOrder() throws {
     let threadID = "any;-;+15551234567"
     let rows = try [
@@ -26,7 +20,6 @@ private struct OrderedEventMockDatabase: MessageUpdateEventDatabase {
         msgRowsByRowID: rows,
         attachmentRows: [],
         reactionRows: [],
-        database: OrderedEventMockDatabase(),
         currentUserID: "me@example.com",
         accountID: "default"
     )

@@ -17,25 +17,18 @@ private enum PendingMessage {
         threadID: PlatformSDK.ThreadID,
         row: MappedMessageRow,
         reaction: AssociatedReaction,
-        target: AssociatedMessageTarget,
-        previousActionMessageID: PlatformSDK.MessageID?
+        target: AssociatedMessageTarget
     )
     case normal(threadID: PlatformSDK.ThreadID, row: MappedMessageRow, change: UpdatedMessageChange)
 
     var row: MappedMessageRow {
         switch self {
-        case let .reactionAction(_, row, _, _, _),
+        case let .reactionAction(_, row, _, _),
              let .normal(_, row, _):
             return row
         }
     }
 }
-
-protocol MessageUpdateEventDatabase {
-    func existingMessageGUIDs(among guids: [String]) throws -> Set<PlatformSDK.MessageID>
-}
-
-extension IMDatabase: MessageUpdateEventDatabase {}
 
 extension EventWatcher {
     static func messageUpdateEvents(
@@ -43,7 +36,6 @@ extension EventWatcher {
         msgRowsByRowID: [Int: MappedMessageRow],
         attachmentRows: [MappedAttachmentRow],
         reactionRows: [MappedReactionMessageRow],
-        database: any MessageUpdateEventDatabase,
         currentUserID: String,
         accountID: String
     ) throws -> [ServerEvent] {
@@ -51,12 +43,6 @@ extension EventWatcher {
             traceMessageUpdates("no messages updated this time around")
             return []
         }
-
-        let missingPreviousReactionActionMessageIDs = try Self.missingPreviousReactionActionMessageIDs(
-            changes: changes,
-            msgRowsByRowID: msgRowsByRowID,
-            database: database
-        )
 
         var pendingByRowID = OrderedDictionary<Int, PendingMessage>()
 
@@ -76,19 +62,11 @@ extension EventWatcher {
                     }
 
                     if change.isNew {
-                        // iMessage only keeps one hidden reaction/removal action row
-                        // per participant+target. New reaction rows can point back at
-                        // the previous hidden action row so clients can delete it.
                         pendingByRowID[msgRow.rowID] = .reactionAction(
                             threadID: threadID,
                             row: msgRow,
                             reaction: reaction,
-                            target: target,
-                            previousActionMessageID: Self.previousReactionActionMessageID(
-                                replyToGUID: msgRow.replyToGUID,
-                                target: target,
-                                missingPreviousReactionActionMessageIDs: missingPreviousReactionActionMessageIDs
-                            )
+                            target: target
                         )
                     }
 
@@ -117,7 +95,7 @@ extension EventWatcher {
         for pending in pendingByRowID.values {
             let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
             switch pending {
-            case let .reactionAction(threadID, row, reaction, target, previousActionMessageID):
+            case let .reactionAction(threadID, row, reaction, target):
                 let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
                 switch reaction.action {
                 case .reacted:
@@ -149,9 +127,6 @@ extension EventWatcher {
                 }
                 if !mappedMessages.isEmpty {
                     events.append(.upsertMessages(threadID: hashedThreadID, messages: mappedMessages))
-                }
-                if let previousActionMessageID {
-                    events.append(.deleteMessages(threadID: hashedThreadID, ids: [previousActionMessageID]))
                 }
             case let .normal(threadID, _, change):
                 let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
@@ -197,36 +172,9 @@ extension EventWatcher {
             msgRowsByRowID: msgRowsByRowID,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
-            database: db,
             currentUserID: currentUserID,
             accountID: accountID
         )
-    }
-
-    private static func missingPreviousReactionActionMessageIDs(
-        changes: [UpdatedMessageChange],
-        msgRowsByRowID: [Int: MappedMessageRow],
-        database: any MessageUpdateEventDatabase
-    ) throws -> Set<PlatformSDK.MessageID> {
-        let newRowIDs = Set(changes.filter { $0.isNew }.map(\.rowID))
-        let candidateGUIDs = Array(OrderedSet(msgRowsByRowID.values.compactMap { msgRow -> String? in
-            guard newRowIDs.contains(msgRow.rowID),
-                  let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty,
-                  Self.reaction(for: msgRow) != nil else {
-                return nil
-            }
-            return Self.previousReactionActionCandidateGUID(
-                replyToGUID: msgRow.replyToGUID,
-                target: parseAssociatedMessageTarget(associatedGUID)
-            )
-        }))
-
-        guard !candidateGUIDs.isEmpty else {
-            return []
-        }
-
-        let existingGUIDs = try database.existingMessageGUIDs(among: candidateGUIDs)
-        return Set(candidateGUIDs).subtracting(existingGUIDs)
     }
 
     private enum MessageUpdateKind {
@@ -263,34 +211,5 @@ extension EventWatcher {
             return nil
         }
         return reaction
-    }
-
-    private static func previousReactionActionMessageID(
-        replyToGUID: String?,
-        target: AssociatedMessageTarget,
-        missingPreviousReactionActionMessageIDs: Set<PlatformSDK.MessageID>
-    ) -> PlatformSDK.MessageID? {
-        guard let candidateGUID = previousReactionActionCandidateGUID(replyToGUID: replyToGUID, target: target),
-              missingPreviousReactionActionMessageIDs.contains(candidateGUID) else {
-            return nil
-        }
-
-        return candidateGUID
-    }
-
-    private static func previousReactionActionCandidateGUID(
-        replyToGUID: String?,
-        target: AssociatedMessageTarget
-    ) -> PlatformSDK.MessageID? {
-        guard let replyToGUID = replyToGUID?.nonEmpty else {
-            return nil
-        }
-        // For fresh reactions, `reply_to_guid` can point at the original target
-        // message. Only consider deleting when it points somewhere else.
-        guard replyToGUID != target.messageGUID,
-              replyToGUID != target.messageID else {
-            return nil
-        }
-        return replyToGUID
     }
 }

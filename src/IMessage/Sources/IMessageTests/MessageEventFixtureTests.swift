@@ -18,14 +18,6 @@ private struct MessageEventChange: Sendable {
     static let edited = MessageEventChange(isNew: false, wasRead: false, wasEdited: true)
 }
 
-private struct MockMessageUpdateEventDatabase: MessageUpdateEventDatabase {
-    let existingGUIDs: Set<PlatformSDK.MessageID>
-
-    func existingMessageGUIDs(among guids: [String]) throws -> Set<PlatformSDK.MessageID> {
-        Set(guids).intersection(existingGUIDs)
-    }
-}
-
 private let directThreadID = hashedThread("any;-;+15557654321")
 private let groupThreadID = hashedThread("any;+;chat27499326783338645")
 private let jobsThreadID = hashedThread("any;-;sjobs@apple.com")
@@ -164,29 +156,13 @@ private func messageEventFixtureConvertsToServerEvents(fixture: MessageEventFixt
 }
 
 @Test
-private func reactionActionDeletesMissingReplyToMessage() throws {
-    let events = try loadServerEvents(
-        fileName: "message_event_reaction_add",
-        change: .new,
-        existingMessageGUIDs: []
-    )
+private func reactionActionsDoNotEmitMessageDeletes() throws {
+    for fileName in ["message_event_reaction_add", "message_event_reaction_remove"] {
+        let events = try loadServerEvents(fileName: fileName, change: .new)
 
-    #expect(events.containPartialServerEvents(
-        expectedEvents(fileName: "message_event_reaction_add") + [
-            .deleteMessages(threadID: jobsThreadID, ids: ["4770A017-0D10-46F1-ADC8-F7BA7F00515E"]),
-        ]
-    ))
-}
-
-@Test
-private func reactionActionDoesNotDeleteExistingReplyToMessage() throws {
-    let events = try loadServerEvents(
-        fileName: "message_event_reaction_add",
-        change: .new,
-        existingMessageGUIDs: ["4770A017-0D10-46F1-ADC8-F7BA7F00515E"]
-    )
-
-    #expect(events.containPartialServerEvents(expectedEvents(fileName: "message_event_reaction_add")))
+        #expect(events.containPartialServerEvents(expectedEvents(fileName: fileName)))
+        #expect(!events.containsMessageDeleteEvent)
+    }
 }
 
 private func loadServerEvents(_ fixture: MessageEventFixture) throws -> [ServerEvent] {
@@ -195,8 +171,7 @@ private func loadServerEvents(_ fixture: MessageEventFixture) throws -> [ServerE
 
 private func loadServerEvents(
     fileName: String,
-    change: MessageEventChange,
-    existingMessageGUIDs: Set<PlatformSDK.MessageID>? = nil
+    change: MessageEventChange
 ) throws -> [ServerEvent] {
     let values = try loadFixture(fileName)
     #expect(values.count == 5)
@@ -208,7 +183,6 @@ private func loadServerEvents(
     let accountID = try #require(values[4] as? String)
 
     let msgRow = try MappedMessageRow(object: msgRowObject)
-    let defaultExistingGUIDs = msgRow.replyToGUID.map { Set([$0]) } ?? []
     return try EventWatcher.messageUpdateEvents(
         changes: [
             UpdatedMessageChange(
@@ -222,7 +196,6 @@ private func loadServerEvents(
         msgRowsByRowID: [msgRow.rowID: msgRow],
         attachmentRows: try attachmentRowObjects.map(MappedAttachmentRow.init(object:)),
         reactionRows: try reactionRowObjects.map(MappedReactionMessageRow.init(object:)),
-        database: MockMessageUpdateEventDatabase(existingGUIDs: existingMessageGUIDs ?? defaultExistingGUIDs),
         currentUserID: currentUserID,
         accountID: accountID
     )
@@ -265,6 +238,14 @@ private func message(
 }
 
 private extension [ServerEvent] {
+    var containsMessageDeleteEvent: Bool {
+        contains { event in
+            let object = event.jsonObject()
+            return object["objectName"] as? String == "message"
+                && object["mutationType"] as? String == "delete"
+        }
+    }
+
     func containPartialServerEvents(_ expected: [ServerEvent]) -> Bool {
         guard count == expected.count else {
             return false
