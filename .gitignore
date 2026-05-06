@@ -43,4 +43,5 @@ DerivedData/
 !.parity/mapper-parity.test.ts
 .*.history.json
 .claude
-.build
+
+vendor/bundle/
