@@ -2,13 +2,20 @@
 
 set -euo pipefail
 
-if [ -z "${BUILDKITE_TAG:-}" ]; then
-  printf >&2 "expected BUILDKITE_TAG to be set; this script only runs for tag builds\n"
-  exit 1
+# Publish to GitHub Releases only on tag builds. Non-tag builds (PRs,
+# main) still produce a signed+notarized tarball — uploaded as a
+# Buildkite artifact — for download/testing.
+if [ -n "${BUILDKITE_TAG:-}" ]; then
+  tag="$BUILDKITE_TAG"
+  version="${tag#v}"
+  publish=true
+else
+  base_version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+  short_sha="${BUILDKITE_COMMIT:0:7}"
+  version="${base_version}-${short_sha}"
+  publish=false
 fi
 
-tag="$BUILDKITE_TAG"
-version="${tag#v}"
 asset_name="imessage-cli-${version}-macos-universal.tar.gz"
 
 echo "--- :hammer_and_wrench: build, sign, notarize"
@@ -29,6 +36,11 @@ cp "$binary" "dist/imessage-cli"
 chmod +x "dist/imessage-cli"
 tar -czf "dist/$asset_name" -C dist imessage-cli
 ( cd dist && shasum -a 256 "$asset_name" > "$asset_name.sha256" )
+
+if ! "$publish"; then
+  echo "--- :information_source: skipping GitHub release publish (no tag); tarball stashed as Buildkite artifact"
+  exit 0
+fi
 
 echo "--- :rocket: publish to GitHub release"
 # Idempotent: create the release if missing, then upload with --clobber so re-runs replace

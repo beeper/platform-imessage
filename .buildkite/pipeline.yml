@@ -8,23 +8,16 @@ env:
   IMAGE_ID: $IMAGE_ID
 
 steps:
-  - label: ":swift: Build (compile check)"
-    key: build-check
-    command: swift build -c release --product imessage-cli
-    plugins: [$CI_TOOLKIT_PLUGIN]
-    if: build.tag == null
-    notify:
-      - github_commit_status:
-          context: buildkite/platform-imessage/build-check
-
-  - label: ":apple: Sign, notarize, and publish CLI"
-    key: release
+  # Runs on every build (PR, main, tag). The script signs and notarizes the
+  # CLI, stashes the tarball as a Buildkite artifact, and only publishes to
+  # GitHub Releases when triggered by a `v*` tag.
+  - label: ":apple: Build, sign, notarize CLI"
+    key: build
     command: .buildkite/commands/release-cli.sh
     plugins: [$CI_TOOLKIT_PLUGIN]
-    if: build.tag != null
     artifact_paths:
       - dist/*.tar.gz
       - dist/*.tar.gz.sha256
     notify:
       - github_commit_status:
-          context: buildkite/platform-imessage/release
+          context: buildkite/platform-imessage/build
