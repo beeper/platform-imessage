@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+---
+
+agents:
+  queue: mac
+
+env:
+  IMAGE_ID: $IMAGE_ID
+
+steps:
+  - label: ":swift: Build (compile check)"
+    key: build-check
+    command: swift build -c release --product imessage-cli
+    plugins: [$CI_TOOLKIT_PLUGIN]
+    if: build.tag == null
+    notify:
+      - github_commit_status:
+          context: buildkite/platform-imessage/build-check
+
+  - label: ":apple: Sign, notarize, and publish CLI"
+    key: release
+    command: .buildkite/commands/release-cli.sh
+    plugins: [$CI_TOOLKIT_PLUGIN]
+    if: build.tag != null
+    notify:
+      - github_commit_status:
+          context: buildkite/platform-imessage/release
