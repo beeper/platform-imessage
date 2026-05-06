@@ -21,17 +21,14 @@ if [ ! -f "$binary" ]; then
 fi
 
 echo "--- :package: tarball + sha256"
-out_dir="$(mktemp -d)"
-trap 'rm -rf "$out_dir"' EXIT
-
-cp "$binary" "$out_dir/imessage-cli"
-chmod +x "$out_dir/imessage-cli"
-tar -czf "$out_dir/$asset_name" -C "$out_dir" imessage-cli
-( cd "$out_dir" && shasum -a 256 "$asset_name" > "$asset_name.sha256" )
-
-# Stash on Buildkite first — keeps the artifact even if the GH publish fails
-buildkite-agent artifact upload "$out_dir/$asset_name"
-buildkite-agent artifact upload "$out_dir/$asset_name.sha256"
+# Write to dist/ (gitignored) so the pipeline's `artifact_paths` glob can pick
+# the files up even if a later step fails — no need for explicit uploads here.
+rm -rf dist
+mkdir -p dist
+cp "$binary" "dist/imessage-cli"
+chmod +x "dist/imessage-cli"
+tar -czf "dist/$asset_name" -C dist imessage-cli
+( cd dist && shasum -a 256 "$asset_name" > "$asset_name.sha256" )
 
 echo "--- :rocket: publish to GitHub release"
 # Idempotent: create the release if missing, then upload with --clobber so re-runs replace
@@ -42,6 +39,6 @@ if ! gh release view "$tag" --repo beeper/platform-imessage >/dev/null 2>&1; the
     --notes "macOS iMessage CLI release for @beeper/platform-imessage $version."
 fi
 
-gh release upload "$tag" "$out_dir/$asset_name" "$out_dir/$asset_name.sha256" \
+gh release upload "$tag" "dist/$asset_name" "dist/$asset_name.sha256" \
   --repo beeper/platform-imessage \
   --clobber

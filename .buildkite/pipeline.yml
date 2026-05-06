@@ -22,6 +22,9 @@ steps:
     command: .buildkite/commands/release-cli.sh
     plugins: [$CI_TOOLKIT_PLUGIN]
     if: build.tag != null
+    artifact_paths:
+      - dist/*.tar.gz
+      - dist/*.tar.gz.sha256
     notify:
       - github_commit_status:
           context: buildkite/platform-imessage/release
