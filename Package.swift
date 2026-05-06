@@ -24,6 +24,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.29.3"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.0-prerelease-2025-10-30"),
 ]
 
@@ -82,7 +83,7 @@ var targets: [Target] = [
             .product(name: "Logging", package: "swift-log"),
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             .product(name: "Collections", package: "swift-collections"),
-            "SQLite",
+            .product(name: "GRDB", package: "GRDB.swift"),
             "ExceptionCatcher",
             "IMessageCore",
         ],

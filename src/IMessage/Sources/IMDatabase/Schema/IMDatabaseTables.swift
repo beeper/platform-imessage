@@ -2,7 +2,7 @@
 /// `fixtures/schema-ventura.sql`, and `fixtures/schema-tahoe.sql`.
 
 enum SQLiteSequenceTable: IMDatabaseTable {
-    static let sqlName = "sqlite_sequence"
+    static let databaseTableName = "sqlite_sequence"
 
     enum Column: String, IMDatabaseColumn {
         case name
@@ -11,7 +11,7 @@ enum SQLiteSequenceTable: IMDatabaseTable {
 }
 
 enum MessageTable: IMDatabaseTable {
-    static let sqlName = "message"
+    static let databaseTableName = "message"
 
     enum Column: String, IMDatabaseColumn {
         case rowID = "ROWID"
@@ -113,7 +113,7 @@ enum MessageTable: IMDatabaseTable {
 }
 
 enum ChatTable: IMDatabaseTable {
-    static let sqlName = "chat"
+    static let databaseTableName = "chat"
 
     enum Column: String, IMDatabaseColumn {
         case rowID = "ROWID"
@@ -149,7 +149,7 @@ enum ChatTable: IMDatabaseTable {
 }
 
 enum HandleTable: IMDatabaseTable {
-    static let sqlName = "handle"
+    static let databaseTableName = "handle"
 
     enum Column: String, IMDatabaseColumn {
         case rowID = "ROWID"
@@ -162,7 +162,7 @@ enum HandleTable: IMDatabaseTable {
 }
 
 enum AttachmentTable: IMDatabaseTable {
-    static let sqlName = "attachment"
+    static let databaseTableName = "attachment"
 
     enum Column: String, IMDatabaseColumn {
         case rowID = "ROWID"
@@ -193,7 +193,7 @@ enum AttachmentTable: IMDatabaseTable {
 }
 
 enum ChatMessageJoinTable: IMDatabaseTable {
-    static let sqlName = "chat_message_join"
+    static let databaseTableName = "chat_message_join"
 
     enum Column: String, IMDatabaseColumn {
         case chatID = "chat_id"
@@ -204,7 +204,7 @@ enum ChatMessageJoinTable: IMDatabaseTable {
 }
 
 enum ChatHandleJoinTable: IMDatabaseTable {
-    static let sqlName = "chat_handle_join"
+    static let databaseTableName = "chat_handle_join"
 
     enum Column: String, IMDatabaseColumn {
         case chatID = "chat_id"
@@ -213,7 +213,7 @@ enum ChatHandleJoinTable: IMDatabaseTable {
 }
 
 enum MessageAttachmentJoinTable: IMDatabaseTable {
-    static let sqlName = "message_attachment_join"
+    static let databaseTableName = "message_attachment_join"
 
     enum Column: String, IMDatabaseColumn {
         case messageID = "message_id"

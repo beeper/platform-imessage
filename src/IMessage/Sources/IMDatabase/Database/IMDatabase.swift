@@ -1,7 +1,7 @@
 import AsyncAlgorithms
 import Foundation
+import GRDB
 import Logging
-import SQLite
 import IMessageCore
 
 private func chatDatabaseFile(in messagesDataURL: URL) -> URL {
@@ -40,9 +40,8 @@ public final class IMDatabase {
 
     public var noisy = false
 
-    var database: Database
+    var database: DatabaseQueue
 
-    private var statementCache = [String: Statement]()
     var tableColumnCache = [String: [String]]()
     var schemaCache: IMDatabaseSchema?
 
@@ -58,17 +57,13 @@ public final class IMDatabase {
             try Self.createIndexesIfNecessary(in: messagesDataDirectory)
         }
 
-        self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
+        var configuration = Configuration()
+        configuration.readonly = true
+        self.database = try DatabaseQueue(path: chatDatabaseFile(in: messagesDataDirectory).path, configuration: configuration)
     }
 
-    func cachedStatement(forEscapedSQL sql: String) throws -> Statement {
-        if let cached = statementCache[sql] {
-            return cached
-        }
-
-        let statement = try Statement.prepare(escapedSQL: sql, for: database, flags: .persistent)
-        statementCache[sql] = statement
-        return statement
+    func read<T>(_ value: (Database) throws -> T) throws -> T {
+        try database.read(value)
     }
 
     deinit {
@@ -82,11 +77,15 @@ public final class IMDatabase {
 
 private extension IMDatabase {
     static func createIndexesIfNecessary(in messagesDataDirectory: URL) throws {
-        let database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readWrite)
-        let messageSchema = TableSchema<MessageTable>(columns: try database.tableColumns(MessageTable.sqlName))
+        let database = try DatabaseQueue(path: chatDatabaseFile(in: messagesDataDirectory).path)
+        let messageSchema = try database.read { db in
+            try TableSchema<MessageTable>(columns: db.tableColumns(MessageTable.sqlName))
+        }
 
-        for (indexName, column) in messageIndexes where messageSchema.has(column) {
-            try database.execute(sqlWithoutEscaping: "CREATE INDEX IF NOT EXISTS \(indexName) ON \(MessageTable.sqlName) (\(column.sqlName))")
+        try database.write { db in
+            for (indexName, column) in messageIndexes where messageSchema.has(column) {
+                try db.execute(sql: "CREATE INDEX IF NOT EXISTS \(indexName) ON \(MessageTable.sqlName) (\(column.sqlName))")
+            }
         }
     }
 }

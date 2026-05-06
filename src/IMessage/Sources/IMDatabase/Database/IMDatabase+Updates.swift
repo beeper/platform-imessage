@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Logging
 
 private let log = Logger(label: "imdb.updates")
@@ -28,70 +29,75 @@ extension IMDatabase {
         let dateEditedExpression = messageSchema.has(.dateEdited)
             ? "m.\(MessageTable.Column.dateEdited.sqlName)"
             : "0"
-        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery(dateEditedExpression: dateEditedExpression))
-
-        try statement.reset()
-        try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
-
         var newestMessageRowID: Int?
         var latestMessageDateRead: Date?
         var latestDateEdited: Date?
         var timesWarnedAboutOrphanedMessage = 0
 
-        let updatedMessages: [UpdatedMessageChange] = try statement.compactMapRowsUntilDone { row in
-            let messageRowID = try row[0].expect(Int.self)
-            let isNew = messageRowID > lastRowID
-            if isNew {
-                newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
-            }
+        let updatedMessages: [UpdatedMessageChange] = try read { db in
+            try Row.fetchAll(
+                db,
+                sql: updatedMessagesSinceQuery(dateEditedExpression: dateEditedExpression),
+                arguments: StatementArguments([
+                    lastRowID,
+                    lastDateRead.nanosecondsSinceReferenceDate,
+                    lastDateEdited.nanosecondsSinceReferenceDate,
+                ])
+            ).compactMap { row in
+                let messageRowID = row.requiredInt(at: 0)
+                let isNew = messageRowID > lastRowID
+                if isNew {
+                    newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
+                }
 
-            var wasRead = false
-            var wasEdited = false
+                var wasRead = false
+                var wasEdited = false
 
-            if let dateRead = try row[1].imCoreDate() {
-                wasRead = dateRead > lastDateRead
-                if wasRead {
-                    latestMessageDateRead = if let latestMessageDateRead {
-                        max(dateRead, latestMessageDateRead)
-                    } else {
-                        dateRead
+                if let dateRead = row.imCoreDate(at: 1) {
+                    wasRead = dateRead > lastDateRead
+                    if wasRead {
+                        latestMessageDateRead = if let latestMessageDateRead {
+                            max(dateRead, latestMessageDateRead)
+                        } else {
+                            dateRead
+                        }
                     }
                 }
-            }
 
-            if let dateEdited = try row[2].imCoreDate() {
-                wasEdited = dateEdited > lastDateEdited
-                if wasEdited {
-                    latestDateEdited = if let latestDateEdited {
-                        max(dateEdited, latestDateEdited)
-                    } else {
-                        dateEdited
+                if let dateEdited = row.imCoreDate(at: 2) {
+                    wasEdited = dateEdited > lastDateEdited
+                    if wasEdited {
+                        latestDateEdited = if let latestDateEdited {
+                            max(dateEdited, latestDateEdited)
+                        } else {
+                            dateEdited
+                        }
                     }
                 }
-            }
 
-            guard let guid = try row[3].optional(String.self) else {
-                // For whatever reason it's possible for messages to not be
-                // joinable with chats. Right now I have one of these for a SMS
-                // TOTP verification code, which might've been automatically
-                // deleted in a weird way due to the autofill feature.
-                //
-                // In case there are tons of orphaned messages, don't spam the
-                // logs with this message.
-                if timesWarnedAboutOrphanedMessage < 10 {
-                    log.error("couldn't join message \(messageRowID) to chat, dropping")
-                    timesWarnedAboutOrphanedMessage += 1
+                guard let guid = row.optionalString(at: 3) else {
+                    // For whatever reason it's possible for messages to not be
+                    // joinable with chats. Right now I have one of these for a SMS
+                    // TOTP verification code, which might've been automatically
+                    // deleted in a weird way due to the autofill feature.
+                    //
+                    // In case there are tons of orphaned messages, don't spam the
+                    // logs with this message.
+                    if timesWarnedAboutOrphanedMessage < 10 {
+                        log.error("couldn't join message \(messageRowID) to chat, dropping")
+                        timesWarnedAboutOrphanedMessage += 1
+                    }
+                    return nil
                 }
-                return nil
-            }
 
-            return UpdatedMessageChange(
-                rowID: messageRowID,
-                chatGUID: guid,
-                isNew: isNew,
-                wasRead: wasRead,
-                wasEdited: wasEdited
-            )
+                return UpdatedMessageChange(
+                    rowID: messageRowID,
+                    chatGUID: guid,
+                    isNew: isNew,
+                    wasRead: wasRead,
+                    wasEdited: wasEdited
+                )
+            }
         }
 
         return UpdatedMessagesQueryResult(

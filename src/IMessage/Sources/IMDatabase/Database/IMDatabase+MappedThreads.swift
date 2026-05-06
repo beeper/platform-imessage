@@ -1,4 +1,4 @@
-import SQLite
+import GRDB
 
 public let mappedThreadsLimit = 25
 
@@ -22,11 +22,12 @@ public extension IMDatabase {
         }
         sql += "\nORDER BY msgDate DESC\nLIMIT \(limit)"
 
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        if let withCursor {
-            try statement.bind(withCursor.cursor)
+        return try read { db in
+            if let withCursor {
+                return try MappedChatRow.fetchAll(db, sql: sql, arguments: [withCursor.cursor])
+            }
+            return try MappedChatRow.fetchAll(db, sql: sql)
         }
-        return try statement.mapRowsUntilDone(MappedChatRow.self)
     }
 
     func mappedThreadRow(guid: String) throws -> MappedChatRow? {
@@ -38,9 +39,9 @@ public extension IMDatabase {
         FROM chat
         WHERE chat.guid = ?
         """
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(guid)
-        return try statement.mapRowsUntilDone(MappedChatRow.self).first
+        return try read { db in
+            try MappedChatRow.fetchAll(db, sql: sql, arguments: [guid]).first
+        }
     }
 
     func mappedThreadParticipantRows(chatRowIDs: [Int]) throws -> [Int: [MappedHandleRow]] {
@@ -51,10 +52,10 @@ public extension IMDatabase {
         LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
         WHERE chat_id IN (\(chatRowIDs.map { _ in "?" }.joined(separator: ", ")))
         """
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
-        return try statement.mapRowsUntilDone(MappedHandleRow.self).reduce(into: [:]) { result, row in
-            result[row.chatID ?? -1, default: []].append(row)
+        return try read { db in
+            try MappedHandleRow.fetchAll(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, row in
+                result[row.chatID ?? -1, default: []].append(row)
+            }
         }
     }
 
@@ -75,12 +76,12 @@ public extension IMDatabase {
         GROUP BY
           cm.chat_id
         """
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
-        return try statement.mapRowsUntilDone { row in
-            (try row[0].expectConverting(Int.self), try row[1].expectConverting(Int.self))
-        }.reduce(into: [:]) { result, pair in
-            result[pair.0] = pair.1
+        return try read { db in
+            try Row.fetchAll(db, sql: sql, arguments: StatementArguments(chatRowIDs)).map { row in
+                (row.requiredInt(at: 0), row.requiredInt(at: 1))
+            }.reduce(into: [:]) { result, pair in
+                result[pair.0] = pair.1
+            }
         }
     }
 }

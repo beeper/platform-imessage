@@ -1,5 +1,5 @@
 import Foundation
-import SQLite
+import GRDB
 import IMessageCore
 
 // TODO(skip): optimize; query takes ~70ms (!)
@@ -52,19 +52,18 @@ public extension IMDatabase {
     }
 
     func chatStates() throws -> [String: ChatState] {
-        let statement = try cachedStatement(forEscapedSQL: unreadStatesQuery)
-        try statement.reset()
-
         var chatStates: [String: ChatState] = [:]
 
-        try statement.stepUntilDone { row in
-            let chatGUID = try row[0].expect(String.self)
+        try read { db in
+            for row in try Row.fetchAll(db, sql: unreadStatesQuery) {
+                let chatGUID = row.requiredString(at: 0)
 
-            let lastReadMessageTimestamp = try Date(nanosecondsSinceReferenceDate: row[2].expect(Int.self))
+                let lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: row.requiredInt(at: 2))
 
-            let unreadCount: Int = try row[1].expect(Int.self)
+                let unreadCount = row.requiredInt(at: 1)
 
-            chatStates[chatGUID] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
+                chatStates[chatGUID] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
+            }
         }
 
         return chatStates
