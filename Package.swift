@@ -77,6 +77,14 @@ var targets: [Target] = [
         dependencies: ["SQLite"],
         path: "src/IMessage/Sources/SQLiteTests"
     ),
+    .testTarget(
+        name: "IMDatabaseTests",
+        dependencies: [
+            "IMDatabase",
+            .product(name: "GRDB", package: "GRDB.swift"),
+        ],
+        path: "src/IMessage/Sources/IMDatabaseTests"
+    ),
     .target(
         name: "IMDatabase",
         dependencies: [
