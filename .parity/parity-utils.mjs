@@ -46,6 +46,43 @@ export function exec(command, commandArgs, cwd) {
   execFileSync(command, commandArgs, { cwd, stdio: 'inherit' })
 }
 
+async function ensureReferenceDependencies(referenceRoot) {
+  if (!await pathExists(path.join(referenceRoot, 'node_modules'))) {
+    exec('yarn', [], referenceRoot)
+  }
+}
+
+async function findReferenceNativeModule(referenceBinariesDirPath) {
+  const archBinariesDirPath = path.join(referenceBinariesDirPath, `${process.platform}-${process.arch}`)
+  for (const fileName of ['IMessage.node', 'SwiftServer.node']) {
+    const candidate = path.join(archBinariesDirPath, fileName)
+    if (await pathExists(candidate)) return candidate
+  }
+  return undefined
+}
+
+async function ensureReferenceNativeModule({ args, referenceRoot, referenceBinariesDirPath }) {
+  if (args.get('reference-swift-server-node')) return
+  if (await findReferenceNativeModule(referenceBinariesDirPath)) return
+
+  if (args.has('skip-reference-rebuild') && !args.has('rebuild-reference')) {
+    throw new Error(
+      `Reference native module is missing under ${path.join(referenceBinariesDirPath, `${process.platform}-${process.arch}`)}. ` +
+      'Run again without --skip-reference-rebuild, or pass --reference-binaries-dir to a directory containing the reference Swift .node binary.',
+    )
+  }
+
+  await ensureReferenceDependencies(referenceRoot)
+  exec('bun', ['build:swift', '--standalone'], referenceRoot)
+
+  if (!await findReferenceNativeModule(referenceBinariesDirPath)) {
+    throw new Error(
+      `Reference Swift build finished, but no IMessage.node or SwiftServer.node was found under ` +
+      `${path.join(referenceBinariesDirPath, `${process.platform}-${process.arch}`)}.`,
+    )
+  }
+}
+
 export async function readDefaultReferenceRef(repoRoot) {
   const refFile = path.join(repoRoot, '.parity/REFERENCE_REF')
   try {
@@ -73,9 +110,9 @@ export async function ensureReferenceAPI({
     didCreateReferenceRoot = true
   }
   if (didCreateReferenceRoot) {
-    exec('yarn', [], referenceRoot)
-    exec('bun', ['build:swift', '--standalone'], referenceRoot)
+    await ensureReferenceDependencies(referenceRoot)
   }
+  await ensureReferenceNativeModule({ args, referenceRoot, referenceBinariesDirPath })
   if (!args.has('skip-reference-rebuild') || args.has('rebuild-reference') || !await pathExists(bundlePath)) {
     const binariesDirPathLiteral = JSON.stringify(referenceBinariesDirPath)
     const buildBanner = `globalThis.texts={IS_DEV:true,isLoggingEnabled:false,log(){},error(){},constants:{USER_AGENT:'platform-imessage-parity',APP_VERSION:'1.0.0'},Sentry:{captureException(){},captureMessage(){},startTransaction(){}},async trackPlatformEvent(){},getBinariesDirPath(){return ${binariesDirPathLiteral}},fetch:globalThis.fetch,fetchStream:undefined,createHttpClient:undefined,nativeFetch:undefined,nativeFetchStream:undefined,runWorker:undefined,forkChildProcess:undefined,getOriginalObject:undefined,openBrowserWindow:undefined};`

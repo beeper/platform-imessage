@@ -15,6 +15,7 @@ var products: [Product] = [
         targets: ["IMessage"]
     ),
     .executable(name: "imessage-cli", targets: ["IMessageCLI"]),
+    .executable(name: "IMessagePerfBench", targets: ["IMessagePerfBench"]),
 ]
 
 var dependencies: [Package.Dependency] = [
@@ -106,6 +107,16 @@ var targets: [Target] = [
         ],
         path: "src/IMessage/Sources/IMessageCLI",
         plugins: ["GenerateIMessageCLIVersionPlugin"]
+    ),
+    .executableTarget(
+        name: "IMessagePerfBench",
+        dependencies: [
+            "IMDatabase",
+            "IMessage",
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        path: "src/IMessage/Sources/IMessagePerfBench",
+        exclude: ["README.md"]
     ),
     .plugin(
         name: "GenerateIMessageCLIVersionPlugin",
