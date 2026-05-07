@@ -14,6 +14,13 @@ gh auth status --hostname github.com
 echo "--- :test_tube: probe: gh read access on beeper/platform-imessage"
 gh release list --repo beeper/platform-imessage --limit 1
 gh api /repos/beeper/platform-imessage --jq '.full_name + " (private=" + (.private|tostring) + ")"'
+echo "--- :test_tube: probe: bot collaborator permission on beeper/platform-imessage"
+# `repo` scope alone isn't enough — the bot account also needs to be a
+# collaborator on the repo with at least `write` for `gh release create/upload`
+# to succeed. `none`/`read`/`triage` here means real publishing will 403.
+bot_login="$(gh api /user --jq .login)"
+gh api "/repos/beeper/platform-imessage/collaborators/${bot_login}/permission" \
+  --jq '"bot=" + .user.login + " permission=" + .permission'
 echo "==> gh probes passed"
 
 # Publish to GitHub Releases only on tag builds. Non-tag builds (PRs,
