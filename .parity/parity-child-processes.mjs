@@ -108,6 +108,9 @@ export async function runAPIChild(options) {
         writeIPC({ id: request.id, ok: false, error: serializeError(result.error), ms: result.ms })
       }
     }
+  } catch (error) {
+    writeIPC({ type: 'startup-error', error: serializeError(error) })
+    process.exitCode = 1
   } finally {
     await Promise.resolve(api?.dispose?.()).catch(() => {})
     if (dataDirPath) await fs.rm(dataDirPath, { recursive: true, force: true }).catch(() => {})
@@ -175,6 +178,10 @@ export function spawnAPIChild({
     }
     if (message.type === 'ready') {
       readyResolve()
+      return
+    }
+    if (message.type === 'startup-error') {
+      readyReject(deserializeError(message.error))
       return
     }
 

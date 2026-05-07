@@ -37,15 +37,35 @@ extension PlatformAPI {
         currentUserID: String,
         accountID: String
     ) throws -> [PlatformSDK.Message] {
+        let messagesByRowID = try mapAndHashMessagesByRowID(
+            msgRows: msgRows,
+            attachmentRows: attachmentRows,
+            reactionRows: reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        return msgRows.flatMap { msgRow in
+            messagesByRowID[msgRow.rowID] ?? []
+        }
+    }
+
+    nonisolated static func mapAndHashMessagesByRowID(
+        msgRows: [MappedMessageRow],
+        attachmentRows: [MappedAttachmentRow],
+        reactionRows: [MappedReactionMessageRow],
+        currentUserID: String,
+        accountID: String
+    ) throws -> [Int: [PlatformSDK.Message]] {
         guard !msgRows.isEmpty else {
-            return []
+            return [:]
         }
 
         let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
         let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
 
-        return try msgRows.flatMap { msgRow -> [PlatformSDK.Message] in
-            try mapAndHashMessage(
+        var messagesByRowID = [Int: [PlatformSDK.Message]]()
+        for msgRow in msgRows {
+            messagesByRowID[msgRow.rowID] = try mapAndHashMessage(
                 msgRow: msgRow,
                 attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
                 reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
@@ -53,6 +73,7 @@ extension PlatformAPI {
                 accountID: accountID
             )
         }
+        return messagesByRowID
     }
 
     nonisolated static func mapAndHashMessage(
@@ -77,16 +98,18 @@ extension PlatformAPI {
         copyMessage(
             message,
             senderID: Hasher.participant.tokenizeRemembering(pii: message.senderID),
-            reactions: message.reactions?.map { reaction in
-                PlatformSDK.MessageReaction(
-                    id: Hasher.participant.tokenizeRemembering(pii: reaction.id),
-                    reactionKey: reaction.reactionKey,
-                    imgURL: reaction.imgURL,
-                    participantID: Hasher.participant.tokenizeRemembering(pii: reaction.participantID),
-                    emoji: reaction.emoji
-                )
-            },
+            reactions: message.reactions?.map(hashReaction),
             threadID: message.threadID.map { Hasher.thread.tokenizeRemembering(pii: $0) }
+        )
+    }
+
+    nonisolated static func hashReaction(_ reaction: PlatformSDK.MessageReaction) -> PlatformSDK.MessageReaction {
+        PlatformSDK.MessageReaction(
+            id: Hasher.participant.tokenizeRemembering(pii: reaction.id),
+            reactionKey: reaction.reactionKey,
+            imgURL: reaction.imgURL,
+            participantID: Hasher.participant.tokenizeRemembering(pii: reaction.participantID),
+            emoji: reaction.emoji
         )
     }
 

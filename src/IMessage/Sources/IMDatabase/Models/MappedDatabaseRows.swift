@@ -1,5 +1,5 @@
 import Foundation
-import SQLite
+import GRDB
 
 /// Runtime counterparts to the historical TypeScript row shapes. Database
 /// queries decode into these structs directly. Legacy fixture/original-payload
@@ -43,8 +43,34 @@ import SQLite
 /// - `is_recovered`: Added in Ventura.
 /// - `is_deleting_incoming_messages`, `is_pending_review`: Observed in Tahoe.
 
-public protocol MappedDatabaseRow {
-    init(row: borrowing Row, columns: MappedRowColumnIndexes) throws
+public protocol MappedDatabaseRow: FetchableRecord {
+    init(row: Row, columns: MappedRowColumnIndexes) throws
+}
+
+public extension MappedDatabaseRow {
+    init(row: Row) throws {
+        try self.init(row: row, columns: MappedRowColumnIndexes(Array(row.columnNames)))
+    }
+
+    static func fetchAllMapped(
+        _ db: Database,
+        sql: String,
+        arguments: StatementArguments = StatementArguments()
+    ) throws -> [Self] {
+        let request = SQLRequest<Row>(sql: sql, arguments: arguments, cached: true)
+        let cursor = try Row.fetchCursor(db, request)
+        var rows: [Self] = []
+        var columns: MappedRowColumnIndexes?
+
+        while let row = try cursor.next() {
+            if columns == nil {
+                columns = MappedRowColumnIndexes(Array(row.columnNames))
+            }
+            rows.append(try Self(row: row, columns: columns!))
+        }
+
+        return rows
+    }
 }
 
 public struct MappedRowColumnIndexes {
@@ -54,19 +80,8 @@ public struct MappedRowColumnIndexes {
         indexesByName = Dictionary(uniqueKeysWithValues: names.enumerated().map { ($0.element, $0.offset) })
     }
 
-    public init(statement: Statement) {
-        self.init(statement.columnNames)
-    }
-
     func index(for name: String) -> Int? {
         indexesByName[name]
-    }
-}
-
-public extension Statement {
-    func mapRowsUntilDone<T: MappedDatabaseRow>(_: T.Type) throws -> [T] {
-        let columns = MappedRowColumnIndexes(statement: self)
-        return try mapRowsUntilDone { try T(row: $0, columns: columns) }
     }
 }
 
@@ -119,6 +134,9 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let payloadData: Data?
     public let expressiveSendStyleID: String?
     public let messageSummaryInfo: Data?
+    /// GUID of a related message. iMessage uses this for reaction removal rows
+    /// to point back at the hidden reaction-add message row.
+    public let replyToGUID: String?
     public let threadOriginatorGUID: String?
     public let threadOriginatorPart: String?
     /// Added in Ventura. Apple nanosecond timestamp. Stringify at JSON/API
@@ -139,7 +157,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let participantID: String?
     public let otherID: String?
 
-    public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
+    public init(row: Row, columns: MappedRowColumnIndexes) throws {
         rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
         guid = try row.requiredString("guid", columns: columns, row: Self.self)
         text = try row.string("text", columns: columns)
@@ -166,6 +184,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
         payloadData = try row.data("payload_data", columns: columns)
         expressiveSendStyleID = try row.string("expressive_send_style_id", columns: columns)
         messageSummaryInfo = try row.data("message_summary_info", columns: columns)
+        replyToGUID = try row.string("reply_to_guid", columns: columns)
         threadOriginatorGUID = try row.string("thread_originator_guid", columns: columns)
         threadOriginatorPart = try row.string("thread_originator_part", columns: columns)
         dateRetracted = try row.int("date_retracted", columns: columns)
@@ -199,7 +218,7 @@ public struct MappedChatRow: MappedDatabaseRow {
     // the `chat` table; they are computed SQL aliases.
     public let msgDate: Int?
 
-    public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
+    public init(row: Row, columns: MappedRowColumnIndexes) throws {
         rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
         guid = try row.requiredString("guid", columns: columns, row: Self.self)
         state = try row.int("state", columns: columns) ?? 0
@@ -258,7 +277,7 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
         self.size = size
     }
 
-    public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
+    public init(row: Row, columns: MappedRowColumnIndexes) throws {
         try self.init(
             msgRowID: row.requiredInt("msgRowID", columns: columns, row: Self.self),
             filename: row.string("filename", columns: columns),
@@ -290,7 +309,7 @@ public struct MappedHandleRow: MappedDatabaseRow {
         self.uncanonicalizedID = uncanonicalizedID
     }
 
-    public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
+    public init(row: Row, columns: MappedRowColumnIndexes) throws {
         chatID = try row.int("chat_id", columns: columns)
         participantID = try row.string("participantID", columns: columns)
         uncanonicalizedID = try row.string("uncanonicalized_id", columns: columns)
@@ -310,7 +329,7 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
     // for the sender associated with the reaction message.
     public let participantID: String?
 
-    public init(row: borrowing Row, columns: MappedRowColumnIndexes) throws {
+    public init(row: Row, columns: MappedRowColumnIndexes) throws {
         rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
         isFromMe = try row.requiredInt("is_from_me", columns: columns, row: Self.self)
         handleID = try row.int("handle_id", columns: columns)
@@ -322,7 +341,7 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
 }
 
 private extension Row {
-    borrowing func requiredString<RowType>(
+    func requiredString<RowType>(
         _ key: String,
         columns: MappedRowColumnIndexes,
         row: RowType.Type
@@ -333,7 +352,7 @@ private extension Row {
         return value
     }
 
-    borrowing func requiredInt<RowType>(
+    func requiredInt<RowType>(
         _ key: String,
         columns: MappedRowColumnIndexes,
         row: RowType.Type
@@ -344,24 +363,24 @@ private extension Row {
         return value
     }
 
-    borrowing func string(_ key: String, columns: MappedRowColumnIndexes) throws -> String? {
+    func string(_ key: String, columns: MappedRowColumnIndexes) throws -> String? {
         guard let index = columns.index(for: key) else {
             return nil
         }
-        return try self[index].optionalConverting(String.self)
+        return self[index] as String?
     }
 
-    borrowing func int(_ key: String, columns: MappedRowColumnIndexes) throws -> Int? {
+    func int(_ key: String, columns: MappedRowColumnIndexes) throws -> Int? {
         guard let index = columns.index(for: key) else {
             return nil
         }
-        return try self[index].optionalConverting(Int.self)
+        return self[index] as Int?
     }
 
-    borrowing func data(_ key: String, columns: MappedRowColumnIndexes) throws -> Data? {
+    func data(_ key: String, columns: MappedRowColumnIndexes) throws -> Data? {
         guard let index = columns.index(for: key) else {
             return nil
         }
-        return try self[index].optionalConverting(Data.self)
+        return self[index] as Data?
     }
 }

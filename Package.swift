@@ -15,6 +15,7 @@ var products: [Product] = [
         targets: ["IMessage"]
     ),
     .executable(name: "imessage-cli", targets: ["IMessageCLI"]),
+    .executable(name: "IMessagePerfBench", targets: ["IMessagePerfBench"]),
 ]
 
 var dependencies: [Package.Dependency] = [
@@ -24,6 +25,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.29.3"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.0-prerelease-2025-10-30"),
 ]
 
@@ -76,13 +78,21 @@ var targets: [Target] = [
         dependencies: ["SQLite"],
         path: "src/IMessage/Sources/SQLiteTests"
     ),
+    .testTarget(
+        name: "IMDatabaseTests",
+        dependencies: [
+            "IMDatabase",
+            .product(name: "GRDB", package: "GRDB.swift"),
+        ],
+        path: "src/IMessage/Sources/IMDatabaseTests"
+    ),
     .target(
         name: "IMDatabase",
         dependencies: [
             .product(name: "Logging", package: "swift-log"),
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             .product(name: "Collections", package: "swift-collections"),
-            "SQLite",
+            .product(name: "GRDB", package: "GRDB.swift"),
             "ExceptionCatcher",
             "IMessageCore",
         ],
@@ -97,6 +107,16 @@ var targets: [Target] = [
         ],
         path: "src/IMessage/Sources/IMessageCLI",
         plugins: ["GenerateIMessageCLIVersionPlugin"]
+    ),
+    .executableTarget(
+        name: "IMessagePerfBench",
+        dependencies: [
+            "IMDatabase",
+            "IMessage",
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        path: "src/IMessage/Sources/IMessagePerfBench",
+        exclude: ["README.md"]
     ),
     .plugin(
         name: "GenerateIMessageCLIVersionPlugin",

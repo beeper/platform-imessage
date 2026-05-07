@@ -1,6 +1,6 @@
 import Collections
 import Foundation
-import SQLite
+import GRDB
 
 public enum DateOrdering {
     case newestFirst
@@ -41,19 +41,20 @@ public extension IMDatabase {
         with guid: GUID<Message>,
         withAttachments includeAttachments: Bool = true,
         ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
-        let statement = try cachedStatement(forEscapedSQL: """
-        \(messagesQuerySharedPrelude)
-        WHERE m.guid = ?
-        """).reset()
-        try statement.bind(guid)
+        let result = try read { db in
+            try Row.fetchAll(db, sql: """
+            \(messagesQuerySharedPrelude)
+            WHERE m.guid = ?
+            """, arguments: [guid]).compactMap { row -> (Message, GUID<Chat>)? in
+                guard let chatGUID = row.optionalString(at: 0) else {
+                    // drop orphaned (not within a chat) messages
+                    return nil
+                }
+                return try (Message(row: row), GUID(chatGUID))
+            }.first
+        }
 
-        guard let (initialMessage, chatGUID) = try statement.compactMapRowsUntilDone({ row -> (Message, GUID<Chat>)? in
-            guard let chatGUID = try row[0].optionalConverting(String.self) else {
-                // drop orphaned (not within a chat) messages
-                return nil
-            }
-            return try (Message(row: row), GUID(chatGUID))
-        }).first else {
+        guard let (initialMessage, chatGUID) = result else {
             return nil
         }
 
@@ -72,19 +73,19 @@ public extension IMDatabase {
         limit: Int = 50,
         withAttachments includeAttachments: Bool = true,
         ) throws -> some Collection<Message> {
-        let statement = try cachedStatement(forEscapedSQL: """
-        \(messagesQuerySharedPrelude)
-        WHERE c.guid = ?
-        \(filter.map { "AND m.\($0.sqlFragment)" } ?? "")
-        ORDER BY m.date \(order.sqlKeyword)
-        LIMIT ?
-        """).reset()
-        try statement.bind(chatGUID, limit)
-
         var messages = OrderedDictionary<Message.ID, Message>()
-        try statement.stepUntilDone { row in
-            let message = try Message(row: row)
-            messages[message.id] = message
+        try read { db in
+            let rows = try Row.fetchAll(db, sql: """
+            \(messagesQuerySharedPrelude)
+            WHERE c.guid = ?
+            \(filter.map { "AND m.\($0.sqlFragment)" } ?? "")
+            ORDER BY m.date \(order.sqlKeyword)
+            LIMIT ?
+            """, arguments: sqlArguments([chatGUID, limit]))
+            for row in rows {
+                let message = try Message(row: row)
+                messages[message.id] = message
+            }
         }
 
         if includeAttachments {
@@ -96,24 +97,24 @@ public extension IMDatabase {
 }
 
 private extension Message {
-    init(row: borrowing Row) throws {
+    init(row: Row) throws {
         // (skipping `c.guid`)
         self = try Message(
-            id: row[1].expect(Int.self),
-            guid: GUID<Message>(row[2].expect(String.self)),
-            balloonBundleID: try row[3].optional(String.self),
-            threadOriginatorGUID: try row[4].optional(String.self).map(GUID<Message>.init(stringLiteral:)),
-            text: row[5].optional(String.self).map {
+            id: row.requiredInt(at: 1),
+            guid: GUID<Message>(row.requiredString(at: 2)),
+            balloonBundleID: row.optionalString(at: 3),
+            threadOriginatorGUID: row.optionalString(at: 4).map(GUID<Message>.init(stringLiteral:)),
+            text: row.optionalString(at: 5).map {
                 Sensitive(.messageText, hiding: $0)
             },
-            attributedBody: row[6].optional(Data.self).flatMap {
+            attributedBody: row.optionalData(at: 6).flatMap {
                 try Sensitive(.messageAttributedBody, hiding: AttributedBodyDecoder.attributedString(from: $0))
             },
-            isFromMe: row[7].looseBool(),
-            isSent: row[8].looseBool(),
-            date: row[9].imCoreDate(),
-            dateRead: row[10].imCoreDate(),
-            summaryInfo: row[11].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
+            isFromMe: row.looseBool(at: 7),
+            isSent: row.looseBool(at: 8),
+            date: row.imCoreDate(at: 9),
+            dateRead: row.imCoreDate(at: 10),
+            summaryInfo: row.optionalData(at: 11).map(Message.SummaryInfo.init(blob:)),
             )
     }
 }

@@ -1,4 +1,4 @@
-import SQLite
+import GRDB
 
 public struct GUID<Tag>: Sendable {
     var guts: String
@@ -18,9 +18,16 @@ extension GUID: ExpressibleByStringLiteral {
     }
 }
 
-extension GUID: SQLiteBindable {
-    public func unsafeBind(toPreparedStatement handle: OpaquePointer, at parameterIndex: Int32) throws {
-        try guts.unsafeBind(toPreparedStatement: handle, at: parameterIndex)
+extension GUID: DatabaseValueConvertible {
+    public var databaseValue: DatabaseValue {
+        guts.databaseValue
+    }
+
+    public static func fromDatabaseValue(_ dbValue: DatabaseValue) -> GUID? {
+        guard let string = String.fromDatabaseValue(dbValue) else {
+            return nil
+        }
+        return GUID(string)
     }
 }
 

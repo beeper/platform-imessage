@@ -1,5 +1,5 @@
 import Foundation
-import SQLite
+import GRDB
 
 public extension IMDatabase {
     /// Searches messages by text content, properly decoding attributedBody.
@@ -61,43 +61,38 @@ public extension IMDatabase {
         // Fetch more than limit to account for filtering - we'll filter in Swift after decoding
         let fetchLimit = limit * 20
 
-        let statement = try cachedStatement(forEscapedSQL: sql).reset()
-
-        // Bind parameters in order
-        if let chatGUID {
-            try statement.bind(chatGUID, fetchLimit)
-        } else {
-            try statement.bind(fetchLimit)
-        }
-
         var matchingRowIDs: [Int] = []
+        let arguments = chatGUID.map { sqlArguments([$0, fetchLimit]) } ?? StatementArguments([fetchLimit])
 
-        try statement.stepUntilDone { row in
-            // Stop once we have enough results
-            guard matchingRowIDs.count < limit else { return }
+        try read { db in
+            let cursor = try fetchCursorRowsCached(db: db, sql: sql, arguments: arguments)
+            while let row = try cursor.next() {
+                // Stop once we have enough results
+                guard matchingRowIDs.count < limit else { break }
 
-            let rowID = try row[0].expect(Int.self)
-            let plainText = try row[1].optional(String.self)
-            let attributedBodyData = try row[2].optional(Data.self)
+                let rowID = row.requiredInt(at: 0)
+                let plainText = row.optionalString(at: 1)
+                let attributedBodyData = row.optionalData(at: 2)
 
-            // Try to get text from attributedBody first (more complete), fall back to text column
-            var messageText: String?
+                // Try to get text from attributedBody first (more complete), fall back to text column
+                var messageText: String?
 
-            if let data = attributedBodyData {
-                messageText = try? AttributedBodyDecoder.plainText(from: data)
+                if let data = attributedBodyData {
+                    messageText = try? AttributedBodyDecoder.plainText(from: data)
+                }
+
+                // Fall back to plain text column
+                if messageText == nil || messageText?.isEmpty == true {
+                    messageText = plainText
+                }
+
+                // Check if the decoded text actually contains the search query (case-insensitive)
+                guard let text = messageText, text.lowercased().contains(queryLower) else {
+                    continue
+                }
+
+                matchingRowIDs.append(rowID)
             }
-
-            // Fall back to plain text column
-            if messageText == nil || messageText?.isEmpty == true {
-                messageText = plainText
-            }
-
-            // Check if the decoded text actually contains the search query (case-insensitive)
-            guard let text = messageText, text.lowercased().contains(queryLower) else {
-                return
-            }
-
-            matchingRowIDs.append(rowID)
         }
 
         return matchingRowIDs

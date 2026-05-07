@@ -117,19 +117,24 @@ public final class PlatformAPI {
     }
 
     public func subscribeToEvents(_ onEvent: @escaping EventCallback) {
-        EventWatcherLifecycle.shared.subscribeToEvents(onEvent, reportErrorMessage: errorMessageReporter)
+        EventWatcherLifecycle.shared.subscribeToEvents(
+            onEvent,
+            accountID: accountID,
+            reportErrorMessage: errorMessageReporter
+        )
     }
 
     public func startEventWatchingFromCurrentState() async throws {
         let database = database
-        let (lastRowID, lastDateRead) = try await Task.detached(priority: .userInitiated) {
+        let cursorSnapshot = try await Task.detached(priority: .userInitiated) {
             try database.withDatabase { db in
-                (try db.lastMessageRowID(), try db.maxMessageDateRead())
+                try db.messageUpdateCursorSnapshot()
             }
         }.value
         try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
-            lastRowID: lastRowID,
-            lastDateRead: lastDateRead
+            lastRowID: cursorSnapshot.lastRowID,
+            lastDateRead: cursorSnapshot.lastDateRead,
+            lastDateEdited: cursorSnapshot.lastDateEdited
         )
     }
 
@@ -920,18 +925,17 @@ extension PlatformAPI {
     ) throws -> [String: [PlatformSDK.Message]] {
         let msgRows = Array(latestMessageRowsByChatGUID.values)
         let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: "")
-        let attachmentRowsByMessageID = Dictionary(grouping: payloadRows.attachmentRows, by: \.msgRowID)
-        let reactionRowsByMessageGUID = Dictionary(grouping: payloadRows.reactionRows, by: { reactionMessageGUID($0.associatedMessageGUID) })
+        let messagesByRowID = try mapAndHashMessagesByRowID(
+            msgRows: msgRows,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
 
         var latestMessagesByChatGUID = [String: [PlatformSDK.Message]]()
         for (guid, msgRow) in latestMessageRowsByChatGUID {
-            latestMessagesByChatGUID[guid] = try mapAndHashMessage(
-                msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
+            latestMessagesByChatGUID[guid] = messagesByRowID[msgRow.rowID] ?? []
         }
         return latestMessagesByChatGUID
     }
@@ -955,6 +959,23 @@ extension PlatformAPI {
         let fileURL = directoryURL.appendingPathComponent(effectiveFileName)
         try data.write(to: fileURL)
         return fileURL.path
+    }
+
+    nonisolated static func mapAndHashMessagesByRowID(
+        db: IMDatabase,
+        msgRows: [MappedMessageRow],
+        threadID: String,
+        currentUserID: String,
+        accountID: String
+    ) throws -> [Int: [PlatformSDK.Message]] {
+        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
+        return try mapAndHashMessagesByRowID(
+            msgRows: msgRows,
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
     }
 
     nonisolated private static func messagePayloadRows(
@@ -1019,12 +1040,7 @@ extension PlatformAPI {
     }
 
     nonisolated static func reactionMessageGUID(_ associatedMessageGUID: String) -> String {
-        let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
-        guard let match = assocMsgGUIDPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
-              let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
-            return associatedMessageGUID
-        }
-        return String(associatedMessageGUID[upper...])
+        parseAssociatedMessageTarget(associatedMessageGUID).messageGUID
     }
 
     nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) async throws -> AssetResult {

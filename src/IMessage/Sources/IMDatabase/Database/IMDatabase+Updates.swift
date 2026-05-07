@@ -1,108 +1,128 @@
 import Foundation
+import GRDB
 import Logging
 
 private let log = Logger(label: "imdb.updates")
 
-let updatedChatsSinceQuery = """
-SELECT
-    m.ROWID,
-    m.date_read,
-    m.date_edited,
-    c.ROWID,
-    c.guid
-FROM
-    message m
-LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat c ON cmj.chat_id = c.ROWID
-WHERE
-    m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
-GROUP BY
-    c.guid
-ORDER BY
-    date DESC
-"""
-
-public struct UpdatedChatsQueryResult {
-    public var updatedChats: [ChatRef]
-    /// This maximum is local to the set of updated chats.
-    public var latestMessageRowID: Int?
-    /// This maximum is local to the set of updated chats.
-    public var latestMessageDateRead: Date?
-    public var latestDateEdited: Date?
+package struct UpdatedMessageChange {
+    package var rowID: Int
+    package var chatGUID: String
+    package var isNew: Bool
+    package var wasRead: Bool
+    package var wasEdited: Bool
 }
 
-public extension IMDatabase {
-    func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedChatsQueryResult {
-        let statement = try cachedStatement(forEscapedSQL: updatedChatsSinceQuery)
+package struct UpdatedMessagesQueryResult {
+    package var updatedMessages: [UpdatedMessageChange]
+    /// This maximum is local to the set of newly inserted message rows.
+    package var latestMessageRowID: Int?
+    /// This maximum is local to the set of read updates.
+    package var latestMessageDateRead: Date?
+    /// This maximum is local to the set of edit updates.
+    package var latestDateEdited: Date?
+}
 
-        try statement.reset()
-        try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
-
+extension IMDatabase {
+    package
+    func messages(newerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedMessagesQueryResult {
+        let messageSchema = try schema().message
+        let dateEditedExpression = messageSchema.has(.dateEdited)
+            ? "m.\(MessageTable.Column.dateEdited.sqlName)"
+            : "0"
         var newestMessageRowID: Int?
         var latestMessageDateRead: Date?
         var latestDateEdited: Date?
         var timesWarnedAboutOrphanedMessage = 0
 
-        let updatedChats: [ChatRef] = try statement.compactMapRowsUntilDone { row in
-            let messageRowID = try row[0].expect(Int.self)
-            newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
-
-            dateRead: do {
-                // IMCore typically uses `0` to represent absence, but fall back
-                // to `0` explicitly just in case.
-                let nanoseconds = try row[1].optional(Int.self) ?? 0
-
-                // If the message hasn't been read yet or has a bogus read date,
-                // then don't update the "latest read date" at all. I'm not sure
-                // what causes bogus read dates, but if you let it leak into the
-                // rest of the program then it can cause an integer overflow
-                // crash.
-                guard nanoseconds > 0, nanoseconds < .max else {
-                    break dateRead
+        let updatedMessages: [UpdatedMessageChange] = try read { db in
+            try Row.fetchAll(
+                db,
+                sql: updatedMessagesSinceQuery(dateEditedExpression: dateEditedExpression),
+                arguments: StatementArguments([
+                    lastRowID,
+                    lastDateRead.nanosecondsSinceReferenceDate,
+                    lastDateEdited.nanosecondsSinceReferenceDate,
+                ])
+            ).compactMap { row in
+                let messageRowID = row.requiredInt(at: 0)
+                let isNew = messageRowID > lastRowID
+                if isNew {
+                    newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
                 }
 
-                let dateRead = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestMessageDateRead = if let latestMessageDateRead, dateRead < .distantFuture {
-                    max(dateRead, latestMessageDateRead)
-                } else {
-                    dateRead
+                var wasRead = false
+                var wasEdited = false
+
+                if let dateRead = row.imCoreDate(at: 1) {
+                    wasRead = dateRead > lastDateRead
+                    if wasRead {
+                        latestMessageDateRead = if let latestMessageDateRead {
+                            max(dateRead, latestMessageDateRead)
+                        } else {
+                            dateRead
+                        }
+                    }
                 }
+
+                if let dateEdited = row.imCoreDate(at: 2) {
+                    wasEdited = dateEdited > lastDateEdited
+                    if wasEdited {
+                        latestDateEdited = if let latestDateEdited {
+                            max(dateEdited, latestDateEdited)
+                        } else {
+                            dateEdited
+                        }
+                    }
+                }
+
+                guard let guid = row.optionalString(at: 3) else {
+                    // For whatever reason it's possible for messages to not be
+                    // joinable with chats. Right now I have one of these for a SMS
+                    // TOTP verification code, which might've been automatically
+                    // deleted in a weird way due to the autofill feature.
+                    //
+                    // In case there are tons of orphaned messages, don't spam the
+                    // logs with this message.
+                    if timesWarnedAboutOrphanedMessage < 10 {
+                        log.error("couldn't join message \(messageRowID) to chat, dropping")
+                        timesWarnedAboutOrphanedMessage += 1
+                    }
+                    return nil
+                }
+
+                return UpdatedMessageChange(
+                    rowID: messageRowID,
+                    chatGUID: guid,
+                    isNew: isNew,
+                    wasRead: wasRead,
+                    wasEdited: wasEdited
+                )
             }
-
-            dateEdited: do {
-                let nanoseconds = try row[2].optional(Int.self) ?? 0
-                guard nanoseconds > 0, nanoseconds < .max else { break dateEdited }
-                let dateEdited = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestDateEdited = if let latestDateEdited, dateEdited < .distantFuture {
-                    max(dateEdited, latestDateEdited)
-                } else {
-                    dateEdited
-                }
-            }
-
-            guard let rowID = try row[3].optional(Int.self), let guid = try row[4].optional(String.self) else {
-                // For whatever reason it's possible for messages to not be
-                // joinable with chats. Right now I have one of these for a SMS
-                // TOTP verification code, which might've been automatically
-                // deleted in a weird way due to the autofill feature.
-                //
-                // In case there are tons of orphaned messages, don't spam the
-                // logs with this message.
-                if timesWarnedAboutOrphanedMessage < 10 {
-                    log.error("couldn't join message \(messageRowID) to chat, dropping")
-                    timesWarnedAboutOrphanedMessage += 1
-                }
-                return nil
-            }
-
-            return ChatRef(rowID: rowID, guid: guid)
         }
 
-        return UpdatedChatsQueryResult(
-            updatedChats: updatedChats,
+        return UpdatedMessagesQueryResult(
+            updatedMessages: updatedMessages,
             latestMessageRowID: newestMessageRowID,
             latestMessageDateRead: latestMessageDateRead,
             latestDateEdited: latestDateEdited
         )
     }
+}
+
+private func updatedMessagesSinceQuery(dateEditedExpression: String) -> String {
+    """
+    SELECT
+        m.\(MessageTable.Column.rowID.sqlName),
+        m.\(MessageTable.Column.dateRead.sqlName),
+        \(dateEditedExpression) AS \(MessageTable.Column.dateEdited.sqlName),
+        c.\(ChatTable.Column.guid.sqlName)
+    FROM
+        \(MessageTable.sqlName) m
+    LEFT JOIN \(ChatMessageJoinTable.sqlName) cmj ON cmj.\(ChatMessageJoinTable.Column.messageID.sqlName) = m.\(MessageTable.Column.rowID.sqlName)
+    LEFT JOIN \(ChatTable.sqlName) c ON cmj.\(ChatMessageJoinTable.Column.chatID.sqlName) = c.\(ChatTable.Column.rowID.sqlName)
+    WHERE
+        m.\(MessageTable.Column.rowID.sqlName) > ? OR m.\(MessageTable.Column.dateRead.sqlName) > ? OR \(dateEditedExpression) > ?
+    ORDER BY
+        m.\(MessageTable.Column.rowID.sqlName) ASC
+    """
 }

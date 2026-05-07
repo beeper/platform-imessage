@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -31,7 +32,7 @@ const {
 const args = parseArgs(process.argv.slice(2))
 
 const referenceRoot = path.resolve(args.get('reference-root') ?? path.join(repoRoot, '.parity/platform-imessage-main'))
-const defaultReferenceIMessageNodePath = path.join(referenceRoot, 'binaries', `${process.platform}-${process.arch}`, 'IMessage.node')
+const defaultReferenceIMessageNodePath = path.join(referenceRoot, 'binaries', `${process.platform}-${process.arch}`, 'SwiftServer.node')
 const referenceIMessageNodePath = args.get('reference-swift-server-node') ?? defaultReferenceIMessageNodePath
 const referenceBinariesDirPath = args.get('reference-binaries-dir') ?? path.dirname(path.dirname(referenceIMessageNodePath))
 
@@ -229,21 +230,34 @@ function searchTermsFromMessage(message) {
 }
 
 if (childRole) {
-  await runAPIChild({
-    role: childRole,
-    repoRoot,
-    referenceAPIPath: args.get('reference-api-bundle'),
-    referenceBinariesDirPath,
-  })
-  process.exit(0)
+  try {
+    await runAPIChild({
+      role: childRole,
+      repoRoot,
+      referenceAPIPath: args.get('reference-api-bundle'),
+      referenceBinariesDirPath,
+    })
+    process.exit(process.exitCode ?? 0)
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack ?? error.message : String(error))
+    app.exit(1)
+    process.exit(1)
+  }
 }
 
-const referenceAPIPath = await ensureReferenceAPI({
-  args,
-  repoRoot,
-  referenceRoot,
-  referenceBinariesDirPath,
-})
+let referenceAPIPath
+try {
+  referenceAPIPath = await ensureReferenceAPI({
+    args,
+    repoRoot,
+    referenceRoot,
+    referenceBinariesDirPath,
+  })
+} catch (error) {
+  console.error(error instanceof Error ? error.stack ?? error.message : String(error))
+  app.exit(1)
+  process.exit(1)
+}
 const childAPIs = [
   spawnAPIChild({
     role: 'current',
@@ -500,7 +514,7 @@ try {
     byDiff[failure.details] = (byDiff[failure.details] ?? 0) + 1
   }
 
-  console.log(JSON.stringify({
+  const summary = {
     chatLimit: formatLimit(chatLimit),
     skipChats,
     messageLimitPerChat: formatLimit(messageLimit),
@@ -521,7 +535,15 @@ try {
     byDiff,
     perfDeltas: summarizePerfDeltas(),
     failures,
-  }, null, 2))
+  }
+  const summaryJSON = JSON.stringify(summary, null, 2)
+  const outputJSONPath = args.get('output-json')
+  if (outputJSONPath) {
+    await fs.writeFile(outputJSONPath, `${summaryJSON}\n`)
+  }
+  if (!args.has('no-stdout-json')) {
+    console.log(summaryJSON)
+  }
 
   process.exitCode = failures.length === 0 ? 0 : 1
 } finally {

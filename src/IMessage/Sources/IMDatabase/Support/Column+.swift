@@ -1,9 +1,29 @@
 import Foundation
-import SQLite
+import GRDB
 
-extension Column {
-    consuming func imCoreDate() throws -> Date? {
-        guard let nanoseconds = try optionalConverting(Int.self) else {
+extension Row {
+    func optionalString(at index: Int) -> String? {
+        self[index] as String?
+    }
+
+    func optionalInt(at index: Int) -> Int? {
+        self[index] as Int?
+    }
+
+    func optionalData(at index: Int) -> Data? {
+        self[index] as Data?
+    }
+
+    func requiredString(at index: Int) -> String {
+        self[index] as String
+    }
+
+    func requiredInt(at index: Int) -> Int {
+        self[index] as Int
+    }
+
+    func imCoreDate(at index: Int) -> Date? {
+        guard let nanoseconds = optionalInt(at: index) else {
             return nil
         }
 
@@ -22,8 +42,8 @@ extension Column {
         return date
     }
 
-    consuming func looseBool() throws -> Bool {
-        guard let integer = try optionalConverting(Int.self) else {
+    func looseBool(at index: Int) -> Bool {
+        guard let integer = optionalInt(at: index) else {
             return false
         }
 
