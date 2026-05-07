@@ -49,28 +49,12 @@ case "$arch" in
     ;;
 esac
 
-# App Store Connect API key — prefer the canonical Fastlane env var
-# names (`APP_STORE_CONNECT_API_KEY_{KEY_ID,ISSUER_ID,KEY}`), since
-# that's how CI exposes them. Fall back to team-id-keyed names
-# (`APP_STORE_CONNECT_API_KEY_<TEAM>_{...}`) for local dev setups that
-# hold creds for multiple teams in one shell.
 key_id="${APP_STORE_CONNECT_API_KEY_KEY_ID-}"
 issuer_id="${APP_STORE_CONNECT_API_KEY_ISSUER_ID-}"
 key_pem="${APP_STORE_CONNECT_API_KEY_KEY-}"
 
 if [ -z "$key_id" ] || [ -z "$issuer_id" ] || [ -z "$key_pem" ]; then
-  team_prefix="APP_STORE_CONNECT_API_KEY_${team_id}"
-  key_id_var="${team_prefix}_KEY_ID"
-  issuer_id_var="${team_prefix}_ISSUER_ID"
-  key_var="${team_prefix}_KEY"
-  key_id="${!key_id_var-}"
-  issuer_id="${!issuer_id_var-}"
-  key_pem="${!key_var-}"
-fi
-
-if [ -z "$key_id" ] || [ -z "$issuer_id" ] || [ -z "$key_pem" ]; then
   printf >&2 "missing API key env: set APP_STORE_CONNECT_API_KEY_{KEY_ID,ISSUER_ID,KEY}\n"
-  printf >&2 "or APP_STORE_CONNECT_API_KEY_%s_{KEY_ID,ISSUER_ID,KEY}\n" "$team_id"
   exit 1
 fi
 
