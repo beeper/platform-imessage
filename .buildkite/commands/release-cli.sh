@@ -2,6 +2,20 @@
 
 set -euo pipefail
 
+# DRAFT-PR PROBE — remove before merging.
+# Runs on every BK build (incl. PRs/main, where the publish path is otherwise
+# skipped) so we can confirm the agent has `gh` on PATH and authenticated for
+# `beeper/platform-imessage` before relying on it for real publishing.
+echo "--- :test_tube: probe: gh availability"
+command -v gh
+gh --version
+echo "--- :test_tube: probe: gh auth status"
+gh auth status --hostname github.com
+echo "--- :test_tube: probe: gh read access on beeper/platform-imessage"
+gh release list --repo beeper/platform-imessage --limit 1
+gh api /repos/beeper/platform-imessage --jq '.full_name + " (private=" + (.private|tostring) + ")"'
+echo "==> gh probes passed"
+
 # Publish to GitHub Releases only on tag builds. Non-tag builds (PRs,
 # main) still produce a signed+notarized tarball — uploaded as a
 # Buildkite artifact — for download/testing.
