@@ -44,3 +44,4 @@ DerivedData/
 .*.history.json
 .claude
 .build
+.swiftpm
