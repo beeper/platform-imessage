@@ -65,10 +65,10 @@ public extension IMDatabase {
         let arguments = chatGUID.map { sqlArguments([$0, fetchLimit]) } ?? StatementArguments([fetchLimit])
 
         try read { db in
-            let rows = try Row.fetchAll(db, sql: sql, arguments: arguments)
-            for row in rows {
+            let cursor = try fetchCursorRowsCached(db: db, sql: sql, arguments: arguments)
+            while let row = try cursor.next() {
                 // Stop once we have enough results
-                guard matchingRowIDs.count < limit else { return }
+                guard matchingRowIDs.count < limit else { break }
 
                 let rowID = row.requiredInt(at: 0)
                 let plainText = row.optionalString(at: 1)

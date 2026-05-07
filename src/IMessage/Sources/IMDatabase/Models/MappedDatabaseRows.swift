@@ -51,6 +51,26 @@ public extension MappedDatabaseRow {
     init(row: Row) throws {
         try self.init(row: row, columns: MappedRowColumnIndexes(Array(row.columnNames)))
     }
+
+    static func fetchAllMapped(
+        _ db: Database,
+        sql: String,
+        arguments: StatementArguments = StatementArguments()
+    ) throws -> [Self] {
+        let request = SQLRequest<Row>(sql: sql, arguments: arguments, cached: true)
+        let cursor = try Row.fetchCursor(db, request)
+        var rows: [Self] = []
+        var columns: MappedRowColumnIndexes?
+
+        while let row = try cursor.next() {
+            if columns == nil {
+                columns = MappedRowColumnIndexes(Array(row.columnNames))
+            }
+            rows.append(try Self(row: row, columns: columns!))
+        }
+
+        return rows
+    }
 }
 
 public struct MappedRowColumnIndexes {

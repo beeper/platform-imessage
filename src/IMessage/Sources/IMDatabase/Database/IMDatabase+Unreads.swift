@@ -55,7 +55,7 @@ public extension IMDatabase {
         var chatStates: [String: ChatState] = [:]
 
         try read { db in
-            for row in try Row.fetchAll(db, sql: unreadStatesQuery) {
+            for row in try fetchAllRowsCached(db: db, sql: unreadStatesQuery) {
                 let chatGUID = row.requiredString(at: 0)
 
                 let lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: row.requiredInt(at: 2))

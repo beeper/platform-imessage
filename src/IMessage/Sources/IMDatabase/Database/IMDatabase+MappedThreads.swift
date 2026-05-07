@@ -24,9 +24,9 @@ public extension IMDatabase {
 
         return try read { db in
             if let withCursor {
-                return try MappedChatRow.fetchAll(db, sql: sql, arguments: [withCursor.cursor])
+                return try MappedChatRow.fetchAllMapped(db, sql: sql, arguments: [withCursor.cursor])
             }
-            return try MappedChatRow.fetchAll(db, sql: sql)
+            return try MappedChatRow.fetchAllMapped(db, sql: sql)
         }
     }
 
@@ -40,7 +40,7 @@ public extension IMDatabase {
         WHERE chat.guid = ?
         """
         return try read { db in
-            try MappedChatRow.fetchAll(db, sql: sql, arguments: [guid]).first
+            try MappedChatRow.fetchAllMapped(db, sql: sql, arguments: [guid]).first
         }
     }
 
@@ -53,7 +53,7 @@ public extension IMDatabase {
         WHERE chat_id IN (\(chatRowIDs.map { _ in "?" }.joined(separator: ", ")))
         """
         return try read { db in
-            try MappedHandleRow.fetchAll(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, row in
+            try MappedHandleRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, row in
                 result[row.chatID ?? -1, default: []].append(row)
             }
         }
@@ -77,7 +77,7 @@ public extension IMDatabase {
           cm.chat_id
         """
         return try read { db in
-            try Row.fetchAll(db, sql: sql, arguments: StatementArguments(chatRowIDs)).map { row in
+            try fetchAllRowsCached(db: db, sql: sql, arguments: StatementArguments(chatRowIDs)).map { row in
                 (row.requiredInt(at: 0), row.requiredInt(at: 1))
             }.reduce(into: [:]) { result, pair in
                 result[pair.0] = pair.1

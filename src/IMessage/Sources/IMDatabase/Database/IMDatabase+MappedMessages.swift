@@ -29,13 +29,13 @@ LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID
 public extension IMDatabase {
     func lastMessageRowID() throws -> Int {
         try read { db in
-            try Int.fetchOne(db, sql: "SELECT seq FROM sqlite_sequence WHERE name = 'message'") ?? 0
+            try fetchOneCached(Int.self, db: db, sql: "SELECT seq FROM sqlite_sequence WHERE name = 'message'") ?? 0
         }
     }
 
     func maxMessageDateRead() throws -> Date {
         let nanoseconds = try read { db in
-            try Int.fetchOne(db, sql: "SELECT MAX(date_read) FROM message") ?? 0
+            try fetchOneCached(Int.self, db: db, sql: "SELECT MAX(date_read) FROM message") ?? 0
         }
 
         guard nanoseconds > 0, nanoseconds < .max else {
@@ -58,7 +58,7 @@ public extension IMDatabase {
         """
 
         return try read { db in
-            try Row.fetchAll(db, sql: sql).map { row in
+            try fetchAllRowsCached(db: db, sql: sql).map { row in
                 (
                     lastRowID: row.optionalInt(at: 0) ?? 0,
                     lastDateRead: row.imCoreDate(at: 1) ?? Date(nanosecondsSinceReferenceDate: 0),
@@ -74,7 +74,7 @@ public extension IMDatabase {
 
     func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
         try read { db in
-            try Row.fetchAll(db, sql: """
+            try fetchAllRowsCached(db: db, sql: """
             SELECT ROWID, guid
             FROM message
             WHERE is_from_me = 1 AND ROWID > ?
@@ -90,7 +90,7 @@ public extension IMDatabase {
 
     func threadIDForMessage(rowID: Int) throws -> String? {
         try read { db in
-            try String.fetchOne(db, sql: """
+            try fetchOneCached(String.self, db: db, sql: """
             SELECT t.guid
             FROM message AS m
             LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -102,7 +102,7 @@ public extension IMDatabase {
 
     func allThreadGUIDs() throws -> [String] {
         try read { db in
-            try Row.fetchAll(db, sql: "SELECT guid FROM chat").compactMap { $0[0] as String? }
+            try fetchAllRowsCached(db: db, sql: "SELECT guid FROM chat").compactMap { $0[0] as String? }
         }
     }
 
@@ -142,15 +142,15 @@ public extension IMDatabase {
 
         return try read { db in
             if let withCursor {
-                return try MappedMessageRow.fetchAll(db, sql: sql, arguments: sqlArguments([chatRowID, withCursor.cursor]))
+                return try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: sqlArguments([chatRowID, withCursor.cursor]))
             }
-            return try MappedMessageRow.fetchAll(db, sql: sql, arguments: [chatRowID])
+            return try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: [chatRowID])
         }
     }
 
     func mappedChatRowID(guid: String) throws -> Int? {
         try read { db in
-            try Int.fetchOne(db, sql: "SELECT ROWID FROM chat WHERE guid = ?", arguments: [guid])
+            try fetchOneCached(Int.self, db: db, sql: "SELECT ROWID FROM chat WHERE guid = ?", arguments: [guid])
         }
     }
 
@@ -177,7 +177,7 @@ public extension IMDatabase {
         WHERE m.guid IN (\(placeholders(count: uniqueGUIDs.count)))
         """
         return try read { db in
-            try MappedMessageRow.fetchAll(db, sql: sql, arguments: StatementArguments(uniqueGUIDs))
+            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(uniqueGUIDs))
         }
     }
 
@@ -202,7 +202,7 @@ public extension IMDatabase {
         ORDER BY m.date DESC
         """
         return try read { db in
-            try MappedMessageRow.fetchAll(db, sql: sql, arguments: StatementArguments(uniqueRowIDs))
+            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(uniqueRowIDs))
         }
     }
 
@@ -232,7 +232,7 @@ public extension IMDatabase {
         ORDER BY m.date DESC
         """
         return try read { db in
-            try MappedMessageRow.fetchAll(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, messageRow in
+            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, messageRow in
                 guard let threadID = messageRow.threadID else { return }
                 result[threadID] = messageRow
             }
@@ -249,19 +249,19 @@ public extension IMDatabase {
         WHERE m.ROWID IN (\(placeholders(count: messageRowIDs.count)))
         """
         return try read { db in
-            try MappedAttachmentRow.fetchAll(db, sql: sql, arguments: StatementArguments(messageRowIDs))
+            try MappedAttachmentRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(messageRowIDs))
         }
     }
 
     func attachmentFilename(guid: String) throws -> String? {
         try read { db in
-            try String.fetchOne(db, sql: "SELECT filename FROM attachment WHERE guid = ?", arguments: [guid])
+            try fetchOneCached(String.self, db: db, sql: "SELECT filename FROM attachment WHERE guid = ?", arguments: [guid])
         }
     }
 
     func attachmentFilename(messageRowID: Int) throws -> String? {
         try read { db in
-            try String.fetchOne(db, sql: """
+            try fetchOneCached(String.self, db: db, sql: """
             SELECT a.filename FROM message_attachment_join AS maj
             INNER JOIN attachment AS a ON a.ROWID = maj.attachment_id
             WHERE maj.message_id = ?
@@ -288,7 +288,7 @@ public extension IMDatabase {
         """
         return try read { db in
             let bindings = messageGUIDs.map { $0 as Any } + chatRowIDs.map { $0 as Any }
-            return try MappedReactionMessageRow.fetchAll(db, sql: sql, arguments: sqlArguments(bindings))
+            return try MappedReactionMessageRow.fetchAllMapped(db, sql: sql, arguments: sqlArguments(bindings))
         }
     }
 
