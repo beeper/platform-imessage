@@ -7,12 +7,6 @@ set -euo pipefail
 # `npm publish` to GitHub Packages. Tag builds run tests + build but never
 # publish — those are handled by the CLI release step.
 
-echo "--- :key: inject access tokens"
-# Allow yarn / SwiftPM to fetch private deps that point at github.com/beeper/*.
-git config --global \
-  url."https://oauth2:${BEEPER_DEPS_TOKEN}@github.com/beeper/".insteadOf \
-  "https://github.com/beeper/"
-
 echo "--- :yarn: install JS deps"
 yarn install --immutable --inline-builds
 
