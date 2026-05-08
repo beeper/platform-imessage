@@ -85,27 +85,20 @@ entitlements="$repo_root/scripts/imessage-cli.entitlements"
 
 build_arch() {
   local target_arch="$1"
-  printf "==> building %s\n" "$target_arch"
-  swift build -c release --triple "${target_arch}-apple-macosx11" --product imessage-cli
-}
-
-bin_for_arch() {
-  swift build -c release --triple "${1}-apple-macosx11" --product imessage-cli --show-bin-path
+  printf >&2 "==> building %s\n" "$target_arch"
+  swift build -c release --triple "${target_arch}-apple-macosx11" --product imessage-cli --show-bin-path
 }
 
 if [ "$arch" = "universal" ]; then
-  build_arch arm64
-  build_arch x86_64
-  arm64_bin="$(bin_for_arch arm64)/imessage-cli"
-  x86_bin="$(bin_for_arch x86_64)/imessage-cli"
+  arm64_bin="$(build_arch arm64)/imessage-cli"
+  x86_bin="$(build_arch x86_64)/imessage-cli"
   out_dir="$repo_root/.build/universal/release"
   mkdir -p "$out_dir"
   binary="$out_dir/imessage-cli"
   printf "==> creating universal binary\n"
   lipo -create "$arm64_bin" "$x86_bin" -output "$binary"
 else
-  build_arch "$arch"
-  binary="$(bin_for_arch "$arch")/imessage-cli"
+  binary="$(build_arch "$arch")/imessage-cli"
 fi
 
 printf "==> stripping debug symbols\n"
