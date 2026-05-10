@@ -95,16 +95,12 @@ public extension IMDatabase {
     }
 }
 
-private struct SearchMessageRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct SearchMessageRow {
+    @Column("ROWID")
     let rowID: Int
+    @Column("text")
     let plainText: String?
+    @Column("attributedBody")
     let attributedBodyData: Data?
-
-    init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        plainText = try decoder.optionalString()
-        attributedBodyData = try decoder.optionalData()
-    }
 }

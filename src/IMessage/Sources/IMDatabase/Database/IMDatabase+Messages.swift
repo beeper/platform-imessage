@@ -118,34 +118,26 @@ private extension Message {
     }
 }
 
-private struct MessageQueryRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct MessageQueryRow {
     let chatGUID: String?
+    @Column("ROWID")
     let rowID: Int
     let guid: String
+    @Column("balloon_bundle_id")
     let balloonBundleID: String?
+    @Column("thread_originator_guid")
     let threadOriginatorGUID: String?
     let text: String?
     let attributedBody: Data?
+    @Column("is_from_me", as: LooseBoolRepresentation.self)
     let isFromMe: Bool
+    @Column("is_sent", as: LooseBoolRepresentation.self)
     let isSent: Bool
+    @Column(as: IMCoreDateRepresentation.self)
     let date: Date?
+    @Column("date_read", as: IMCoreDateRepresentation.self)
     let dateRead: Date?
+    @Column("message_summary_info")
     let summaryInfo: Data?
-
-    init(decoder: inout some QueryDecoder) throws {
-        chatGUID = try decoder.optionalString()
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        guid = try decoder.requiredString("guid", row: Self.self)
-        balloonBundleID = try decoder.optionalString()
-        threadOriginatorGUID = try decoder.optionalString()
-        text = try decoder.optionalString()
-        attributedBody = try decoder.optionalData()
-        isFromMe = try decoder.looseBool()
-        isSent = try decoder.looseBool()
-        date = try decoder.imCoreDate()
-        dateRead = try decoder.imCoreDate()
-        summaryInfo = try decoder.optionalData()
-    }
 }

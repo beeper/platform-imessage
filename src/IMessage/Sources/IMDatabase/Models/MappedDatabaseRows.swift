@@ -66,9 +66,9 @@ public enum MappedDatabaseRowError: Error, CustomStringConvertible {
     }
 }
 
+@Selection
 public struct MappedMessageRow: MappedDatabaseRow {
-    public typealias QueryOutput = Self
-
+    @Column("ROWID")
     public let rowID: Int
     public let guid: String
     public let text: String?
@@ -78,154 +78,140 @@ public struct MappedMessageRow: MappedDatabaseRow {
     /// values from the iChat era.
     public let service: String?
     /// Numeric error code; `0` means success.
+    @Column(as: ZeroDefaultIntRepresentation.self)
     public let error: Int
     /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
     /// needs to cross into JavaScript.
     public let date: Int?
     /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
     /// needs to cross into JavaScript.
+    @Column("date_read")
     public let dateRead: Int?
     /// Apple nanosecond timestamp. Stringify at JSON/API boundaries when it
     /// needs to cross into JavaScript.
+    @Column("date_delivered")
     public let dateDelivered: Int?
+    @Column("is_delivered", as: ZeroDefaultIntRepresentation.self)
     public let isDelivered: Int
     /// Slightly different from `is_sent`.
+    @Column("is_from_me", as: ZeroDefaultIntRepresentation.self)
     public let isFromMe: Int
+    @Column("is_read", as: ZeroDefaultIntRepresentation.self)
     public let isRead: Int
+    @Column("is_audio_message", as: ZeroDefaultIntRepresentation.self)
     public let isAudioMessage: Int
+    @Column("item_type", as: ZeroDefaultIntRepresentation.self)
     public let itemType: Int
+    @Column("handle_id")
     public let handleID: Int?
+    @Column("group_title")
     public let groupTitle: String?
+    @Column("group_action_type", as: ZeroDefaultIntRepresentation.self)
     public let groupActionType: Int
+    @Column("share_status", as: ZeroDefaultIntRepresentation.self)
     public let shareStatus: Int
+    @Column("associated_message_guid")
     public let associatedMessageGUID: String?
+    @Column("associated_message_type", as: ZeroDefaultIntRepresentation.self)
     public let associatedMessageType: Int
     /// Added in Sequoia.
+    @Column("associated_message_emoji")
     public let associatedMessageEmoji: String?
+    @Column("balloon_bundle_id")
     public let balloonBundleID: String?
+    @Column("payload_data")
     public let payloadData: Data?
+    @Column("expressive_send_style_id")
     public let expressiveSendStyleID: String?
+    @Column("message_summary_info")
     public let messageSummaryInfo: Data?
     /// GUID of a related message. iMessage uses this for reaction removal rows
     /// to point back at the hidden reaction-add message row.
+    @Column("reply_to_guid")
     public let replyToGUID: String?
+    @Column("thread_originator_guid")
     public let threadOriginatorGUID: String?
+    @Column("thread_originator_part")
     public let threadOriginatorPart: String?
     /// Added in Ventura. Apple nanosecond timestamp. Stringify at JSON/API
     /// boundaries when it needs to cross into JavaScript.
+    @Column("date_retracted")
     public let dateRetracted: Int?
     /// Added in Ventura. Apple nanosecond timestamp. Stringify at JSON/API
     /// boundaries when it needs to cross into JavaScript.
+    @Column("date_edited")
     public let dateEdited: Int?
     /// Added in Ventura.
+    @Column("was_detonated", as: ZeroDefaultIntRepresentation.self)
     public let wasDetonated: Int
+    @Column("schedule_type", as: ZeroDefaultIntRepresentation.self)
     public let scheduleType: Int
 
     // Extensions selected by mapped-message queries. These are not columns on
     // the `message` table; they come from joins or computed SQL aliases.
     public let threadID: String?
     public let chatRowID: Int?
+    @Column("room_name")
     public let roomName: String?
     public let participantID: String?
     public let otherID: String?
-
-    public init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        guid = try decoder.requiredString("guid", row: Self.self)
-        text = try decoder.optionalString()
-        subject = try decoder.optionalString()
-        attributedBody = try decoder.optionalData()
-        service = try decoder.optionalString()
-        error = try decoder.optionalInt() ?? 0
-        date = try decoder.optionalInt()
-        dateRead = try decoder.optionalInt()
-        dateDelivered = try decoder.optionalInt()
-        isDelivered = try decoder.optionalInt() ?? 0
-        isFromMe = try decoder.optionalInt() ?? 0
-        isRead = try decoder.optionalInt() ?? 0
-        isAudioMessage = try decoder.optionalInt() ?? 0
-        itemType = try decoder.optionalInt() ?? 0
-        handleID = try decoder.optionalInt()
-        groupTitle = try decoder.optionalString()
-        groupActionType = try decoder.optionalInt() ?? 0
-        shareStatus = try decoder.optionalInt() ?? 0
-        associatedMessageGUID = try decoder.optionalString()
-        associatedMessageType = try decoder.optionalInt() ?? 0
-        associatedMessageEmoji = try decoder.optionalString()
-        balloonBundleID = try decoder.optionalString()
-        payloadData = try decoder.optionalData()
-        expressiveSendStyleID = try decoder.optionalString()
-        messageSummaryInfo = try decoder.optionalData()
-        replyToGUID = try decoder.optionalString()
-        threadOriginatorGUID = try decoder.optionalString()
-        threadOriginatorPart = try decoder.optionalString()
-        dateRetracted = try decoder.optionalInt()
-        dateEdited = try decoder.optionalInt()
-        wasDetonated = try decoder.optionalInt() ?? 0
-        scheduleType = try decoder.optionalInt() ?? 0
-        threadID = try decoder.optionalString()
-        chatRowID = try decoder.optionalInt()
-        roomName = try decoder.optionalString()
-        participantID = try decoder.optionalString()
-        otherID = try decoder.optionalString()
-    }
 }
 
+@Selection
 public struct MappedChatRow: MappedDatabaseRow {
-    public typealias QueryOutput = Self
-
+    @Column("ROWID")
     public let rowID: Int
     public let guid: String
+    @Column(as: ZeroDefaultIntRepresentation.self)
     public let state: Int
     public let properties: Data?
+    @Column("chat_identifier")
     public let chatIdentifier: String?
+    @Column("room_name")
     public let roomName: String?
+    @Column("account_login")
     public let accountLogin: String?
+    @Column("last_addressed_handle")
     public let lastAddressedHandle: String?
+    @Column("display_name")
     public let displayName: String?
+    @Column("group_id")
     public let groupID: String?
     /// Apple nanosecond timestamp of the latest message read in this chat.
     /// Stringify at JSON/API boundaries when it needs to cross into JavaScript.
+    @Column("last_read_message_timestamp")
     public let lastReadMessageTimestamp: Int?
 
     // Extensions selected by mapped-thread queries. These are not columns on
     // the `chat` table; they are computed SQL aliases.
     public let msgDate: Int?
-
-    public init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        guid = try decoder.requiredString("guid", row: Self.self)
-        state = try decoder.optionalInt() ?? 0
-        properties = try decoder.optionalData()
-        chatIdentifier = try decoder.optionalString()
-        roomName = try decoder.optionalString()
-        accountLogin = try decoder.optionalString()
-        lastAddressedHandle = try decoder.optionalString()
-        displayName = try decoder.optionalString()
-        groupID = try decoder.optionalString()
-        lastReadMessageTimestamp = try decoder.optionalInt()
-        msgDate = try decoder.optionalInt()
-    }
 }
 
+@Selection
 public struct MappedAttachmentRow: MappedDatabaseRow {
-    public typealias QueryOutput = Self
-
     public let msgRowID: Int
     public let filename: String?
+    @Column("transfer_name")
     public let transferName: String?
+    @Column("total_bytes")
     public let totalBytes: Int?
+    @Column("is_sticker")
     public let isSticker: Int?
     public let attachmentID: String?
+    @Column("transfer_state")
     public let transferState: Int?
 
     // Extensions added after fetching attachment rows. These are not columns on
     // the `attachment` table; they are derived from the file path/metadata.
-    public let ext: String?
+    @Ephemeral
+    public var ext: String? = nil
     /// This is not `filename`, intentionally.
-    public let fileName: String?
-    public let filePath: String?
-    public let size: [String: Int]?
+    @Ephemeral
+    public var fileName: String? = nil
+    @Ephemeral
+    public var filePath: String? = nil
+    @Ephemeral
+    public var size: [String: Int]? = nil
 
     public init(
         msgRowID: Int,
@@ -252,33 +238,22 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
         self.filePath = filePath
         self.size = size
     }
-
-    public init(decoder: inout some QueryDecoder) throws {
-        try self.init(
-            msgRowID: decoder.requiredInt("msgRowID", row: Self.self),
-            filename: decoder.optionalString(),
-            transferName: decoder.optionalString(),
-            totalBytes: decoder.optionalInt(),
-            isSticker: decoder.optionalInt(),
-            attachmentID: decoder.optionalString(),
-            transferState: decoder.optionalInt()
-        )
-    }
 }
 
+@Selection
 public struct MappedHandleRow: MappedDatabaseRow {
-    public typealias QueryOutput = Self
-
     // Extensions selected by mapped-handle queries. `chatID` comes from
     // `chat_handle_join`, and `participantID` aliases `handle.id`.
     //
     // Canonicalization notes:
     // https://www.notion.so/beeper/Canonicalization-Notes-255a168aa37080c189c0d616724830e4
+    @Column("chat_id")
     public let chatID: Int?
     /// Phone number, email, business URN, SMS shortcode, etc. SMS shortcodes
     /// may have `(smsft_rm)`, `(smsft)`, etc. appended for unknown reasons.
     public let participantID: String?
     /// Contains the raw ID if `participantID` was canonicalized.
+    @Column("uncanonicalized_id")
     public let uncanonicalizedID: String?
 
     public init(chatID: Int?, participantID: String?, uncanonicalizedID: String?) {
@@ -286,36 +261,25 @@ public struct MappedHandleRow: MappedDatabaseRow {
         self.participantID = participantID
         self.uncanonicalizedID = uncanonicalizedID
     }
-
-    public init(decoder: inout some QueryDecoder) throws {
-        chatID = try decoder.optionalInt()
-        participantID = try decoder.optionalString()
-        uncanonicalizedID = try decoder.optionalString()
-    }
 }
 
+@Selection
 public struct MappedReactionMessageRow: MappedDatabaseRow {
-    public typealias QueryOutput = Self
-
+    @Column("ROWID")
     public let rowID: Int
+    @Column("is_from_me")
     public let isFromMe: Int
+    @Column("handle_id")
     public let handleID: Int?
+    @Column("associated_message_type")
     public let associatedMessageType: Int
+    @Column("associated_message_guid")
     public let associatedMessageGUID: String
     /// Added in Sequoia.
+    @Column("associated_message_emoji")
     public let associatedMessageEmoji: String?
 
     // Extension selected by mapped-reaction queries. This aliases `handle.id`
     // for the sender associated with the reaction message.
     public let participantID: String?
-
-    public init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        isFromMe = try decoder.requiredInt("is_from_me", row: Self.self)
-        handleID = try decoder.optionalInt()
-        associatedMessageType = try decoder.requiredInt("associated_message_type", row: Self.self)
-        associatedMessageGUID = try decoder.requiredString("associated_message_guid", row: Self.self)
-        associatedMessageEmoji = try decoder.optionalString()
-        participantID = try decoder.optionalString()
-    }
 }

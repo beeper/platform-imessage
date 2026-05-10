@@ -74,26 +74,28 @@ extension Attachment {
     }
 }
 
-struct AttachmentQueryRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+struct AttachmentQueryRow {
+    @Column("ROWID")
     let messageRowID: Int
+    @Column("ROWID")
     let attachmentRowID: Int?
     let guid: String
+    @Column("filename")
     let fileName: String?
+    @Column("transfer_name")
     let transferName: String?
+    @Column("is_sticker", as: LooseBoolRepresentation.self)
     let isSticker: Bool
+    @Column("transfer_state")
     let transferState: Attachment.IMFileTransferState
     let uti: String?
+}
 
-    init(decoder: inout some QueryDecoder) throws {
-        messageRowID = try decoder.requiredInt("message.ROWID", row: Self.self)
-        attachmentRowID = try decoder.optionalInt()
-        guid = try decoder.requiredString("attachment.guid", row: Self.self)
-        fileName = try decoder.optionalString()
-        transferName = try decoder.optionalString()
-        isSticker = try decoder.looseBool()
-        transferState = Attachment.IMFileTransferState(rawValue: try decoder.requiredInt("transfer_state", row: Self.self))
-        uti = try decoder.optionalString()
+extension Attachment.IMFileTransferState: QueryBindable {
+    public typealias QueryValue = Int
+
+    public var queryBinding: QueryBinding {
+        rawValue.queryBinding
     }
 }

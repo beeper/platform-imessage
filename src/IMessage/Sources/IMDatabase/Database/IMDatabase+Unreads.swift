@@ -64,17 +64,16 @@ public extension IMDatabase {
     }
 }
 
-private struct ChatStateRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct ChatStateRow {
+    @Column("chat_guid")
     let chatGUID: String
+    @Column("unread_count")
     let unreadCount: Int
-    let lastReadMessageTimestamp: Date
+    @Column("last_read_message_timestamp")
+    let lastReadMessageTimestampNanoseconds: Int
 
-    init(decoder: inout some QueryDecoder) throws {
-        chatGUID = try decoder.requiredString("chat_guid", row: Self.self)
-        unreadCount = try decoder.requiredInt("unread_count", row: Self.self)
-        let lastReadNanoseconds = try decoder.requiredInt("last_read_message_timestamp", row: Self.self)
-        lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: lastReadNanoseconds)
+    var lastReadMessageTimestamp: Date {
+        Date(nanosecondsSinceReferenceDate: lastReadMessageTimestampNanoseconds)
     }
 }

@@ -47,7 +47,7 @@ public extension IMDatabase {
     func mappedThreadParticipantRows(chatRowIDs: [Int]) throws -> [Int: [MappedHandleRow]] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let sql = """
-        SELECT chj.chat_id AS chat_id, uncanonicalized_id, id AS participantID
+        SELECT chj.chat_id AS chat_id, id AS participantID, uncanonicalized_id
         FROM handle
         LEFT JOIN chat_handle_join AS chj ON chj.handle_id = handle.ROWID
         WHERE chat_id IN (\(chatRowIDs.map { _ in "?" }.joined(separator: ", ")))
@@ -113,14 +113,10 @@ private func columnSelection(_ column: String, tableAlias: String, tableColumns:
     return "NULL AS \(column)"
 }
 
-private struct UnreadCountRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct UnreadCountRow {
+    @Column("chat_id")
     let chatID: Int
+    @Column("unread_count")
     let unreadCount: Int
-
-    init(decoder: inout some QueryDecoder) throws {
-        chatID = try decoder.requiredInt("chat_id", row: Self.self)
-        unreadCount = try decoder.requiredInt("unread_count", row: Self.self)
-    }
 }

@@ -359,30 +359,21 @@ private func columnSelection(_ column: String, tableAlias: String, tableColumns:
     return "NULL AS \(column)"
 }
 
-private struct MessageUpdateCursorSnapshotRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct MessageUpdateCursorSnapshotRow {
+    @Column(as: ZeroDefaultIntRepresentation.self)
     let lastRowID: Int
+    @Column(as: IMCoreDateRepresentation.self)
     let lastDateRead: Date?
+    @Column(as: IMCoreDateRepresentation.self)
     let lastDateEdited: Date?
-
-    init(decoder: inout some QueryDecoder) throws {
-        lastRowID = try decoder.optionalInt() ?? 0
-        lastDateRead = try decoder.imCoreDate()
-        lastDateEdited = try decoder.imCoreDate()
-    }
 }
 
-private struct SentMessageIDRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct SentMessageIDRow {
+    @Column("ROWID")
     let rowID: Int
     let guid: String
-
-    init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        guid = try decoder.requiredString("guid", row: Self.self)
-    }
 }
 
 private func placeholders(count: Int) -> String {

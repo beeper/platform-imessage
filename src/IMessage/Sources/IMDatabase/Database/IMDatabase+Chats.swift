@@ -60,44 +60,48 @@ public extension IMDatabase {
     }
 }
 
-private struct ChatLookupRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct ChatLookupRow {
+    @Column("ROWID")
     let rowID: Int
+    @Column("display_name")
     let displayName: String?
+    @Column("service_name", as: ChatServiceNameRepresentation.self)
     let serviceName: Chat.ServiceName
-
-    init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        displayName = try decoder.optionalString()
-        serviceName = Chat.ServiceName(rawValue: try decoder.requiredString("service_name", row: Self.self))
-    }
 }
 
-private struct ChatListRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct ChatListRow {
+    @Column("ROWID")
     let rowID: Int
     let guid: String?
+    @Column("display_name")
     let displayName: String?
+    @Column("service_name", as: ChatServiceNameRepresentation.self)
     let serviceName: Chat.ServiceName
-
-    init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        guid = try decoder.optionalString()
-        displayName = try decoder.optionalString()
-        serviceName = Chat.ServiceName(rawValue: try decoder.optionalString() ?? "NONE")
-    }
 }
 
-private struct HandleLookupRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct HandleLookupRow {
+    @Column("ROWID")
     let rowID: Int
     let id: String
+}
+
+private struct ChatServiceNameRepresentation: QueryBindable {
+    typealias QueryValue = String
+
+    var queryOutput: Chat.ServiceName
+
+    var queryBinding: QueryBinding {
+        queryOutput.rawValue.queryBinding
+    }
+
+    init(queryOutput: Chat.ServiceName) {
+        self.queryOutput = queryOutput
+    }
 
     init(decoder: inout some QueryDecoder) throws {
-        rowID = try decoder.requiredInt("ROWID", row: Self.self)
-        id = try decoder.requiredString("id", row: Self.self)
+        queryOutput = Chat.ServiceName(rawValue: try String?(decoder: &decoder) ?? "NONE")
     }
 }

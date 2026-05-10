@@ -110,20 +110,16 @@ extension IMDatabase {
     }
 }
 
-private struct UpdatedMessageRow: QueryRepresentable {
-    typealias QueryOutput = Self
-
+@Selection
+private struct UpdatedMessageRow {
+    @Column("ROWID")
     let messageRowID: Int
+    @Column("date_read", as: IMCoreDateRepresentation.self)
     let dateRead: Date?
+    @Column("date_edited", as: IMCoreDateRepresentation.self)
     let dateEdited: Date?
+    @Column("guid")
     let chatGUID: String?
-
-    init(decoder: inout some QueryDecoder) throws {
-        messageRowID = try decoder.requiredInt("ROWID", row: Self.self)
-        dateRead = try decoder.imCoreDate()
-        dateEdited = try decoder.imCoreDate()
-        chatGUID = try decoder.optionalString()
-    }
 }
 
 private func updatedMessagesSinceQuery(dateEditedExpression: String) -> String {

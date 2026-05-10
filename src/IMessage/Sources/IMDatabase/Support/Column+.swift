@@ -1,58 +1,70 @@
 import Foundation
 import SQLiteData
 
-extension QueryDecoder {
-    mutating func optionalString() throws -> String? {
-        try decode(String.self)
+public struct IMCoreDateRepresentation: QueryBindable {
+    public typealias QueryValue = Int?
+
+    public var queryOutput: Date?
+
+    public var queryBinding: QueryBinding {
+        queryOutput.map(\.nanosecondsSinceReferenceDate).queryBinding
     }
 
-    mutating func optionalInt() throws -> Int? {
-        try decode(Int.self)
+    public init(queryOutput: Date?) {
+        self.queryOutput = queryOutput
     }
 
-    mutating func optionalData() throws -> Data? {
-        try decode(Data.self)
-    }
-
-    mutating func requiredString<RowType>(_ column: String, row: RowType.Type) throws -> String {
-        guard let value = try optionalString() else {
-            throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: column)
-        }
-        return value
-    }
-
-    mutating func requiredInt<RowType>(_ column: String, row: RowType.Type) throws -> Int {
-        guard let value = try optionalInt() else {
-            throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: column)
-        }
-        return value
-    }
-
-    mutating func imCoreDate() throws -> Date? {
-        guard let nanoseconds = try optionalInt() else {
-            return nil
+    public init(decoder: inout some QueryDecoder) throws {
+        guard let nanoseconds = try Int?(decoder: &decoder) else {
+            queryOutput = nil
+            return
         }
 
         // For unknown reasons `0` can be present instead of `NULL`. Treat them as the same.
         guard nanoseconds > 0 else {
-            return nil
+            queryOutput = nil
+            return
         }
 
         // Explicitly check for bogus dates. If you let these escape into the rest of the
         // program then an integer overflow might make everything implode.
         let date = Date(nanosecondsSinceReferenceDate: nanoseconds)
-        guard date < .distantFuture else {
-            return nil
-        }
+        queryOutput = date < .distantFuture ? date : nil
+    }
+}
 
-        return date
+public struct ZeroDefaultIntRepresentation: QueryBindable {
+    public typealias QueryValue = Int
+
+    public var queryOutput: Int
+
+    public var queryBinding: QueryBinding {
+        queryOutput.queryBinding
     }
 
-    mutating func looseBool() throws -> Bool {
-        guard let integer = try optionalInt() else {
-            return false
-        }
+    public init(queryOutput: Int) {
+        self.queryOutput = queryOutput
+    }
 
-        return integer == 1
+    public init(decoder: inout some QueryDecoder) throws {
+        queryOutput = try Int?(decoder: &decoder) ?? 0
+    }
+}
+
+public struct LooseBoolRepresentation: QueryBindable {
+    public typealias QueryValue = Int
+
+    public var queryOutput: Bool
+
+    public var queryBinding: QueryBinding {
+        (queryOutput ? 1 : 0).queryBinding
+    }
+
+    public init(queryOutput: Bool) {
+        self.queryOutput = queryOutput
+    }
+
+    public init(decoder: inout some QueryDecoder) throws {
+        queryOutput = try Int?(decoder: &decoder) == 1
     }
 }
