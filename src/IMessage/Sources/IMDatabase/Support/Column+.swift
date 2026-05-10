@@ -1,29 +1,35 @@
 import Foundation
-import GRDB
+import SQLiteData
 
-extension Row {
-    func optionalString(at index: Int) -> String? {
-        self[index] as String?
+extension QueryDecoder {
+    mutating func optionalString() throws -> String? {
+        try decode(String.self)
     }
 
-    func optionalInt(at index: Int) -> Int? {
-        self[index] as Int?
+    mutating func optionalInt() throws -> Int? {
+        try decode(Int.self)
     }
 
-    func optionalData(at index: Int) -> Data? {
-        self[index] as Data?
+    mutating func optionalData() throws -> Data? {
+        try decode(Data.self)
     }
 
-    func requiredString(at index: Int) -> String {
-        self[index] as String
+    mutating func requiredString<RowType>(_ column: String, row: RowType.Type) throws -> String {
+        guard let value = try optionalString() else {
+            throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: column)
+        }
+        return value
     }
 
-    func requiredInt(at index: Int) -> Int {
-        self[index] as Int
+    mutating func requiredInt<RowType>(_ column: String, row: RowType.Type) throws -> Int {
+        guard let value = try optionalInt() else {
+            throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: column)
+        }
+        return value
     }
 
-    func imCoreDate(at index: Int) -> Date? {
-        guard let nanoseconds = optionalInt(at: index) else {
+    mutating func imCoreDate() throws -> Date? {
+        guard let nanoseconds = try optionalInt() else {
             return nil
         }
 
@@ -42,8 +48,8 @@ extension Row {
         return date
     }
 
-    func looseBool(at index: Int) -> Bool {
-        guard let integer = optionalInt(at: index) else {
+    mutating func looseBool() throws -> Bool {
+        guard let integer = try optionalInt() else {
             return false
         }
 

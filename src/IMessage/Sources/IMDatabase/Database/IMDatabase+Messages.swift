@@ -1,6 +1,6 @@
 import Collections
 import Foundation
-import GRDB
+import SQLiteData
 
 public enum DateOrdering {
     case newestFirst
@@ -42,11 +42,11 @@ public extension IMDatabase {
         withAttachments includeAttachments: Bool = true,
         ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
         let result = try read { db in
-            try Row.fetchAll(db, sql: """
+            try fetchAllSQL(MessageQueryRow.self, db: db, sql: """
             \(messagesQuerySharedPrelude)
             WHERE m.guid = ?
             """, arguments: [guid]).compactMap { row -> (Message, GUID<Chat>)? in
-                guard let chatGUID = row.optionalString(at: 0) else {
+                guard let chatGUID = row.chatGUID else {
                     // drop orphaned (not within a chat) messages
                     return nil
                 }
@@ -75,7 +75,7 @@ public extension IMDatabase {
         ) throws -> some Collection<Message> {
         var messages = OrderedDictionary<Message.ID, Message>()
         try read { db in
-            let rows = try Row.fetchAll(db, sql: """
+            let rows = try fetchAllSQL(MessageQueryRow.self, db: db, sql: """
             \(messagesQuerySharedPrelude)
             WHERE c.guid = ?
             \(filter.map { "AND m.\($0.sqlFragment)" } ?? "")
@@ -97,24 +97,55 @@ public extension IMDatabase {
 }
 
 private extension Message {
-    init(row: Row) throws {
-        // (skipping `c.guid`)
+    init(row: MessageQueryRow) throws {
         self = try Message(
-            id: row.requiredInt(at: 1),
-            guid: GUID<Message>(row.requiredString(at: 2)),
-            balloonBundleID: row.optionalString(at: 3),
-            threadOriginatorGUID: row.optionalString(at: 4).map(GUID<Message>.init(stringLiteral:)),
-            text: row.optionalString(at: 5).map {
+            id: row.rowID,
+            guid: GUID<Message>(row.guid),
+            balloonBundleID: row.balloonBundleID,
+            threadOriginatorGUID: row.threadOriginatorGUID.map(GUID<Message>.init(stringLiteral:)),
+            text: row.text.map {
                 Sensitive(.messageText, hiding: $0)
             },
-            attributedBody: row.optionalData(at: 6).flatMap {
+            attributedBody: row.attributedBody.flatMap {
                 try Sensitive(.messageAttributedBody, hiding: AttributedBodyDecoder.attributedString(from: $0))
             },
-            isFromMe: row.looseBool(at: 7),
-            isSent: row.looseBool(at: 8),
-            date: row.imCoreDate(at: 9),
-            dateRead: row.imCoreDate(at: 10),
-            summaryInfo: row.optionalData(at: 11).map(Message.SummaryInfo.init(blob:)),
+            isFromMe: row.isFromMe,
+            isSent: row.isSent,
+            date: row.date,
+            dateRead: row.dateRead,
+            summaryInfo: row.summaryInfo.map(Message.SummaryInfo.init(blob:)),
             )
+    }
+}
+
+private struct MessageQueryRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let chatGUID: String?
+    let rowID: Int
+    let guid: String
+    let balloonBundleID: String?
+    let threadOriginatorGUID: String?
+    let text: String?
+    let attributedBody: Data?
+    let isFromMe: Bool
+    let isSent: Bool
+    let date: Date?
+    let dateRead: Date?
+    let summaryInfo: Data?
+
+    init(decoder: inout some QueryDecoder) throws {
+        chatGUID = try decoder.optionalString()
+        rowID = try decoder.requiredInt("ROWID", row: Self.self)
+        guid = try decoder.requiredString("guid", row: Self.self)
+        balloonBundleID = try decoder.optionalString()
+        threadOriginatorGUID = try decoder.optionalString()
+        text = try decoder.optionalString()
+        attributedBody = try decoder.optionalData()
+        isFromMe = try decoder.looseBool()
+        isSent = try decoder.looseBool()
+        date = try decoder.imCoreDate()
+        dateRead = try decoder.imCoreDate()
+        summaryInfo = try decoder.optionalData()
     }
 }

@@ -1,11 +1,9 @@
 import Foundation
-import GRDB
+import SQLiteData
 
 extension Database {
     func tableColumns(_ tableName: String) throws -> [String] {
-        try Row.fetchAll(self, SQLRequest<Row>(sql: "PRAGMA table_info(\(tableName))", cached: true)).map { row in
-            row[1] as String
-        }
+        try fetchAllSQL(String.self, db: self, sql: "SELECT name FROM pragma_table_info(?)", arguments: [tableName])
     }
 }
 
@@ -22,34 +20,93 @@ extension IMDatabase {
     }
 }
 
-func sqlArguments(_ values: [Any]) -> StatementArguments {
-    guard let arguments = StatementArguments(values) else {
-        preconditionFailure("all SQL arguments must be database values")
-    }
-    return arguments
-}
-
-func fetchOneCached<T: DatabaseValueConvertible>(
+func fetchOneSQL<T: QueryRepresentable>(
     _ type: T.Type,
     db: Database,
     sql: String,
-    arguments: StatementArguments = StatementArguments()
-) throws -> T? {
-    try T.fetchOne(db, SQLRequest<T>(sql: sql, arguments: arguments, cached: true))
+    arguments: [Any] = []
+) throws -> T.QueryOutput? {
+    try SQLQueryExpression<T>(sqlQuery(sql, arguments: arguments), as: T.self).fetchOne(db)
 }
 
-func fetchAllRowsCached(
+func fetchOneOptionalSQL<T: QueryRepresentable>(
+    _ type: T.Type,
     db: Database,
     sql: String,
-    arguments: StatementArguments = StatementArguments()
-) throws -> [Row] {
-    try Row.fetchAll(db, SQLRequest<Row>(sql: sql, arguments: arguments, cached: true))
+    arguments: [Any] = []
+) throws -> T.QueryOutput? {
+    try SQLQueryExpression<T?>(sqlQuery(sql, arguments: arguments), as: T?.self).fetchOne(db) ?? nil
 }
 
-func fetchCursorRowsCached(
+func fetchAllSQL<T: QueryRepresentable>(
+    _ type: T.Type,
     db: Database,
     sql: String,
-    arguments: StatementArguments = StatementArguments()
-) throws -> RowCursor {
-    try Row.fetchCursor(db, SQLRequest<Row>(sql: sql, arguments: arguments, cached: true))
+    arguments: [Any] = []
+) throws -> [T.QueryOutput] {
+    try SQLQueryExpression<T>(sqlQuery(sql, arguments: arguments), as: T.self).fetchAll(db)
+}
+
+func fetchCursorSQL<T: QueryRepresentable>(
+    _ type: T.Type,
+    db: Database,
+    sql: String,
+    arguments: [Any] = []
+) throws -> QueryCursor<T.QueryOutput> {
+    try SQLQueryExpression<T>(sqlQuery(sql, arguments: arguments), as: T.self).fetchCursor(db)
+}
+
+func executeSQL(
+    db: Database,
+    sql: String,
+    arguments: [Any] = []
+) throws {
+    try SQLQueryExpression<Void>(sqlQuery(sql, arguments: arguments)).execute(db)
+}
+
+func sqlArguments(_ values: [Any]) -> [Any] {
+    values
+}
+
+func sqlQuery(_ sql: String, arguments: [Any] = []) -> QueryFragment {
+    var query = QueryFragment()
+    var remainder = sql[...]
+
+    for argument in arguments.map(sqlBinding) {
+        guard let placeholder = remainder.firstIndex(of: "?") else {
+            preconditionFailure("more SQL arguments than placeholders")
+        }
+        query.append("\(raw: String(remainder[..<placeholder]))")
+        query.append("\(argument)")
+        remainder = remainder[remainder.index(after: placeholder)...]
+    }
+
+    precondition(!remainder.contains("?"), "fewer SQL arguments than placeholders")
+    query.append("\(raw: String(remainder))")
+    return query
+}
+
+private func sqlBinding(_ value: Any) -> QueryBinding {
+    switch value {
+    case let value as QueryBinding:
+        value
+    case let value as Int:
+        value.queryBinding
+    case let value as Int64:
+        value.queryBinding
+    case let value as String:
+        value.queryBinding
+    case let value as Bool:
+        value.queryBinding
+    case let value as Data:
+        value.queryBinding
+    case let value as GUID<Chat>:
+        value.guts.queryBinding
+    case let value as GUID<Message>:
+        value.guts.queryBinding
+    case let value as GUID<Attachment>:
+        value.guts.queryBinding
+    default:
+        preconditionFailure("unsupported SQL argument type: \(type(of: value))")
+    }
 }

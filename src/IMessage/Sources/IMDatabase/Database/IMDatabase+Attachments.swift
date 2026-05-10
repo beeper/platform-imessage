@@ -1,7 +1,7 @@
 import Collections
-import GRDB
 import Logging
 import IMessageCore
+import SQLiteData
 
 private let log = Logger(imessageLabel: "imdb.db")
 
@@ -15,12 +15,10 @@ LEFT JOIN attachment a ON a.ROWID = maj.attachment_id
 extension IMDatabase {
     func hydrateAttachments(for message: inout Message) throws {
         let attachments = try read { db in
-            try Row.fetchAll(db, sql: """
+            try fetchAllSQL(AttachmentQueryRow.self, db: db, sql: """
             \(attachmentQuerySharedPrologue)
             WHERE m.guid = ?
-            """, arguments: [message.guid]).compactMap { row in
-                try Attachment(row: row)
-            }
+            """, arguments: [message.guid]).compactMap(Attachment.init(row:))
         }
         message.attachments = attachments
         #if DEBUG
@@ -32,12 +30,12 @@ extension IMDatabase {
         let messageRowIDs = messages.keys.map(String.init)
 
         try read { db in
-            let rows = try Row.fetchAll(db, sql: """
+            let rows = try fetchAllSQL(AttachmentQueryRow.self, db: db, sql: """
             \(attachmentQuerySharedPrologue)
             WHERE m.ROWID IN (\(messageRowIDs.joined(separator: ",")))
             """)
             for row in rows {
-                let messageRowID = row.requiredInt(at: 0)
+                let messageRowID = row.messageRowID
 
                 guard messages[messageRowID] != nil else {
                     assertionFailure()
@@ -48,7 +46,7 @@ extension IMDatabase {
                     messages[messageRowID]!.attachments = []
                 }
 
-                guard let attachment = try Attachment(row: row) else {
+                guard let attachment = Attachment(row: row) else {
                     continue
                 }
 
@@ -59,26 +57,43 @@ extension IMDatabase {
 }
 
 extension Attachment {
-    init?(row: Row) throws {
-        // (skipping `m.ROWID`)
-        guard let attachmentRowID = row.optionalInt(at: 1) else {
+    init?(row: AttachmentQueryRow) {
+        guard let attachmentRowID = row.attachmentRowID else {
             return nil
         }
-        let attachmentGUID = GUID<Attachment>(row.requiredString(at: 2))
-        let fileName = row.optionalString(at: 3)
-        let transferName = row.optionalString(at: 4)
-        let isSticker = row.looseBool(at: 5)
-        let transferState = Attachment.IMFileTransferState(rawValue: row.requiredInt(at: 6))
-        let uti = row.optionalString(at: 7)
 
         self = Attachment(
             id: attachmentRowID,
-            guid: attachmentGUID,
-            fileName: fileName,
-            transferName: transferName,
-            isSticker: isSticker,
-            transferState: transferState,
-            uti: uti,
+            guid: GUID<Attachment>(row.guid),
+            fileName: row.fileName,
+            transferName: row.transferName,
+            isSticker: row.isSticker,
+            transferState: row.transferState,
+            uti: row.uti,
             )
+    }
+}
+
+struct AttachmentQueryRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let messageRowID: Int
+    let attachmentRowID: Int?
+    let guid: String
+    let fileName: String?
+    let transferName: String?
+    let isSticker: Bool
+    let transferState: Attachment.IMFileTransferState
+    let uti: String?
+
+    init(decoder: inout some QueryDecoder) throws {
+        messageRowID = try decoder.requiredInt("message.ROWID", row: Self.self)
+        attachmentRowID = try decoder.optionalInt()
+        guid = try decoder.requiredString("attachment.guid", row: Self.self)
+        fileName = try decoder.optionalString()
+        transferName = try decoder.optionalString()
+        isSticker = try decoder.looseBool()
+        transferState = Attachment.IMFileTransferState(rawValue: try decoder.requiredInt("transfer_state", row: Self.self))
+        uti = try decoder.optionalString()
     }
 }

@@ -1,7 +1,7 @@
 import Collections
 import Foundation
 import IMessageCore
-import GRDB
+import SQLiteData
 
 private let messageJoins = """
 LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -29,13 +29,13 @@ LEFT JOIN handle AS oh ON m.other_handle = oh.ROWID
 public extension IMDatabase {
     func lastMessageRowID() throws -> Int {
         try read { db in
-            try fetchOneCached(Int.self, db: db, sql: "SELECT seq FROM sqlite_sequence WHERE name = 'message'") ?? 0
+            try fetchOneSQL(Int.self, db: db, sql: "SELECT seq FROM sqlite_sequence WHERE name = 'message'") ?? 0
         }
     }
 
     func maxMessageDateRead() throws -> Date {
         let nanoseconds = try read { db in
-            try fetchOneCached(Int.self, db: db, sql: "SELECT MAX(date_read) FROM message") ?? 0
+            try fetchOneSQL(Int.self, db: db, sql: "SELECT MAX(date_read) FROM message") ?? 0
         }
 
         guard nanoseconds > 0, nanoseconds < .max else {
@@ -58,11 +58,11 @@ public extension IMDatabase {
         """
 
         return try read { db in
-            try fetchAllRowsCached(db: db, sql: sql).map { row in
+            try fetchAllSQL(MessageUpdateCursorSnapshotRow.self, db: db, sql: sql).map { row in
                 (
-                    lastRowID: row.optionalInt(at: 0) ?? 0,
-                    lastDateRead: row.imCoreDate(at: 1) ?? Date(nanosecondsSinceReferenceDate: 0),
-                    lastDateEdited: row.imCoreDate(at: 2) ?? Date(nanosecondsSinceReferenceDate: 0)
+                    lastRowID: row.lastRowID,
+                    lastDateRead: row.lastDateRead ?? Date(nanosecondsSinceReferenceDate: 0),
+                    lastDateEdited: row.lastDateEdited ?? Date(nanosecondsSinceReferenceDate: 0)
                 )
             }.first
         } ?? (
@@ -74,23 +74,19 @@ public extension IMDatabase {
 
     func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
         try read { db in
-            try fetchAllRowsCached(db: db, sql: """
+            try fetchAllSQL(SentMessageIDRow.self, db: db, sql: """
             SELECT ROWID, guid
             FROM message
             WHERE is_from_me = 1 AND ROWID > ?
-            """, arguments: [rowID]).compactMap { row in
-                guard let rowID = row.optionalInt(at: 0),
-                      let guid = row.optionalString(at: 1) else {
-                    return nil
-                }
-                return (rowID, guid)
+            """, arguments: [rowID]).map { row in
+                (rowID: row.rowID, guid: row.guid)
             }
         }
     }
 
     func threadIDForMessage(rowID: Int) throws -> String? {
         try read { db in
-            try fetchOneCached(String.self, db: db, sql: """
+            try fetchOneOptionalSQL(String.self, db: db, sql: """
             SELECT t.guid
             FROM message AS m
             LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -102,7 +98,7 @@ public extension IMDatabase {
 
     func allThreadGUIDs() throws -> [String] {
         try read { db in
-            try fetchAllRowsCached(db: db, sql: "SELECT guid FROM chat").compactMap { $0[0] as String? }
+            try fetchAllSQL(String?.self, db: db, sql: "SELECT guid FROM chat").compactMap(\.self)
         }
     }
 
@@ -150,7 +146,7 @@ public extension IMDatabase {
 
     func mappedChatRowID(guid: String) throws -> Int? {
         try read { db in
-            try fetchOneCached(Int.self, db: db, sql: "SELECT ROWID FROM chat WHERE guid = ?", arguments: [guid])
+            try fetchOneSQL(Int.self, db: db, sql: "SELECT ROWID FROM chat WHERE guid = ?", arguments: [guid])
         }
     }
 
@@ -177,7 +173,7 @@ public extension IMDatabase {
         WHERE m.guid IN (\(placeholders(count: uniqueGUIDs.count)))
         """
         return try read { db in
-            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(uniqueGUIDs))
+            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: uniqueGUIDs)
         }
     }
 
@@ -202,7 +198,7 @@ public extension IMDatabase {
         ORDER BY m.date DESC
         """
         return try read { db in
-            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(uniqueRowIDs))
+            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: uniqueRowIDs)
         }
     }
 
@@ -232,7 +228,7 @@ public extension IMDatabase {
         ORDER BY m.date DESC
         """
         return try read { db in
-            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, messageRow in
+            try MappedMessageRow.fetchAllMapped(db, sql: sql, arguments: chatRowIDs).reduce(into: [:]) { result, messageRow in
                 guard let threadID = messageRow.threadID else { return }
                 result[threadID] = messageRow
             }
@@ -249,19 +245,19 @@ public extension IMDatabase {
         WHERE m.ROWID IN (\(placeholders(count: messageRowIDs.count)))
         """
         return try read { db in
-            try MappedAttachmentRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(messageRowIDs))
+            try MappedAttachmentRow.fetchAllMapped(db, sql: sql, arguments: messageRowIDs)
         }
     }
 
     func attachmentFilename(guid: String) throws -> String? {
         try read { db in
-            try fetchOneCached(String.self, db: db, sql: "SELECT filename FROM attachment WHERE guid = ?", arguments: [guid])
+            try fetchOneOptionalSQL(String.self, db: db, sql: "SELECT filename FROM attachment WHERE guid = ?", arguments: [guid])
         }
     }
 
     func attachmentFilename(messageRowID: Int) throws -> String? {
         try read { db in
-            try fetchOneCached(String.self, db: db, sql: """
+            try fetchOneOptionalSQL(String.self, db: db, sql: """
             SELECT a.filename FROM message_attachment_join AS maj
             INNER JOIN attachment AS a ON a.ROWID = maj.attachment_id
             WHERE maj.message_id = ?
@@ -273,12 +269,12 @@ public extension IMDatabase {
         guard !messageGUIDs.isEmpty, !chatRowIDs.isEmpty else { return [] }
         let messageSchema = try schema().message
         let emojiColumn = messageSchema.has(.associatedMessageEmoji)
-            ? "m.\(MessageTable.Column.associatedMessageEmoji.sqlName) AS \(MessageTable.Column.associatedMessageEmoji.sqlName),"
-            : ""
+            ? "m.\(MessageTable.Column.associatedMessageEmoji.sqlName) AS \(MessageTable.Column.associatedMessageEmoji.sqlName)"
+            : "NULL AS \(MessageTable.Column.associatedMessageEmoji.sqlName)"
         let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
         let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
         let sql = """
-        SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, \(emojiColumn) h.id AS participantID
+        SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, \(emojiColumn), h.id AS participantID
         FROM message AS m
         LEFT JOIN handle AS h ON m.handle_id = h.ROWID
         LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
@@ -307,10 +303,9 @@ public extension IMDatabase {
 private let maxMappedMessageRowsBatchSize = 500
 
 private func messageSelectionSQL(messageSchema: TableSchema<MessageTable>) -> String {
-    var selections = ["m.ROWID AS ROWID"]
-    selections += messageSchema.columns
-        .filter { $0 != "ROWID" }
-        .map { "m.\($0) AS \($0)" }
+    var selections = mappedMessageColumnNames.map {
+        columnSelection($0, tableAlias: "m", tableColumns: messageSchema.columns)
+    }
     selections += [
         "t.guid AS threadID",
         "t.ROWID AS chatRowID",
@@ -319,6 +314,75 @@ private func messageSelectionSQL(messageSchema: TableSchema<MessageTable>) -> St
         "oh.id AS otherID",
     ]
     return selections.joined(separator: ",\n")
+}
+
+private let mappedMessageColumnNames = [
+    "ROWID",
+    "guid",
+    "text",
+    "subject",
+    "attributedBody",
+    "service",
+    "error",
+    "date",
+    "date_read",
+    "date_delivered",
+    "is_delivered",
+    "is_from_me",
+    "is_read",
+    "is_audio_message",
+    "item_type",
+    "handle_id",
+    "group_title",
+    "group_action_type",
+    "share_status",
+    "associated_message_guid",
+    "associated_message_type",
+    "associated_message_emoji",
+    "balloon_bundle_id",
+    "payload_data",
+    "expressive_send_style_id",
+    "message_summary_info",
+    "reply_to_guid",
+    "thread_originator_guid",
+    "thread_originator_part",
+    "date_retracted",
+    "date_edited",
+    "was_detonated",
+    "schedule_type",
+]
+
+private func columnSelection(_ column: String, tableAlias: String, tableColumns: [String]) -> String {
+    if tableColumns.contains(column) {
+        return "\(tableAlias).\(column) AS \(column)"
+    }
+    return "NULL AS \(column)"
+}
+
+private struct MessageUpdateCursorSnapshotRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let lastRowID: Int
+    let lastDateRead: Date?
+    let lastDateEdited: Date?
+
+    init(decoder: inout some QueryDecoder) throws {
+        lastRowID = try decoder.optionalInt() ?? 0
+        lastDateRead = try decoder.imCoreDate()
+        lastDateEdited = try decoder.imCoreDate()
+    }
+}
+
+private struct SentMessageIDRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let rowID: Int
+    let guid: String
+
+    init(decoder: inout some QueryDecoder) throws {
+        rowID = try decoder.requiredInt("ROWID", row: Self.self)
+        guid = try decoder.requiredString("guid", row: Self.self)
+    }
 }
 
 private func placeholders(count: Int) -> String {

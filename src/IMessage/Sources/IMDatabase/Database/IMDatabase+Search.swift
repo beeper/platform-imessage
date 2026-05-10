@@ -1,5 +1,5 @@
 import Foundation
-import GRDB
+import SQLiteData
 
 public extension IMDatabase {
     /// Searches messages by text content, properly decoding attributedBody.
@@ -62,28 +62,24 @@ public extension IMDatabase {
         let fetchLimit = limit * 20
 
         var matchingRowIDs: [Int] = []
-        let arguments = chatGUID.map { sqlArguments([$0, fetchLimit]) } ?? StatementArguments([fetchLimit])
+        let arguments = chatGUID.map { sqlArguments([$0, fetchLimit]) } ?? [fetchLimit]
 
         try read { db in
-            let cursor = try fetchCursorRowsCached(db: db, sql: sql, arguments: arguments)
+            let cursor = try fetchCursorSQL(SearchMessageRow.self, db: db, sql: sql, arguments: arguments)
             while let row = try cursor.next() {
                 // Stop once we have enough results
                 guard matchingRowIDs.count < limit else { break }
 
-                let rowID = row.requiredInt(at: 0)
-                let plainText = row.optionalString(at: 1)
-                let attributedBodyData = row.optionalData(at: 2)
-
                 // Try to get text from attributedBody first (more complete), fall back to text column
                 var messageText: String?
 
-                if let data = attributedBodyData {
+                if let data = row.attributedBodyData {
                     messageText = try? AttributedBodyDecoder.plainText(from: data)
                 }
 
                 // Fall back to plain text column
                 if messageText == nil || messageText?.isEmpty == true {
-                    messageText = plainText
+                    messageText = row.plainText
                 }
 
                 // Check if the decoded text actually contains the search query (case-insensitive)
@@ -91,10 +87,24 @@ public extension IMDatabase {
                     continue
                 }
 
-                matchingRowIDs.append(rowID)
+                matchingRowIDs.append(row.rowID)
             }
         }
 
         return matchingRowIDs
+    }
+}
+
+private struct SearchMessageRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let rowID: Int
+    let plainText: String?
+    let attributedBodyData: Data?
+
+    init(decoder: inout some QueryDecoder) throws {
+        rowID = try decoder.requiredInt("ROWID", row: Self.self)
+        plainText = try decoder.optionalString()
+        attributedBodyData = try decoder.optionalData()
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
-import GRDB
 import IMessageCore
+import SQLiteData
 
 // TODO(skip): optimize; query takes ~70ms (!)
 let unreadStatesQuery = """
@@ -55,17 +55,26 @@ public extension IMDatabase {
         var chatStates: [String: ChatState] = [:]
 
         try read { db in
-            for row in try fetchAllRowsCached(db: db, sql: unreadStatesQuery) {
-                let chatGUID = row.requiredString(at: 0)
-
-                let lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: row.requiredInt(at: 2))
-
-                let unreadCount = row.requiredInt(at: 1)
-
-                chatStates[chatGUID] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
+            for row in try fetchAllSQL(ChatStateRow.self, db: db, sql: unreadStatesQuery) {
+                chatStates[row.chatGUID] = ChatState(unreadCount: row.unreadCount, lastReadMessageTimestamp: row.lastReadMessageTimestamp)
             }
         }
 
         return chatStates
+    }
+}
+
+private struct ChatStateRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let chatGUID: String
+    let unreadCount: Int
+    let lastReadMessageTimestamp: Date
+
+    init(decoder: inout some QueryDecoder) throws {
+        chatGUID = try decoder.requiredString("chat_guid", row: Self.self)
+        unreadCount = try decoder.requiredInt("unread_count", row: Self.self)
+        let lastReadNanoseconds = try decoder.requiredInt("last_read_message_timestamp", row: Self.self)
+        lastReadMessageTimestamp = Date(nanosecondsSinceReferenceDate: lastReadNanoseconds)
     }
 }

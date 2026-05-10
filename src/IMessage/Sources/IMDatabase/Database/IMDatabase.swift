@@ -1,8 +1,8 @@
 import AsyncAlgorithms
 import Foundation
-import GRDB
 import Logging
 import IMessageCore
+import SQLiteData
 
 private func chatDatabaseFile(in messagesDataURL: URL) -> URL {
     messagesDataURL.appendingPathComponent("chat.db")
@@ -84,7 +84,7 @@ private extension IMDatabase {
 
         try database.write { db in
             for (indexName, column) in messageIndexes where messageSchema.has(column) {
-                try db.execute(sql: "CREATE INDEX IF NOT EXISTS \(indexName) ON \(MessageTable.sqlName) (\(column.sqlName))")
+                try executeSQL(db: db, sql: "CREATE INDEX IF NOT EXISTS \(indexName) ON \(MessageTable.sqlName) (\(column.sqlName))")
             }
         }
     }

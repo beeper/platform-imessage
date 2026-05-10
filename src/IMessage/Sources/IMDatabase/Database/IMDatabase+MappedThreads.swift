@@ -1,4 +1,4 @@
-import GRDB
+import SQLiteData
 
 public let mappedThreadsLimit = 25
 
@@ -53,7 +53,7 @@ public extension IMDatabase {
         WHERE chat_id IN (\(chatRowIDs.map { _ in "?" }.joined(separator: ", ")))
         """
         return try read { db in
-            try MappedHandleRow.fetchAllMapped(db, sql: sql, arguments: StatementArguments(chatRowIDs)).reduce(into: [:]) { result, row in
+            try MappedHandleRow.fetchAllMapped(db, sql: sql, arguments: chatRowIDs).reduce(into: [:]) { result, row in
                 result[row.chatID ?? -1, default: []].append(row)
             }
         }
@@ -77,8 +77,8 @@ public extension IMDatabase {
           cm.chat_id
         """
         return try read { db in
-            try fetchAllRowsCached(db: db, sql: sql, arguments: StatementArguments(chatRowIDs)).map { row in
-                (row.requiredInt(at: 0), row.requiredInt(at: 1))
+            try fetchAllSQL(UnreadCountRow.self, db: db, sql: sql, arguments: chatRowIDs).map { row in
+                (row.chatID, row.unreadCount)
             }.reduce(into: [:]) { result, pair in
                 result[pair.0] = pair.1
             }
@@ -87,9 +87,40 @@ public extension IMDatabase {
 }
 
 private func chatSelectionSQL(chatSchema: TableSchema<ChatTable>) -> String {
-    var selections = ["chat.ROWID AS ROWID"]
-    selections += chatSchema.columns
-        .filter { $0 != "ROWID" }
-        .map { "chat.\($0) AS \($0)" }
-    return selections.joined(separator: ",\n")
+    mappedChatColumnNames.map {
+        columnSelection($0, tableAlias: "chat", tableColumns: chatSchema.columns)
+    }.joined(separator: ",\n")
+}
+
+private let mappedChatColumnNames = [
+    "ROWID",
+    "guid",
+    "state",
+    "properties",
+    "chat_identifier",
+    "room_name",
+    "account_login",
+    "last_addressed_handle",
+    "display_name",
+    "group_id",
+    "last_read_message_timestamp",
+]
+
+private func columnSelection(_ column: String, tableAlias: String, tableColumns: [String]) -> String {
+    if tableColumns.contains(column) {
+        return "\(tableAlias).\(column) AS \(column)"
+    }
+    return "NULL AS \(column)"
+}
+
+private struct UnreadCountRow: QueryRepresentable {
+    typealias QueryOutput = Self
+
+    let chatID: Int
+    let unreadCount: Int
+
+    init(decoder: inout some QueryDecoder) throws {
+        chatID = try decoder.requiredInt("chat_id", row: Self.self)
+        unreadCount = try decoder.requiredInt("unread_count", row: Self.self)
+    }
 }

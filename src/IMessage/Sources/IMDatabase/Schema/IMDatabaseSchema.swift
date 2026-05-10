@@ -1,17 +1,18 @@
-import GRDB
-
-protocol IMDatabaseColumn: CaseIterable, ColumnExpression, Hashable, RawRepresentable where RawValue == String {}
+protocol IMDatabaseColumn: CaseIterable, Hashable, RawRepresentable where RawValue == String {}
 
 extension IMDatabaseColumn {
-    var sqlName: String { name }
+    var sqlName: String { rawValue }
 }
 
-protocol IMDatabaseTable: TableRecord {
+protocol IMDatabaseTable {
     associatedtype Column: IMDatabaseColumn
+    static var databaseTableName: String { get }
 }
 
 extension IMDatabaseTable {
-    static var sqlName: String { databaseTableName }
+    static var sqlName: String {
+        databaseTableName
+    }
 }
 
 struct TableSchema<Table: IMDatabaseTable> {

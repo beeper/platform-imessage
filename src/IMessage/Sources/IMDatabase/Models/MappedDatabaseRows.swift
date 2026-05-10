@@ -1,5 +1,5 @@
 import Foundation
-import GRDB
+import SQLiteData
 
 /// Runtime counterparts to the historical TypeScript row shapes. Database
 /// queries decode into these structs directly. Legacy fixture/original-payload
@@ -43,45 +43,15 @@ import GRDB
 /// - `is_recovered`: Added in Ventura.
 /// - `is_deleting_incoming_messages`, `is_pending_review`: Observed in Tahoe.
 
-public protocol MappedDatabaseRow: FetchableRecord {
-    init(row: Row, columns: MappedRowColumnIndexes) throws
-}
+public protocol MappedDatabaseRow: QueryRepresentable where QueryOutput == Self {}
 
-public extension MappedDatabaseRow {
-    init(row: Row) throws {
-        try self.init(row: row, columns: MappedRowColumnIndexes(Array(row.columnNames)))
-    }
-
+public extension MappedDatabaseRow where QueryOutput == Self {
     static func fetchAllMapped(
         _ db: Database,
         sql: String,
-        arguments: StatementArguments = StatementArguments()
+        arguments: [Any] = []
     ) throws -> [Self] {
-        let request = SQLRequest<Row>(sql: sql, arguments: arguments, cached: true)
-        let cursor = try Row.fetchCursor(db, request)
-        var rows: [Self] = []
-        var columns: MappedRowColumnIndexes?
-
-        while let row = try cursor.next() {
-            if columns == nil {
-                columns = MappedRowColumnIndexes(Array(row.columnNames))
-            }
-            rows.append(try Self(row: row, columns: columns!))
-        }
-
-        return rows
-    }
-}
-
-public struct MappedRowColumnIndexes {
-    private let indexesByName: [String: Int]
-
-    public init(_ names: [String]) {
-        indexesByName = Dictionary(uniqueKeysWithValues: names.enumerated().map { ($0.element, $0.offset) })
-    }
-
-    func index(for name: String) -> Int? {
-        indexesByName[name]
+        try fetchAllSQL(Self.self, db: db, sql: sql, arguments: arguments)
     }
 }
 
@@ -97,6 +67,8 @@ public enum MappedDatabaseRowError: Error, CustomStringConvertible {
 }
 
 public struct MappedMessageRow: MappedDatabaseRow {
+    public typealias QueryOutput = Self
+
     public let rowID: Int
     public let guid: String
     public let text: String?
@@ -157,49 +129,51 @@ public struct MappedMessageRow: MappedDatabaseRow {
     public let participantID: String?
     public let otherID: String?
 
-    public init(row: Row, columns: MappedRowColumnIndexes) throws {
-        rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
-        guid = try row.requiredString("guid", columns: columns, row: Self.self)
-        text = try row.string("text", columns: columns)
-        subject = try row.string("subject", columns: columns)
-        attributedBody = try row.data("attributedBody", columns: columns)
-        service = try row.string("service", columns: columns)
-        error = try row.int("error", columns: columns) ?? 0
-        date = try row.int("date", columns: columns)
-        dateRead = try row.int("date_read", columns: columns)
-        dateDelivered = try row.int("date_delivered", columns: columns)
-        isDelivered = try row.int("is_delivered", columns: columns) ?? 0
-        isFromMe = try row.int("is_from_me", columns: columns) ?? 0
-        isRead = try row.int("is_read", columns: columns) ?? 0
-        isAudioMessage = try row.int("is_audio_message", columns: columns) ?? 0
-        itemType = try row.int("item_type", columns: columns) ?? 0
-        handleID = try row.int("handle_id", columns: columns)
-        groupTitle = try row.string("group_title", columns: columns)
-        groupActionType = try row.int("group_action_type", columns: columns) ?? 0
-        shareStatus = try row.int("share_status", columns: columns) ?? 0
-        associatedMessageGUID = try row.string("associated_message_guid", columns: columns)
-        associatedMessageType = try row.int("associated_message_type", columns: columns) ?? 0
-        associatedMessageEmoji = try row.string("associated_message_emoji", columns: columns)
-        balloonBundleID = try row.string("balloon_bundle_id", columns: columns)
-        payloadData = try row.data("payload_data", columns: columns)
-        expressiveSendStyleID = try row.string("expressive_send_style_id", columns: columns)
-        messageSummaryInfo = try row.data("message_summary_info", columns: columns)
-        replyToGUID = try row.string("reply_to_guid", columns: columns)
-        threadOriginatorGUID = try row.string("thread_originator_guid", columns: columns)
-        threadOriginatorPart = try row.string("thread_originator_part", columns: columns)
-        dateRetracted = try row.int("date_retracted", columns: columns)
-        dateEdited = try row.int("date_edited", columns: columns)
-        wasDetonated = try row.int("was_detonated", columns: columns) ?? 0
-        scheduleType = try row.int("schedule_type", columns: columns) ?? 0
-        threadID = try row.string("threadID", columns: columns)
-        chatRowID = try row.int("chatRowID", columns: columns)
-        roomName = try row.string("room_name", columns: columns)
-        participantID = try row.string("participantID", columns: columns)
-        otherID = try row.string("otherID", columns: columns)
+    public init(decoder: inout some QueryDecoder) throws {
+        rowID = try decoder.requiredInt("ROWID", row: Self.self)
+        guid = try decoder.requiredString("guid", row: Self.self)
+        text = try decoder.optionalString()
+        subject = try decoder.optionalString()
+        attributedBody = try decoder.optionalData()
+        service = try decoder.optionalString()
+        error = try decoder.optionalInt() ?? 0
+        date = try decoder.optionalInt()
+        dateRead = try decoder.optionalInt()
+        dateDelivered = try decoder.optionalInt()
+        isDelivered = try decoder.optionalInt() ?? 0
+        isFromMe = try decoder.optionalInt() ?? 0
+        isRead = try decoder.optionalInt() ?? 0
+        isAudioMessage = try decoder.optionalInt() ?? 0
+        itemType = try decoder.optionalInt() ?? 0
+        handleID = try decoder.optionalInt()
+        groupTitle = try decoder.optionalString()
+        groupActionType = try decoder.optionalInt() ?? 0
+        shareStatus = try decoder.optionalInt() ?? 0
+        associatedMessageGUID = try decoder.optionalString()
+        associatedMessageType = try decoder.optionalInt() ?? 0
+        associatedMessageEmoji = try decoder.optionalString()
+        balloonBundleID = try decoder.optionalString()
+        payloadData = try decoder.optionalData()
+        expressiveSendStyleID = try decoder.optionalString()
+        messageSummaryInfo = try decoder.optionalData()
+        replyToGUID = try decoder.optionalString()
+        threadOriginatorGUID = try decoder.optionalString()
+        threadOriginatorPart = try decoder.optionalString()
+        dateRetracted = try decoder.optionalInt()
+        dateEdited = try decoder.optionalInt()
+        wasDetonated = try decoder.optionalInt() ?? 0
+        scheduleType = try decoder.optionalInt() ?? 0
+        threadID = try decoder.optionalString()
+        chatRowID = try decoder.optionalInt()
+        roomName = try decoder.optionalString()
+        participantID = try decoder.optionalString()
+        otherID = try decoder.optionalString()
     }
 }
 
 public struct MappedChatRow: MappedDatabaseRow {
+    public typealias QueryOutput = Self
+
     public let rowID: Int
     public let guid: String
     public let state: Int
@@ -218,23 +192,25 @@ public struct MappedChatRow: MappedDatabaseRow {
     // the `chat` table; they are computed SQL aliases.
     public let msgDate: Int?
 
-    public init(row: Row, columns: MappedRowColumnIndexes) throws {
-        rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
-        guid = try row.requiredString("guid", columns: columns, row: Self.self)
-        state = try row.int("state", columns: columns) ?? 0
-        properties = try row.data("properties", columns: columns)
-        chatIdentifier = try row.string("chat_identifier", columns: columns)
-        roomName = try row.string("room_name", columns: columns)
-        accountLogin = try row.string("account_login", columns: columns)
-        lastAddressedHandle = try row.string("last_addressed_handle", columns: columns)
-        displayName = try row.string("display_name", columns: columns)
-        groupID = try row.string("group_id", columns: columns)
-        lastReadMessageTimestamp = try row.int("last_read_message_timestamp", columns: columns)
-        msgDate = try row.int("msgDate", columns: columns)
+    public init(decoder: inout some QueryDecoder) throws {
+        rowID = try decoder.requiredInt("ROWID", row: Self.self)
+        guid = try decoder.requiredString("guid", row: Self.self)
+        state = try decoder.optionalInt() ?? 0
+        properties = try decoder.optionalData()
+        chatIdentifier = try decoder.optionalString()
+        roomName = try decoder.optionalString()
+        accountLogin = try decoder.optionalString()
+        lastAddressedHandle = try decoder.optionalString()
+        displayName = try decoder.optionalString()
+        groupID = try decoder.optionalString()
+        lastReadMessageTimestamp = try decoder.optionalInt()
+        msgDate = try decoder.optionalInt()
     }
 }
 
 public struct MappedAttachmentRow: MappedDatabaseRow {
+    public typealias QueryOutput = Self
+
     public let msgRowID: Int
     public let filename: String?
     public let transferName: String?
@@ -277,20 +253,22 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
         self.size = size
     }
 
-    public init(row: Row, columns: MappedRowColumnIndexes) throws {
+    public init(decoder: inout some QueryDecoder) throws {
         try self.init(
-            msgRowID: row.requiredInt("msgRowID", columns: columns, row: Self.self),
-            filename: row.string("filename", columns: columns),
-            transferName: row.string("transfer_name", columns: columns),
-            totalBytes: row.int("total_bytes", columns: columns),
-            isSticker: row.int("is_sticker", columns: columns),
-            attachmentID: row.string("attachmentID", columns: columns),
-            transferState: row.int("transfer_state", columns: columns)
+            msgRowID: decoder.requiredInt("msgRowID", row: Self.self),
+            filename: decoder.optionalString(),
+            transferName: decoder.optionalString(),
+            totalBytes: decoder.optionalInt(),
+            isSticker: decoder.optionalInt(),
+            attachmentID: decoder.optionalString(),
+            transferState: decoder.optionalInt()
         )
     }
 }
 
 public struct MappedHandleRow: MappedDatabaseRow {
+    public typealias QueryOutput = Self
+
     // Extensions selected by mapped-handle queries. `chatID` comes from
     // `chat_handle_join`, and `participantID` aliases `handle.id`.
     //
@@ -309,14 +287,16 @@ public struct MappedHandleRow: MappedDatabaseRow {
         self.uncanonicalizedID = uncanonicalizedID
     }
 
-    public init(row: Row, columns: MappedRowColumnIndexes) throws {
-        chatID = try row.int("chat_id", columns: columns)
-        participantID = try row.string("participantID", columns: columns)
-        uncanonicalizedID = try row.string("uncanonicalized_id", columns: columns)
+    public init(decoder: inout some QueryDecoder) throws {
+        chatID = try decoder.optionalInt()
+        participantID = try decoder.optionalString()
+        uncanonicalizedID = try decoder.optionalString()
     }
 }
 
 public struct MappedReactionMessageRow: MappedDatabaseRow {
+    public typealias QueryOutput = Self
+
     public let rowID: Int
     public let isFromMe: Int
     public let handleID: Int?
@@ -329,58 +309,13 @@ public struct MappedReactionMessageRow: MappedDatabaseRow {
     // for the sender associated with the reaction message.
     public let participantID: String?
 
-    public init(row: Row, columns: MappedRowColumnIndexes) throws {
-        rowID = try row.requiredInt("ROWID", columns: columns, row: Self.self)
-        isFromMe = try row.requiredInt("is_from_me", columns: columns, row: Self.self)
-        handleID = try row.int("handle_id", columns: columns)
-        associatedMessageType = try row.requiredInt("associated_message_type", columns: columns, row: Self.self)
-        associatedMessageGUID = try row.requiredString("associated_message_guid", columns: columns, row: Self.self)
-        associatedMessageEmoji = try row.string("associated_message_emoji", columns: columns)
-        participantID = try row.string("participantID", columns: columns)
-    }
-}
-
-private extension Row {
-    func requiredString<RowType>(
-        _ key: String,
-        columns: MappedRowColumnIndexes,
-        row: RowType.Type
-    ) throws -> String {
-        guard let value = try string(key, columns: columns) else {
-            throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: key)
-        }
-        return value
-    }
-
-    func requiredInt<RowType>(
-        _ key: String,
-        columns: MappedRowColumnIndexes,
-        row: RowType.Type
-    ) throws -> Int {
-        guard let value = try int(key, columns: columns) else {
-            throw MappedDatabaseRowError.missingRequiredColumn(row: String(describing: row), column: key)
-        }
-        return value
-    }
-
-    func string(_ key: String, columns: MappedRowColumnIndexes) throws -> String? {
-        guard let index = columns.index(for: key) else {
-            return nil
-        }
-        return self[index] as String?
-    }
-
-    func int(_ key: String, columns: MappedRowColumnIndexes) throws -> Int? {
-        guard let index = columns.index(for: key) else {
-            return nil
-        }
-        return self[index] as Int?
-    }
-
-    func data(_ key: String, columns: MappedRowColumnIndexes) throws -> Data? {
-        guard let index = columns.index(for: key) else {
-            return nil
-        }
-        return self[index] as Data?
+    public init(decoder: inout some QueryDecoder) throws {
+        rowID = try decoder.requiredInt("ROWID", row: Self.self)
+        isFromMe = try decoder.requiredInt("is_from_me", row: Self.self)
+        handleID = try decoder.optionalInt()
+        associatedMessageType = try decoder.requiredInt("associated_message_type", row: Self.self)
+        associatedMessageGUID = try decoder.requiredString("associated_message_guid", row: Self.self)
+        associatedMessageEmoji = try decoder.optionalString()
+        participantID = try decoder.optionalString()
     }
 }
