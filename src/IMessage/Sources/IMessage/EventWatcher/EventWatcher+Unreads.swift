@@ -93,9 +93,10 @@ extension EventWatcher {
         // Detect chats that were deleted from iMessage since the last database change.
         let deletedChats = chatStates.keys.filter { currentChatStates[$0] == nil }
         let deletedThreadIDs = deletedChats.map { chatGUID -> String in
+            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: chatGUID)
             chatStates.removeValue(forKey: chatGUID)
-            log.info("chat \(chatGUID) was deleted from iMessage")
-            return Hasher.thread.tokenizeRemembering(pii: chatGUID)
+            log.info("chat \(hashedThreadID) was deleted from iMessage")
+            return hashedThreadID
         }
 
         if !deletedThreadIDs.isEmpty {
