@@ -23,24 +23,19 @@ extension Mapper {
     ) -> MessageDraft? {
         let firstTextPart = messages.first { $0.text != nil }
         var message = firstTextPart ?? partialMessage
-        let guidRange = NSRange(associatedGUID.startIndex ..< associatedGUID.endIndex, in: associatedGUID)
-        let linkedMessageID = assocMsgGUIDPrefixRegex.stringByReplacingMatches(
-            in: associatedGUID,
-            range: guidRange,
-            withTemplate: ""
-        )
+        let linkedMessageID = parseAssociatedMessageTarget(associatedGUID).messageID
         message.linkedMessageID = linkedMessageID
-        guard let assocMsgType = associatedMessageTypes[msgRow.associatedMessageType] else {
+        guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType] else {
             return nil
         }
 
-        switch assocMsgType {
-        case "sticker":
+        switch associatedMessageType {
+        case .sticker:
             if !messages.isEmpty {
                 messages[0].linkedMessageID = linkedMessageID
             }
             return nil
-        case "heading":
+        case .heading:
             if var text = message.text {
                 let other = msgRow.participantID ?? ""
                 let isSender = message.isSender == true
@@ -53,9 +48,9 @@ extension Mapper {
             }
             message.parseTemplate = true
             return message
-        default:
+        case let .reaction(reaction):
             return mapReactionAction(
-                assocMsgType: assocMsgType,
+                reaction: reaction,
                 message: message,
                 summaryInfo: summaryInfo,
                 isSMS: isSMS
@@ -72,20 +67,14 @@ extension Mapper {
             return reaction.associatedMessageGUID.hasPrefix("p:\(filterIndex)/")
         }
         for reaction in filteredRows {
-            guard let assocMsgType = associatedMessageTypes[reaction.associatedMessageType],
-                  let parts = reactionParts(assocMsgType),
-                  assocMsgType != "sticker" else {
+            guard let associatedMessageType = associatedMessageTypes[reaction.associatedMessageType],
+                  case let .reaction(parts) = associatedMessageType else {
                 continue
             }
-            let participantID = senderID(for: reaction)
-            if parts.actionType == "reacted" {
-                reactions.append(PlatformSDK.MessageReaction(
-                    id: participantID,
-                    reactionKey: parts.actionKey == "emoji" ? (reaction.associatedMessageEmoji ?? "") : parts.actionKey,
-                    imgURL: parts.actionKey == "sticker" ? reactionStickerAssetURL(rowID: reaction.rowID) : nil,
-                    participantID: participantID
-                ))
-            } else if parts.actionType == "unreacted", let index = reactions.firstIndex(where: { $0.id == participantID }) {
+            let participantID = messageSenderID(for: reaction, currentUserID: currentUserID)
+            if parts.action == .reacted {
+                reactions.append(mapMessageReaction(row: reaction, reaction: parts, currentUserID: currentUserID, accountID: accountID))
+            } else if parts.action == .unreacted, let index = reactions.firstIndex(where: { $0.participantID == participantID }) {
                 reactions.remove(at: index)
             }
         }
@@ -101,68 +90,77 @@ extension Mapper {
         return subject
     }
 
-    func senderID() -> String {
-        senderID(for: msgRow)
-    }
-
-    func reactionStickerAssetURL(rowID: Int) -> String {
-        "asset://\(accountID)/reaction-sticker/\(rowID).heic"
-    }
-
     private func mapReactionAction(
-        assocMsgType: String,
+        reaction: AssociatedReaction,
         message inputMessage: MessageDraft,
         summaryInfo: JSONObject,
         isSMS: Bool
     ) -> MessageDraft {
         var message = inputMessage
-        guard let parts = reactionParts(assocMsgType) else {
-            return message
-        }
-        guard parts.actionType == "reacted" || parts.actionType == "unreacted" else {
-            return message
-        }
         message.isAction = !isSMS
         let action = PlatformSDK.PartialMessageReactionAction(
             messageID: message.linkedMessageID,
-            reactionKey: parts.actionKey == "emoji" ? msgRow.associatedMessageEmoji : parts.actionKey,
-            imgURL: assocMsgType == "reacted_sticker" ? reactionStickerAssetURL(rowID: msgRow.rowID) : nil,
+            reactionKey: reaction.platformReactionKey(emoji: msgRow.associatedMessageEmoji),
+            imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: msgRow.rowID) : nil,
             participantID: message.senderID
         )
-        message.action = parts.actionType == "reacted"
+        message.action = reaction.action == .reacted
             ? .messageReactionCreated(action)
             : .messageReactionDeleted(action)
-        if parts.actionKey == "emoji" || parts.actionKey == "sticker" || supportedReactionKeys.contains(parts.actionKey) {
-            message.parseTemplate = true
-            let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
-            let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"
-            message.text = "\(actor) \(reactionVerbMap[assocMsgType] ?? "") \(target)"
-            message.isHidden = true
-        }
+        message.parseTemplate = true
+        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
+        let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"
+        message.text = "\(actor) \(reaction.verb) \(target)"
+        message.isHidden = true
         return message
     }
 
-    private func reactionParts(_ assocMsgType: String) -> (actionType: String, actionKey: String)? {
-        let pieces = assocMsgType.components(separatedBy: "_")
-        guard pieces.count == 2 else {
-            return nil
-        }
-        return (pieces[0], pieces[1])
-    }
-
-    private func senderID(for row: any RowWithSenderFields) -> String {
-        if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {
-            return currentUserID
-        }
-        return row.participantID ?? ""
-    }
 }
 
-private protocol RowWithSenderFields {
+protocol RowWithSenderFields {
     var isFromMe: Int { get }
     var handleID: Int? { get }
     var participantID: String? { get }
 }
 
+protocol MessageReactionRowFields: RowWithSenderFields {
+    var rowID: Int { get }
+    var associatedMessageType: Int { get }
+    var associatedMessageEmoji: String? { get }
+}
+
 extension MappedMessageRow: RowWithSenderFields {}
 extension MappedReactionMessageRow: RowWithSenderFields {}
+extension MappedMessageRow: MessageReactionRowFields {}
+extension MappedReactionMessageRow: MessageReactionRowFields {}
+
+func messageSenderID(for row: any RowWithSenderFields, currentUserID: String) -> String {
+    if row.isFromMe == 1 || ((row.participantID ?? "").isEmpty && row.handleID == 0) {
+        return currentUserID
+    }
+    return row.participantID ?? ""
+}
+
+func messageReactionID(participantID: PlatformSDK.UserID, reactionKey: String) -> PlatformSDK.ID {
+    "\(participantID)\(reactionKey)"
+}
+
+private func reactionStickerAssetURL(accountID: String, rowID: Int) -> String {
+    "asset://\(accountID)/reaction-sticker/\(rowID).heic"
+}
+
+func mapMessageReaction(
+    row: any MessageReactionRowFields,
+    reaction: AssociatedReaction,
+    currentUserID: String,
+    accountID: String
+) -> PlatformSDK.MessageReaction {
+    let reactionKey = reaction.platformReactionKey(emoji: row.associatedMessageEmoji) ?? ""
+    let participantID = messageSenderID(for: row, currentUserID: currentUserID)
+    return PlatformSDK.MessageReaction(
+        id: messageReactionID(participantID: participantID, reactionKey: reactionKey),
+        reactionKey: reactionKey,
+        imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: row.rowID) : nil,
+        participantID: participantID
+    )
+}

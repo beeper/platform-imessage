@@ -115,7 +115,7 @@ var targets: [Target] = [
     ),
     .testTarget(
         name: "IMessageTests",
-        dependencies: ["IMessage", "PlatformSDK"],
+        dependencies: ["IMessage", "IMDatabase", "PlatformSDK"],
         path: "src/IMessage/Sources/IMessageTests",
         resources: [.process("Fixtures")]
     ),

@@ -3,12 +3,11 @@ import Logging
 
 private let log = Logger(label: "imdb.updates")
 
-let updatedChatsSinceQuery = """
+private let updatedMessagesSinceQuery = """
 SELECT
     m.ROWID,
     m.date_read,
     m.date_edited,
-    c.ROWID,
     c.guid
 FROM
     message m
@@ -16,71 +15,73 @@ LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
 WHERE
     m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
-GROUP BY
-    c.guid
 ORDER BY
-    date DESC
+    m.ROWID ASC
 """
 
-public struct UpdatedChatsQueryResult {
-    public var updatedChats: [ChatRef]
-    /// This maximum is local to the set of updated chats.
-    public var latestMessageRowID: Int?
-    /// This maximum is local to the set of updated chats.
-    public var latestMessageDateRead: Date?
-    public var latestDateEdited: Date?
+package struct UpdatedMessageChange {
+    package let rowID: Int
+    package let chatGUID: String
+    package let isNew: Bool
+    package let wasRead: Bool
+    package let wasEdited: Bool
+
+    package init(rowID: Int, chatGUID: String, isNew: Bool, wasRead: Bool, wasEdited: Bool) {
+        self.rowID = rowID
+        self.chatGUID = chatGUID
+        self.isNew = isNew
+        self.wasRead = wasRead
+        self.wasEdited = wasEdited
+    }
 }
 
-public extension IMDatabase {
-    func chats(withMessagesNewerThanRowID lastRowID: Int, orReadSince lastDateRead: Date, orEditedSince lastDateEdited: Date) throws -> UpdatedChatsQueryResult {
-        let statement = try cachedStatement(forEscapedSQL: updatedChatsSinceQuery)
+package struct UpdatedMessagesQueryResult {
+    package let updatedMessages: [UpdatedMessageChange]
+    package let nextCursor: MessageUpdatesCursor
+}
+
+extension IMDatabase {
+    package
+    func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
+        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 
         try statement.reset()
-        try statement.bind(lastRowID, lastDateRead.nanosecondsSinceReferenceDate, lastDateEdited.nanosecondsSinceReferenceDate)
+        try statement.bind(
+            cursor.lastRowID,
+            cursor.lastDateRead.nanosecondsSinceReferenceDate,
+            cursor.lastDateEdited.nanosecondsSinceReferenceDate
+        )
 
-        var newestMessageRowID: Int?
-        var latestMessageDateRead: Date?
-        var latestDateEdited: Date?
+        var nextLastRowID = cursor.lastRowID
+        var nextLastDateRead = cursor.lastDateRead
+        var nextLastDateEdited = cursor.lastDateEdited
         var timesWarnedAboutOrphanedMessage = 0
 
-        let updatedChats: [ChatRef] = try statement.compactMapRowsUntilDone { row in
+        let updatedMessages: [UpdatedMessageChange] = try statement.compactMapRowsUntilDone { row in
             let messageRowID = try row[0].expect(Int.self)
-            newestMessageRowID = max(messageRowID, newestMessageRowID ?? 0)
+            let isNew = messageRowID > cursor.lastRowID
+            if isNew {
+                nextLastRowID = max(messageRowID, nextLastRowID)
+            }
 
-            dateRead: do {
-                // IMCore typically uses `0` to represent absence, but fall back
-                // to `0` explicitly just in case.
-                let nanoseconds = try row[1].optional(Int.self) ?? 0
+            var wasRead = false
+            var wasEdited = false
 
-                // If the message hasn't been read yet or has a bogus read date,
-                // then don't update the "latest read date" at all. I'm not sure
-                // what causes bogus read dates, but if you let it leak into the
-                // rest of the program then it can cause an integer overflow
-                // crash.
-                guard nanoseconds > 0, nanoseconds < .max else {
-                    break dateRead
-                }
-
-                let dateRead = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestMessageDateRead = if let latestMessageDateRead, dateRead < .distantFuture {
-                    max(dateRead, latestMessageDateRead)
-                } else {
-                    dateRead
+            if let dateRead = try row[1].imCoreDate() {
+                wasRead = dateRead > cursor.lastDateRead
+                if wasRead {
+                    nextLastDateRead = max(dateRead, nextLastDateRead)
                 }
             }
 
-            dateEdited: do {
-                let nanoseconds = try row[2].optional(Int.self) ?? 0
-                guard nanoseconds > 0, nanoseconds < .max else { break dateEdited }
-                let dateEdited = Date(nanosecondsSinceReferenceDate: nanoseconds)
-                latestDateEdited = if let latestDateEdited, dateEdited < .distantFuture {
-                    max(dateEdited, latestDateEdited)
-                } else {
-                    dateEdited
+            if let dateEdited = try row[2].imCoreDate() {
+                wasEdited = dateEdited > cursor.lastDateEdited
+                if wasEdited {
+                    nextLastDateEdited = max(dateEdited, nextLastDateEdited)
                 }
             }
 
-            guard let rowID = try row[3].optional(Int.self), let guid = try row[4].optional(String.self) else {
+            guard let guid = try row[3].optional(String.self) else {
                 // For whatever reason it's possible for messages to not be
                 // joinable with chats. Right now I have one of these for a SMS
                 // TOTP verification code, which might've been automatically
@@ -95,14 +96,22 @@ public extension IMDatabase {
                 return nil
             }
 
-            return ChatRef(rowID: rowID, guid: guid)
+            return UpdatedMessageChange(
+                rowID: messageRowID,
+                chatGUID: guid,
+                isNew: isNew,
+                wasRead: wasRead,
+                wasEdited: wasEdited
+            )
         }
 
-        return UpdatedChatsQueryResult(
-            updatedChats: updatedChats,
-            latestMessageRowID: newestMessageRowID,
-            latestMessageDateRead: latestMessageDateRead,
-            latestDateEdited: latestDateEdited
+        return UpdatedMessagesQueryResult(
+            updatedMessages: updatedMessages,
+            nextCursor: MessageUpdatesCursor(
+                lastRowID: nextLastRowID,
+                lastDateRead: nextLastDateRead,
+                lastDateEdited: nextLastDateEdited
+            )
         )
     }
 }

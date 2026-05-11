@@ -13,30 +13,25 @@ extension EventWatcher {
     /// Diffs current chat states against the previous snapshot and returns events for any changes.
     func diffChatStates() throws -> [ServerEvent] {
         // Grab the latest set, and remember it for the next database change.
-        let currentChatStates: [ChatRef: ChatState] = try db.chatStates()
+        let currentChatStates: [String: ChatState] = try db.chatStates()
 
         var eventsToSend = [ServerEvent]()
         var changes = 0
 
-        for (chatRef, currentState) in currentChatStates {
-            guard chatStates[chatRef]?.state != currentState else {
+        for (chatGUID, currentState) in currentChatStates {
+            guard chatStates[chatGUID]?.state != currentState else {
                 // Unread state didn't change, so a state sync is unnecessary.
                 continue
             }
 
             defer { changes += 1 }
 
-            guard let guid = chatRef.guid else {
-                log.error("didn't receive a guid for chat that underwent an unread state change")
-                continue
-            }
-
             // Minting a new timestamped chat state like this also ensures
             // that we handle new (not just updated) chats correctly.
             let fresh = TimestampedChatState(minting: currentState)
-            chatStates[chatRef] = fresh
+            chatStates[chatGUID] = fresh
 
-            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: guid)
+            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: chatGUID)
             let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1000).rounded()
             let isUnread = currentState.unreadCount > 0
             let markedUnreadUpdatedAt = Int(fresh.lastUpdated.timeIntervalSince1970 * 1000)
@@ -74,7 +69,7 @@ extension EventWatcher {
                 "markedUnreadUpdatedAt": markedUnreadUpdatedAt,
             ]
 
-            traceUnreads("chat \(chatRef) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")
+            traceUnreads("chat \(hashedThreadID) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")
 
             if currentState.unreadCount == 0 {
                 // Sync the fact that the thread became read. This is especially
@@ -90,21 +85,18 @@ extension EventWatcher {
 
             eventsToSend.append(ServerEvent.stateSyncThread(id: hashedThreadID, patch: patch))
 
-            traceUnreads("chat \(chatRef) unread state changed to: \(fresh)")
+            traceUnreads("chat \(hashedThreadID) unread state changed to: \(fresh)")
         }
 
         traceUnreads("\(changes) unread state(s) changed this time around")
 
         // Detect chats that were deleted from iMessage since the last database change.
         let deletedChats = chatStates.keys.filter { currentChatStates[$0] == nil }
-        let deletedThreadIDs = deletedChats.compactMap { chat -> String? in
-            chatStates.removeValue(forKey: chat)
-            guard let guid = chat.guid else {
-                log.error("deleted chat didn't have a guid, can't emit a delete event")
-                return nil
-            }
-            log.info("chat \(guid) was deleted from iMessage")
-            return Hasher.thread.tokenizeRemembering(pii: guid)
+        let deletedThreadIDs = deletedChats.map { chatGUID -> String in
+            let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: chatGUID)
+            chatStates.removeValue(forKey: chatGUID)
+            log.info("chat \(hashedThreadID) was deleted from iMessage")
+            return hashedThreadID
         }
 
         if !deletedThreadIDs.isEmpty {
