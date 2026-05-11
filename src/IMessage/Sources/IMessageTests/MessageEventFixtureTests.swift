@@ -16,6 +16,7 @@ private struct MessageEventChange: Sendable {
 
     static let new = MessageEventChange(isNew: true, wasRead: false, wasEdited: false)
     static let edited = MessageEventChange(isNew: false, wasRead: false, wasEdited: true)
+    static let read = MessageEventChange(isNew: false, wasRead: true, wasEdited: false)
 }
 
 private let directThreadID = hashedThread("any;-;+15557654321")
@@ -32,6 +33,17 @@ private let messageEventFixtures = [
             .updateMessages(threadID: directThreadID, patches: [[
                 "id": "994ABD79-CD14-439F-856A-4F40A97C7A1F",
                 "text": "edited test",
+            ]]),
+        ]
+    ),
+    MessageEventFixture(
+        fileName: "message_event_read",
+        change: .read,
+        expected: [
+            .updateMessages(threadID: directThreadID, patches: [[
+                "id": "6187AA76-52F0-45C3-8A33-CD3641701423",
+                "seen": 1_778_346_480_385,
+                "behavior": "keep_read",
             ]]),
         ]
     ),
