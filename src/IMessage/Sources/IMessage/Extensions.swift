@@ -1,6 +1,18 @@
 import AppKit
 import IMessageCore
 
+extension NSApplication {
+    @MainActor
+    package func prepareAndActivate() {
+        setActivationPolicy(.regular)
+        if #available(macOS 14, *) {
+            activate()
+        } else {
+            activate(ignoringOtherApps: true)
+        }
+    }
+}
+
 extension NSRunningApplication {
     func waitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) throws {
         let start = Date()

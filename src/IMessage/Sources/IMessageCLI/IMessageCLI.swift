@@ -1152,14 +1152,7 @@ private func revealSettingsWindowFromCLI() async {
 
 @MainActor
 private func prepareSettingsWindowApplication() {
-    let app = NSApplication.shared
-    app.setActivationPolicy(.regular)
-    app.finishLaunching()
-    if #available(macOS 14, *) {
-        app.activate()
-    } else {
-        app.activate(ignoringOtherApps: true)
-    }
+    NSApplication.shared.prepareAndActivate()
 }
 
 @MainActor
