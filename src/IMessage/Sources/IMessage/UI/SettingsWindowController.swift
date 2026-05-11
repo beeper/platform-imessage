@@ -33,24 +33,13 @@ final class SettingsWindowController: NSWindowController {
 
     @MainActor
     static func reveal() {
-        activateApplication()
+        NSApplication.shared.prepareAndActivate()
         shared.showSettingsWindow()
     }
 
     @MainActor
     static var isVisible: Bool {
         shared.window?.isVisible == true
-    }
-
-    @MainActor
-    private static func activateApplication() {
-        let app = NSApplication.shared
-        app.setActivationPolicy(.regular)
-        if #available(macOS 14, *) {
-            app.activate()
-        } else {
-            app.activate(ignoringOtherApps: true)
-        }
     }
 
     @MainActor
