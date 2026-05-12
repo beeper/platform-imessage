@@ -9,7 +9,7 @@ env:
 
 steps:
   # Tests + library build, plus `npm publish` to GH Packages on main when
-  # package.json's version is new. Replaces .github/workflows/ci.yml.
+  # package.json's version is new.
   - label: ":jest: :swift: Test & build"
     key: test-build
     command: .buildkite/commands/ci.sh
