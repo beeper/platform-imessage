@@ -8,6 +8,10 @@ set -euo pipefail
 # publish — those are handled by the CLI release step.
 
 echo "--- :yarn: install JS deps"
+# The Buildkite Mac agents ship Node but leave corepack disabled, so `yarn`
+# isn't on PATH out of the box. Enabling corepack activates the version pinned
+# by `packageManager` in package.json.
+corepack enable
 yarn install --immutable --inline-builds
 
 echo "--- :wrench: prep Xcode for cached derived data"
