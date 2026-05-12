@@ -13,7 +13,7 @@ steps:
   - label: ":jest: :swift: Test & build"
     key: test-build
     command: .buildkite/commands/ci.sh
-    plugins: [$CI_TOOLKIT_PLUGIN]
+    plugins: [$CI_TOOLKIT_PLUGIN, $NVM_PLUGIN]
     notify:
       - github_commit_status:
           context: Test & Build
@@ -24,7 +24,7 @@ steps:
   - label: ":apple: Build, sign, notarize CLI"
     key: release-cli
     command: .buildkite/commands/release-cli.sh
-    plugins: [$CI_TOOLKIT_PLUGIN]
+    plugins: [$CI_TOOLKIT_PLUGIN, $NVM_PLUGIN]
     artifact_paths:
       - dist/*.tar.gz
       - dist/*.tar.gz.sha256
