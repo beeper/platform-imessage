@@ -11,7 +11,7 @@ export const AUTHORIZATION_REQUIREMENTS = ['accessibility', 'contacts', 'message
 
 // `automation` is not preflight-checkable: macOS does not expose its status
 // without triggering the Apple Events prompt. It remains a valid target for
-// `yarn cli authorize` and is included when running `authorize all`.
+// `authorize` and is included when running `authorize all`.
 export const AUTHORIZATION_TARGETS = ['all', ...AUTHORIZATION_REQUIREMENTS, 'automation'] as const
 
 export type CliAuthorizationRequirement = typeof AUTHORIZATION_REQUIREMENTS[number]
