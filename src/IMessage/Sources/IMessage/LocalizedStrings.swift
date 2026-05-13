@@ -27,6 +27,12 @@ enum LocalizedStrings {
     static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
 
     static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
+    static let reactionHeart = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.heart", value: nil, table: "Accessibility")
+    static let reactionThumbsUp = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.thumbs.up", value: nil, table: "Accessibility")
+    static let reactionThumbsDown = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.thumbs.down", value: nil, table: "Accessibility")
+    static let reactionHa = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.ha", value: nil, table: "Accessibility")
+    static let reactionExclamation = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.exclamation", value: nil, table: "Accessibility")
+    static let reactionQuestionMark = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.question.mark", value: nil, table: "Accessibility")
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
     static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
 

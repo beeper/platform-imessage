@@ -40,6 +40,18 @@ enum Reaction {
         }
     }
 
+    var directActionTitle: String {
+        switch self {
+        case .heart: LocalizedStrings.reactionHeart
+        case .like: LocalizedStrings.reactionThumbsUp
+        case .dislike: LocalizedStrings.reactionThumbsDown
+        case .laugh: LocalizedStrings.reactionHa
+        case .emphasize: LocalizedStrings.reactionExclamation
+        case .question: LocalizedStrings.reactionQuestionMark
+        case let .custom(emoji): String(emoji)
+        }
+    }
+
     /// Creates a reaction from a reaction key (as vended to clients via the object keys in `PlatformInfo.reactions`).
     ///
     /// These are only effectively used when running under macOS Sonoma and earlier, because Sequoia introduces
