@@ -23,7 +23,7 @@ extension PlatformAPI {
         }
     }
 
-    public func lookupExistingChatGUIDs(guids: [String]) async throws -> [String] {
+    public func lookupExistingThreadGUIDs(guids: [String]) async throws -> [String] {
         try await runDBQuery { db, _, _ in
             try db.mappedExistingChatGUIDs(guids: guids)
         }

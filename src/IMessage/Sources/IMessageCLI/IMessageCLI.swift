@@ -964,7 +964,7 @@ private func resolveThreadIDAlias(_ threadID: String, api: PlatformAPI) async th
         return trimmed
     }
 
-    let existingChatGUIDs = Set(try await api.lookupExistingChatGUIDs(guids: candidates))
+    let existingChatGUIDs = Set(try await api.lookupExistingThreadGUIDs(guids: candidates))
     guard let best = candidates.first(where: existingChatGUIDs.contains) else {
         let tried = candidates.joined(separator: ", ")
         throw CLIError("cannot resolve address \(trimmed): no existing chat found. Tried \(tried)")
