@@ -145,12 +145,9 @@ public extension IMDatabase {
     }
 
     func mappedLatestVisibleMessageRow(in chatGUID: String? = nil, offset: Int) throws -> MappedMessageRow? {
-        let chatRowID: Int?
-        if let chatGUID {
-            guard let rowID = try mappedChatRowID(guid: chatGUID) else { return nil }
-            chatRowID = rowID
-        } else {
-            chatRowID = nil
+        let chatRowID = try chatGUID.flatMap { try mappedChatRowID(guid: $0) }
+        if chatGUID != nil, chatRowID == nil {
+            return nil
         }
 
         let messageColumns = try tableColumns("message")
@@ -172,7 +169,7 @@ public extension IMDatabase {
         \(whereClause)ORDER BY cmj.message_date DESC, cmj.message_id DESC
         LIMIT 1 OFFSET ?
         """
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        let statement = try cachedStatement(forEscapedSQL: sql).reset()
         if let chatRowID {
             try statement.bind(chatRowID, offset)
         } else {
