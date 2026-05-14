@@ -1032,8 +1032,8 @@ private func latestMessageOffset(_ messageID: String) throws -> Int? {
     guard !rawOffset.isEmpty,
           rawOffset.allSatisfy(\.isNumber),
           let offset = Int(rawOffset),
-          (1...maxLatestMessageOffset).contains(offset) else {
-        throw CLIError("latest message aliases must be latest or latest-N where N is 1...\(maxLatestMessageOffset)")
+          (0...maxLatestMessageOffset).contains(offset) else {
+        throw CLIError("latest message aliases must be latest or latest-N where N is 0...\(maxLatestMessageOffset)")
     }
     return offset
 }
