@@ -17,9 +17,9 @@ extension PlatformAPI {
         }
     }
 
-    public func resolveLatestMessageReference(threadID: String? = nil, offset: Int = 0) async throws -> MessageReference? {
+    public func resolveLatestMessageReference(threadID: String? = nil, offset: Int = 0, ownedOnly: Bool = false) async throws -> MessageReference? {
         try await runDBQuery { db, _, _ in
-            try Self.resolveLatestMessageReference(db: db, threadID: threadID, offset: offset)
+            try Self.resolveLatestMessageReference(db: db, threadID: threadID, offset: offset, ownedOnly: ownedOnly)
         }
     }
 
@@ -49,11 +49,12 @@ extension PlatformAPI {
     nonisolated static func resolveLatestMessageReference(
         db: IMDatabase,
         threadID publicThreadID: String?,
-        offset: Int
+        offset: Int,
+        ownedOnly: Bool = false
     ) throws -> MessageReference? {
         guard offset >= 0 else { return nil }
         let resolvedOriginalThreadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
-        guard let msgRow = try db.mappedLatestVisibleMessageRow(in: resolvedOriginalThreadID, offset: offset) else {
+        guard let msgRow = try db.mappedLatestVisibleMessageRow(in: resolvedOriginalThreadID, offset: offset, ownedOnly: ownedOnly) else {
             return nil
         }
         guard let threadID = try resolvedOriginalThreadID ?? msgRow.threadID ?? db.threadIDForMessage(rowID: msgRow.rowID) else {

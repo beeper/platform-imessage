@@ -144,7 +144,7 @@ public extension IMDatabase {
         try mappedMessageRows(guids: [guid]).first
     }
 
-    func mappedLatestVisibleMessageRow(in chatGUID: String? = nil, offset: Int) throws -> MappedMessageRow? {
+    func mappedLatestVisibleMessageRow(in chatGUID: String? = nil, offset: Int, ownedOnly: Bool = false) throws -> MappedMessageRow? {
         let chatRowID = try chatGUID.flatMap { try mappedChatRowID(guid: $0) }
         if chatGUID != nil, chatRowID == nil {
             return nil
@@ -154,6 +154,9 @@ public extension IMDatabase {
         var whereClauses = [String]()
         if chatRowID != nil {
             whereClauses.append("cmj.chat_id = ?")
+        }
+        if ownedOnly {
+            whereClauses.append("m.is_from_me = 1")
         }
         let reactionClause = "m.associated_message_type NOT BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)"
         whereClauses.append("(m.associated_message_type IS NULL OR \(reactionClause))")

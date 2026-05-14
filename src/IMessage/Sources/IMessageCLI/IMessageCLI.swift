@@ -702,7 +702,8 @@ private let commandDefinitions: [CommandDefinition] = [
             let reference = try await resolveMessageReference(
                 rawThreadID: parsed.rawThreadID,
                 rawMessageID: parsed.rawMessageID,
-                api: api
+                api: api,
+                ownedOnly: true
             )
             try await api.editMessage(threadID: reference.threadID, messageID: reference.messageID, content: parsed.text)
             return nil
@@ -722,7 +723,8 @@ private let commandDefinitions: [CommandDefinition] = [
             let reference = try await resolveMessageReference(
                 rawThreadID: parsed.rawThreadID,
                 rawMessageID: parsed.rawMessageID,
-                api: api
+                api: api,
+                ownedOnly: true
             )
             try await api.deleteMessage(threadID: reference.threadID, messageID: reference.messageID)
             return nil
@@ -966,16 +968,17 @@ private func shellQuoteForSuggestion(_ token: String) -> String {
     return "'\(token.replacingOccurrences(of: "'", with: "'\\''"))'"
 }
 
-private func resolveMessageReference(rawThreadID: String?, rawMessageID: String, api: PlatformAPI) async throws -> PlatformAPI.MessageReference {
+private func resolveMessageReference(rawThreadID: String?, rawMessageID: String, api: PlatformAPI, ownedOnly: Bool = false) async throws -> PlatformAPI.MessageReference {
     if let rawThreadID {
         let threadID = try await resolveThreadIDAlias(rawThreadID, api: api)
-        let messageID = try await resolveMessageID(rawMessageID, threadID: threadID, api: api)
+        let messageID = try await resolveMessageID(rawMessageID, threadID: threadID, api: api, ownedOnly: ownedOnly)
         return PlatformAPI.MessageReference(threadID: threadID, messageID: messageID)
     }
 
     if let offset = try latestMessageOffset(rawMessageID) {
-        guard let reference = try await api.resolveLatestMessageReference(offset: offset) else {
-            throw CLIError("cannot resolve \(rawMessageID): no messages found")
+        guard let reference = try await api.resolveLatestMessageReference(offset: offset, ownedOnly: ownedOnly) else {
+            let scope = ownedOnly ? "sent messages" : "messages"
+            throw CLIError("cannot resolve \(rawMessageID): no \(scope) found")
         }
         return reference
     }
@@ -1027,10 +1030,11 @@ private func threadIDCandidates(forAlias alias: String) -> [String] {
     return candidates
 }
 
-private func resolveMessageID(_ messageID: String, threadID: String, api: PlatformAPI) async throws -> String {
+private func resolveMessageID(_ messageID: String, threadID: String, api: PlatformAPI, ownedOnly: Bool = false) async throws -> String {
     guard let offset = try latestMessageOffset(messageID) else { return messageID }
-    guard let reference = try await api.resolveLatestMessageReference(threadID: threadID, offset: offset) else {
-        throw CLIError("cannot resolve \(messageID): no messages found in chat \(threadID)")
+    guard let reference = try await api.resolveLatestMessageReference(threadID: threadID, offset: offset, ownedOnly: ownedOnly) else {
+        let scope = ownedOnly ? "sent messages" : "messages"
+        throw CLIError("cannot resolve \(messageID): no \(scope) found in chat \(threadID)")
     }
     return reference.messageID
 }
