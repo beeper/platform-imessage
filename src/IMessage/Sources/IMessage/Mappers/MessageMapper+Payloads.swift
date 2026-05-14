@@ -25,6 +25,8 @@ extension Mapper {
             return applePayProps(from: payloadData)
         case BalloonBundleID.findMy:
             return findMyProps(from: payloadData)
+        case BalloonBundleID.polls:
+            return pollProps(from: payloadData)
         case BalloonBundleID.youtube:
             return youTubeProps(from: payloadData)
         default:
@@ -149,6 +151,17 @@ extension Mapper {
         return MessagePatch(textHeading: heading, textFooter: footer, extra: location)
     }
 
+    func pollProps(from payloadData: Any) -> MessagePatch {
+        guard let payload = unwrapDictionary(payloadData) else {
+            return MessagePatch(textHeading: "Poll")
+        }
+        let text = pollText(from: pollPayload(from: payload["URL"]))
+        return MessagePatch(
+            text: text,
+            textHeading: "Poll"
+        )
+    }
+
     func parseSummaryInfo() -> JSONObject {
         guard let data = msgRow.messageSummaryInfo,
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
@@ -228,6 +241,60 @@ extension Mapper {
             return nil
         }
         return payload.initialLocation
+    }
+
+    private func pollPayload(from urlValue: Any?) -> JSONObject? {
+        guard let url = relativeURL(urlValue),
+              let encodedPayload = dataURLPayload(from: url),
+              let data = Data(base64Encoded: encodedPayload),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? JSONObject else {
+            return nil
+        }
+        return payload
+    }
+
+    private func pollText(from payload: JSONObject?) -> String? {
+        guard let item = payload?.dictionary("item") else {
+            return nil
+        }
+
+        let title = item.string("title").flatMap(\.nonEmpty)
+        let options = pollOptionLines(from: item)
+        let optionList = options.isEmpty ? nil : options.joined(separator: "\n")
+        let sections = [title, optionList].compactMap(\.self)
+
+        guard !sections.isEmpty else {
+            return nil
+        }
+        return sections.joined(separator: "\n\n")
+    }
+
+    private func pollOptionLines(from item: JSONObject) -> [String] {
+        item.array("orderedPollOptions")
+            .compactMap(pollOptionText)
+            .enumerated()
+            .map { offset, option in
+                "\(offset + 1). \(option)"
+            }
+    }
+
+    private func pollOptionText(from option: Any) -> String? {
+        guard let option = option as? JSONObject else {
+            return nil
+        }
+        return option.string("text").flatMap(\.nonEmpty)
+            ?? option.string("attributedText").flatMap(\.nonEmpty)
+    }
+
+    private func dataURLPayload(from url: String) -> String? {
+        guard url.hasPrefix("data:"),
+              let commaIndex = url.firstIndex(of: ",") else {
+            return nil
+        }
+        let payloadStart = url.index(after: commaIndex)
+        let payloadEnd = url[payloadStart...].firstIndex(of: "?") ?? url.endIndex
+        let encoded = String(url[payloadStart ..< payloadEnd])
+        return encoded.removingPercentEncoding ?? encoded
     }
 
     private func findMyQueryParameter(_ name: String, in url: String) -> String? {

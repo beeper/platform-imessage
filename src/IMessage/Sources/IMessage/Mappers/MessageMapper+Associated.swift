@@ -35,7 +35,16 @@ extension Mapper {
                 messages[0].linkedMessageID = linkedMessageID
             }
             return nil
+        case .pollVote:
+            return pollActionMessage(
+                message,
+                text: pollActionText("voted in a poll"),
+                isHidden: true
+            )
         case .heading:
+            if msgRow.balloonBundleID == BalloonBundleID.polls {
+                return pollActionMessage(message, text: pollActionText("sent a poll"))
+            }
             if var text = message.text {
                 let other = msgRow.participantID ?? ""
                 let isSender = message.isSender == true
@@ -56,6 +65,27 @@ extension Mapper {
                 isSMS: isSMS
             )
         }
+    }
+
+    private func pollActionText(_ action: String) -> String {
+        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
+        return "\(actor) \(action)"
+    }
+
+    private func pollActionMessage(
+        _ inputMessage: MessageDraft,
+        text: String,
+        isHidden: Bool? = nil
+    ) -> MessageDraft {
+        var message = inputMessage
+        message.isAction = true
+        message.isHidden = isHidden
+        message.parseTemplate = true
+        message.textAttributes = nil
+        message.textHeading = nil
+        message.textFooter = nil
+        message.text = text
+        return message
     }
 
     func assignReactions(to message: inout MessageDraft, filterIndex: Int?) {
@@ -114,7 +144,6 @@ extension Mapper {
         message.isHidden = true
         return message
     }
-
 }
 
 protocol RowWithSenderFields {

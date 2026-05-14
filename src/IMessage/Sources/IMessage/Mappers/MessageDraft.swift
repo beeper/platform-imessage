@@ -65,6 +65,7 @@ struct MessageDraft {
 }
 
 struct MessagePatch {
+    var text: String?
     var textHeading: String?
     var textFooter: String?
     var attachments: [PlatformSDK.Attachment]?
@@ -75,6 +76,9 @@ struct MessagePatch {
     var extra: JSONObject?
 
     func apply(to message: inout MessageDraft) {
+        if let text {
+            message.text = text
+        }
         if let textHeading {
             message.textHeading = textHeading
         }

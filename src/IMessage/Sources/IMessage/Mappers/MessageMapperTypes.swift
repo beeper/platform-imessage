@@ -90,6 +90,7 @@ struct AssociatedReaction {
 
 enum AssociatedMessageType {
     case heading
+    case pollVote
     case sticker
     case reaction(AssociatedReaction)
 }
@@ -128,6 +129,7 @@ enum BalloonBundleID {
     static let businessExtension = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension"
     static let applePay = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.PassbookUIService.PeerPaymentMessagesExtension"
     static let findMy = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.findmy.FindMyMessagesApp"
+    static let polls = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.messages.Polls"
     static let youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
 }
 
@@ -161,6 +163,7 @@ private func associatedReaction(_ action: ReactionAction, _ key: AssociatedReact
 let associatedMessageTypes: [Int: AssociatedMessageType] = [
     3: .heading,
     1000: .sticker,
+    4000: .pollVote,
     2000: associatedReaction(.reacted, .heart),
     2001: associatedReaction(.reacted, .like),
     2002: associatedReaction(.reacted, .dislike),

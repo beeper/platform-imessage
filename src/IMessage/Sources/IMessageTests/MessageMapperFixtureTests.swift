@@ -172,6 +172,62 @@ private func findMyPayloadMessageMapsAsLocation() throws {
     #expect(location["longitude"] as? Double == 56.78)
 }
 
+@Test(arguments: [true, false])
+private func pollPayloadMessageMapsAsReadableSummary(isFromMe: Bool) throws {
+    let message = try pollPayloadMessage(isFromMe: isFromMe)
+
+    #expect(message.textHeading == "Poll")
+    #expect(message.textFooter == nil)
+    #expect(message.text == "Lunch?\n\n1. Pizza\n2. Sushi")
+    #expect(message.isAction == nil)
+    #expect(message.parseTemplate == nil)
+}
+
+@Test
+private func pollSentAssociatedMessageMapsAsAction() throws {
+    let outgoing = try pollSentAssociatedMessage(isFromMe: true)
+    let incoming = try pollSentAssociatedMessage(isFromMe: false)
+
+    #expect(outgoing.text == "You sent a poll")
+    #expect(outgoing.textHeading == nil)
+    #expect(outgoing.linkedMessageID == "POLL-SENT-GUID")
+    #expect(outgoing.isAction == true)
+    #expect(outgoing.isHidden == nil)
+    #expect(outgoing.parseTemplate == true)
+
+    #expect(incoming.text == "{{sender}} sent a poll")
+    #expect(incoming.textHeading == nil)
+    #expect(incoming.linkedMessageID == "POLL-SENT-GUID")
+    #expect(incoming.isAction == true)
+    #expect(incoming.isHidden == nil)
+    #expect(incoming.parseTemplate == true)
+}
+
+@Test
+private func pollVoteAssociatedMessageMapsAsHiddenAction() throws {
+    let message = try singleMappedMessage(from: [
+        "ROWID": 2,
+        "guid": "POLL-VOTE-GUID",
+        "date": "2",
+        "text": " ",
+        "is_from_me": 1,
+        "handle_id": 0,
+        "item_type": 0,
+        "service": "iMessage",
+        "threadID": "iMessage;+;chat",
+        "associated_message_guid": "POLL-GUID",
+        "associated_message_type": 4000,
+        "balloon_bundle_id": BalloonBundleID.polls,
+        "payload_data": pollVotePayloadData(optionIDs: ["OPTION-1"]),
+    ])
+
+    #expect(message.text == "You voted in a poll")
+    #expect(message.textHeading == nil)
+    #expect(message.linkedMessageID == "POLL-GUID")
+    #expect(message.isAction == true)
+    #expect(message.isHidden == true)
+}
+
 @Test
 private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     let attachment = PlatformSDK.Attachment(
@@ -234,4 +290,113 @@ private func findMyPayloadURL(zippedData: String) throws -> String {
         URLQueryItem(name: "FindMyMessagePayloadZippedDataKey", value: zippedData),
     ]
     return try #require(components.string)
+}
+
+private func pollPayloadData(title: String, options: [String]) throws -> Data {
+    let pollOptions: [FixtureJSONObject] = options.enumerated().map { index, option in
+        [
+            "optionIdentifier": "OPTION-\(index + 1)",
+            "text": option,
+            "attributedText": option,
+            "canBeEdited": false,
+            "creatorHandle": "sender",
+        ]
+    }
+    let json = try JSONSerialization.data(withJSONObject: [
+        "item": [
+            "title": title,
+            "orderedPollOptions": pollOptions,
+            "creatorHandle": "sender",
+        ],
+        "version": 1,
+    ])
+    return try NSKeyedArchiver.archivedData(
+        withRootObject: [
+            "an": "Polls",
+            "ldtext": "Sent a poll",
+            "URL": "data:,\(json.base64EncodedString())?src=p&c=\(options.count)",
+        ] as NSDictionary,
+        requiringSecureCoding: false
+    )
+}
+
+private func pollPayloadMessage(isFromMe: Bool) throws -> PlatformSDK.Message {
+    var msgRow: FixtureJSONObject = [
+        "ROWID": 1,
+        "guid": isFromMe ? "POLL-GUID" : "INCOMING-POLL-GUID",
+        "date": "1",
+        "text": imessageExtensionCharacter,
+        "is_from_me": isFromMe ? 1 : 0,
+        "handle_id": isFromMe ? 0 : 1,
+        "item_type": 0,
+        "service": "iMessage",
+        "threadID": "iMessage;+;chat",
+        "balloon_bundle_id": BalloonBundleID.polls,
+        "payload_data": try pollPayloadData(title: "Lunch?", options: ["Pizza", "Sushi"]),
+    ]
+    if !isFromMe {
+        msgRow["participantID"] = "sender"
+    }
+
+    return try singleMappedMessage(from: msgRow)
+}
+
+private func pollSentAssociatedMessage(isFromMe: Bool) throws -> PlatformSDK.Message {
+    let rowID = isFromMe ? outgoingPollSentRowID : incomingPollSentRowID
+    return try singleMappedMessage(
+        from: [
+            "ROWID": rowID,
+            "guid": "POLL-SENT-GUID",
+            "date": "2",
+            "text": "Sent a poll",
+            "is_from_me": isFromMe ? 1 : 0,
+            "handle_id": isFromMe ? 0 : 1,
+            "participantID": "sender",
+            "item_type": 0,
+            "service": "iMessage",
+            "threadID": "iMessage;+;chat",
+            "associated_message_guid": "POLL-SENT-GUID",
+            "associated_message_type": 3,
+            "balloon_bundle_id": BalloonBundleID.polls,
+            "payload_data": pollPayloadData(title: "Lunch?", options: ["Pizza", "Sushi"]),
+        ]
+    )
+}
+
+private func pollVotePayloadData(optionIDs: [String]) throws -> Data {
+    let votes: [FixtureJSONObject] = optionIDs.map { optionID in
+        [
+            "participantHandle": "sender",
+            "voteOptionIdentifier": optionID,
+        ]
+    }
+    let json = try JSONSerialization.data(withJSONObject: [
+        "item": [
+            "votes": votes,
+        ],
+        "version": 1,
+    ])
+    return try NSKeyedArchiver.archivedData(
+        withRootObject: [
+            "an": "Polls",
+            "URL": "data:,\(json.base64EncodedString())",
+        ] as NSDictionary,
+        requiringSecureCoding: false
+    )
+}
+
+private let incomingPollSentRowID = 2
+private let outgoingPollSentRowID = 3
+
+private func singleMappedMessage(from msgRow: FixtureJSONObject) throws -> PlatformSDK.Message {
+    let messages = try Mapper(
+        msgRow: msgRow,
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "me",
+        accountID: "default"
+    ).mapMessage()
+
+    #expect(messages.count == 1)
+    return try #require(messages.first)
 }

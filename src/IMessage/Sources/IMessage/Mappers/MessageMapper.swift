@@ -270,7 +270,9 @@ struct Mapper {
     private func apply(_ part: MessagePart, to message: inout MessageDraft, attachmentsByID: [String: PlatformSDK.Attachment]) {
         switch part {
         case let .text(_, _, text, attributes):
-            message.text = text
+            if !text.isEmpty || message.text == nil {
+                message.text = text
+            }
             if let attributes {
                 message.textAttributes = attributes
             }
