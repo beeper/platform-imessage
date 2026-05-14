@@ -46,9 +46,7 @@ swift run imessage-cli # builds the Swift CLI if needed, launches authorization 
 ```sh
 swift run imessage-cli current-user                                                                   # fetch logged-in user
 swift run imessage-cli chats                                                                          # fetch chats
-swift run imessage-cli messages 'any;-;sjobs@apple.com'                                               # fetch messages for an existing chat
-swift run imessage-cli messages sjobs@apple.com                                                       # fetch messages by resolving an address to an existing chat
-swift run imessage-cli messages +14155551234                                                          # fetch messages by resolving a phone number to an existing chat
+swift run imessage-cli messages sjobs@apple.com                                                       # fetch messages for an existing chat
 
 swift run imessage-cli send 'any;-;sjobs@apple.com' "hello from shell"                                # text an email
 swift run imessage-cli send sjobs@apple.com "hello from shell"                                        # text an existing email chat by address
