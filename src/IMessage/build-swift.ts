@@ -49,7 +49,8 @@ const ensureXcodeWorkspace = async (packagePath: string) => {
 const uploadDebugFilesToSentry = async (searchPath: string): Promise<void> => {
   const token = process.env.SENTRY_AUTH_TOKEN
   if (!token) {
-    throw new Error(`can't upload from ${searchPath} to sentry, missing SENTRY_AUTH_TOKEN env var`)
+    console.warn(`can't upload from ${searchPath} to sentry, missing SENTRY_AUTH_TOKEN env var`)
+    return
   }
   console.log('invoking sentry-cli to upload debug files from:', searchPath)
   const baseSentryCliArgs = [
