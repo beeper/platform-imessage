@@ -1075,6 +1075,17 @@ private func addressAliasVariants(_ address: String) -> [String] {
     if looksLikeBarePhoneNumber(address) {
         let compactPhone = address.filter { $0 == "+" || $0.isNumber }
         append(compactPhone)
+
+        // iMessage stores numbers in E.164 (`+14155551234`). Best-effort upgrade
+        // for bare US-shaped input so `4155551234` and `14155551234` resolve.
+        if !compactPhone.hasPrefix("+") {
+            let digits = compactPhone.filter(\.isNumber)
+            if digits.count == 10 {
+                append("+1\(digits)")
+            } else if digits.count == 11, digits.hasPrefix("1") {
+                append("+\(digits)")
+            }
+        }
     }
 
     return variants
