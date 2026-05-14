@@ -186,14 +186,12 @@ extension TestBench {
             bootstrap(logLevel: options.logLevel)
 
             let db = try IMDatabase()
-            let states = try Dictionary(uniqueKeysWithValues: db.chatStates().map { chatRef, state in
-                (chatRef.rowID!, state)
-            })
+            let states = try db.chatStates()
 
             for chat in try db.chats() where filter.allSatisfy({ $0.test(against: chat) }) {
                 chat.dump()
 
-                if let state = states[chat.id] {
+                if let state = states[chat.guid.description] {
                     if #available(macOS 12, *) {
                         let relativeDate = state.lastReadMessageTimestamp.formatted(.relative(presentation: .numeric, unitsStyle: .wide))
                         print("- \(state) (\(relativeDate))")
@@ -250,9 +248,9 @@ extension TestBench {
                 let newStates = try db.chatStates()
                 defer { states = newStates }
 
-                var changedChatStates: [ChatRef: ChatState] = [:]
-                for (chatID, newState) in newStates where states[chatID] != newState {
-                    changedChatStates[chatID] = newState
+                var changedChatStates: [String: ChatState] = [:]
+                for (chatGUID, newState) in newStates where states[chatGUID] != newState {
+                    changedChatStates[chatGUID] = newState
                 }
 
                 print("changed unread states:", changedChatStates)

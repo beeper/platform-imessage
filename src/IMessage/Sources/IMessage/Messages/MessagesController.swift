@@ -511,6 +511,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             .orThrow(ErrorMessage("MessageAction.\(action) not found"))
     }
 
+    private func directReactionAction(messageCell: Accessibility.Element, reaction: Reaction) throws -> Accessibility.Action? {
+        let actionName = "Name:\(reaction.directActionTitle)"
+        return try messageCell.supportedActions().first {
+            $0.name.value.hasPrefix("\(actionName)\n")
+        }
+    }
+
     private func threadCellAction(threadCell: Accessibility.Element, namePrefix: String) throws -> Accessibility.Action? {
         try threadCell.supportedActions().first { $0.name.value.hasPrefix("Name:\(namePrefix)") }
     }
@@ -777,6 +784,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { finishedAutomation() }
 
         try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            if let directAction = try directReactionAction(messageCell: $0, reaction: reaction) {
+                try directAction()
+                return
+            }
+
             let reactAction = try messageAction(messageCell: $0, action: .react)
             try reactAction() // performing this 2x will close reaction view
 

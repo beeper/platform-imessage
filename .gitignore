@@ -45,3 +45,6 @@ DerivedData/
 .claude
 
 vendor/bundle/
+
+.build
+.swiftpm

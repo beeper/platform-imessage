@@ -28,6 +28,7 @@ public extension MappedMessageRow {
         payloadData = object.data("payload_data")
         expressiveSendStyleID = object.string("expressive_send_style_id")
         messageSummaryInfo = object.data("message_summary_info")
+        replyToGUID = object.string("reply_to_guid")
         threadOriginatorGUID = object.string("thread_originator_guid")
         threadOriginatorPart = object.string("thread_originator_part")
         dateRetracted = object.int("date_retracted")
@@ -69,6 +70,7 @@ public extension MappedMessageRow {
             "payload_data": payloadData,
             "expressive_send_style_id": expressiveSendStyleID,
             "message_summary_info": messageSummaryInfo,
+            "reply_to_guid": replyToGUID,
             "thread_originator_guid": threadOriginatorGUID,
             "thread_originator_part": threadOriginatorPart,
             "date_retracted": dateRetracted,

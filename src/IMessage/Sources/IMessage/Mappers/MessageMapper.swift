@@ -105,7 +105,7 @@ struct Mapper {
         var message = MessageDraft(
             id: msgRow.guid,
             timestamp: sent,
-            senderID: senderID(),
+            senderID: messageSenderID(for: msgRow, currentUserID: currentUserID),
             seen: nil,
             isDelivered: msgRow.isDelivered == 1,
             isSender: msgRow.isFromMe == 1,

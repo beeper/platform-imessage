@@ -1,14 +1,10 @@
 import Foundation
-import Logging
 import SQLite
 import IMessageCore
 
-private let log = Logger(label: "imdb.unreads")
-
 // TODO(skip): optimize; query takes ~70ms (!)
-let unreadStatesQuery = """
+private let unreadStatesQuery = """
 SELECT
-    c.ROWID AS chat_id,
     c.guid AS chat_guid,
     COUNT(
         CASE
@@ -55,23 +51,20 @@ public extension IMDatabase {
         return (unreadCounts[chat.id] ?? 0) == 0
     }
 
-    func chatStates() throws -> [ChatRef: ChatState] {
+    func chatStates() throws -> [String: ChatState] {
         let statement = try cachedStatement(forEscapedSQL: unreadStatesQuery)
         try statement.reset()
 
-        var chatStates: [ChatRef: ChatState] = [:]
+        var chatStates: [String: ChatState] = [:]
 
         try statement.stepUntilDone { row in
-            guard let chatRef: ChatRef = try ChatRef(rowID: row[0].optional(Int.self), guid: row[1].optional(String.self)) else {
-                log.warning("while querying unread states: some chat had neither a rowid nor a guid. can't really do much with this")
-                return
-            }
+            let chatGUID = try row[0].expect(String.self)
 
-            let lastReadMessageTimestamp = try Date(nanosecondsSinceReferenceDate: row[3].expect(Int.self))
+            let lastReadMessageTimestamp = try Date(nanosecondsSinceReferenceDate: row[2].expect(Int.self))
 
-            let unreadCount: Int = try row[2].expect(Int.self)
+            let unreadCount: Int = try row[1].expect(Int.self)
 
-            chatStates[chatRef] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
+            chatStates[chatGUID] = ChatState(unreadCount: unreadCount, lastReadMessageTimestamp: lastReadMessageTimestamp)
         }
 
         return chatStates

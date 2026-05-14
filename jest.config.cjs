@@ -2,5 +2,5 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/.parity/platform-imessage-main/'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/\\.build/', '/build/', '/.parity/platform-imessage-main/'],
 }

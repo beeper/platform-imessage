@@ -1,4 +1,6 @@
+import Collections
 import Foundation
+import IMessageCore
 import SQLite
 
 private let messageJoins = """
@@ -32,17 +34,21 @@ public extension IMDatabase {
         }.first ?? 0
     }
 
-    func maxMessageDateRead() throws -> Date {
-        let statement = try cachedStatement(forEscapedSQL: "SELECT MAX(date_read) FROM message").reset()
-        let nanoseconds = try statement.compactMapRowsUntilDone { row in
-            try row[0].optionalConverting(Int.self)
-        }.first ?? 0
+    func messageUpdateCursorSnapshot() throws -> MessageUpdatesCursor {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT
+            COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'message'), 0),
+            COALESCE((SELECT MAX(date_read) FROM message), 0),
+            COALESCE((SELECT MAX(date_edited) FROM message), 0)
+        """).reset()
 
-        guard nanoseconds > 0, nanoseconds < .max else {
-            return Date(nanosecondsSinceReferenceDate: 0)
-        }
-
-        return Date(nanosecondsSinceReferenceDate: nanoseconds)
+        return try statement.mapRowsUntilDone { row in
+            MessageUpdatesCursor(
+                lastRowID: try row[0].optionalConverting(Int.self) ?? 0,
+                lastDateRead: try row[1].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0),
+                lastDateEdited: try row[2].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0)
+            )
+        }.first ?? .empty
     }
 
     func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
@@ -135,32 +141,78 @@ public extension IMDatabase {
     }
 
     func mappedMessageRow(guid: String) throws -> MappedMessageRow? {
+        try mappedMessageRows(guids: [guid]).first
+    }
+
+    func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
+        guard !guids.isEmpty else { return [] }
+        let uniqueGUIDs = Array(OrderedSet(guids))
+
+        guard uniqueGUIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueGUIDs
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .flatMap { try mappedMessageRows(guids: Array($0)) }
+        }
+
         let messageColumns = try tableColumns("message")
         let sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        WHERE m.guid = ?
+        WHERE m.guid IN (\(placeholders(count: uniqueGUIDs.count)))
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(guid)
-        return try statement.mapRowsUntilDone(MappedMessageRow.self).first
+        try statement.bind(uniqueGUIDs.map { $0 as any SQLiteBindable })
+        return try statement.mapRowsUntilDone(MappedMessageRow.self)
+    }
+
+    func existingMessageGUIDs(among guids: [String]) throws -> Set<String> {
+        guard !guids.isEmpty else { return [] }
+        let uniqueGUIDs = Array(OrderedSet(guids))
+
+        guard uniqueGUIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueGUIDs
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .reduce(into: Set<String>()) { result, chunk in
+                    try result.formUnion(existingMessageGUIDs(among: Array(chunk)))
+                }
+        }
+
+        let sql = """
+        SELECT guid
+        FROM message
+        WHERE guid IN (\(placeholders(count: uniqueGUIDs.count)))
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind(uniqueGUIDs.map { $0 as any SQLiteBindable })
+        return Set(try statement.compactMapRowsUntilDone { row in
+            try row[0].optionalConverting(String.self)
+        })
     }
 
     func mappedMessageRows(rowIDs: [Int]) throws -> [MappedMessageRow] {
         guard !rowIDs.isEmpty else { return [] }
+        let uniqueRowIDs = Array(OrderedSet(rowIDs))
+
+        guard uniqueRowIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueRowIDs
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .flatMap { try mappedMessageRows(rowIDs: Array($0)) }
+                .sorted { ($0.date ?? 0) > ($1.date ?? 0) }
+        }
+
         let messageColumns = try tableColumns("message")
         let sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM message AS m
         \(messageJoins)
-        WHERE m.ROWID IN (\(placeholders(count: rowIDs.count)))
+        WHERE m.ROWID IN (\(placeholders(count: uniqueRowIDs.count)))
         ORDER BY m.date DESC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
-        try statement.bind(rowIDs.map { $0 as any SQLiteBindable })
+        try statement.bind(uniqueRowIDs.map { $0 as any SQLiteBindable })
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
@@ -244,6 +296,7 @@ public extension IMDatabase {
         LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
         WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (\(messageGUIDPlaceholders))
         AND cmj.chat_id IN (\(chatRowIDPlaceholders))
+        ORDER BY m.ROWID ASC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
@@ -263,6 +316,8 @@ public extension IMDatabase {
         return try mappedReactionRows(messageGUIDs: messageGUIDs, chatRowID: chatRowID)
     }
 }
+
+private let maxMappedMessageRowsBatchSize = 500
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]

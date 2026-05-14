@@ -37,18 +37,12 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         isExpectedURL(url)
     }
 
-    @MainActor private func activateApp() {
-        let app = NSApplication.shared
-        guard app.mainWindow == nil else {
+    @MainActor
+    private func activateApp() {
+        guard NSApplication.shared.mainWindow == nil else {
             return
         }
-        app.setActivationPolicy(.regular)
-        app.finishLaunching()
-        if #available(macOS 14, *) {
-            app.activate()
-        } else {
-            app.activate(ignoringOtherApps: true)
-        }
+        NSApplication.shared.prepareAndActivate()
     }
 
     @MainActor func requestAccess() async throws {

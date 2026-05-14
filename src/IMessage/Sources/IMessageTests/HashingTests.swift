@@ -14,6 +14,15 @@ import Testing
     #expect(hasher.originals.count == 1)
 }
 
+@Test func threadHasherTokenizesThreadIDs() throws {
+    let threadID = "any;-;sjobs@apple.com"
+    let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
+
+    #expect(hashedThreadID.hasPrefix("imsg##thread:"))
+    #expect(hashedThreadID != threadID)
+    #expect(try Hasher.thread.recoverOriginal(fromToken: hashedThreadID) == threadID)
+}
+
 @Test func hashingThreadsafe() async {
     let hasher = Hasher(kind: "test")
 
