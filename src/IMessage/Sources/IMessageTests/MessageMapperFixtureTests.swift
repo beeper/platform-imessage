@@ -229,6 +229,60 @@ private func pollVoteAssociatedMessageMapsAsHiddenAction() throws {
 }
 
 @Test
+private func gamePigeonMessagesUsePayloadHeadingAndUpdateCaption() throws {
+    let message = try gamePigeonAssociatedMessage(isFromMe: true)
+    let update = try gamePigeonAssociatedUpdateMessage(isFromMe: false)
+    let invite = try gamePigeonIncomingInviteMessage()
+    let fallback = try gamePigeonAssociatedMessageWithoutPayload(isFromMe: true)
+
+    #expect(message.text == "Word Hunt")
+    #expect(message.textHeading == "GamePigeon: Word Hunt")
+    #expect(message.textFooter == "Your move.")
+    #expect(message.linkedMessageID == "GAME-GUID")
+    #expect(message.isAction == nil)
+    #expect(message.parseTemplate == true)
+
+    #expect(update.text == "")
+    #expect(update.textHeading == "GamePigeon: Word Hunt")
+    #expect(update.textFooter == "I won!")
+    #expect(update.linkedMessageID == "GAME-GUID")
+    #expect(update.isAction == nil)
+    #expect(update.parseTemplate == nil)
+
+    #expect(invite.text == "Anagrams")
+    #expect(invite.textHeading == "GamePigeon: Anagrams")
+    #expect(invite.textFooter == "Let's play Anagrams!")
+    #expect(invite.linkedMessageID == "ANAGRAMS-GUID")
+    #expect(invite.isAction == nil)
+    #expect(invite.parseTemplate == true)
+
+    #expect(fallback.text == "Word Hunt")
+    #expect(fallback.textHeading == "GamePigeon")
+    #expect(fallback.textFooter == nil)
+    #expect(fallback.linkedMessageID == "GAME-GUID")
+    #expect(fallback.isAction == nil)
+    #expect(fallback.parseTemplate == true)
+}
+
+@Test
+private func unsupportedExtensionMessageMapsAsActionPlaceholder() throws {
+    let outgoing = try unsupportedExtensionMessage(isFromMe: true)
+    let incoming = try unsupportedExtensionMessage(isFromMe: false)
+
+    #expect(outgoing.text == "You sent a message from Mystery App")
+    #expect(outgoing.textHeading == nil)
+    #expect(outgoing.linkedMessageID == "UNKNOWN-GUID")
+    #expect(outgoing.isAction == true)
+    #expect(outgoing.parseTemplate == true)
+
+    #expect(incoming.text == "{{sender}} sent a message from Mystery App")
+    #expect(incoming.textHeading == nil)
+    #expect(incoming.linkedMessageID == "UNKNOWN-GUID")
+    #expect(incoming.isAction == true)
+    #expect(incoming.parseTemplate == true)
+}
+
+@Test
 private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     let attachment = PlatformSDK.Attachment(
         id: "attachment-id",
@@ -383,6 +437,140 @@ private func pollVotePayloadData(optionIDs: [String]) throws -> Data {
         ] as NSDictionary,
         requiringSecureCoding: false
     )
+}
+
+private func unsupportedExtensionPayloadData(appName: String) throws -> Data {
+    try NSKeyedArchiver.archivedData(
+        withRootObject: [
+            "an": appName,
+            "ldtext": "Unsupported payload",
+        ] as NSDictionary,
+        requiringSecureCoding: false
+    )
+}
+
+private func gamePigeonAssociatedMessage(isFromMe: Bool) throws -> PlatformSDK.Message {
+    try singleMappedMessage(
+        from: iMessageAppMessageRow(
+            rowID: 6,
+            guid: "GAMEPIGEON-GUID-\(isFromMe)",
+            date: "4",
+            text: "Word Hunt",
+            isFromMe: isFromMe,
+            associatedMessageGUID: "GAME-GUID",
+            associatedMessageType: 3,
+            balloonBundleID: BalloonBundleID.gamePigeon,
+            payloadData: gamePigeonPayloadData(game: "Word Hunt", caption: "Your move.")
+        )
+    )
+}
+
+private func gamePigeonIncomingInviteMessage() throws -> PlatformSDK.Message {
+    try singleMappedMessage(
+        from: iMessageAppMessageRow(
+            rowID: 8,
+            guid: "GAMEPIGEON-ANAGRAMS-GUID",
+            date: "6",
+            text: "Anagrams",
+            isFromMe: false,
+            associatedMessageGUID: "ANAGRAMS-GUID",
+            associatedMessageType: 3,
+            balloonBundleID: BalloonBundleID.gamePigeon,
+            payloadData: gamePigeonPayloadData(game: "Anagrams", caption: "Let's play Anagrams!")
+        )
+    )
+}
+
+private func gamePigeonAssociatedMessageWithoutPayload(isFromMe: Bool) throws -> PlatformSDK.Message {
+    try singleMappedMessage(
+        from: iMessageAppMessageRow(
+            rowID: 9,
+            guid: "GAMEPIGEON-NO-PAYLOAD-GUID-\(isFromMe)",
+            date: "7",
+            text: "Word Hunt",
+            isFromMe: isFromMe,
+            associatedMessageGUID: "GAME-GUID",
+            associatedMessageType: 3,
+            balloonBundleID: BalloonBundleID.gamePigeon
+        )
+    )
+}
+
+private func gamePigeonPayloadData(game: String, caption: String) throws -> Data {
+    try NSKeyedArchiver.archivedData(
+        withRootObject: [
+            "an": "GamePigeon",
+            "ldtext": game,
+            "userInfo": [
+                "caption": caption,
+            ] as NSDictionary,
+        ] as NSDictionary,
+        requiringSecureCoding: false
+    )
+}
+
+private func gamePigeonAssociatedUpdateMessage(isFromMe: Bool) throws -> PlatformSDK.Message {
+    try singleMappedMessage(
+        from: iMessageAppMessageRow(
+            rowID: 7,
+            guid: "GAMEPIGEON-UPDATE-GUID-\(isFromMe)",
+            date: "5",
+            text: imessageExtensionCharacter,
+            isFromMe: isFromMe,
+            associatedMessageGUID: "GAME-GUID",
+            associatedMessageType: 2,
+            balloonBundleID: BalloonBundleID.gamePigeon,
+            payloadData: gamePigeonPayloadData(game: "Word Hunt", caption: "I won!")
+        )
+    )
+}
+
+private func unsupportedExtensionMessage(isFromMe: Bool) throws -> PlatformSDK.Message {
+    try singleMappedMessage(
+        from: iMessageAppMessageRow(
+            rowID: isFromMe ? 4 : 5,
+            guid: "UNSUPPORTED-GUID",
+            date: "3",
+            text: imessageExtensionCharacter,
+            isFromMe: isFromMe,
+            associatedMessageGUID: "UNKNOWN-GUID",
+            associatedMessageType: 2,
+            balloonBundleID: "com.example.Mystery.MessagesExtension",
+            payloadData: unsupportedExtensionPayloadData(appName: "Mystery App")
+        )
+    )
+}
+
+private func iMessageAppMessageRow(
+    rowID: Int,
+    guid: String,
+    date: String,
+    text: String,
+    isFromMe: Bool,
+    associatedMessageGUID: String,
+    associatedMessageType: Int,
+    balloonBundleID: String,
+    payloadData: Data? = nil
+) -> FixtureJSONObject {
+    var row: FixtureJSONObject = [
+        "ROWID": rowID,
+        "guid": guid,
+        "date": date,
+        "text": text,
+        "is_from_me": isFromMe ? 1 : 0,
+        "handle_id": isFromMe ? 0 : 1,
+        "participantID": "sender",
+        "item_type": 0,
+        "service": "iMessage",
+        "threadID": "iMessage;+;chat",
+        "associated_message_guid": associatedMessageGUID,
+        "associated_message_type": associatedMessageType,
+        "balloon_bundle_id": balloonBundleID,
+    ]
+    if let payloadData {
+        row["payload_data"] = payloadData
+    }
+    return row
 }
 
 private let incomingPollSentRowID = 2

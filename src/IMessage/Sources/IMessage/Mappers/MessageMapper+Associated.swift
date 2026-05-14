@@ -19,31 +19,33 @@ extension Mapper {
         partialMessage: MessageDraft,
         summaryInfo: JSONObject,
         isSMS: Bool,
-        associatedGUID: String
+        associatedTarget: AssociatedMessageTarget
     ) -> MessageDraft? {
         let firstTextPart = messages.first { $0.text != nil }
-        var message = firstTextPart ?? partialMessage
-        let linkedMessageID = parseAssociatedMessageTarget(associatedGUID).messageID
+        var message = firstTextPart ?? messages.first ?? partialMessage
+        let linkedMessageID = associatedTarget.messageID
         message.linkedMessageID = linkedMessageID
         guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType] else {
             return nil
         }
 
         switch associatedMessageType {
+        case .extensionUpdate:
+            return message
         case .sticker:
             if !messages.isEmpty {
                 messages[0].linkedMessageID = linkedMessageID
             }
             return nil
         case .pollVote:
-            return pollActionMessage(
+            return actionMessage(
                 message,
-                text: pollActionText("voted in a poll"),
+                text: actionText("voted in a poll"),
                 isHidden: true
             )
         case .heading:
             if msgRow.balloonBundleID == BalloonBundleID.polls {
-                return pollActionMessage(message, text: pollActionText("sent a poll"))
+                return actionMessage(message, text: actionText("sent a poll"))
             }
             if var text = message.text {
                 let other = msgRow.participantID ?? ""
@@ -65,27 +67,6 @@ extension Mapper {
                 isSMS: isSMS
             )
         }
-    }
-
-    private func pollActionText(_ action: String) -> String {
-        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
-        return "\(actor) \(action)"
-    }
-
-    private func pollActionMessage(
-        _ inputMessage: MessageDraft,
-        text: String,
-        isHidden: Bool? = nil
-    ) -> MessageDraft {
-        var message = inputMessage
-        message.isAction = true
-        message.isHidden = isHidden
-        message.parseTemplate = true
-        message.textAttributes = nil
-        message.textHeading = nil
-        message.textFooter = nil
-        message.text = text
-        return message
     }
 
     func assignReactions(to message: inout MessageDraft, filterIndex: Int?) {

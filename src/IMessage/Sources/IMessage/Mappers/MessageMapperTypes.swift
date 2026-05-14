@@ -89,6 +89,7 @@ struct AssociatedReaction {
 }
 
 enum AssociatedMessageType {
+    case extensionUpdate
     case heading
     case pollVote
     case sticker
@@ -122,16 +123,64 @@ enum MessagePart {
     }
 }
 
-enum BalloonBundleID {
-    static let url = "com.apple.messages.URLBalloonProvider"
-    static let digitalTouch = "com.apple.DigitalTouchBalloonProvider"
-    static let handwriting = "com.apple.Handwriting.HandwritingProvider"
-    static let businessExtension = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension"
-    static let applePay = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.PassbookUIService.PeerPaymentMessagesExtension"
-    static let findMy = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.findmy.FindMyMessagesApp"
-    static let polls = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.messages.Polls"
-    static let youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
+enum BalloonBundleKind: String {
+    case url = "com.apple.messages.URLBalloonProvider"
+    case digitalTouch = "com.apple.DigitalTouchBalloonProvider"
+    case handwriting = "com.apple.Handwriting.HandwritingProvider"
+    case businessExtension = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension"
+    case applePay = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.PassbookUIService.PeerPaymentMessagesExtension"
+    case findMy = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.findmy.FindMyMessagesApp"
+    case gamePigeon = "com.apple.messages.MSMessageExtensionBalloonPlugin:EWFNLB79LQ:com.gamerdelights.gamepigeon.ext"
+    case polls = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.messages.Polls"
+    case youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
+
+    init?(_ bundleID: String?) {
+        guard let bundleID else {
+            self = .url
+            return
+        }
+        self.init(rawValue: bundleID)
+    }
 }
+
+enum BalloonBundleID {
+    static let url = BalloonBundleKind.url.rawValue
+    static let digitalTouch = BalloonBundleKind.digitalTouch.rawValue
+    static let handwriting = BalloonBundleKind.handwriting.rawValue
+    static let businessExtension = BalloonBundleKind.businessExtension.rawValue
+    static let applePay = BalloonBundleKind.applePay.rawValue
+    static let findMy = BalloonBundleKind.findMy.rawValue
+    static let gamePigeon = BalloonBundleKind.gamePigeon.rawValue
+    static let polls = BalloonBundleKind.polls.rawValue
+    static let youtube = BalloonBundleKind.youtube.rawValue
+}
+
+let gamePigeonDisplayName = "GamePigeon"
+
+func gamePigeonHeading(for game: String?) -> String {
+    guard let game else {
+        return gamePigeonDisplayName
+    }
+    let trimmed = game.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        return gamePigeonDisplayName
+    }
+    return "\(gamePigeonDisplayName): \(trimmed)"
+}
+
+let unsupportedBalloonBundleNames: [String: String] = [
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.ActivityMessagesApp.MessagesExtension": "Activity",
+    "com.apple.messages.chatbot": "Business Chat",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.mobileslideshow.PhotosMessagesApp": "Photos",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.gamecenter.GameCenterUIService.GameCenterMessageExtension": "Game Center",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.Maps.MessagesExtension": "Google Maps",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:55377VK7X2:net.kortina.labs.Venmo.iMessageExtension": "Venmo",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:HV6K4MJNS7:com.rapgenius.RapGenius.LyricCardMaker": "Genius",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:HLSX4DMBX6:com.miniclip.8ballpoolmult.PooliMessage": "8 Ball Pool",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:22DR3P88DS:com.robotdestroy.Moon.MessagesExtension": "Moon",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:29QZK2TJ24:com.discoverfinancial.mobile.messageextension": "Discover",
+    "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.CredentialSharingService.ShareableCredentialsMessagesExtension": "shared password",
+]
 
 let imageExtensions: Set<String> = [
     "3dv", "ai", "amf", "art", "ase", "awg", "blp", "bmp", "bw", "cd5", "cdr", "cgm", "cit", "cmx", "cpt",
@@ -161,6 +210,7 @@ private func associatedReaction(_ action: ReactionAction, _ key: AssociatedReact
 }
 
 let associatedMessageTypes: [Int: AssociatedMessageType] = [
+    2: .extensionUpdate,
     3: .heading,
     1000: .sticker,
     4000: .pollVote,

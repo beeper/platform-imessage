@@ -17,19 +17,28 @@ extension Mapper {
         return nil
     }
 
-    func payloadProps(from payloadData: Any, messageAttachments: [PlatformSDK.Attachment]) -> MessagePatch {
-        switch msgRow.balloonBundleID {
-        case BalloonBundleID.url, nil:
+    func payloadProps(
+        from payloadData: Any,
+        messageAttachments: [PlatformSDK.Attachment],
+        bundleKind: BalloonBundleKind?
+    ) -> MessagePatch {
+        guard let bundleKind else {
+            return MessagePatch()
+        }
+        switch bundleKind {
+        case .url:
             return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
-        case BalloonBundleID.applePay:
+        case .applePay:
             return applePayProps(from: payloadData)
-        case BalloonBundleID.findMy:
+        case .findMy:
             return findMyProps(from: payloadData)
-        case BalloonBundleID.polls:
+        case .gamePigeon:
+            return gamePigeonProps(from: payloadData)
+        case .polls:
             return pollProps(from: payloadData)
-        case BalloonBundleID.youtube:
+        case .youtube:
             return youTubeProps(from: payloadData)
-        default:
+        case .digitalTouch, .handwriting, .businessExtension:
             return MessagePatch()
         }
     }
@@ -159,6 +168,18 @@ extension Mapper {
         return MessagePatch(
             text: text,
             textHeading: "Poll"
+        )
+    }
+
+    func gamePigeonProps(from payloadData: Any) -> MessagePatch {
+        guard let payload = unwrapDictionary(payloadData) else {
+            return MessagePatch(textHeading: gamePigeonDisplayName)
+        }
+        let game = payload.string("ldtext")
+        let caption = payload["userInfo"].flatMap(unwrapDictionary)?.string("caption")?.nonEmpty
+        return MessagePatch(
+            textHeading: gamePigeonHeading(for: game),
+            textFooter: caption
         )
     }
 

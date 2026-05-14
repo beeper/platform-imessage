@@ -25,6 +25,7 @@ struct Mapper {
         var partialMessage = baseMessage(dates: dates, isSMS: isSMS, isGroup: isGroup)
         applyStatusFields(to: &partialMessage, dates: dates)
         applyEditedTimestamp(to: &partialMessage, dates: dates, summaryInfo: summaryInfo)
+        let bundleKind = BalloonBundleKind(msgRow.balloonBundleID)
 
         if msgRow.itemType != 0 {
             if let actionMessage = mapItemTypeMessage(partialMessage: partialMessage) {
@@ -37,11 +38,16 @@ struct Mapper {
         var partialHeader = MessagePatch()
         var partialFooter = footer()
 
-        if let payloadData = payloadData() {
-            payloadProps(from: payloadData, messageAttachments: attachments).apply(to: &partialMessage)
+        let payloadData = payloadData()
+        if let payloadData {
+            payloadProps(
+                from: payloadData,
+                messageAttachments: attachments,
+                bundleKind: bundleKind
+            ).apply(to: &partialMessage)
         }
 
-        applyBalloonProps(to: &partialMessage, header: &partialHeader)
+        applyBalloonProps(to: &partialMessage, header: &partialHeader, bundleKind: bundleKind)
         applySiriFooter(summaryInfo: summaryInfo, footer: &partialFooter)
         applyThreadOriginator(to: &partialHeader)
 
@@ -64,6 +70,7 @@ struct Mapper {
         }
 
         let attachmentsByID = Dictionary(attachments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let associatedTarget = msgRow.associatedMessageGUID?.nonEmpty.map(parseAssociatedMessageTarget)
         var messages = makeMessages(
             from: messageParts,
             partialMessage: partialMessage,
@@ -72,18 +79,27 @@ struct Mapper {
             attachmentsByID: attachmentsByID
         ).filter(shouldKeepMessage)
 
+        if messages.isEmpty,
+           let placeholder = unsupportedBalloonPlaceholder(
+               partialMessage: partialMessage,
+               payloadData: payloadData,
+               bundleKind: bundleKind,
+               linkedMessageID: associatedTarget?.messageID
+           ) {
+            messages = [placeholder]
+        }
+
         if addSubjectInline, let subject, !messages.isEmpty {
             messages[0] = addingInlineSubject(subject, to: messages[0])
         }
 
-        if let associatedGUID = msgRow.associatedMessageGUID,
-           !associatedGUID.isEmpty {
+        if let associatedTarget {
             if let associatedMessage = associatedMessage(
                 messages: &messages,
                 partialMessage: partialMessage,
                 summaryInfo: summaryInfo,
                 isSMS: isSMS,
-                associatedGUID: associatedGUID
+                associatedTarget: associatedTarget
             ) {
                 return [associatedMessage.message()]
             }
@@ -141,7 +157,11 @@ struct Mapper {
         message.editedTimestamp = edited
     }
 
-    private func applyBalloonProps(to message: inout MessageDraft, header: inout MessagePatch) {
+    private func applyBalloonProps(
+        to message: inout MessageDraft,
+        header: inout MessagePatch,
+        bundleKind: BalloonBundleKind?
+    ) {
         func setHeading(_ heading: String, attachment: PlatformSDK.Attachment?) {
             header.textHeading = heading
             if let attachment {
@@ -149,13 +169,20 @@ struct Mapper {
             }
         }
 
-        switch msgRow.balloonBundleID {
-        case BalloonBundleID.digitalTouch:
+        guard let bundleKind else {
+            return
+        }
+        switch bundleKind {
+        case .digitalTouch:
             setHeading("Digital Touch Message", attachment: digitalTouchAttachment())
-        case BalloonBundleID.handwriting:
+        case .handwriting:
             setHeading("Handwritten Message", attachment: handwritingAttachment())
-        case BalloonBundleID.businessExtension:
+        case .businessExtension:
             header.textHeading = "Business Chat Extension"
+        case .gamePigeon:
+            if (message.textHeading ?? "").isEmpty {
+                header.textHeading = gamePigeonDisplayName
+            }
         default:
             break
         }
@@ -298,6 +325,49 @@ struct Mapper {
         return !(message.textHeading ?? "").isEmpty
     }
 
+    private func unsupportedBalloonPlaceholder(
+        partialMessage: MessageDraft,
+        payloadData: Any?,
+        bundleKind: BalloonBundleKind?,
+        linkedMessageID: PlatformSDK.MessageID?
+    ) -> MessageDraft? {
+        guard let bundleID = msgRow.balloonBundleID,
+              bundleKind == nil else {
+            return nil
+        }
+        var message = actionMessage(
+            partialMessage,
+            text: unsupportedBalloonText(bundleID: bundleID, payloadData: payloadData)
+        )
+        message.linkedMessageID = linkedMessageID
+        return message
+    }
+
+    private func unsupportedBalloonText(bundleID: String, payloadData: Any?) -> String {
+        guard let appName = unsupportedBalloonAppName(bundleID: bundleID, payloadData: payloadData) else {
+            return actionText("sent an unsupported iMessage app message")
+        }
+        return actionText("sent a message from \(appName)")
+    }
+
+    private func unsupportedBalloonAppName(bundleID: String, payloadData: Any?) -> String? {
+        if let payloadData,
+           let payloadAppName = balloonPayloadAppName(from: payloadData) {
+            return payloadAppName
+        }
+        if let appName = unsupportedBalloonBundleNames[bundleID] {
+            return appName
+        }
+        return nil
+    }
+
+    private func balloonPayloadAppName(from payloadData: Any) -> String? {
+        guard let appName = unwrapDictionary(payloadData)?.string("an") else {
+            return nil
+        }
+        return appName.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
     private func addingInlineSubject(_ subject: String, to message: MessageDraft) -> MessageDraft {
         var message = message
         let currentText = message.text ?? ""
@@ -307,6 +377,29 @@ struct Mapper {
         message.textAttributes = PlatformSDK.TextAttributes(entities: [
             PlatformSDK.TextEntity(from: 0, to: subjectLength, bold: true),
         ] + existing)
+        return message
+    }
+}
+
+extension Mapper {
+    func actionText(_ action: String) -> String {
+        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
+        return "\(actor) \(action)"
+    }
+
+    func actionMessage(
+        _ inputMessage: MessageDraft,
+        text: String,
+        isHidden: Bool? = nil
+    ) -> MessageDraft {
+        var message = inputMessage
+        message.isAction = true
+        message.isHidden = isHidden
+        message.parseTemplate = true
+        message.textAttributes = nil
+        message.textHeading = nil
+        message.textFooter = nil
+        message.text = text
         return message
     }
 }
