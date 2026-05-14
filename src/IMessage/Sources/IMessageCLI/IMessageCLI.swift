@@ -399,7 +399,7 @@ private let mutatingAuth: [AuthorizationRequirement] = [.messagesData, .accessib
 private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMessage", "latest"]
 private let maxLatestMessageOffset = 999_999
 private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
-private let threadIDAddressServicePrefixes = ["any", "iMessage", "SMS", "RCS"]
+private let threadIDAddressServicePrefixes = ["any", "iMessage", "RCS", "SMS"]
 private let threadIDAddressAliasNote = "CHAT_ID may be a one-to-one email address or phone number; the CLI will resolve it to an existing chat ID such as \(threadIDAddressServicePrefixes.map { "\($0);-;ADDRESS" }.joined(separator: ", "))."
 
 private let commandDefinitions: [CommandDefinition] = [
@@ -964,21 +964,13 @@ private func resolveThreadIDAlias(_ threadID: String, api: PlatformAPI) async th
         return trimmed
     }
 
-    let candidateIndexes = Dictionary(uniqueKeysWithValues: candidates.enumerated().map { ($0.element, $0.offset) })
-    let activities = try await api.lookupChatActivities(guids: candidates)
-    guard let best = activities.min(by: { lhs, rhs in
-        let lhsTimestamp = lhs.lastMessageDate ?? Int.min
-        let rhsTimestamp = rhs.lastMessageDate ?? Int.min
-        if lhsTimestamp != rhsTimestamp {
-            return lhsTimestamp > rhsTimestamp
-        }
-        return (candidateIndexes[lhs.guid] ?? Int.max) < (candidateIndexes[rhs.guid] ?? Int.max)
-    }) else {
+    let existingChatGUIDs = Set(try await api.lookupExistingChatGUIDs(guids: candidates))
+    guard let best = candidates.first(where: existingChatGUIDs.contains) else {
         let tried = candidates.joined(separator: ", ")
         throw CLIError("cannot resolve address \(trimmed): no existing chat found. Tried \(tried)")
     }
 
-    return best.guid
+    return best
 }
 
 private func threadIDCandidates(forAddress address: String) -> [String] {

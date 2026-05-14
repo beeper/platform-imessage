@@ -23,9 +23,9 @@ extension PlatformAPI {
         }
     }
 
-    public func lookupChatActivities(guids: [String]) async throws -> [(guid: String, lastMessageDate: Int?)] {
+    public func lookupExistingChatGUIDs(guids: [String]) async throws -> [String] {
         try await runDBQuery { db, _, _ in
-            try db.mappedChatActivities(guids: guids)
+            try db.mappedExistingChatGUIDs(guids: guids)
         }
     }
 
