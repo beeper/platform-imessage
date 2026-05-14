@@ -32,7 +32,7 @@ extension PlatformAPI {
     ) throws -> String {
         switch objName {
         case "message":
-            let messageGUID = objectID.components(separatedBy: "_").first ?? objectID
+            let messageGUID = messageGUID(fromID: objectID)
             guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
                 return ""
             }

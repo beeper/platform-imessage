@@ -267,7 +267,7 @@ private final class Runner {
             printTopLevelHelp()
             return
         }
-        guard let command = commandMap[commandName] else {
+        guard let command = resolveCommand(commandName) else {
             throw CLIError("unknown command: \"\(commandName)\"")
         }
         printCommandHelp(command)
@@ -368,7 +368,7 @@ private final class Runner {
     }
 
     private func runParsedCommand(name: String, args: [String]) async throws {
-        guard let command = commandMap[name] else {
+        guard let command = resolveCommand(name) else {
             throw CLIError("unknown command: \"\(name)\"")
         }
         if args.contains("--help") || args.contains("-h") {
@@ -396,6 +396,11 @@ private final class Runner {
 
 private let readOnlyAuth: [AuthorizationRequirement] = [.messagesData]
 private let mutatingAuth: [AuthorizationRequirement] = [.messagesData, .accessibility]
+private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMessage", "latest"]
+private let maxLatestMessageOffset = 999_999
+private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
+private let threadIDAddressServicePrefixes = ["any", "iMessage", "SMS", "RCS"]
+private let threadIDAddressAliasNote = "CHAT_ID may be a one-to-one email address or phone number; the CLI will resolve it to an existing chat ID such as \(threadIDAddressServicePrefixes.map { "\($0);-;ADDRESS" }.joined(separator: ", "))."
 
 private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
@@ -511,11 +516,11 @@ private let commandDefinitions: [CommandDefinition] = [
         try await runAuthorizationFlow(target: args.first)
     },
     CommandDefinition(
-        name: "threads",
+        name: "chats",
         category: .chat,
         summary: "List chats from the normal inbox.",
-        usage: ["threads [--before CURSOR|--after CURSOR]"],
-        examples: ["threads", "threads --before 725506281967999900"],
+        usage: ["chats [--before CURSOR|--after CURSOR]"],
+        examples: ["chats", "chats --before 725506281967999900"],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 0)
@@ -525,16 +530,18 @@ private let commandDefinitions: [CommandDefinition] = [
         }
     },
     CommandDefinition(
-        name: "thread",
+        name: "chat",
         category: .chat,
         summary: "Fetch a single chat by chat ID.",
-        usage: ["thread CHAT_ID"],
-        examples: ["thread any;-;sjobs@apple.com"],
+        usage: ["chat CHAT_ID"],
+        examples: ["chat any;-;sjobs@apple.com"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         try await context.invoke(args: [args[0]]) { api in
-            let thread = try await api.getThread(threadID: args[0])
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            let thread = try await api.getThread(threadID: threadID)
             return try encodeJSON(thread?.jsonObject)
         }
     },
@@ -544,11 +551,13 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "List messages in a chat.",
         usage: ["messages CHAT_ID [--before CURSOR|--after CURSOR]"],
         examples: ["messages any;-;sjobs@apple.com", "messages any;-;sjobs@apple.com --before 725506281967999900"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 1)
         let threadID = pagination.positionals[0]
         try await context.invoke(args: [threadID, pagination.logArgument as Any]) { api in
+            let threadID = try await resolveThreadIDAlias(threadID, api: api)
             let messages = try await api.getMessages(threadID: threadID, pagination: pagination.platformSDKArg)
             return try encodeJSON(messages.jsonObject)
         }
@@ -556,14 +565,20 @@ private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
         name: "message",
         category: .message,
-        summary: "Fetch a single message by chat ID and message ID.",
-        usage: ["message CHAT_ID MESSAGE_ID"],
-        examples: ["message any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678"],
+        summary: "Fetch a single message by message ID.",
+        usage: ["message MESSAGE_ID", "message CHAT_ID MESSAGE_ID"],
+        examples: ["message C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678", "message latest-1", "message +14155551234 latest"],
+        notes: [threadIDAddressAliasNote, messageIDAliasNote],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
-        try requireExactArgs(context.command, args, 2)
+        let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)
         try await context.invoke(args: args) { api in
-            let message = try await api.getMessage(threadID: args[0], messageID: args[1])
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            let message = try await api.getMessage(threadID: reference.threadID, messageID: reference.messageID)
             return try encodeJSON(message?.jsonObject)
         }
     },
@@ -583,11 +598,11 @@ private let commandDefinitions: [CommandDefinition] = [
         }
     },
     CommandDefinition(
-        name: "create-thread",
+        name: "create-chat",
         category: .message,
         summary: "Create or resolve a chat for one or more recipients and send the initial message.",
-        usage: ["create-thread RECIPIENT... --message TEXT"],
-        examples: ["create-thread sjobs@apple.com --message \"hello from cli\"", "create-thread +15551234567 +15557654321 --message \"group kickoff\""],
+        usage: ["create-chat RECIPIENT... --message TEXT"],
+        examples: ["create-chat sjobs@apple.com --message \"hello from cli\"", "create-chat +15551234567 +15557654321 --message \"group kickoff\""],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseStringOption(args, optionName: "message")
@@ -604,12 +619,14 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Send a text message to a chat.",
         usage: ["send CHAT_ID TEXT"],
         examples: ["send any;-;sjobs@apple.com \"hello from cli\""],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireMinArgs(context.command, args, 2)
         let text = try joinText(context.command, args, startIndex: 1)
         try await context.invoke(args: [args[0], ["text": text]]) { api in
-            let result = try await api.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: nil)
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            let result = try await api.sendMessage(threadID: threadID, text: text, filePath: nil, quotedMessageID: nil)
             return try encodeJSON(result.jsonValue)
         }
     },
@@ -617,14 +634,19 @@ private let commandDefinitions: [CommandDefinition] = [
         name: "reply",
         category: .message,
         summary: "Reply to a specific message with text.",
-        usage: ["reply CHAT_ID MESSAGE_ID TEXT"],
-        examples: ["reply any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 \"sounds good\""],
+        usage: ["reply MESSAGE_ID TEXT", "reply CHAT_ID MESSAGE_ID TEXT"],
+        examples: ["reply C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 \"sounds good\"", "reply latest-1 \"sounds good\"", "reply +14155551234 latest \"sounds good\""],
+        notes: [threadIDAddressAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
-        try requireMinArgs(context.command, args, 3)
-        let text = try joinText(context.command, args, startIndex: 2)
-        try await context.invoke(args: [args[0], ["text": text], ["quotedMessageID": args[1]]]) { api in
-            let result = try await api.sendMessage(threadID: args[0], text: text, filePath: nil, quotedMessageID: args[1])
+        let parsed = try parseMessageTextArgs(context.command, args)
+        try await context.invoke(args: args) { api in
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            let result = try await api.sendMessage(threadID: reference.threadID, text: parsed.text, filePath: nil, quotedMessageID: reference.messageID)
             return try encodeJSON(result.jsonValue)
         }
     },
@@ -634,12 +656,14 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Send a file attachment to a chat.",
         usage: ["send-file CHAT_ID FILE"],
         examples: ["send-file any;-;sjobs@apple.com ./image.png"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
         let filePath = absolutePath(args[1])
         try await context.invoke(args: [args[0], ["filePath": filePath]]) { api in
-            let result = try await api.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: nil)
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            let result = try await api.sendMessage(threadID: threadID, text: nil, filePath: filePath, quotedMessageID: nil)
             return try encodeJSON(result.jsonValue)
         }
     },
@@ -647,14 +671,20 @@ private let commandDefinitions: [CommandDefinition] = [
         name: "reply-file",
         category: .message,
         summary: "Reply to a specific message with a file attachment.",
-        usage: ["reply-file CHAT_ID MESSAGE_ID FILE"],
-        examples: ["reply-file any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./document.pdf"],
+        usage: ["reply-file MESSAGE_ID FILE", "reply-file CHAT_ID MESSAGE_ID FILE"],
+        examples: ["reply-file C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./document.pdf", "reply-file latest-1 ./document.pdf", "reply-file +14155551234 latest ./document.pdf"],
+        notes: [threadIDAddressAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
-        try requireExactArgs(context.command, args, 3)
-        let filePath = absolutePath(args[2])
-        try await context.invoke(args: [args[0], ["filePath": filePath], ["quotedMessageID": args[1]]]) { api in
-            let result = try await api.sendMessage(threadID: args[0], text: nil, filePath: filePath, quotedMessageID: args[1])
+        let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 1)
+        let filePath = absolutePath(parsed.trailing[parsed.trailing.startIndex])
+        try await context.invoke(args: args) { api in
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            let result = try await api.sendMessage(threadID: reference.threadID, text: nil, filePath: filePath, quotedMessageID: reference.messageID)
             return try encodeJSON(result.jsonValue)
         }
     },
@@ -662,15 +692,19 @@ private let commandDefinitions: [CommandDefinition] = [
         name: "edit",
         category: .message,
         summary: "Edit a previously sent message.",
-        usage: ["edit CHAT_ID MESSAGE_ID TEXT"],
-        examples: ["edit any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 \"updated text\""],
-        notes: ["Message editing is only supported on macOS Ventura or later."],
+        usage: ["edit MESSAGE_ID TEXT", "edit CHAT_ID MESSAGE_ID TEXT"],
+        examples: ["edit C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 \"updated text\"", "edit latest-1 \"updated text\"", "edit +14155551234 latest \"updated text\""],
+        notes: ["Message editing is only supported on macOS Ventura or later.", threadIDAddressAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
-        try requireMinArgs(context.command, args, 3)
-        let text = try joinText(context.command, args, startIndex: 2)
-        try await context.invoke(args: [args[0], args[1], ["text": text]]) { api in
-            try await api.editMessage(threadID: args[0], messageID: args[1], content: text)
+        let parsed = try parseMessageTextArgs(context.command, args)
+        try await context.invoke(args: args) { api in
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            try await api.editMessage(threadID: reference.threadID, messageID: reference.messageID, content: parsed.text)
             return nil
         }
     },
@@ -678,14 +712,19 @@ private let commandDefinitions: [CommandDefinition] = [
         name: "undo-send",
         category: .message,
         summary: "Undo send for a previously sent message.",
-        usage: ["undo-send CHAT_ID MESSAGE_ID"],
-        examples: ["undo-send any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678"],
-        notes: ["Undo send is only supported on macOS Ventura or later and must be used within 2 minutes of sending."],
+        usage: ["undo-send MESSAGE_ID", "undo-send CHAT_ID MESSAGE_ID"],
+        examples: ["undo-send C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678", "undo-send latest-1", "undo-send +14155551234 latest"],
+        notes: ["Undo send is only supported on macOS Ventura or later and must be used within 2 minutes of sending.", threadIDAddressAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
-        try requireExactArgs(context.command, args, 2)
+        let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)
         try await context.invoke(args: args) { api in
-            try await api.deleteMessage(threadID: args[0], messageID: args[1])
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            try await api.deleteMessage(threadID: reference.threadID, messageID: reference.messageID)
             return nil
         }
     },
@@ -701,11 +740,13 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Mark a chat as read.",
         usage: ["mark-read CHAT_ID"],
         examples: ["mark-read any;-;sjobs@apple.com"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         try await context.invoke(args: args) { api in
-            try await api.sendReadReceipt(threadID: args[0])
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.sendReadReceipt(threadID: threadID)
             return nil
         }
     },
@@ -715,26 +756,29 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Mark a chat as unread.",
         usage: ["mark-unread CHAT_ID"],
         examples: ["mark-unread any;-;sjobs@apple.com"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         try await context.invoke(args: args) { api in
-            try await api.markAsUnread(threadID: args[0])
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.markAsUnread(threadID: threadID)
             return nil
         }
     },
     CommandDefinition(
-        name: "delete-thread",
+        name: "delete-chat",
         category: .chat,
         summary: "Delete a chat from Messages.",
-        usage: ["delete-thread CHAT_ID"],
-        examples: ["delete-thread any;-;sjobs@apple.com"],
-        notes: ["This mutates real Messages state."],
+        usage: ["delete-chat CHAT_ID"],
+        examples: ["delete-chat any;-;sjobs@apple.com"],
+        notes: ["This mutates real Messages state.", threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         try await context.invoke(args: args) { api in
-            try await api.deleteThread(threadID: args[0])
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.deleteThread(threadID: threadID)
             return nil
         }
     },
@@ -744,27 +788,31 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Trigger the \"notify anyway\" action for a chat.",
         usage: ["notify-anyway CHAT_ID"],
         examples: ["notify-anyway any;-;sjobs@apple.com"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         try await context.invoke(args: args) { api in
-            try await api.notifyAnyway(threadID: args[0])
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.notifyAnyway(threadID: threadID)
             return nil
         }
     },
     muteCommand(name: "mute", muted: true),
     muteCommand(name: "unmute", muted: false),
     CommandDefinition(
-        name: "select-thread",
+        name: "select-chat",
         category: .chat,
-        summary: "Select a chat and start the chat-activity watcher.",
-        usage: ["select-thread CHAT_ID"],
-        examples: ["select-thread any;-;sjobs@apple.com"],
+        summary: "Select a chat and start the chat activity watcher.",
+        usage: ["select-chat CHAT_ID"],
+        examples: ["select-chat any;-;sjobs@apple.com"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         try await context.invoke(args: args) { api in
-            try await api.onThreadSelected(threadID: args[0]) { events in
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.onThreadSelected(threadID: threadID) { events in
                 let json = try encodeJSON(events.map { $0.jsonObject() })
                 context.printEventJSON(json)
             }
@@ -777,6 +825,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Send typing on/off status for a chat.",
         usage: ["typing CHAT_ID on|off"],
         examples: ["typing any;-;sjobs@apple.com on", "typing any;-;sjobs@apple.com off"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
@@ -787,17 +836,29 @@ private let commandDefinitions: [CommandDefinition] = [
         default: throw CLIError("usage: \(context.command.usage[0])")
         }
         try await context.invoke(args: [type, args[0]]) { api in
-            try await api.sendActivityIndicator(type: type, threadID: args[0])
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.sendActivityIndicator(type: type, threadID: threadID)
             return nil
         }
     },
 ]
 
 private let commandMap = Dictionary(uniqueKeysWithValues: commandDefinitions.map { ($0.name, $0) })
+private let commandAliases = [
+    "threads": "chats",
+    "thread": "chat",
+    "create-thread": "create-chat",
+    "delete-thread": "delete-chat",
+    "select-thread": "select-chat",
+]
+
+private func resolveCommand(_ name: String) -> CommandDefinition? {
+    commandMap[name] ?? commandAliases[name].flatMap { commandMap[$0] }
+}
 
 private func runBootstrapFreeCommandIfNeeded(_ commandArgs: [String]) throws -> Bool {
     guard let name = commandArgs.first, name == "version" else { return false }
-    guard let command = commandMap[name] else { return false }
+    guard let command = resolveCommand(name) else { return false }
     let args = Array(commandArgs.dropFirst())
     if args.contains("--help") || args.contains("-h") {
         printCommandHelp(command)
@@ -822,20 +883,193 @@ private func reactionCommand(
         name: name,
         category: .message,
         summary: "\(summaryVerb) a reaction \(preposition) a message using a standard key or emoji.",
-        usage: ["\(name) CHAT_ID MESSAGE_ID REACTION"],
+        usage: ["\(name) MESSAGE_ID REACTION", "\(name) CHAT_ID MESSAGE_ID REACTION"],
         examples: [
-            "\(name) any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart",
-            "\(name) any;-;sjobs@apple.com C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ❤️",
+            "\(name) C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart",
+            "\(name) latest-1 ❤️",
+            "\(name) +14155551234 latest heart",
         ],
-        notes: ["Supported standard keys: heart, like, dislike, laugh, emphasize, question.", "Sticker reactions are not exposed in this CLI."],
+        notes: [threadIDAddressAliasNote, messageIDAliasNote, "Supported standard keys: heart, like, dislike, laugh, emphasize, question.", "Sticker reactions are not exposed in this CLI."],
         requiredAuthorization: mutatingAuth
     ) { args, context in
-        try requireExactArgs(context.command, args, 3)
+        let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 1)
         try await context.invoke(args: args) { api in
-            try await apply(api, args[0], args[1], args[2])
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            try await apply(api, reference.threadID, reference.messageID, parsed.trailing[parsed.trailing.startIndex])
             return nil
         }
     }
+}
+
+private struct MessageReferenceArgs {
+    let rawThreadID: String?
+    let rawMessageID: String
+    let trailing: ArraySlice<String>
+}
+
+private func parseMessageReferenceArgs(_ command: CommandDefinition, _ args: [String], trailingCount: Int) throws -> MessageReferenceArgs {
+    let bare = 1 + trailingCount
+    let withChat = 2 + trailingCount
+    if args.count == bare {
+        return MessageReferenceArgs(rawThreadID: nil, rawMessageID: args[0], trailing: args.dropFirst())
+    }
+    if args.count == withChat, looksLikeThreadIDOrAddress(args[0]) {
+        return MessageReferenceArgs(rawThreadID: args[0], rawMessageID: args[1], trailing: args.dropFirst(2))
+    }
+    throw CLIError("\(command.name) expects \(bare) or \(withChat) arguments.\n\(commandUsageSummary(command))")
+}
+
+private func parseMessageTextArgs(_ command: CommandDefinition, _ args: [String]) throws -> (rawThreadID: String?, rawMessageID: String, text: String) {
+    guard args.count >= 2 else {
+        throw CLIError("\(command.name) expects at least 2 arguments.\n\(commandUsageSummary(command))")
+    }
+
+    let hasThreadID = args.count >= 3 && looksLikeThreadIDOrAddress(args[0])
+    let messageIndex = hasThreadID ? 1 : 0
+    let textStartIndex = hasThreadID ? 2 : 1
+    let text = try joinText(command, args, startIndex: textStartIndex)
+    return (hasThreadID ? args[0] : nil, args[messageIndex], text)
+}
+
+private func resolveMessageReference(rawThreadID: String?, rawMessageID: String, api: PlatformAPI) async throws -> PlatformAPI.MessageReference {
+    if let rawThreadID {
+        let threadID = try await resolveThreadIDAlias(rawThreadID, api: api)
+        let messageID = try await resolveMessageID(rawMessageID, threadID: threadID, api: api)
+        return PlatformAPI.MessageReference(threadID: threadID, messageID: messageID)
+    }
+
+    if let offset = try latestMessageOffset(rawMessageID) {
+        guard let reference = try await api.resolveLatestMessageReference(offset: offset) else {
+            throw CLIError("cannot resolve \(rawMessageID): no messages found")
+        }
+        return reference
+    }
+
+    guard let reference = try await api.resolveMessageReference(messageID: rawMessageID) else {
+        throw CLIError("cannot resolve message \(rawMessageID): no matching message found")
+    }
+    return reference
+}
+
+private func resolveThreadIDAlias(_ threadID: String, api: PlatformAPI) async throws -> String {
+    let trimmed = threadID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return threadID }
+
+    let candidates = threadIDCandidates(forAddress: trimmed)
+    if candidates.isEmpty {
+        return trimmed
+    }
+
+    let matches = try await withThrowingTaskGroup(of: (offset: Int, threadID: String, timestamp: PlatformSDK.Timestamp?)?.self) { group in
+        for (offset, candidate) in candidates.enumerated() {
+            group.addTask {
+                guard let thread = try await api.getThread(threadID: candidate) else { return nil }
+                return (offset, candidate, thread.timestamp)
+            }
+        }
+        var results = [(offset: Int, threadID: String, timestamp: PlatformSDK.Timestamp?)]()
+        for try await result in group {
+            if let result { results.append(result) }
+        }
+        return results
+    }
+
+    guard let match = matches.max(by: { lhs, rhs in
+        let lhsTimestamp = lhs.timestamp ?? Int64.min
+        let rhsTimestamp = rhs.timestamp ?? Int64.min
+        if lhsTimestamp != rhsTimestamp {
+            return lhsTimestamp < rhsTimestamp
+        }
+        return lhs.offset > rhs.offset
+    }) else {
+        let tried = candidates.joined(separator: ", ")
+        throw CLIError("cannot resolve address \(trimmed): no existing chat found. Tried \(tried)")
+    }
+
+    return match.threadID
+}
+
+private func threadIDCandidates(forAddress address: String) -> [String] {
+    guard !address.hasPrefix("imsg##thread:"),
+          !address.contains(";"),
+          looksLikeAddressAlias(address) else {
+        return []
+    }
+
+    return addressAliasVariants(address).flatMap { variant in
+        threadIDAddressServicePrefixes.map { "\($0);-;\(variant)" }
+    }
+}
+
+private func resolveMessageID(_ messageID: String, threadID: String, api: PlatformAPI) async throws -> String {
+    guard let offset = try latestMessageOffset(messageID) else { return messageID }
+    guard let reference = try await api.resolveLatestMessageReference(threadID: threadID, offset: offset) else {
+        throw CLIError("cannot resolve \(messageID): no messages found in chat \(threadID)")
+    }
+    return reference.messageID
+}
+
+private func latestMessageOffset(_ messageID: String) throws -> Int? {
+    if latestMessageIDAliases.contains(messageID) {
+        return 0
+    }
+
+    let prefix = "latest-"
+    guard messageID.hasPrefix(prefix) else { return nil }
+    let rawOffset = messageID.dropFirst(prefix.count)
+    guard !rawOffset.isEmpty,
+          rawOffset.allSatisfy(\.isNumber),
+          let offset = Int(rawOffset),
+          (1...maxLatestMessageOffset).contains(offset) else {
+        throw CLIError("latest message aliases must be latest or latest-N where N is 1...\(maxLatestMessageOffset)")
+    }
+    return offset
+}
+
+private func looksLikeThreadIDOrAddress(_ value: String) -> Bool {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.hasPrefix("imsg##thread:")
+        || trimmed.contains(";")
+        || looksLikeAddressAlias(trimmed)
+}
+
+private func looksLikeAddressAlias(_ value: String) -> Bool {
+    value.contains("@") || looksLikeBarePhoneNumber(value)
+}
+
+private func looksLikeBarePhoneNumber(_ value: String) -> Bool {
+    let allowed = CharacterSet(charactersIn: "+0123456789 -().")
+    guard !value.isEmpty,
+          value.rangeOfCharacter(from: allowed.inverted) == nil else {
+        return false
+    }
+    return value.filter(\.isNumber).count >= 3
+}
+
+private func addressAliasVariants(_ address: String) -> [String] {
+    var variants = [String]()
+
+    func append(_ variant: String) {
+        guard !variant.isEmpty, !variants.contains(variant) else { return }
+        variants.append(variant)
+    }
+
+    append(address)
+
+    if address.contains("@") {
+        append(address.lowercased())
+    }
+
+    if looksLikeBarePhoneNumber(address) {
+        let compactPhone = address.filter { $0 == "+" || $0.isNumber }
+        append(compactPhone)
+    }
+
+    return variants
 }
 
 private func muteCommand(name: String, muted: Bool) -> CommandDefinition {
@@ -845,12 +1079,14 @@ private func muteCommand(name: String, muted: Bool) -> CommandDefinition {
         summary: muted ? "Mute a chat indefinitely." : "Unmute a chat.",
         usage: ["\(name) CHAT_ID"],
         examples: ["\(name) any;-;sjobs@apple.com"],
+        notes: [threadIDAddressAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         let mutedUntil: Any = muted ? "forever" : NSNull()
         try await context.invoke(args: [args[0], ["mutedUntil": mutedUntil]]) { api in
-            try await api.updateThread(threadID: args[0], muted: muted)
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            try await api.updateThread(threadID: threadID, muted: muted)
             return nil
         }
     }
@@ -925,6 +1161,15 @@ private func printCommandHelp(_ command: CommandDefinition) {
         lines.append(contentsOf: command.notes.map { "  \($0)" })
     }
     print(lines.joined(separator: "\n"))
+}
+
+private func commandUsageSummary(_ command: CommandDefinition) -> String {
+    var lines = ["Usage:"]
+    lines.append(contentsOf: command.usage.map { "  \($0)" })
+    lines.append("")
+    lines.append("Examples:")
+    lines.append(contentsOf: command.examples.map { "  \($0)" })
+    return lines.joined(separator: "\n")
 }
 
 private func requireExactArgs(_ command: CommandDefinition, _ args: [String], _ count: Int) throws {

@@ -144,6 +144,34 @@ public extension IMDatabase {
         try mappedMessageRows(guids: [guid]).first
     }
 
+    func mappedLatestMessageRow(in chatGUID: String? = nil, offset: Int) throws -> MappedMessageRow? {
+        let chatRowID: Int?
+        if let chatGUID {
+            guard let rowID = try mappedChatRowID(guid: chatGUID) else { return nil }
+            chatRowID = rowID
+        } else {
+            chatRowID = nil
+        }
+
+        let messageColumns = try tableColumns("message")
+        let whereClause = chatRowID == nil ? "" : "WHERE cmj.chat_id = ?\n"
+        let sql = """
+        SELECT
+        \(messageSelectionSQL(messageColumns: messageColumns))
+        FROM chat_message_join AS cmj
+        \(messageJoinsFromChatMessageJoin)
+        \(whereClause)ORDER BY cmj.message_date DESC, cmj.message_id DESC
+        LIMIT 1 OFFSET ?
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        if let chatRowID {
+            try statement.bind(chatRowID, offset)
+        } else {
+            try statement.bind(offset)
+        }
+        return try statement.mapRowsUntilDone(MappedMessageRow.self).first
+    }
+
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
         let uniqueGUIDs = Array(OrderedSet(guids))
