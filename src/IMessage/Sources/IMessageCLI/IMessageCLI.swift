@@ -920,10 +920,13 @@ private func parseMessageReferenceArgs(_ command: CommandDefinition, _ args: [St
         }
         return MessageReferenceArgs(rawThreadID: nil, rawMessageID: args[0], trailing: args.dropFirst())
     }
-    if args.count == withChat, parsesAsThreadIDAndMessageID(args[0], args[1]) {
-        return MessageReferenceArgs(rawThreadID: args[0], rawMessageID: args[1], trailing: args.dropFirst(2))
+    if args.count == withChat {
+        if parsesAsThreadIDAndMessageID(args[0], args[1]) {
+            return MessageReferenceArgs(rawThreadID: args[0], rawMessageID: args[1], trailing: args.dropFirst(2))
+        }
+        throw CLIError("\(command.name) could not parse \"\(args[0]) \(args[1])\" as CHAT_ID MESSAGE_ID. MESSAGE_ID must be a UUID or a latest alias.\n\(commandUsageSummary(command))")
     }
-    throw CLIError("\(command.name) expects \(bare) or \(withChat) arguments.\n\(commandUsageSummary(command))")
+    throw CLIError("\(command.name) expects \(bare) or \(withChat) arguments, got \(args.count).\n\(commandUsageSummary(command))")
 }
 
 private func parseMessageTextArgs(_ command: CommandDefinition, _ args: [String]) throws -> (rawThreadID: String?, rawMessageID: String, text: String) {
@@ -1086,13 +1089,7 @@ private func looksLikeLatestMessageAlias(_ value: String) -> Bool {
 }
 
 private func looksLikeMessageGUID(_ value: String) -> Bool {
-    let baseGUID = messageGUIDBase(fromID: value)
-    return UUID(uuidString: baseGUID) != nil
-}
-
-private func messageGUIDBase(fromID id: String) -> String {
-    guard let underscoreIndex = id.firstIndex(of: "_") else { return id }
-    return String(id[..<underscoreIndex])
+    UUID(uuidString: messageGUID(fromID: value)) != nil
 }
 
 private func looksLikeBarePhoneNumber(_ value: String) -> Bool {

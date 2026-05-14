@@ -160,6 +160,12 @@ public extension IMDatabase {
         if messageColumns.contains("schedule_type") {
             whereClauses.append("COALESCE(m.schedule_type, 0) = 0")
         }
+        if messageColumns.contains("date_retracted") {
+            whereClauses.append("COALESCE(m.date_retracted, 0) = 0")
+        }
+        if messageColumns.contains("was_detonated") {
+            whereClauses.append("COALESCE(m.was_detonated, 0) = 0")
+        }
         let whereClause = whereClauses.isEmpty ? "" : "WHERE \(whereClauses.joined(separator: " AND "))\n"
         let sql = """
         SELECT
