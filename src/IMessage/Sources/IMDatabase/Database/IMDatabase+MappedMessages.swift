@@ -144,6 +144,40 @@ public extension IMDatabase {
         try mappedMessageRows(guids: [guid]).first
     }
 
+    func mappedLatestVisibleMessageRow(in chatGUID: String? = nil, offset: Int) throws -> MappedMessageRow? {
+        let chatRowID = try chatGUID.flatMap { try mappedChatRowID(guid: $0) }
+        if chatGUID != nil, chatRowID == nil {
+            return nil
+        }
+
+        let messageColumns = try tableColumns("message")
+        var whereClauses = [String]()
+        if chatRowID != nil {
+            whereClauses.append("cmj.chat_id = ?")
+        }
+        let reactionClause = "m.associated_message_type NOT BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)"
+        whereClauses.append("(m.associated_message_type IS NULL OR \(reactionClause))")
+        if messageColumns.contains("schedule_type") {
+            whereClauses.append("COALESCE(m.schedule_type, 0) = 0")
+        }
+        let whereClause = whereClauses.isEmpty ? "" : "WHERE \(whereClauses.joined(separator: " AND "))\n"
+        let sql = """
+        SELECT
+        \(messageSelectionSQL(messageColumns: messageColumns))
+        FROM chat_message_join AS cmj
+        \(messageJoinsFromChatMessageJoin)
+        \(whereClause)ORDER BY cmj.message_date DESC, cmj.message_id DESC
+        LIMIT 1 OFFSET ?
+        """
+        let statement = try cachedStatement(forEscapedSQL: sql).reset()
+        if let chatRowID {
+            try statement.bind(chatRowID, offset)
+        } else {
+            try statement.bind(offset)
+        }
+        return try statement.mapRowsUntilDone(MappedMessageRow.self).first
+    }
+
     func mappedMessageRows(guids: [String]) throws -> [MappedMessageRow] {
         guard !guids.isEmpty else { return [] }
         let uniqueGUIDs = Array(OrderedSet(guids))
@@ -318,6 +352,11 @@ public extension IMDatabase {
 }
 
 private let maxMappedMessageRowsBatchSize = 500
+// Associated message types 2000...3007 are tapback/reaction add/remove rows.
+// The API exposes those as reactions plus hidden action messages, so `latest`
+// aliases should skip them and resolve to the newest user-visible row.
+private let reactionAssociatedMessageTypeLowerBound = 2000
+private let reactionAssociatedMessageTypeUpperBound = 3007
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]

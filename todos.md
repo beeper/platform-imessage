@@ -24,10 +24,10 @@
 
 - cli
   - [ ] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
-  - [ ] resolve thread id as email/phone # if `any;-;` prefix isn't passed
   - [ ] notarize before gh release and do universal binary/x86 target
   - [ ] one off command to print presence (dnd / dnd w notify) and typing status
   - [ ] tests
+  - [x] resolve thread id as email/phone # if `any;-;` prefix isn't passed
 
 ### Parity
 

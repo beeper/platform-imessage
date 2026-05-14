@@ -80,7 +80,7 @@ public final class PlatformAPI {
     /// Runs a DB query off the caller actor with the cached current user resolved.
     /// Captures `accountID`, `database`, and `currentUserCache` before crossing
     /// into the @Sendable closure so `self` doesn't need to.
-    private func runDBQuery<T>(
+    func runDBQuery<T>(
         _ work: @escaping @Sendable (IMDatabase, PlatformSDK.CurrentUser, String /*accountID*/) throws -> T
     ) async throws -> T {
         let accountID = accountID
@@ -830,7 +830,7 @@ public final class PlatformAPI {
         accountID: String
     ) throws -> PlatformSDK.Message? {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
-        let messageGUID = messageID.components(separatedBy: "_").first ?? messageID
+        let messageGUID = messageGUID(fromID: messageID)
         guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
             return nil
         }

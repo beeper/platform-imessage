@@ -45,44 +45,51 @@ swift run imessage-cli # builds the Swift CLI if needed, launches authorization 
 2. Run one-off commands:
 ```sh
 swift run imessage-cli current-user                                                                   # fetch logged-in user
-swift run imessage-cli threads                                                                        # fetch chats
-swift run imessage-cli messages 'any;-;sjobs@apple.com'                                               # fetch messages for an existing chat
+swift run imessage-cli chats                                                                          # fetch chats
+swift run imessage-cli messages sjobs@apple.com                                                       # fetch messages for an existing chat
 
 swift run imessage-cli send 'any;-;sjobs@apple.com' "hello from shell"                                # text an email
-swift run imessage-cli send 'any;-;+14155551234' "hello from shell"                                   # text a phone number
+swift run imessage-cli send sjobs@apple.com "hello from shell"                                        # text an existing email chat by address
+swift run imessage-cli send +14155551234 "hello from shell"                                           # text an existing phone chat by number
 
-swift run imessage-cli send-file 'any;-;+14155551234' ./image.png                                      # send a file
+swift run imessage-cli send-file +14155551234 ./image.png                                             # send a file
 
-swift run imessage-cli create-thread +14155551234 --message "hey this is steve"                       # start a new chat with a number or email
-swift run imessage-cli create-thread +15551234567 +15557654321 --message "new group"                  # create a group chat
-swift run imessage-cli reply 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "sounds good"  # reply to an existing message
-swift run imessage-cli reply-file 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./doc.pdf  # send a file as a reply
-swift run imessage-cli react 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh          # haha react to a message
-swift run imessage-cli react 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart          # heart a message
-swift run imessage-cli unreact 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh        # remove laugh from message
+swift run imessage-cli create-chat +14155551234 --message "hey this is steve"                         # start a new chat with a number or email
+swift run imessage-cli create-chat +15551234567 +15557654321 --message "new group"                    # create a group chat
+swift run imessage-cli reply C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "sounds good"                       # reply to an existing message
+swift run imessage-cli reply latest "sounds good"                                                     # reply to the latest message (also: latest-1, last-message, lastMessage, latestMessage)
+swift run imessage-cli reply latest-1 "sounds good"                                                   # reply to the message before the latest message
+swift run imessage-cli reply +14155551234 latest "sounds good"                                        # reply to the latest message in a chat
+swift run imessage-cli reply +14155551234 latest-1 "sounds good"                                      # reply to the message before the latest message in a chat
+swift run imessage-cli reply-file C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./doc.pdf                       # send a file as a reply
+swift run imessage-cli react C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh                               # haha react to a message
+swift run imessage-cli react C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 heart                               # heart a message
+swift run imessage-cli react +14155551234 latest heart                                                # heart the latest message in a chat
+swift run imessage-cli react +14155551234 latest-1 heart                                              # heart the message before the latest message in a chat
+swift run imessage-cli unreact C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 laugh                             # remove laugh from message
 
-swift run imessage-cli edit 'any;-;+14155551234' C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "updated text"  # edit a message
+swift run imessage-cli edit C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "updated text"                       # edit a message
 
 swift run imessage-cli search "project status"                                                        # search messages
 
-swift run imessage-cli select-thread 'any;-;sjobs@apple.com'                                          # select chat in messages.app
-swift run imessage-cli typing 'any;-;sjobs@apple.com' on                                              # send typing indicator
+swift run imessage-cli select-chat sjobs@apple.com                                                    # select chat in messages.app
+swift run imessage-cli typing sjobs@apple.com on                                                      # send typing indicator
 
-swift run imessage-cli mark-read 'any;-;sjobs@apple.com'
-swift run imessage-cli mark-unread 'any;-;sjobs@apple.com'
-swift run imessage-cli mute 'any;-;sjobs@apple.com'
-swift run imessage-cli unmute 'any;-;sjobs@apple.com'
-swift run imessage-cli notify-anyway 'any;-;sjobs@apple.com'                                          # if the recipient is on DND, hit the "notify anyway" button if present
-swift run imessage-cli delete-thread 'any;-;sjobs@apple.com'                                          # delete the entire chat
+swift run imessage-cli mark-read sjobs@apple.com
+swift run imessage-cli mark-unread sjobs@apple.com
+swift run imessage-cli mute sjobs@apple.com
+swift run imessage-cli unmute sjobs@apple.com
+swift run imessage-cli notify-anyway sjobs@apple.com                                                  # if the recipient is on DND, hit the "notify anyway" button if present
+swift run imessage-cli delete-chat sjobs@apple.com                                                    # delete the entire chat
 ```
 
 Or continue in the `swift run imessage-cli` shell:
 
 ```sh
-imessage> messages any;-;sjobs@apple.com
-imessage> send any;-;sjobs@apple.com "hello from shell"
+imessage> messages sjobs@apple.com
+imessage> send sjobs@apple.com "hello from shell"
 imessage> help
-imessage> help create-thread
+imessage> help create-chat
 imessage> quit
 ```
 
