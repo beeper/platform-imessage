@@ -150,6 +150,10 @@ private let messageEventFixtures = [
             .updateMessages(threadID: directThreadID, patches: [[
                 "id": "B6C7FCF4-6038-4AD7-977B-B19230D1033B",
                 "text": "{{sender}} unsent a message",
+                "attachments": JSONArray(),
+                "reactions": JSONArray(),
+                "tweets": JSONArray(),
+                "links": JSONArray(),
                 "isAction": true,
                 "parseTemplate": true,
             ]]),
@@ -172,6 +176,19 @@ private func reactionActionsDoNotEmitMessageDeletes() throws {
         #expect(events.containPartialServerEvents(expectedEvents(fileName: fileName)))
         #expect(!events.containsMessageDeleteEvent)
     }
+}
+
+@Test
+private func undoSendEventClearsRichMessageFields() throws {
+    let events = try loadServerEvents(fileName: "message_event_undo_send", change: .edited)
+    let eventObject = try #require(events.first?.jsonObject())
+    let entries = try #require(eventObject["entries"] as? [JSONObject])
+    let patch = try #require(entries.first)
+
+    #expect((patch["attachments"] as? JSONArray)?.isEmpty == true)
+    #expect((patch["reactions"] as? JSONArray)?.isEmpty == true)
+    #expect((patch["tweets"] as? JSONArray)?.isEmpty == true)
+    #expect((patch["links"] as? JSONArray)?.isEmpty == true)
 }
 
 private func loadServerEvents(_ fixture: MessageEventFixture) throws -> [ServerEvent] {

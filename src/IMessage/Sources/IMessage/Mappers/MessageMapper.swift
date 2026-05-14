@@ -311,6 +311,11 @@ struct Mapper {
             message.isAction = true
             message.parseTemplate = true
             message.editedTimestamp = nil
+            // Clear rich fields so update patches replace stale merged state.
+            message.attachments = []
+            message.tweets = []
+            message.links = []
+            message.reactions = []
             message.text = "{{sender}} unsent a message"
         }
     }
