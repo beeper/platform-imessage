@@ -72,6 +72,7 @@ struct MessagePatch {
     var links: [PlatformSDK.MessageLink]?
     var iframeURL: String?
     var linkedMessageID: String?
+    var extra: JSONObject?
 
     func apply(to message: inout MessageDraft) {
         if let textHeading {
@@ -94,6 +95,11 @@ struct MessagePatch {
         }
         if let linkedMessageID {
             message.linkedMessageID = linkedMessageID
+        }
+        if let extra {
+            for (key, value) in extra {
+                message.extra[key] = value
+            }
         }
     }
 }

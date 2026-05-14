@@ -101,7 +101,8 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     #expect(messages.map { $0.reactions?.count ?? 0 } == fixture.reactionCounts)
 }
 
-@Test private func stickerAssociatedMessagePreservesLinkedMessageID() throws {
+@Test
+private func stickerAssociatedMessagePreservesLinkedMessageID() throws {
     let messages = try Mapper(
         msgRow: [
             "ROWID": 1,
@@ -137,7 +138,42 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     #expect(message.attachments?.count == 1)
 }
 
-@Test private func platformSDKJSONObjectMacroSerializesWireShape() throws {
+@Test
+private func findMyPayloadMessageMapsAsLocation() throws {
+    let messages = try Mapper(
+        msgRow: [
+            "ROWID": 1,
+            "guid": "FINDMY-GUID",
+            "date": "1",
+            "text": imessageExtensionCharacter,
+            "is_from_me": 1,
+            "handle_id": 0,
+            "item_type": 0,
+            "service": "iMessage",
+            "threadID": "iMessage;+;chat",
+            "balloon_bundle_id": BalloonBundleID.findMy,
+            "payload_data": findMyPayloadData(latitude: 12.34, longitude: 56.78),
+        ],
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "me",
+        accountID: "default"
+    ).mapMessage()
+
+    let message = try #require(messages.first)
+    let extra = try #require(message.extra as? FixtureJSONObject)
+    let location = try #require(extra["location"] as? FixtureJSONObject)
+
+    #expect(messages.count == 1)
+    #expect(message.textHeading == "Find My")
+    #expect(message.textFooter == "Started Sharing Location")
+    #expect(extra["type"] as? String == "LOCATION")
+    #expect(location["latitude"] as? Double == 12.34)
+    #expect(location["longitude"] as? Double == 56.78)
+}
+
+@Test
+private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     let attachment = PlatformSDK.Attachment(
         id: "attachment-id",
         type: .img,
@@ -171,4 +207,31 @@ private func messageMapperFixture(fixture: MapperFixture) throws {
     #expect(threadObject["_original"] == nil)
     #expect(threadObject["type"] as? String == "group")
     #expect((threadObject["messages"] as? FixtureJSONObject)?["hasMore"] as? Bool == false)
+}
+
+private func findMyPayloadData(latitude: Double, longitude: Double) throws -> Data {
+    let json = try JSONSerialization.data(withJSONObject: [
+        "initialLocation": [
+            "latitude": latitude,
+            "longitude": longitude,
+        ],
+    ])
+    let zippedData = try (json as NSData).compressed(using: .zlib).base64EncodedString()
+    return try NSKeyedArchiver.archivedData(
+        withRootObject: [
+            "an": "Find My",
+            "ldtext": "Started Sharing Location",
+            "URL": try findMyPayloadURL(zippedData: zippedData),
+        ] as NSDictionary,
+        requiringSecureCoding: false
+    )
+}
+
+private func findMyPayloadURL(zippedData: String) throws -> String {
+    var components = URLComponents()
+    components.queryItems = [
+        URLQueryItem(name: "FindMyMessagePayloadVersionKey", value: "v0"),
+        URLQueryItem(name: "FindMyMessagePayloadZippedDataKey", value: zippedData),
+    ]
+    return try #require(components.string)
 }

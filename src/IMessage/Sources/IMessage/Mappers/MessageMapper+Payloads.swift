@@ -1,4 +1,5 @@
 import Foundation
+import IMessageCore
 import PlatformSDK
 
 extension Mapper {
@@ -22,6 +23,8 @@ extension Mapper {
             return urlBalloonProps(from: payloadData, messageAttachments: messageAttachments)
         case BalloonBundleID.applePay:
             return applePayProps(from: payloadData)
+        case BalloonBundleID.findMy:
+            return findMyProps(from: payloadData)
         case BalloonBundleID.youtube:
             return youTubeProps(from: payloadData)
         default:
@@ -131,6 +134,21 @@ extension Mapper {
         )
     }
 
+    func findMyProps(from payloadData: Any) -> MessagePatch {
+        guard let payload = unwrapDictionary(payloadData) else {
+            return MessagePatch(textHeading: "Find My")
+        }
+        let heading = payload.string("an").flatMap(\.nonEmpty) ?? "Find My"
+        let footer = payload.string("ldtext").flatMap(\.nonEmpty)
+        let location = findMyLocation(from: payload["URL"]).map { location in
+            [
+                "type": "LOCATION",
+                "location": location.jsonObject,
+            ]
+        }
+        return MessagePatch(textHeading: heading, textFooter: footer, extra: location)
+    }
+
     func parseSummaryInfo() -> JSONObject {
         guard let data = msgRow.messageSummaryInfo,
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
@@ -199,5 +217,40 @@ extension Mapper {
                 attachments: tweetAttachments
             ),
         ])
+    }
+
+    private func findMyLocation(from urlValue: Any?) -> FindMyLocation? {
+        guard let url = relativeURL(urlValue),
+              let encodedPayload = findMyQueryParameter("FindMyMessagePayloadZippedDataKey", in: url),
+              let compressed = Data(base64Encoded: encodedPayload),
+              let data = try? (compressed as NSData).decompressed(using: .zlib) as Data,
+              let payload = try? JSONDecoder().decode(FindMyPayload.self, from: data) else {
+            return nil
+        }
+        return payload.initialLocation
+    }
+
+    private func findMyQueryParameter(_ name: String, in url: String) -> String? {
+        let componentsString = url.contains("?") ? url : "?\(url)"
+        return URLComponents(string: componentsString)?
+            .queryItems?
+            .first { $0.name == name }?
+            .value
+    }
+}
+
+private struct FindMyPayload: Decodable {
+    let initialLocation: FindMyLocation
+}
+
+private struct FindMyLocation: Decodable {
+    let latitude: Double
+    let longitude: Double
+
+    var jsonObject: JSONObject {
+        [
+            "latitude": latitude,
+            "longitude": longitude,
+        ]
     }
 }
