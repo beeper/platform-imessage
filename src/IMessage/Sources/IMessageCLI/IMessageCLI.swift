@@ -400,7 +400,8 @@ private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMess
 private let maxLatestMessageOffset = 999_999
 private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
 private let threadIDAliasServicePrefixes = ["any", "iMessage", "RCS", "SMS"]
-private let threadIDAliasNote = "CHAT_ID may be a one-to-one email address, phone number, or trailing chat identifier; the CLI will resolve it to an existing chat ID such as any;-;ADDRESS or any;-;CHAT_IDENTIFIER."
+private let businessURNPrefix = "urn:biz:"
+private let threadIDAliasNote = "CHAT_ID may be a one-to-one email address, phone number, SMS shortcode/sender ID, or business URN; the CLI will resolve it to an existing chat ID such as any;-;ADDRESS, any;-;vx-cureft, or any;-;urn:biz:ID."
 
 private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
@@ -950,7 +951,7 @@ private func missingMessageIDAliasError(_ command: CommandDefinition, _ args: [S
         .joined(separator: " ")
 
     return CLIError(
-        "\(command.name) got a chat ID/alias where MESSAGE_ID was expected. " +
+        "\(command.name) got a chat ID or recipient alias where MESSAGE_ID was expected. " +
         "To target the newest message in that chat, add latest: \(suggestion)"
     )
 }
@@ -1067,6 +1068,8 @@ private func parsesAsThreadIDAndMessageID(_ rawThreadID: String, _ rawMessageID:
 
 private func looksLikeBareThreadIDAlias(_ value: String) -> Bool {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    // SMS shortcodes, alphanumeric sender IDs, and business URNs do not always
+    // look like phone numbers, but chat.db still stores them behind service prefixes.
     return !trimmed.isEmpty
         && !looksLikeThreadIDOrAddress(trimmed)
         && !looksLikeMessageReferenceID(trimmed)
@@ -1121,6 +1124,10 @@ private func threadIDAliasVariants(_ address: String) -> [String] {
     append(address)
 
     if address.contains("@") {
+        append(address.lowercased())
+    }
+
+    if address.hasPrefix(businessURNPrefix) {
         append(address.lowercased())
     }
 
