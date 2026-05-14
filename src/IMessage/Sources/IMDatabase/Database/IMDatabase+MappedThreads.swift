@@ -43,6 +43,25 @@ public extension IMDatabase {
         return try statement.mapRowsUntilDone(MappedChatRow.self).first
     }
 
+    func mappedChatActivities(guids: [String]) throws -> [(guid: String, lastMessageDate: Int?)] {
+        guard !guids.isEmpty else { return [] }
+        let sql = """
+        SELECT
+        chat.guid,
+        (SELECT MAX(message_date) FROM chat_message_join WHERE chat_id = chat.ROWID) AS msgDate
+        FROM chat
+        WHERE chat.guid IN (\(guids.map { _ in "?" }.joined(separator: ", ")))
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind(guids.map { $0 as any SQLiteBindable })
+        return try statement.mapRowsUntilDone { row in
+            (
+                guid: try row[0].expect(String.self),
+                lastMessageDate: try row[1].optionalConverting(Int.self)
+            )
+        }
+    }
+
     func mappedThreadParticipantRows(chatRowIDs: [Int]) throws -> [Int: [MappedHandleRow]] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let sql = """

@@ -964,33 +964,21 @@ private func resolveThreadIDAlias(_ threadID: String, api: PlatformAPI) async th
         return trimmed
     }
 
-    let matches = try await withThrowingTaskGroup(of: (offset: Int, threadID: String, timestamp: PlatformSDK.Timestamp?)?.self) { group in
-        for (offset, candidate) in candidates.enumerated() {
-            group.addTask {
-                guard let thread = try await api.getThread(threadID: candidate) else { return nil }
-                return (offset, candidate, thread.timestamp)
-            }
-        }
-        var results = [(offset: Int, threadID: String, timestamp: PlatformSDK.Timestamp?)]()
-        for try await result in group {
-            if let result { results.append(result) }
-        }
-        return results
-    }
-
-    guard let match = matches.max(by: { lhs, rhs in
-        let lhsTimestamp = lhs.timestamp ?? Int64.min
-        let rhsTimestamp = rhs.timestamp ?? Int64.min
+    let candidateIndexes = Dictionary(uniqueKeysWithValues: candidates.enumerated().map { ($0.element, $0.offset) })
+    let activities = try await api.lookupChatActivities(guids: candidates)
+    guard let best = activities.min(by: { lhs, rhs in
+        let lhsTimestamp = lhs.lastMessageDate ?? Int.min
+        let rhsTimestamp = rhs.lastMessageDate ?? Int.min
         if lhsTimestamp != rhsTimestamp {
-            return lhsTimestamp < rhsTimestamp
+            return lhsTimestamp > rhsTimestamp
         }
-        return lhs.offset > rhs.offset
+        return (candidateIndexes[lhs.guid] ?? Int.max) < (candidateIndexes[rhs.guid] ?? Int.max)
     }) else {
         let tried = candidates.joined(separator: ", ")
         throw CLIError("cannot resolve address \(trimmed): no existing chat found. Tried \(tried)")
     }
 
-    return match.threadID
+    return best.guid
 }
 
 private func threadIDCandidates(forAddress address: String) -> [String] {

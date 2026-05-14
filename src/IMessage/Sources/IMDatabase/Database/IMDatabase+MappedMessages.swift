@@ -144,7 +144,7 @@ public extension IMDatabase {
         try mappedMessageRows(guids: [guid]).first
     }
 
-    func mappedLatestMessageRow(in chatGUID: String? = nil, offset: Int) throws -> MappedMessageRow? {
+    func mappedLatestVisibleMessageRow(in chatGUID: String? = nil, offset: Int) throws -> MappedMessageRow? {
         let chatRowID: Int?
         if let chatGUID {
             guard let rowID = try mappedChatRowID(guid: chatGUID) else { return nil }
@@ -154,7 +154,16 @@ public extension IMDatabase {
         }
 
         let messageColumns = try tableColumns("message")
-        let whereClause = chatRowID == nil ? "" : "WHERE cmj.chat_id = ?\n"
+        var whereClauses = [String]()
+        if chatRowID != nil {
+            whereClauses.append("cmj.chat_id = ?")
+        }
+        let reactionClause = "m.associated_message_type NOT BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)"
+        whereClauses.append("(m.associated_message_type IS NULL OR \(reactionClause))")
+        if messageColumns.contains("schedule_type") {
+            whereClauses.append("COALESCE(m.schedule_type, 0) = 0")
+        }
+        let whereClause = whereClauses.isEmpty ? "" : "WHERE \(whereClauses.joined(separator: " AND "))\n"
         let sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
@@ -346,6 +355,11 @@ public extension IMDatabase {
 }
 
 private let maxMappedMessageRowsBatchSize = 500
+// Associated message types 2000...3007 are tapback/reaction add/remove rows.
+// The API exposes those as reactions plus hidden action messages, so `latest`
+// aliases should skip them and resolve to the newest user-visible row.
+private let reactionAssociatedMessageTypeLowerBound = 2000
+private let reactionAssociatedMessageTypeUpperBound = 3007
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]

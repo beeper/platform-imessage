@@ -23,6 +23,12 @@ extension PlatformAPI {
         }
     }
 
+    public func lookupChatActivities(guids: [String]) async throws -> [(guid: String, lastMessageDate: Int?)] {
+        try await runDBQuery { db, _, _ in
+            try db.mappedChatActivities(guids: guids)
+        }
+    }
+
     nonisolated static func resolveMessageReference(
         db: IMDatabase,
         messageID: String
@@ -47,7 +53,7 @@ extension PlatformAPI {
     ) throws -> MessageReference? {
         guard offset >= 0 else { return nil }
         let resolvedOriginalThreadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
-        guard let msgRow = try db.mappedLatestMessageRow(in: resolvedOriginalThreadID, offset: offset) else {
+        guard let msgRow = try db.mappedLatestVisibleMessageRow(in: resolvedOriginalThreadID, offset: offset) else {
             return nil
         }
         guard let threadID = try resolvedOriginalThreadID ?? msgRow.threadID ?? db.threadIDForMessage(rowID: msgRow.rowID) else {
