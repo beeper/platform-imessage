@@ -11,10 +11,7 @@ extension PlatformAPI {
         attachmentRows: [MappedAttachmentRow],
         currentUserID: String
     ) -> [Any] {
-        var serializedRow = msgRow.object
-        serializedRow.removeValue(forKey: "attributedBody")
-        serializedRow.removeValue(forKey: "message_summary_info")
-        return [serializedRow, attachmentRows.map(\.object), currentUserID]
+        [msgRow.object, attachmentRows.map(\.object), currentUserID]
     }
 
     nonisolated static func threadOriginalPayload(
