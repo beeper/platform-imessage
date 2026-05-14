@@ -915,6 +915,9 @@ private func parseMessageReferenceArgs(_ command: CommandDefinition, _ args: [St
     let bare = 1 + trailingCount
     let withChat = 2 + trailingCount
     if args.count == bare {
+        if looksLikeThreadIDOrAddress(args[0]) {
+            throw missingMessageIDAliasError(command, args)
+        }
         return MessageReferenceArgs(rawThreadID: nil, rawMessageID: args[0], trailing: args.dropFirst())
     }
     if args.count == withChat, looksLikeThreadIDOrAddress(args[0]) {
@@ -928,11 +931,36 @@ private func parseMessageTextArgs(_ command: CommandDefinition, _ args: [String]
         throw CLIError("\(command.name) expects at least 2 arguments.\n\(commandUsageSummary(command))")
     }
 
+    if args.count == 2, looksLikeThreadIDOrAddress(args[0]) {
+        throw missingMessageIDAliasError(command, args)
+    }
+
     let hasThreadID = args.count >= 3 && looksLikeThreadIDOrAddress(args[0])
     let messageIndex = hasThreadID ? 1 : 0
     let textStartIndex = hasThreadID ? 2 : 1
     let text = try joinText(command, args, startIndex: textStartIndex)
     return (hasThreadID ? args[0] : nil, args[messageIndex], text)
+}
+
+private func missingMessageIDAliasError(_ command: CommandDefinition, _ args: [String]) -> CLIError {
+    var suggestedArgs = args
+    suggestedArgs.insert("latest", at: 1)
+    let suggestion = ([command.name] + suggestedArgs)
+        .map(shellQuoteForSuggestion)
+        .joined(separator: " ")
+
+    return CLIError(
+        "\(command.name) got a chat ID/address where MESSAGE_ID was expected. " +
+        "To target the newest message in that chat, add latest: \(suggestion)"
+    )
+}
+
+private func shellQuoteForSuggestion(_ token: String) -> String {
+    let safeCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-")
+    if !token.isEmpty, token.rangeOfCharacter(from: safeCharacters.inverted) == nil {
+        return token
+    }
+    return "'\(token.replacingOccurrences(of: "'", with: "'\\''"))'"
 }
 
 private func resolveMessageReference(rawThreadID: String?, rawMessageID: String, api: PlatformAPI) async throws -> PlatformAPI.MessageReference {
