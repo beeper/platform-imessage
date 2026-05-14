@@ -400,8 +400,7 @@ private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMess
 private let maxLatestMessageOffset = 999_999
 private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
 private let threadIDAliasServicePrefixes = ["any", "iMessage", "RCS", "SMS"]
-private let businessURNPrefix = "urn:biz:"
-private let threadIDAliasNote = "CHAT_ID may be a one-to-one email address, phone number, SMS shortcode/sender ID, or business URN; the CLI will resolve it to an existing chat ID such as any;-;ADDRESS, any;-;vx-cureft, or any;-;urn:biz:ID."
+private let threadIDAliasNote = "CHAT_ID may be a chat ID or recipient identifier; the CLI will resolve bare values to existing chat IDs such as any;-;VALUE, iMessage;-;VALUE, RCS;-;VALUE, or SMS;-;VALUE."
 
 private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
@@ -916,7 +915,7 @@ private func parseMessageReferenceArgs(_ command: CommandDefinition, _ args: [St
     let bare = 1 + trailingCount
     let withChat = 2 + trailingCount
     if args.count == bare {
-        if looksLikeThreadIDOrAlias(args[0]) {
+        if looksLikeFullThreadIDOrAlias(args[0]) {
             throw missingMessageIDAliasError(command, args)
         }
         return MessageReferenceArgs(rawThreadID: nil, rawMessageID: args[0], trailing: args.dropFirst())
@@ -932,7 +931,7 @@ private func parseMessageTextArgs(_ command: CommandDefinition, _ args: [String]
         throw CLIError("\(command.name) expects at least 2 arguments.\n\(commandUsageSummary(command))")
     }
 
-    if args.count == 2, looksLikeThreadIDOrAlias(args[0]) {
+    if args.count == 2, looksLikeFullThreadIDOrAlias(args[0]) {
         throw missingMessageIDAliasError(command, args)
     }
 
@@ -1050,30 +1049,26 @@ private func latestMessageOffset(_ messageID: String) throws -> Int? {
     return offset
 }
 
-private func looksLikeThreadIDOrAddress(_ value: String) -> Bool {
+private func looksLikeFullThreadID(_ value: String) -> Bool {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.hasPrefix("imsg##thread:")
         || trimmed.contains(";")
-        || looksLikeAddressAlias(trimmed)
 }
 
-private func looksLikeThreadIDOrAlias(_ value: String) -> Bool {
-    looksLikeThreadIDOrAddress(value) || looksLikeBareThreadIDAlias(value)
+private func looksLikeFullThreadIDOrAlias(_ value: String) -> Bool {
+    looksLikeFullThreadID(value) || looksLikeBareThreadIDAlias(value)
 }
 
 private func parsesAsThreadIDAndMessageID(_ rawThreadID: String, _ rawMessageID: String) -> Bool {
-    looksLikeThreadIDOrAddress(rawThreadID)
+    looksLikeFullThreadID(rawThreadID)
         || (looksLikeBareThreadIDAlias(rawThreadID) && looksLikeMessageReferenceID(rawMessageID))
 }
 
 private func looksLikeBareThreadIDAlias(_ value: String) -> Bool {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    // SMS shortcodes, alphanumeric sender IDs, and business URNs do not always
-    // look like phone numbers, but chat.db still stores them behind service prefixes.
     return !trimmed.isEmpty
-        && !looksLikeThreadIDOrAddress(trimmed)
+        && !looksLikeFullThreadID(trimmed)
         && !looksLikeMessageReferenceID(trimmed)
-        && !threadIDCandidates(forAlias: trimmed).isEmpty
 }
 
 private func looksLikeMessageReferenceID(_ value: String) -> Bool {
@@ -1100,10 +1095,6 @@ private func messageGUIDBase(fromID id: String) -> String {
     return String(id[..<underscoreIndex])
 }
 
-private func looksLikeAddressAlias(_ value: String) -> Bool {
-    value.contains("@") || looksLikeBarePhoneNumber(value)
-}
-
 private func looksLikeBarePhoneNumber(_ value: String) -> Bool {
     let allowed = CharacterSet(charactersIn: "+0123456789 -().")
     guard !value.isEmpty,
@@ -1123,13 +1114,7 @@ private func threadIDAliasVariants(_ address: String) -> [String] {
 
     append(address)
 
-    if address.contains("@") {
-        append(address.lowercased())
-    }
-
-    if address.hasPrefix(businessURNPrefix) {
-        append(address.lowercased())
-    }
+    append(address.lowercased())
 
     if looksLikeBarePhoneNumber(address) {
         let compactPhone = address.filter { $0 == "+" || $0.isNumber }
