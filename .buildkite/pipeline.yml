@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+---
+
+agents:
+  queue: mac
+
+env:
+  IMAGE_ID: $IMAGE_ID
+
+steps:
+  # Tests + library build, plus `npm publish` to GH Packages on main when
+  # package.json's version is new.
+  - label: ":jest: :swift: Test & build"
+    key: test-build
+    command: .buildkite/commands/ci.sh
+    plugins: [$CI_TOOLKIT_PLUGIN, $NVM_PLUGIN]
+    notify:
+      - github_commit_status:
+          context: Test & Build
+
+  # Runs on every build (PR, main, tag). The script signs and notarizes the
+  # CLI, stashes the tarball as a Buildkite artifact, and only publishes to
+  # GitHub Releases when triggered by a `v*` tag.
+  - label: ":apple: Build, sign, notarize CLI"
+    key: release-cli
+    command: .buildkite/commands/release-cli.sh
+    plugins: [$CI_TOOLKIT_PLUGIN, $NVM_PLUGIN]
+    artifact_paths:
+      - dist/*.tar.gz
+      - dist/*.tar.gz.sha256
+    notify:
+      - github_commit_status:
+          context: Build, Sign & Notarize CLI

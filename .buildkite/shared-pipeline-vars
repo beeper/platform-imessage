@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# Sourced before `buildkite-agent pipeline upload` so the values land in the
+# rendered pipeline. Keeps plugin pins and the agent image id out of the
+# pipeline.yml itself.
+
+CI_TOOLKIT_PLUGIN_VERSION='6.0.1'
+NVM_PLUGIN_VERSION='0.6.0'
+XCODE_VERSION=$(sed -E 's/^~> ?//' .xcode-version)
+
+export IMAGE_ID="xcode-$XCODE_VERSION"
+export CI_TOOLKIT_PLUGIN="automattic/a8c-ci-toolkit#$CI_TOOLKIT_PLUGIN_VERSION"
+export NVM_PLUGIN="automattic/nvm#$NVM_PLUGIN_VERSION"

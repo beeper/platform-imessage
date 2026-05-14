@@ -43,5 +43,8 @@ DerivedData/
 !.parity/mapper-parity.test.ts
 .*.history.json
 .claude
+
+vendor/bundle/
+
 .build
 .swiftpm
