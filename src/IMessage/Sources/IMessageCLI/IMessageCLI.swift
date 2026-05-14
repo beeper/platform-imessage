@@ -399,8 +399,8 @@ private let mutatingAuth: [AuthorizationRequirement] = [.messagesData, .accessib
 private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMessage", "latest"]
 private let maxLatestMessageOffset = 999_999
 private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
-private let threadIDAddressServicePrefixes = ["any", "iMessage", "RCS", "SMS"]
-private let threadIDAddressAliasNote = "CHAT_ID may be a one-to-one email address or phone number; the CLI will resolve it to an existing chat ID such as \(threadIDAddressServicePrefixes.map { "\($0);-;ADDRESS" }.joined(separator: ", "))."
+private let threadIDAliasServicePrefixes = ["any", "iMessage", "RCS", "SMS"]
+private let threadIDAliasNote = "CHAT_ID may be a one-to-one email address, phone number, or trailing chat identifier; the CLI will resolve it to an existing chat ID such as any;-;ADDRESS or any;-;CHAT_IDENTIFIER."
 
 private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
@@ -535,7 +535,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Fetch a single chat by chat ID.",
         usage: ["chat CHAT_ID"],
         examples: ["chat any;-;sjobs@apple.com"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
@@ -551,7 +551,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "List messages in a chat.",
         usage: ["messages CHAT_ID [--before CURSOR|--after CURSOR]"],
         examples: ["messages any;-;sjobs@apple.com", "messages any;-;sjobs@apple.com --before 725506281967999900"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 1)
@@ -568,7 +568,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Fetch a single message by message ID.",
         usage: ["message MESSAGE_ID", "message CHAT_ID MESSAGE_ID"],
         examples: ["message C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678", "message latest-1", "message +14155551234 latest"],
-        notes: [threadIDAddressAliasNote, messageIDAliasNote],
+        notes: [threadIDAliasNote, messageIDAliasNote],
         requiredAuthorization: readOnlyAuth
     ) { args, context in
         let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)
@@ -619,7 +619,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Send a text message to a chat.",
         usage: ["send CHAT_ID TEXT"],
         examples: ["send any;-;sjobs@apple.com \"hello from cli\""],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireMinArgs(context.command, args, 2)
@@ -636,7 +636,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Reply to a specific message with text.",
         usage: ["reply MESSAGE_ID TEXT", "reply CHAT_ID MESSAGE_ID TEXT"],
         examples: ["reply C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 \"sounds good\"", "reply latest-1 \"sounds good\"", "reply +14155551234 latest \"sounds good\""],
-        notes: [threadIDAddressAliasNote, messageIDAliasNote],
+        notes: [threadIDAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseMessageTextArgs(context.command, args)
@@ -656,7 +656,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Send a file attachment to a chat.",
         usage: ["send-file CHAT_ID FILE"],
         examples: ["send-file any;-;sjobs@apple.com ./image.png"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
@@ -673,7 +673,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Reply to a specific message with a file attachment.",
         usage: ["reply-file MESSAGE_ID FILE", "reply-file CHAT_ID MESSAGE_ID FILE"],
         examples: ["reply-file C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 ./document.pdf", "reply-file latest-1 ./document.pdf", "reply-file +14155551234 latest ./document.pdf"],
-        notes: [threadIDAddressAliasNote, messageIDAliasNote],
+        notes: [threadIDAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 1)
@@ -694,7 +694,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Edit a previously sent message.",
         usage: ["edit MESSAGE_ID TEXT", "edit CHAT_ID MESSAGE_ID TEXT"],
         examples: ["edit C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 \"updated text\"", "edit latest-1 \"updated text\"", "edit +14155551234 latest \"updated text\""],
-        notes: ["Message editing is only supported on macOS Ventura or later.", threadIDAddressAliasNote, messageIDAliasNote],
+        notes: ["Message editing is only supported on macOS Ventura or later.", threadIDAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseMessageTextArgs(context.command, args)
@@ -714,7 +714,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Undo send for a previously sent message.",
         usage: ["undo-send MESSAGE_ID", "undo-send CHAT_ID MESSAGE_ID"],
         examples: ["undo-send C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678", "undo-send latest-1", "undo-send +14155551234 latest"],
-        notes: ["Undo send is only supported on macOS Ventura or later and must be used within 2 minutes of sending.", threadIDAddressAliasNote, messageIDAliasNote],
+        notes: ["Undo send is only supported on macOS Ventura or later and must be used within 2 minutes of sending.", threadIDAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)
@@ -740,7 +740,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Mark a chat as read.",
         usage: ["mark-read CHAT_ID"],
         examples: ["mark-read any;-;sjobs@apple.com"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
@@ -756,7 +756,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Mark a chat as unread.",
         usage: ["mark-unread CHAT_ID"],
         examples: ["mark-unread any;-;sjobs@apple.com"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
@@ -772,7 +772,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Delete a chat from Messages.",
         usage: ["delete-chat CHAT_ID"],
         examples: ["delete-chat any;-;sjobs@apple.com"],
-        notes: ["This mutates real Messages state.", threadIDAddressAliasNote],
+        notes: ["This mutates real Messages state.", threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
@@ -788,7 +788,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Trigger the \"notify anyway\" action for a chat.",
         usage: ["notify-anyway CHAT_ID"],
         examples: ["notify-anyway any;-;sjobs@apple.com"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
@@ -806,7 +806,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Select a chat and start the chat activity watcher.",
         usage: ["select-chat CHAT_ID"],
         examples: ["select-chat any;-;sjobs@apple.com"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
@@ -825,7 +825,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Send typing on/off status for a chat.",
         usage: ["typing CHAT_ID on|off"],
         examples: ["typing any;-;sjobs@apple.com on", "typing any;-;sjobs@apple.com off"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 2)
@@ -889,7 +889,7 @@ private func reactionCommand(
             "\(name) latest-1 ❤️",
             "\(name) +14155551234 latest heart",
         ],
-        notes: [threadIDAddressAliasNote, messageIDAliasNote, "Supported standard keys: heart, like, dislike, laugh, emphasize, question.", "Sticker reactions are not exposed in this CLI."],
+        notes: [threadIDAliasNote, messageIDAliasNote, "Supported standard keys: heart, like, dislike, laugh, emphasize, question.", "Sticker reactions are not exposed in this CLI."],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 1)
@@ -915,12 +915,12 @@ private func parseMessageReferenceArgs(_ command: CommandDefinition, _ args: [St
     let bare = 1 + trailingCount
     let withChat = 2 + trailingCount
     if args.count == bare {
-        if looksLikeThreadIDOrAddress(args[0]) {
+        if looksLikeThreadIDOrAlias(args[0]) {
             throw missingMessageIDAliasError(command, args)
         }
         return MessageReferenceArgs(rawThreadID: nil, rawMessageID: args[0], trailing: args.dropFirst())
     }
-    if args.count == withChat, looksLikeThreadIDOrAddress(args[0]) {
+    if args.count == withChat, parsesAsThreadIDAndMessageID(args[0], args[1]) {
         return MessageReferenceArgs(rawThreadID: args[0], rawMessageID: args[1], trailing: args.dropFirst(2))
     }
     throw CLIError("\(command.name) expects \(bare) or \(withChat) arguments.\n\(commandUsageSummary(command))")
@@ -931,11 +931,11 @@ private func parseMessageTextArgs(_ command: CommandDefinition, _ args: [String]
         throw CLIError("\(command.name) expects at least 2 arguments.\n\(commandUsageSummary(command))")
     }
 
-    if args.count == 2, looksLikeThreadIDOrAddress(args[0]) {
+    if args.count == 2, looksLikeThreadIDOrAlias(args[0]) {
         throw missingMessageIDAliasError(command, args)
     }
 
-    let hasThreadID = args.count >= 3 && looksLikeThreadIDOrAddress(args[0])
+    let hasThreadID = args.count >= 3 && parsesAsThreadIDAndMessageID(args[0], args[1])
     let messageIndex = hasThreadID ? 1 : 0
     let textStartIndex = hasThreadID ? 2 : 1
     let text = try joinText(command, args, startIndex: textStartIndex)
@@ -950,7 +950,7 @@ private func missingMessageIDAliasError(_ command: CommandDefinition, _ args: [S
         .joined(separator: " ")
 
     return CLIError(
-        "\(command.name) got a chat ID/address where MESSAGE_ID was expected. " +
+        "\(command.name) got a chat ID/alias where MESSAGE_ID was expected. " +
         "To target the newest message in that chat, add latest: \(suggestion)"
     )
 }
@@ -987,7 +987,7 @@ private func resolveThreadIDAlias(_ threadID: String, api: PlatformAPI) async th
     let trimmed = threadID.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return threadID }
 
-    let candidates = threadIDCandidates(forAddress: trimmed)
+    let candidates = threadIDCandidates(forAlias: trimmed)
     if candidates.isEmpty {
         return trimmed
     }
@@ -995,22 +995,33 @@ private func resolveThreadIDAlias(_ threadID: String, api: PlatformAPI) async th
     let existingChatGUIDs = Set(try await api.lookupExistingThreadGUIDs(guids: candidates))
     guard let best = candidates.first(where: existingChatGUIDs.contains) else {
         let tried = candidates.joined(separator: ", ")
-        throw CLIError("cannot resolve address \(trimmed): no existing chat found. Tried \(tried)")
+        throw CLIError("cannot resolve chat \(trimmed): no existing chat found. Tried \(tried)")
     }
 
     return best
 }
 
-private func threadIDCandidates(forAddress address: String) -> [String] {
-    guard !address.hasPrefix("imsg##thread:"),
-          !address.contains(";"),
-          looksLikeAddressAlias(address) else {
+private func threadIDCandidates(forAlias alias: String) -> [String] {
+    guard !alias.hasPrefix("imsg##thread:"),
+          !alias.contains(";") else {
         return []
     }
 
-    return addressAliasVariants(address).flatMap { variant in
-        threadIDAddressServicePrefixes.map { "\($0);-;\(variant)" }
+    var candidates = [String]()
+
+    func append(_ candidate: String) {
+        guard !candidate.isEmpty, !candidates.contains(candidate) else { return }
+        candidates.append(candidate)
     }
+
+    for variant in threadIDAliasVariants(alias) {
+        append(variant)
+        for servicePrefix in threadIDAliasServicePrefixes {
+            append("\(servicePrefix);-;\(variant)")
+        }
+    }
+
+    return candidates
 }
 
 private func resolveMessageID(_ messageID: String, threadID: String, api: PlatformAPI) async throws -> String {
@@ -1045,6 +1056,47 @@ private func looksLikeThreadIDOrAddress(_ value: String) -> Bool {
         || looksLikeAddressAlias(trimmed)
 }
 
+private func looksLikeThreadIDOrAlias(_ value: String) -> Bool {
+    looksLikeThreadIDOrAddress(value) || looksLikeBareThreadIDAlias(value)
+}
+
+private func parsesAsThreadIDAndMessageID(_ rawThreadID: String, _ rawMessageID: String) -> Bool {
+    looksLikeThreadIDOrAddress(rawThreadID)
+        || (looksLikeBareThreadIDAlias(rawThreadID) && looksLikeMessageReferenceID(rawMessageID))
+}
+
+private func looksLikeBareThreadIDAlias(_ value: String) -> Bool {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !trimmed.isEmpty
+        && !looksLikeThreadIDOrAddress(trimmed)
+        && !looksLikeMessageReferenceID(trimmed)
+        && !threadIDCandidates(forAlias: trimmed).isEmpty
+}
+
+private func looksLikeMessageReferenceID(_ value: String) -> Bool {
+    looksLikeLatestMessageAlias(value) || looksLikeMessageGUID(value)
+}
+
+private func looksLikeLatestMessageAlias(_ value: String) -> Bool {
+    if latestMessageIDAliases.contains(value) {
+        return true
+    }
+    let prefix = "latest-"
+    guard value.hasPrefix(prefix) else { return false }
+    let rawOffset = value.dropFirst(prefix.count)
+    return !rawOffset.isEmpty && rawOffset.allSatisfy(\.isNumber)
+}
+
+private func looksLikeMessageGUID(_ value: String) -> Bool {
+    let baseGUID = messageGUIDBase(fromID: value)
+    return UUID(uuidString: baseGUID) != nil
+}
+
+private func messageGUIDBase(fromID id: String) -> String {
+    guard let underscoreIndex = id.firstIndex(of: "_") else { return id }
+    return String(id[..<underscoreIndex])
+}
+
 private func looksLikeAddressAlias(_ value: String) -> Bool {
     value.contains("@") || looksLikeBarePhoneNumber(value)
 }
@@ -1058,7 +1110,7 @@ private func looksLikeBarePhoneNumber(_ value: String) -> Bool {
     return value.filter(\.isNumber).count >= 3
 }
 
-private func addressAliasVariants(_ address: String) -> [String] {
+private func threadIDAliasVariants(_ address: String) -> [String] {
     var variants = [String]()
 
     func append(_ variant: String) {
@@ -1098,7 +1150,7 @@ private func muteCommand(name: String, muted: Bool) -> CommandDefinition {
         summary: muted ? "Mute a chat indefinitely." : "Unmute a chat.",
         usage: ["\(name) CHAT_ID"],
         examples: ["\(name) any;-;sjobs@apple.com"],
-        notes: [threadIDAddressAliasNote],
+        notes: [threadIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
