@@ -283,6 +283,29 @@ private func unsupportedExtensionMessageMapsAsActionPlaceholder() throws {
 }
 
 @Test
+private func urlBalloonMessageKeepsLinkOnlyContent() throws {
+    let message = try singleMappedMessage(from: [
+        "ROWID": 10,
+        "guid": "URL-BALLOON-GUID",
+        "date": "8",
+        "text": imessageExtensionCharacter,
+        "is_from_me": 0,
+        "handle_id": 1,
+        "participantID": "sender",
+        "item_type": 0,
+        "service": "iMessage",
+        "threadID": "iMessage;+;chat",
+        "balloon_bundle_id": BalloonBundleID.url,
+        "payload_data": urlBalloonPayloadData(url: "https://texts.com", title: "Texts"),
+    ])
+
+    let link = try #require(message.links?.first)
+    #expect(message.links?.count == 1)
+    #expect(link.url == "https://texts.com")
+    #expect(link.title == "Texts")
+}
+
+@Test
 private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     let attachment = PlatformSDK.Attachment(
         id: "attachment-id",
@@ -317,6 +340,19 @@ private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     #expect(threadObject["_original"] == nil)
     #expect(threadObject["type"] as? String == "group")
     #expect((threadObject["messages"] as? FixtureJSONObject)?["hasMore"] as? Bool == false)
+}
+
+private func urlBalloonPayloadData(url: String, title: String) throws -> Data {
+    try PropertyListSerialization.data(
+        fromPropertyList: [
+            "richLinkMetadata": [
+                "URL": url,
+                "title": title,
+            ],
+        ],
+        format: .binary,
+        options: 0
+    )
 }
 
 private func findMyPayloadData(latitude: Double, longitude: Double) throws -> Data {

@@ -324,6 +324,15 @@ struct Mapper {
         if let attachments = message.attachments, !attachments.isEmpty {
             return true
         }
+        if let tweets = message.tweets, !tweets.isEmpty {
+            return true
+        }
+        if let links = message.links, !links.isEmpty {
+            return true
+        }
+        if let iframeURL = message.iframeURL, !iframeURL.isEmpty {
+            return true
+        }
         if let text = message.text, !text.isEmpty {
             return true
         }
