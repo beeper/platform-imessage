@@ -11,7 +11,8 @@ steps:
   # Temporarily disabled while GitHub Actions owns npm CI/publishing again.
   - label: ":pause_button: NPM workflow disabled"
     key: test-build
-    command: echo "--- :information_source: npm workflow temporarily disabled"
+    command: |
+      echo "--- :information_source: npm workflow temporarily disabled"
     notify:
       - github_commit_status:
           context: Test & Build
