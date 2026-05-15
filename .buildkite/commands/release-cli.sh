@@ -12,7 +12,7 @@ case "${BUILDKITE_TAG:-}" in
     publish=true
     ;;
   *)
-    base_version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+    base_version="$(scripts/print-package-version)"
     short_sha="${BUILDKITE_COMMIT:0:7}"
     version="${base_version}-${short_sha}"
     publish=false
