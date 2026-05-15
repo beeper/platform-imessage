@@ -81,7 +81,8 @@ enum PluginPayloadAssetSupport {
         default:
             throw ErrorMessage("Unsupported private initializer arity")
         }
-        return try object(from: unmanaged, selector: selector)
+        // `init`-family selectors return a +1 retained reference, so consume the retain.
+        return try object(from: unmanaged, selector: selector, consumesUnbalancedRetain: true)
     }
 
     /// Allocates `cls` and invokes a `(id, BOOL)` initializer via a typed IMP so the
@@ -106,14 +107,16 @@ enum PluginPayloadAssetSupport {
         typealias ObjectAndBoolInitIMP = @convention(c) (NSObject, Selector, AnyObject, Bool) -> Unmanaged<AnyObject>?
         let initIMP = unsafeBitCast(method_getImplementation(initMethod), to: ObjectAndBoolInitIMP.self)
         let unmanaged = initIMP(allocated, selector, object, flag)
-        return try self.object(from: unmanaged, selector: selector)
+        // `init`-family selectors return a +1 retained reference, so consume the retain.
+        return try self.object(from: unmanaged, selector: selector, consumesUnbalancedRetain: true)
     }
 
     static func performObject(_ object: NSObject, selector: Selector) throws -> AnyObject {
         guard object.responds(to: selector) else {
             throw ErrorMessage("Private framework method is unavailable: \(NSStringFromSelector(selector))")
         }
-        return try self.object(from: object.perform(selector), selector: selector)
+        // Non-init selectors follow Cocoa's +0 autoreleased return convention.
+        return try self.object(from: object.perform(selector), selector: selector, consumesUnbalancedRetain: false)
     }
 
     /// Rejects Swift numeric/Bool values passed where the receiver expects a primitive
@@ -154,10 +157,27 @@ enum PluginPayloadAssetSupport {
         }
     }
 
-    private static func object(from unmanaged: Unmanaged<AnyObject>?, selector: Selector) throws -> NSObject {
-        guard let unmanaged,
-              let object = unmanaged.takeUnretainedValue() as? NSObject else {
+    /// Unwraps the result of an Obj-C runtime `perform`/IMP call.
+    ///
+    /// `consumesUnbalancedRetain` selects between Cocoa's two return conventions:
+    /// * `true` for `init`/`copy`/`mutableCopy`/`new`/`alloc`-family selectors, which
+    ///   return a +1 retained reference that the caller owns. We use
+    ///   `takeRetainedValue()` so ARC balances the +1 instead of leaking the object.
+    /// * `false` for ordinary methods, which return autoreleased (+0) references —
+    ///   `takeUnretainedValue()` is correct so we don't over-release.
+    private static func object(
+        from unmanaged: Unmanaged<AnyObject>?,
+        selector: Selector,
+        consumesUnbalancedRetain: Bool
+    ) throws -> NSObject {
+        guard let unmanaged else {
             throw ErrorMessage("Private framework method returned nil: \(NSStringFromSelector(selector))")
+        }
+        let value: AnyObject = consumesUnbalancedRetain
+            ? unmanaged.takeRetainedValue()
+            : unmanaged.takeUnretainedValue()
+        guard let object = value as? NSObject else {
+            throw ErrorMessage("Private framework method returned wrong type: \(NSStringFromSelector(selector))")
         }
         return object
     }
