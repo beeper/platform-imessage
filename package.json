@@ -37,14 +37,14 @@
     "hackily-install-binaries": "mv /Applications/Texts.app/Contents/Resources/app/build/platform-imessage{,-old}; ln -fs ${PWD}/binaries /Applications/Texts.app/Contents/Resources/app/build/platform-imessage"
   },
   "dependencies": {
-    "@textshq/platform-sdk": "git+https://github.com/TextsHQ/platform-sdk.git#eed22bde2bcd2bd8dcb6312b553c6b1581091c83",
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83",
     "clsx": "^1.2.1",
     "concurrently": "^9.1.2"
   },
   "devDependencies": {
     "@sentry/cli": "^2.50.2",
-    "@textshq/eslint-config": "git+https://github.com/TextsHQ/eslint-config.git#main",
-    "@textshq/platform-test-lib": "git+https://github.com/TextsHQ/platform-test-lib.git#main",
+    "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
+    "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main",
     "@types/jest": "^28.1.6",
     "@types/node": "20.17.19",
     "@types/react": "^17.0.38",
@@ -64,7 +64,7 @@
     "darwin"
   ],
   "resolutions": {
-    "@textshq/platform-sdk": "git+https://github.com/TextsHQ/platform-sdk.git#eed22bde2bcd2bd8dcb6312b553c6b1581091c83",
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83",
     "node-gyp": "^10.0.1"
   },
   "peerDependencies": {

@@ -1985,9 +1985,9 @@ __metadata:
   resolution: "@beeper/platform-imessage@workspace:."
   dependencies:
     "@sentry/cli": "npm:^2.50.2"
-    "@textshq/eslint-config": "git+https://github.com/TextsHQ/eslint-config.git#main"
-    "@textshq/platform-sdk": "git+https://github.com/TextsHQ/platform-sdk.git#eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
-    "@textshq/platform-test-lib": "git+https://github.com/TextsHQ/platform-test-lib.git#main"
+    "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main"
+    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
+    "@textshq/platform-test-lib": "https://github.com/TextsHQ/platform-test-lib#main"
     "@types/jest": "npm:^28.1.6"
     "@types/node": "npm:20.17.19"
     "@types/react": "npm:^17.0.38"
@@ -2606,9 +2606,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@textshq/eslint-config@git+https://github.com/TextsHQ/eslint-config.git#main":
+"@textshq/eslint-config@https://github.com/TextsHQ/eslint-config#main":
   version: 1.0.5
-  resolution: "@textshq/eslint-config@https://github.com/TextsHQ/eslint-config.git#commit=a813ee0aa86d23d020176ec6b15bc40e4a1f3b28"
+  resolution: "@textshq/eslint-config@https://github.com/TextsHQ/eslint-config#commit=a813ee0aa86d23d020176ec6b15bc40e4a1f3b28"
   dependencies:
     eslint-config-airbnb: "npm:19.0.4"
     eslint-config-airbnb-typescript: "npm:17.1.0"
@@ -2623,9 +2623,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@textshq/platform-sdk@git+https://github.com/TextsHQ/platform-sdk.git#eed22bde2bcd2bd8dcb6312b553c6b1581091c83":
+"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83":
   version: 0.4.4
-  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
+  resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#commit=eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
   dependencies:
     emoji-regex: "npm:^10.1.0"
     lodash: "npm:^4.17.21"
@@ -2640,9 +2640,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@textshq/platform-test-lib@git+https://github.com/TextsHQ/platform-test-lib.git#main":
+"@textshq/platform-test-lib@https://github.com/TextsHQ/platform-test-lib#main":
   version: 0.1.0
-  resolution: "@textshq/platform-test-lib@https://github.com/TextsHQ/platform-test-lib.git#commit=a267e8761d9c74f8ccf000e660fadfe46e6b86fd"
+  resolution: "@textshq/platform-test-lib@https://github.com/TextsHQ/platform-test-lib#commit=a267e8761d9c74f8ccf000e660fadfe46e6b86fd"
   dependencies:
     "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#main"
     better-sqlite3: "npm:^12.9.0"
