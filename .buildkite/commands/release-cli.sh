@@ -21,6 +21,14 @@ esac
 
 asset_name="imessage-cli-${version}-macos-universal.tar.gz"
 
+# Fail fast on a missing GitHub token: `gh release` needs it, but without
+# this check the gap only surfaces after the full build + notarization
+# round-trip — ~10 min wasted plus a burned notary submission.
+if "$publish" && [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+  printf >&2 "publish requested but neither GH_TOKEN nor GITHUB_TOKEN is set\n"
+  exit 1
+fi
+
 echo "--- :key: install Developer ID cert into the agent keychain"
 install_gems
 bundle exec fastlane set_up_signing
