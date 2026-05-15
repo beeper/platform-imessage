@@ -8,11 +8,12 @@ env:
   IMAGE_ID: $IMAGE_ID
 
 steps:
-  # Temporarily disabled while GitHub Actions owns npm CI/publishing again.
-  - label: ":pause_button: NPM workflow disabled"
+  # Tests + library build, plus `npm publish` to GH Packages on main when
+  # package.json's version is new.
+  - label: ":jest: :swift: Test & build"
     key: test-build
-    command: |
-      echo "--- :information_source: npm workflow temporarily disabled"
+    command: .buildkite/commands/ci.sh
+    plugins: [$CI_TOOLKIT_PLUGIN, $NVM_PLUGIN]
     notify:
       - github_commit_status:
           context: Test & Build
