@@ -20,18 +20,19 @@ yarn test:swift
 # on the registry, and never on tag builds (tags drive the CLI release).
 should_publish=false
 if [ "${BUILDKITE_BRANCH:-}" = "main" ] && [ -z "${BUILDKITE_TAG:-}" ]; then
-  version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
-  if npm show "@beeper/platform-imessage@${version}" >/dev/null 2>&1; then
-    echo "--- :information_source: version ${version} already on registry; skipping publish"
-  else
+  if [ "${PUBLISHING:-false}" = "true" ]; then
+    # Manual override — equivalent to GHA's `workflow_dispatch` `publishing=true`.
+    # Set via build env var (e.g. via the "New Build" dialog or BK API).
+    # Scoped to main without a tag, same as the GHA `inputs.publishing` guard.
     should_publish=true
+  else
+    version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+    if npm show "@beeper/platform-imessage@${version}" >/dev/null 2>&1; then
+      echo "--- :information_source: version ${version} already on registry; skipping publish"
+    else
+      should_publish=true
+    fi
   fi
-fi
-
-# Manual override.
-# Set via build env var (e.g. via the "New Build" dialog or BK API).
-if [ "${PUBLISHING:-false}" = "true" ]; then
-  should_publish=true
 fi
 
 if "$should_publish"; then
