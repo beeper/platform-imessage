@@ -36,7 +36,7 @@ extension IMDatabase {
             return try (
                 payloadData: payloadData,
                 messageGUID: row[1].expect(String.self),
-                isFromMe: row[2].expectConverting(Int.self) != 0
+                isFromMe: row[2].looseBool()
             )
         }.first
     }

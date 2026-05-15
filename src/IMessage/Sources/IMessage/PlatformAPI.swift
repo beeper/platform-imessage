@@ -11,8 +11,7 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
-private let pluginPayloadAssetPollInterval: TimeInterval = 0.02
-private let fastPluginPayloadAssetWait: TimeInterval = 1
+private let pluginPayloadLegacyAssetPollInterval: TimeInterval = 0.1
 private let fallbackPluginPayloadAssetWait: TimeInterval = 4
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
@@ -1054,37 +1053,24 @@ extension PlatformAPI {
         }
     }
 
-    nonisolated private static func waitForExistingAssetURL(
-        maxWait: TimeInterval,
-        candidates: () throws -> [URL]
-    ) async throws -> URL? {
-        let deadline = Date().addingTimeInterval(maxWait)
-
-        repeat {
-            if let url = try candidates().first(where: { PluginPayloadAssetSupport.fileSize($0) > 0 }) {
-                return url
-            }
-            try await Task.sleep(forTimeInterval: pluginPayloadAssetPollInterval)
-        } while Date() <= deadline
-
-        return nil
+    nonisolated private static func firstExistingAssetURL(_ candidates: [URL]) -> URL? {
+        candidates.first(where: { PluginPayloadAssetSupport.fileSize($0) > 0 })
     }
 
-    nonisolated private static func existingHandwritingAssetURL(uuid: String, maxWait: TimeInterval) async throws -> URL? {
-        let candidateDirectories = [
-            MessagesPaths.temporaryMobileSMSDirectory,
-            MessagesPaths.temporaryDirectory,
-        ]
-        let prefix = "hw_\(uuid)_"
-
-        return try await waitForExistingAssetURL(maxWait: maxWait) {
-            candidateDirectories.flatMap { directory in
-                ((try? FileManager.default.contentsOfDirectory(
-                    at: directory,
-                    includingPropertiesForKeys: [.fileSizeKey]
-                )) ?? [])
-                    .filter { $0.lastPathComponent.hasPrefix(prefix) }
+    nonisolated private static func contentsOfDirectoryIfPresent(_ directory: URL) throws -> [URL] {
+        do {
+            return try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.fileSizeKey]
+            )
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain,
+               nsError.code == CocoaError.Code.fileReadNoSuchFile.rawValue ||
+                nsError.code == CocoaError.Code.fileNoSuchFile.rawValue {
+                return []
             }
+            throw error
         }
     }
 
@@ -1092,14 +1078,55 @@ extension PlatformAPI {
         "hw_\(uuid)_\(Int(HandwritingAssetRenderer.renderedSize.width))_\(Int(HandwritingAssetRenderer.renderedSize.height))_dark.png"
     }
 
+    nonisolated private static func handwritingCandidateAssetURLs(uuid: String) -> [URL] {
+        let fileName = handwritingAssetFilename(uuid: uuid)
+        return [
+            MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent(fileName),
+            MessagesPaths.temporaryDirectory.appendingPathComponent(fileName),
+        ]
+    }
+
+    nonisolated private static func existingLegacyHandwritingAssetURL(uuid: String) throws -> URL? {
+        let candidateDirectories = [
+            MessagesPaths.temporaryMobileSMSDirectory,
+            MessagesPaths.temporaryDirectory,
+        ]
+        let prefix = "hw_\(uuid)_"
+
+        return try firstExistingAssetURL(candidateDirectories.flatMap { directory in
+            try contentsOfDirectoryIfPresent(directory)
+                .filter { $0.lastPathComponent.hasPrefix(prefix) }
+        })
+    }
+
+    nonisolated private static func existingHandwritingAssetURL(uuid: String) throws -> URL? {
+        if let exactURL = firstExistingAssetURL(handwritingCandidateAssetURLs(uuid: uuid)) {
+            return exactURL
+        }
+        return try existingLegacyHandwritingAssetURL(uuid: uuid)
+    }
+
+    nonisolated private static func waitForExistingHandwritingAssetURL(uuid: String, maxWait: TimeInterval) async throws -> URL? {
+        try await waitForFileURL(maxWait: maxWait, pollInterval: pluginPayloadLegacyAssetPollInterval) {
+            try existingHandwritingAssetURL(uuid: uuid)
+        }
+    }
+
     nonisolated private static func existingDigitalTouchAssetURL(
+        uuid: String,
+        preferredURL: URL
+    ) -> URL? {
+        let rendererURL = MessagesPaths.temporaryDirectory.appendingPathComponent("\(uuid).mov")
+        return firstExistingAssetURL([preferredURL, rendererURL])
+    }
+
+    nonisolated private static func waitForExistingDigitalTouchAssetURL(
         uuid: String,
         preferredURL: URL,
         maxWait: TimeInterval
     ) async throws -> URL? {
-        let rendererURL = MessagesPaths.temporaryDirectory.appendingPathComponent("\(uuid).mov")
-        return try await waitForExistingAssetURL(maxWait: maxWait) {
-            [preferredURL, rendererURL]
+        try await waitForFileURL(maxWait: maxWait, pollInterval: pluginPayloadLegacyAssetPollInterval) {
+            existingDigitalTouchAssetURL(uuid: uuid, preferredURL: preferredURL)
         }
     }
 
@@ -1112,7 +1139,7 @@ extension PlatformAPI {
             fileExtension: "png",
             assetDescription: "handwriting"
         )
-        if let existingURL = try await existingHandwritingAssetURL(uuid: request.uuid, maxWait: fastPluginPayloadAssetWait) {
+        if let existingURL = try existingHandwritingAssetURL(uuid: request.uuid) {
             return .url(fileURLString(existingURL.path))
         }
 
@@ -1120,7 +1147,7 @@ extension PlatformAPI {
               let payload = try database.withDatabase({ db in
                   try db.handwritingPayload(rowID: rowID)
               }) else {
-            guard let existingURL = try await existingHandwritingAssetURL(
+            guard let existingURL = try await waitForExistingHandwritingAssetURL(
                 uuid: request.uuid,
                 maxWait: fallbackPluginPayloadAssetWait
             ) else {
@@ -1149,10 +1176,9 @@ extension PlatformAPI {
             assetDescription: "digital touch"
         )
         let fileURL = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(request.uuid).mov")
-        if let existingURL = try await existingDigitalTouchAssetURL(
+        if let existingURL = existingDigitalTouchAssetURL(
             uuid: request.uuid,
-            preferredURL: fileURL,
-            maxWait: fastPluginPayloadAssetWait
+            preferredURL: fileURL
         ) {
             return .url(fileURLString(existingURL.path))
         }
@@ -1161,7 +1187,7 @@ extension PlatformAPI {
               let payload = try database.withDatabase({ db in
                   try db.digitalTouchPayload(rowID: rowID)
               }) else {
-            guard let existingURL = try await existingDigitalTouchAssetURL(
+            guard let existingURL = try await waitForExistingDigitalTouchAssetURL(
                 uuid: request.uuid,
                 preferredURL: fileURL,
                 maxWait: fallbackPluginPayloadAssetWait

@@ -5,17 +5,18 @@ import IMessageCore
 import ObjectiveC
 
 private let digitalTouchBalloonProviderPath = "/System/Library/Messages/iMessageBalloons/DigitalTouchBalloonProvider.bundle"
-private let digitalTouchBalloonProviderBundleID = "com.apple.DigitalTouchBalloonProvider"
 private let digitalTouchAssetDescription = "Digital Touch"
 private let digitalTouchRenderTimeout: TimeInterval = 30
 private let renderRunLoopInterval: TimeInterval = 0.1
-private let stableFileSizeCheckCount = 5
 
 private typealias AssetSupport = PluginPayloadAssetSupport
 
 enum DigitalTouchAssetRenderer {
     static func render(payloadData: Data, uuid: String, isFromMe: Bool, destinationURL: URL) async throws -> URL {
-        try await AssetSupport.onRenderQueue {
+        guard AssetSupport.fileSize(destinationURL) == 0 else {
+            return destinationURL
+        }
+        return try await AssetSupport.onRenderQueue {
             try ExceptionCatcher.catch {
                 try renderOnRenderQueue(payloadData: payloadData, uuid: uuid, isFromMe: isFromMe, destinationURL: destinationURL)
             }
@@ -23,6 +24,9 @@ enum DigitalTouchAssetRenderer {
     }
 
     private static func renderOnRenderQueue(payloadData: Data, uuid: String, isFromMe: Bool, destinationURL: URL) throws -> URL {
+        guard AssetSupport.fileSize(destinationURL) == 0 else {
+            return destinationURL
+        }
         guard Bundle(path: digitalTouchBalloonProviderPath)?.load() == true else {
             throw ErrorMessage("Couldn't load DigitalTouchBalloonProvider")
         }
@@ -37,7 +41,7 @@ enum DigitalTouchAssetRenderer {
 
         let payload = try AssetSupport.initObject(payloadClass, selector: #selector(NSObject.init))
         payload.setValue(payloadData, forKey: "data")
-        payload.setValue(digitalTouchBalloonProviderBundleID, forKey: "pluginBundleID")
+        payload.setValue(BalloonBundleID.digitalTouch, forKey: "pluginBundleID")
         payload.setValue(uuid, forKey: "messageGUID")
         payload.setValue(isFromMe, forKey: "isFromMe")
 
@@ -48,45 +52,40 @@ enum DigitalTouchAssetRenderer {
         }
 
         try? FileManager.default.removeItem(at: assetURL)
-        if assetURL != destinationURL {
-            try? FileManager.default.removeItem(at: destinationURL)
-        }
 
         let completionFired = Protected(false)
         let completion: @convention(block) () -> Void = {
             completionFired.withLock { $0 = true }
         }
+        let createFallbackMediaSelector = Selector(("_createFallbackMediaWithCompletion:"))
+        guard controller.responds(to: createFallbackMediaSelector) else {
+            throw ErrorMessage("Digital Touch renderer method is unavailable")
+        }
         _ = controller.perform(
-            Selector(("_createFallbackMediaWithCompletion:")),
+            createFallbackMediaSelector,
             with: unsafeBitCast(completion, to: AnyObject.self)
         )
 
         try waitForRenderedAsset(assetURL, completionFired: completionFired.read)
+        defer {
+            if assetURL.standardizedFileURL != destinationURL.standardizedFileURL {
+                try? FileManager.default.removeItem(at: assetURL)
+            }
+        }
         try AssetSupport.copyRenderedAsset(from: assetURL, to: destinationURL, assetDescription: digitalTouchAssetDescription)
         return destinationURL
     }
 
     private static func waitForRenderedAsset(_ url: URL, completionFired: () -> Bool) throws {
         let deadline = Date().addingTimeInterval(digitalTouchRenderTimeout)
-        var previousSize = 0
-        var stableNonZeroSizeCount = 0
 
         while Date() <= deadline {
             RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: renderRunLoopInterval))
 
             let size = AssetSupport.fileSize(url)
-            if size > 0, size == previousSize {
-                stableNonZeroSizeCount += 1
-            } else {
-                stableNonZeroSizeCount = 0
-            }
             if completionFired(), size > 0 {
                 return
             }
-            if stableNonZeroSizeCount >= stableFileSizeCheckCount {
-                return
-            }
-            previousSize = size
         }
 
         throw ErrorMessage("Timed out rendering Digital Touch asset")

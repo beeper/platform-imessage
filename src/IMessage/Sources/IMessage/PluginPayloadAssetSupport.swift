@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import IMessageCore
 
@@ -43,8 +44,17 @@ enum PluginPayloadAssetSupport {
             at: destinationURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try? FileManager.default.removeItem(at: destinationURL)
-        try FileManager.default.copyItem(at: renderedURL, to: destinationURL)
+
+        let stagingURL = destinationURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".\(destinationURL.lastPathComponent).\(UUID().uuidString).tmp")
+        try FileManager.default.copyItem(at: renderedURL, to: stagingURL)
+        do {
+            try atomicallyReplaceItem(at: destinationURL, with: stagingURL)
+        } catch {
+            try? FileManager.default.removeItem(at: stagingURL)
+            throw error
+        }
     }
 
     static func initObject(
@@ -71,7 +81,24 @@ enum PluginPayloadAssetSupport {
     }
 
     static func performObject(_ object: NSObject, selector: Selector) throws -> AnyObject {
-        try self.object(from: object.perform(selector), selector: selector)
+        guard object.responds(to: selector) else {
+            throw ErrorMessage("Private framework method is unavailable: \(NSStringFromSelector(selector))")
+        }
+        return try self.object(from: object.perform(selector), selector: selector)
+    }
+
+    private static func atomicallyReplaceItem(at destinationURL: URL, with sourceURL: URL) throws {
+        let result = sourceURL.withUnsafeFileSystemRepresentation { sourcePath in
+            destinationURL.withUnsafeFileSystemRepresentation { destinationPath in
+                guard let sourcePath, let destinationPath else {
+                    return EINVAL
+                }
+                return rename(sourcePath, destinationPath) == 0 ? 0 : errno
+            }
+        }
+        guard result == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EIO)
+        }
     }
 
     private static func object(from unmanaged: Unmanaged<AnyObject>?, selector: Selector) throws -> NSObject {

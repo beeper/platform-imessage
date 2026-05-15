@@ -5,7 +5,6 @@ import IMessageCore
 import ObjectiveC
 
 private let handwritingProviderPath = "/System/Library/Messages/iMessageBalloons/HandwritingProvider.bundle"
-private let handwritingProviderBundleID = "com.apple.Handwriting.HandwritingProvider"
 private let handwritingAssetDescription = "Handwriting"
 private let handwritingRenderedWidth = 400.0
 private let handwritingRenderedHeight = 200.0
@@ -23,7 +22,10 @@ enum HandwritingAssetRenderer {
         isFromMe: Bool,
         destinationURL: URL
     ) async throws -> URL {
-        try await AssetSupport.onRenderQueue {
+        guard AssetSupport.fileSize(destinationURL) == 0 else {
+            return destinationURL
+        }
+        return try await AssetSupport.onRenderQueue {
             try ExceptionCatcher.catch {
                 try renderOnRenderQueue(
                     payloadData: payloadData,
@@ -41,6 +43,9 @@ enum HandwritingAssetRenderer {
         isFromMe: Bool,
         destinationURL: URL
     ) throws -> URL {
+        guard AssetSupport.fileSize(destinationURL) == 0 else {
+            return destinationURL
+        }
         guard Bundle(path: handwritingProviderPath)?.load() == true else {
             throw ErrorMessage("Couldn't load HandwritingProvider")
         }
@@ -55,7 +60,7 @@ enum HandwritingAssetRenderer {
 
         let payload = try AssetSupport.initObject(payloadClass, selector: #selector(NSObject.init))
         payload.setValue(payloadData, forKey: "data")
-        payload.setValue(handwritingProviderBundleID, forKey: "pluginBundleID")
+        payload.setValue(BalloonBundleID.handwriting, forKey: "pluginBundleID")
         payload.setValue(messageGUID, forKey: "messageGUID")
         payload.setValue(isFromMe, forKey: "isFromMe")
 
@@ -64,8 +69,12 @@ enum HandwritingAssetRenderer {
             throw ErrorMessage("Handwriting renderer couldn't decode payload")
         }
 
-        try? FileManager.default.removeItem(at: destinationURL)
         let renderedURL = try writeThumbnail(handwritingItem: handwritingItem, rendererClass: rendererClass)
+        defer {
+            if renderedURL.standardizedFileURL != destinationURL.standardizedFileURL {
+                try? FileManager.default.removeItem(at: renderedURL)
+            }
+        }
         try AssetSupport.copyRenderedAsset(from: renderedURL, to: destinationURL, assetDescription: handwritingAssetDescription)
         return destinationURL
     }
