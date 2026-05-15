@@ -18,6 +18,11 @@ enum MessagesPaths {
     )
     .appendingPathComponent(messagesBundleID, isDirectory: true)
 
+    static let temporaryDirectory = URL(
+        fileURLWithPath: NSTemporaryDirectory(),
+        isDirectory: true
+    )
+
     static var temporaryMobileSMSPath: String {
         temporaryMobileSMSDirectory.path
     }

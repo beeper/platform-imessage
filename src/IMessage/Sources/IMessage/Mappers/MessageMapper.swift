@@ -200,7 +200,7 @@ struct Mapper {
             size: PlatformSDK.Size(width: 144, height: 180),
             isGif: true,
             // Prefer asset:// because Messages.app can take a few seconds to write this file to disk.
-            srcURL: digitalTouchAssetURL(uuid: uuid)
+            srcURL: digitalTouchAssetURL(uuid: uuid, rowID: msgRow.rowID)
         )
     }
 
@@ -214,7 +214,7 @@ struct Mapper {
             id: uuid,
             type: .img,
             isGif: true,
-            srcURL: handwritingAssetURL(uuid: uuid)
+            srcURL: handwritingAssetURL(uuid: uuid, rowID: msgRow.rowID)
         )
     }
 

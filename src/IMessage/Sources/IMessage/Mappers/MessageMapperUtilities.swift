@@ -113,12 +113,12 @@ func fileAttachmentAssetURL(filePath: String) -> String {
     legacyAssetURL(path: Array(filePath.utf8).hexString())
 }
 
-func digitalTouchAssetURL(uuid: String) -> String {
-    legacyAssetURL(path: "dt/\(uuid).mov")
+func digitalTouchAssetURL(uuid: String, rowID: Int) -> String {
+    legacyAssetURL(path: "dt/\(uuid).\(rowID).mov")
 }
 
-func handwritingAssetURL(uuid: String) -> String {
-    legacyAssetURL(path: "hw/\(uuid).png")
+func handwritingAssetURL(uuid: String, rowID: Int) -> String {
+    legacyAssetURL(path: "hw/\(uuid).\(rowID).png")
 }
 
 extension String {
