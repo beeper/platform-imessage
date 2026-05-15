@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+          version="$(scripts/print-package-version)"
           tag="${{ inputs.tag }}"
           should_release="true"
           if [ -z "$tag" ]; then
@@ -68,7 +68,7 @@ jobs:
             before="${{ github.event.before }}"
             previous_version=""
             if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$before:package.json" 2>/dev/null; then
-              previous_version="$(git show "$before:package.json" | python3 -c 'import json, sys; print(json.load(sys.stdin)["version"])')"
+              previous_version="$(git show "$before:package.json" | scripts/print-package-version -)"
             fi
             if [ "$previous_version" = "$version" ]; then
               should_release="false"
