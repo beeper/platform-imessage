@@ -15,15 +15,14 @@ private typealias AssetSupport = PluginPayloadAssetSupport
 
 enum DigitalTouchAssetRenderer {
     static func render(payloadData: Data, uuid: String, isFromMe: Bool, destinationURL: URL) async throws -> URL {
-        try await MainActor.run {
+        try await AssetSupport.onRenderQueue {
             try ExceptionCatcher.catch {
-                try renderOnMainThread(payloadData: payloadData, uuid: uuid, isFromMe: isFromMe, destinationURL: destinationURL)
+                try renderOnRenderQueue(payloadData: payloadData, uuid: uuid, isFromMe: isFromMe, destinationURL: destinationURL)
             }
         }
     }
 
-    @MainActor
-    private static func renderOnMainThread(payloadData: Data, uuid: String, isFromMe: Bool, destinationURL: URL) throws -> URL {
+    private static func renderOnRenderQueue(payloadData: Data, uuid: String, isFromMe: Bool, destinationURL: URL) throws -> URL {
         guard Bundle(path: digitalTouchBalloonProviderPath)?.load() == true else {
             throw ErrorMessage("Couldn't load DigitalTouchBalloonProvider")
         }
@@ -33,6 +32,7 @@ enum DigitalTouchAssetRenderer {
             throw ErrorMessage("Digital Touch private classes are unavailable")
         }
 
+        Thread.current.name = "Plugin Payload Asset Renderer"
         _ = NSApplication.shared
 
         let payload = try AssetSupport.initObject(payloadClass, selector: #selector(NSObject.init))
@@ -52,21 +52,20 @@ enum DigitalTouchAssetRenderer {
             try? FileManager.default.removeItem(at: destinationURL)
         }
 
-        var completionFired = false
+        let completionFired = Protected(false)
         let completion: @convention(block) () -> Void = {
-            completionFired = true
+            completionFired.withLock { $0 = true }
         }
         _ = controller.perform(
             Selector(("_createFallbackMediaWithCompletion:")),
             with: unsafeBitCast(completion, to: AnyObject.self)
         )
 
-        try waitForRenderedAsset(assetURL, completionFired: { completionFired })
+        try waitForRenderedAsset(assetURL, completionFired: completionFired.read)
         try AssetSupport.copyRenderedAsset(from: assetURL, to: destinationURL, assetDescription: digitalTouchAssetDescription)
         return destinationURL
     }
 
-    @MainActor
     private static func waitForRenderedAsset(_ url: URL, completionFired: () -> Bool) throws {
         let deadline = Date().addingTimeInterval(digitalTouchRenderTimeout)
         var previousSize = 0

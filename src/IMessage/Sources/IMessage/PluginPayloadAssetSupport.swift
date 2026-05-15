@@ -1,6 +1,11 @@
 import Foundation
 import IMessageCore
 
+private let pluginPayloadAssetRenderQueue = DispatchQueue(
+    label: "plugin-payload-asset-render-queue",
+    qos: .utility
+)
+
 private enum PerformArgumentCount {
     static let none = 0
     static let one = 1
@@ -8,6 +13,20 @@ private enum PerformArgumentCount {
 }
 
 enum PluginPayloadAssetSupport {
+    static func onRenderQueue<T>(
+        _ action: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            pluginPayloadAssetRenderQueue.async {
+                continuation.resume(with: Result {
+                    try autoreleasepool {
+                        try action()
+                    }
+                })
+            }
+        }
+    }
+
     static func fileSize(_ url: URL) -> Int {
         (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
     }
@@ -28,7 +47,6 @@ enum PluginPayloadAssetSupport {
         try FileManager.default.copyItem(at: renderedURL, to: destinationURL)
     }
 
-    @MainActor
     static func initObject(
         _ cls: AnyClass,
         selector: Selector,
@@ -52,12 +70,10 @@ enum PluginPayloadAssetSupport {
         return try object(from: unmanaged, selector: selector)
     }
 
-    @MainActor
     static func performObject(_ object: NSObject, selector: Selector) throws -> AnyObject {
         try self.object(from: object.perform(selector), selector: selector)
     }
 
-    @MainActor
     private static func object(from unmanaged: Unmanaged<AnyObject>?, selector: Selector) throws -> NSObject {
         guard let unmanaged,
               let object = unmanaged.takeUnretainedValue() as? NSObject else {

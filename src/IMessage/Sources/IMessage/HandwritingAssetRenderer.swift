@@ -23,9 +23,9 @@ enum HandwritingAssetRenderer {
         isFromMe: Bool,
         destinationURL: URL
     ) async throws -> URL {
-        try await MainActor.run {
+        try await AssetSupport.onRenderQueue {
             try ExceptionCatcher.catch {
-                try renderOnMainThread(
+                try renderOnRenderQueue(
                     payloadData: payloadData,
                     messageGUID: messageGUID,
                     isFromMe: isFromMe,
@@ -35,8 +35,7 @@ enum HandwritingAssetRenderer {
         }
     }
 
-    @MainActor
-    private static func renderOnMainThread(
+    private static func renderOnRenderQueue(
         payloadData: Data,
         messageGUID: String,
         isFromMe: Bool,
@@ -51,6 +50,7 @@ enum HandwritingAssetRenderer {
             throw ErrorMessage("Handwriting private classes are unavailable")
         }
 
+        Thread.current.name = "Plugin Payload Asset Renderer"
         _ = NSApplication.shared
 
         let payload = try AssetSupport.initObject(payloadClass, selector: #selector(NSObject.init))
@@ -70,18 +70,15 @@ enum HandwritingAssetRenderer {
         return destinationURL
     }
 
-    @MainActor
     private static func writeThumbnail(handwritingItem: NSObject, rendererClass: AnyClass) throws -> URL {
         let selector = Selector(("_writeThumbnailOfHandwriting:atSize:useHighFidelityInk:toDiskWithCompletionHandler:"))
         guard let method = class_getClassMethod(rendererClass, selector) else {
             throw ErrorMessage("Handwriting renderer method is unavailable")
         }
 
-        var renderedURL: URL?
-        var completionFired = false
+        let renderedURL = Protected<URL?>()
         let completion: @convention(block) (URL?) -> Void = { url in
-            renderedURL = url
-            completionFired = true
+            renderedURL.withLock { $0 = url }
         }
         typealias WriteThumbnailIMP = @convention(c) (AnyClass, Selector, AnyObject, CGSize, Bool, AnyObject) -> Void
         let implementation = unsafeBitCast(method_getImplementation(method), to: WriteThumbnailIMP.self)
@@ -97,7 +94,7 @@ enum HandwritingAssetRenderer {
         let deadline = Date().addingTimeInterval(handwritingRenderTimeout)
         while Date() <= deadline {
             RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: renderRunLoopInterval))
-            if completionFired, let renderedURL, AssetSupport.fileSize(renderedURL) > 0 {
+            if let renderedURL = renderedURL.read(), AssetSupport.fileSize(renderedURL) > 0 {
                 return renderedURL
             }
         }
