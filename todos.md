@@ -22,6 +22,7 @@
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] improve misfire prevention and robustness
 - [ ] when the user sends a message w tweets/links, when the link/tweet preview resolves, send a message update event
+- [ ] when scheduled messages are actually sent, send a message update event
 
 - cli
   - [ ] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
