@@ -2,19 +2,22 @@
 
 set -euo pipefail
 
-# Publish to GitHub Releases only on tag builds. Non-tag builds (PRs,
-# main) still produce a signed+notarized tarball — uploaded as a
-# Buildkite artifact — for download/testing.
-if [ -n "${BUILDKITE_TAG:-}" ]; then
-  tag="$BUILDKITE_TAG"
-  version="${tag#v}"
-  publish=true
-else
-  base_version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
-  short_sha="${BUILDKITE_COMMIT:0:7}"
-  version="${base_version}-${short_sha}"
-  publish=false
-fi
+# Publish to GitHub Releases only on `v*` tag builds. Non-tag builds (PRs,
+# main) and non-`v` tags still produce a signed+notarized tarball — uploaded
+# as a Buildkite artifact — for download/testing.
+case "${BUILDKITE_TAG:-}" in
+  v*)
+    tag="$BUILDKITE_TAG"
+    version="${tag#v}"
+    publish=true
+    ;;
+  *)
+    base_version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+    short_sha="${BUILDKITE_COMMIT:0:7}"
+    version="${base_version}-${short_sha}"
+    publish=false
+    ;;
+esac
 
 asset_name="imessage-cli-${version}-macos-universal.tar.gz"
 
