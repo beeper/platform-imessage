@@ -26,7 +26,9 @@ install_gems
 bundle exec fastlane set_up_signing
 
 echo "--- :hammer_and_wrench: build, sign, notarize"
-./scripts/sign-and-notarize-cli
+# Pass `--arch universal` explicitly: the binary path below assumes a
+# universal build, and that's the script's default rather than a contract.
+./scripts/sign-and-notarize-cli --arch universal
 
 binary=".build/universal/release/imessage-cli"
 if [ ! -f "$binary" ]; then
