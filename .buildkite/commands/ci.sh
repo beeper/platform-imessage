@@ -26,7 +26,7 @@ if [ "${BUILDKITE_BRANCH:-}" = "main" ] && [ -z "${BUILDKITE_TAG:-}" ]; then
     # Scoped to main without a tag, same as the GHA `inputs.publishing` guard.
     should_publish=true
   else
-    version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+    version="$(scripts/print-package-version)"
     if npm show "@beeper/platform-imessage@${version}" >/dev/null 2>&1; then
       echo "--- :information_source: version ${version} already on registry; skipping publish"
     else
