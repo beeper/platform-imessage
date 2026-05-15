@@ -33,8 +33,8 @@ before_all do
   # No-op locally, so safe to run unconditionally.
   setup_ci
 
-  # No `.env` file in this repo today — env vars come from the Buildkite agent.
-  # `set_up` still needed so EnvManager has a configured instance.
+  # No `.env` file in this repo today as the env vars are only necessary or CI automation.
+  # However, we need to call `set_up` and pass an `env_file_name` because `EnvManager` requires it.
   EnvManager.set_up(env_file_name: 'platform-imessage.env')
 end
 
