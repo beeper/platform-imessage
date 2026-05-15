@@ -52,12 +52,18 @@ var targets: [Target] = [
             "BetterSwiftAX",
             "ExceptionCatcher",
             "IMessageCore",
+            "IMessagePrivateSPI",
             "EmojiSPI",
             "IMDatabase",
             "PlatformSDK",
             .product(name: "Collections", package: "swift-collections"),
         ],
         path: "src/IMessage/Sources/IMessage"
+    ),
+    .target(
+        name: "IMessagePrivateSPI",
+        path: "src/IMessage/Sources/IMessagePrivateSPI",
+        publicHeadersPath: "include"
     ),
     .target(
         name: "EmojiSPI",

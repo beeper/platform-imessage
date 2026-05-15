@@ -2,6 +2,7 @@ import AppKit
 import ExceptionCatcher
 import Foundation
 import IMessageCore
+import IMessagePrivateSPI
 import ObjectiveC
 
 private let handwritingProviderPath = "/System/Library/Messages/iMessageBalloons/HandwritingProvider.bundle"
@@ -49,23 +50,23 @@ enum HandwritingAssetRenderer {
         guard Bundle(path: handwritingProviderPath)?.load() == true else {
             throw ErrorMessage("Couldn't load HandwritingProvider")
         }
-        guard let payloadClass = NSClassFromString("IMPluginPayload"),
-              let dataSourceClass = NSClassFromString("HWBalloonDataSource"),
-              let rendererClass = NSClassFromString("HWAbstractBalloonController") else {
+        guard let payloadClass = NSClassFromString("IMPluginPayload") as? NSObject.Type,
+              let dataSourceClass = NSClassFromString("HWBalloonDataSource") as? NSObject.Type,
+              let rendererClass = NSClassFromString("HWAbstractBalloonController") as? NSObject.Type else {
             throw ErrorMessage("Handwriting private classes are unavailable")
         }
 
         Thread.current.name = "Plugin Payload Asset Renderer"
         _ = NSApplication.shared
 
-        let payload = try AssetSupport.initObject(payloadClass, selector: #selector(NSObject.init))
-        payload.setValue(payloadData, forKey: "data")
-        payload.setValue(BalloonBundleID.handwriting, forKey: "pluginBundleID")
-        payload.setValue(messageGUID, forKey: "messageGUID")
-        payload.setValue(isFromMe, forKey: "isFromMe")
+        let payload = payloadClass.init()
+        payload.data = payloadData
+        payload.pluginBundleID = BalloonBundleID.handwriting
+        payload.messageGUID = messageGUID
+        payload.isFromMe = isFromMe
 
-        let dataSource = try AssetSupport.initObject(dataSourceClass, selector: Selector(("initWithPluginPayload:")), payload)
-        guard let handwritingItem = try AssetSupport.performObject(dataSource, selector: Selector(("handwritingFromPayload"))) as? NSObject else {
+        let dataSource = dataSourceClass.init(pluginPayload: payload)
+        guard let handwritingItem = dataSource.handwritingFromPayload() else {
             throw ErrorMessage("Handwriting renderer couldn't decode payload")
         }
 
@@ -79,26 +80,15 @@ enum HandwritingAssetRenderer {
         return destinationURL
     }
 
-    private static func writeThumbnail(handwritingItem: NSObject, rendererClass: AnyClass) throws -> URL {
-        let selector = Selector(("_writeThumbnailOfHandwriting:atSize:useHighFidelityInk:toDiskWithCompletionHandler:"))
-        guard let method = class_getClassMethod(rendererClass, selector) else {
-            throw ErrorMessage("Handwriting renderer method is unavailable")
-        }
-
+    private static func writeThumbnail(handwritingItem: Any, rendererClass: NSObject.Type) throws -> URL {
         let renderedURL = Protected<URL?>()
-        let completion: @convention(block) (URL?) -> Void = { url in
+        rendererClass.writeThumbnail(
+            of: handwritingItem,
+            atSize: renderedSize,
+            useHighFidelityInk: true
+        ) { url in
             renderedURL.withLock { $0 = url }
         }
-        typealias WriteThumbnailIMP = @convention(c) (AnyClass, Selector, AnyObject, CGSize, Bool, AnyObject) -> Void
-        let implementation = unsafeBitCast(method_getImplementation(method), to: WriteThumbnailIMP.self)
-        implementation(
-            rendererClass,
-            selector,
-            handwritingItem,
-            renderedSize,
-            true,
-            unsafeBitCast(completion, to: AnyObject.self)
-        )
 
         let deadline = Date().addingTimeInterval(handwritingRenderTimeout)
         while Date() <= deadline {
