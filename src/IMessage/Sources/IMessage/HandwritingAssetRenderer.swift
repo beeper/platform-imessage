@@ -6,13 +6,19 @@ import ObjectiveC
 
 private let handwritingProviderPath = "/System/Library/Messages/iMessageBalloons/HandwritingProvider.bundle"
 private let handwritingProviderBundleID = "com.apple.Handwriting.HandwritingProvider"
+private let handwritingAssetDescription = "Handwriting"
+private let handwritingRenderedWidth = 400.0
+private let handwritingRenderedHeight = 200.0
+private let handwritingRenderTimeout: TimeInterval = 15
+private let renderRunLoopInterval: TimeInterval = 0.1
+
+private typealias AssetSupport = PluginPayloadAssetSupport
 
 enum HandwritingAssetRenderer {
-    static let renderedSize = CGSize(width: 400, height: 200)
+    static let renderedSize = CGSize(width: handwritingRenderedWidth, height: handwritingRenderedHeight)
 
     static func render(
         payloadData: Data,
-        uuid: String,
         messageGUID: String,
         isFromMe: Bool,
         destinationURL: URL
@@ -21,7 +27,6 @@ enum HandwritingAssetRenderer {
             try ExceptionCatcher.catch {
                 try renderOnMainThread(
                     payloadData: payloadData,
-                    uuid: uuid,
                     messageGUID: messageGUID,
                     isFromMe: isFromMe,
                     destinationURL: destinationURL
@@ -33,7 +38,6 @@ enum HandwritingAssetRenderer {
     @MainActor
     private static func renderOnMainThread(
         payloadData: Data,
-        uuid: String,
         messageGUID: String,
         isFromMe: Bool,
         destinationURL: URL
@@ -49,20 +53,20 @@ enum HandwritingAssetRenderer {
 
         _ = NSApplication.shared
 
-        let payload = try initObject(payloadClass, selector: "init")
+        let payload = try AssetSupport.initObject(payloadClass, selector: #selector(NSObject.init))
         payload.setValue(payloadData, forKey: "data")
         payload.setValue(handwritingProviderBundleID, forKey: "pluginBundleID")
         payload.setValue(messageGUID, forKey: "messageGUID")
         payload.setValue(isFromMe, forKey: "isFromMe")
 
-        let dataSource = try initObject(dataSourceClass, selector: "initWithPluginPayload:", payload)
-        guard let handwritingItem = try performObject(dataSource, selector: "handwritingFromPayload") as? NSObject else {
+        let dataSource = try AssetSupport.initObject(dataSourceClass, selector: Selector(("initWithPluginPayload:")), payload)
+        guard let handwritingItem = try AssetSupport.performObject(dataSource, selector: Selector(("handwritingFromPayload"))) as? NSObject else {
             throw ErrorMessage("Handwriting renderer couldn't decode payload")
         }
 
         try? FileManager.default.removeItem(at: destinationURL)
         let renderedURL = try writeThumbnail(handwritingItem: handwritingItem, rendererClass: rendererClass)
-        try copyRenderedAssetIfNeeded(from: renderedURL, to: destinationURL)
+        try AssetSupport.copyRenderedAsset(from: renderedURL, to: destinationURL, assetDescription: handwritingAssetDescription)
         return destinationURL
     }
 
@@ -79,7 +83,7 @@ enum HandwritingAssetRenderer {
             renderedURL = url
             completionFired = true
         }
-        typealias WriteThumbnailIMP = @convention(c) (AnyObject, Selector, AnyObject, CGSize, Bool, AnyObject) -> Void
+        typealias WriteThumbnailIMP = @convention(c) (AnyClass, Selector, AnyObject, CGSize, Bool, AnyObject) -> Void
         let implementation = unsafeBitCast(method_getImplementation(method), to: WriteThumbnailIMP.self)
         implementation(
             rendererClass,
@@ -90,65 +94,14 @@ enum HandwritingAssetRenderer {
             unsafeBitCast(completion, to: AnyObject.self)
         )
 
-        let deadline = Date().addingTimeInterval(15)
+        let deadline = Date().addingTimeInterval(handwritingRenderTimeout)
         while Date() <= deadline {
-            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
-            if completionFired, let renderedURL, fileSize(renderedURL) > 0 {
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: renderRunLoopInterval))
+            if completionFired, let renderedURL, AssetSupport.fileSize(renderedURL) > 0 {
                 return renderedURL
             }
         }
 
         throw ErrorMessage("Timed out rendering handwriting asset")
-    }
-
-    @MainActor
-    private static func initObject(_ cls: AnyClass, selector: String, _ args: Any?...) throws -> NSObject {
-        guard let allocated = cls.alloc() as? NSObject else {
-            throw ErrorMessage("Couldn't allocate \(NSStringFromClass(cls))")
-        }
-        let unmanaged: Unmanaged<AnyObject>?
-        switch args.count {
-        case 0:
-            unmanaged = allocated.perform(Selector((selector)))
-        case 1:
-            unmanaged = allocated.perform(Selector((selector)), with: args[0])
-        default:
-            throw ErrorMessage("Unsupported handwriting initializer arity")
-        }
-        return try object(from: unmanaged, method: selector)
-    }
-
-    @MainActor
-    private static func performObject(_ object: NSObject, selector: String) throws -> AnyObject {
-        try self.object(from: object.perform(Selector((selector))), method: selector)
-    }
-
-    @MainActor
-    private static func object(from unmanaged: Unmanaged<AnyObject>?, method: String) throws -> NSObject {
-        guard let unmanaged,
-              let object = unmanaged.takeUnretainedValue() as? NSObject else {
-            throw ErrorMessage("Handwriting private method returned nil: \(method)")
-        }
-        return object
-    }
-
-    private static func copyRenderedAssetIfNeeded(from renderedURL: URL, to destinationURL: URL) throws {
-        guard fileSize(renderedURL) > 0 else {
-            throw ErrorMessage("Handwriting renderer produced an empty asset")
-        }
-        guard renderedURL.standardizedFileURL != destinationURL.standardizedFileURL else {
-            return
-        }
-
-        try FileManager.default.createDirectory(
-            at: destinationURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try? FileManager.default.removeItem(at: destinationURL)
-        try FileManager.default.copyItem(at: renderedURL, to: destinationURL)
-    }
-
-    private static func fileSize(_ url: URL) -> UInt64 {
-        ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber)?.uint64Value ?? 0
     }
 }

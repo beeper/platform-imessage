@@ -4,14 +4,20 @@ import SQLite
 private let digitalTouchBalloonBundleID = "com.apple.DigitalTouchBalloonProvider"
 private let handwritingBalloonBundleID = "com.apple.Handwriting.HandwritingProvider"
 
-public extension IMDatabase {
-    func digitalTouchPayload(rowID: Int) throws -> (payloadData: Data, isFromMe: Bool)? {
+private enum PluginPayloadColumn {
+    static let payloadData = 0
+    static let messageGUID = 1
+    static let isFromMe = 2
+}
+
+extension IMDatabase {
+    public func digitalTouchPayload(rowID: Int) throws -> (payloadData: Data, isFromMe: Bool)? {
         try pluginPayload(rowID: rowID, bundleID: digitalTouchBalloonBundleID).map {
             (payloadData: $0.payloadData, isFromMe: $0.isFromMe)
         }
     }
 
-    func handwritingPayload(rowID: Int) throws -> (payloadData: Data, messageGUID: String, isFromMe: Bool)? {
+    public func handwritingPayload(rowID: Int) throws -> (payloadData: Data, messageGUID: String, isFromMe: Bool)? {
         try pluginPayload(rowID: rowID, bundleID: handwritingBalloonBundleID)
     }
 
@@ -30,13 +36,13 @@ public extension IMDatabase {
         try statement.bind(rowID, bundleID)
 
         return try statement.compactMapRowsUntilDone { row in
-            guard let payloadData = try row[0].optional(Data.self) else {
+            guard let payloadData = try row[PluginPayloadColumn.payloadData].optional(Data.self) else {
                 return nil
             }
             return try (
                 payloadData: payloadData,
-                messageGUID: row[1].expect(String.self),
-                isFromMe: row[2].expectConverting(Int.self) != 0
+                messageGUID: row[PluginPayloadColumn.messageGUID].expect(String.self),
+                isFromMe: row[PluginPayloadColumn.isFromMe].expectConverting(Int.self) != 0
             )
         }.first
     }

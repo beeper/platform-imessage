@@ -11,6 +11,9 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
+private let pluginPayloadAssetPollInterval: TimeInterval = 0.02
+private let fastPluginPayloadAssetWait: TimeInterval = 1
+private let fallbackPluginPayloadAssetWait: TimeInterval = 4
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = Protected<IMDatabase?>()
@@ -1026,38 +1029,45 @@ extension PlatformAPI {
         }
     }
 
-    private struct DigitalTouchAssetRequest {
+    private struct PluginPayloadAssetRequest {
         let uuid: String
         let rowID: Int?
 
-        init(methodName: String) throws {
-            let stem = methodName.hasSuffix(".mov")
-                ? String(methodName.dropLast(".mov".count))
+        init(methodName: String, fileExtension: String, assetDescription: String) throws {
+            let suffix = ".\(fileExtension)"
+            let stem = methodName.hasSuffix(suffix)
+                ? String(methodName.dropLast(suffix.count))
                 : methodName
             let parts = stem.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
             guard let rawUUID = parts.first, !rawUUID.isEmpty else {
-                throw ErrorMessage("Couldn't fetch digital touch asset: missing UUID")
+                throw ErrorMessage("Couldn't fetch \(assetDescription) asset: missing UUID")
             }
             uuid = String(rawUUID)
-            rowID = parts.count > 1 ? Int(parts[1]) : nil
+            if parts.count > 1 {
+                guard let rowID = Int(parts[1]) else {
+                    throw ErrorMessage("Couldn't fetch \(assetDescription) asset: invalid row ID")
+                }
+                self.rowID = rowID
+            } else {
+                rowID = nil
+            }
         }
     }
 
-    private struct HandwritingAssetRequest {
-        let uuid: String
-        let rowID: Int?
+    nonisolated private static func waitForExistingAssetURL(
+        maxWait: TimeInterval,
+        candidates: () throws -> [URL]
+    ) async throws -> URL? {
+        let deadline = Date().addingTimeInterval(maxWait)
 
-        init(methodName: String) throws {
-            let stem = methodName.hasSuffix(".png")
-                ? String(methodName.dropLast(".png".count))
-                : methodName
-            let parts = stem.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
-            guard let rawUUID = parts.first, !rawUUID.isEmpty else {
-                throw ErrorMessage("Couldn't fetch handwriting asset: missing UUID")
+        repeat {
+            if let url = try candidates().first(where: { PluginPayloadAssetSupport.fileSize($0) > 0 }) {
+                return url
             }
-            uuid = String(rawUUID)
-            rowID = parts.count > 1 ? Int(parts[1]) : nil
-        }
+            try await Task.sleep(forTimeInterval: pluginPayloadAssetPollInterval)
+        } while Date() <= deadline
+
+        return nil
     }
 
     nonisolated private static func existingHandwritingAssetURL(uuid: String, maxWait: TimeInterval) async throws -> URL? {
@@ -1066,22 +1076,16 @@ extension PlatformAPI {
             MessagesPaths.temporaryDirectory,
         ]
         let prefix = "hw_\(uuid)_"
-        let deadline = Date().addingTimeInterval(maxWait)
 
-        repeat {
-            for directory in candidateDirectories {
-                let fileNames = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
-                for fileName in fileNames where fileName.hasPrefix(prefix) {
-                    let url = directory.appendingPathComponent(fileName)
-                    if fileSize(url) > 0 {
-                        return url
-                    }
-                }
+        return try await waitForExistingAssetURL(maxWait: maxWait) {
+            candidateDirectories.flatMap { directory in
+                ((try? FileManager.default.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: [.fileSizeKey]
+                )) ?? [])
+                    .filter { $0.lastPathComponent.hasPrefix(prefix) }
             }
-            try await Task.sleep(forTimeInterval: 0.02)
-        } while Date() <= deadline
-
-        return nil
+        }
     }
 
     nonisolated private static func handwritingAssetFilename(uuid: String) -> String {
@@ -1094,75 +1098,95 @@ extension PlatformAPI {
         maxWait: TimeInterval
     ) async throws -> URL? {
         let rendererURL = MessagesPaths.temporaryDirectory.appendingPathComponent("\(uuid).mov")
-        let candidateURLs = [preferredURL, rendererURL]
-        let deadline = Date().addingTimeInterval(maxWait)
-
-        repeat {
-            if let url = candidateURLs.first(where: { fileSize($0) > 0 }) {
-                return url
-            }
-            try await Task.sleep(forTimeInterval: 0.02)
-        } while Date() <= deadline
-
-        return nil
+        return try await waitForExistingAssetURL(maxWait: maxWait) {
+            [preferredURL, rendererURL]
+        }
     }
 
-    nonisolated private static func fileSize(_ url: URL) -> UInt64 {
-        ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber)?.uint64Value ?? 0
+    nonisolated private static func getHandwritingAsset(
+        db database: PlatformAPIDatabase,
+        methodName: String
+    ) async throws -> AssetResult {
+        let request = try PluginPayloadAssetRequest(
+            methodName: methodName,
+            fileExtension: "png",
+            assetDescription: "handwriting"
+        )
+        if let existingURL = try await existingHandwritingAssetURL(uuid: request.uuid, maxWait: fastPluginPayloadAssetWait) {
+            return .url(fileURLString(existingURL.path))
+        }
+
+        guard let rowID = request.rowID,
+              let payload = try database.withDatabase({ db in
+                  try db.handwritingPayload(rowID: rowID)
+              }) else {
+            guard let existingURL = try await existingHandwritingAssetURL(
+                uuid: request.uuid,
+                maxWait: fallbackPluginPayloadAssetWait
+            ) else {
+                throw ErrorMessage("Couldn't fetch handwriting asset")
+            }
+            return .url(fileURLString(existingURL.path))
+        }
+
+        let renderedURL = try await HandwritingAssetRenderer.render(
+            payloadData: payload.payloadData,
+            messageGUID: payload.messageGUID,
+            isFromMe: payload.isFromMe,
+            destinationURL: MessagesPaths.temporaryMobileSMSDirectory
+                .appendingPathComponent(handwritingAssetFilename(uuid: request.uuid))
+        )
+        return .url(fileURLString(renderedURL.path))
+    }
+
+    nonisolated private static func getDigitalTouchAsset(
+        db database: PlatformAPIDatabase,
+        methodName: String
+    ) async throws -> AssetResult {
+        let request = try PluginPayloadAssetRequest(
+            methodName: methodName,
+            fileExtension: "mov",
+            assetDescription: "digital touch"
+        )
+        let fileURL = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(request.uuid).mov")
+        if let existingURL = try await existingDigitalTouchAssetURL(
+            uuid: request.uuid,
+            preferredURL: fileURL,
+            maxWait: fastPluginPayloadAssetWait
+        ) {
+            return .url(fileURLString(existingURL.path))
+        }
+
+        guard let rowID = request.rowID,
+              let payload = try database.withDatabase({ db in
+                  try db.digitalTouchPayload(rowID: rowID)
+              }) else {
+            guard let existingURL = try await existingDigitalTouchAssetURL(
+                uuid: request.uuid,
+                preferredURL: fileURL,
+                maxWait: fallbackPluginPayloadAssetWait
+            ) else {
+                throw ErrorMessage("Couldn't fetch digital touch asset")
+            }
+            return .url(fileURLString(existingURL.path))
+        }
+
+        let renderedURL = try await DigitalTouchAssetRenderer.render(
+            payloadData: payload.payloadData,
+            uuid: request.uuid,
+            isFromMe: payload.isFromMe,
+            destinationURL: fileURL
+        )
+        return .url(fileURLString(renderedURL.path))
     }
 
     nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) async throws -> AssetResult {
         switch pathHex {
         case "hw":
-            let request = try HandwritingAssetRequest(methodName: methodName)
-            if let existingURL = try await existingHandwritingAssetURL(uuid: request.uuid, maxWait: 1) {
-                return .url(fileURLString(existingURL.path))
-            }
-
-            guard let rowID = request.rowID,
-                  let payload = try database.withDatabase({ db in
-                      try db.handwritingPayload(rowID: rowID)
-                  }) else {
-                guard let existingURL = try await existingHandwritingAssetURL(uuid: request.uuid, maxWait: 4) else {
-                    throw ErrorMessage("Couldn't fetch handwriting asset")
-                }
-                return .url(fileURLString(existingURL.path))
-            }
-
-            let renderedURL = try await HandwritingAssetRenderer.render(
-                payloadData: payload.payloadData,
-                uuid: request.uuid,
-                messageGUID: payload.messageGUID,
-                isFromMe: payload.isFromMe,
-                destinationURL: MessagesPaths.temporaryMobileSMSDirectory
-                    .appendingPathComponent(handwritingAssetFilename(uuid: request.uuid))
-            )
-            return .url(fileURLString(renderedURL.path))
+            return try await getHandwritingAsset(db: database, methodName: methodName)
 
         case "dt":
-            let request = try DigitalTouchAssetRequest(methodName: methodName)
-            let fileURL = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(request.uuid).mov")
-            if let existingURL = try await existingDigitalTouchAssetURL(uuid: request.uuid, preferredURL: fileURL, maxWait: 1) {
-                return .url(fileURLString(existingURL.path))
-            }
-
-            guard let rowID = request.rowID,
-                  let payload = try database.withDatabase({ db in
-                      try db.digitalTouchPayload(rowID: rowID)
-                  }) else {
-                guard let existingURL = try await existingDigitalTouchAssetURL(uuid: request.uuid, preferredURL: fileURL, maxWait: 4) else {
-                    throw ErrorMessage("Couldn't fetch digital touch asset")
-                }
-                return .url(fileURLString(existingURL.path))
-            }
-
-            let renderedURL = try await DigitalTouchAssetRenderer.render(
-                payloadData: payload.payloadData,
-                uuid: request.uuid,
-                isFromMe: payload.isFromMe,
-                destinationURL: fileURL
-            )
-            return .url(fileURLString(renderedURL.path))
+            return try await getDigitalTouchAsset(db: database, methodName: methodName)
 
         case "reaction-sticker":
             let rowIDString = methodName.split(separator: ".", maxSplits: 1).first.map(String.init) ?? methodName
