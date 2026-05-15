@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# Print the `version` field from a `package.json`.
+#
+#   scripts/print-package-version            # repo root package.json
+#   scripts/print-package-version path.json  # explicit path
+#   scripts/print-package-version -          # read JSON from stdin
+#
+# Used by CI scripts and GitHub workflows to avoid sprinkling inline
+# `python3 -c 'import json…'` snippets across the repo.
+
+set -euo pipefail
+
+read_file() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$1"
+}
+
+read_stdin() {
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])'
+}
+
+if [ $# -eq 0 ]; then
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  read_file "$repo_root/package.json"
+elif [ "$1" = "-" ]; then
+  read_stdin
+else
+  read_file "$1"
+fi
