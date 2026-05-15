@@ -64,7 +64,7 @@
     "darwin"
   ],
   "resolutions": {
-    "@textshq/platform-sdk": "https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83",
+    "@textshq/platform-sdk": "git+https://github.com/TextsHQ/platform-sdk.git#eed22bde2bcd2bd8dcb6312b553c6b1581091c83",
     "node-gyp": "^10.0.1"
   },
   "peerDependencies": {

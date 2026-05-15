@@ -2623,7 +2623,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk#eed22bde2bcd2bd8dcb6312b553c6b1581091c83":
+"@textshq/platform-sdk@git+https://github.com/TextsHQ/platform-sdk.git#eed22bde2bcd2bd8dcb6312b553c6b1581091c83":
   version: 0.4.4
   resolution: "@textshq/platform-sdk@https://github.com/TextsHQ/platform-sdk.git#commit=eed22bde2bcd2bd8dcb6312b553c6b1581091c83"
   dependencies:
