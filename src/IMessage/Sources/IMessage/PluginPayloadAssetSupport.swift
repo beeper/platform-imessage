@@ -62,6 +62,10 @@ enum PluginPayloadAssetSupport {
         selector: Selector,
         _ args: Any?...
     ) throws -> NSObject {
+        for arg in args {
+            try rejectPrimitiveArgument(arg, selector: selector)
+        }
+
         guard let allocated = cls.alloc() as? NSObject else {
             throw ErrorMessage("Couldn't allocate \(NSStringFromClass(cls))")
         }
@@ -80,12 +84,61 @@ enum PluginPayloadAssetSupport {
         return try object(from: unmanaged, selector: selector)
     }
 
+    /// Allocates `cls` and invokes a `(id, BOOL)` initializer via a typed IMP so the
+    /// `BOOL` argument is forwarded as a primitive. Required because
+    /// `NSObject.perform(_:with:with:)` only carries object pointers, so passing a Swift
+    /// `Bool` would arrive as a non-zero `NSNumber` pointer and always read as `true`.
+    static func initObject(
+        _ cls: AnyClass,
+        selector: Selector,
+        withObject object: AnyObject,
+        andFlag flag: Bool
+    ) throws -> NSObject {
+        guard let initMethod = class_getInstanceMethod(cls, selector) else {
+            throw ErrorMessage(
+                "Initializer is unavailable: \(NSStringFromClass(cls)) \(NSStringFromSelector(selector))"
+            )
+        }
+        guard let allocated = cls.alloc() as? NSObject else {
+            throw ErrorMessage("Couldn't allocate \(NSStringFromClass(cls))")
+        }
+
+        typealias ObjectAndBoolInitIMP = @convention(c) (NSObject, Selector, AnyObject, Bool) -> Unmanaged<AnyObject>?
+        let initIMP = unsafeBitCast(method_getImplementation(initMethod), to: ObjectAndBoolInitIMP.self)
+        let unmanaged = initIMP(allocated, selector, object, flag)
+        return try self.object(from: unmanaged, selector: selector)
+    }
+
     static func performObject(_ object: NSObject, selector: Selector) throws -> AnyObject {
         guard object.responds(to: selector) else {
             throw ErrorMessage("Private framework method is unavailable: \(NSStringFromSelector(selector))")
         }
         return try self.object(from: object.perform(selector), selector: selector)
     }
+
+    /// Rejects Swift numeric/Bool values passed where the receiver expects a primitive
+    /// `BOOL`/`int`/etc. argument. `NSObject.perform(_:with:...)` only carries object
+    /// pointers, so a Swift `Bool` gets boxed into an `NSNumber` and the receiver reads
+    /// the (always non-zero) pointer as a primitive — silently corrupting the value.
+    private static func rejectPrimitiveArgument(_ value: Any?, selector: Selector) throws {
+        guard let value else { return }
+        let typeName = String(describing: type(of: value))
+        if rejectedPrimitiveSwiftTypeNames.contains(typeName) {
+            throw ErrorMessage(
+                "initObject(_:selector:_:) only supports object arguments; got Swift primitive \(typeName) for \(NSStringFromSelector(selector)). Use initObject(_:selector:withObject:andFlag:) or wrap in NSNumber."
+            )
+        }
+    }
+
+    private static let rejectedPrimitiveSwiftTypeNames: Set<String> = [
+        "Bool",
+        "Int", "UInt",
+        "Int8", "UInt8",
+        "Int16", "UInt16",
+        "Int32", "UInt32",
+        "Int64", "UInt64",
+        "Float", "Double",
+    ]
 
     private static func atomicallyReplaceItem(at destinationURL: URL, with sourceURL: URL) throws {
         let result = sourceURL.withUnsafeFileSystemRepresentation { sourcePath in

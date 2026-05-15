@@ -46,7 +46,12 @@ enum DigitalTouchAssetRenderer {
         payload.setValue(isFromMe, forKey: "isFromMe")
 
         let dataSource = try AssetSupport.initObject(dataSourceClass, selector: Selector(("initWithPluginPayload:")), payload)
-        let controller = try AssetSupport.initObject(controllerClass, selector: Selector(("initWithDataSource:isFromMe:")), dataSource, isFromMe)
+        let controller = try AssetSupport.initObject(
+            controllerClass,
+            selector: Selector(("initWithDataSource:isFromMe:")),
+            withObject: dataSource,
+            andFlag: isFromMe
+        )
         guard let assetURL = try AssetSupport.performObject(controller, selector: Selector(("getAssetURL"))) as? URL else {
             throw ErrorMessage("Digital Touch renderer didn't return an asset URL")
         }
