@@ -59,7 +59,6 @@ public final class PlatformAPI {
         if enforceSingleton {
             try Self.claimActiveInstance(ObjectIdentifier(self))
         }
-        PluginPayloadAssetSupport.prewarmAppKit()
     }
 
     private static func claimActiveInstance(_ owner: ObjectIdentifier) throws {

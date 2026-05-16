@@ -168,12 +168,6 @@ enum PluginPayloadAssetSupport {
         _ = NSApplication.shared
     }
 
-    // Touch the AppKit singleton once from a known thread so concurrent render workers
-    // don't race on its first-access initialization later.
-    static func prewarmAppKit() {
-        _ = NSApplication.shared
-    }
-
     static func loadBundle(path: String, assetDescription: String) throws {
         guard Bundle(path: path)?.load() == true else {
             throw ErrorMessage("Couldn't load \(assetDescription)")
