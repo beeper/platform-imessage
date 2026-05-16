@@ -135,9 +135,9 @@ struct PluginPayloadAssetRoute {
 
     let kind: Kind
     let uuid: String
-    let rowID: Int?
+    let rowID: Int
 
-    init(kind: Kind, uuid: String, rowID: Int?) {
+    init(kind: Kind, uuid: String, rowID: Int) {
         self.kind = kind
         self.uuid = uuid
         self.rowID = rowID
@@ -155,19 +155,17 @@ struct PluginPayloadAssetRoute {
 
         uuid = String(rawUUID)
         self.kind = kind
-        if parts.count > 1 {
-            guard let rowID = Int(parts[1]) else {
-                throw ErrorMessage("Couldn't fetch \(kind.assetDescription) asset: invalid row ID")
-            }
-            self.rowID = rowID
-        } else {
-            rowID = nil
+        guard parts.count > 1, !parts[1].isEmpty else {
+            throw ErrorMessage("Couldn't fetch \(kind.assetDescription) asset: missing row ID")
         }
+        guard let rowID = Int(parts[1]) else {
+            throw ErrorMessage("Couldn't fetch \(kind.assetDescription) asset: invalid row ID")
+        }
+        self.rowID = rowID
     }
 
     var fileName: String {
-        let stem = rowID.map { "\(uuid).\($0)" } ?? uuid
-        return "\(stem).\(kind.fileExtension)"
+        "\(uuid).\(rowID).\(kind.fileExtension)"
     }
 
     var legacyAssetPath: String {

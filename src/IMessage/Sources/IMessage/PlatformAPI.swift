@@ -1039,10 +1039,9 @@ extension PlatformAPI {
     ) async throws -> AssetResult {
         let route = try PluginPayloadAssetRoute(kind: .handwriting, methodName: methodName)
         return try await withLegacyPluginPayloadAssetFallback(route: route) {
-            guard let rowID = route.rowID,
-                  let payload = try database.withDatabase({ db in
-                    try db.handwritingPayload(rowID: rowID)
-                  }) else {
+            guard let payload = try database.withDatabase({ db in
+                try db.handwritingPayload(rowID: route.rowID)
+            }) else {
                 throw ErrorMessage("Couldn't fetch handwriting asset")
             }
 
@@ -1062,10 +1061,9 @@ extension PlatformAPI {
     ) async throws -> AssetResult {
         let route = try PluginPayloadAssetRoute(kind: .digitalTouch, methodName: methodName)
         return try await withLegacyPluginPayloadAssetFallback(route: route) {
-            guard let rowID = route.rowID,
-                  let payload = try database.withDatabase({ db in
-                    try db.digitalTouchPayload(rowID: rowID)
-                  }) else {
+            guard let payload = try database.withDatabase({ db in
+                try db.digitalTouchPayload(rowID: route.rowID)
+            }) else {
                 throw ErrorMessage("Couldn't fetch digital touch asset")
             }
 
