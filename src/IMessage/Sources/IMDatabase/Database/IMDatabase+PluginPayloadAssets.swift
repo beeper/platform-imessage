@@ -1,18 +1,16 @@
 import Foundation
+import IMessageCore
 import SQLite
-
-private let digitalTouchBalloonBundleID = "com.apple.DigitalTouchBalloonProvider"
-private let handwritingBalloonBundleID = "com.apple.Handwriting.HandwritingProvider"
 
 extension IMDatabase {
     public func digitalTouchPayload(rowID: Int) throws -> (payloadData: Data, isFromMe: Bool)? {
-        try pluginPayload(rowID: rowID, bundleID: digitalTouchBalloonBundleID).map {
+        try pluginPayload(rowID: rowID, bundleID: BalloonBundleID.digitalTouch).map {
             (payloadData: $0.payloadData, isFromMe: $0.isFromMe)
         }
     }
 
     public func handwritingPayload(rowID: Int) throws -> (payloadData: Data, messageGUID: String, isFromMe: Bool)? {
-        try pluginPayload(rowID: rowID, bundleID: handwritingBalloonBundleID)
+        try pluginPayload(rowID: rowID, bundleID: BalloonBundleID.handwriting)
     }
 
     private func pluginPayload(

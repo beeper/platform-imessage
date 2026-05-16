@@ -1,24 +1,105 @@
+import AppKit
 import Darwin
+import ExceptionCatcher
 import Foundation
 import IMessageCore
+import IMessagePrivateSPI
 
 private let pluginPayloadAssetRenderQueue = DispatchQueue(
     label: "plugin-payload-asset-render-queue",
     qos: .utility
 )
 
+private struct RenderQueueWorkState<T> {
+    var continuation: CheckedContinuation<T, Error>?
+    var started = false
+    var completed = false
+    var isCancelled = false
+}
+
 enum PluginPayloadAssetSupport {
     static func onRenderQueue<T>(
-        _ action: @escaping @Sendable () throws -> T
+        _ action: @escaping @Sendable (_ isCancelled: @escaping @Sendable () -> Bool) throws -> T
     ) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            pluginPayloadAssetRenderQueue.async {
-                continuation.resume(with: Result {
-                    try autoreleasepool {
-                        try action()
+        let state = Protected(RenderQueueWorkState<T>())
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let shouldEnqueue = state.withLock { work in
+                    guard !work.isCancelled else {
+                        return false
                     }
-                })
+                    work.continuation = continuation
+                    return true
+                }
+                guard shouldEnqueue else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                pluginPayloadAssetRenderQueue.async {
+                    let continuation = state.withLock { work -> CheckedContinuation<T, Error>? in
+                        guard !work.isCancelled, !work.completed else {
+                            return nil
+                        }
+                        work.started = true
+                        return work.continuation
+                    }
+                    guard let continuation else {
+                        return
+                    }
+
+                    let isCancelled: @Sendable () -> Bool = {
+                        state.withLock { $0.isCancelled }
+                    }
+                    let result = Result {
+                        try autoreleasepool {
+                            try action(isCancelled)
+                        }
+                    }
+                    state.withLock { work in
+                        work.completed = true
+                        work.continuation = nil
+                    }
+                    continuation.resume(with: result)
+                }
             }
+        } onCancel: {
+            let continuation = state.withLock { work -> CheckedContinuation<T, Error>? in
+                work.isCancelled = true
+                guard !work.started, !work.completed else {
+                    return nil
+                }
+                work.completed = true
+                let continuation = work.continuation
+                work.continuation = nil
+                return continuation
+            }
+            continuation?.resume(throwing: CancellationError())
+        }
+    }
+
+    static func renderIfNeeded(
+        destinationURL: URL,
+        _ render: @escaping @Sendable (_ isCancelled: @escaping @Sendable () -> Bool) throws -> URL
+    ) async throws -> URL {
+        guard fileSize(destinationURL) == 0 else {
+            return destinationURL
+        }
+        return try await onRenderQueue { isCancelled in
+            try checkCancellation(isCancelled)
+            return try ExceptionCatcher.catch {
+                try checkCancellation(isCancelled)
+                guard fileSize(destinationURL) == 0 else {
+                    return destinationURL
+                }
+                return try render(isCancelled)
+            }
+        }
+    }
+
+    static func checkCancellation(_ isCancelled: () -> Bool) throws {
+        if isCancelled() {
+            throw CancellationError()
         }
     }
 
@@ -63,5 +144,59 @@ enum PluginPayloadAssetSupport {
         guard result == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EIO)
         }
+    }
+
+    static func prepareRenderThread() {
+        Thread.current.name = "Plugin Payload Asset Renderer"
+        _ = NSApplication.shared
+    }
+
+    static func loadBundle(path: String, assetDescription: String) throws {
+        guard Bundle(path: path)?.load() == true else {
+            throw ErrorMessage("Couldn't load \(assetDescription)")
+        }
+    }
+
+    static func privateClass<T>(_ className: String, as _: T.Type, assetDescription: String) throws -> T {
+        guard let classObject = NSClassFromString(className) as? T else {
+            throw ErrorMessage("\(assetDescription) private class \(className) is unavailable")
+        }
+        return classObject
+    }
+
+    static func makePluginPayload(
+        payloadClass: IMPluginPayload.Type,
+        payloadData: Data,
+        bundleID: String,
+        messageGUID: String,
+        isFromMe: Bool
+    ) -> IMPluginPayload {
+        let payload = payloadClass.init()
+        payload.data = payloadData
+        payload.pluginBundleID = bundleID
+        payload.messageGUID = messageGUID
+        payload.isFromMe = isFromMe
+        return payload
+    }
+
+    static func waitForRenderedAsset(
+        assetDescription: String,
+        timeout: TimeInterval,
+        pollInterval: TimeInterval,
+        isCancelled: () -> Bool,
+        matching assetURL: () -> URL?
+    ) throws -> URL {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() <= deadline {
+            try checkCancellation(isCancelled)
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: pollInterval))
+            try checkCancellation(isCancelled)
+
+            if let url = assetURL(), fileSize(url) > 0 {
+                return url
+            }
+        }
+
+        throw ErrorMessage("Timed out rendering \(assetDescription) asset")
     }
 }

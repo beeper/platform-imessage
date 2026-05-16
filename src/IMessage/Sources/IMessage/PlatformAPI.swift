@@ -1028,31 +1028,6 @@ extension PlatformAPI {
         }
     }
 
-    private struct PluginPayloadAssetRequest {
-        let uuid: String
-        let rowID: Int?
-
-        init(methodName: String, fileExtension: String, assetDescription: String) throws {
-            let suffix = ".\(fileExtension)"
-            let stem = methodName.hasSuffix(suffix)
-                ? String(methodName.dropLast(suffix.count))
-                : methodName
-            let parts = stem.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
-            guard let rawUUID = parts.first, !rawUUID.isEmpty else {
-                throw ErrorMessage("Couldn't fetch \(assetDescription) asset: missing UUID")
-            }
-            uuid = String(rawUUID)
-            if parts.count > 1 {
-                guard let rowID = Int(parts[1]) else {
-                    throw ErrorMessage("Couldn't fetch \(assetDescription) asset: invalid row ID")
-                }
-                self.rowID = rowID
-            } else {
-                rowID = nil
-            }
-        }
-    }
-
     nonisolated private static func firstExistingAssetURL(_ candidates: [URL]) -> URL? {
         candidates.first(where: { PluginPayloadAssetSupport.fileSize($0) > 0 })
     }
@@ -1065,9 +1040,12 @@ extension PlatformAPI {
             )
         } catch {
             let nsError = error as NSError
+            let noSuchFileErrorCodes = [
+                CocoaError.Code.fileReadNoSuchFile.rawValue,
+                CocoaError.Code.fileNoSuchFile.rawValue,
+            ]
             if nsError.domain == NSCocoaErrorDomain,
-               nsError.code == CocoaError.Code.fileReadNoSuchFile.rawValue ||
-                nsError.code == CocoaError.Code.fileNoSuchFile.rawValue {
+               noSuchFileErrorCodes.contains(nsError.code) {
                 return []
             }
             throw error
@@ -1099,16 +1077,20 @@ extension PlatformAPI {
         })
     }
 
-    nonisolated private static func existingHandwritingAssetURL(uuid: String) throws -> URL? {
+    nonisolated private static func existingHandwritingAssetURL(uuid: String, includeLegacyScan: Bool) throws -> URL? {
         if let exactURL = firstExistingAssetURL(handwritingCandidateAssetURLs(uuid: uuid)) {
             return exactURL
         }
-        return try existingLegacyHandwritingAssetURL(uuid: uuid)
+        return includeLegacyScan ? try existingLegacyHandwritingAssetURL(uuid: uuid) : nil
     }
 
-    nonisolated private static func waitForExistingHandwritingAssetURL(uuid: String, maxWait: TimeInterval) async throws -> URL? {
+    nonisolated private static func waitForExistingHandwritingAssetURL(
+        uuid: String,
+        maxWait: TimeInterval,
+        includeLegacyScan: Bool
+    ) async throws -> URL? {
         try await waitForFileURL(maxWait: maxWait, pollInterval: pluginPayloadLegacyAssetPollInterval) {
-            try existingHandwritingAssetURL(uuid: uuid)
+            try existingHandwritingAssetURL(uuid: uuid, includeLegacyScan: includeLegacyScan)
         }
     }
 
@@ -1134,22 +1116,20 @@ extension PlatformAPI {
         db database: PlatformAPIDatabase,
         methodName: String
     ) async throws -> AssetResult {
-        let request = try PluginPayloadAssetRequest(
-            methodName: methodName,
-            fileExtension: "png",
-            assetDescription: "handwriting"
-        )
-        if let existingURL = try existingHandwritingAssetURL(uuid: request.uuid) {
+        let route = try PluginPayloadAssetRoute(kind: .handwriting, methodName: methodName)
+        let includeLegacyScan = route.rowID == nil
+        if let existingURL = try existingHandwritingAssetURL(uuid: route.uuid, includeLegacyScan: includeLegacyScan) {
             return .url(fileURLString(existingURL.path))
         }
 
-        guard let rowID = request.rowID,
+        guard let rowID = route.rowID,
               let payload = try database.withDatabase({ db in
                   try db.handwritingPayload(rowID: rowID)
               }) else {
             guard let existingURL = try await waitForExistingHandwritingAssetURL(
-                uuid: request.uuid,
-                maxWait: fallbackPluginPayloadAssetWait
+                uuid: route.uuid,
+                maxWait: fallbackPluginPayloadAssetWait,
+                includeLegacyScan: includeLegacyScan
             ) else {
                 throw ErrorMessage("Couldn't fetch handwriting asset")
             }
@@ -1161,7 +1141,7 @@ extension PlatformAPI {
             messageGUID: payload.messageGUID,
             isFromMe: payload.isFromMe,
             destinationURL: MessagesPaths.temporaryMobileSMSDirectory
-                .appendingPathComponent(handwritingAssetFilename(uuid: request.uuid))
+                .appendingPathComponent(handwritingAssetFilename(uuid: route.uuid))
         )
         return .url(fileURLString(renderedURL.path))
     }
@@ -1170,25 +1150,21 @@ extension PlatformAPI {
         db database: PlatformAPIDatabase,
         methodName: String
     ) async throws -> AssetResult {
-        let request = try PluginPayloadAssetRequest(
-            methodName: methodName,
-            fileExtension: "mov",
-            assetDescription: "digital touch"
-        )
-        let fileURL = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(request.uuid).mov")
+        let route = try PluginPayloadAssetRoute(kind: .digitalTouch, methodName: methodName)
+        let fileURL = MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(route.uuid).mov")
         if let existingURL = existingDigitalTouchAssetURL(
-            uuid: request.uuid,
+            uuid: route.uuid,
             preferredURL: fileURL
         ) {
             return .url(fileURLString(existingURL.path))
         }
 
-        guard let rowID = request.rowID,
+        guard let rowID = route.rowID,
               let payload = try database.withDatabase({ db in
                   try db.digitalTouchPayload(rowID: rowID)
               }) else {
             guard let existingURL = try await waitForExistingDigitalTouchAssetURL(
-                uuid: request.uuid,
+                uuid: route.uuid,
                 preferredURL: fileURL,
                 maxWait: fallbackPluginPayloadAssetWait
             ) else {
@@ -1199,7 +1175,7 @@ extension PlatformAPI {
 
         let renderedURL = try await DigitalTouchAssetRenderer.render(
             payloadData: payload.payloadData,
-            uuid: request.uuid,
+            uuid: route.uuid,
             isFromMe: payload.isFromMe,
             destinationURL: fileURL
         )

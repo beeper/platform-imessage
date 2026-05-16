@@ -2,19 +2,30 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface NSObject (IMessagePrivateSPI)
+@interface IMPluginPayload : NSObject
 @property (nonatomic, copy) NSData *data;
 @property (nonatomic, copy) NSString *pluginBundleID;
 @property (nonatomic, copy) NSString *messageGUID;
 @property (nonatomic) BOOL isFromMe;
+@end
 
-- (instancetype)initWithPluginPayload:(id)payload NS_SWIFT_NAME(init(pluginPayload:));
-- (instancetype)initWithDataSource:(id)dataSource
+@interface ETBalloonPluginDataSource : NSObject
+- (instancetype)initWithPluginPayload:(IMPluginPayload *)payload NS_SWIFT_NAME(init(pluginPayload:));
+@end
+
+@interface ETMacBalloonPluginController : NSObject
+- (instancetype)initWithDataSource:(ETBalloonPluginDataSource *)dataSource
                           isFromMe:(BOOL)isFromMe NS_SWIFT_NAME(init(dataSource:isFromMe:));
 - (NSURL *_Nullable)getAssetURL;
 - (void)_createFallbackMediaWithCompletion:(void (^)(void))completion NS_SWIFT_NAME(createFallbackMedia(completion:));
-- (id _Nullable)handwritingFromPayload;
+@end
 
+@interface HWBalloonDataSource : NSObject
+- (instancetype)initWithPluginPayload:(IMPluginPayload *)payload NS_SWIFT_NAME(init(pluginPayload:));
+- (id _Nullable)handwritingFromPayload;
+@end
+
+@interface HWAbstractBalloonController : NSObject
 + (void)_writeThumbnailOfHandwriting:(id)handwriting
                               atSize:(CGSize)size
                   useHighFidelityInk:(BOOL)useHighFidelityInk

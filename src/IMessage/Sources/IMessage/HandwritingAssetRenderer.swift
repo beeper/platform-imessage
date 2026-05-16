@@ -1,12 +1,11 @@
 import AppKit
-import ExceptionCatcher
 import Foundation
 import IMessageCore
 import IMessagePrivateSPI
-import ObjectiveC
 
 private let handwritingProviderPath = "/System/Library/Messages/iMessageBalloons/HandwritingProvider.bundle"
 private let handwritingAssetDescription = "Handwriting"
+private let handwritingProviderDescription = "HandwritingProvider"
 private let handwritingRenderedWidth = 400.0
 private let handwritingRenderedHeight = 200.0
 private let handwritingRenderTimeout: TimeInterval = 15
@@ -23,18 +22,14 @@ enum HandwritingAssetRenderer {
         isFromMe: Bool,
         destinationURL: URL
     ) async throws -> URL {
-        guard AssetSupport.fileSize(destinationURL) == 0 else {
-            return destinationURL
-        }
-        return try await AssetSupport.onRenderQueue {
-            try ExceptionCatcher.catch {
-                try renderOnRenderQueue(
-                    payloadData: payloadData,
-                    messageGUID: messageGUID,
-                    isFromMe: isFromMe,
-                    destinationURL: destinationURL
-                )
-            }
+        try await AssetSupport.renderIfNeeded(destinationURL: destinationURL) { isCancelled in
+            try renderOnRenderQueue(
+                payloadData: payloadData,
+                messageGUID: messageGUID,
+                isFromMe: isFromMe,
+                destinationURL: destinationURL,
+                isCancelled: isCancelled
+            )
         }
     }
 
@@ -42,35 +37,49 @@ enum HandwritingAssetRenderer {
         payloadData: Data,
         messageGUID: String,
         isFromMe: Bool,
-        destinationURL: URL
+        destinationURL: URL,
+        isCancelled: @escaping @Sendable () -> Bool
     ) throws -> URL {
-        guard AssetSupport.fileSize(destinationURL) == 0 else {
-            return destinationURL
-        }
-        guard Bundle(path: handwritingProviderPath)?.load() == true else {
-            throw ErrorMessage("Couldn't load HandwritingProvider")
-        }
-        guard let payloadClass = NSClassFromString("IMPluginPayload") as? NSObject.Type,
-              let dataSourceClass = NSClassFromString("HWBalloonDataSource") as? NSObject.Type,
-              let rendererClass = NSClassFromString("HWAbstractBalloonController") as? NSObject.Type else {
-            throw ErrorMessage("Handwriting private classes are unavailable")
-        }
+        try AssetSupport.loadBundle(
+            path: handwritingProviderPath,
+            assetDescription: handwritingProviderDescription
+        )
+        let payloadClass: IMPluginPayload.Type = try AssetSupport.privateClass(
+            "IMPluginPayload",
+            as: IMPluginPayload.Type.self,
+            assetDescription: handwritingAssetDescription
+        )
+        let dataSourceClass: HWBalloonDataSource.Type = try AssetSupport.privateClass(
+            "HWBalloonDataSource",
+            as: HWBalloonDataSource.Type.self,
+            assetDescription: handwritingAssetDescription
+        )
+        let rendererClass: HWAbstractBalloonController.Type = try AssetSupport.privateClass(
+            "HWAbstractBalloonController",
+            as: HWAbstractBalloonController.Type.self,
+            assetDescription: handwritingAssetDescription
+        )
 
-        Thread.current.name = "Plugin Payload Asset Renderer"
-        _ = NSApplication.shared
+        AssetSupport.prepareRenderThread()
 
-        let payload = payloadClass.init()
-        payload.data = payloadData
-        payload.pluginBundleID = BalloonBundleID.handwriting
-        payload.messageGUID = messageGUID
-        payload.isFromMe = isFromMe
+        let payload = AssetSupport.makePluginPayload(
+            payloadClass: payloadClass,
+            payloadData: payloadData,
+            bundleID: BalloonBundleID.handwriting,
+            messageGUID: messageGUID,
+            isFromMe: isFromMe
+        )
 
         let dataSource = dataSourceClass.init(pluginPayload: payload)
         guard let handwritingItem = dataSource.handwritingFromPayload() else {
             throw ErrorMessage("Handwriting renderer couldn't decode payload")
         }
 
-        let renderedURL = try writeThumbnail(handwritingItem: handwritingItem, rendererClass: rendererClass)
+        let renderedURL = try writeThumbnail(
+            handwritingItem: handwritingItem,
+            rendererClass: rendererClass,
+            isCancelled: isCancelled
+        )
         defer {
             if renderedURL.standardizedFileURL != destinationURL.standardizedFileURL {
                 try? FileManager.default.removeItem(at: renderedURL)
@@ -80,24 +89,38 @@ enum HandwritingAssetRenderer {
         return destinationURL
     }
 
-    private static func writeThumbnail(handwritingItem: Any, rendererClass: NSObject.Type) throws -> URL {
+    private static func writeThumbnail(
+        handwritingItem: Any,
+        rendererClass: HWAbstractBalloonController.Type,
+        isCancelled: @escaping @Sendable () -> Bool
+    ) throws -> URL {
         let renderedURL = Protected<URL?>()
+        let shouldRemoveRenderedURL = Protected(false)
         rendererClass.writeThumbnail(
             of: handwritingItem,
             atSize: renderedSize,
             useHighFidelityInk: true
         ) { url in
             renderedURL.withLock { $0 = url }
-        }
-
-        let deadline = Date().addingTimeInterval(handwritingRenderTimeout)
-        while Date() <= deadline {
-            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: renderRunLoopInterval))
-            if let renderedURL = renderedURL.read(), AssetSupport.fileSize(renderedURL) > 0 {
-                return renderedURL
+            if shouldRemoveRenderedURL.read() {
+                try? FileManager.default.removeItem(at: url)
             }
         }
 
-        throw ErrorMessage("Timed out rendering handwriting asset")
+        do {
+            return try AssetSupport.waitForRenderedAsset(
+                assetDescription: "handwriting",
+                timeout: handwritingRenderTimeout,
+                pollInterval: renderRunLoopInterval,
+                isCancelled: isCancelled,
+                matching: renderedURL.read
+            )
+        } catch {
+            shouldRemoveRenderedURL.withLock { $0 = true }
+            if let renderedURL = renderedURL.read() {
+                try? FileManager.default.removeItem(at: renderedURL)
+            }
+            throw error
+        }
     }
 }

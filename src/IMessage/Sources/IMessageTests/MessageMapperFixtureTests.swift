@@ -1,5 +1,6 @@
 import Foundation
 @testable import IMessage
+import IMessageCore
 import PlatformSDK
 import Testing
 
