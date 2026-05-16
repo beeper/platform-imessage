@@ -15,7 +15,7 @@ import Testing
 }
 
 @Test func threadHasherTokenizesThreadIDs() throws {
-    let threadID = "any;-;sjobs@apple.com"
+    let threadID = "any;-;fixture-contact-a@example.invalid"
     let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
 
     #expect(hashedThreadID.hasPrefix("imsg##thread:"))

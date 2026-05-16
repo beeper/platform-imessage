@@ -4,11 +4,14 @@ import PlatformSDK
 import Testing
 
 @Test func reactionStateSyncEventsPreserveChangeOrder() throws {
-    let threadID = "any;-;+15551234567"
+    let threadID = "any;-;fixture-contact-a@example.invalid"
+    let firstActionGUID = "00000000-0000-4000-8000-000000000038"
+    let secondActionGUID = "00000000-0000-4000-8000-000000000039"
+    let thirdActionGUID = "00000000-0000-4000-8000-000000000040"
     let rows = try [
-        2: reactionActionRow(rowID: 2, guid: "ACTION-1", threadID: threadID, reactionType: 2001, replyToGUID: nil),
-        3: reactionActionRow(rowID: 3, guid: "ACTION-2", threadID: threadID, reactionType: 3001, replyToGUID: "ACTION-1"),
-        4: reactionActionRow(rowID: 4, guid: "ACTION-3", threadID: threadID, reactionType: 2001, replyToGUID: "ACTION-2"),
+        2: reactionActionRow(rowID: 2, guid: firstActionGUID, threadID: threadID, reactionType: 2001, replyToGUID: nil),
+        3: reactionActionRow(rowID: 3, guid: secondActionGUID, threadID: threadID, reactionType: 3001, replyToGUID: firstActionGUID),
+        4: reactionActionRow(rowID: 4, guid: thirdActionGUID, threadID: threadID, reactionType: 2001, replyToGUID: secondActionGUID),
     ]
 
     let events = try EventWatcher.messageUpdateEvents(
@@ -20,7 +23,7 @@ import Testing
         msgRowsByRowID: rows,
         attachmentRows: [],
         reactionRows: [],
-        currentUserID: "me@example.com",
+        currentUserID: "fixture-self@example.invalid",
         accountID: "default"
     )
 
@@ -28,7 +31,7 @@ import Testing
         .map { $0.jsonObject() }
         .filter { $0["objectName"] as? String == "message_reaction" }
     let reactionMutationTypes = reactionEvents.map { $0["mutationType"] as? String }
-    let participantID = Hasher.participant.tokenizeRemembering(pii: "me@example.com")
+    let participantID = Hasher.participant.tokenizeRemembering(pii: "fixture-self@example.invalid")
     let reactionID = "\(participantID)like"
     let firstUpsertEntries = try #require(reactionEvents.first?["entries"] as? [JSONObject])
     let firstUpsert = try #require(firstUpsertEntries.first)
@@ -41,8 +44,9 @@ import Testing
 }
 
 @Test func existingReadChangesEmitMessageUpdate() throws {
-    let threadID = "any;-;+15551234567"
-    let row = try normalMessageRow(rowID: 5, guid: "MESSAGE-1", threadID: threadID, dateRead: 1_000_000_000)
+    let threadID = "any;-;fixture-contact-a@example.invalid"
+    let messageGUID = "00000000-0000-4000-8000-000000000041"
+    let row = try normalMessageRow(rowID: 5, guid: messageGUID, threadID: threadID, dateRead: 1_000_000_000)
 
     let events = try EventWatcher.messageUpdateEvents(
         changes: [
@@ -51,7 +55,7 @@ import Testing
         msgRowsByRowID: [row.rowID: row],
         attachmentRows: [],
         reactionRows: [],
-        currentUserID: "me@example.com",
+        currentUserID: "fixture-self@example.invalid",
         accountID: "default"
     )
 
@@ -62,14 +66,19 @@ import Testing
     #expect(events.count == 1)
     #expect(eventObject["objectName"] as? String == "message")
     #expect(eventObject["mutationType"] as? String == "update")
-    #expect(patch["id"] as? String == "MESSAGE-1")
+    #expect(patch["id"] as? String == messageGUID)
     #expect(patch["seen"] != nil)
     #expect(patch["behavior"] as? String == "keep_read")
 }
 
 @Test func newMessagesOnlyEmitUpsertEvenWhenRead() throws {
-    let threadID = "any;-;+15551234567"
-    let row = try normalMessageRow(rowID: 6, guid: "MESSAGE-2", threadID: threadID, dateRead: 1_000_000_000)
+    let threadID = "any;-;fixture-contact-a@example.invalid"
+    let row = try normalMessageRow(
+        rowID: 6,
+        guid: "00000000-0000-4000-8000-000000000042",
+        threadID: threadID,
+        dateRead: 1_000_000_000
+    )
 
     let events = try EventWatcher.messageUpdateEvents(
         changes: [
@@ -78,7 +87,7 @@ import Testing
         msgRowsByRowID: [row.rowID: row],
         attachmentRows: [],
         reactionRows: [],
-        currentUserID: "me@example.com",
+        currentUserID: "fixture-self@example.invalid",
         accountID: "default"
     )
 
@@ -107,7 +116,7 @@ private func normalMessageRow(
         "service": "iMessage",
         "text": "hello",
         "threadID": threadID,
-        "participantID": "+15551234567",
+        "participantID": "fixture-contact-a@example.invalid",
     ])
 }
 
@@ -127,7 +136,7 @@ private func reactionActionRow(
         "item_type": 0,
         "service": "iMessage",
         "threadID": threadID,
-        "associated_message_guid": "TARGET-MESSAGE",
+        "associated_message_guid": "00000000-0000-4000-8000-000000000043",
         "associated_message_type": reactionType,
         "reply_to_guid": replyToGUID as Any,
     ])

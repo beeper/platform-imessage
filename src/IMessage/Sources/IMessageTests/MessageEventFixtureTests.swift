@@ -19,11 +19,12 @@ private struct MessageEventChange: Sendable {
     static let read = MessageEventChange(isNew: false, wasRead: true, wasEdited: false)
 }
 
-private let directThreadID = hashedThread("any;-;+15557654321")
-private let groupThreadID = hashedThread("any;+;chat27499326783338645")
-private let jobsThreadID = hashedThread("any;-;sjobs@apple.com")
-private let jobsParticipantID = hashedParticipant("sjobs@apple.com")
-private let phoneParticipantID = hashedParticipant("+15557654321")
+private let fixtureSelf = "fixture-self@example.invalid"
+private let fixtureContactA = "fixture-contact-a@example.invalid"
+private let directThreadID = hashedThread("iMessage;-;\(fixtureContactA)")
+private let groupThreadID = hashedThread("iMessage;+;fixture-group-001")
+private let selfParticipantID = hashedParticipant(fixtureSelf)
+private let contactParticipantID = hashedParticipant(fixtureContactA)
 
 private let messageEventFixtures = [
     MessageEventFixture(
@@ -31,8 +32,8 @@ private let messageEventFixtures = [
         change: .edited,
         expected: [
             .updateMessages(threadID: directThreadID, patches: [[
-                "id": "994ABD79-CD14-439F-856A-4F40A97C7A1F",
-                "text": "edited test",
+                "id": "00000000-0000-4000-8000-000000000006",
+                "text": "edited fixture",
             ]]),
         ]
     ),
@@ -41,8 +42,8 @@ private let messageEventFixtures = [
         change: .read,
         expected: [
             .updateMessages(threadID: directThreadID, patches: [[
-                "id": "6187AA76-52F0-45C3-8A33-CD3641701423",
-                "seen": 1_778_346_480_385,
+                "id": "00000000-0000-4000-8000-000000000007",
+                "seen": 1_700_000_420_000,
                 "behavior": "keep_read",
             ]]),
         ]
@@ -53,10 +54,10 @@ private let messageEventFixtures = [
         expected: [
             .upsertMessages(threadID: groupThreadID, messages: [
                 message(
-                    id: "258F5823-789D-446B-BDE7-DF7335B4F3FA",
-                    timestamp: 1_777_979_134_036,
-                    senderID: phoneParticipantID,
-                    text: "yes"
+                    id: "00000000-0000-4000-8000-000000000008",
+                    timestamp: 1_700_000_480_000,
+                    senderID: contactParticipantID,
+                    text: "incoming fixture"
                 ),
             ]),
         ]
@@ -67,10 +68,10 @@ private let messageEventFixtures = [
         expected: [
             .upsertMessages(threadID: directThreadID, messages: [
                 message(
-                    id: "F84C284B-0E3B-4004-88EC-30BB7C97ED41",
-                    timestamp: 1_777_967_368_566,
-                    senderID: jobsParticipantID,
-                    text: "test outgoing"
+                    id: "00000000-0000-4000-8000-000000000009",
+                    timestamp: 1_700_000_540_000,
+                    senderID: selfParticipantID,
+                    text: "outgoing fixture"
                 ),
             ]),
         ]
@@ -80,32 +81,32 @@ private let messageEventFixtures = [
         change: .new,
         expected: [
             .upsertMessageReactions(
-                threadID: jobsThreadID,
-                messageID: "346FFDC8-11A7-47B8-9879-5DEB56A6F199",
+                threadID: directThreadID,
+                messageID: "00000000-0000-4000-8000-000000000011",
                 reactions: [
                     PlatformSDK.MessageReaction(
-                        id: messageReactionID(participantID: jobsParticipantID, reactionKey: "like"),
+                        id: messageReactionID(participantID: selfParticipantID, reactionKey: "like"),
                         reactionKey: "like",
-                        participantID: jobsParticipantID
+                        participantID: selfParticipantID
                     ),
                 ]
             ),
             .upsertMessages(
-                threadID: jobsThreadID,
+                threadID: directThreadID,
                 messages: [
                     message(
-                        id: "06FC451C-4E1A-4411-9DBA-BF1005E0AD2C",
-                        timestamp: 1_777_978_860_327,
-                        senderID: jobsParticipantID,
+                        id: "00000000-0000-4000-8000-000000000010",
+                        timestamp: 1_700_000_600_000,
+                        senderID: selfParticipantID,
                         text: "You liked a message",
                         isHidden: true,
                         isAction: true,
                         parseTemplate: true,
-                        linkedMessageID: "346FFDC8-11A7-47B8-9879-5DEB56A6F199",
+                        linkedMessageID: "00000000-0000-4000-8000-000000000011",
                         action: .messageReactionCreated(PlatformSDK.PartialMessageReactionAction(
-                            messageID: "346FFDC8-11A7-47B8-9879-5DEB56A6F199",
+                            messageID: "00000000-0000-4000-8000-000000000011",
                             reactionKey: "like",
-                            participantID: "sjobs@apple.com"
+                            participantID: fixtureSelf
                         ))
                     ),
                 ]
@@ -118,25 +119,25 @@ private let messageEventFixtures = [
         expected: [
             .deleteMessageReactions(
                 threadID: directThreadID,
-                messageID: "EFA8FBDE-A18F-44D9-966F-019DEB5E3571",
-                ids: [messageReactionID(participantID: phoneParticipantID, reactionKey: "heart")]
+                messageID: "00000000-0000-4000-8000-000000000011",
+                ids: [messageReactionID(participantID: contactParticipantID, reactionKey: "heart")]
             ),
             .upsertMessages(
                 threadID: directThreadID,
                 messages: [
                     message(
-                        id: "44C2A47F-F39C-4B16-9FC3-AC8DA915DBA3",
-                        timestamp: 1_777_486_996_739,
-                        senderID: phoneParticipantID,
+                        id: "00000000-0000-4000-8000-000000000012",
+                        timestamp: 1_700_000_660_000,
+                        senderID: contactParticipantID,
                         text: "{{sender}} removed a heart from a message",
                         isHidden: true,
                         isAction: true,
                         parseTemplate: true,
-                        linkedMessageID: "EFA8FBDE-A18F-44D9-966F-019DEB5E3571",
+                        linkedMessageID: "00000000-0000-4000-8000-000000000011",
                         action: .messageReactionDeleted(PlatformSDK.PartialMessageReactionAction(
-                            messageID: "EFA8FBDE-A18F-44D9-966F-019DEB5E3571",
+                            messageID: "00000000-0000-4000-8000-000000000011",
                             reactionKey: "heart",
-                            participantID: "+15557654321"
+                            participantID: fixtureContactA
                         ))
                     ),
                 ]
@@ -148,7 +149,7 @@ private let messageEventFixtures = [
         change: .edited,
         expected: [
             .updateMessages(threadID: directThreadID, patches: [[
-                "id": "B6C7FCF4-6038-4AD7-977B-B19230D1033B",
+                "id": "00000000-0000-4000-8000-000000000013",
                 "text": "{{sender}} unsent a message",
                 "attachments": JSONArray(),
                 "reactions": JSONArray(),
