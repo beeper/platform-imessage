@@ -21,9 +21,10 @@ class KeyPresser {
             return try action()
         }
         log.debug("dispatching simulated keypress to main thread (queueName=\(__dispatch_queue_get_label(nil)))")
-        return try DispatchQueue.main.sync {
+        try DispatchQueue.main.sync {
             try action()
         }
+        return
     }
 
     private func post(key: CGKeyCode, flags: CGEventFlags? = nil) throws {

@@ -18,12 +18,12 @@ enum MessagesPaths {
     )
 
     static let temporaryMobileSMSDirectory = temporaryDirectory
-    .appendingPathComponent(messagesBundleID, isDirectory: true)
+        .appendingPathComponent(messagesBundleID, isDirectory: true)
 
     static var temporaryMobileSMSPath: String {
         temporaryMobileSMSDirectory.path
     }
 
     static let temporaryPlatformAttachmentDirectory = temporaryDirectory
-    .appendingPathComponent("platform-imessage", isDirectory: true)
+        .appendingPathComponent("platform-imessage", isDirectory: true)
 }

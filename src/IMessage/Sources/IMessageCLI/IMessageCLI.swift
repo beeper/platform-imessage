@@ -956,7 +956,7 @@ private func missingMessageIDAliasError(_ command: CommandDefinition, _ args: [S
 
     return CLIError(
         "\(command.name) got a chat ID or recipient alias where MESSAGE_ID was expected. " +
-        "To target the newest message in that chat, add latest: \(suggestion)"
+            "To target the newest message in that chat, add latest: \(suggestion)"
     )
 }
 

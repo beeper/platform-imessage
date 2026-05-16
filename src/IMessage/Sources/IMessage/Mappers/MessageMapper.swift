@@ -81,10 +81,10 @@ struct Mapper {
 
         if messages.isEmpty,
            let placeholder = unsupportedBalloonPlaceholder(
-               partialMessage: partialMessage,
-               payloadData: payloadData,
-               bundleKind: bundleKind,
-               linkedMessageID: associatedTarget?.messageID
+            partialMessage: partialMessage,
+            payloadData: payloadData,
+            bundleKind: bundleKind,
+            linkedMessageID: associatedTarget?.messageID
            ) {
             messages = [placeholder]
         }
