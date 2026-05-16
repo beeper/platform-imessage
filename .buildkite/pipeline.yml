@@ -8,8 +8,8 @@ env:
   IMAGE_ID: $IMAGE_ID
 
 steps:
-  # Tests + library build, plus `npm publish` to GH Packages on main when
-  # package.json's version is new.
+  # Tests + library build, plus `npm publish` to GH Packages and `v*` tagging
+  # on main when package.json's version is new.
   - label: ":jest: :swift: Test & build"
     key: test-build
     command: .buildkite/commands/ci.sh

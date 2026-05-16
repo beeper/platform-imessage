@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-# Publish to GitHub Releases only on tag builds. Non-tag builds (PRs,
+# Publish to GitHub Releases only on v* tag builds. Non-tag builds (PRs,
 # main) still produce a signed+notarized tarball — uploaded as a
 # Buildkite artifact — for download/testing.
-if [ -n "${BUILDKITE_TAG:-}" ]; then
+if [[ "${BUILDKITE_TAG:-}" == v* ]]; then
   tag="$BUILDKITE_TAG"
   version="${tag#v}"
   publish=true
