@@ -82,15 +82,16 @@ if [ -z "$identity" ]; then
 fi
 
 entitlements="$repo_root/scripts/imessage-cli.entitlements"
+cli_swift_flags=(-Xswiftc -DIMESSAGE_DISABLE_PRIVATE_SPI_ASSETS)
 
 build_arch() {
   local target_arch="$1"
   printf "==> building %s\n" "$target_arch"
-  swift build -c release --triple "${target_arch}-apple-macosx11" --product imessage-cli
+  swift build -c release --triple "${target_arch}-apple-macosx11" --product imessage-cli "${cli_swift_flags[@]}"
 }
 
 bin_for_arch() {
-  swift build -c release --triple "${1}-apple-macosx11" --product imessage-cli --show-bin-path
+  swift build -c release --triple "${1}-apple-macosx11" --product imessage-cli "${cli_swift_flags[@]}" --show-bin-path
 }
 
 if [ "$arch" = "universal" ]; then

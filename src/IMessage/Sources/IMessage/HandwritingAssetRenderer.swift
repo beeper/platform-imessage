@@ -1,3 +1,4 @@
+#if !IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
 import Foundation
 import IMessageCore
 import IMessagePrivateSPI
@@ -107,3 +108,4 @@ enum HandwritingAssetRenderer {
         }
     }
 }
+#endif

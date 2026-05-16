@@ -3,7 +3,9 @@ import Darwin
 import ExceptionCatcher
 import Foundation
 import IMessageCore
+#if !IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
 import IMessagePrivateSPI
+#endif
 
 // Concurrent queue with a small permit semaphore: parallelism without unbounded growth.
 // Permit count comes from validating Apple's HW/DT plugin SPIs against concurrent invocation.
@@ -174,6 +176,7 @@ enum PluginPayloadAssetSupport {
         }
     }
 
+#if !IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
     static func privateClass<T>(_ className: String, assetDescription: String) throws -> T {
         guard let classObject = NSClassFromString(className) as? T else {
             throw ErrorMessage("\(assetDescription) private class \(className) is unavailable")
@@ -204,6 +207,7 @@ enum PluginPayloadAssetSupport {
         payload.isFromMe = isFromMe
         return payload
     }
+#endif
 
     static func waitForRenderedAsset(
         assetDescription: String,
