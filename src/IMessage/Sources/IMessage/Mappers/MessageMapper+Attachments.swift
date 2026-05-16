@@ -1,5 +1,6 @@
 import Foundation
 import IMDatabase
+import IMessageCore
 import PlatformSDK
 
 extension Mapper {
@@ -114,7 +115,7 @@ extension Mapper {
                 : "{{sender}} started sharing location"
         case 5:
             message.behavior = .silent
-            message.text = msgRow.balloonBundleID == BalloonBundleID.digitalTouch
+            message.text = msgRow.balloonBundleID == BalloonBundleKind.digitalTouch.rawValue
                 ? "{{sender}} kept Digital Touch Message from you."
                 : "{{sender}} kept an audio message from you."
         case 6:

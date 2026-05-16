@@ -1,5 +1,6 @@
 import Foundation
 import IMDatabase
+import IMessageCore
 import PlatformSDK
 
 extension Mapper {
@@ -44,7 +45,7 @@ extension Mapper {
                 isHidden: true
             )
         case .heading:
-            if msgRow.balloonBundleID == BalloonBundleID.polls {
+            if msgRow.balloonBundleID == BalloonBundleKind.polls.rawValue {
                 return actionMessage(message, text: actionText("sent a poll"))
             }
             if var text = message.text {

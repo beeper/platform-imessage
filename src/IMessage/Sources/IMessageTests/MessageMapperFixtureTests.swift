@@ -1,5 +1,6 @@
 import Foundation
 @testable import IMessage
+import IMessageCore
 import PlatformSDK
 import Testing
 
@@ -151,7 +152,7 @@ private func findMyPayloadMessageMapsAsLocation() throws {
             "item_type": 0,
             "service": "iMessage",
             "threadID": "iMessage;+;chat",
-            "balloon_bundle_id": BalloonBundleID.findMy,
+            "balloon_bundle_id": BalloonBundleKind.findMy.rawValue,
             "payload_data": findMyPayloadData(latitude: 12.34, longitude: 56.78),
         ],
         attachmentRows: [],
@@ -217,7 +218,7 @@ private func pollVoteAssociatedMessageMapsAsHiddenAction() throws {
         "threadID": "iMessage;+;chat",
         "associated_message_guid": "POLL-GUID",
         "associated_message_type": 4000,
-        "balloon_bundle_id": BalloonBundleID.polls,
+        "balloon_bundle_id": BalloonBundleKind.polls.rawValue,
         "payload_data": pollVotePayloadData(optionIDs: ["OPTION-1"]),
     ])
 
@@ -295,7 +296,7 @@ private func urlBalloonMessageKeepsLinkOnlyContent() throws {
         "item_type": 0,
         "service": "iMessage",
         "threadID": "iMessage;+;chat",
-        "balloon_bundle_id": BalloonBundleID.url,
+        "balloon_bundle_id": BalloonBundleKind.url.rawValue,
         "payload_data": urlBalloonPayloadData(url: "https://texts.com", title: "Texts"),
     ])
 
@@ -303,6 +304,32 @@ private func urlBalloonMessageKeepsLinkOnlyContent() throws {
     #expect(message.links?.count == 1)
     #expect(link.url == "https://texts.com")
     #expect(link.title == "Texts")
+}
+
+@Test
+private func digitalTouchMessageDropsWhitespacePlaceholderText() throws {
+    let rowID = 44
+    let uuid = "4BED3FC2-0A9D-43BD-926C-4C5078465350"
+    let message = try singleMappedMessage(from: [
+        "ROWID": rowID,
+        "guid": "DIGITAL-TOUCH-GUID",
+        "date": "9",
+        "text": " ",
+        "is_from_me": 0,
+        "handle_id": 1,
+        "participantID": "sender",
+        "item_type": 0,
+        "service": "iMessage",
+        "threadID": "iMessage;+;chat",
+        "balloon_bundle_id": BalloonBundleKind.digitalTouch.rawValue,
+        "payload_data": digitalTouchPayloadData(uuid: uuid),
+    ])
+
+    let attachment = try #require(message.attachments?.first)
+    #expect(message.text == nil)
+    #expect(message.textHeading == "Digital Touch Message")
+    #expect(attachment.id == uuid)
+    #expect(attachment.srcURL == "asset://$accountID/dt/\(uuid).\(rowID).mov")
 }
 
 @Test
@@ -340,6 +367,12 @@ private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     #expect(threadObject["_original"] == nil)
     #expect(threadObject["type"] as? String == "group")
     #expect((threadObject["messages"] as? FixtureJSONObject)?["hasMore"] as? Bool == false)
+}
+
+private func digitalTouchPayloadData(uuid: String) -> Data {
+    Data(repeating: 0, count: 8)
+        + Data(uuid.utf8)
+        + Data(repeating: 0, count: uuidStart)
 }
 
 private func urlBalloonPayloadData(url: String, title: String) throws -> Data {
@@ -421,7 +454,7 @@ private func pollPayloadMessage(isFromMe: Bool) throws -> PlatformSDK.Message {
         "item_type": 0,
         "service": "iMessage",
         "threadID": "iMessage;+;chat",
-        "balloon_bundle_id": BalloonBundleID.polls,
+        "balloon_bundle_id": BalloonBundleKind.polls.rawValue,
         "payload_data": try pollPayloadData(title: "Lunch?", options: ["Pizza", "Sushi"]),
     ]
     if !isFromMe {
@@ -447,7 +480,7 @@ private func pollSentAssociatedMessage(isFromMe: Bool) throws -> PlatformSDK.Mes
             "threadID": "iMessage;+;chat",
             "associated_message_guid": "POLL-SENT-GUID",
             "associated_message_type": 3,
-            "balloon_bundle_id": BalloonBundleID.polls,
+            "balloon_bundle_id": BalloonBundleKind.polls.rawValue,
             "payload_data": pollPayloadData(title: "Lunch?", options: ["Pizza", "Sushi"]),
         ]
     )
@@ -495,7 +528,7 @@ private func gamePigeonAssociatedMessage(isFromMe: Bool) throws -> PlatformSDK.M
             isFromMe: isFromMe,
             associatedMessageGUID: "GAME-GUID",
             associatedMessageType: 3,
-            balloonBundleID: BalloonBundleID.gamePigeon,
+            balloonBundleID: BalloonBundleKind.gamePigeon.rawValue,
             payloadData: gamePigeonPayloadData(game: "Word Hunt", caption: "Your move.")
         )
     )
@@ -511,7 +544,7 @@ private func gamePigeonIncomingInviteMessage() throws -> PlatformSDK.Message {
             isFromMe: false,
             associatedMessageGUID: "ANAGRAMS-GUID",
             associatedMessageType: 3,
-            balloonBundleID: BalloonBundleID.gamePigeon,
+            balloonBundleID: BalloonBundleKind.gamePigeon.rawValue,
             payloadData: gamePigeonPayloadData(game: "Anagrams", caption: "Let's play Anagrams!")
         )
     )
@@ -527,7 +560,7 @@ private func gamePigeonAssociatedMessageWithoutPayload(isFromMe: Bool) throws ->
             isFromMe: isFromMe,
             associatedMessageGUID: "GAME-GUID",
             associatedMessageType: 3,
-            balloonBundleID: BalloonBundleID.gamePigeon
+            balloonBundleID: BalloonBundleKind.gamePigeon.rawValue
         )
     )
 }
@@ -555,7 +588,7 @@ private func gamePigeonAssociatedUpdateMessage(isFromMe: Bool) throws -> Platfor
             isFromMe: isFromMe,
             associatedMessageGUID: "GAME-GUID",
             associatedMessageType: 2,
-            balloonBundleID: BalloonBundleID.gamePigeon,
+            balloonBundleID: BalloonBundleKind.gamePigeon.rawValue,
             payloadData: gamePigeonPayloadData(game: "Word Hunt", caption: "I won!")
         )
     )

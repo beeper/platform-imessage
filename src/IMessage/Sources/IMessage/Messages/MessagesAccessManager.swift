@@ -67,14 +67,14 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         } else {
             openPanel.runModal()
         }
-        
+
         defer {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
                 UserDefaults.standard.removeObject(forKey: "NSNavLastRootDirectory") // to make sure future NSOpenPanels don't show the Messages directory
                 UserDefaults.standard.synchronize()
             }
         }
-        
+
         guard response == .OK else {
             throw AccessError.userCancelled
         }

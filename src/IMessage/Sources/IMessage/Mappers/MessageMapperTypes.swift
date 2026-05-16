@@ -123,38 +123,6 @@ enum MessagePart {
     }
 }
 
-enum BalloonBundleKind: String {
-    case url = "com.apple.messages.URLBalloonProvider"
-    case digitalTouch = "com.apple.DigitalTouchBalloonProvider"
-    case handwriting = "com.apple.Handwriting.HandwritingProvider"
-    case businessExtension = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension"
-    case applePay = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.PassbookUIService.PeerPaymentMessagesExtension"
-    case findMy = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.findmy.FindMyMessagesApp"
-    case gamePigeon = "com.apple.messages.MSMessageExtensionBalloonPlugin:EWFNLB79LQ:com.gamerdelights.gamepigeon.ext"
-    case polls = "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.messages.Polls"
-    case youtube = "com.apple.messages.MSMessageExtensionBalloonPlugin:EQHXZ8M8AV:com.google.ios.youtube.MessagesExtension"
-
-    init?(_ bundleID: String?) {
-        guard let bundleID else {
-            self = .url
-            return
-        }
-        self.init(rawValue: bundleID)
-    }
-}
-
-enum BalloonBundleID {
-    static let url = BalloonBundleKind.url.rawValue
-    static let digitalTouch = BalloonBundleKind.digitalTouch.rawValue
-    static let handwriting = BalloonBundleKind.handwriting.rawValue
-    static let businessExtension = BalloonBundleKind.businessExtension.rawValue
-    static let applePay = BalloonBundleKind.applePay.rawValue
-    static let findMy = BalloonBundleKind.findMy.rawValue
-    static let gamePigeon = BalloonBundleKind.gamePigeon.rawValue
-    static let polls = BalloonBundleKind.polls.rawValue
-    static let youtube = BalloonBundleKind.youtube.rawValue
-}
-
 let gamePigeonDisplayName = "GamePigeon"
 
 func gamePigeonHeading(for game: String?) -> String {

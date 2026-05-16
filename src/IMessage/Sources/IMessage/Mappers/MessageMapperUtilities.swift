@@ -105,20 +105,88 @@ func parseTweetURL(_ url: String) -> (username: String, tweetID: String)? {
 
 private let legacyAssetAccountPlaceholder = "$accountID"
 
-private func legacyAssetURL(path: String) -> String {
+private func legacyAssetURLString(path: String) -> String {
     "asset://\(legacyAssetAccountPlaceholder)/\(path)"
 }
 
+struct PluginPayloadAssetRoute {
+    enum Kind: String {
+        case digitalTouch = "dt"
+        case handwriting = "hw"
+
+        var fileExtension: String {
+            switch self {
+            case .digitalTouch:
+                return "mov"
+            case .handwriting:
+                return "png"
+            }
+        }
+
+        var assetDescription: String {
+            switch self {
+            case .digitalTouch:
+                return "digital touch"
+            case .handwriting:
+                return "handwriting"
+            }
+        }
+    }
+
+    let kind: Kind
+    let uuid: String
+    let rowID: Int
+
+    init(kind: Kind, uuid: String, rowID: Int) {
+        self.kind = kind
+        self.uuid = uuid
+        self.rowID = rowID
+    }
+
+    init(kind: Kind, methodName: String) throws {
+        let suffix = ".\(kind.fileExtension)"
+        let stem = methodName.hasSuffix(suffix)
+            ? String(methodName.dropLast(suffix.count))
+            : methodName
+        let parts = stem.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let rawUUID = parts.first, !rawUUID.isEmpty else {
+            throw ErrorMessage("Couldn't fetch \(kind.assetDescription) asset: missing UUID")
+        }
+
+        uuid = String(rawUUID)
+        self.kind = kind
+        guard parts.count > 1, !parts[1].isEmpty else {
+            throw ErrorMessage("Couldn't fetch \(kind.assetDescription) asset: missing row ID")
+        }
+        guard let rowID = Int(parts[1]) else {
+            throw ErrorMessage("Couldn't fetch \(kind.assetDescription) asset: invalid row ID")
+        }
+        self.rowID = rowID
+    }
+
+    var fileName: String {
+        "\(uuid).\(rowID).\(kind.fileExtension)"
+    }
+
+    var legacyAssetPath: String {
+        "\(kind.rawValue)/\(fileName)"
+    }
+
+    var legacyAssetURL: String {
+        legacyAssetURLString(path: legacyAssetPath)
+    }
+}
+
 func fileAttachmentAssetURL(filePath: String) -> String {
-    legacyAssetURL(path: Array(filePath.utf8).hexString())
+    legacyAssetURLString(path: Array(filePath.utf8).hexString())
 }
 
-func digitalTouchAssetURL(uuid: String) -> String {
-    legacyAssetURL(path: "dt/\(uuid).mov")
+func digitalTouchAssetURL(uuid: String, rowID: Int) -> String {
+    PluginPayloadAssetRoute(kind: .digitalTouch, uuid: uuid, rowID: rowID).legacyAssetURL
 }
 
-func handwritingAssetURL(uuid: String) -> String {
-    legacyAssetURL(path: "hw/\(uuid).png")
+func handwritingAssetURL(uuid: String, rowID: Int) -> String {
+    PluginPayloadAssetRoute(kind: .handwriting, uuid: uuid, rowID: rowID).legacyAssetURL
 }
 
 extension String {

@@ -81,10 +81,10 @@ struct Mapper {
 
         if messages.isEmpty,
            let placeholder = unsupportedBalloonPlaceholder(
-               partialMessage: partialMessage,
-               payloadData: payloadData,
-               bundleKind: bundleKind,
-               linkedMessageID: associatedTarget?.messageID
+            partialMessage: partialMessage,
+            payloadData: payloadData,
+            bundleKind: bundleKind,
+            linkedMessageID: associatedTarget?.messageID
            ) {
             messages = [placeholder]
         }
@@ -200,7 +200,7 @@ struct Mapper {
             size: PlatformSDK.Size(width: 144, height: 180),
             isGif: true,
             // Prefer asset:// because Messages.app can take a few seconds to write this file to disk.
-            srcURL: digitalTouchAssetURL(uuid: uuid)
+            srcURL: digitalTouchAssetURL(uuid: uuid, rowID: msgRow.rowID)
         )
     }
 
@@ -214,7 +214,7 @@ struct Mapper {
             id: uuid,
             type: .img,
             isGif: true,
-            srcURL: handwritingAssetURL(uuid: uuid)
+            srcURL: handwritingAssetURL(uuid: uuid, rowID: msgRow.rowID)
         )
     }
 
@@ -297,7 +297,9 @@ struct Mapper {
     private func apply(_ part: MessagePart, to message: inout MessageDraft, attachmentsByID: [String: PlatformSDK.Attachment]) {
         switch part {
         case let .text(_, _, text, attributes):
-            if !text.isEmpty || message.text == nil {
+            let isAttachmentPlaceholder = message.attachments?.isEmpty == false
+                && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if !isAttachmentPlaceholder, !text.isEmpty || message.text == nil {
                 message.text = text
             }
             if let attributes {
@@ -381,18 +383,18 @@ struct Mapper {
         }
         return appName.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
     }
+}
 
-    private func addingInlineSubject(_ subject: String, to message: MessageDraft) -> MessageDraft {
-        var message = message
-        let currentText = message.text ?? ""
-        message.text = "\(subject)\n\(currentText)"
-        let subjectLength = subject.unicodeScalars.count
-        let existing = (message.textAttributes?.entities ?? []).map { $0.offsetting(by: subjectLength + 1) }
-        message.textAttributes = PlatformSDK.TextAttributes(entities: [
-            PlatformSDK.TextEntity(from: 0, to: subjectLength, bold: true),
-        ] + existing)
-        return message
-    }
+private func addingInlineSubject(_ subject: String, to message: MessageDraft) -> MessageDraft {
+    var message = message
+    let currentText = message.text ?? ""
+    message.text = "\(subject)\n\(currentText)"
+    let subjectLength = subject.unicodeScalars.count
+    let existing = (message.textAttributes?.entities ?? []).map { $0.offsetting(by: subjectLength + 1) }
+    message.textAttributes = PlatformSDK.TextAttributes(entities: [
+        PlatformSDK.TextEntity(from: 0, to: subjectLength, bold: true),
+    ] + existing)
+    return message
 }
 
 extension Mapper {

@@ -52,12 +52,18 @@ var targets: [Target] = [
             "BetterSwiftAX",
             "ExceptionCatcher",
             "IMessageCore",
+            "IMessagePrivateSPI",
             "EmojiSPI",
             "IMDatabase",
             "PlatformSDK",
             .product(name: "Collections", package: "swift-collections"),
         ],
         path: "src/IMessage/Sources/IMessage"
+    ),
+    .target(
+        name: "IMessagePrivateSPI",
+        path: "src/IMessage/Sources/IMessagePrivateSPI",
+        publicHeadersPath: "include"
     ),
     .target(
         name: "EmojiSPI",
@@ -115,7 +121,7 @@ var targets: [Target] = [
     ),
     .testTarget(
         name: "IMessageTests",
-        dependencies: ["IMessage", "IMDatabase", "PlatformSDK"],
+        dependencies: ["IMessage", "IMessageCore", "IMDatabase", "PlatformSDK"],
         path: "src/IMessage/Sources/IMessageTests",
         resources: [.process("Fixtures")]
     ),

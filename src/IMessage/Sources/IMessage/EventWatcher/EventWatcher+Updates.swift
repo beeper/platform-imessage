@@ -14,11 +14,11 @@ private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
 
 private enum PendingMessage {
     case reactionAction(
-        threadID: PlatformSDK.ThreadID,
-        row: MappedMessageRow,
-        reaction: AssociatedReaction,
-        target: AssociatedMessageTarget
-    )
+            threadID: PlatformSDK.ThreadID,
+            row: MappedMessageRow,
+            reaction: AssociatedReaction,
+            target: AssociatedMessageTarget
+         )
     case normal(threadID: PlatformSDK.ThreadID, row: MappedMessageRow, change: UpdatedMessageChange)
 
     var row: MappedMessageRow {
@@ -181,9 +181,7 @@ extension EventWatcher {
 
         init?(_ change: UpdatedMessageChange) {
             // Edits dominate read receipts: a same-tick edit+read becomes a full-message patch.
-            if change.wasEdited { self = .edited }
-            else if change.wasRead { self = .read }
-            else { return nil }
+            if change.wasEdited { self = .edited } else if change.wasRead { self = .read } else { return nil }
         }
 
         func patch(for message: PlatformSDK.Message) -> JSONObject? {
