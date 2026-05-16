@@ -49,6 +49,10 @@ enum PluginPayloadAssetSupport {
                 }
 
                 pluginPayloadAssetRenderQueue.async {
+                    // Bail without consuming a permit if cancellation already landed.
+                    if state.withLock({ $0.isCancelled || $0.completed }) {
+                        return
+                    }
                     pluginPayloadAssetRenderPermits.wait()
                     defer { pluginPayloadAssetRenderPermits.signal() }
 
@@ -161,6 +165,12 @@ enum PluginPayloadAssetSupport {
 
     static func prepareRenderThread() {
         Thread.current.name = "Plugin Payload Asset Renderer"
+        _ = NSApplication.shared
+    }
+
+    // Touch the AppKit singleton once from a known thread so concurrent render workers
+    // don't race on its first-access initialization later.
+    static func prewarmAppKit() {
         _ = NSApplication.shared
     }
 
