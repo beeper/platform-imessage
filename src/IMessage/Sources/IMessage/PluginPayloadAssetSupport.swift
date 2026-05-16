@@ -5,30 +5,20 @@ import Foundation
 import IMessageCore
 import IMessagePrivateSPI
 
-// Round-robin across a small fixed pool of serial queues to bound parallelism
-// without parking global-pool worker threads on a semaphore wait. Concurrency cap
-// comes from validating Apple's HW/DT plugin SPIs against concurrent invocation;
-// drop to 1 (effectively serial) if a future macOS surfaces thread-safety issues.
+// Concurrent queue with a small permit semaphore: parallelism without unbounded growth.
+// Permit count comes from validating Apple's HW/DT plugin SPIs against concurrent invocation.
+// Drop to 1 (effectively serial) if a future macOS surfaces thread-safety issues.
 private let pluginPayloadAssetRenderConcurrencyLimit = 3
 
-private let pluginPayloadAssetRenderQueues: [DispatchQueue] = (0..<pluginPayloadAssetRenderConcurrencyLimit)
-    .map { index in
-        DispatchQueue(
-            label: "plugin-payload-asset-render-queue-\(index)",
-            qos: .utility
-        )
-    }
+private let pluginPayloadAssetRenderQueue = DispatchQueue(
+    label: "plugin-payload-asset-render-queue",
+    qos: .utility,
+    attributes: .concurrent
+)
 
-private let pluginPayloadAssetRenderQueueIndex = Protected(0)
-
-private func nextPluginPayloadAssetRenderQueue() -> DispatchQueue {
-    let index = pluginPayloadAssetRenderQueueIndex.withLock { current -> Int in
-        let chosen = current
-        current = (current + 1) % pluginPayloadAssetRenderQueues.count
-        return chosen
-    }
-    return pluginPayloadAssetRenderQueues[index]
-}
+private let pluginPayloadAssetRenderPermits = DispatchSemaphore(
+    value: pluginPayloadAssetRenderConcurrencyLimit
+)
 
 typealias RenderCancellation = @Sendable () -> Bool
 
@@ -58,7 +48,10 @@ enum PluginPayloadAssetSupport {
                     return
                 }
 
-                nextPluginPayloadAssetRenderQueue().async {
+                pluginPayloadAssetRenderQueue.async {
+                    pluginPayloadAssetRenderPermits.wait()
+                    defer { pluginPayloadAssetRenderPermits.signal() }
+
                     let continuation = state.withLock { work -> CheckedContinuation<T, Error>? in
                         guard !work.isCancelled, !work.completed else {
                             return nil
