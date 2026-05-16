@@ -5,9 +5,19 @@ import Foundation
 import IMessageCore
 import IMessagePrivateSPI
 
+// Concurrent queue with a small permit semaphore: parallelism without unbounded growth.
+// Permit count comes from validating Apple's HW/DT plugin SPIs against concurrent invocation.
+// Drop to 1 (effectively serial) if a future macOS surfaces thread-safety issues.
+private let pluginPayloadAssetRenderConcurrencyLimit = 3
+
 private let pluginPayloadAssetRenderQueue = DispatchQueue(
     label: "plugin-payload-asset-render-queue",
-    qos: .utility
+    qos: .utility,
+    attributes: .concurrent
+)
+
+private let pluginPayloadAssetRenderPermits = DispatchSemaphore(
+    value: pluginPayloadAssetRenderConcurrencyLimit
 )
 
 typealias RenderCancellation = @Sendable () -> Bool
@@ -39,6 +49,9 @@ enum PluginPayloadAssetSupport {
                 }
 
                 pluginPayloadAssetRenderQueue.async {
+                    pluginPayloadAssetRenderPermits.wait()
+                    defer { pluginPayloadAssetRenderPermits.signal() }
+
                     let continuation = state.withLock { work -> CheckedContinuation<T, Error>? in
                         guard !work.isCancelled, !work.completed else {
                             return nil

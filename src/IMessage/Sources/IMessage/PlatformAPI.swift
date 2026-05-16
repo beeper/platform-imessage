@@ -481,6 +481,7 @@ public final class PlatformAPI {
 
     public func dispose() async throws {
         defer {
+            // Also wipes the `plugin-payload-assets/` subdir written by HW/DT renderers; no separate sweeper needed.
             try? FileManager.default.removeItem(at: MessagesPaths.temporaryPlatformAttachmentDirectory)
         }
         defer {
@@ -1026,6 +1027,7 @@ extension PlatformAPI {
         }
     }
 
+    // Cleanup: lives under `temporaryPlatformAttachmentDirectory`, which `dispose()` wipes.
     nonisolated private static func pluginPayloadAssetOutputURL(route: PluginPayloadAssetRoute) -> URL {
         MessagesPaths.temporaryPlatformAttachmentDirectory
             .appendingPathComponent("plugin-payload-assets", isDirectory: true)
@@ -1038,13 +1040,12 @@ extension PlatformAPI {
         methodName: String
     ) async throws -> AssetResult {
         let route = try PluginPayloadAssetRoute(kind: .handwriting, methodName: methodName)
+        guard let payload = try database.withDatabase({ db in
+            try db.handwritingPayload(rowID: route.rowID)
+        }) else {
+            throw ErrorMessage("Couldn't fetch handwriting asset")
+        }
         return try await withLegacyPluginPayloadAssetFallback(route: route) {
-            guard let payload = try database.withDatabase({ db in
-                try db.handwritingPayload(rowID: route.rowID)
-            }) else {
-                throw ErrorMessage("Couldn't fetch handwriting asset")
-            }
-
             let renderedURL = try await HandwritingAssetRenderer.render(
                 payloadData: payload.payloadData,
                 messageGUID: payload.messageGUID,
@@ -1060,13 +1061,12 @@ extension PlatformAPI {
         methodName: String
     ) async throws -> AssetResult {
         let route = try PluginPayloadAssetRoute(kind: .digitalTouch, methodName: methodName)
+        guard let payload = try database.withDatabase({ db in
+            try db.digitalTouchPayload(rowID: route.rowID)
+        }) else {
+            throw ErrorMessage("Couldn't fetch digital touch asset")
+        }
         return try await withLegacyPluginPayloadAssetFallback(route: route) {
-            guard let payload = try database.withDatabase({ db in
-                try db.digitalTouchPayload(rowID: route.rowID)
-            }) else {
-                throw ErrorMessage("Couldn't fetch digital touch asset")
-            }
-
             let renderedURL = try await DigitalTouchAssetRenderer.render(
                 payloadData: payload.payloadData,
                 uuid: route.uuid,
