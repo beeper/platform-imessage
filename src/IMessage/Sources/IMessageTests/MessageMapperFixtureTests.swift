@@ -307,6 +307,32 @@ private func urlBalloonMessageKeepsLinkOnlyContent() throws {
 }
 
 @Test
+private func digitalTouchMessageDropsWhitespacePlaceholderText() throws {
+    let rowID = 44
+    let uuid = "4BED3FC2-0A9D-43BD-926C-4C5078465350"
+    let message = try singleMappedMessage(from: [
+        "ROWID": rowID,
+        "guid": "DIGITAL-TOUCH-GUID",
+        "date": "9",
+        "text": " ",
+        "is_from_me": 0,
+        "handle_id": 1,
+        "participantID": "sender",
+        "item_type": 0,
+        "service": "iMessage",
+        "threadID": "iMessage;+;chat",
+        "balloon_bundle_id": BalloonBundleKind.digitalTouch.rawValue,
+        "payload_data": digitalTouchPayloadData(uuid: uuid),
+    ])
+
+    let attachment = try #require(message.attachments?.first)
+    #expect(message.text == nil)
+    #expect(message.textHeading == "Digital Touch Message")
+    #expect(attachment.id == uuid)
+    #expect(attachment.srcURL == "asset://$accountID/dt/\(uuid).\(rowID).mov")
+}
+
+@Test
 private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     let attachment = PlatformSDK.Attachment(
         id: "attachment-id",
@@ -341,6 +367,12 @@ private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     #expect(threadObject["_original"] == nil)
     #expect(threadObject["type"] as? String == "group")
     #expect((threadObject["messages"] as? FixtureJSONObject)?["hasMore"] as? Bool == false)
+}
+
+private func digitalTouchPayloadData(uuid: String) -> Data {
+    Data(repeating: 0, count: 8)
+        + Data(uuid.utf8)
+        + Data(repeating: 0, count: uuidStart)
 }
 
 private func urlBalloonPayloadData(url: String, title: String) throws -> Data {
