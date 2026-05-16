@@ -79,17 +79,22 @@ public extension IMDatabase {
         SELECT
           cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
         FROM
-          message m
-          INNER JOIN chat_message_join cm ON m.ROWID = cm.message_id
+          (
+            SELECT ROWID AS message_id
+            FROM message
+            WHERE item_type == 0
+              AND is_read == 0
+              AND is_from_me == 0
+          ) unread
+          CROSS JOIN chat_message_join cm
         WHERE
-          m.item_type == 0
-          AND m.is_read == 0
-          AND m.is_from_me == 0
+          cm.message_id = unread.message_id
           AND cm.chat_id IN (\(placeholders))
         GROUP BY
           cm.chat_id
         """
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        let statement = try cachedStatement(forEscapedSQL: sql)
+        try statement.reset()
         try statement.bind(chatRowIDs.map { $0 as any SQLiteBindable })
         return try statement.mapRowsUntilDone { row in
             (try row[0].expectConverting(Int.self), try row[1].expectConverting(Int.self))

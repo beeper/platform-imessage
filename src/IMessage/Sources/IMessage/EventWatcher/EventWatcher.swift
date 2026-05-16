@@ -16,11 +16,14 @@ struct TimestampedChatState {
 }
 
 final class EventWatcher {
+    private static let fullUnreadStatePassInterval = 50
+
     var db: IMDatabase
 
     /// Tracks the last known state of every chat.
     var chatStates = [String: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
+    private var databaseChangesSinceFullUnreadStatePass = 0
 
     let currentUserID: String
     let accountID: String
@@ -65,11 +68,26 @@ final class EventWatcher {
             var eventsToSend = [ServerEvent]()
 
             do {
-                // Query unread states, compare to the previous set, and persist them.
-                try eventsToSend.append(contentsOf: diffChatStates())
+                let messageUpdateBatch = try collectMessageUpdateBatch()
+                let forceFullUnreadStatePass = shouldForceFullUnreadStatePass(
+                    forceNow: messageUpdateBatch.changedChatGUIDs.isEmpty
+                )
+
+                // Query unread states for the chats touched by message updates.
+                // Full passes reconcile chat/message deletions and chat-only read
+                // state changes when there were no message updates, plus
+                // periodically as a backstop.
+                try eventsToSend.append(
+                    contentsOf: diffChatStates(
+                        affectedChatGUIDs: messageUpdateBatch.changedChatGUIDs,
+                        deletedChatGUIDs: [],
+                        forceFullUnreadStatePass: forceFullUnreadStatePass
+                    )
+                )
 
                 // Ditto, but for any new messages/read state changes.
-                try eventsToSend.append(contentsOf: collectMessageUpdateEvents())
+                eventsToSend.append(contentsOf: messageUpdateBatch.events)
+                updatesCursor = messageUpdateBatch.nextCursor
             }
 
             guard !eventsToSend.isEmpty else { continue }
@@ -87,5 +105,16 @@ final class EventWatcher {
                 try? reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
             }
         }
+    }
+
+    private func shouldForceFullUnreadStatePass(forceNow: Bool) -> Bool {
+        databaseChangesSinceFullUnreadStatePass += 1
+
+        guard forceNow || databaseChangesSinceFullUnreadStatePass >= Self.fullUnreadStatePassInterval else {
+            return false
+        }
+
+        databaseChangesSinceFullUnreadStatePass = 0
+        return true
     }
 }

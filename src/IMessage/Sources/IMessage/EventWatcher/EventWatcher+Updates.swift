@@ -30,6 +30,12 @@ private enum PendingMessage {
     }
 }
 
+struct MessageUpdateBatch {
+    var changedChatGUIDs: Set<String>
+    var events: [ServerEvent]
+    var nextCursor: MessageUpdatesCursor
+}
+
 extension EventWatcher {
     static func messageUpdateEvents(
         changes: [UpdatedMessageChange],
@@ -144,14 +150,23 @@ extension EventWatcher {
     }
 
     func collectMessageUpdateEvents() throws -> [ServerEvent] {
+        let batch = try collectMessageUpdateBatch()
+        updatesCursor = batch.nextCursor
+        return batch.events
+    }
+
+    func collectMessageUpdateBatch() throws -> MessageUpdateBatch {
         let previousCursor = updatesCursor
         let queryResult = try db.messages(since: previousCursor)
         traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
 
         let events = try messageUpdateEvents(for: queryResult)
-        traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
-        updatesCursor = queryResult.nextCursor
-        return events
+        traceMessageUpdates("done computing message state syncs, next messages updates cursor is: \(queryResult.nextCursor)")
+        return MessageUpdateBatch(
+            changedChatGUIDs: Set(queryResult.updatedMessages.map(\.chatGUID)),
+            events: events,
+            nextCursor: queryResult.nextCursor
+        )
     }
 
     private func messageUpdateEvents(for queryResult: UpdatedMessagesQueryResult) throws -> [ServerEvent] {

@@ -11,10 +11,59 @@ private func traceUnreads(_ message: @autoclosure () -> Logger.Message) {
 
 extension EventWatcher {
     /// Diffs current chat states against the previous snapshot and returns events for any changes.
-    func diffChatStates() throws -> [ServerEvent] {
-        // Grab the latest set, and remember it for the next database change.
-        let currentChatStates: [String: ChatState] = try db.chatStates()
+    func diffChatStates(
+        affectedChatGUIDs: Set<String>,
+        deletedChatGUIDs: [String],
+        forceFullUnreadStatePass: Bool
+    ) throws -> [ServerEvent] {
+        let currentChatStates = if forceFullUnreadStatePass {
+            try db.chatStates()
+        } else {
+            try db.chatStates(forChatGUIDs: Array(affectedChatGUIDs))
+        }
+        let reconciledDeletedChatGUIDs = Self.deletedChatGUIDsForUnreadDiff(
+            currentChatStates: currentChatStates,
+            deletedChatGUIDs: deletedChatGUIDs,
+            trackedChatGUIDs: Set(chatStates.keys),
+            forceFullUnreadStatePass: forceFullUnreadStatePass
+        )
 
+        return Self.unreadDiffEvents(
+            currentChatStates: currentChatStates,
+            deletedChatGUIDs: reconciledDeletedChatGUIDs,
+            trackedChatStates: &chatStates
+        )
+    }
+
+    static func deletedChatGUIDsForUnreadDiff(
+        currentChatStates: [String: ChatState],
+        deletedChatGUIDs: [String],
+        trackedChatGUIDs: Set<String>,
+        forceFullUnreadStatePass: Bool
+    ) -> [String] {
+        var seen = Set<String>()
+        var reconciledDeletedChatGUIDs = [String]()
+        for chatGUID in deletedChatGUIDs where seen.insert(chatGUID).inserted {
+            reconciledDeletedChatGUIDs.append(chatGUID)
+        }
+
+        if forceFullUnreadStatePass {
+            let missingTrackedChatGUIDs = trackedChatGUIDs
+                .filter { currentChatStates[$0] == nil }
+                .sorted()
+            for chatGUID in missingTrackedChatGUIDs where seen.insert(chatGUID).inserted {
+                reconciledDeletedChatGUIDs.append(chatGUID)
+            }
+        }
+
+        return reconciledDeletedChatGUIDs
+    }
+
+    static func unreadDiffEvents(
+        currentChatStates: [String: ChatState],
+        deletedChatGUIDs: [String],
+        trackedChatStates chatStates: inout [String: TimestampedChatState]
+    ) -> [ServerEvent] {
         var eventsToSend = [ServerEvent]()
         var changes = 0
 
@@ -90,9 +139,7 @@ extension EventWatcher {
 
         traceUnreads("\(changes) unread state(s) changed this time around")
 
-        // Detect chats that were deleted from iMessage since the last database change.
-        let deletedChats = chatStates.keys.filter { currentChatStates[$0] == nil }
-        let deletedThreadIDs = deletedChats.map { chatGUID -> String in
+        let deletedThreadIDs = deletedChatGUIDs.map { chatGUID -> String in
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: chatGUID)
             chatStates.removeValue(forKey: chatGUID)
             log.info("chat \(hashedThreadID) was deleted from iMessage")

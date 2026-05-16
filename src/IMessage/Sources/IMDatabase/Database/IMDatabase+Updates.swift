@@ -4,17 +4,32 @@ import Logging
 private let log = Logger(label: "imdb.updates")
 
 private let updatedMessagesSinceQuery = """
+WITH updated(rowid) AS (
+    SELECT ROWID
+    FROM message
+    WHERE ROWID > ?
+    UNION
+    SELECT ROWID
+    FROM message
+    WHERE date_read > ?
+    UNION
+    SELECT ROWID
+    FROM message
+    WHERE date_edited > ?
+)
 SELECT
     m.ROWID,
     m.date_read,
     m.date_edited,
     c.guid
 FROM
+    updated u
+CROSS JOIN
     message m
 LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
 LEFT JOIN chat c ON cmj.chat_id = c.ROWID
 WHERE
-    m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
+    m.ROWID = u.rowid
 ORDER BY
     m.ROWID ASC
 """
