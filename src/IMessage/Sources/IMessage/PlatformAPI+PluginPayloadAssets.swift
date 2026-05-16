@@ -57,30 +57,12 @@ extension PlatformAPI {
         }
     }
 
-    nonisolated private static func handwritingAssetFilename(uuid: String) -> String {
-        "hw_\(uuid)_\(Int(HandwritingAssetRenderer.renderedSize.width))_\(Int(HandwritingAssetRenderer.renderedSize.height))_dark.png"
-    }
-
-    nonisolated private static func existingLegacyHandwritingAssetURL(uuid: String) throws -> URL? {
-        let prefix = "hw_\(uuid)_"
-        return try firstExistingAssetURL([
-            MessagesPaths.temporaryMobileSMSDirectory,
-            MessagesPaths.temporaryDirectory,
-        ].flatMap { directory in
-            try contentsOfDirectoryIfPresent(directory)
-                .filter { $0.lastPathComponent.hasPrefix(prefix) }
-        })
-    }
-
     nonisolated private static func existingHandwritingAssetURL(uuid: String) throws -> URL? {
-        let fileName = handwritingAssetFilename(uuid: uuid)
-        if let exactURL = firstExistingAssetURL([
-            MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent(fileName),
-            MessagesPaths.temporaryDirectory.appendingPathComponent(fileName),
-        ]) {
-            return exactURL
-        }
-        return try existingLegacyHandwritingAssetURL(uuid: uuid)
+        let prefix = "hw_\(uuid)_"
+        return try firstExistingAssetURL(
+            contentsOfDirectoryIfPresent(MessagesPaths.temporaryMobileSMSDirectory)
+                .filter { $0.lastPathComponent.hasPrefix(prefix) }
+        )
     }
 
     nonisolated private static func waitForExistingHandwritingAssetURL(uuid: String) async throws -> URL? {
@@ -92,7 +74,6 @@ extension PlatformAPI {
     nonisolated private static func existingDigitalTouchAssetURL(uuid: String) -> URL? {
         firstExistingAssetURL([
             MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent("\(uuid).mov"),
-            MessagesPaths.temporaryDirectory.appendingPathComponent("\(uuid).mov"),
         ])
     }
 
