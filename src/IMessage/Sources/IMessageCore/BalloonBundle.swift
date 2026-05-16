@@ -17,15 +17,3 @@ public enum BalloonBundleKind: String, Sendable {
         self.init(rawValue: bundleID)
     }
 }
-
-public enum BalloonBundleID {
-    public static let url = BalloonBundleKind.url.rawValue
-    public static let digitalTouch = BalloonBundleKind.digitalTouch.rawValue
-    public static let handwriting = BalloonBundleKind.handwriting.rawValue
-    public static let businessExtension = BalloonBundleKind.businessExtension.rawValue
-    public static let applePay = BalloonBundleKind.applePay.rawValue
-    public static let findMy = BalloonBundleKind.findMy.rawValue
-    public static let gamePigeon = BalloonBundleKind.gamePigeon.rawValue
-    public static let polls = BalloonBundleKind.polls.rawValue
-    public static let youtube = BalloonBundleKind.youtube.rawValue
-}

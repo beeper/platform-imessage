@@ -1065,13 +1065,12 @@ extension PlatformAPI {
     }
 
     nonisolated private static func existingLegacyHandwritingAssetURL(uuid: String) throws -> URL? {
-        let candidateDirectories = [
-            MessagesPaths.temporaryMobileSMSDirectory,
-            MessagesPaths.temporaryDirectory,
-        ]
         let prefix = "hw_\(uuid)_"
 
-        return try firstExistingAssetURL(candidateDirectories.flatMap { directory in
+        return try firstExistingAssetURL([
+            MessagesPaths.temporaryMobileSMSDirectory,
+            MessagesPaths.temporaryDirectory,
+        ].flatMap { directory in
             try contentsOfDirectoryIfPresent(directory)
                 .filter { $0.lastPathComponent.hasPrefix(prefix) }
         })

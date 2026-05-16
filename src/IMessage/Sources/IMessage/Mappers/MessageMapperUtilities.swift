@@ -113,32 +113,18 @@ enum PluginPayloadAssetKind {
     case digitalTouch
     case handwriting
 
-    var pathComponent: String {
+    private var attributes: (pathComponent: String, fileExtension: String, assetDescription: String) {
         switch self {
         case .digitalTouch:
-            return "dt"
+            return ("dt", "mov", "digital touch")
         case .handwriting:
-            return "hw"
+            return ("hw", "png", "handwriting")
         }
     }
 
-    var fileExtension: String {
-        switch self {
-        case .digitalTouch:
-            return "mov"
-        case .handwriting:
-            return "png"
-        }
-    }
-
-    var assetDescription: String {
-        switch self {
-        case .digitalTouch:
-            return "digital touch"
-        case .handwriting:
-            return "handwriting"
-        }
-    }
+    var pathComponent: String { attributes.pathComponent }
+    var fileExtension: String { attributes.fileExtension }
+    var assetDescription: String { attributes.assetDescription }
 }
 
 struct PluginPayloadAssetRoute {
@@ -175,10 +161,8 @@ struct PluginPayloadAssetRoute {
     }
 
     var fileName: String {
-        if let rowID {
-            return "\(uuid).\(rowID).\(kind.fileExtension)"
-        }
-        return "\(uuid).\(kind.fileExtension)"
+        let stem = rowID.map { "\(uuid).\($0)" } ?? uuid
+        return "\(stem).\(kind.fileExtension)"
     }
 
     var legacyAssetPath: String {

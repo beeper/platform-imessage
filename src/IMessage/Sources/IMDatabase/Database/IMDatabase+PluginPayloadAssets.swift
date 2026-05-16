@@ -4,13 +4,13 @@ import SQLite
 
 extension IMDatabase {
     public func digitalTouchPayload(rowID: Int) throws -> (payloadData: Data, isFromMe: Bool)? {
-        try pluginPayload(rowID: rowID, bundleID: BalloonBundleID.digitalTouch).map {
+        try pluginPayload(rowID: rowID, bundleID: BalloonBundleKind.digitalTouch.rawValue).map {
             (payloadData: $0.payloadData, isFromMe: $0.isFromMe)
         }
     }
 
     public func handwritingPayload(rowID: Int) throws -> (payloadData: Data, messageGUID: String, isFromMe: Bool)? {
-        try pluginPayload(rowID: rowID, bundleID: BalloonBundleID.handwriting)
+        try pluginPayload(rowID: rowID, bundleID: BalloonBundleKind.handwriting.rawValue)
     }
 
     private func pluginPayload(

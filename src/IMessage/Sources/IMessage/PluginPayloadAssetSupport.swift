@@ -10,6 +10,8 @@ private let pluginPayloadAssetRenderQueue = DispatchQueue(
     qos: .utility
 )
 
+typealias RenderCancellation = @Sendable () -> Bool
+
 private struct RenderQueueWorkState<T> {
     var continuation: CheckedContinuation<T, Error>?
     var started = false
@@ -19,7 +21,7 @@ private struct RenderQueueWorkState<T> {
 
 enum PluginPayloadAssetSupport {
     static func onRenderQueue<T>(
-        _ action: @escaping @Sendable (_ isCancelled: @escaping @Sendable () -> Bool) throws -> T
+        _ action: @escaping @Sendable (_ isCancelled: @escaping RenderCancellation) throws -> T
     ) async throws -> T {
         let state = Protected(RenderQueueWorkState<T>())
         return try await withTaskCancellationHandler {
@@ -48,7 +50,7 @@ enum PluginPayloadAssetSupport {
                         return
                     }
 
-                    let isCancelled: @Sendable () -> Bool = {
+                    let isCancelled: RenderCancellation = {
                         state.withLock { $0.isCancelled }
                     }
                     let result = Result {
@@ -80,7 +82,7 @@ enum PluginPayloadAssetSupport {
 
     static func renderIfNeeded(
         destinationURL: URL,
-        _ render: @escaping @Sendable (_ isCancelled: @escaping @Sendable () -> Bool) throws -> URL
+        _ render: @escaping @Sendable (_ isCancelled: @escaping RenderCancellation) throws -> URL
     ) async throws -> URL {
         guard fileSize(destinationURL) == 0 else {
             return destinationURL
@@ -98,9 +100,7 @@ enum PluginPayloadAssetSupport {
     }
 
     static func checkCancellation(_ isCancelled: () -> Bool) throws {
-        if isCancelled() {
-            throw CancellationError()
-        }
+        guard !isCancelled() else { throw CancellationError() }
     }
 
     static func fileSize(_ url: URL) -> Int {
@@ -157,20 +157,29 @@ enum PluginPayloadAssetSupport {
         }
     }
 
-    static func privateClass<T>(_ className: String, as _: T.Type, assetDescription: String) throws -> T {
+    static func privateClass<T>(_ className: String, assetDescription: String) throws -> T {
         guard let classObject = NSClassFromString(className) as? T else {
             throw ErrorMessage("\(assetDescription) private class \(className) is unavailable")
         }
         return classObject
     }
 
+    static func removeIfDifferent(_ url: URL, from destinationURL: URL) {
+        if url.standardizedFileURL != destinationURL.standardizedFileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     static func makePluginPayload(
-        payloadClass: IMPluginPayload.Type,
         payloadData: Data,
         bundleID: String,
         messageGUID: String,
         isFromMe: Bool
-    ) -> IMPluginPayload {
+    ) throws -> IMPluginPayload {
+        let payloadClass: IMPluginPayload.Type = try privateClass(
+            "IMPluginPayload",
+            assetDescription: "Plugin payload"
+        )
         let payload = payloadClass.init()
         payload.data = payloadData
         payload.pluginBundleID = bundleID

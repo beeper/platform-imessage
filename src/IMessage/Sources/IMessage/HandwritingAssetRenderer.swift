@@ -1,11 +1,9 @@
-import AppKit
 import Foundation
 import IMessageCore
 import IMessagePrivateSPI
 
 private let handwritingProviderPath = "/System/Library/Messages/iMessageBalloons/HandwritingProvider.bundle"
 private let handwritingAssetDescription = "Handwriting"
-private let handwritingProviderDescription = "HandwritingProvider"
 private let handwritingRenderedWidth = 400.0
 private let handwritingRenderedHeight = 200.0
 private let handwritingRenderTimeout: TimeInterval = 15
@@ -38,34 +36,23 @@ enum HandwritingAssetRenderer {
         messageGUID: String,
         isFromMe: Bool,
         destinationURL: URL,
-        isCancelled: @escaping @Sendable () -> Bool
+        isCancelled: @escaping RenderCancellation
     ) throws -> URL {
-        try AssetSupport.loadBundle(
-            path: handwritingProviderPath,
-            assetDescription: handwritingProviderDescription
-        )
-        let payloadClass: IMPluginPayload.Type = try AssetSupport.privateClass(
-            "IMPluginPayload",
-            as: IMPluginPayload.Type.self,
-            assetDescription: handwritingAssetDescription
-        )
+        try AssetSupport.loadBundle(path: handwritingProviderPath, assetDescription: "HandwritingProvider")
         let dataSourceClass: HWBalloonDataSource.Type = try AssetSupport.privateClass(
             "HWBalloonDataSource",
-            as: HWBalloonDataSource.Type.self,
             assetDescription: handwritingAssetDescription
         )
         let rendererClass: HWAbstractBalloonController.Type = try AssetSupport.privateClass(
             "HWAbstractBalloonController",
-            as: HWAbstractBalloonController.Type.self,
             assetDescription: handwritingAssetDescription
         )
 
         AssetSupport.prepareRenderThread()
 
-        let payload = AssetSupport.makePluginPayload(
-            payloadClass: payloadClass,
+        let payload = try AssetSupport.makePluginPayload(
             payloadData: payloadData,
-            bundleID: BalloonBundleID.handwriting,
+            bundleID: BalloonBundleKind.handwriting.rawValue,
             messageGUID: messageGUID,
             isFromMe: isFromMe
         )
@@ -80,11 +67,7 @@ enum HandwritingAssetRenderer {
             rendererClass: rendererClass,
             isCancelled: isCancelled
         )
-        defer {
-            if renderedURL.standardizedFileURL != destinationURL.standardizedFileURL {
-                try? FileManager.default.removeItem(at: renderedURL)
-            }
-        }
+        defer { AssetSupport.removeIfDifferent(renderedURL, from: destinationURL) }
         try AssetSupport.copyRenderedAsset(from: renderedURL, to: destinationURL, assetDescription: handwritingAssetDescription)
         return destinationURL
     }
@@ -92,7 +75,7 @@ enum HandwritingAssetRenderer {
     private static func writeThumbnail(
         handwritingItem: Any,
         rendererClass: HWAbstractBalloonController.Type,
-        isCancelled: @escaping @Sendable () -> Bool
+        isCancelled: @escaping RenderCancellation
     ) throws -> URL {
         let renderedURL = Protected<URL?>()
         let shouldRemoveRenderedURL = Protected(false)
