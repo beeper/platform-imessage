@@ -109,36 +109,41 @@ private func legacyAssetURLString(path: String) -> String {
     "asset://\(legacyAssetAccountPlaceholder)/\(path)"
 }
 
-enum PluginPayloadAssetKind {
-    case digitalTouch
-    case handwriting
+struct PluginPayloadAssetRoute {
+    enum Kind: String {
+        case digitalTouch = "dt"
+        case handwriting = "hw"
 
-    private var attributes: (pathComponent: String, fileExtension: String, assetDescription: String) {
-        switch self {
-        case .digitalTouch:
-            return ("dt", "mov", "digital touch")
-        case .handwriting:
-            return ("hw", "png", "handwriting")
+        var fileExtension: String {
+            switch self {
+            case .digitalTouch:
+                return "mov"
+            case .handwriting:
+                return "png"
+            }
+        }
+
+        var assetDescription: String {
+            switch self {
+            case .digitalTouch:
+                return "digital touch"
+            case .handwriting:
+                return "handwriting"
+            }
         }
     }
 
-    var pathComponent: String { attributes.pathComponent }
-    var fileExtension: String { attributes.fileExtension }
-    var assetDescription: String { attributes.assetDescription }
-}
-
-struct PluginPayloadAssetRoute {
-    let kind: PluginPayloadAssetKind
+    let kind: Kind
     let uuid: String
     let rowID: Int?
 
-    init(kind: PluginPayloadAssetKind, uuid: String, rowID: Int?) {
+    init(kind: Kind, uuid: String, rowID: Int?) {
         self.kind = kind
         self.uuid = uuid
         self.rowID = rowID
     }
 
-    init(kind: PluginPayloadAssetKind, methodName: String) throws {
+    init(kind: Kind, methodName: String) throws {
         let suffix = ".\(kind.fileExtension)"
         let stem = methodName.hasSuffix(suffix)
             ? String(methodName.dropLast(suffix.count))
@@ -166,7 +171,7 @@ struct PluginPayloadAssetRoute {
     }
 
     var legacyAssetPath: String {
-        "\(kind.pathComponent)/\(fileName)"
+        "\(kind.rawValue)/\(fileName)"
     }
 
     var legacyAssetURL: String {
