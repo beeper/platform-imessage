@@ -24,10 +24,8 @@ extension PlatformAPI {
     nonisolated private static func legacyPluginPayloadAsset(route: PluginPayloadAssetRoute) async throws -> AssetResult? {
         switch route.kind {
         case .handwriting:
-            return try await waitForExistingHandwritingAssetURL(
-                uuid: route.uuid,
-                includeLegacyScan: route.rowID == nil
-            ).map { .url(fileURLString($0.path)) }
+            return try await waitForExistingHandwritingAssetURL(uuid: route.uuid)
+                .map { .url(fileURLString($0.path)) }
 
         case .digitalTouch:
             return try await waitForExistingDigitalTouchAssetURL(uuid: route.uuid)
@@ -74,7 +72,7 @@ extension PlatformAPI {
         })
     }
 
-    nonisolated private static func existingHandwritingAssetURL(uuid: String, includeLegacyScan: Bool) throws -> URL? {
+    nonisolated private static func existingHandwritingAssetURL(uuid: String) throws -> URL? {
         let fileName = handwritingAssetFilename(uuid: uuid)
         if let exactURL = firstExistingAssetURL([
             MessagesPaths.temporaryMobileSMSDirectory.appendingPathComponent(fileName),
@@ -82,15 +80,12 @@ extension PlatformAPI {
         ]) {
             return exactURL
         }
-        return includeLegacyScan ? try existingLegacyHandwritingAssetURL(uuid: uuid) : nil
+        return try existingLegacyHandwritingAssetURL(uuid: uuid)
     }
 
-    nonisolated private static func waitForExistingHandwritingAssetURL(
-        uuid: String,
-        includeLegacyScan: Bool
-    ) async throws -> URL? {
+    nonisolated private static func waitForExistingHandwritingAssetURL(uuid: String) async throws -> URL? {
         try await waitForFileURL(maxWait: fallbackPluginPayloadAssetWait, pollInterval: pluginPayloadLegacyAssetPollInterval) {
-            try existingHandwritingAssetURL(uuid: uuid, includeLegacyScan: includeLegacyScan)
+            try existingHandwritingAssetURL(uuid: uuid)
         }
     }
 
