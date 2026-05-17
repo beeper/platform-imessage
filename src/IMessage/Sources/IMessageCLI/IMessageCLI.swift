@@ -286,6 +286,7 @@ private final class Runner {
         guard let state else { return }
         print(formatValue([
             "dataDirPath": state.dataDirPath,
+            "hashingEnabled": IMessageHost.isHashingEnabled,
             "sessionFilePath": state.sessionFilePath,
             "subscribeToEvents": state.options.subscribeToEvents,
             "loggingEnabled": state.options.loggingEnabled,

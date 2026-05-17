@@ -36,6 +36,10 @@ public enum IMessageHost {
         set { Preferences.isLoggingEnabled = newValue }
     }
 
+    public static var isHashingEnabled: Bool {
+        get { Preferences.hashingEnabled }
+    }
+
     public static func bootstrap() {
         bootstrapLock.lock()
         guard !didBootstrap else {
@@ -59,6 +63,7 @@ public enum IMessageHost {
         if let useSecondaryInstance = Preferences.useSecondaryInstanceEnvironment {
             Preferences.useSecondaryMessagesInstance = useSecondaryInstance
         }
+        Preferences.configureHashing(defaultEnabled: true)
 
         let greeting = "howdy from IMessage!"
         if let system = System() {
@@ -84,6 +89,7 @@ public enum IMessageHost {
     public static func bootstrapWithOptions(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool) {
         Preferences.setLoggingDirectory(dataDirPath)
         Preferences.setUseSecondaryInstance(useSecondaryInstance)
+        Preferences.configureHashing(defaultEnabled: false)
         Preferences.isLoggingEnabled = verbose
         Log.consoleOutputEnabled = verbose
         Defaults.registerDefaults()

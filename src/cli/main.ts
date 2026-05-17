@@ -33,6 +33,7 @@ const SHELL_COMMAND = 'shell'
 const HELP_COMMAND = 'help'
 const PROMPT = 'imessage> '
 const SHUTDOWN_TIMEOUT_MS = 2_000
+const HASHING_ENV = 'IMESSAGE_HASHING_ENABLED'
 const GLOBAL_CLI_OPTIONS = {
   'data-dir': { type: 'string' },
   'use-secondary-instance': { type: 'boolean' },
@@ -101,6 +102,17 @@ const readHistory = async (): Promise<string[]> =>
 
 const writeHistory = (history: string[]): Promise<void> =>
   fs.writeFile(historyFilePath, JSON.stringify(history))
+
+function parseEnvironmentBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined
+  return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
+}
+
+const cliHashingEnabled = () => parseEnvironmentBoolean(process.env[HASHING_ENV]) ?? false
+
+function setDefaultHashingEnvironment() {
+  process.env[HASHING_ENV] ??= '0'
+}
 
 function formatEvents(events: ServerEvent[]): string {
   const stamp = new Date().toISOString()
@@ -188,6 +200,7 @@ const accountID = 'default'
 async function createPlatformAPI(state: RunnerState) {
   process.env.IMESSAGE_LOGGING_DIR_PATH = state.dataDirPath
   process.env.IMESSAGE_USE_SECONDARY_INSTANCE = state.useSecondaryInstance ? '1' : '0'
+  setDefaultHashingEnvironment()
   const { default: AppleiMessage } = await import('../api')
   const api = new AppleiMessage(accountID)
   // We do not currently depend on persisted CLI session state, but keeping this
@@ -891,6 +904,7 @@ async function main(runnerOptions: RunnerOptions) {
   function showState() {
     console.log(inspect({
       dataDirPath: state.dataDirPath,
+      hashingEnabled: cliHashingEnabled(),
       sessionFilePath: state.sessionFilePath,
       subscribeToEvents: state.subscribeToEvents,
       loggingEnabled: state.loggingEnabled,

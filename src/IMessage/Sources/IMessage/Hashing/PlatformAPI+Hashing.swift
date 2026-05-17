@@ -19,7 +19,7 @@ extension PlatformAPI {
             }
             if shouldWarm {
                 for guid in try db.allThreadGUIDs() {
-                    _ = Hasher.thread.tokenizeRemembering(pii: guid)
+                    _ = Hasher.thread.tokenizeHashRemembering(pii: guid)
                 }
             }
             return try Hasher.thread.recoverOriginal(fromToken: threadID)

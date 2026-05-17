@@ -23,6 +23,23 @@ import Testing
     #expect(try Hasher.thread.recoverOriginal(fromToken: hashedThreadID) == threadID)
 }
 
+@Test func hashingCanBeDisabled() throws {
+    let hasher = Hasher(kind: "test")
+    let token = hasher.tokenizeRemembering(pii: "foo", hashingEnabled: false)
+
+    #expect(token == "foo")
+    #expect(hasher.cache.isEmpty)
+    #expect(hasher.originals.isEmpty)
+}
+
+@Test func forcedHashingStillSupportsRecoveryWhenHashingIsDisabled() throws {
+    let hasher = Hasher(kind: "test")
+    let token = hasher.tokenizeHashRemembering(pii: "foo")
+
+    #expect(token.hasPrefix("imsg##test:"))
+    #expect(try hasher.recoverOriginal(fromToken: token) == "foo")
+}
+
 @Test func hashingThreadsafe() async {
     let hasher = Hasher(kind: "test")
 

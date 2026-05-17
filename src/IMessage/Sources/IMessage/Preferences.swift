@@ -6,22 +6,37 @@ import Foundation
 //   2. `Defaults.imessage` (UserDefaults) — durable user-tunable settings;
 //      see Defaults.swift for keys.
 //   3. `ProcessInfo.environment` — build/test escape hatches and CLI-set
-//      values (IMESSAGE_LOGGING_DIR_PATH, IMESSAGE_USE_SECONDARY_INSTANCE).
+//      values (IMESSAGE_LOGGING_DIR_PATH, IMESSAGE_USE_SECONDARY_INSTANCE,
+//      IMESSAGE_HASHING_ENABLED).
 //
 // When adding a setting, pick by lifecycle: process-only → here; durable user
 // pref → Defaults; build/test toggle → environment.
 enum Preferences {
     private static let loggingDirectoryKey = "IMESSAGE_LOGGING_DIR_PATH"
     private static let secondaryInstanceKey = "IMESSAGE_USE_SECONDARY_INSTANCE"
+    private static let hashingEnabledKey = "IMESSAGE_HASHING_ENABLED"
 
     static var isLoggingEnabled: Bool = false
     static var enabledExperiments: String = ""
     static var useSecondaryMessagesInstance: Bool = false
+    static var hashingEnabled: Bool = configuredHashingEnabled(defaultEnabled: true)
 
     static var useSecondaryInstanceEnvironment: Bool? {
-        guard let value = ProcessInfo.processInfo.environment[secondaryInstanceKey] else { return nil }
+        boolEnvironmentValue(forKey: secondaryInstanceKey)
+    }
+
+    static var hashingEnabledEnvironment: Bool? {
+        boolEnvironmentValue(forKey: hashingEnabledKey)
+    }
+
+    private static func boolEnvironmentValue(forKey key: String) -> Bool? {
+        guard let value = ProcessInfo.processInfo.environment[key] else { return nil }
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return !["0", "false", "no", "off"].contains(normalized)
+    }
+
+    private static func configuredHashingEnabled(defaultEnabled: Bool) -> Bool {
+        hashingEnabledEnvironment ?? defaultEnabled
     }
 
     static func setLoggingDirectory(_ path: String) {
@@ -31,5 +46,9 @@ enum Preferences {
     static func setUseSecondaryInstance(_ enabled: Bool) {
         setenv(secondaryInstanceKey, enabled ? "1" : "0", 1)
         useSecondaryMessagesInstance = enabled
+    }
+
+    static func configureHashing(defaultEnabled: Bool) {
+        hashingEnabled = configuredHashingEnabled(defaultEnabled: defaultEnabled)
     }
 }

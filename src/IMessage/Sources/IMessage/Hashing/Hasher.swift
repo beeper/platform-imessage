@@ -48,6 +48,19 @@ public extension Hasher {
     }
 
     func tokenizeRemembering(pii: PII) -> Token {
+        tokenizeRemembering(pii: pii, hashingEnabled: Preferences.hashingEnabled)
+    }
+}
+
+extension Hasher {
+    func tokenizeRemembering(pii: PII, hashingEnabled: Bool) -> Token {
+        guard hashingEnabled else {
+            return pii
+        }
+        return tokenizeHashRemembering(pii: pii)
+    }
+
+    func tokenizeHashRemembering(pii: PII) -> Token {
         lock.lock()
         defer { lock.unlock() }
 
