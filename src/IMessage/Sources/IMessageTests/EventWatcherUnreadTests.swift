@@ -96,6 +96,96 @@ import Testing
     #expect(deletedChatGUIDs == [alreadyDeletedThreadID, deletedThreadID])
 }
 
+@Test func nonForcedUnreadDiffPassReturnsExplicitDeletionsAsIs() {
+    let deletedThreadID = "any;-;deleted@example.invalid"
+    let keptThreadID = "any;-;kept@example.invalid"
+
+    let deletedChatGUIDs = EventWatcher.deletedChatGUIDsForUnreadDiff(
+        currentChatStates: [
+            keptThreadID: chatState(unreadCount: 0, seconds: 2),
+        ],
+        deletedChatGUIDs: [deletedThreadID],
+        trackedChatGUIDs: [deletedThreadID, keptThreadID],
+        forceFullUnreadStatePass: false
+    )
+
+    #expect(deletedChatGUIDs == [deletedThreadID])
+}
+
+@Test func nonForcedUnreadDiffPassDeduplicatesExplicitDeletions() {
+    let deletedThreadID = "any;-;deleted@example.invalid"
+
+    let deletedChatGUIDs = EventWatcher.deletedChatGUIDsForUnreadDiff(
+        currentChatStates: [:],
+        deletedChatGUIDs: [deletedThreadID, deletedThreadID, deletedThreadID],
+        trackedChatGUIDs: [deletedThreadID],
+        forceFullUnreadStatePass: false
+    )
+
+    #expect(deletedChatGUIDs == [deletedThreadID])
+}
+
+@Test func nonForcedUnreadDiffPassDoesNotReconcileTrackedChatsMissingFromCurrentState() {
+    // The key non-forced-branch assertion: reconciliation of tracked-but-absent
+    // chats must NOT fire when `forceFullUnreadStatePass` is false, because the
+    // scoped pass only queries a subset of chats and a chat being absent from
+    // `currentChatStates` is not evidence of deletion.
+    let trackedButAbsentThreadID = "any;-;tracked-absent@example.invalid"
+    let keptThreadID = "any;-;kept@example.invalid"
+
+    let deletedChatGUIDs = EventWatcher.deletedChatGUIDsForUnreadDiff(
+        currentChatStates: [
+            keptThreadID: chatState(unreadCount: 0, seconds: 2),
+        ],
+        deletedChatGUIDs: [],
+        trackedChatGUIDs: [trackedButAbsentThreadID, keptThreadID],
+        forceFullUnreadStatePass: false
+    )
+
+    #expect(deletedChatGUIDs.isEmpty)
+}
+
+@Test func nextPassDecisionIncrementsButDoesNotForceOnFirstTick() {
+    let decision = EventWatcher.nextPassDecision(currentCount: 0, forceNow: false, interval: 50)
+    #expect(decision.force == false)
+    #expect(decision.newCount == 1)
+}
+
+@Test func nextPassDecisionForcesAndResetsAtInterval() {
+    let decision = EventWatcher.nextPassDecision(currentCount: 49, forceNow: false, interval: 50)
+    #expect(decision.force == true)
+    #expect(decision.newCount == 0)
+}
+
+@Test func nextPassDecisionForcesImmediatelyWhenForceNowRegardlessOfCounter() {
+    let decision = EventWatcher.nextPassDecision(currentCount: 3, forceNow: true, interval: 50)
+    #expect(decision.force == true)
+    #expect(decision.newCount == 0)
+}
+
+@Test func nextPassDecisionResetsCounterAcrossCycles() {
+    // Walk through two full cycles to confirm the counter resets cleanly.
+    var count = 0
+    for _ in 1..<50 {
+        let step = EventWatcher.nextPassDecision(currentCount: count, forceNow: false, interval: 50)
+        #expect(step.force == false)
+        count = step.newCount
+    }
+    let firstFire = EventWatcher.nextPassDecision(currentCount: count, forceNow: false, interval: 50)
+    #expect(firstFire.force == true)
+    #expect(firstFire.newCount == 0)
+
+    count = firstFire.newCount
+    for _ in 1..<50 {
+        let step = EventWatcher.nextPassDecision(currentCount: count, forceNow: false, interval: 50)
+        #expect(step.force == false)
+        count = step.newCount
+    }
+    let secondFire = EventWatcher.nextPassDecision(currentCount: count, forceNow: false, interval: 50)
+    #expect(secondFire.force == true)
+    #expect(secondFire.newCount == 0)
+}
+
 private func chatState(unreadCount: Int, seconds: TimeInterval) -> ChatState {
     ChatState(
         unreadCount: unreadCount,

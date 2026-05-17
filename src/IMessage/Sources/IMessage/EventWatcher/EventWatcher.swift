@@ -16,7 +16,17 @@ struct TimestampedChatState {
 }
 
 final class EventWatcher {
+    /// Number of database-change ticks between forced full unread-state passes.
+    /// The interval bounds the staleness of deletion reconciliation and chat-only
+    /// read-state changes that the scoped per-tick pass cannot observe.
     private static let fullUnreadStatePassInterval = 50
+
+    /// Upper bound on `affectedChatGUIDs` for a scoped unread-state pass before
+    /// we promote to a full pass. SQLite's default `SQLITE_MAX_VARIABLE_NUMBER`
+    /// is 999; 500 leaves comfortable headroom for the rest of the binds in
+    /// `chatStates(forChatGUIDs:)` while still avoiding the cost of a full
+    /// pass for typical workloads.
+    private static let maxScopedChatGUIDs = 500
 
     var db: IMDatabase
 
@@ -69,18 +79,39 @@ final class EventWatcher {
 
             do {
                 let messageUpdateBatch = try collectMessageUpdateBatch()
+
+                // Force a full pass whenever the scoped pass cannot observe the
+                // change we care about:
+                //   1. No affected chats at all (chat-only updates / deletions).
+                //   2. Every affected chat is already tracked as read — the
+                //      scoped pass would emit nothing yet still miss chat-only
+                //      `last_read_message_timestamp` changes elsewhere. The full
+                //      pass is cheap relative to the bug it avoids.
+                //   3. Affected-chat count exceeds the scoped-pass parameter
+                //      ceiling (see `maxScopedChatGUIDs`).
+                let affectedChatsAlreadyRead = !messageUpdateBatch.changedChatGUIDs.isEmpty
+                    && messageUpdateBatch.changedChatGUIDs.allSatisfy { (chatStates[$0]?.state.unreadCount ?? 0) == 0 }
                 let forceFullUnreadStatePass = shouldForceFullUnreadStatePass(
                     forceNow: messageUpdateBatch.changedChatGUIDs.isEmpty
+                        || affectedChatsAlreadyRead
+                        || messageUpdateBatch.changedChatGUIDs.count > Self.maxScopedChatGUIDs
                 )
 
+                // Cheaply detect chats that vanished from the iMessage DB since
+                // the last tick so we can emit `deleteThreads` events without
+                // paying for a full unread-states pass.
+                let currentlyExistingGUIDs = try db.chatGUIDsWithMessages()
+                let perTickDeletedGUIDs = Array(Set(chatStates.keys).subtracting(currentlyExistingGUIDs))
+
                 // Query unread states for the chats touched by message updates.
-                // Full passes reconcile chat/message deletions and chat-only read
-                // state changes when there were no message updates, plus
-                // periodically as a backstop.
+                // Per-tick deletion reconciliation happens above via
+                // `chatGUIDsWithMessages()`; the periodic full pass is now a
+                // backstop for chat-only read-state changes that scoped passes
+                // cannot observe.
                 try eventsToSend.append(
                     contentsOf: diffChatStates(
                         affectedChatGUIDs: messageUpdateBatch.changedChatGUIDs,
-                        deletedChatGUIDs: [],
+                        deletedChatGUIDs: perTickDeletedGUIDs,
                         forceFullUnreadStatePass: forceFullUnreadStatePass
                     )
                 )
@@ -107,14 +138,30 @@ final class EventWatcher {
         }
     }
 
-    private func shouldForceFullUnreadStatePass(forceNow: Bool) -> Bool {
-        databaseChangesSinceFullUnreadStatePass += 1
+    func shouldForceFullUnreadStatePass(forceNow: Bool) -> Bool {
+        let decision = Self.nextPassDecision(
+            currentCount: databaseChangesSinceFullUnreadStatePass,
+            forceNow: forceNow,
+            interval: Self.fullUnreadStatePassInterval
+        )
+        databaseChangesSinceFullUnreadStatePass = decision.newCount
+        return decision.force
+    }
 
-        guard forceNow || databaseChangesSinceFullUnreadStatePass >= Self.fullUnreadStatePassInterval else {
-            return false
+    /// Pure decision function for the periodic-full-pass counter. Increments
+    /// the tick counter and decides whether this tick should be promoted to a
+    /// full unread-state pass (either because `forceNow` was requested, or
+    /// because the counter reached `interval`). Resets the counter to 0
+    /// whenever a full pass fires.
+    static func nextPassDecision(
+        currentCount: Int,
+        forceNow: Bool,
+        interval: Int
+    ) -> (force: Bool, newCount: Int) {
+        let incremented = currentCount + 1
+        if forceNow || incremented >= interval {
+            return (force: true, newCount: 0)
         }
-
-        databaseChangesSinceFullUnreadStatePass = 0
-        return true
+        return (force: false, newCount: incremented)
     }
 }

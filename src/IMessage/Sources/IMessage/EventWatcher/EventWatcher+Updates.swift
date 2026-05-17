@@ -31,9 +31,9 @@ private enum PendingMessage {
 }
 
 struct MessageUpdateBatch {
-    var changedChatGUIDs: Set<String>
-    var events: [ServerEvent]
-    var nextCursor: MessageUpdatesCursor
+    let changedChatGUIDs: Set<String>
+    let events: [ServerEvent]
+    let nextCursor: MessageUpdatesCursor
 }
 
 extension EventWatcher {
@@ -147,12 +147,6 @@ extension EventWatcher {
         }
 
         return events
-    }
-
-    func collectMessageUpdateEvents() throws -> [ServerEvent] {
-        let batch = try collectMessageUpdateBatch()
-        updatesCursor = batch.nextCursor
-        return batch.events
     }
 
     func collectMessageUpdateBatch() throws -> MessageUpdateBatch {
