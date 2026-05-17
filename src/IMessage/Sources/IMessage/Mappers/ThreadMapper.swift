@@ -35,7 +35,6 @@ enum ThreadMapper {
         // Mirrors EventWatcher+Unreads.swift. Desktop computes unread state from
         // `isMarkedUnread || unreadCount > 0`.
         let isUnread = unreadCount > 0
-
         return PlatformSDK.Thread(
             id: Hasher.thread.tokenizeRemembering(pii: guid),
             // Works around PAS's "map missing" behavior where the folder name
@@ -44,20 +43,18 @@ enum ThreadMapper {
             title: chat.displayName,
             isUnread: isUnread,
             isReadOnly: isReadOnly,
-            isPinned: false,
             mutedUntil: context.dndState.contains(isGroup ? (chat.groupID ?? "") : (chat.chatIdentifier ?? "")) ? "forever" : nil,
             type: isGroup ? .group : .single,
             timestamp: appleDateMilliseconds(chat.msgDate),
             imgURL: chatPhotoURL(props: props, accountID: context.accountID),
             messages: PlatformSDK.Paginated(items: messages, hasMore: true),
             participants: PlatformSDK.Paginated(items: participants, hasMore: false),
-            extra: compactDictionary([
-                "isSMS": (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;")) ? true : nil,
-            ]),
+            extra: (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;"))
+                ? ["isSMS": true]
+                : nil,
             unreadCount: unreadCount,
             isMarkedUnread: isUnread,
-            lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp),
-            isLowPriority: false
+            lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp)
         )
     }
 
