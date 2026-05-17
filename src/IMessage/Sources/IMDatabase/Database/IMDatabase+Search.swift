@@ -9,6 +9,8 @@ public extension IMDatabase {
     ///   - chatGUID: Optional chat GUID to filter messages by conversation
     ///   - mediaOnly: If true, only return messages with attachments
     ///   - sender: Optional sender filter - "me" for sent messages, "others" for received messages
+    ///   - cursor: Optional message date cursor to page before or after
+    ///   - direction: Whether the cursor should fetch older (`before`) or newer (`after`) matches
     ///   - limit: Maximum number of results to return
     /// - Returns: Array of ROWIDs for messages that match the search query
     func searchMessages(
@@ -16,9 +18,13 @@ public extension IMDatabase {
         chatGUID: String? = nil,
         mediaOnly: Bool = false,
         sender: String? = nil,
+        cursor: String? = nil,
+        direction: MappedPageDirection? = nil,
         limit: Int = 20
     ) throws -> [Int] {
         let queryLower = query.lowercased()
+        let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
+        let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
 
         // Build SQL query with optional filters
         var sql = """
@@ -51,6 +57,9 @@ public extension IMDatabase {
         } else if sender == "others" {
             sql += "\nAND m.is_from_me = 0"
         }
+        if let comparisonOperator {
+            sql += "\nAND m.date \(comparisonOperator) ?"
+        }
 
         sql += """
 
@@ -64,8 +73,12 @@ public extension IMDatabase {
         let statement = try cachedStatement(forEscapedSQL: sql).reset()
 
         // Bind parameters in order
-        if let chatGUID {
+        if let chatGUID, let withCursor {
+            try statement.bind(chatGUID, withCursor.cursor, fetchLimit)
+        } else if let chatGUID {
             try statement.bind(chatGUID, fetchLimit)
+        } else if let withCursor {
+            try statement.bind(withCursor.cursor, fetchLimit)
         } else {
             try statement.bind(fetchLimit)
         }

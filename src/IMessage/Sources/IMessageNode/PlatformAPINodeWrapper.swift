@@ -45,8 +45,22 @@ import PlatformSDK
         try await api.startEventWatchingFromCurrentState()
     }
 
-    @NodeMethod func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> String {
-        let messages = try await api.searchMessages(typed: typed, threadID: threadID, mediaOnly: mediaOnly, sender: sender, limit: limit)
+    @NodeMethod func searchMessages(
+        typed: String,
+        threadID: String?,
+        mediaOnly: Bool?,
+        sender: String?,
+        pagination: NodeObject?,
+        limit: Int?
+    ) async throws -> String {
+        let messages = try await api.searchMessages(
+            typed: typed,
+            threadID: threadID,
+            mediaOnly: mediaOnly,
+            sender: sender,
+            pagination: try paginationArg(from: pagination),
+            limit: limit
+        )
         return try encodeJSON(messages.jsonObject)
     }
 

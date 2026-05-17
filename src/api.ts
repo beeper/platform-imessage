@@ -213,6 +213,7 @@ export default class AppleiMessage implements PlatformAPI {
       options?.threadID,
       Boolean(options?.mediaType),
       options?.sender,
+      pagination,
       undefined,
     ))
   }

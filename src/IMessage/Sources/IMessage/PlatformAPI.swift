@@ -141,7 +141,14 @@ public final class PlatformAPI {
         )
     }
 
-    public func searchMessages(typed: String, threadID: String?, mediaOnly: Bool?, sender: String?, limit: Int?) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
+    public func searchMessages(
+        typed: String,
+        threadID: String?,
+        mediaOnly: Bool?,
+        sender: String?,
+        pagination: PlatformSDK.PaginationArg? = nil,
+        limit: Int? = nil
+    ) async throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.searchMessages(
                 db: db,
@@ -151,6 +158,7 @@ public final class PlatformAPI {
                 sender: sender,
                 currentUserID: currentUser.id,
                 accountID: accountID,
+                pagination: pagination,
                 limit: limit
             )
         }
@@ -855,15 +863,19 @@ public final class PlatformAPI {
         sender: String?,
         currentUserID: String,
         accountID: String,
+        pagination: PlatformSDK.PaginationArg? = nil,
         limit: Int? = nil
     ) throws -> PlatformSDK.PaginatedWithCursors<PlatformSDK.Message> {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let effectiveLimit = limit ?? messagePageLimit
+        let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
         let matchingRowIDs = try db.searchMessages(
             query: query,
             chatGUID: threadID,
             mediaOnly: mediaOnly,
             sender: sender,
+            cursor: pagination?.cursor,
+            direction: pageDirection,
             limit: effectiveLimit
         )
         guard !matchingRowIDs.isEmpty else {
@@ -884,7 +896,8 @@ public final class PlatformAPI {
         return PlatformSDK.PaginatedWithCursors(
             items: messages,
             hasMore: matchingRowIDs.count == effectiveLimit,
-            oldestCursor: msgRows.first?.date.map(String.init) ?? ""
+            oldestCursor: msgRows.last?.date.map(String.init) ?? "",
+            newestCursor: msgRows.first?.date.map(String.init)
         )
     }
 }

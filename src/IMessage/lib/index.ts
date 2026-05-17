@@ -23,6 +23,7 @@ export declare class NativePlatformAPI {
     threadID: ThreadID | undefined,
     mediaOnly: boolean | undefined,
     sender: 'me' | UserID | undefined,
+    pagination: PaginationArg | undefined,
     limit?: number,
   ) => Promise<string>
 
