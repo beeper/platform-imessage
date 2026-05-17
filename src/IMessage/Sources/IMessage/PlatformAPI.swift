@@ -9,7 +9,6 @@ private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
-private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
@@ -25,6 +24,14 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             cachedDatabase = newDatabase
             return try action(newDatabase)
         }
+    }
+}
+
+private final class MessageSendAttemptContext: @unchecked Sendable {
+    let sentMessageObservation: SentMessageReportObservation
+
+    init(sentMessageObservation: SentMessageReportObservation) {
+        self.sentMessageObservation = sentMessageObservation
     }
 }
 
@@ -135,9 +142,11 @@ public final class PlatformAPI {
                 )
             }
         }.value
-        try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
+        try await EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
             cursor: snapshot.cursor,
-            currentUserID: snapshot.currentUserID
+            currentUserID: snapshot.currentUserID,
+            accountID: accountID,
+            reportErrorMessage: errorMessageReporter
         )
     }
 
@@ -274,10 +283,10 @@ public final class PlatformAPI {
             throw ErrorMessage("Cannot send message to email address over SMS")
         }
 
-        let lastRowID = try await performControllerOperation(
+        let context = try await performControllerOperation(
             name: "sendMessage",
             retries: quotedMessageID == nil ? 1 : 2,
-            prepareAttempt: { try await self.lastMessageRowID() }
+            prepareAttempt: { try await self.prepareMessageSendAttempt() }
         ) { controller in
             try controller.sendMessage(
                 threadID: threadID,
@@ -291,7 +300,7 @@ public final class PlatformAPI {
             threadID: threadID,
             expectedLinkedMessageID: quotedMessageID,
             text: text,
-            lastRowID: lastRowID,
+            context: context,
             timeout: messageSendTimeout
         )
     }
@@ -610,15 +619,15 @@ public final class PlatformAPI {
         try await performControllerOperation(
             name: on ? "addReaction" : "removeReaction",
             retries: 2,
-            prepareAttempt: { try await self.lastMessageRowID() }
+            prepareAttempt: { try await self.prepareMessageSendAttempt() }
         ) { controller in
             try controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
-        } afterAttempt: { lastRowID in
+        } afterAttempt: { context in
             _ = try await self.waitForMessageSend(
                 threadID: threadID,
                 expectedLinkedMessageID: messageID,
                 text: nil,
-                lastRowID: lastRowID,
+                context: context,
                 timeout: reactionSendTimeout
             )
         }
@@ -633,20 +642,27 @@ public final class PlatformAPI {
         }.value
     }
 
+    private func prepareMessageSendAttempt() async throws -> MessageSendAttemptContext {
+        try await startEventWatchingFromCurrentState()
+        let lastRowID = try await lastMessageRowID()
+        return MessageSendAttemptContext(
+            sentMessageObservation: EventWatcherLifecycle.shared.observeSentMessages(after: lastRowID)
+        )
+    }
+
     private func waitForMessageSend(
         threadID: String,
         expectedLinkedMessageID: String?,
         text: String?,
-        lastRowID: Int,
+        context: MessageSendAttemptContext,
         timeout: TimeInterval
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
-        let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
+        let sentMessageReports = try await waitForSentMessageReports(context: context, text: text, timeout: timeout)
+        let sentThreadIDs = sentMessageReports.map(\.threadID)
         let address = threadIDToAddress(threadID)
         let sentThreadIsValid = try await withMessagesController { controller in
             sentThreadIDs.allSatisfy { sentThreadID in
                 if sentThreadID == threadID { return true }
-                guard let sentThreadID else { return false }
                 return controller.isSameContact(address, threadIDToAddress(sentThreadID))
             }
         }
@@ -656,76 +672,61 @@ public final class PlatformAPI {
             return .boolean(true)
         }
 
-        let messages = try await sentMessages(sentMessageIDs)
+        let messages = sentMessageReports.flatMap(\.messages)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
     }
 
-    private func waitForSentMessageIDs(
-        since lastRowID: Int,
+    private func waitForSentMessageReports(
+        context: MessageSendAttemptContext,
         text: String?,
         timeout: TimeInterval
-    ) async throws -> [(rowID: Int, guid: String)] {
-        let database = database
-        return try await Task.detached(priority: .userInitiated) {
-            let start = Date()
-            let expectedNewMessageIDCount = text.map { max($0.linkCount, 1) } ?? 1
-            var sentMessageIDs: [(rowID: Int, guid: String)] = []
-            while sentMessageIDs.count != expectedNewMessageIDCount {
-                sentMessageIDs = try database.withDatabase { db in
-                    try db.sentMessageIDs(since: lastRowID)
-                }
-                if text != nil, !sentMessageIDs.isEmpty, Date().timeIntervalSince(start) > waitForLinksTimeout {
-                    break
-                }
-                if Date().timeIntervalSince(start) > timeout {
-                    throw ErrorMessage("timed out waiting for sent messages")
-                }
-                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
-            }
-            return sentMessageIDs
-        }.value
-    }
+    ) async throws -> [SentMessageReport] {
+        let start = Date()
+        let expectedNewMessageIDCount = text.map { max($0.linkCount, 1) } ?? 1
+        let collectedReports = Protected<[SentMessageReport]>([])
+        let seenRowIDs = Protected(Set<Int>())
+        let observation = context.sentMessageObservation
+        defer { observation.cancel() }
 
-    private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
-        let database = database
-        return try await Task.detached(priority: .userInitiated) {
-            let sentThreadIDs = {
-                try messageRowIDs.map { rowID in
-                    try database.withDatabase { db in
-                        try db.threadIDForMessage(rowID: rowID)
+        return try await withThrowingTaskGroup(of: [SentMessageReport].self) { group in
+            group.addTask {
+                for await report in observation.stream {
+                    let isNew = seenRowIDs.withLock { $0.insert(report.rowID).inserted }
+                    guard isNew else { continue }
+                    let reports = collectedReports.withLock { reports in
+                        reports.append(report)
+                        return reports
+                    }
+                    if reports.count == expectedNewMessageIDCount {
+                        return reports
+                    }
+                }
+                return collectedReports.read()
+            }
+
+            if text != nil {
+                group.addTask {
+                    while true {
+                        try await Task.sleep(forTimeInterval: sentMessagePollInterval)
+                        let reports = collectedReports.read()
+                        if !reports.isEmpty, Date().timeIntervalSince(start) > waitForLinksTimeout {
+                            return reports
+                        }
                     }
                 }
             }
-            var threadIDs = try sentThreadIDs()
-            let start = Date()
-            while threadIDs.contains(where: { $0 == nil }) {
-                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
-                threadIDs = try sentThreadIDs()
-                if Date().timeIntervalSince(start) > waitForSentThreadTimeout {
-                    break
-                }
-            }
-            return threadIDs
-        }.value
-    }
 
-    private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [PlatformSDK.Message] {
-        try await runDBQuery { db, currentUser, accountID in
-            var messages = [PlatformSDK.Message]()
-            for sentMessageID in sentMessageIDs {
-                guard let message = try Self.messageObject(
-                    db: db,
-                    threadID: nil,
-                    messageID: sentMessageID.guid,
-                    currentUserID: currentUser.id,
-                    accountID: accountID
-                ) else {
-                    continue
-                }
-                messages.append(message)
+            group.addTask {
+                try await Task.sleep(forTimeInterval: timeout)
+                throw ErrorMessage("timed out waiting for sent messages")
             }
-            return messages
+
+            guard let reports = try await group.next() else {
+                throw ErrorMessage("timed out waiting for sent messages")
+            }
+            group.cancelAll()
+            return reports
         }
     }
 

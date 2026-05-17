@@ -32,9 +32,6 @@ struct IMessageCLI: AsyncParsableCommand {
     @Flag(name: .long, help: "Run one command, then stay open in the interactive shell.")
     var stayOpen = false
 
-    @Flag(name: .long, help: "Do not subscribe to new DB changes after running commands.")
-    var noEvents = false
-
     @Flag(name: .long, help: "Enable verbose logging.")
     var verbose = false
 
@@ -47,7 +44,6 @@ struct IMessageCLI: AsyncParsableCommand {
             customDataDir: dataDir,
             keepAlive: stayOpen,
             loggingEnabled: verbose,
-            subscribeToEvents: !noEvents,
             useSecondaryInstance: IMessageHost.useSecondaryInstanceEnvironment ?? useSecondaryInstance
         )
         if !options.keepAlive, try runBootstrapFreeCommandIfNeeded(options.commandArgs) {
@@ -117,7 +113,6 @@ private struct RunnerOptions {
     var customDataDir: String?
     var keepAlive: Bool
     var loggingEnabled: Bool
-    var subscribeToEvents: Bool
     var useSecondaryInstance: Bool
 }
 
@@ -164,10 +159,6 @@ private final class InvokeContext {
 
     func showState() {
         runner.showState()
-    }
-
-    func startEventWatching(api: PlatformAPI) async throws {
-        try await runner.startEventWatching(api: api)
     }
 
     func printEventJSON(_ json: String) {
@@ -250,9 +241,7 @@ private final class Runner {
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
         let api = try api()
-        if options.subscribeToEvents {
-            ensureEventSubscription(api: api)
-        }
+        try await startEventWatching(api: api)
 
         let id = String(format: "%05d", nextCallID)
         nextCallID += 1
@@ -288,7 +277,6 @@ private final class Runner {
             "dataDirPath": state.dataDirPath,
             "hashingEnabled": IMessageHost.isHashingEnabled,
             "sessionFilePath": state.sessionFilePath,
-            "subscribeToEvents": state.options.subscribeToEvents,
             "loggingEnabled": state.options.loggingEnabled,
             "useSecondaryInstance": state.options.useSecondaryInstance,
         ]
@@ -381,7 +369,7 @@ private final class Runner {
 
     private func runShellAuthorizationFlowIfNeeded() async throws -> Bool {
         let messagesDataStatus = await AuthorizationRequirement.messagesData.currentStatus()
-        guard !messagesDataStatus.authorized else { return options.subscribeToEvents }
+        guard !messagesDataStatus.authorized else { return true }
 
         let missingSetup = await missingAuthorizationRequirements([.accessibility, .contacts, .messagesData])
         let authTarget = missingSetup.count > 1 ? "all" : AuthorizationRequirement.messagesData.rawValue
@@ -393,7 +381,7 @@ private final class Runner {
             fputs("event watching startup skipped: Messages Data was not granted. \(updated.detail)\n", stderr)
             return false
         }
-        return options.subscribeToEvents
+        return true
     }
 
     private func runParsedCommand(name: String, args: [String]) async throws {
@@ -472,42 +460,12 @@ private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
         name: "watch-status",
         category: .watching,
-        summary: "Print event watcher subscription and running state.",
+        summary: "Print event watcher running state.",
         usage: ["watch-status"],
         examples: ["watch-status"]
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
         print(IMessageHost.isEventWatching)
-    },
-    CommandDefinition(
-        name: "start-watching",
-        category: .watching,
-        summary: "Start watching Messages database changes and print new DB changes.",
-        usage: ["start-watching"],
-        examples: ["start-watching"],
-        notes: ["Most useful in the interactive shell, or with --stay-open."],
-        requiredAuthorization: readOnlyAuth
-    ) { args, context in
-        try requireExactArgs(context.command, args, 0)
-        try await context.invoke(args: []) { api in
-            try await context.startEventWatching(api: api)
-            return nil
-        }
-    },
-    CommandDefinition(
-        name: "stop-watching",
-        category: .watching,
-        summary: "Stop watching Messages database changes.",
-        usage: ["stop-watching"],
-        examples: ["stop-watching"],
-        notes: ["Stops the watcher task but keeps the CLI process open."],
-        requiredAuthorization: readOnlyAuth
-    ) { args, context in
-        try requireExactArgs(context.command, args, 0)
-        try await context.invoke(args: []) { api in
-            await IMessageHost.stopEventWatching()
-            return nil
-        }
     },
     CommandDefinition(
         name: "current-user",
@@ -1216,7 +1174,6 @@ private func printTopLevelHelp() {
         "Global options:",
         "  --data-dir PATH          Store CLI state under PATH instead of a temp directory",
         "  --use-secondary-instance Use a secondary Messages.app instance (default). Pass --no-use-secondary-instance to disable",
-        "  --no-events              Do not subscribe to new DB changes after running commands",
         "  --stay-open              Run one command, then stay open in the interactive shell",
         "  --verbose                Enable verbose logging",
         "",

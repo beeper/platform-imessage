@@ -25,7 +25,6 @@ import type { CliAuthorizationRequirement } from './auth'
 
 const KEEP_ALIVE_FLAG = '--stay-open'
 const DATA_DIR_FLAG = '--data-dir'
-const NO_EVENTS_FLAG = '--no-events'
 const VERBOSE_FLAG = '--verbose'
 const USE_SECONDARY_INSTANCE_FLAG = '--use-secondary-instance'
 const NO_SECONDARY_INSTANCE_FLAG = '--no-secondary-instance'
@@ -39,7 +38,6 @@ const GLOBAL_CLI_OPTIONS = {
   'use-secondary-instance': { type: 'boolean' },
   'no-secondary-instance': { type: 'boolean' },
   'stay-open': { type: 'boolean' },
-  'no-events': { type: 'boolean' },
   verbose: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const
@@ -58,7 +56,6 @@ type RunnerOptions = {
   customDataDir?: string
   keepAlive: boolean
   loggingEnabled: boolean
-  subscribeToEvents: boolean
   useSecondaryInstance: boolean
 }
 
@@ -163,7 +160,6 @@ function parseCliArgs(argv: string[]): RunnerOptions {
     customDataDir: values['data-dir'],
     keepAlive: values['stay-open'] ?? false,
     loggingEnabled: values.verbose ?? false,
-    subscribeToEvents: !(values['no-events'] ?? false),
     useSecondaryInstance,
   }
 }
@@ -325,7 +321,6 @@ function formatGlobalFlags() {
     `  ${DATA_DIR_FLAG} PATH     Store CLI state under PATH instead of a temp directory`,
     `  ${USE_SECONDARY_INSTANCE_FLAG}  Use a secondary Messages.app instance (default)`,
     `  ${NO_SECONDARY_INSTANCE_FLAG}   Use the existing Messages.app instance`,
-    `  ${NO_EVENTS_FLAG}        Do not subscribe to server events after running commands`,
     `  ${KEEP_ALIVE_FLAG}       Run one command, then stay open in the interactive shell`,
     `  ${VERBOSE_FLAG}          Enable verbose logging`,
   ]
@@ -819,7 +814,7 @@ async function main(runnerOptions: RunnerOptions) {
   }
 
   async function ensureEventSubscription(api: CliPlatformAPI) {
-    if (eventsStarted || !state.subscribeToEvents) return
+    if (eventsStarted) return
     eventsStarted = true
     await Promise.resolve(api.subscribeToEvents(onEvent)).catch((error: unknown) => {
       console.error('event subscription failed:', error)
@@ -906,7 +901,6 @@ async function main(runnerOptions: RunnerOptions) {
       dataDirPath: state.dataDirPath,
       hashingEnabled: cliHashingEnabled(),
       sessionFilePath: state.sessionFilePath,
-      subscribeToEvents: state.subscribeToEvents,
       loggingEnabled: state.loggingEnabled,
       useSecondaryInstance: state.useSecondaryInstance,
     }, { colors: true, depth: 4 }))

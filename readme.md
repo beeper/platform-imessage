@@ -93,7 +93,7 @@ imessage> help create-chat
 imessage> quit
 ```
 
-The shell will automatically subscribe to real-time events (incoming messages, etc.) unless you pass `--no-events`.
+The shell automatically subscribes to real-time events (incoming messages, etc.).
 
 > [!NOTE]
 > For arrow-up recall, in development, commands you run are recorded in plain text to `.cli.history.json` at the repo root. This includes the plaintext of any messages sent via `send`/`reply`/`edit`. Released builds do not persist shell history unless `IMESSAGE_CLI_HISTORY_FILE` is set.

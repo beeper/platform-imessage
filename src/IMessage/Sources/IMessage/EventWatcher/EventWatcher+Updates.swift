@@ -30,6 +30,11 @@ private enum PendingMessage {
     }
 }
 
+struct MessageUpdateProcessingResult {
+    let events: [ServerEvent]
+    let sentMessageReports: [SentMessageReport]
+}
+
 extension EventWatcher {
     static func messageUpdateEvents(
         changes: [UpdatedMessageChange],
@@ -39,9 +44,27 @@ extension EventWatcher {
         currentUserID: String,
         accountID: String
     ) throws -> [ServerEvent] {
+        try messageUpdateResult(
+            changes: changes,
+            msgRowsByRowID: msgRowsByRowID,
+            attachmentRows: attachmentRows,
+            reactionRows: reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        ).events
+    }
+
+    static func messageUpdateResult(
+        changes: [UpdatedMessageChange],
+        msgRowsByRowID: [Int: MappedMessageRow],
+        attachmentRows: [MappedAttachmentRow],
+        reactionRows: [MappedReactionMessageRow],
+        currentUserID: String,
+        accountID: String
+    ) throws -> MessageUpdateProcessingResult {
         guard !changes.isEmpty else {
             traceMessageUpdates("no messages updated this time around")
-            return []
+            return MessageUpdateProcessingResult(events: [], sentMessageReports: [])
         }
 
         var pendingByRowID = OrderedDictionary<Int, PendingMessage>()
@@ -92,10 +115,18 @@ extension EventWatcher {
         )
 
         var events = [ServerEvent]()
+        var sentMessageReports = [SentMessageReport]()
         for pending in pendingByRowID.values {
             let mappedMessages = mappedMessagesByRowID[pending.row.rowID] ?? []
             switch pending {
             case let .reactionAction(threadID, row, reaction, target):
+                if row.isFromMe == 1 {
+                    sentMessageReports.append(SentMessageReport(
+                        rowID: row.rowID,
+                        threadID: threadID,
+                        messages: mappedMessages
+                    ))
+                }
                 let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
                 switch reaction.action {
                 case .reacted:
@@ -127,6 +158,13 @@ extension EventWatcher {
             case let .normal(threadID, _, change):
                 let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
                 if change.isNew {
+                    if pending.row.isFromMe == 1 {
+                        sentMessageReports.append(SentMessageReport(
+                            rowID: pending.row.rowID,
+                            threadID: threadID,
+                            messages: mappedMessages
+                        ))
+                    }
                     if !mappedMessages.isEmpty {
                         events.append(.upsertMessages(threadID: hashedThreadID, messages: mappedMessages))
                     }
@@ -140,24 +178,28 @@ extension EventWatcher {
             }
         }
 
-        return events
+        return MessageUpdateProcessingResult(events: events, sentMessageReports: sentMessageReports)
     }
 
     func collectMessageUpdateEvents() throws -> [ServerEvent] {
+        try collectMessageUpdates().events
+    }
+
+    func collectMessageUpdates() throws -> MessageUpdateProcessingResult {
         let previousCursor = updatesCursor
         let queryResult = try db.messages(since: previousCursor)
         traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
 
-        let events = try messageUpdateEvents(for: queryResult)
+        let result = try messageUpdateResult(for: queryResult)
         traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
         updatesCursor = queryResult.nextCursor
-        return events
+        return result
     }
 
-    private func messageUpdateEvents(for queryResult: UpdatedMessagesQueryResult) throws -> [ServerEvent] {
+    private func messageUpdateResult(for queryResult: UpdatedMessagesQueryResult) throws -> MessageUpdateProcessingResult {
         guard !queryResult.updatedMessages.isEmpty else {
             traceMessageUpdates("no messages updated this time around")
-            return []
+            return MessageUpdateProcessingResult(events: [], sentMessageReports: [])
         }
 
         let msgRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
@@ -166,7 +208,7 @@ extension EventWatcher {
         let msgRowsByRowID = Dictionary(msgRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
 
         let payloadRows = try PlatformAPI.messagePayloadRows(db: db, msgRows: Array(msgRowsByRowID.values), threadID: "")
-        return try Self.messageUpdateEvents(
+        return try Self.messageUpdateResult(
             changes: queryResult.updatedMessages,
             msgRowsByRowID: msgRowsByRowID,
             attachmentRows: payloadRows.attachmentRows,

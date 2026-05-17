@@ -111,8 +111,8 @@ public enum IMessageHost {
         }
     }
 
+    @available(*, deprecated, message: "Event watching runs for the PlatformAPI lifetime. Dispose the API to stop it.")
     public static func stopEventWatching() async {
-        await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: false)
     }
 
     public static var isEventWatching: Bool {

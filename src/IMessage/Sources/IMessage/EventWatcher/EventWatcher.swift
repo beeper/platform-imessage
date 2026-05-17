@@ -25,10 +25,12 @@ final class EventWatcher {
     let currentUserID: String
     let accountID: String
     private var sender: PlatformAPI.EventCallback
+    private let sentMessageReporter: @Sendable ([SentMessageReport]) -> Void
     private let reportErrorMessage: PlatformAPI.ReportErrorMessage?
 
     init(
         serverEventSender sender: @escaping PlatformAPI.EventCallback,
+        sentMessageReporter: @escaping @Sendable ([SentMessageReport]) -> Void = { _ in },
         initialUpdatesCursor: MessageUpdatesCursor,
         currentUserID: String,
         accountID: String,
@@ -40,17 +42,19 @@ final class EventWatcher {
             self.db.noisy = true
         }
         self.sender = sender
+        self.sentMessageReporter = sentMessageReporter
         self.updatesCursor = initialUpdatesCursor
         self.currentUserID = currentUserID
         self.accountID = accountID
         self.reportErrorMessage = reportErrorMessage
     }
 
-    func watchForever() async throws {
+    func watchForever(onReady: @escaping @Sendable () -> Void = {}) async throws {
         chatStates = try db.chatStates().mapValues { state in
             TimestampedChatState(minting: state)
         }
         try db.beginListeningForChanges()
+        onReady()
 
         for try await _ in db.changes.subscribe() {
             guard !Task.isCancelled else {
@@ -69,7 +73,9 @@ final class EventWatcher {
                 try eventsToSend.append(contentsOf: diffChatStates())
 
                 // Ditto, but for any new messages/read state changes.
-                try eventsToSend.append(contentsOf: collectMessageUpdateEvents())
+                let messageUpdates = try collectMessageUpdates()
+                sentMessageReporter(messageUpdates.sentMessageReports)
+                eventsToSend.append(contentsOf: messageUpdates.events)
             }
 
             guard !eventsToSend.isEmpty else { continue }

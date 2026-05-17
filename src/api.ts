@@ -66,6 +66,7 @@ export default class AppleiMessage implements PlatformAPI {
   login = async (): Promise<LoginResult> => {
     try {
       await this.ensureDB()
+      await this.startEventWatchingFromCurrentState()
       return { type: 'success' }
     } catch (error) {
       const errorMessage = 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.'
@@ -95,6 +96,9 @@ export default class AppleiMessage implements PlatformAPI {
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
     this.swiftPlatformAPI ??= new imessage.PlatformAPI(this.accountID)
+    await this.startEventWatchingFromCurrentState().catch(error => {
+      texts.error('imsg: event watching startup failed:', error)
+    })
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -130,13 +134,6 @@ export default class AppleiMessage implements PlatformAPI {
         this.eventWatchingStartInFlight = undefined
       })
     return this.eventWatchingStartInFlight
-  }
-
-  private startEventWatchingAfterInitialThreads = async (): Promise<void> => {
-    if (!this.onEvent || this.eventWatchingStarted) return
-    await this.startEventWatchingFromCurrentState().catch(error => {
-      texts.error('imsg: event watching startup failed:', error)
-    })
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {
@@ -177,9 +174,6 @@ export default class AppleiMessage implements PlatformAPI {
       pagination,
     ))
     if (texts.isLoggingEnabled) console.timeEnd('imsg getThreads')
-    if (folderName === 'normal' && !pagination?.cursor) {
-      await this.startEventWatchingAfterInitialThreads()
-    }
     return {
       ...response,
       items: response.items.map(thread => this.applyPersistedThreadState(thread)),

@@ -98,18 +98,133 @@ import Testing
     #expect(eventObject["mutationType"] as? String == "upsert")
 }
 
+@Test func outgoingNewMessagesProduceSentMessageReportsAndKeepUpsertEvent() throws {
+    let threadID = "any;-;fixture-contact-a@example.invalid"
+    let messageGUID = "00000000-0000-4000-8000-000000000044"
+    let row = try normalMessageRow(
+        rowID: 7,
+        guid: messageGUID,
+        threadID: threadID,
+        isFromMe: true
+    )
+
+    let result = try EventWatcher.messageUpdateResult(
+        changes: [
+            UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: true, wasRead: false, wasEdited: false),
+        ],
+        msgRowsByRowID: [row.rowID: row],
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "fixture-self@example.invalid",
+        accountID: "default"
+    )
+
+    let report = try #require(result.sentMessageReports.first)
+    let eventObject = try #require(result.events.first?.jsonObject())
+
+    #expect(result.sentMessageReports.count == 1)
+    #expect(report.rowID == row.rowID)
+    #expect(report.threadID == threadID)
+    #expect(report.messages.first?.id == messageGUID)
+    #expect(eventObject["objectName"] as? String == "message")
+    #expect(eventObject["mutationType"] as? String == "upsert")
+}
+
+@Test func incomingNewMessagesDoNotProduceSentMessageReports() throws {
+    let threadID = "any;-;fixture-contact-a@example.invalid"
+    let row = try normalMessageRow(
+        rowID: 8,
+        guid: "00000000-0000-4000-8000-000000000045",
+        threadID: threadID,
+        isFromMe: false
+    )
+
+    let result = try EventWatcher.messageUpdateResult(
+        changes: [
+            UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: true, wasRead: false, wasEdited: false),
+        ],
+        msgRowsByRowID: [row.rowID: row],
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "fixture-self@example.invalid",
+        accountID: "default"
+    )
+
+    #expect(result.sentMessageReports.isEmpty)
+    #expect(!result.events.isEmpty)
+}
+
+@Test func outgoingReactionActionRowsProduceSentMessageReports() throws {
+    let threadID = "any;-;fixture-contact-a@example.invalid"
+    let row = try reactionActionRow(
+        rowID: 9,
+        guid: "00000000-0000-4000-8000-000000000046",
+        threadID: threadID,
+        reactionType: 2001,
+        replyToGUID: nil
+    )
+
+    let result = try EventWatcher.messageUpdateResult(
+        changes: [
+            UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: true, wasRead: false, wasEdited: false),
+        ],
+        msgRowsByRowID: [row.rowID: row],
+        attachmentRows: [],
+        reactionRows: [],
+        currentUserID: "fixture-self@example.invalid",
+        accountID: "default"
+    )
+
+    let report = try #require(result.sentMessageReports.first)
+    #expect(result.sentMessageReports.count == 1)
+    #expect(report.rowID == row.rowID)
+    #expect(report.threadID == threadID)
+    #expect(result.events.contains { $0.jsonObject()["objectName"] as? String == "message_reaction" })
+}
+
+@Test func sentMessageReportHubFiltersAndCleansObservers() async throws {
+    let hub = SentMessageReportHub()
+    let observation = hub.observe(after: 10)
+
+    #expect(hub.observerCount == 1)
+
+    hub.broadcast([
+        SentMessageReport(rowID: 10, threadID: "thread-a", messages: []),
+        SentMessageReport(rowID: 11, threadID: "thread-b", messages: []),
+    ])
+
+    var iterator = observation.stream.makeAsyncIterator()
+    let report = await iterator.next()
+
+    #expect(report?.rowID == 11)
+    #expect(report?.threadID == "thread-b")
+
+    observation.cancel()
+    #expect(hub.observerCount == 0)
+}
+
+@Test func sentMessageReportHubCleansObserverWhenObservationIsCanceled() {
+    let hub = SentMessageReportHub()
+    let observation = hub.observe(after: 0)
+
+    #expect(hub.observerCount == 1)
+    observation.cancel()
+    #expect(hub.observerCount == 0)
+}
+
 private func normalMessageRow(
     rowID: Int,
     guid: String,
     threadID: String,
-    dateRead: Int? = nil
+    dateRead: Int? = nil,
+    isFromMe: Bool = false
 ) throws -> MappedMessageRow {
     try MappedMessageRow(object: [
         "ROWID": rowID,
         "guid": guid,
         "date": rowID,
         "date_read": dateRead as Any,
-        "is_from_me": 0,
+        "is_from_me": isFromMe ? 1 : 0,
         "is_read": dateRead == nil ? 0 : 1,
         "handle_id": 1,
         "item_type": 0,

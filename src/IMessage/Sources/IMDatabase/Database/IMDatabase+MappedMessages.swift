@@ -51,22 +51,6 @@ public extension IMDatabase {
         }.first ?? .empty
     }
 
-    func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
-        let statement = try cachedStatement(forEscapedSQL: """
-        SELECT ROWID, guid
-        FROM message
-        WHERE is_from_me = 1 AND ROWID > ?
-        """).reset()
-        try statement.bind(rowID)
-        return try statement.compactMapRowsUntilDone { row in
-            guard let rowID = try row[0].optionalConverting(Int.self),
-                  let guid = try row[1].optionalConverting(String.self) else {
-                return nil
-            }
-            return (rowID, guid)
-        }
-    }
-
     func threadIDForMessage(rowID: Int) throws -> String? {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT t.guid
