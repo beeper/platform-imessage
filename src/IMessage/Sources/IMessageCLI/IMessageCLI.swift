@@ -8,7 +8,7 @@ import PlatformSDK
 
 private let accountID = "default"
 private let prompt = "imessage> "
-private let commandCategories: [Category] = [.general, .watching, .message, .chat]
+private let commandCategories: [Category] = [.general, .chat, .message, .watching]
 private let quitCommands: Set<String> = ["q", "quit", "exit"]
 
 @main
