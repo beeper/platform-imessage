@@ -284,14 +284,19 @@ private final class Runner {
 
     func showState() {
         guard let state else { return }
-        print(formatValue([
+        let stateObject: [String: Any] = [
             "dataDirPath": state.dataDirPath,
             "hashingEnabled": IMessageHost.isHashingEnabled,
             "sessionFilePath": state.sessionFilePath,
             "subscribeToEvents": state.options.subscribeToEvents,
             "loggingEnabled": state.options.loggingEnabled,
             "useSecondaryInstance": state.options.useSecondaryInstance,
-        ]))
+        ]
+        guard let json = try? encodeJSON(stateObject) else {
+            print(String(describing: stateObject))
+            return
+        }
+        print(prettyJSONString(json))
     }
 
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
