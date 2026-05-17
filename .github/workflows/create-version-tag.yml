@@ -1,0 +1,46 @@
+name: Create version tag
+
+on:
+  status:
+
+permissions:
+  contents: write
+
+jobs:
+  create-version-tag:
+    if: ${{ github.event.state == 'success' && github.event.context == 'Test & Build' && contains(github.event.branches.*.name, 'main') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.sha }}
+          fetch-depth: 2
+
+      - name: Create tag for package version changes
+        env:
+          TARGET_SHA: ${{ github.event.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')"
+
+          previous_version=""
+          if git cat-file -e "${TARGET_SHA}^:package.json" 2>/dev/null; then
+            previous_version="$(git show "${TARGET_SHA}^:package.json" | python3 -c 'import json, sys; print(json.load(sys.stdin)["version"])')"
+          fi
+
+          if [ "$previous_version" = "$version" ]; then
+            echo "package version unchanged; skipping tag creation"
+            exit 0
+          fi
+
+          tag="v${version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "tag ${tag} already exists; skipping tag creation"
+            exit 0
+          fi
+
+          git tag "$tag" "$TARGET_SHA"
+          git push origin "refs/tags/${tag}"
