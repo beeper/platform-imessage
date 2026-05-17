@@ -173,12 +173,21 @@ private final class InvokeContext {
     func printEventJSON(_ json: String) {
         runner.printEventJSON(json)
     }
+
+    func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
+        runner.enrichThreadPageJSON(pageObject)
+    }
+
+    func enrichThreadJSON(_ threadObject: JSONObject?) -> JSONObject? {
+        runner.enrichThreadJSON(threadObject)
+    }
 }
 
 private final class Runner {
     private let options: RunnerOptions
     private var state: RunnerState?
     private var apiInstance: PlatformAPI?
+    private lazy var contactResolver = CLIContactResolver()
     private var nextCallID = 1
     private var eventsSubscribed = false
     private var shuttingDown = false
@@ -282,6 +291,20 @@ private final class Runner {
             "loggingEnabled": state.options.loggingEnabled,
             "useSecondaryInstance": state.options.useSecondaryInstance,
         ]))
+    }
+
+    func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
+        CLIThreadContactEnricher.enrichThreadPageJSON(
+            pageObject,
+            resolver: contactResolver
+        )
+    }
+
+    func enrichThreadJSON(_ threadObject: JSONObject?) -> JSONObject? {
+        CLIThreadContactEnricher.enrichThreadJSON(
+            threadObject,
+            resolver: contactResolver
+        )
     }
 
     func ensureEventSubscription(api: PlatformAPI) {
@@ -526,7 +549,7 @@ private let commandDefinitions: [CommandDefinition] = [
         let pagination = try parsePaginationArgs(context.command, args, positionalCount: 0)
         try await context.invoke(args: ["normal", pagination.logArgument as Any]) { api in
             let threads = try await api.getThreads(folderName: "normal", pagination: pagination.platformSDKArg)
-            return try encodeJSON(threads.jsonObject)
+            return try encodeJSON(context.enrichThreadPageJSON(threads.jsonObject))
         }
     },
     CommandDefinition(
@@ -542,7 +565,7 @@ private let commandDefinitions: [CommandDefinition] = [
         try await context.invoke(args: [args[0]]) { api in
             let threadID = try await resolveThreadIDAlias(args[0], api: api)
             let thread = try await api.getThread(threadID: threadID)
-            return try encodeJSON(thread?.jsonObject)
+            return try encodeJSON(context.enrichThreadJSON(thread?.jsonObject))
         }
     },
     CommandDefinition(

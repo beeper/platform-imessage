@@ -2,7 +2,6 @@
 
 - [ ] improve readme, add screenshots
 
-- [ ] https://github.com/SwiftPackageIndex/PackageList/issues/new?template=add_package.yml
 - [ ] publish to homebrew
 - [ ] add example Swift script that consumes the library
 - [ ] add example JS script that consumes the library
@@ -23,10 +22,9 @@
 - [ ] improve misfire prevention and robustness
 - [ ] when the user sends a message w tweets/links, when the link/tweet preview resolves, send a message update event
 - [ ] when scheduled messages are actually sent, send a message update event
+- [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
 
 - cli
-  - [ ] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
-  - [ ] notarize before gh release and do universal binary/x86 target
   - [ ] one off command to print presence (dnd / dnd w notify) and typing status
   - [ ] tests
 
@@ -65,4 +63,8 @@
   - [x] new added/removed reactions should be state sync message upserts/deletes (for the hidden reaction message) and a state sync message update (for the og message)
   - [x] messages edited should be state sync message updates
   - [x] messages getting read should be state sync message updates
-- [x] cli – resolve thread id as email/phone # if `any;-;` prefix isn't passed
+- [x] https://github.com/SwiftPackageIndex/PackageList/issues/new?template=add_package.yml
+- cli
+  - [x] resolve thread id as email/phone # if `any;-;` prefix isn't passed
+  - [x] notarize before gh release and do universal binary/x86 target
+  - [x] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
