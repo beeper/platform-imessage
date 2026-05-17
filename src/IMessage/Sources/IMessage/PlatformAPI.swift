@@ -1053,11 +1053,11 @@ extension PlatformAPI {
         methodName: String
     ) async throws -> AssetResult {
         let route = try PluginPayloadAssetRoute(kind: .handwriting, methodName: methodName)
-#if IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
+        #if IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
         return try await withLegacyPluginPayloadAssetFallback(route: route) {
             throw ErrorMessage("Handwriting private SPI rendering is disabled")
         }
-#else
+        #else
         guard let payload = try database.withDatabase({ db in
             try db.handwritingPayload(rowID: route.rowID)
         }) else {
@@ -1072,7 +1072,7 @@ extension PlatformAPI {
             )
             return .url(fileURLString(renderedURL.path))
         }
-#endif
+        #endif
     }
 
     nonisolated private static func getDigitalTouchAsset(
@@ -1080,11 +1080,11 @@ extension PlatformAPI {
         methodName: String
     ) async throws -> AssetResult {
         let route = try PluginPayloadAssetRoute(kind: .digitalTouch, methodName: methodName)
-#if IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
+        #if IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
         return try await withLegacyPluginPayloadAssetFallback(route: route) {
             throw ErrorMessage("Digital Touch private SPI rendering is disabled")
         }
-#else
+        #else
         guard let payload = try database.withDatabase({ db in
             try db.digitalTouchPayload(rowID: route.rowID)
         }) else {
@@ -1099,7 +1099,7 @@ extension PlatformAPI {
             )
             return .url(fileURLString(renderedURL.path))
         }
-#endif
+        #endif
     }
 
     nonisolated private static func getAsset(db database: PlatformAPIDatabase, pathHex: String, methodName: String) async throws -> AssetResult {

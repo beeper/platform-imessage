@@ -18,7 +18,8 @@ class KeyPresser {
 
     private func perform(onMainThread: Bool, _ action: () throws -> Void) rethrows {
         guard onMainThread, !Thread.isMainThread else {
-            return try action()
+            try action()
+            return
         }
         log.debug("dispatching simulated keypress to main thread (queueName=\(__dispatch_queue_get_label(nil)))")
         try DispatchQueue.main.sync {

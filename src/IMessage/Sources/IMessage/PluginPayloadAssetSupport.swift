@@ -176,7 +176,7 @@ enum PluginPayloadAssetSupport {
         }
     }
 
-#if !IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
+    #if !IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
     static func privateClass<T>(_ className: String, assetDescription: String) throws -> T {
         guard let classObject = NSClassFromString(className) as? T else {
             throw ErrorMessage("\(assetDescription) private class \(className) is unavailable")
@@ -207,7 +207,7 @@ enum PluginPayloadAssetSupport {
         payload.isFromMe = isFromMe
         return payload
     }
-#endif
+    #endif
 
     static func waitForRenderedAsset(
         assetDescription: String,
