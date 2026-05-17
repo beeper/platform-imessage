@@ -66,10 +66,15 @@ public extension IMDatabase {
 }
 
 private func unreadStatesQuery(messageColumns: [String]) -> String {
-    """
+    let isUnreadExpression = latestIncomingVisibleMessageUnreadExpression(
+        chatIDExpression: "c.ROWID",
+        messageColumns: messageColumns
+    )
+
+    return """
     SELECT
         c.guid AS chat_guid,
-        \(latestRelevantIncomingUnreadSQL(chatIDExpression: "c.ROWID", messageColumns: messageColumns)) AS is_unread,
+        \(isUnreadExpression) AS is_unread,
         c.last_read_message_timestamp
     FROM
         chat c
@@ -82,27 +87,34 @@ private func unreadStatesQuery(messageColumns: [String]) -> String {
 }
 
 private func threadUnreadQuery(messageColumns: [String]) -> String {
-    """
+    let isUnreadExpression = latestIncomingVisibleMessageUnreadExpression(
+        chatIDExpression: "?",
+        messageColumns: messageColumns
+    )
+
+    return """
     SELECT
-        \(latestRelevantIncomingUnreadSQL(chatIDExpression: "?", messageColumns: messageColumns)) AS is_unread
+        \(isUnreadExpression) AS is_unread
     """
 }
 
-private func latestRelevantIncomingUnreadSQL(chatIDExpression: String, messageColumns: [String]) -> String {
-    """
+private func latestIncomingVisibleMessageUnreadExpression(chatIDExpression: String, messageColumns: [String]) -> String {
+    let messagePredicate = incomingVisibleMessagePredicate(messageColumns: messageColumns)
+
+    return """
     COALESCE((
             SELECT m.is_read = 0
             FROM chat_message_join cm
             INNER JOIN message m ON m.ROWID = cm.message_id
             WHERE cm.chat_id = \(chatIDExpression)
-                AND \(latestRelevantIncomingMessageWhereClause(messageColumns: messageColumns))
+                AND \(messagePredicate)
             ORDER BY cm.message_date DESC, cm.message_id DESC
             LIMIT 1
         ), 0)
     """
 }
 
-private func latestRelevantIncomingMessageWhereClause(messageColumns: [String]) -> String {
+private func incomingVisibleMessagePredicate(messageColumns: [String]) -> String {
     var filters = [
         "m.is_from_me = 0",
         "m.item_type = 0",
