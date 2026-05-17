@@ -3,41 +3,46 @@ import IMDatabase
 import SQLite
 import Testing
 
-@Test func chatStatesUseLatestRelevantIncomingMessageUnreadState() throws {
+@Test func chatStatesUseLatestMessageUnreadState() throws {
     try withUnreadStateFixtureDatabase { db in
         let states = try db.chatStates()
 
         let readState = try #require(states[readThreadGUID])
         let unreadState = try #require(states[unreadThreadGUID])
-        let outgoingOnlyState = try #require(states[outgoingOnlyThreadGUID])
-        let hiddenLatestState = try #require(states[hiddenLatestThreadGUID])
+        let outgoingLatestState = try #require(states[outgoingLatestThreadGUID])
+        let reactionLatestState = try #require(states[reactionLatestThreadGUID])
+        let actionLatestState = try #require(states[actionLatestThreadGUID])
 
         #expect(!readState.isUnread)
         #expect(unreadState.isUnread)
-        #expect(!outgoingOnlyState.isUnread)
-        #expect(!hiddenLatestState.isUnread)
+        #expect(outgoingLatestState.isUnread)
+        #expect(reactionLatestState.isUnread)
+        #expect(actionLatestState.isUnread)
         #expect(states[emptyThreadGUID] == nil)
     }
 }
 
-@Test func isThreadReadUsesLatestRelevantIncomingMessageUnreadState() throws {
+@Test func isThreadReadUsesLatestMessageUnreadState() throws {
     try withUnreadStateFixtureDatabase { db in
         let readThreadIsRead = try db.isThreadRead(chatGUID: readThreadGUID)
         let unreadThreadIsRead = try db.isThreadRead(chatGUID: unreadThreadGUID)
-        let outgoingOnlyThreadIsRead = try db.isThreadRead(chatGUID: outgoingOnlyThreadGUID)
-        let hiddenLatestThreadIsRead = try db.isThreadRead(chatGUID: hiddenLatestThreadGUID)
+        let outgoingLatestThreadIsRead = try db.isThreadRead(chatGUID: outgoingLatestThreadGUID)
+        let reactionLatestThreadIsRead = try db.isThreadRead(chatGUID: reactionLatestThreadGUID)
+        let actionLatestThreadIsRead = try db.isThreadRead(chatGUID: actionLatestThreadGUID)
 
         #expect(readThreadIsRead)
         #expect(!unreadThreadIsRead)
-        #expect(outgoingOnlyThreadIsRead)
-        #expect(hiddenLatestThreadIsRead)
+        #expect(!outgoingLatestThreadIsRead)
+        #expect(!reactionLatestThreadIsRead)
+        #expect(!actionLatestThreadIsRead)
     }
 }
 
 private let readThreadGUID = "any;-;read-latest-incoming@example.invalid"
 private let unreadThreadGUID = "any;-;unread-latest-incoming@example.invalid"
-private let outgoingOnlyThreadGUID = "any;-;outgoing-only@example.invalid"
-private let hiddenLatestThreadGUID = "any;-;hidden-latest@example.invalid"
+private let outgoingLatestThreadGUID = "any;-;outgoing-latest@example.invalid"
+private let reactionLatestThreadGUID = "any;-;reaction-latest@example.invalid"
+private let actionLatestThreadGUID = "any;-;action-latest@example.invalid"
 private let emptyThreadGUID = "any;-;empty@example.invalid"
 
 private func withUnreadStateFixtureDatabase(_ body: (IMDatabase) throws -> Void) throws {
@@ -99,21 +104,25 @@ private func createUnreadStateFixtureDatabase(at directory: URL) throws {
     try insertMessage(database, rowID: 205, isRead: false, itemType: 1)
     try insertJoin(database, chatID: 2, messageID: 205, messageDate: 500)
 
-    try insertChat(database, rowID: 3, guid: outgoingOnlyThreadGUID)
+    try insertChat(database, rowID: 3, guid: outgoingLatestThreadGUID)
+    try insertMessage(database, rowID: 300, isRead: true)
+    try insertJoin(database, chatID: 3, messageID: 300, messageDate: 100)
     try insertMessage(database, rowID: 301, isRead: false, isFromMe: true)
-    try insertJoin(database, chatID: 3, messageID: 301, messageDate: 100)
+    try insertJoin(database, chatID: 3, messageID: 301, messageDate: 200)
 
-    try insertChat(database, rowID: 4, guid: hiddenLatestThreadGUID)
-    try insertMessage(database, rowID: 401, isRead: true)
-    try insertJoin(database, chatID: 4, messageID: 401, messageDate: 100)
-    try insertMessage(database, rowID: 402, isRead: false, scheduleType: 2)
-    try insertJoin(database, chatID: 4, messageID: 402, messageDate: 200)
-    try insertMessage(database, rowID: 403, isRead: false, dateRetracted: 1)
-    try insertJoin(database, chatID: 4, messageID: 403, messageDate: 300)
-    try insertMessage(database, rowID: 404, isRead: false, wasDetonated: true)
-    try insertJoin(database, chatID: 4, messageID: 404, messageDate: 400)
+    try insertChat(database, rowID: 4, guid: reactionLatestThreadGUID)
+    try insertMessage(database, rowID: 400, isRead: true)
+    try insertJoin(database, chatID: 4, messageID: 400, messageDate: 100)
+    try insertMessage(database, rowID: 401, isRead: false, associatedMessageType: 2001)
+    try insertJoin(database, chatID: 4, messageID: 401, messageDate: 200)
 
-    try insertChat(database, rowID: 5, guid: emptyThreadGUID)
+    try insertChat(database, rowID: 5, guid: actionLatestThreadGUID)
+    try insertMessage(database, rowID: 500, isRead: true)
+    try insertJoin(database, chatID: 5, messageID: 500, messageDate: 100)
+    try insertMessage(database, rowID: 501, isRead: false, itemType: 1)
+    try insertJoin(database, chatID: 5, messageID: 501, messageDate: 200)
+
+    try insertChat(database, rowID: 6, guid: emptyThreadGUID)
 }
 
 private func insertChat(_ database: Database, rowID: Int, guid: String) throws {
@@ -130,10 +139,7 @@ private func insertMessage(
     isRead: Bool,
     isFromMe: Bool = false,
     itemType: Int = 0,
-    associatedMessageType: Int = 0,
-    scheduleType: Int = 0,
-    dateRetracted: Int = 0,
-    wasDetonated: Bool = false
+    associatedMessageType: Int = 0
 ) throws {
     try database.execute(
         sqlWithoutEscaping: """
@@ -142,20 +148,14 @@ private func insertMessage(
             is_read,
             is_from_me,
             item_type,
-            associated_message_type,
-            schedule_type,
-            date_retracted,
-            was_detonated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            associated_message_type
+        ) VALUES (?, ?, ?, ?, ?)
         """,
         rowID,
         isRead ? 1 : 0,
         isFromMe ? 1 : 0,
         itemType,
-        associatedMessageType,
-        scheduleType,
-        dateRetracted,
-        wasDetonated ? 1 : 0
+        associatedMessageType
     )
 }
 

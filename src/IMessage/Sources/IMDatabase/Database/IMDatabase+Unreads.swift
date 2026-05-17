@@ -1,9 +1,5 @@
 import Foundation
-import SQLite
 import IMessageCore
-
-private let reactionAssociatedMessageTypeLowerBound = 2000
-private let reactionAssociatedMessageTypeUpperBound = 3007
 
 public struct ChatState: Equatable {
     public var isUnread: Bool
@@ -36,8 +32,7 @@ extension ChatState: CustomStringConvertible {
 public extension IMDatabase {
     func isThreadRead(chatGUID: String) throws -> Bool {
         let chat = try chat(withGUID: chatGUID).orThrow(ErrorMessage("expected chat \(chatGUID) to exist"))
-        let query = threadUnreadQuery(messageColumns: try tableColumns("message"))
-        let statement = try cachedStatement(forEscapedSQL: query).reset()
+        let statement = try cachedStatement(forEscapedSQL: threadUnreadQuery).reset()
         try statement.bind(chat.id)
         let isUnread = try statement.mapRowsUntilDone { row in
             try row[0].expectConverting(Int.self) != 0
@@ -46,8 +41,7 @@ public extension IMDatabase {
     }
 
     func chatStates() throws -> [String: ChatState] {
-        let query = unreadStatesQuery(messageColumns: try tableColumns("message"))
-        let statement = try cachedStatement(forEscapedSQL: query).reset()
+        let statement = try cachedStatement(forEscapedSQL: unreadStatesQuery).reset()
 
         var chatStates: [String: ChatState] = [:]
 
@@ -65,16 +59,10 @@ public extension IMDatabase {
     }
 }
 
-private func unreadStatesQuery(messageColumns: [String]) -> String {
-    let isUnreadExpression = latestIncomingVisibleMessageUnreadExpression(
-        chatIDExpression: "c.ROWID",
-        messageColumns: messageColumns
-    )
-
-    return """
+private let unreadStatesQuery = """
     SELECT
         c.guid AS chat_guid,
-        \(isUnreadExpression) AS is_unread,
+        \(latestMessageUnreadExpression(chatIDExpression: "c.ROWID")) AS is_unread,
         c.last_read_message_timestamp
     FROM
         chat c
@@ -84,57 +72,21 @@ private func unreadStatesQuery(messageColumns: [String]) -> String {
         WHERE cm.chat_id = c.ROWID
     )
     """
-}
 
-private func threadUnreadQuery(messageColumns: [String]) -> String {
-    let isUnreadExpression = latestIncomingVisibleMessageUnreadExpression(
-        chatIDExpression: "?",
-        messageColumns: messageColumns
-    )
-
-    return """
+private let threadUnreadQuery = """
     SELECT
-        \(isUnreadExpression) AS is_unread
+        \(latestMessageUnreadExpression(chatIDExpression: "?")) AS is_unread
     """
-}
 
-private func latestIncomingVisibleMessageUnreadExpression(chatIDExpression: String, messageColumns: [String]) -> String {
-    let messagePredicate = incomingVisibleMessagePredicate(messageColumns: messageColumns)
-
-    return """
+private func latestMessageUnreadExpression(chatIDExpression: String) -> String {
+    """
     COALESCE((
             SELECT m.is_read = 0
             FROM chat_message_join cm
             INNER JOIN message m ON m.ROWID = cm.message_id
             WHERE cm.chat_id = \(chatIDExpression)
-                AND \(messagePredicate)
             ORDER BY cm.message_date DESC, cm.message_id DESC
             LIMIT 1
         ), 0)
     """
-}
-
-private func incomingVisibleMessagePredicate(messageColumns: [String]) -> String {
-    var filters = [
-        "m.is_from_me = 0",
-        "m.item_type = 0",
-    ]
-    if messageColumns.contains("associated_message_type") {
-        filters.append("""
-        (
-            m.associated_message_type IS NULL
-            OR m.associated_message_type NOT BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)
-        )
-        """)
-    }
-    if messageColumns.contains("schedule_type") {
-        filters.append("COALESCE(m.schedule_type, 0) = 0")
-    }
-    if messageColumns.contains("date_retracted") {
-        filters.append("COALESCE(m.date_retracted, 0) = 0")
-    }
-    if messageColumns.contains("was_detonated") {
-        filters.append("COALESCE(m.was_detonated, 0) = 0")
-    }
-    return filters.joined(separator: "\n                AND ")
 }
