@@ -99,11 +99,10 @@ private extension IMDatabase {
                         AND is_read = 0
                         AND is_from_me = 0
                 ) unread
-            CROSS JOIN
-                chat_message_join cm
-            WHERE
-                cm.message_id = unread.message_id
-                \(unreadChatIDFilter)
+            JOIN
+                chat_message_join cm ON
+                    cm.message_id = unread.message_id
+                    \(unreadChatIDFilter)
             GROUP BY
                 cm.chat_id
         )
