@@ -6,12 +6,10 @@ import PlatformSDK
 struct CLIResolvedContact: Equatable {
     var fullName: String?
     var nickname: String?
-    var imgURL: String?
 
-    init(fullName: String? = nil, nickname: String? = nil, imgURL: String? = nil) {
+    init(fullName: String? = nil, nickname: String? = nil) {
         self.fullName = fullName
         self.nickname = nickname
-        self.imgURL = imgURL
     }
 }
 
@@ -63,7 +61,6 @@ final class CLIContactResolver: CLIContactResolving {
                 CNContactNicknameKey,
                 CNContactOrganizationNameKey,
                 kind == .email ? CNContactEmailAddressesKey : CNContactPhoneNumbersKey,
-                CNContactThumbnailImageDataKey,
             ] as [any CNKeyDescriptor]
             keys.append(CNContactFormatter.descriptorForRequiredKeys(for: .fullName))
             return keys
@@ -111,8 +108,7 @@ final class CLIContactResolver: CLIContactResolving {
         let resolved = firstMatchingContact(lookup).map { contact in
             CLIResolvedContact(
                 fullName: formatter.string(from: contact)?.nonEmpty ?? contact.organizationName.nonEmpty,
-                nickname: contact.nickname.nonEmpty,
-                imgURL: contact.thumbnailImageData?.dataURL
+                nickname: contact.nickname.nonEmpty
             )
         }
         cache(resolved.map(CachedResolvedContact.hit) ?? .miss, forKey: key)
@@ -220,10 +216,6 @@ enum CLIThreadContactEnricher {
             if let fullName = contact.fullName?.nonEmpty {
                 participantObject["fullName"] = fullName
                 hasContactName = true
-            }
-            if participantObject.string("imgURL")?.nonEmpty == nil,
-               let imgURL = contact.imgURL?.nonEmpty {
-                participantObject["imgURL"] = imgURL
             }
         }
 
