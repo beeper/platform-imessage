@@ -377,6 +377,15 @@ public final class PlatformAPI {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
     }
 
+    public func loadAttachment(messageID: String) async throws {
+        guard let reference = try await resolveMessageReference(messageID: messageID) else {
+            throw ErrorMessage("Could not find message \(messageID)")
+        }
+
+        let threadID = try originalThreadID(for: reference.threadID)
+        try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+    }
+
     private func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
         if reaction == "sticker" {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
