@@ -429,7 +429,7 @@ public final class PlatformAPI {
             }
 
             if let failureState = try await terminalAttachmentFailureState(messageID: messageID) {
-                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState))")
+                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState.rawValue))")
             }
 
             let remainingTime = deadline.timeIntervalSinceNow
@@ -442,19 +442,30 @@ public final class PlatformAPI {
         }
     }
 
-    /// Returns the raw `IMFileTransferState` of the first attachment on `messageID` that is in a
-    /// terminal failure state (error / recoverableError / rejected), or `nil` if none have failed.
-    private func terminalAttachmentFailureState(messageID: String) async throws -> Int? {
-        try await runDBQuery { db, _, _ in
+    /// Returns the first attachment state on `messageID` that is terminal failure
+    /// (error / recoverableError / rejected), or `nil` if none have failed.
+    private func terminalAttachmentFailureState(messageID: String) async throws -> Attachment.IMFileTransferState? {
+        try await runDBQuery { db, _, _ -> Attachment.IMFileTransferState? in
             let guid = messageGUID(fromID: messageID)
             guard let msgRow = try db.mappedMessageRow(guid: guid) else { return nil }
-            let states = try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
-                .compactMap(\.transferState)
-            return states.first { state in
-                state == IMDatabase.Attachment.IMFileTransferState.error.rawValue
-                    || state == IMDatabase.Attachment.IMFileTransferState.recoverableError.rawValue
-                    || state == IMDatabase.Attachment.IMFileTransferState.rejected.rawValue
+
+            let terminalFailureStates: Set<Attachment.IMFileTransferState> = [
+                .error,
+                .recoverableError,
+                .rejected,
+            ]
+
+            let attachmentRows: [MappedAttachmentRow] = try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
+
+            for attachmentRow in attachmentRows {
+                guard let rawTransferState = attachmentRow.transferState else { continue }
+                let transferState = Attachment.IMFileTransferState(rawValue: rawTransferState)
+                if terminalFailureStates.contains(transferState) {
+                    return transferState
+                }
             }
+
+            return nil
         }
     }
 
