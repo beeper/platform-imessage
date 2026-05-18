@@ -759,6 +759,26 @@ private let commandDefinitions: [CommandDefinition] = [
             return nil
         }
     },
+    CommandDefinition(
+        name: "load-attachment",
+        category: .message,
+        summary: "Load a message attachment in Messages and emit an updated message event.",
+        usage: ["load-attachment MESSAGE_ID", "load-attachment CHAT_ID MESSAGE_ID"],
+        examples: ["load-attachment C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678_1", "load-attachment latest-1", "load-attachment +14155551234 latest"],
+        notes: [threadIDAliasNote, messageIDAliasNote],
+        requiredAuthorization: mutatingAuth
+    ) { args, context in
+        let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)
+        try await context.invoke(args: args) { api in
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            try await api.loadAttachment(messageID: reference.messageID)
+            return nil
+        }
+    },
     reactionCommand(name: "react", summaryVerb: "Add", preposition: "to") { api, threadID, messageID, key in
         try await api.addReaction(threadID: threadID, messageID: messageID, reactionKey: key)
     },

@@ -30,7 +30,6 @@
 
 ### Parity
 
-- [ ] add download attachment command
 - [ ] add delete message for me command
 - [ ] add add/remove group participant command
 - [ ] fix sending emoji reactions (🎉)
@@ -68,3 +67,4 @@
   - [x] resolve thread id as email/phone # if `any;-;` prefix isn't passed
   - [x] notarize before gh release and do universal binary/x86 target
   - [x] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
+- [x] add download attachment command

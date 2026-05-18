@@ -876,6 +876,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
+    func loadAttachment(threadID: String, messageCell: MessageCell) throws {
+        let startTime = Date()
+        defer { log.debug("loadAttachment took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
+        try prepareForAutomation()
+        defer { finishedAutomation() }
+
+        try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+            try messageCell.press()
+        }
+    }
+
     // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
         guard isVenturaOrUp else {

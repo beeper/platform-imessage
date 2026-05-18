@@ -274,6 +274,9 @@ export default class AppleiMessage implements PlatformAPI {
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
     this.swiftPlatformAPI!.removeReaction(hashedThreadID, messageID, reactionKey)
 
+  loadAttachment = async (messageID: MessageID) =>
+    this.swiftPlatformAPI!.loadAttachment(messageID)
+
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     const swiftAPI = this.swiftPlatformAPI!
     await swiftAPI.deleteMessage(hashedThreadID, messageID)

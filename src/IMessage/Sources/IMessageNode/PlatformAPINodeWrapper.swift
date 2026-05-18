@@ -136,6 +136,10 @@ import PlatformSDK
         try await api.removeReaction(threadID: threadID, messageID: messageID, reactionKey: reactionKey)
     }
 
+    @NodeMethod func loadAttachment(messageID: String) async throws {
+        try await api.loadAttachment(messageID: messageID)
+    }
+
     @NodeMethod func markAsUnread(threadID: String) async throws {
         try await api.markAsUnread(threadID: threadID)
     }

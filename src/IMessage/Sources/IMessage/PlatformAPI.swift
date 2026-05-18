@@ -11,6 +11,9 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
+private let loadAttachmentTimeout: TimeInterval = 60
+private let loadAttachmentInitialPollInterval: TimeInterval = 0.25
+private let loadAttachmentMaxPollInterval: TimeInterval = 5
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = Protected<IMDatabase?>()
@@ -375,6 +378,95 @@ public final class PlatformAPI {
 
     public func removeReaction(threadID publicThreadID: String, messageID: String, reactionKey: String) async throws {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
+    }
+
+    public func loadAttachment(messageID: String) async throws {
+        guard let reference = try await resolveMessageReference(messageID: messageID) else {
+            throw ErrorMessage("Could not find message \(messageID)")
+        }
+
+        if let existingMessage = try await getMessage(threadID: reference.threadID, messageID: reference.messageID) {
+            let attachments = existingMessage.attachments ?? []
+            guard !attachments.isEmpty else {
+                throw ErrorMessage("Message \(messageID) has no attachments")
+            }
+        }
+
+        let threadID = try originalThreadID(for: reference.threadID)
+        try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+
+        let loadedMessage = try await waitForLoadedAttachment(
+            threadID: reference.threadID,
+            messageID: reference.messageID,
+            timeout: loadAttachmentTimeout
+        )
+        try await EventWatcherLifecycle.shared.sendEvents([
+            .updateMessages(threadID: reference.threadID, patches: [loadedMessage.jsonObject])
+        ])
+    }
+
+    private func waitForLoadedAttachment(
+        threadID: String,
+        messageID: String,
+        timeout: TimeInterval
+    ) async throws -> PlatformSDK.Message {
+        let deadline = Date().addingTimeInterval(timeout)
+        var pollInterval = loadAttachmentInitialPollInterval
+        var isFirstRead = true
+
+        while true {
+            let message = try await getMessage(threadID: threadID, messageID: messageID)
+                .orThrow(ErrorMessage("Could not find message \(messageID)"))
+            let attachments = message.attachments ?? []
+            if isFirstRead {
+                guard !attachments.isEmpty else {
+                    throw ErrorMessage("Message \(messageID) has no attachments")
+                }
+                isFirstRead = false
+            }
+            if !attachments.isEmpty, !attachments.contains(where: { $0.loading == true }) {
+                return message
+            }
+
+            if let failureState = try await terminalAttachmentFailureState(messageID: messageID) {
+                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState.rawValue))")
+            }
+
+            let remainingTime = deadline.timeIntervalSinceNow
+            guard remainingTime > 0 else {
+                throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
+            }
+
+            try await Task.sleep(forTimeInterval: min(pollInterval, remainingTime))
+            pollInterval = min(pollInterval * 2, loadAttachmentMaxPollInterval)
+        }
+    }
+
+    /// Returns the first attachment state on `messageID` that is terminal failure
+    /// (error / recoverableError / rejected), or `nil` if none have failed.
+    private func terminalAttachmentFailureState(messageID: String) async throws -> Attachment.IMFileTransferState? {
+        try await runDBQuery { db, _, _ -> Attachment.IMFileTransferState? in
+            let guid = messageGUID(fromID: messageID)
+            guard let msgRow = try db.mappedMessageRow(guid: guid) else { return nil }
+
+            let terminalFailureStates: Set<Attachment.IMFileTransferState> = [
+                .error,
+                .recoverableError,
+                .rejected,
+            ]
+
+            let attachmentRows: [MappedAttachmentRow] = try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
+
+            for attachmentRow in attachmentRows {
+                guard let rawTransferState = attachmentRow.transferState else { continue }
+                let transferState = Attachment.IMFileTransferState(rawValue: rawTransferState)
+                if terminalFailureStates.contains(transferState) {
+                    return transferState
+                }
+            }
+
+            return nil
+        }
     }
 
     private func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {

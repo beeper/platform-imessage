@@ -32,6 +32,11 @@ extension MessagesController {
         try editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
     }
 
+    func loadAttachment(threadID: String, messageID: String) throws {
+        let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID, allowOverlay: false)
+        try loadAttachment(threadID: threadID, messageCell: messageCell)
+    }
+
     func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws {
         let quotedMessage: MessageCell? = if let quotedMessageID {
             try resolveMessageCell(threadID: threadID, platformMessageID: quotedMessageID)
