@@ -390,9 +390,6 @@ public final class PlatformAPI {
             guard !attachments.isEmpty else {
                 throw ErrorMessage("Message \(messageID) has no attachments")
             }
-            if !attachments.contains(where: { $0.loading == true }) {
-                return
-            }
         }
 
         let threadID = try originalThreadID(for: reference.threadID)
