@@ -638,6 +638,20 @@ const commandDefinitions: CommandDefinition[] = [
       await context.invokeMethod('deleteMessage', [args[0], args[1]])
     },
   },
+  {
+    name: 'load-attachment',
+    category: 'Message',
+    summary: 'Load a message attachment in Messages and emit an updated message event.',
+    usage: ['load-attachment MESSAGE_ID'],
+    examples: [
+      'load-attachment C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678_1',
+    ],
+    requiredAuthorization: MUTATING_AUTH,
+    execute: async (args, context) => {
+      requireExactArgs(context.command, args, 1)
+      await context.invokeMethod('loadAttachment', [args[0]])
+    },
+  },
   reactionCommand('react', 'addReaction', 'Add'),
   reactionCommand('unreact', 'removeReaction', 'Remove'),
   {
