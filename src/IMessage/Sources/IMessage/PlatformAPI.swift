@@ -428,6 +428,10 @@ public final class PlatformAPI {
                 return message
             }
 
+            if let failureState = try await terminalAttachmentFailureState(messageID: messageID) {
+                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState))")
+            }
+
             let remainingTime = deadline.timeIntervalSinceNow
             guard remainingTime > 0 else {
                 throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
@@ -435,6 +439,22 @@ public final class PlatformAPI {
 
             try await Task.sleep(forTimeInterval: min(pollInterval, remainingTime))
             pollInterval = min(pollInterval * 2, loadAttachmentMaxPollInterval)
+        }
+    }
+
+    /// Returns the raw `IMFileTransferState` of the first attachment on `messageID` that is in a
+    /// terminal failure state (error / recoverableError / rejected), or `nil` if none have failed.
+    private func terminalAttachmentFailureState(messageID: String) async throws -> Int? {
+        try await runDBQuery { db, _, _ in
+            let guid = messageGUID(fromID: messageID)
+            guard let msgRow = try db.mappedMessageRow(guid: guid) else { return nil }
+            let states = try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
+                .compactMap(\.transferState)
+            return states.first { state in
+                state == IMDatabase.Attachment.IMFileTransferState.error.rawValue
+                    || state == IMDatabase.Attachment.IMFileTransferState.recoverableError.rawValue
+                    || state == IMDatabase.Attachment.IMFileTransferState.rejected.rawValue
+            }
         }
     }
 
