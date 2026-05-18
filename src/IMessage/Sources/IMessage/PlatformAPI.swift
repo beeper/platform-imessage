@@ -405,15 +405,19 @@ public final class PlatformAPI {
     ) async throws -> PlatformSDK.Message {
         let deadline = Date().addingTimeInterval(timeout)
         var pollInterval = loadAttachmentInitialPollInterval
+        var isFirstRead = true
 
         while true {
             let message = try await getMessage(threadID: threadID, messageID: messageID)
                 .orThrow(ErrorMessage("Could not find message \(messageID)"))
             let attachments = message.attachments ?? []
-            guard !attachments.isEmpty else {
-                throw ErrorMessage("Message \(messageID) has no attachments")
+            if isFirstRead {
+                guard !attachments.isEmpty else {
+                    throw ErrorMessage("Message \(messageID) has no attachments")
+                }
+                isFirstRead = false
             }
-            if !attachments.contains(where: { $0.loading == true }) {
+            if !attachments.isEmpty, !attachments.contains(where: { $0.loading == true }) {
                 return message
             }
 
