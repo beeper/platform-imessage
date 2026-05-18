@@ -177,13 +177,6 @@ enum PluginPayloadAssetSupport {
     }
 
     #if !IMESSAGE_DISABLE_PRIVATE_SPI_ASSETS
-    static func privateClass<T>(_ className: String, assetDescription: String) throws -> T {
-        guard let classObject = NSClassFromString(className) as? T else {
-            throw ErrorMessage("\(assetDescription) private class \(className) is unavailable")
-        }
-        return classObject
-    }
-
     static func removeIfDifferent(_ url: URL, from destinationURL: URL) {
         if url.standardizedFileURL != destinationURL.standardizedFileURL {
             try? FileManager.default.removeItem(at: url)
@@ -195,17 +188,22 @@ enum PluginPayloadAssetSupport {
         bundleID: String,
         messageGUID: String,
         isFromMe: Bool
-    ) throws -> IMPluginPayload {
-        let payloadClass: IMPluginPayload.Type = try privateClass(
-            "IMPluginPayload",
-            assetDescription: "Plugin payload"
-        )
-        let payload = payloadClass.init()
-        payload.data = payloadData
-        payload.pluginBundleID = bundleID
-        payload.messageGUID = messageGUID
-        payload.isFromMe = isFromMe
+    ) throws -> NSObject {
+        guard let payload = IMPrivateSPIPluginPayloadCreate(payloadData, bundleID, messageGUID, isFromMe) else {
+            throw ErrorMessage("Plugin payload private class IMPluginPayload is unavailable")
+        }
         return payload
+    }
+
+    static func makePluginPayloadDataSource(
+        className: String,
+        payload: NSObject,
+        assetDescription: String
+    ) throws -> NSObject {
+        guard let dataSource = IMPrivateSPIPluginPayloadDataSourceCreate(className, payload) else {
+            throw ErrorMessage("\(assetDescription) private class \(className) is unavailable")
+        }
+        return dataSource
     }
     #endif
 

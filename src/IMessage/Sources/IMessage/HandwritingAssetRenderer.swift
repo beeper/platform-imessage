@@ -40,15 +40,6 @@ enum HandwritingAssetRenderer {
         isCancelled: @escaping RenderCancellation
     ) throws -> URL {
         try AssetSupport.loadBundle(path: handwritingProviderPath, assetDescription: "HandwritingProvider")
-        let dataSourceClass: HWBalloonDataSource.Type = try AssetSupport.privateClass(
-            "HWBalloonDataSource",
-            assetDescription: handwritingAssetDescription
-        )
-        let rendererClass: HWAbstractBalloonController.Type = try AssetSupport.privateClass(
-            "HWAbstractBalloonController",
-            assetDescription: handwritingAssetDescription
-        )
-
         AssetSupport.prepareRenderThread()
 
         let payload = try AssetSupport.makePluginPayload(
@@ -58,14 +49,17 @@ enum HandwritingAssetRenderer {
             isFromMe: isFromMe
         )
 
-        let dataSource = dataSourceClass.init(pluginPayload: payload)
-        guard let handwritingItem = dataSource.handwritingFromPayload() else {
+        let dataSource = try AssetSupport.makePluginPayloadDataSource(
+            className: "HWBalloonDataSource",
+            payload: payload,
+            assetDescription: handwritingAssetDescription
+        )
+        guard let handwritingItem = IMPrivateSPIHandwritingFromPayload(dataSource) else {
             throw ErrorMessage("Handwriting renderer couldn't decode payload")
         }
 
         let renderedURL = try writeThumbnail(
             handwritingItem: handwritingItem,
-            rendererClass: rendererClass,
             isCancelled: isCancelled
         )
         defer { AssetSupport.removeIfDifferent(renderedURL, from: destinationURL) }
@@ -74,21 +68,18 @@ enum HandwritingAssetRenderer {
     }
 
     private static func writeThumbnail(
-        handwritingItem: Any,
-        rendererClass: HWAbstractBalloonController.Type,
+        handwritingItem: NSObject,
         isCancelled: @escaping RenderCancellation
     ) throws -> URL {
         let renderedURL = Protected<URL?>()
         let shouldRemoveRenderedURL = Protected(false)
-        rendererClass.writeThumbnail(
-            of: handwritingItem,
-            atSize: renderedSize,
-            useHighFidelityInk: true
-        ) { url in
+        guard IMPrivateSPIHandwritingWriteThumbnail("HWAbstractBalloonController", handwritingItem, renderedSize, true, { url in
             renderedURL.withLock { $0 = url }
             if shouldRemoveRenderedURL.read() {
                 try? FileManager.default.removeItem(at: url)
             }
+        }) else {
+            throw ErrorMessage("Handwriting private class HWAbstractBalloonController is unavailable")
         }
 
         do {

@@ -95,13 +95,16 @@ const makeStandalone = async (nodePath: string, frameworkSrc: string) => {
 
 async function main() {
   async function buildForArch(specificArch?: keyof typeof xcArchMap) {
+    const swiftFlags = [
+      ...(NO_SPACES ? ['-DNO_SPACES'] : []),
+    ].join(' ')
     const buildOptions: Config = {
       // we isolate the build directory for arch and config because of this random error on subsequent builds if it's just isolated by config
       // [Error: ENOENT: no such file or directory, rename 'platform-imessage/build/debug/debug/libNodeSwiftHost.dylib' -> 'platform-imessage/build/debug/debug/IMessage.node']
       buildPath: path.join(BUILD_DIR_PATH, `${config}-${specificArch || 'universal'}`),
       packagePath: ROOT_DIR_PATH,
       product: 'IMessageNode',
-      swiftFlags: '',
+      swiftFlags,
     }
 
     if (config === 'release' || process.argv.includes('--clean')) await clean(buildOptions)
@@ -109,7 +112,6 @@ async function main() {
 
     console.log(`build-swift: building ${specificArch || 'universal'} target...`)
 
-    if (NO_SPACES) buildOptions.swiftFlags += '-DNO_SPACES'
     if (!USE_SWIFT_PM) await ensureXcodeWorkspace(ROOT_DIR_PATH)
 
     // forcefully disable stripping, we can do it manually and we'd like to
