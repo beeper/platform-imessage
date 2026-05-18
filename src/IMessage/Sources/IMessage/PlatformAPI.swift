@@ -385,6 +385,16 @@ public final class PlatformAPI {
             throw ErrorMessage("Could not find message \(messageID)")
         }
 
+        if let existingMessage = try await getMessage(threadID: reference.threadID, messageID: reference.messageID) {
+            let attachments = existingMessage.attachments ?? []
+            guard !attachments.isEmpty else {
+                throw ErrorMessage("Message \(messageID) has no attachments")
+            }
+            if !attachments.contains(where: { $0.loading == true }) {
+                return
+            }
+        }
+
         let threadID = try originalThreadID(for: reference.threadID)
         try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
 
