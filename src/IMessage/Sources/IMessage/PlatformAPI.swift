@@ -11,6 +11,9 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
+private let loadAttachmentTimeout: TimeInterval = 60
+private let loadAttachmentInitialPollInterval: TimeInterval = 0.25
+private let loadAttachmentMaxPollInterval: TimeInterval = 5
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = Protected<IMDatabase?>()
@@ -384,6 +387,44 @@ public final class PlatformAPI {
 
         let threadID = try originalThreadID(for: reference.threadID)
         try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+
+        let loadedMessage = try await waitForLoadedAttachment(
+            threadID: reference.threadID,
+            messageID: reference.messageID,
+            timeout: loadAttachmentTimeout
+        )
+        try await EventWatcherLifecycle.shared.sendEvents([
+            .updateMessages(threadID: reference.threadID, patches: [loadedMessage.jsonObject])
+        ])
+    }
+
+    private func waitForLoadedAttachment(
+        threadID: String,
+        messageID: String,
+        timeout: TimeInterval
+    ) async throws -> PlatformSDK.Message {
+        let deadline = Date().addingTimeInterval(timeout)
+        var pollInterval = loadAttachmentInitialPollInterval
+
+        while true {
+            let message = try await getMessage(threadID: threadID, messageID: messageID)
+                .orThrow(ErrorMessage("Could not find message \(messageID)"))
+            let attachments = message.attachments ?? []
+            guard !attachments.isEmpty else {
+                throw ErrorMessage("Message \(messageID) has no attachments")
+            }
+            if !attachments.contains(where: { $0.loading == true }) {
+                return message
+            }
+
+            let remainingTime = deadline.timeIntervalSinceNow
+            guard remainingTime > 0 else {
+                throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
+            }
+
+            try await Task.sleep(forTimeInterval: min(pollInterval, remainingTime))
+            pollInterval = min(pollInterval * 2, loadAttachmentMaxPollInterval)
+        }
     }
 
     private func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {

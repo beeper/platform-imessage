@@ -75,6 +75,16 @@ final class EventWatcherLifecycle {
         )
     }
 
+    func sendEvents(_ events: [ServerEvent]) async throws {
+        guard !events.isEmpty else { return }
+        guard let subscription = state.withLock({ $0.subscription }) else {
+            eventWatchingLog.warning("dropping \(events.count) event(s); no event callback is subscribed")
+            return
+        }
+
+        try await subscription.onEvent(events)
+    }
+
     private func startWatching(
         subscription: Subscription,
         initialUpdatesCursor: MessageUpdatesCursor,
