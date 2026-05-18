@@ -5,7 +5,7 @@ import PlatformSDK
 
 extension Mapper {
     func decodeAttributedMessageParts(summaryInfo: JSONObject) -> [MessagePart] {
-        guard let data = msgRow.attributedBody,
+        guard let data = messageRow.attributedBody,
               let decoded = try? AttributedBodyDecoder.fragments(from: data) else {
             return []
         }

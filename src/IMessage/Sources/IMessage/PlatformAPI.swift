@@ -791,19 +791,19 @@ public final class PlatformAPI {
         let threadID = try originalThreadID(db: db, publicThreadID)
         let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
         let effectiveLimit = limit ?? messagePageLimit
-        var msgRows = try db.mappedMessageRows(
+        var messageRows = try db.mappedMessageRows(
             in: threadID,
             cursor: pagination?.cursor,
             direction: pageDirection,
             limit: effectiveLimit
         )
         if pageDirection != .after {
-            msgRows.reverse()
+            messageRows.reverse()
         }
 
-        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
+        let payloadRows = try messagePayloadRows(db: db, messageRows: messageRows, threadID: threadID)
         let messages = try mapAndHashMessages(
-            msgRows: msgRows,
+            messageRows: messageRows,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -811,7 +811,7 @@ public final class PlatformAPI {
         )
         return PlatformSDK.Paginated(
             items: messages,
-            hasMore: msgRows.count == effectiveLimit
+            hasMore: messageRows.count == effectiveLimit
         )
     }
 
@@ -840,13 +840,13 @@ public final class PlatformAPI {
     ) throws -> PlatformSDK.Message? {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let messageGUID = messageGUID(fromID: messageID)
-        guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
+        guard let messageRow = try db.mappedMessageRow(guid: messageGUID) else {
             return nil
         }
 
-        let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: threadID ?? "")
+        let payloadRows = try messagePayloadRows(db: db, messageRows: [messageRow], threadID: threadID ?? "")
         let messages = try mapAndHashMessages(
-            msgRows: [msgRow],
+            messageRows: [messageRow],
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -882,12 +882,12 @@ public final class PlatformAPI {
             return PlatformSDK.PaginatedWithCursors(items: [], hasMore: false, oldestCursor: "")
         }
 
-        let msgRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
-        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRows.map(\.rowID)))
-        let messageGUIDs = msgRows.map(\.guid)
+        let messageRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
+        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: messageRows.map(\.rowID)))
+        let messageGUIDs = messageRows.map(\.guid)
         let reactionRows = try threadID.map { try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatGUID: $0) } ?? []
         let messages = try mapAndHashMessages(
-            msgRows: msgRows,
+            messageRows: messageRows,
             attachmentRows: attachmentRows,
             reactionRows: reactionRows,
             currentUserID: currentUserID,
@@ -896,8 +896,8 @@ public final class PlatformAPI {
         return PlatformSDK.PaginatedWithCursors(
             items: messages,
             hasMore: matchingRowIDs.count == effectiveLimit,
-            oldestCursor: msgRows.last?.date.map(String.init) ?? "",
-            newestCursor: msgRows.first?.date.map(String.init)
+            oldestCursor: messageRows.last?.date.map(String.init) ?? "",
+            newestCursor: messageRows.first?.date.map(String.init)
         )
     }
 }
@@ -941,10 +941,10 @@ extension PlatformAPI {
         currentUserID: String,
         accountID: String
     ) throws -> [String: [PlatformSDK.Message]] {
-        let msgRows = Array(latestMessageRowsByChatGUID.values)
-        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: "")
+        let messageRows = Array(latestMessageRowsByChatGUID.values)
+        let payloadRows = try messagePayloadRows(db: db, messageRows: messageRows, threadID: "")
         let messagesByRowID = try mapAndHashMessagesByRowID(
-            msgRows: msgRows,
+            messageRows: messageRows,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -952,8 +952,8 @@ extension PlatformAPI {
         )
 
         var latestMessagesByChatGUID = [String: [PlatformSDK.Message]]()
-        for (guid, msgRow) in latestMessageRowsByChatGUID {
-            latestMessagesByChatGUID[guid] = messagesByRowID[msgRow.rowID] ?? []
+        for (guid, messageRow) in latestMessageRowsByChatGUID {
+            latestMessagesByChatGUID[guid] = messagesByRowID[messageRow.rowID] ?? []
         }
         return latestMessagesByChatGUID
     }
@@ -981,24 +981,24 @@ extension PlatformAPI {
 
     nonisolated static func messagePayloadRows(
         db: IMDatabase,
-        msgRows: [MappedMessageRow],
+        messageRows: [MappedMessageRow],
         threadID: String
     ) throws -> MessagePayloadRows {
-        guard !msgRows.isEmpty else {
+        guard !messageRows.isEmpty else {
             return MessagePayloadRows(attachmentRows: [], reactionRows: [])
         }
 
-        let msgRowIDs = msgRows.map(\.rowID)
-        let msgGUIDs = msgRows.map(\.guid)
-        let chatRowIDs = Array(Set(msgRows.compactMap(\.chatRowID)))
+        let messageRowIDs = messageRows.map(\.rowID)
+        let messageGUIDs = messageRows.map(\.guid)
+        let chatRowIDs = Array(Set(messageRows.compactMap(\.chatRowID)))
         let reactionRows: [MappedReactionMessageRow]
         if !chatRowIDs.isEmpty {
-            reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatRowIDs: chatRowIDs)
+            reactionRows = try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatRowIDs: chatRowIDs)
         } else {
-            reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
+            reactionRows = try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatGUID: threadID)
         }
         return MessagePayloadRows(
-            attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRowIDs)),
+            attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: messageRowIDs)),
             reactionRows: reactionRows
         )
     }

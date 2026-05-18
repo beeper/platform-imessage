@@ -20,7 +20,7 @@ import Testing
             UpdatedMessageChange(rowID: 3, chatGUID: threadID, isNew: true, wasRead: false, wasEdited: false),
             UpdatedMessageChange(rowID: 4, chatGUID: threadID, isNew: true, wasRead: false, wasEdited: false),
         ],
-        msgRowsByRowID: rows,
+        messageRowsByRowID: rows,
         attachmentRows: [],
         reactionRows: [],
         currentUserID: "fixture-self@example.invalid",
@@ -52,7 +52,7 @@ import Testing
         changes: [
             UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: false, wasRead: true, wasEdited: false),
         ],
-        msgRowsByRowID: [row.rowID: row],
+        messageRowsByRowID: [row.rowID: row],
         attachmentRows: [],
         reactionRows: [],
         currentUserID: "fixture-self@example.invalid",
@@ -84,7 +84,7 @@ import Testing
         changes: [
             UpdatedMessageChange(rowID: row.rowID, chatGUID: threadID, isNew: true, wasRead: true, wasEdited: false),
         ],
-        msgRowsByRowID: [row.rowID: row],
+        messageRowsByRowID: [row.rowID: row],
         attachmentRows: [],
         reactionRows: [],
         currentUserID: "fixture-self@example.invalid",

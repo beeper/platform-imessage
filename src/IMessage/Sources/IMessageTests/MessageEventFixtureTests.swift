@@ -203,24 +203,24 @@ private func loadServerEvents(
     let values = try loadFixture(fileName)
     #expect(values.count == 5)
 
-    let msgRowObject = try #require(values[0] as? FixtureJSONObject)
+    let messageRowObject = try #require(values[0] as? FixtureJSONObject)
     let attachmentRowObjects = try #require(values[1] as? [FixtureJSONObject])
     let reactionRowObjects = try #require(values[2] as? [FixtureJSONObject])
     let currentUserID = try #require(values[3] as? String)
     let accountID = try #require(values[4] as? String)
 
-    let msgRow = try MappedMessageRow(object: msgRowObject)
+    let messageRow = try MappedMessageRow(object: messageRowObject)
     return try EventWatcher.messageUpdateEvents(
         changes: [
             UpdatedMessageChange(
-                rowID: msgRow.rowID,
-                chatGUID: msgRow.threadID ?? "",
+                rowID: messageRow.rowID,
+                chatGUID: messageRow.threadID ?? "",
                 isNew: change.isNew,
                 wasRead: change.wasRead,
                 wasEdited: change.wasEdited
             ),
         ],
-        msgRowsByRowID: [msgRow.rowID: msgRow],
+        messageRowsByRowID: [messageRow.rowID: messageRow],
         attachmentRows: try attachmentRowObjects.map(MappedAttachmentRow.init(object:)),
         reactionRows: try reactionRowObjects.map(MappedReactionMessageRow.init(object:)),
         currentUserID: currentUserID,

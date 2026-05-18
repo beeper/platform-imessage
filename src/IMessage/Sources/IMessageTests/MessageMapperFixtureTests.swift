@@ -275,14 +275,14 @@ private func mappedFixtureMessages(_ fileName: String) throws -> [PlatformSDK.Me
     let values = try loadFixture(fileName)
     #expect(values.count == 5)
 
-    let msgRow = try #require(values[0] as? FixtureJSONObject)
+    let messageRow = try #require(values[0] as? FixtureJSONObject)
     let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
     let reactionRows = try #require(values[2] as? [FixtureJSONObject])
     let currentUserID = try #require(values[3] as? String)
     let accountID = try #require(values[4] as? String)
 
     return try Mapper(
-        msgRow: msgRow,
+        messageRow: messageRow,
         attachmentRows: attachmentRows,
         reactionRows: reactionRows,
         currentUserID: currentUserID,

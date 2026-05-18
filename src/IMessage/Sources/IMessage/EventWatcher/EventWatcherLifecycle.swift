@@ -9,18 +9,7 @@ private let eventWatchingLog = Logger(imessageLabel: "event-watcher-lifecycle")
 final class EventWatcherLifecycle {
     static let shared = EventWatcherLifecycle()
 
-    private struct Subscription {
-        var onEvent: PlatformAPI.EventCallback
-        var reportErrorMessage: PlatformAPI.ReportErrorMessage?
-        var accountID: String
-    }
-
-    private struct State {
-        var subscription: Subscription?
-        var watchingTask: Task<Void, Never>?
-    }
-
-    private let state = Protected(State())
+    private let state: Protected<State> = Protected(State())
 
     private init() {}
 
@@ -119,5 +108,18 @@ final class EventWatcherLifecycle {
         state.withLock { state in
             state.watchingTask = watchingTask
         }
+    }
+}
+
+extension EventWatcherLifecycle {
+    private struct Subscription {
+        var onEvent: PlatformAPI.EventCallback
+        var reportErrorMessage: PlatformAPI.ReportErrorMessage?
+        var accountID: String
+    }
+
+    private struct State {
+        var subscription: Subscription?
+        var watchingTask: Task<Void, Never>?
     }
 }

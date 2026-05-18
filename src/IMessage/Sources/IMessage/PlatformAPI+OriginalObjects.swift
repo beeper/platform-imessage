@@ -7,11 +7,11 @@ private let platformOriginalObjectsLog = Logger(imessageLabel: "platform-api")
 
 extension PlatformAPI {
     nonisolated static func messageOriginalPayload(
-        msgRow: MappedMessageRow,
+        messageRow: MappedMessageRow,
         attachmentRows: [MappedAttachmentRow],
         currentUserID: String
     ) -> [Any] {
-        [msgRow.object, attachmentRows.map(\.object), currentUserID]
+        [messageRow.object, attachmentRows.map(\.object), currentUserID]
     }
 
     nonisolated static func threadOriginalPayload(
@@ -30,12 +30,12 @@ extension PlatformAPI {
         switch objName {
         case "message":
             let messageGUID = messageGUID(fromID: objectID)
-            guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
+            guard let messageRow = try db.mappedMessageRow(guid: messageGUID) else {
                 return ""
             }
-            let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID]))
+            let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: [messageRow.rowID]))
             return encodeOriginalPayload(messageOriginalPayload(
-                msgRow: msgRow,
+                messageRow: messageRow,
                 attachmentRows: attachmentRows,
                 currentUserID: currentUserID
             ))

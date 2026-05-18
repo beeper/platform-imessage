@@ -3,7 +3,7 @@ import PlatformSDK
 
 let objectReplacementCharacter = "\u{fffc}"
 let imessageExtensionCharacter = "\u{fffd}"
-let assocMsgGUIDPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:([-\d]+)/|bp:)"#)
+let associatedMessageGUIDPrefixRegex = try! NSRegularExpression(pattern: #"^(?:p:([-\d]+)/|bp:)"#)
 let uuidStart = 11
 let uuidLength = 36
 let coreFoundationReferenceDateMilliseconds: Int64 = 978_307_200_000
@@ -22,7 +22,7 @@ struct AssociatedMessageTarget {
 
 func parseAssociatedMessageTarget(_ associatedMessageGUID: String) -> AssociatedMessageTarget {
     let range = NSRange(associatedMessageGUID.startIndex ..< associatedMessageGUID.endIndex, in: associatedMessageGUID)
-    guard let match = assocMsgGUIDPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
+    guard let match = associatedMessageGUIDPrefixRegex.firstMatch(in: associatedMessageGUID, range: range),
           let upper = Range(match.range, in: associatedMessageGUID)?.upperBound else {
         return AssociatedMessageTarget(part: nil, messageGUID: associatedMessageGUID)
     }

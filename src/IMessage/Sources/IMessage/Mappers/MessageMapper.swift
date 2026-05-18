@@ -4,30 +4,30 @@ import IMessageCore
 import PlatformSDK
 
 struct Mapper {
-    let msgRow: MappedMessageRow
+    let messageRow: MappedMessageRow
     let attachmentRows: [MappedAttachmentRow]
     let reactionRows: [MappedReactionMessageRow]
     let currentUserID: String
     let accountID: String
 
     func mapMessage() throws -> [PlatformSDK.Message] {
-        guard msgRow.scheduleType == 0 else {
+        guard messageRow.scheduleType == 0 else {
             return []
         }
 
         let attachments = attachmentRows.compactMap { attachment(from: $0) }
-        let service = msgRow.service
+        let service = messageRow.service
         let isSMS = service == "SMS" || service == "RCS"
-        let isGroup = !(msgRow.roomName ?? "").isEmpty
-        let dates = MessageDates(row: msgRow)
+        let isGroup = !(messageRow.roomName ?? "").isEmpty
+        let dates = MessageDates(row: messageRow)
         let summaryInfo = parseSummaryInfo()
 
         var partialMessage = baseMessage(dates: dates, isSMS: isSMS, isGroup: isGroup)
         applyStatusFields(to: &partialMessage, dates: dates)
         applyEditedTimestamp(to: &partialMessage, dates: dates, summaryInfo: summaryInfo)
-        let bundleKind = BalloonBundleKind(msgRow.balloonBundleID)
+        let bundleKind = BalloonBundleKind(messageRow.balloonBundleID)
 
-        if msgRow.itemType != 0 {
+        if messageRow.itemType != 0 {
             if let actionMessage = mapItemTypeMessage(partialMessage: partialMessage) {
                 return [actionMessage.message()]
             }
@@ -70,7 +70,7 @@ struct Mapper {
         }
 
         let attachmentsByID = Dictionary(attachments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let associatedTarget = msgRow.associatedMessageGUID?.nonEmpty.map(parseAssociatedMessageTarget)
+        let associatedTarget = messageRow.associatedMessageGUID?.nonEmpty.map(parseAssociatedMessageTarget)
         var messages = makeMessages(
             from: messageParts,
             partialMessage: partialMessage,
@@ -119,14 +119,14 @@ struct Mapper {
             extra["isSMS"] = true
         }
         var message = MessageDraft(
-            id: msgRow.guid,
+            id: messageRow.guid,
             timestamp: sent,
-            senderID: messageSenderID(for: msgRow, currentUserID: currentUserID),
+            senderID: messageSenderID(for: messageRow, currentUserID: currentUserID),
             seen: nil,
-            isDelivered: msgRow.isDelivered == 1,
-            isSender: msgRow.isFromMe == 1,
-            isErrored: msgRow.error != 0,
-            threadID: msgRow.threadID,
+            isDelivered: messageRow.isDelivered == 1,
+            isSender: messageRow.isFromMe == 1,
+            isErrored: messageRow.error != 0,
+            threadID: messageRow.threadID,
             sortKey: sent,
             cursor: dates.sent.map(String.init),
             extra: extra
@@ -138,10 +138,10 @@ struct Mapper {
     }
 
     private func applyStatusFields(to message: inout MessageDraft, dates: MessageDates) {
-        if appleDateIsTruthy(dates.retracted) || msgRow.wasDetonated == 1 {
+        if appleDateIsTruthy(dates.retracted) || messageRow.wasDetonated == 1 {
             message.isDeleted = true
         }
-        if msgRow.isRead == 1 {
+        if messageRow.isRead == 1 {
             message.behavior = .keepRead
         }
     }
@@ -189,7 +189,7 @@ struct Mapper {
     }
 
     private func digitalTouchAttachment() -> PlatformSDK.Attachment? {
-        guard let data = msgRow.payloadData,
+        guard let data = messageRow.payloadData,
               let uuid = stringFromDataSlice(data, start: data.count - uuidStart - uuidLength, length: uuidLength),
               isUUID(uuid) else {
             return nil
@@ -200,12 +200,12 @@ struct Mapper {
             size: PlatformSDK.Size(width: 144, height: 180),
             isGif: true,
             // Prefer asset:// because Messages.app can take a few seconds to write this file to disk.
-            srcURL: digitalTouchAssetURL(uuid: uuid, rowID: msgRow.rowID)
+            srcURL: digitalTouchAssetURL(uuid: uuid, rowID: messageRow.rowID)
         )
     }
 
     private func handwritingAttachment() -> PlatformSDK.Attachment? {
-        guard let data = msgRow.payloadData,
+        guard let data = messageRow.payloadData,
               let uuid = stringFromDataSlice(data, start: uuidStart, length: uuidLength),
               isUUID(uuid) else {
             return nil
@@ -214,7 +214,7 @@ struct Mapper {
             id: uuid,
             type: .img,
             isGif: true,
-            srcURL: handwritingAssetURL(uuid: uuid, rowID: msgRow.rowID)
+            srcURL: handwritingAssetURL(uuid: uuid, rowID: messageRow.rowID)
         )
     }
 
@@ -226,10 +226,10 @@ struct Mapper {
     }
 
     private func applyThreadOriginator(to header: inout MessagePatch) {
-        guard let originatorGUID = msgRow.threadOriginatorGUID, !originatorGUID.isEmpty else {
+        guard let originatorGUID = messageRow.threadOriginatorGUID, !originatorGUID.isEmpty else {
             return
         }
-        let rawPartIndex = msgRow.threadOriginatorPart?
+        let rawPartIndex = messageRow.threadOriginatorPart?
             .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             .first
             .map(String.init) ?? ""
@@ -247,10 +247,10 @@ struct Mapper {
     }
 
     private func fallbackMessageParts(summaryInfo: JSONObject, attachments: [PlatformSDK.Attachment]) -> [MessagePart] {
-        if msgRow.attributedBody == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
+        if messageRow.attributedBody == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
             return [.unsent(index: 0, end: 0)]
         }
-        let text = removeObjectReplacementCharacter(msgRow.text ?? "")
+        let text = removeObjectReplacementCharacter(messageRow.text ?? "")
             .replacingOccurrences(of: imessageExtensionCharacter, with: "")
         return [.text(index: 0, end: 0, text: text, attributes: nil)]
             + attachments.enumerated().map { offset, attachment in
@@ -347,7 +347,7 @@ struct Mapper {
         bundleKind: BalloonBundleKind?,
         linkedMessageID: PlatformSDK.MessageID?
     ) -> MessageDraft? {
-        guard let bundleID = msgRow.balloonBundleID,
+        guard let bundleID = messageRow.balloonBundleID,
               bundleKind == nil else {
             return nil
         }
@@ -399,7 +399,7 @@ private func addingInlineSubject(_ subject: String, to message: MessageDraft) ->
 
 extension Mapper {
     func actionText(_ action: String) -> String {
-        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
+        let actor = messageRow.isFromMe == 1 ? "You" : "{{sender}}"
         return "\(actor) \(action)"
     }
 
@@ -422,14 +422,14 @@ extension Mapper {
 
 extension Mapper {
     init(
-        msgRow: JSONObject,
+        messageRow: JSONObject,
         attachmentRows: [JSONObject],
         reactionRows: [JSONObject],
         currentUserID: String,
         accountID: String
     ) throws {
         try self.init(
-            msgRow: MappedMessageRow(object: msgRow),
+            messageRow: MappedMessageRow(object: messageRow),
             attachmentRows: attachmentRows.map(MappedAttachmentRow.init(object:)),
             reactionRows: reactionRows.map(MappedReactionMessageRow.init(object:)),
             currentUserID: currentUserID,

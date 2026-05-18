@@ -7,9 +7,9 @@ func loadFixture(_ name: String) throws -> [Any] {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
     let data = try Data(contentsOf: url)
     var values = try #require(JSONSerialization.jsonObject(with: data) as? [Any])
-    if var msgRow = values.first as? FixtureJSONObject {
-        try hydrateFixtureBlobs(in: &msgRow)
-        values[0] = msgRow
+    if var messageRow = values.first as? FixtureJSONObject {
+        try hydrateFixtureBlobs(in: &messageRow)
+        values[0] = messageRow
     }
     return values
 }
