@@ -23,7 +23,7 @@ enum OutputFormat: String, ExpressibleByArgument {
 }
 
 struct CLIOutputFormatter {
-    var outputFormat: OutputFormat
+    let outputFormat: OutputFormat
 
     func printJSON(_ raw: String) {
         print(formatJSON(raw))
@@ -37,11 +37,16 @@ struct CLIOutputFormatter {
         printJSON(json)
     }
 
-    func formatJSON(_ raw: String) -> String {
-        Self.formatJSON(raw, outputFormat: outputFormat)
+    func formatJSON(_ raw: String, syntaxHighlighted: Bool = true) -> String {
+        Self.formatJSON(raw, outputFormat: outputFormat, syntaxHighlighted: syntaxHighlighted)
     }
 
-    static func formatJSON(_ raw: String, outputFormat: OutputFormat) -> String {
+    func formatLogValue(_ value: Any) -> String {
+        guard let string = try? encodeJSON(value) else { return String(describing: value) }
+        return Self.prettyJSONString(string).replacingOccurrences(of: "\n", with: " ")
+    }
+
+    static func formatJSON(_ raw: String, outputFormat: OutputFormat, syntaxHighlighted: Bool = true) -> String {
         let formatted: String
         switch outputFormat {
         case .json:
@@ -53,7 +58,7 @@ struct CLIOutputFormatter {
             }
             formatted = yaml.trimmingCharacters(in: .newlines)
         }
-        return syntaxHighlighted(formatted, outputFormat: outputFormat)
+        return syntaxHighlighted ? Self.syntaxHighlighted(formatted, outputFormat: outputFormat) : formatted
     }
 
     static func prettyJSONString(_ raw: String) -> String {
@@ -119,9 +124,4 @@ struct CLIOutputFormatter {
             return value
         }
     }
-}
-
-func formatValue(_ value: Any) -> String {
-    guard let string = try? encodeJSON(value) else { return String(describing: value) }
-    return CLIOutputFormatter.prettyJSONString(string).replacingOccurrences(of: "\n", with: " ")
 }

@@ -146,12 +146,10 @@ private struct CommandDefinition {
 private final class InvokeContext {
     let command: CommandDefinition
     private let runner: Runner
-    private let outputFormat: OutputFormat
 
-    init(command: CommandDefinition, runner: Runner, outputFormat: OutputFormat) {
+    init(command: CommandDefinition, runner: Runner) {
         self.command = command
         self.runner = runner
-        self.outputFormat = outputFormat
     }
 
     func invoke(
@@ -161,7 +159,17 @@ private final class InvokeContext {
         try await runner.invoke(
             commandName: command.name,
             args: args,
-            outputFormat: outputFormat,
+            operation
+        )
+    }
+
+    func invokeValue(
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> Any?
+    ) async throws {
+        try await runner.invokeValue(
+            commandName: command.name,
+            args: args,
             operation
         )
     }
@@ -171,19 +179,19 @@ private final class InvokeContext {
     }
 
     func showState() {
-        runner.showState(outputFormat: outputFormat)
+        runner.showState()
     }
 
     func startEventWatching(api: PlatformAPI) async throws {
-        try await runner.startEventWatching(api: api, outputFormat: outputFormat)
+        try await runner.startEventWatching(api: api)
     }
 
     func printEventJSON(_ json: String) {
-        runner.printEventJSON(json, outputFormat: outputFormat)
+        runner.printEventJSON(json)
     }
 
     func printStructuredValue(_ value: Any) {
-        runner.printStructuredValue(value, outputFormat: outputFormat)
+        runner.printStructuredValue(value)
     }
 
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
@@ -200,6 +208,7 @@ private final class Runner {
     private var state: RunnerState?
     private var apiInstance: PlatformAPI?
     private lazy var contactResolver = CLIContactResolver()
+    private lazy var outputFormatter = CLIOutputFormatter(outputFormat: options.outputFormat)
     private var nextCallID = 1
     private var eventsSubscribed = false
     private var shuttingDown = false
@@ -259,24 +268,44 @@ private final class Runner {
     func invoke(
         commandName: String,
         args: [Any],
-        outputFormat: OutputFormat,
         _ operation: @escaping (PlatformAPI) async throws -> String?
+    ) async throws {
+        try await invokeCommand(commandName: commandName, args: args, operation) { [outputFormatter] result in
+            outputFormatter.printJSON(result)
+        }
+    }
+
+    func invokeValue(
+        commandName: String,
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> Any?
+    ) async throws {
+        try await invokeCommand(commandName: commandName, args: args, operation) { [outputFormatter] result in
+            outputFormatter.printValue(result)
+        }
+    }
+
+    private func invokeCommand<Result>(
+        commandName: String,
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> Result?,
+        printResult: (Result) -> Void
     ) async throws {
         let api = try api()
         if options.subscribeToEvents {
-            ensureEventSubscription(api: api, outputFormat: outputFormat)
+            ensureEventSubscription(api: api)
         }
 
         let id = String(format: "%05d", nextCallID)
         nextCallID += 1
-        print("[\(id)] call \(commandName) \(formatValue(args))")
+        print("[\(id)] call \(commandName) \(outputFormatter.formatLogValue(args))")
 
         let started = Date()
         do {
             let result = try await operation(api)
             print("[\(id)] ok \(commandName) (\(elapsedMilliseconds(since: started))ms)")
             if let result {
-                CLIOutputFormatter(outputFormat: outputFormat).printJSON(result)
+                printResult(result)
             }
         } catch {
             fputs("[\(id)] failed \(commandName) (\(elapsedMilliseconds(since: started))ms) \(error)\n", stderr)
@@ -295,7 +324,7 @@ private final class Runner {
         printCommandHelp(command)
     }
 
-    func showState(outputFormat: OutputFormat) {
+    func showState() {
         guard let state else { return }
         let stateObject: [String: Any] = [
             "dataDirPath": state.dataDirPath,
@@ -310,7 +339,7 @@ private final class Runner {
             print(String(describing: stateObject))
             return
         }
-        CLIOutputFormatter(outputFormat: outputFormat).printJSON(json)
+        outputFormatter.printJSON(json)
     }
 
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
@@ -327,21 +356,20 @@ private final class Runner {
         )
     }
 
-    func ensureEventSubscription(api: PlatformAPI, outputFormat: OutputFormat) {
+    func ensureEventSubscription(api: PlatformAPI) {
         guard !eventsSubscribed else { return }
         eventsSubscribed = true
         api.subscribeToEvents { [weak self] events in
             let json = try encodeJSON(events.map { $0.jsonObject() })
-            self?.printEventJSON(json, outputFormat: outputFormat)
+            self?.printEventJSON(json)
         }
     }
 
     func startEventWatching(
         api: PlatformAPI,
-        outputFormat: OutputFormat,
         reportStartupErrors: Bool = false
     ) async throws {
-        ensureEventSubscription(api: api, outputFormat: outputFormat)
+        ensureEventSubscription(api: api)
         do {
             try await api.startEventWatchingFromCurrentState()
         } catch {
@@ -353,13 +381,13 @@ private final class Runner {
         }
     }
 
-    func printEventJSON(_ json: String, outputFormat: OutputFormat) {
-        let formatted = CLIOutputFormatter(outputFormat: outputFormat).formatJSON(json)
+    func printEventJSON(_ json: String) {
+        let formatted = outputFormatter.formatJSON(json, syntaxHighlighted: false)
         printConsoleLine("[events \(Date().iso8601Formatted)] \(formatted)")
     }
 
-    func printStructuredValue(_ value: Any, outputFormat: OutputFormat) {
-        CLIOutputFormatter(outputFormat: outputFormat).printValue(value)
+    func printStructuredValue(_ value: Any) {
+        outputFormatter.printValue(value)
     }
 
     private func printConsoleLine(_ line: String) {
@@ -375,7 +403,7 @@ private final class Runner {
         }
         if shouldStartEventWatching {
             let api = try initializeAPIIfNeeded()
-            try await startEventWatching(api: api, outputFormat: options.outputFormat, reportStartupErrors: true)
+            try await startEventWatching(api: api, reportStartupErrors: true)
         }
         while true {
             guard let input = lineReader.readLine() else {
@@ -425,7 +453,7 @@ private final class Runner {
             return
         }
 
-        let context = InvokeContext(command: command, runner: self, outputFormat: options.outputFormat)
+        let context = InvokeContext(command: command, runner: self)
         if !command.requiredAuthorization.isEmpty {
             try await runPreflightAuthCheck(commandName: command.name, requirements: command.requiredAuthorization)
             try initializeAPIIfNeeded()
@@ -900,10 +928,10 @@ private let commandDefinitions: [CommandDefinition] = [
         requiredAuthorization: mutatingAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
-        try await context.invoke(args: [args[0]]) { api in
+        try await context.invokeValue(args: [args[0]]) { api in
             let threadID = try await resolveThreadIDAlias(args[0], api: api)
             let status = try await api.getThreadActivityStatus(threadID: threadID)
-            return try encodeJSON(status.jsonObject)
+            return status.jsonObject
         }
     },
     CommandDefinition(
