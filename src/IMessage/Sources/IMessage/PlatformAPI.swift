@@ -489,6 +489,11 @@ public final class PlatformAPI {
         try await withMessagesController { try $0.notifyAnyway(threadID: threadID) }
     }
 
+    public func getThreadActivityStatus(threadID publicThreadID: String) async throws -> ThreadActivityObservation {
+        let threadID = try originalThreadID(for: publicThreadID)
+        return try await withMessagesController { try $0.activityStatus(threadID: threadID) }
+    }
+
     public func onThreadSelected(
         threadID publicThreadID: String,
         sendEvents: @escaping EventCallback

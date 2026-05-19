@@ -891,6 +891,22 @@ private let commandDefinitions: [CommandDefinition] = [
         }
     },
     CommandDefinition(
+        name: "activity-status",
+        category: .chat,
+        summary: "Print current typing and presence status for a chat.",
+        usage: ["activity-status CHAT_ID"],
+        examples: ["activity-status any;-;sjobs@apple.com"],
+        notes: [threadIDAliasNote, "presenceStatus appears as dnd, dnd_can_notify, or unknown when Messages could not inspect presence; it is omitted when no DND banner is present."],
+        requiredAuthorization: mutatingAuth
+    ) { args, context in
+        try requireExactArgs(context.command, args, 1)
+        try await context.invoke(args: [args[0]]) { api in
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            let status = try await api.getThreadActivityStatus(threadID: threadID)
+            return try encodeJSON(status.jsonObject)
+        }
+    },
+    CommandDefinition(
         name: "typing",
         category: .chat,
         summary: "Send typing on/off status for a chat.",

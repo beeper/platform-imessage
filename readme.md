@@ -74,6 +74,7 @@ swift run imessage-cli edit C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678 "updated text" 
 swift run imessage-cli search "project status"                                                        # search messages
 
 swift run imessage-cli select-chat sjobs@apple.com                                                    # select chat in messages.app
+swift run imessage-cli activity-status sjobs@apple.com                                                # print typing and DND/notify-anyway status
 swift run imessage-cli typing sjobs@apple.com on                                                      # send typing indicator
 
 swift run imessage-cli mark-read sjobs@apple.com
