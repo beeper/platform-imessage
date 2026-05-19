@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: update-homebrew-imessage-cli VERSION
+
+Updates Formula/imessage-cli.rb in a checkout of beeper/homebrew-tap.
+
+Environment:
+  TAP_DIR       Path to an existing homebrew-tap checkout. Defaults to ../homebrew-tap.
+  FORMULA_PATH Formula path inside TAP_DIR. Defaults to Formula/imessage-cli.rb.
+USAGE
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+version="${1:-${IMESSAGE_CLI_VERSION:-}}"
+if [[ -z "$version" ]]; then
+  usage >&2
+  exit 64
+fi
+
+version="${version#v}"
+if [[ ! "$version" =~ ^[0-9]+([.][0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]]; then
+  echo "Invalid version: $version" >&2
+  exit 64
+fi
+
+tag="v${version}"
+asset_name="imessage-cli-${version}-macos-universal.tar.gz"
+asset_url="https://github.com/beeper/platform-imessage/releases/download/${tag}/${asset_name}"
+sha_url="${asset_url}.sha256"
+
+tap_dir="${TAP_DIR:-../homebrew-tap}"
+formula_path="${FORMULA_PATH:-Formula/imessage-cli.rb}"
+formula="${tap_dir}/${formula_path}"
+
+if [[ ! -f "$formula" ]]; then
+  echo "Formula not found: $formula" >&2
+  exit 66
+fi
+
+work_dir="$(mktemp -d)"
+trap 'rm -rf "$work_dir"' EXIT
+
+sha_file="$work_dir/${asset_name}.sha256"
+tmp_tarball="$work_dir/$asset_name"
+
+curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "$sha_url" -o "$sha_file" &
+sha_pid=$!
+curl --retry 5 --retry-delay 3 --retry-all-errors -fsSL "$asset_url" -o "$tmp_tarball" &
+asset_pid=$!
+
+download_failed=0
+wait "$sha_pid" || download_failed=1
+wait "$asset_pid" || download_failed=1
+if [[ "$download_failed" -ne 0 ]]; then
+  echo "Failed to download release assets for $tag" >&2
+  exit 65
+fi
+
+sha256="$(awk '{print $1}' "$sha_file")"
+if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "Unexpected sha256 content from $sha_url: $sha256" >&2
+  exit 65
+fi
+
+computed_sha256="$(shasum -a 256 "$tmp_tarball" | awk '{print $1}')"
+if [[ "$computed_sha256" != "$sha256" ]]; then
+  echo "Checksum mismatch for $asset_name" >&2
+  echo "published: $sha256" >&2
+  echo "computed:  $computed_sha256" >&2
+  exit 65
+fi
+
+export FORMULA="$formula"
+export ASSET_URL="$asset_url"
+export SHA256="$sha256"
+
+python3 <<'PY'
+import os
+import pathlib
+import re
+
+formula_path = pathlib.Path(os.environ["FORMULA"])
+asset_url = os.environ["ASSET_URL"]
+sha256 = os.environ["SHA256"]
+
+text = formula_path.read_text()
+text, url_count = re.subn(
+    r'^(\s*)url "https://github\.com/beeper/platform-imessage/releases/download/v[^"]+/imessage-cli-[^"]+-macos-universal\.tar\.gz"$',
+    rf'\1url "{asset_url}"',
+    text,
+    count=1,
+    flags=re.MULTILINE,
+)
+text, sha_count = re.subn(
+    r'^(\s*)sha256 "[0-9a-f]{64}"$',
+    rf'\1sha256 "{sha256}"',
+    text,
+    count=1,
+    flags=re.MULTILINE,
+)
+
+if url_count != 1 or sha_count != 1:
+    raise SystemExit(
+        f"Expected to update one URL and one sha256, updated {url_count} URLs and {sha_count} sha256 values"
+    )
+
+formula_path.write_text(text)
+PY
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  {
+    echo "version=$version"
+    echo "tag=$tag"
+  } >> "$GITHUB_OUTPUT"
+fi
+
+echo "Updated ${formula_path} to ${tag}"

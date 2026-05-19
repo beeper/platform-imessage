@@ -1,0 +1,86 @@
+name: Update Homebrew tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: imessage-cli version to publish, with or without a leading v
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update-homebrew-tap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out platform-imessage
+        uses: actions/checkout@v4
+        with:
+          path: platform-imessage
+
+      - name: Check out homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: beeper/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        id: update
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          TAP_DIR: ${{ github.workspace }}/homebrew-tap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            version_ref="$DISPATCH_VERSION"
+          else
+            version_ref="$RELEASE_TAG"
+          fi
+
+          platform-imessage/scripts/update-homebrew-imessage-cli "$version_ref"
+
+      - name: Check for formula changes
+        id: formula
+        working-directory: homebrew-tap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- Formula/imessage-cli.rb; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Homebrew
+        if: steps.formula.outputs.changed == 'true'
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Validate formula style
+        if: steps.formula.outputs.changed == 'true'
+        working-directory: homebrew-tap
+        run: brew style Formula/imessage-cli.rb
+
+      - name: Commit and push tap update
+        if: steps.formula.outputs.changed == 'true'
+        working-directory: homebrew-tap
+        env:
+          IMESSAGE_CLI_VERSION: ${{ steps.update.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/imessage-cli.rb
+          git commit -m "imessage-cli $IMESSAGE_CLI_VERSION"
+          git push
