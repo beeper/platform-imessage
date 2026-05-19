@@ -62,6 +62,15 @@
         "revision" : "ef367f7370c51200ed95b384e03d545f59c7fc98",
         "version" : "603.0.0-prerelease-2025-10-30"
       }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams.git",
+      "state" : {
+        "revision" : "deaf82e867fa2cbd3cd865978b079bfcf384ac28",
+        "version" : "6.2.1"
+      }
     }
   ],
   "version" : 2

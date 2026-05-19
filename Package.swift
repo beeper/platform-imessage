@@ -24,6 +24,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
+    .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.0-prerelease-2025-10-30"),
 ]
 
@@ -100,6 +101,7 @@ var targets: [Target] = [
             "IMessage",
             "IMessageCore",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            .product(name: "Yams", package: "Yams"),
         ],
         path: "src/IMessage/Sources/IMessageCLI",
         plugins: ["GenerateIMessageCLIVersionPlugin"]

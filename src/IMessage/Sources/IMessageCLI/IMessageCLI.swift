@@ -38,6 +38,9 @@ struct IMessageCLI: AsyncParsableCommand {
     @Flag(name: .long, help: "Enable verbose logging.")
     var verbose = false
 
+    @Option(name: .long, help: "Format structured output as json or yaml/yml.")
+    var format: OutputFormat = .json
+
     @Argument(parsing: .allUnrecognized, help: "Command and command arguments.")
     var commandArgs: [String] = []
 
@@ -47,6 +50,7 @@ struct IMessageCLI: AsyncParsableCommand {
             customDataDir: dataDir,
             keepAlive: stayOpen,
             loggingEnabled: verbose,
+            outputFormat: format,
             subscribeToEvents: !noEvents,
             useSecondaryInstance: IMessageHost.useSecondaryInstanceEnvironment ?? useSecondaryInstance
         )
@@ -117,6 +121,7 @@ private struct RunnerOptions {
     var customDataDir: String?
     var keepAlive: Bool
     var loggingEnabled: Bool
+    var outputFormat: OutputFormat
     var subscribeToEvents: Bool
     var useSecondaryInstance: Bool
 }
@@ -141,10 +146,12 @@ private struct CommandDefinition {
 private final class InvokeContext {
     let command: CommandDefinition
     private let runner: Runner
+    private let outputFormat: OutputFormat
 
-    init(command: CommandDefinition, runner: Runner) {
+    init(command: CommandDefinition, runner: Runner, outputFormat: OutputFormat) {
         self.command = command
         self.runner = runner
+        self.outputFormat = outputFormat
     }
 
     func invoke(
@@ -154,6 +161,7 @@ private final class InvokeContext {
         try await runner.invoke(
             commandName: command.name,
             args: args,
+            outputFormat: outputFormat,
             operation
         )
     }
@@ -163,15 +171,19 @@ private final class InvokeContext {
     }
 
     func showState() {
-        runner.showState()
+        runner.showState(outputFormat: outputFormat)
     }
 
     func startEventWatching(api: PlatformAPI) async throws {
-        try await runner.startEventWatching(api: api)
+        try await runner.startEventWatching(api: api, outputFormat: outputFormat)
     }
 
     func printEventJSON(_ json: String) {
-        runner.printEventJSON(json)
+        runner.printEventJSON(json, outputFormat: outputFormat)
+    }
+
+    func printStructuredValue(_ value: Any) {
+        runner.printStructuredValue(value, outputFormat: outputFormat)
     }
 
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
@@ -247,11 +259,12 @@ private final class Runner {
     func invoke(
         commandName: String,
         args: [Any],
+        outputFormat: OutputFormat,
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
         let api = try api()
         if options.subscribeToEvents {
-            ensureEventSubscription(api: api)
+            ensureEventSubscription(api: api, outputFormat: outputFormat)
         }
 
         let id = String(format: "%05d", nextCallID)
@@ -263,7 +276,7 @@ private final class Runner {
             let result = try await operation(api)
             print("[\(id)] ok \(commandName) (\(elapsedMilliseconds(since: started))ms)")
             if let result {
-                print(prettyJSONString(result))
+                CLIOutputFormatter(outputFormat: outputFormat).printJSON(result)
             }
         } catch {
             fputs("[\(id)] failed \(commandName) (\(elapsedMilliseconds(since: started))ms) \(error)\n", stderr)
@@ -282,7 +295,7 @@ private final class Runner {
         printCommandHelp(command)
     }
 
-    func showState() {
+    func showState(outputFormat: OutputFormat) {
         guard let state else { return }
         let stateObject: [String: Any] = [
             "dataDirPath": state.dataDirPath,
@@ -290,13 +303,14 @@ private final class Runner {
             "sessionFilePath": state.sessionFilePath,
             "subscribeToEvents": state.options.subscribeToEvents,
             "loggingEnabled": state.options.loggingEnabled,
+            "outputFormat": state.options.outputFormat.rawValue,
             "useSecondaryInstance": state.options.useSecondaryInstance,
         ]
         guard let json = try? encodeJSON(stateObject) else {
             print(String(describing: stateObject))
             return
         }
-        print(prettyJSONString(json))
+        CLIOutputFormatter(outputFormat: outputFormat).printJSON(json)
     }
 
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
@@ -313,20 +327,21 @@ private final class Runner {
         )
     }
 
-    func ensureEventSubscription(api: PlatformAPI) {
+    func ensureEventSubscription(api: PlatformAPI, outputFormat: OutputFormat) {
         guard !eventsSubscribed else { return }
         eventsSubscribed = true
         api.subscribeToEvents { [weak self] events in
             let json = try encodeJSON(events.map { $0.jsonObject() })
-            self?.printEventJSON(json)
+            self?.printEventJSON(json, outputFormat: outputFormat)
         }
     }
 
     func startEventWatching(
         api: PlatformAPI,
+        outputFormat: OutputFormat,
         reportStartupErrors: Bool = false
     ) async throws {
-        ensureEventSubscription(api: api)
+        ensureEventSubscription(api: api, outputFormat: outputFormat)
         do {
             try await api.startEventWatchingFromCurrentState()
         } catch {
@@ -338,8 +353,13 @@ private final class Runner {
         }
     }
 
-    func printEventJSON(_ json: String) {
-        printConsoleLine("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
+    func printEventJSON(_ json: String, outputFormat: OutputFormat) {
+        let formatted = CLIOutputFormatter(outputFormat: outputFormat).formatJSON(json)
+        printConsoleLine("[events \(Date().iso8601Formatted)] \(formatted)")
+    }
+
+    func printStructuredValue(_ value: Any, outputFormat: OutputFormat) {
+        CLIOutputFormatter(outputFormat: outputFormat).printValue(value)
     }
 
     private func printConsoleLine(_ line: String) {
@@ -355,7 +375,7 @@ private final class Runner {
         }
         if shouldStartEventWatching {
             let api = try initializeAPIIfNeeded()
-            try await startEventWatching(api: api, reportStartupErrors: true)
+            try await startEventWatching(api: api, outputFormat: options.outputFormat, reportStartupErrors: true)
         }
         while true {
             guard let input = lineReader.readLine() else {
@@ -405,7 +425,7 @@ private final class Runner {
             return
         }
 
-        let context = InvokeContext(command: command, runner: self)
+        let context = InvokeContext(command: command, runner: self, outputFormat: options.outputFormat)
         if !command.requiredAuthorization.isEmpty {
             try await runPreflightAuthCheck(commandName: command.name, requirements: command.requiredAuthorization)
             try initializeAPIIfNeeded()
@@ -477,7 +497,7 @@ private let commandDefinitions: [CommandDefinition] = [
         examples: ["watch-status"]
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        print(IMessageHost.isEventWatching)
+        context.printStructuredValue(IMessageHost.isEventWatching)
     },
     CommandDefinition(
         name: "start-watching",
@@ -1239,6 +1259,7 @@ private func printTopLevelHelp() {
         "  --no-events              Do not subscribe to new DB changes after running commands",
         "  --stay-open              Run one command, then stay open in the interactive shell",
         "  --verbose                Enable verbose logging",
+        "  --format FORMAT          Format structured output as json or yaml/yml",
         "",
     ]
 
@@ -1587,23 +1608,6 @@ private func absolutePath(_ path: String) -> String {
 
 private func elapsedMilliseconds(since date: Date) -> String {
     String(format: "%.3f", date.elapsedMilliseconds)
-}
-
-private func prettyJSONString(_ raw: String) -> String {
-    guard let data = raw.data(using: .utf8),
-          let object = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]),
-          JSONSerialization.isValidJSONObject(object),
-          let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
-          let pretty = String(data: prettyData, encoding: .utf8)
-    else {
-        return raw
-    }
-    return pretty
-}
-
-private func formatValue(_ value: Any) -> String {
-    guard let string = try? encodeJSON(value) else { return String(describing: value) }
-    return prettyJSONString(string).replacingOccurrences(of: "\n", with: " ")
 }
 
 private extension String {
