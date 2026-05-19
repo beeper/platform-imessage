@@ -17,6 +17,27 @@ final class EventWatcherLifecycle {
         state.withLock { $0.watchingTask != nil }
     }
 
+    func registerServerEventWaiter(
+        id: UUID,
+        handlingEvent handler: @escaping @Sendable (ServerEvent) async throws -> ServerEventWaiterAction
+    ) throws {
+        guard let eventWatcher = state.withLock({ $0.eventWatcher }) else {
+            throw ErrorMessage("event watcher is not running")
+        }
+        try eventWatcher.registerServerEventWaiter(id: id, handlingEvent: handler)
+    }
+
+    func waitForServerEvent(waiterID id: UUID) async throws {
+        guard let eventWatcher = state.withLock({ $0.eventWatcher }) else {
+            return
+        }
+        try await eventWatcher.waitForServerEvent(waiterID: id)
+    }
+
+    func cancelServerEventWaiter(id: UUID) {
+        state.withLock { $0.eventWatcher }?.cancelServerEventWaiter(id: id)
+    }
+
     func subscribeToEvents(
         _ onEvent: @escaping PlatformAPI.EventCallback,
         accountID: String,
@@ -35,6 +56,7 @@ final class EventWatcherLifecycle {
         let watchingTask = state.withLock { state in
             let watchingTask = state.watchingTask
             state.watchingTask = nil
+            state.eventWatcher = nil
             if clearEventCallback {
                 state.subscription = nil
             }
@@ -83,6 +105,7 @@ final class EventWatcherLifecycle {
         let existingTask = state.withLock { state in
             let task = state.watchingTask
             state.watchingTask = nil
+            state.eventWatcher = nil
             return task
         }
         if let existingTask {
@@ -106,6 +129,14 @@ final class EventWatcherLifecycle {
         )
 
         let watchingTask = Task {
+            defer {
+                state.withLock { state in
+                    guard state.eventWatcher === eventWatcher else { return }
+                    state.eventWatcher = nil
+                    state.watchingTask = nil
+                }
+            }
+
             eventWatchingLog.debug("going to watch for database changes")
             do {
                 try await eventWatcher.watchForever()
@@ -116,6 +147,7 @@ final class EventWatcherLifecycle {
         }
 
         state.withLock { state in
+            state.eventWatcher = eventWatcher
             state.watchingTask = watchingTask
         }
     }
@@ -130,6 +162,7 @@ extension EventWatcherLifecycle {
 
     private struct State {
         var subscription: Subscription?
+        var eventWatcher: EventWatcher?
         var watchingTask: Task<Void, Never>?
     }
 }

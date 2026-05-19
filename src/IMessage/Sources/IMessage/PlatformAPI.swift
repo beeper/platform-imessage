@@ -6,11 +6,6 @@ import PlatformSDK
 
 private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")
-private let messageSendTimeout: TimeInterval = 45
-private let reactionSendTimeout: TimeInterval = 5
-private let waitForLinksTimeout: TimeInterval = 1.5
-private let waitForSentThreadTimeout: TimeInterval = 10
-private let sentMessagePollInterval: TimeInterval = 0.025
 private let loadAttachmentTimeout: TimeInterval = 60
 private let loadAttachmentInitialPollInterval: TimeInterval = 0.25
 private let loadAttachmentMaxPollInterval: TimeInterval = 5
@@ -277,10 +272,24 @@ public final class PlatformAPI {
             throw ErrorMessage("Cannot send message to email address over SMS")
         }
 
-        let lastRowID = try await performControllerOperation(
+        let waiterID = UUID()
+        let sentMessages = Protected((threadIDs: [String](), messages: [PlatformSDK.Message]()))
+        let expectedMessageCount = text.map { max($0.linkCount, 1) } ?? 1
+        
+        return try await performControllerOperation(
             name: "sendMessage",
             retries: quotedMessageID == nil ? 1 : 2,
-            prepareAttempt: { try await self.lastMessageRowID() }
+            prepare: {
+                sentMessages.withLock {
+                    $0.threadIDs.removeAll()
+                    $0.messages.removeAll()
+                }
+                try self.registerSentMessageUpdateWaiter(
+                    id: waiterID,
+                    expectedMessageCount: expectedMessageCount,
+                    sentMessages: sentMessages
+                )
+            }
         ) { controller in
             try controller.sendMessage(
                 threadID: threadID,
@@ -288,15 +297,17 @@ public final class PlatformAPI {
                 filePath: filePath,
                 quotedMessageID: quotedMessageID
             )
+        } after: {
+            try await self.waitForMessageSend(
+                threadID: threadID,
+                expectedLinkedMessageID: quotedMessageID,
+                text: text,
+                waiterID: waiterID,
+                sentMessages: sentMessages
+            )
+        } cleanup: {
+            EventWatcherLifecycle.shared.cancelServerEventWaiter(id: waiterID)
         }
-
-        return try await waitForMessageSend(
-            threadID: threadID,
-            expectedLinkedMessageID: quotedMessageID,
-            text: text,
-            lastRowID: lastRowID,
-            timeout: messageSendTimeout
-        )
     }
 
     public func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
@@ -683,20 +694,21 @@ public final class PlatformAPI {
     }
 
     @discardableResult
-    private func performControllerOperation<AttemptContext>(
+    private func performControllerOperation<Result>(
         name: String,
         retries: Int,
-        prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
+        prepare: @escaping @Sendable () throws -> Void,
         _ action: @escaping @Sendable (MessagesController) throws -> Void,
-        afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
-    ) async throws -> AttemptContext {
+        after: @escaping @Sendable () async throws -> Result,
+        cleanup: @escaping @Sendable () -> Void = {}
+    ) async throws -> Result {
         try await retry(retries: retries) { attempt in
-            let context = try await prepareAttempt()
+            defer { cleanup() }
             try await withMessagesController(forceInvalidate: attempt > 0) { controller in
+                try prepare()
                 try action(controller)
             }
-            try await afterAttempt?(context)
-            return context
+            return try await after()
         } onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
             self.reportErrorMessage("imessage \(name) failed: \(error)")
@@ -704,46 +716,53 @@ public final class PlatformAPI {
     }
 
     private func retryReactionOperation(threadID: String, messageID: String, reaction: String, on: Bool) async throws {
+        let waiterID = UUID()
+        let sentMessages = Protected((threadIDs: [String](), messages: [PlatformSDK.Message]()))
         try await performControllerOperation(
             name: on ? "addReaction" : "removeReaction",
             retries: 2,
-            prepareAttempt: { try await self.lastMessageRowID() }
+            prepare: {
+                sentMessages.withLock {
+                    $0.threadIDs.removeAll()
+                    $0.messages.removeAll()
+                }
+                try self.registerSentMessageUpdateWaiter(
+                    id: waiterID,
+                    expectedMessageCount: 1,
+                    sentMessages: sentMessages
+                )
+            }
         ) { controller in
             try controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
-        } afterAttempt: { lastRowID in
+        } after: {
             _ = try await self.waitForMessageSend(
                 threadID: threadID,
                 expectedLinkedMessageID: messageID,
                 text: nil,
-                lastRowID: lastRowID,
-                timeout: reactionSendTimeout
+                waiterID: waiterID,
+                sentMessages: sentMessages
             )
+        } cleanup: {
+            EventWatcherLifecycle.shared.cancelServerEventWaiter(id: waiterID)
         }
-    }
-
-    private func lastMessageRowID() async throws -> Int {
-        let database = database
-        return try await Task.detached(priority: .userInitiated) {
-            try database.withDatabase { db in
-                try db.lastMessageRowID()
-            }
-        }.value
     }
 
     private func waitForMessageSend(
         threadID: String,
         expectedLinkedMessageID: String?,
         text: String?,
-        lastRowID: Int,
-        timeout: TimeInterval
+        waiterID: UUID,
+        sentMessages: Protected<(threadIDs: [String], messages: [PlatformSDK.Message])>
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
-        let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
+        let (threadIDs, messages) = try await waitForSentMessageUpdate(
+            waiterID: waiterID,
+            sentMessages: sentMessages
+        )
         let address = threadIDToAddress(threadID)
         let sentThreadIsValid = try await withMessagesController { controller in
-            sentThreadIDs.allSatisfy { sentThreadID in
+            threadIDs.allSatisfy { sentThreadID in
                 if sentThreadID == threadID { return true }
-                guard let sentThreadID else { return false }
+                guard let sentThreadID = self.originalThreadID(fromServerUpdateThreadID: sentThreadID) else { return false }
                 return controller.isSameContact(address, threadIDToAddress(sentThreadID))
             }
         }
@@ -753,77 +772,51 @@ public final class PlatformAPI {
             return .boolean(true)
         }
 
-        let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
     }
 
-    private func waitForSentMessageIDs(
-        since lastRowID: Int,
-        text: String?,
-        timeout: TimeInterval
-    ) async throws -> [(rowID: Int, guid: String)] {
-        let database = database
-        return try await Task.detached(priority: .userInitiated) {
-            let start = Date()
-            let expectedNewMessageIDCount = text.map { max($0.linkCount, 1) } ?? 1
-            var sentMessageIDs: [(rowID: Int, guid: String)] = []
-            while sentMessageIDs.count != expectedNewMessageIDCount {
-                sentMessageIDs = try database.withDatabase { db in
-                    try db.sentMessageIDs(since: lastRowID)
-                }
-                if text != nil, !sentMessageIDs.isEmpty, Date().timeIntervalSince(start) > waitForLinksTimeout {
-                    break
-                }
-                if Date().timeIntervalSince(start) > timeout {
-                    throw ErrorMessage("timed out waiting for sent messages")
-                }
-                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
+    private func registerSentMessageUpdateWaiter(
+        id: UUID,
+        expectedMessageCount: Int,
+        sentMessages: Protected<(threadIDs: [String], messages: [PlatformSDK.Message])>
+    ) throws {
+        try EventWatcherLifecycle.shared.registerServerEventWaiter(id: id) { event in
+            guard case let .upsertMessages(threadID, messages) = event else {
+                return .keepWaiting(.passThrough)
             }
-            return sentMessageIDs
-        }.value
-    }
 
-    private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
-        let database = database
-        return try await Task.detached(priority: .userInitiated) {
-            let sentThreadIDs = {
-                try messageRowIDs.map { rowID in
-                    try database.withDatabase { db in
-                        try db.threadIDForMessage(rowID: rowID)
-                    }
-                }
+            let updatedSentMessages = messages.filter { $0.isSender == true }
+            guard !updatedSentMessages.isEmpty else {
+                return .keepWaiting(.passThrough)
             }
-            var threadIDs = try sentThreadIDs()
-            let start = Date()
-            while threadIDs.contains(where: { $0 == nil }) {
-                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
-                threadIDs = try sentThreadIDs()
-                if Date().timeIntervalSince(start) > waitForSentThreadTimeout {
-                    break
-                }
-            }
-            return threadIDs
-        }.value
-    }
 
-    private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [PlatformSDK.Message] {
-        try await runDBQuery { db, currentUser, accountID in
-            var messages = [PlatformSDK.Message]()
-            for sentMessageID in sentMessageIDs {
-                guard let message = try Self.messageObject(
-                    db: db,
-                    threadID: nil,
-                    messageID: sentMessageID.guid,
-                    currentUserID: currentUser.id,
-                    accountID: accountID
-                ) else {
-                    continue
-                }
-                messages.append(message)
+            let shouldReturn = sentMessages.withLock { sentMessages in
+                sentMessages.threadIDs.append(threadID)
+                sentMessages.messages.append(contentsOf: updatedSentMessages)
+                return sentMessages.messages.count >= expectedMessageCount
             }
-            return messages
+
+            return shouldReturn ? .finish(.consume) : .keepWaiting(.passThrough)
         }
+    }
+
+    private func waitForSentMessageUpdate(
+        waiterID: UUID,
+        sentMessages: Protected<(threadIDs: [String], messages: [PlatformSDK.Message])>
+    ) async throws -> (threadIDs: [String], messages: [PlatformSDK.Message]) {
+        try await EventWatcherLifecycle.shared.waitForServerEvent(waiterID: waiterID)
+
+        let sentMessages = sentMessages.read()
+        guard !sentMessages.messages.isEmpty else {
+            throw ErrorMessage("sent message update waiter completed without a matching update")
+        }
+        return sentMessages
+    }
+
+    private func originalThreadID(fromServerUpdateThreadID threadID: String) -> String? {
+        guard threadID.hasPrefix("imsg") else { return threadID }
+        return try? Hasher.thread.recoverOriginal(fromToken: threadID)
     }
 
     private func validateLinkedMessageIDs(_ messages: [PlatformSDK.Message], expectedLinkedMessageID: String?) {
