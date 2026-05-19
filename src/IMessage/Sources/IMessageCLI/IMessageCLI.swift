@@ -382,7 +382,7 @@ private final class Runner {
     }
 
     func printEventJSON(_ json: String) {
-        let formatted = outputFormatter.formatJSON(json, syntaxHighlighted: false)
+        let formatted = outputFormatter.formatJSON(json)
         printConsoleLine("[events \(Date().iso8601Formatted)] \(formatted)")
     }
 
