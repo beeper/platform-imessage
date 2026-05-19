@@ -35,14 +35,19 @@ This library powers the iMessage integration on [Beeper](https://www.beeper.com/
 
 ## Usage
 
-1. Setup:
+1. Install:
+```sh
+brew install beeper/tap/imessage-cli
+```
+
+2. Or build from source:
 ```sh
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
 swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Accessibility, Contacts, Messages Data, Automation), then opens the REPL
 ```
 
-2. Run one-off commands:
+3. Run one-off commands:
 ```sh
 swift run imessage-cli current-user                                                                   # fetch logged-in user
 swift run imessage-cli chats                                                                          # fetch chats
