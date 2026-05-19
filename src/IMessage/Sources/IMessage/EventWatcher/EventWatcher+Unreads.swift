@@ -33,7 +33,7 @@ extension EventWatcher {
 
             let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: chatGUID)
             let lastReadMessageSortKey = (currentState.lastReadMessageTimestamp.timeIntervalSince1970 * 1000).rounded()
-            let isUnread = currentState.unreadCount > 0
+            let isUnread = currentState.isUnread
             let markedUnreadUpdatedAt = Int(fresh.lastUpdated.timeIntervalSince1970 * 1000)
             var patch: JSONObject = [
                 "lastReadMessageSortKey": lastReadMessageSortKey,
@@ -71,7 +71,7 @@ extension EventWatcher {
 
             traceUnreads("chat \(hashedThreadID) patch: lastReadMessageSortKey=\(lastReadMessageSortKey), isMarkedUnread=\(isUnread), markedUnreadUpdatedAt=\(markedUnreadUpdatedAt)")
 
-            if currentState.unreadCount == 0 {
+            if !currentState.isUnread {
                 // Sync the fact that the thread became read. This is especially
                 // important for bidirectional syncing (i.e. marking a chat as
                 // read from the iMessage app itself).
