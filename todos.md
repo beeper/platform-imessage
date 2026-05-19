@@ -42,7 +42,6 @@
 - [ ] add leave group command
 - [ ] support rich text sending
 - [ ] support sending multipart messages (image(s) with caption)
-- [ ] map all message edits
 - [ ] fix parsing for multi-part messages w inline stickers
 - [ ] [fix real time sync of message deletions (for self, undo send already works)](https://github.com/beeper/platform-imessage/pull/63)
 
@@ -73,3 +72,4 @@
   - [x] one off command to print presence (dnd / dnd w notify) and typing status
   - [x] syntax highlight
 - [x] add download attachment command
+- [x] map all message edits
