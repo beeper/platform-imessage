@@ -27,7 +27,7 @@
 - cli
   - [ ] command to watch chat that prints new activity for just that chat, json new-line separated
   - [ ] use better library for repl?
-  - [ ] syntax highlight / autocomplete
+  - [ ] autocomplete
   - [ ] tests
 
 ### Parity
@@ -71,4 +71,5 @@
   - [x] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
   - [x] format flag for yaml readable output
   - [x] one off command to print presence (dnd / dnd w notify) and typing status
+  - [x] syntax highlight
 - [x] add download attachment command

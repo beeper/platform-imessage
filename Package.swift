@@ -2,8 +2,25 @@
 
 import PackageDescription
 import CompilerPluginSupport
+import Foundation
 
 let includeNodeBridge = Context.environment["IMESSAGE_INCLUDE_NODE_BRIDGE"] == "1"
+
+#if compiler(>=6.2)
+let swiftCompilerSupportsChroma = true
+#else
+let swiftCompilerSupportsChroma = false
+#endif
+
+#if os(macOS)
+let hostSupportsChroma = ProcessInfo.processInfo.isOperatingSystemAtLeast(
+    OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0)
+)
+#else
+let hostSupportsChroma = false
+#endif
+
+let enableChromaHighlighting = swiftCompilerSupportsChroma && hostSupportsChroma
 
 var products: [Product] = [
     .library(
@@ -27,6 +44,22 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.0-prerelease-2025-10-30"),
 ]
+
+var iMessageCLIDependencies: [Target.Dependency] = [
+    "IMessage",
+    "IMessageCore",
+    .product(name: "ArgumentParser", package: "swift-argument-parser"),
+    .product(name: "Yams", package: "Yams"),
+]
+var iMessageCLISwiftSettings: [SwiftSetting] = []
+var platforms: [SupportedPlatform] = [.macOS(.v11)]
+
+if enableChromaHighlighting {
+    dependencies.append(.package(url: "https://github.com/onevcat/Chroma.git", from: "0.3.1"))
+    iMessageCLIDependencies.append(.product(name: "Chroma", package: "Chroma"))
+    iMessageCLISwiftSettings.append(.define("IMESSAGE_CLI_ENABLE_CHROMA"))
+    platforms = [.macOS(.v13)]
+}
 
 var targets: [Target] = [
     .macro(
@@ -97,13 +130,9 @@ var targets: [Target] = [
     ),
     .executableTarget(
         name: "IMessageCLI",
-        dependencies: [
-            "IMessage",
-            "IMessageCore",
-            .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            .product(name: "Yams", package: "Yams"),
-        ],
+        dependencies: iMessageCLIDependencies,
         path: "src/IMessage/Sources/IMessageCLI",
+        swiftSettings: iMessageCLISwiftSettings,
         plugins: ["GenerateIMessageCLIVersionPlugin"]
     ),
     .plugin(
@@ -172,7 +201,7 @@ if includeNodeBridge {
 
 let package = Package(
     name: "IMessage",
-    platforms: [.macOS(.v11)],
+    platforms: platforms,
     products: products,
     dependencies: dependencies,
     targets: targets

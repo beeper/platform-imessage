@@ -2,6 +2,9 @@ import ArgumentParser
 import Foundation
 import IMessage
 import Yams
+#if IMESSAGE_CLI_ENABLE_CHROMA
+import Chroma
+#endif
 
 enum OutputFormat: String, ExpressibleByArgument {
     case json
@@ -39,16 +42,18 @@ struct CLIOutputFormatter {
     }
 
     static func formatJSON(_ raw: String, outputFormat: OutputFormat) -> String {
+        let formatted: String
         switch outputFormat {
         case .json:
-            return prettyJSONString(raw)
+            formatted = prettyJSONString(raw)
         case .yaml:
             guard let value = parseJSONValue(raw),
                   let yaml = try? Yams.dump(object: yamlSerializable(value)) else {
                 return raw
             }
-            return yaml.trimmingCharacters(in: .newlines)
+            formatted = yaml.trimmingCharacters(in: .newlines)
         }
+        return syntaxHighlighted(formatted, outputFormat: outputFormat)
     }
 
     static func prettyJSONString(_ raw: String) -> String {
@@ -66,6 +71,21 @@ struct CLIOutputFormatter {
     private static func parseJSONValue(_ raw: String) -> Any? {
         guard let data = raw.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+    }
+
+    private static func syntaxHighlighted(_ value: String, outputFormat: OutputFormat) -> String {
+        #if IMESSAGE_CLI_ENABLE_CHROMA
+        if #available(macOS 13, *) {
+            let language: LanguageID = outputFormat == .json ? .json : .yaml
+            let options = HighlightOptions(
+                colorMode: .auto(output: .stdout),
+                missingLanguageHandling: .fallbackToPlainText,
+                diff: .none
+            )
+            return (try? Chroma.highlight(value, language: language, options: options)) ?? value
+        }
+        #endif
+        return value
     }
 
     private static func yamlSerializable(_ value: Any) -> Any {
