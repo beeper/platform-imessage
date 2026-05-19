@@ -9,17 +9,6 @@ public struct ChatState: Equatable {
         self.isUnread = isUnread
         self.lastReadMessageTimestamp = lastReadMessageTimestamp
     }
-
-    @available(*, deprecated, message: "Use init(isUnread:lastReadMessageTimestamp:); ChatState no longer computes exact unread counts.")
-    public init(unreadCount: Int, lastReadMessageTimestamp: Date) {
-        self.init(isUnread: unreadCount > 0, lastReadMessageTimestamp: lastReadMessageTimestamp)
-    }
-
-    @available(*, deprecated, message: "Use isUnread; ChatState no longer computes exact unread counts.")
-    public var unreadCount: Int {
-        get { isUnread ? 1 : 0 }
-        set { isUnread = newValue > 0 }
-    }
 }
 
 extension ChatState: CustomStringConvertible {
