@@ -5,11 +5,11 @@ import PlatformSDK
 
 extension Mapper {
     func footer() -> MessagePatch {
-        let expressiveSendStyleID = msgRow.expressiveSendStyleID ?? ""
+        let expressiveSendStyleID = messageRow.expressiveSendStyleID ?? ""
         if let effect = expressiveMessages[expressiveSendStyleID] {
             return MessagePatch(textFooter: "(Sent with \(effect) effect)")
         }
-        if let service = msgRow.service, let footer = serviceFooters[service] {
+        if let service = messageRow.service, let footer = serviceFooters[service] {
             return MessagePatch(textFooter: footer)
         }
         return MessagePatch()
@@ -26,7 +26,7 @@ extension Mapper {
         var message = firstTextPart ?? messages.first ?? partialMessage
         let linkedMessageID = associatedTarget.messageID
         message.linkedMessageID = linkedMessageID
-        guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType] else {
+        guard let associatedMessageType = associatedMessageTypes[messageRow.associatedMessageType] else {
             return nil
         }
 
@@ -45,11 +45,11 @@ extension Mapper {
                 isHidden: true
             )
         case .heading:
-            if msgRow.balloonBundleID == BalloonBundleKind.polls.rawValue {
+            if messageRow.balloonBundleID == BalloonBundleKind.polls.rawValue {
                 return actionMessage(message, text: actionText("sent a poll"))
             }
             if var text = message.text {
-                let other = msgRow.participantID ?? ""
+                let other = messageRow.participantID ?? ""
                 let isSender = message.isSender == true
                 let senderName = isSender ? currentUserID : other
                 let receiverName = isSender ? other : currentUserID
@@ -96,7 +96,7 @@ extension Mapper {
     }
 
     func subject() -> String? {
-        guard let subject = msgRow.subject, !subject.isEmpty else {
+        guard let subject = messageRow.subject, !subject.isEmpty else {
             return nil
         }
         return subject
@@ -112,15 +112,15 @@ extension Mapper {
         message.isAction = !isSMS
         let action = PlatformSDK.PartialMessageReactionAction(
             messageID: message.linkedMessageID,
-            reactionKey: reaction.platformReactionKey(emoji: msgRow.associatedMessageEmoji),
-            imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: msgRow.rowID) : nil,
+            reactionKey: reaction.platformReactionKey(emoji: messageRow.associatedMessageEmoji),
+            imgURL: reaction.isSticker ? reactionStickerAssetURL(accountID: accountID, rowID: messageRow.rowID) : nil,
             participantID: message.senderID
         )
         message.action = reaction.action == .reacted
             ? .messageReactionCreated(action)
             : .messageReactionDeleted(action)
         message.parseTemplate = true
-        let actor = msgRow.isFromMe == 1 ? "You" : "{{sender}}"
+        let actor = messageRow.isFromMe == 1 ? "You" : "{{sender}}"
         let target = summaryInfo.string("ams").flatMap { $0.isEmpty ? nil : $0 }.map { "\"\($0)\"" } ?? "a message"
         message.text = "\(actor) \(reaction.verb) \(target)"
         message.isHidden = true

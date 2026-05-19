@@ -8,7 +8,7 @@ import PlatformSDK
 
 private let accountID = "default"
 private let prompt = "imessage> "
-private let commandCategories: [Category] = [.general, .watching, .message, .chat]
+private let commandCategories: [Category] = [.general, .chat, .message, .watching]
 private let quitCommands: Set<String> = ["q", "quit", "exit"]
 
 @main
@@ -38,6 +38,9 @@ struct IMessageCLI: AsyncParsableCommand {
     @Flag(name: .long, help: "Enable verbose logging.")
     var verbose = false
 
+    @Option(name: .long, help: "Format structured output as json or yaml/yml.")
+    var format: OutputFormat = .json
+
     @Argument(parsing: .allUnrecognized, help: "Command and command arguments.")
     var commandArgs: [String] = []
 
@@ -47,6 +50,7 @@ struct IMessageCLI: AsyncParsableCommand {
             customDataDir: dataDir,
             keepAlive: stayOpen,
             loggingEnabled: verbose,
+            outputFormat: format,
             subscribeToEvents: !noEvents,
             useSecondaryInstance: IMessageHost.useSecondaryInstanceEnvironment ?? useSecondaryInstance
         )
@@ -117,6 +121,7 @@ private struct RunnerOptions {
     var customDataDir: String?
     var keepAlive: Bool
     var loggingEnabled: Bool
+    var outputFormat: OutputFormat
     var subscribeToEvents: Bool
     var useSecondaryInstance: Bool
 }
@@ -158,6 +163,17 @@ private final class InvokeContext {
         )
     }
 
+    func invokeValue(
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> Any?
+    ) async throws {
+        try await runner.invokeValue(
+            commandName: command.name,
+            args: args,
+            operation
+        )
+    }
+
     func showHelp(_ commandName: String?) throws {
         try runner.showHelp(commandName)
     }
@@ -174,6 +190,10 @@ private final class InvokeContext {
         runner.printEventJSON(json)
     }
 
+    func printStructuredValue(_ value: Any) {
+        runner.printStructuredValue(value)
+    }
+
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
         runner.enrichThreadPageJSON(pageObject)
     }
@@ -188,6 +208,7 @@ private final class Runner {
     private var state: RunnerState?
     private var apiInstance: PlatformAPI?
     private lazy var contactResolver = CLIContactResolver()
+    private lazy var outputFormatter = CLIOutputFormatter(outputFormat: options.outputFormat)
     private var nextCallID = 1
     private var eventsSubscribed = false
     private var shuttingDown = false
@@ -249,6 +270,27 @@ private final class Runner {
         args: [Any],
         _ operation: @escaping (PlatformAPI) async throws -> String?
     ) async throws {
+        try await invokeCommand(commandName: commandName, args: args, operation) { [outputFormatter] result in
+            outputFormatter.printJSON(result)
+        }
+    }
+
+    func invokeValue(
+        commandName: String,
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> Any?
+    ) async throws {
+        try await invokeCommand(commandName: commandName, args: args, operation) { [outputFormatter] result in
+            outputFormatter.printValue(result)
+        }
+    }
+
+    private func invokeCommand<Result>(
+        commandName: String,
+        args: [Any],
+        _ operation: @escaping (PlatformAPI) async throws -> Result?,
+        printResult: (Result) -> Void
+    ) async throws {
         let api = try api()
         if options.subscribeToEvents {
             ensureEventSubscription(api: api)
@@ -256,14 +298,14 @@ private final class Runner {
 
         let id = String(format: "%05d", nextCallID)
         nextCallID += 1
-        print("[\(id)] call \(commandName) \(formatValue(args))")
+        print("[\(id)] call \(commandName) \(outputFormatter.formatLogValue(args))")
 
         let started = Date()
         do {
             let result = try await operation(api)
             print("[\(id)] ok \(commandName) (\(elapsedMilliseconds(since: started))ms)")
             if let result {
-                print(prettyJSONString(result))
+                printResult(result)
             }
         } catch {
             fputs("[\(id)] failed \(commandName) (\(elapsedMilliseconds(since: started))ms) \(error)\n", stderr)
@@ -284,14 +326,20 @@ private final class Runner {
 
     func showState() {
         guard let state else { return }
-        print(formatValue([
+        let stateObject: [String: Any] = [
             "dataDirPath": state.dataDirPath,
             "hashingEnabled": IMessageHost.isHashingEnabled,
             "sessionFilePath": state.sessionFilePath,
             "subscribeToEvents": state.options.subscribeToEvents,
             "loggingEnabled": state.options.loggingEnabled,
+            "outputFormat": state.options.outputFormat.rawValue,
             "useSecondaryInstance": state.options.useSecondaryInstance,
-        ]))
+        ]
+        guard let json = try? encodeJSON(stateObject) else {
+            print(String(describing: stateObject))
+            return
+        }
+        outputFormatter.printJSON(json)
     }
 
     func enrichThreadPageJSON(_ pageObject: JSONObject) -> JSONObject {
@@ -334,7 +382,12 @@ private final class Runner {
     }
 
     func printEventJSON(_ json: String) {
-        printConsoleLine("[events \(Date().iso8601Formatted)] \(prettyJSONString(json))")
+        let formatted = outputFormatter.formatJSON(json, syntaxHighlighted: false)
+        printConsoleLine("[events \(Date().iso8601Formatted)] \(formatted)")
+    }
+
+    func printStructuredValue(_ value: Any) {
+        outputFormatter.printValue(value)
     }
 
     private func printConsoleLine(_ line: String) {
@@ -472,7 +525,7 @@ private let commandDefinitions: [CommandDefinition] = [
         examples: ["watch-status"]
     ) { args, context in
         try requireExactArgs(context.command, args, 0)
-        print(IMessageHost.isEventWatching)
+        context.printStructuredValue(IMessageHost.isEventWatching)
     },
     CommandDefinition(
         name: "start-watching",
@@ -754,6 +807,26 @@ private let commandDefinitions: [CommandDefinition] = [
             return nil
         }
     },
+    CommandDefinition(
+        name: "load-attachment",
+        category: .message,
+        summary: "Load a message attachment in Messages and emit an updated message event.",
+        usage: ["load-attachment MESSAGE_ID", "load-attachment CHAT_ID MESSAGE_ID"],
+        examples: ["load-attachment C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678_1", "load-attachment latest-1", "load-attachment +14155551234 latest"],
+        notes: [threadIDAliasNote, messageIDAliasNote],
+        requiredAuthorization: mutatingAuth
+    ) { args, context in
+        let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)
+        try await context.invoke(args: args) { api in
+            let reference = try await resolveMessageReference(
+                rawThreadID: parsed.rawThreadID,
+                rawMessageID: parsed.rawMessageID,
+                api: api
+            )
+            try await api.loadAttachment(messageID: reference.messageID)
+            return nil
+        }
+    },
     reactionCommand(name: "react", summaryVerb: "Add", preposition: "to") { api, threadID, messageID, key in
         try await api.addReaction(threadID: threadID, messageID: messageID, reactionKey: key)
     },
@@ -843,6 +916,22 @@ private let commandDefinitions: [CommandDefinition] = [
                 context.printEventJSON(json)
             }
             return nil
+        }
+    },
+    CommandDefinition(
+        name: "activity-status",
+        category: .chat,
+        summary: "Print current typing and presence status for a chat.",
+        usage: ["activity-status CHAT_ID"],
+        examples: ["activity-status any;-;sjobs@apple.com"],
+        notes: [threadIDAliasNote, "presenceStatus appears as dnd, dnd_can_notify, or unknown when Messages could not inspect presence; it is omitted when no DND banner is present."],
+        requiredAuthorization: mutatingAuth
+    ) { args, context in
+        try requireExactArgs(context.command, args, 1)
+        try await context.invokeValue(args: [args[0]]) { api in
+            let threadID = try await resolveThreadIDAlias(args[0], api: api)
+            let status = try await api.getThreadActivityStatus(threadID: threadID)
+            return status.jsonObject
         }
     },
     CommandDefinition(
@@ -1214,6 +1303,7 @@ private func printTopLevelHelp() {
         "  --no-events              Do not subscribe to new DB changes after running commands",
         "  --stay-open              Run one command, then stay open in the interactive shell",
         "  --verbose                Enable verbose logging",
+        "  --format FORMAT          Format structured output as json or yaml/yml",
         "",
     ]
 
@@ -1562,23 +1652,6 @@ private func absolutePath(_ path: String) -> String {
 
 private func elapsedMilliseconds(since date: Date) -> String {
     String(format: "%.3f", date.elapsedMilliseconds)
-}
-
-private func prettyJSONString(_ raw: String) -> String {
-    guard let data = raw.data(using: .utf8),
-          let object = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]),
-          JSONSerialization.isValidJSONObject(object),
-          let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
-          let pretty = String(data: prettyData, encoding: .utf8)
-    else {
-        return raw
-    }
-    return pretty
-}
-
-private func formatValue(_ value: Any) -> String {
-    guard let string = try? encodeJSON(value) else { return String(describing: value) }
-    return prettyJSONString(string).replacingOccurrences(of: "\n", with: " ")
 }
 
 private extension String {

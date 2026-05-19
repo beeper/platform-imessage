@@ -3,8 +3,6 @@ import IMDatabase
 import Logging
 import PlatformSDK
 
-private let log = Logger(imessageLabel: "event-watcher")
-
 struct TimestampedChatState {
     var lastUpdated: Date
     var state: ChatState
@@ -16,6 +14,8 @@ struct TimestampedChatState {
 }
 
 final class EventWatcher {
+    static let logger = Logger(imessageLabel: "event-watcher")
+
     var db: IMDatabase
 
     /// Tracks the last known state of every chat.
@@ -35,10 +35,12 @@ final class EventWatcher {
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
         self.db = try IMDatabase()
+
         if Defaults.eventWatcherTraceChangeListening {
-            log.debug("tracing change listening, telling IMDatabase to be noisy")
+            Self.logger.debug("tracing change listening, telling IMDatabase to be noisy")
             self.db.noisy = true
         }
+
         self.sender = sender
         self.updatesCursor = initialUpdatesCursor
         self.currentUserID = currentUserID
@@ -47,43 +49,45 @@ final class EventWatcher {
     }
 
     func watchForever() async throws {
-        chatStates = try db.chatStates().mapValues { state in
-            TimestampedChatState(minting: state)
-        }
+        chatStates = try db.chatStates().mapValues(TimestampedChatState.init)
         try db.beginListeningForChanges()
 
         for try await _ in db.changes.subscribe() {
             guard !Task.isCancelled else {
-                log.info("woke up in response to db change but event watcher task was canceled, bailing")
+                Self.logger.info("woke up in response to db change but event watcher task was canceled, bailing")
                 return
             }
 
             if Defaults.eventWatcherTraceChangeListening {
-                log.debug("event watcher was informed about database change")
+                Self.logger.debug("event watcher was informed about database change")
             }
 
-            var eventsToSend = [ServerEvent]()
+            var eventsToSend: [ServerEvent] = []
 
             do {
                 // Query unread states, compare to the previous set, and persist them.
                 try eventsToSend.append(contentsOf: diffChatStates())
-
                 // Ditto, but for any new messages/read state changes.
                 try eventsToSend.append(contentsOf: collectMessageUpdateEvents())
+            } catch {
+                Self.logger.error("couldn't collect event watcher events: \(String(reflecting: error)), continuing")
+                try? reportErrorMessage?("imsg event watcher: couldn't collect events: \(String(reflecting: error))")
+                continue
             }
 
             guard !eventsToSend.isEmpty else { continue }
+
             do {
                 guard !Task.isCancelled else {
-                    log.info("had \(eventsToSend.count) event(s) to send but event watcher task was canceled, bailing")
+                    Self.logger.info("had \(eventsToSend.count) event(s) to send but event watcher task was canceled, bailing")
                     return
                 }
                 #if DEBUG
-                log.debug("sending \(eventsToSend.count) event(s) to PAS")
+                Self.logger.debug("sending \(eventsToSend.count) event(s) to PAS")
                 #endif
                 try await sender(eventsToSend)
             } catch {
-                log.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
+                Self.logger.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
                 try? reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
             }
         }

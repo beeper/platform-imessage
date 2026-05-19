@@ -9,18 +9,7 @@ private let eventWatchingLog = Logger(imessageLabel: "event-watcher-lifecycle")
 final class EventWatcherLifecycle {
     static let shared = EventWatcherLifecycle()
 
-    private struct Subscription {
-        var onEvent: PlatformAPI.EventCallback
-        var reportErrorMessage: PlatformAPI.ReportErrorMessage?
-        var accountID: String
-    }
-
-    private struct State {
-        var subscription: Subscription?
-        var watchingTask: Task<Void, Never>?
-    }
-
-    private let state = Protected(State())
+    private let state: Protected<State> = Protected(State())
 
     private init() {}
 
@@ -75,6 +64,16 @@ final class EventWatcherLifecycle {
         )
     }
 
+    func sendEvents(_ events: [ServerEvent]) async throws {
+        guard !events.isEmpty else { return }
+        guard let subscription = state.withLock({ $0.subscription }) else {
+            eventWatchingLog.warning("dropping \(events.count) event(s); no event callback is subscribed")
+            return
+        }
+
+        try await subscription.onEvent(events)
+    }
+
     private func startWatching(
         subscription: Subscription,
         initialUpdatesCursor: MessageUpdatesCursor,
@@ -119,5 +118,18 @@ final class EventWatcherLifecycle {
         state.withLock { state in
             state.watchingTask = watchingTask
         }
+    }
+}
+
+extension EventWatcherLifecycle {
+    private struct Subscription {
+        var onEvent: PlatformAPI.EventCallback
+        var reportErrorMessage: PlatformAPI.ReportErrorMessage?
+        var accountID: String
+    }
+
+    private struct State {
+        var subscription: Subscription?
+        var watchingTask: Task<Void, Never>?
     }
 }

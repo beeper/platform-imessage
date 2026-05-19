@@ -54,7 +54,7 @@ extension Mapper {
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
                 loading: loading,
-                isVoiceNote: msgRow.isAudioMessage == 1,
+                isVoiceNote: messageRow.isAudioMessage == 1,
                 srcURL: srcURL
             )
         }
@@ -72,11 +72,11 @@ extension Mapper {
         var message = partialMessage
         message.isAction = true
         message.parseTemplate = true
-        switch msgRow.itemType {
+        switch messageRow.itemType {
         case 1:
             message.behavior = .silent
-            let removed = msgRow.groupActionType == 1
-            let otherID = msgRow.otherID ?? ""
+            let removed = messageRow.groupActionType == 1
+            let otherID = messageRow.otherID ?? ""
             message.text = removed
                 ? "{{sender}} removed {{\(otherID)}} from the conversation"
                 : "{{sender}} added {{\(otherID)}} to the conversation"
@@ -85,15 +85,15 @@ extension Mapper {
                 : .threadParticipantsAdded(participantIDs: [otherID], actorParticipantID: message.senderID, participants: nil)
         case 2:
             message.behavior = .silent
-            if let title = msgRow.groupTitle {
+            if let title = messageRow.groupTitle {
                 message.text = "{{sender}} named the conversation \"\(title)\""
             } else {
                 message.text = "{{sender}} removed the name from the conversation"
             }
-            message.action = .threadTitleUpdated(title: msgRow.groupTitle, actorParticipantID: message.senderID)
+            message.action = .threadTitleUpdated(title: messageRow.groupTitle, actorParticipantID: message.senderID)
         case 3:
             message.behavior = .silent
-            let actionType = msgRow.groupActionType
+            let actionType = messageRow.groupActionType
             switch actionType {
             case 1, 2:
                 message.text = actionType == 1 ? "{{sender}} changed the group photo" : "{{sender}} removed the group photo"
@@ -110,12 +110,12 @@ extension Mapper {
             }
         case 4:
             message.behavior = .silent
-            message.text = msgRow.shareStatus == 1
+            message.text = messageRow.shareStatus == 1
                 ? "{{sender}} stopped sharing location"
                 : "{{sender}} started sharing location"
         case 5:
             message.behavior = .silent
-            message.text = msgRow.balloonBundleID == BalloonBundleKind.digitalTouch.rawValue
+            message.text = messageRow.balloonBundleID == BalloonBundleKind.digitalTouch.rawValue
                 ? "{{sender}} kept Digital Touch Message from you."
                 : "{{sender}} kept an audio message from you."
         case 6:

@@ -27,24 +27,24 @@ extension PlatformAPI {
     }
 
     nonisolated static func mapAndHashMessages(
-        msgRows: [MappedMessageRow],
+        messageRows: [MappedMessageRow],
         attachmentRows: [MappedAttachmentRow],
         reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
         accountID: String
     ) throws -> [PlatformSDK.Message] {
-        guard !msgRows.isEmpty else {
+        guard !messageRows.isEmpty else {
             return []
         }
 
         let attachmentRowsByMessageID = Dictionary(grouping: attachmentRows, by: \.msgRowID)
         let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { parseAssociatedMessageTarget($0.associatedMessageGUID).messageGUID })
 
-        return try msgRows.flatMap { msgRow -> [PlatformSDK.Message] in
+        return try messageRows.flatMap { messageRow -> [PlatformSDK.Message] in
             try mapAndHashMessage(
-                msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
+                messageRow: messageRow,
+                attachmentRows: attachmentRowsByMessageID[messageRow.rowID] ?? [],
+                reactionRows: reactionRowsByMessageGUID[messageRow.guid] ?? [],
                 currentUserID: currentUserID,
                 accountID: accountID
             )
@@ -52,13 +52,13 @@ extension PlatformAPI {
     }
 
     nonisolated static func mapAndHashMessagesByRowID(
-        msgRows: [MappedMessageRow],
+        messageRows: [MappedMessageRow],
         attachmentRows: [MappedAttachmentRow],
         reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
         accountID: String
     ) throws -> [Int: [PlatformSDK.Message]] {
-        guard !msgRows.isEmpty else {
+        guard !messageRows.isEmpty else {
             return [:]
         }
 
@@ -66,11 +66,11 @@ extension PlatformAPI {
         let reactionRowsByMessageGUID = Dictionary(grouping: reactionRows, by: { parseAssociatedMessageTarget($0.associatedMessageGUID).messageGUID })
 
         var messagesByRowID = [Int: [PlatformSDK.Message]]()
-        for msgRow in msgRows {
-            messagesByRowID[msgRow.rowID] = try mapAndHashMessage(
-                msgRow: msgRow,
-                attachmentRows: attachmentRowsByMessageID[msgRow.rowID] ?? [],
-                reactionRows: reactionRowsByMessageGUID[msgRow.guid] ?? [],
+        for messageRow in messageRows {
+            messagesByRowID[messageRow.rowID] = try mapAndHashMessage(
+                messageRow: messageRow,
+                attachmentRows: attachmentRowsByMessageID[messageRow.rowID] ?? [],
+                reactionRows: reactionRowsByMessageGUID[messageRow.guid] ?? [],
                 currentUserID: currentUserID,
                 accountID: accountID
             )
@@ -79,14 +79,14 @@ extension PlatformAPI {
     }
 
     nonisolated static func mapAndHashMessage(
-        msgRow: MappedMessageRow,
+        messageRow: MappedMessageRow,
         attachmentRows: [MappedAttachmentRow],
         reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
         accountID: String
     ) throws -> [PlatformSDK.Message] {
         let mapper = Mapper(
-            msgRow: msgRow,
+            messageRow: messageRow,
             attachmentRows: attachmentRows,
             reactionRows: reactionRows,
             currentUserID: currentUserID,
@@ -126,6 +126,7 @@ extension PlatformAPI {
             id: message.id,
             timestamp: message.timestamp,
             editedTimestamp: message.editedTimestamp,
+            editHistory: message.editHistory,
             expiresInSeconds: message.expiresInSeconds,
             forwardedCount: message.forwardedCount,
             forwardedFrom: message.forwardedFrom,

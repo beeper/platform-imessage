@@ -4,7 +4,7 @@ import PlatformSDK
 
 extension Mapper {
     func payloadData() -> Any? {
-        guard let data = msgRow.payloadData else {
+        guard let data = messageRow.payloadData else {
             return nil
         }
         if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) {
@@ -184,7 +184,7 @@ extension Mapper {
     }
 
     func parseSummaryInfo() -> JSONObject {
-        guard let data = msgRow.messageSummaryInfo,
+        guard let data = messageRow.messageSummaryInfo,
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
             return [:]
         }
@@ -307,7 +307,7 @@ extension Mapper {
             ?? option.string("attributedText").flatMap(\.nonEmpty)
     }
 
-    private func dataURLPayload(from url: String) -> String? {
+    func dataURLPayload(from url: String) -> String? {
         guard url.hasPrefix("data:"),
               let commaIndex = url.firstIndex(of: ",") else {
             return nil

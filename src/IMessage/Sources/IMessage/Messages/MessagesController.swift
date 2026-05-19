@@ -50,28 +50,6 @@ private enum ThreadAction {
     }
 }
 
-struct ThreadActivityObservation: Equatable, Sendable, CustomStringConvertible {
-    let activityType: PlatformSDK.ActivityType
-    let presenceStatus: PlatformSDK.UserPresenceStatus?
-    let didObservePresence: Bool
-
-    static let unknown = ThreadActivityObservation(
-        activityType: .none,
-        presenceStatus: nil,
-        didObservePresence: false
-    )
-
-    var description: String {
-        var parts = ["activityType=\(activityType.rawValue)"]
-        if let presenceStatus {
-            parts.append("presenceStatus=\(presenceStatus.rawValue)")
-        } else if !didObservePresence {
-            parts.append("presenceStatus=unknown")
-        }
-        return parts.joined(separator: ",")
-    }
-}
-
 struct MessageCell: Codable {
     let messageGUID: String
     let offset: Int
@@ -876,6 +854,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
+    func loadAttachment(threadID: String, messageCell: MessageCell) throws {
+        let startTime = Date()
+        defer { log.debug("loadAttachment took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
+        try prepareForAutomation()
+        defer { finishedAutomation() }
+
+        try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+            try messageCell.press()
+        }
+    }
+
     // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
         guard isVenturaOrUp else {
@@ -1492,6 +1482,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try assertSelectedThread(threadID: threadID)
             try elements.notifyAnywayButton.press()
         }
+    }
+
+    func activityStatus(threadID: String) throws -> ThreadActivityObservation {
+        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+
+        try prepareForAutomation()
+        defer { finishedAutomation() }
+
+        var observation = ThreadActivityObservation.unknown
+        try withActivation(openBefore: url) {
+            try assertSelectedThread(threadID: threadID)
+            observation = activityObservation()
+        }
+        return observation
     }
 
     /*

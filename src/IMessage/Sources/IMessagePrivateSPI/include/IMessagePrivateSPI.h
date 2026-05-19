@@ -2,35 +2,28 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface IMPluginPayload : NSObject
-@property (nonatomic, copy) NSData *data;
-@property (nonatomic, copy) NSString *pluginBundleID;
-@property (nonatomic, copy) NSString *messageGUID;
-@property (nonatomic) BOOL isFromMe;
-@end
+NSObject *_Nullable IMPrivateSPIPluginPayloadCreate(NSData *payloadData,
+                                                    NSString *bundleID,
+                                                    NSString *messageGUID,
+                                                    BOOL isFromMe);
 
-@interface ETBalloonPluginDataSource : NSObject
-- (instancetype)initWithPluginPayload:(IMPluginPayload *)payload NS_SWIFT_NAME(init(pluginPayload:));
-@end
+NSObject *_Nullable IMPrivateSPIPluginPayloadDataSourceCreate(NSString *className,
+                                                              NSObject *payload);
 
-@interface ETMacBalloonPluginController : NSObject
-- (instancetype)initWithDataSource:(ETBalloonPluginDataSource *)dataSource
-                          isFromMe:(BOOL)isFromMe NS_SWIFT_NAME(init(dataSource:isFromMe:));
-- (NSURL *_Nullable)getAssetURL;
-- (void)_createFallbackMediaWithCompletion:(void (^)(void))completion NS_SWIFT_NAME(createFallbackMedia(completion:));
-@end
+NSObject *_Nullable IMPrivateSPIDigitalTouchControllerCreate(NSObject *dataSource,
+                                                             BOOL isFromMe);
 
-@interface HWBalloonDataSource : NSObject
-- (instancetype)initWithPluginPayload:(IMPluginPayload *)payload NS_SWIFT_NAME(init(pluginPayload:));
-- (id _Nullable)handwritingFromPayload;
-@end
+NSURL *_Nullable IMPrivateSPIDigitalTouchAssetURL(NSObject *controller);
 
-@interface HWAbstractBalloonController : NSObject
-+ (void)_writeThumbnailOfHandwriting:(id)handwriting
-                              atSize:(CGSize)size
-                  useHighFidelityInk:(BOOL)useHighFidelityInk
-          toDiskWithCompletionHandler:(void (^)(NSURL *url))completion
-    NS_SWIFT_NAME(writeThumbnail(of:atSize:useHighFidelityInk:completion:));
-@end
+BOOL IMPrivateSPIDigitalTouchCreateFallbackMedia(NSObject *controller,
+                                                 void (^completion)(void));
+
+NSObject *_Nullable IMPrivateSPIHandwritingFromPayload(NSObject *dataSource);
+
+BOOL IMPrivateSPIHandwritingWriteThumbnail(NSString *rendererClassName,
+                                           NSObject *handwriting,
+                                           CGSize size,
+                                           BOOL useHighFidelityInk,
+                                           void (^completion)(NSURL *url));
 
 NS_ASSUME_NONNULL_END

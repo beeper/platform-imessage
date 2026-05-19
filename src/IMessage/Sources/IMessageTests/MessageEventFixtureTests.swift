@@ -1,3 +1,4 @@
+import Foundation
 import IMDatabase
 @testable import IMessage
 import PlatformSDK
@@ -155,6 +156,7 @@ private let messageEventFixtures = [
                 "reactions": JSONArray(),
                 "tweets": JSONArray(),
                 "links": JSONArray(),
+                "editHistory": JSONArray(),
                 "isAction": true,
                 "parseTemplate": true,
             ]]),
@@ -190,6 +192,40 @@ private func undoSendEventClearsRichMessageFields() throws {
     #expect((patch["reactions"] as? JSONArray)?.isEmpty == true)
     #expect((patch["tweets"] as? JSONArray)?.isEmpty == true)
     #expect((patch["links"] as? JSONArray)?.isEmpty == true)
+    #expect((patch["editHistory"] as? JSONArray)?.isEmpty == true)
+}
+
+@Test
+private func editedThenUndoSendEventClearsEditHistory() throws {
+    var values = try loadFixture("message_event_undo_send")
+    var messageRow = try #require(values[0] as? FixtureJSONObject)
+    let editedValues = try loadFixture("message_event_edited")
+    let editedRow = try #require(editedValues[0] as? FixtureJSONObject)
+    let editedBody = try #require(editedRow["attributedBody"] as? Data)
+    messageRow["message_summary_info"] = try PropertyListSerialization.data(
+        fromPropertyList: [
+            "otr": ["0": "fixture"],
+            "rp": [0],
+            "ec": [
+                "0": [
+                    [
+                        "d": 1,
+                        "t": editedBody,
+                    ],
+                ],
+            ],
+        ],
+        format: .binary,
+        options: 0
+    )
+    values[0] = messageRow
+
+    let events = try loadServerEvents(values: values, change: .edited)
+    let eventObject = try #require(events.first?.jsonObject())
+    let entries = try #require(eventObject["entries"] as? [JSONObject])
+    let patch = try #require(entries.first)
+
+    #expect((patch["editHistory"] as? JSONArray)?.isEmpty == true)
 }
 
 private func loadServerEvents(_ fixture: MessageEventFixture) throws -> [ServerEvent] {
@@ -201,26 +237,33 @@ private func loadServerEvents(
     change: MessageEventChange
 ) throws -> [ServerEvent] {
     let values = try loadFixture(fileName)
+    return try loadServerEvents(values: values, change: change)
+}
+
+private func loadServerEvents(
+    values: [Any],
+    change: MessageEventChange
+) throws -> [ServerEvent] {
     #expect(values.count == 5)
 
-    let msgRowObject = try #require(values[0] as? FixtureJSONObject)
+    let messageRowObject = try #require(values[0] as? FixtureJSONObject)
     let attachmentRowObjects = try #require(values[1] as? [FixtureJSONObject])
     let reactionRowObjects = try #require(values[2] as? [FixtureJSONObject])
     let currentUserID = try #require(values[3] as? String)
     let accountID = try #require(values[4] as? String)
 
-    let msgRow = try MappedMessageRow(object: msgRowObject)
+    let messageRow = try MappedMessageRow(object: messageRowObject)
     return try EventWatcher.messageUpdateEvents(
         changes: [
             UpdatedMessageChange(
-                rowID: msgRow.rowID,
-                chatGUID: msgRow.threadID ?? "",
+                rowID: messageRow.rowID,
+                chatGUID: messageRow.threadID ?? "",
                 isNew: change.isNew,
                 wasRead: change.wasRead,
                 wasEdited: change.wasEdited
             ),
         ],
-        msgRowsByRowID: [msgRow.rowID: msgRow],
+        messageRowsByRowID: [messageRow.rowID: messageRow],
         attachmentRows: try attachmentRowObjects.map(MappedAttachmentRow.init(object:)),
         reactionRows: try reactionRowObjects.map(MappedReactionMessageRow.init(object:)),
         currentUserID: currentUserID,

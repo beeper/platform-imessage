@@ -81,6 +81,7 @@ export declare class NativePlatformAPI {
   sendActivityIndicator: NativeVoidPlatformAPIMethod<'sendActivityIndicator'>
   addReaction: NativeVoidPlatformAPIMethod<'addReaction'>
   removeReaction: NativeVoidPlatformAPIMethod<'removeReaction'>
+  loadAttachment: NativeVoidPlatformAPIMethod<'loadAttachment'>
   notifyAnyway: NativeVoidPlatformAPIMethod<'notifyAnyway'>
   dispose: NativeVoidPlatformAPIMethod<'dispose'>
 }

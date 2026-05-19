@@ -11,6 +11,9 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let sentMessagePollInterval: TimeInterval = 0.025
+private let loadAttachmentTimeout: TimeInterval = 60
+private let loadAttachmentInitialPollInterval: TimeInterval = 0.25
+private let loadAttachmentMaxPollInterval: TimeInterval = 5
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let database = Protected<IMDatabase?>()
@@ -377,6 +380,95 @@ public final class PlatformAPI {
         try await setReaction(threadID: publicThreadID, messageID: messageID, reaction: reactionKey, on: false)
     }
 
+    public func loadAttachment(messageID: String) async throws {
+        guard let reference = try await resolveMessageReference(messageID: messageID) else {
+            throw ErrorMessage("Could not find message \(messageID)")
+        }
+
+        if let existingMessage = try await getMessage(threadID: reference.threadID, messageID: reference.messageID) {
+            let attachments = existingMessage.attachments ?? []
+            guard !attachments.isEmpty else {
+                throw ErrorMessage("Message \(messageID) has no attachments")
+            }
+        }
+
+        let threadID = try originalThreadID(for: reference.threadID)
+        try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+
+        let loadedMessage = try await waitForLoadedAttachment(
+            threadID: reference.threadID,
+            messageID: reference.messageID,
+            timeout: loadAttachmentTimeout
+        )
+        try await EventWatcherLifecycle.shared.sendEvents([
+            .updateMessages(threadID: reference.threadID, patches: [loadedMessage.jsonObject])
+        ])
+    }
+
+    private func waitForLoadedAttachment(
+        threadID: String,
+        messageID: String,
+        timeout: TimeInterval
+    ) async throws -> PlatformSDK.Message {
+        let deadline = Date().addingTimeInterval(timeout)
+        var pollInterval = loadAttachmentInitialPollInterval
+        var isFirstRead = true
+
+        while true {
+            let message = try await getMessage(threadID: threadID, messageID: messageID)
+                .orThrow(ErrorMessage("Could not find message \(messageID)"))
+            let attachments = message.attachments ?? []
+            if isFirstRead {
+                guard !attachments.isEmpty else {
+                    throw ErrorMessage("Message \(messageID) has no attachments")
+                }
+                isFirstRead = false
+            }
+            if !attachments.isEmpty, !attachments.contains(where: { $0.loading == true }) {
+                return message
+            }
+
+            if let failureState = try await terminalAttachmentFailureState(messageID: messageID) {
+                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState.rawValue))")
+            }
+
+            let remainingTime = deadline.timeIntervalSinceNow
+            guard remainingTime > 0 else {
+                throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
+            }
+
+            try await Task.sleep(forTimeInterval: min(pollInterval, remainingTime))
+            pollInterval = min(pollInterval * 2, loadAttachmentMaxPollInterval)
+        }
+    }
+
+    /// Returns the first attachment state on `messageID` that is terminal failure
+    /// (error / recoverableError / rejected), or `nil` if none have failed.
+    private func terminalAttachmentFailureState(messageID: String) async throws -> Attachment.IMFileTransferState? {
+        try await runDBQuery { db, _, _ -> Attachment.IMFileTransferState? in
+            let guid = messageGUID(fromID: messageID)
+            guard let msgRow = try db.mappedMessageRow(guid: guid) else { return nil }
+
+            let terminalFailureStates: Set<Attachment.IMFileTransferState> = [
+                .error,
+                .recoverableError,
+                .rejected,
+            ]
+
+            let attachmentRows: [MappedAttachmentRow] = try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
+
+            for attachmentRow in attachmentRows {
+                guard let rawTransferState = attachmentRow.transferState else { continue }
+                let transferState = Attachment.IMFileTransferState(rawValue: rawTransferState)
+                if terminalFailureStates.contains(transferState) {
+                    return transferState
+                }
+            }
+
+            return nil
+        }
+    }
+
     private func setReaction(threadID publicThreadID: String, messageID: String, reaction: String, on: Bool) async throws {
         if reaction == "sticker" {
             throw ErrorMessage(on ? "Adding sticker reactions isn't supported" : "Removing sticker reactions isn't supported")
@@ -395,6 +487,11 @@ public final class PlatformAPI {
     public func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
         try await withMessagesController { try $0.notifyAnyway(threadID: threadID) }
+    }
+
+    public func getThreadActivityStatus(threadID publicThreadID: String) async throws -> ThreadActivityObservation {
+        let threadID = try originalThreadID(for: publicThreadID)
+        return try await withMessagesController { try $0.activityStatus(threadID: threadID) }
     }
 
     public func onThreadSelected(
@@ -791,19 +888,19 @@ public final class PlatformAPI {
         let threadID = try originalThreadID(db: db, publicThreadID)
         let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
         let effectiveLimit = limit ?? messagePageLimit
-        var msgRows = try db.mappedMessageRows(
+        var messageRows = try db.mappedMessageRows(
             in: threadID,
             cursor: pagination?.cursor,
             direction: pageDirection,
             limit: effectiveLimit
         )
         if pageDirection != .after {
-            msgRows.reverse()
+            messageRows.reverse()
         }
 
-        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: threadID)
+        let payloadRows = try messagePayloadRows(db: db, messageRows: messageRows, threadID: threadID)
         let messages = try mapAndHashMessages(
-            msgRows: msgRows,
+            messageRows: messageRows,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -811,7 +908,7 @@ public final class PlatformAPI {
         )
         return PlatformSDK.Paginated(
             items: messages,
-            hasMore: msgRows.count == effectiveLimit
+            hasMore: messageRows.count == effectiveLimit
         )
     }
 
@@ -840,13 +937,13 @@ public final class PlatformAPI {
     ) throws -> PlatformSDK.Message? {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let messageGUID = messageGUID(fromID: messageID)
-        guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
+        guard let messageRow = try db.mappedMessageRow(guid: messageGUID) else {
             return nil
         }
 
-        let payloadRows = try messagePayloadRows(db: db, msgRows: [msgRow], threadID: threadID ?? "")
+        let payloadRows = try messagePayloadRows(db: db, messageRows: [messageRow], threadID: threadID ?? "")
         let messages = try mapAndHashMessages(
-            msgRows: [msgRow],
+            messageRows: [messageRow],
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -882,12 +979,12 @@ public final class PlatformAPI {
             return PlatformSDK.PaginatedWithCursors(items: [], hasMore: false, oldestCursor: "")
         }
 
-        let msgRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
-        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRows.map(\.rowID)))
-        let messageGUIDs = msgRows.map(\.guid)
+        let messageRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
+        let attachmentRows = decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: messageRows.map(\.rowID)))
+        let messageGUIDs = messageRows.map(\.guid)
         let reactionRows = try threadID.map { try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatGUID: $0) } ?? []
         let messages = try mapAndHashMessages(
-            msgRows: msgRows,
+            messageRows: messageRows,
             attachmentRows: attachmentRows,
             reactionRows: reactionRows,
             currentUserID: currentUserID,
@@ -896,8 +993,8 @@ public final class PlatformAPI {
         return PlatformSDK.PaginatedWithCursors(
             items: messages,
             hasMore: matchingRowIDs.count == effectiveLimit,
-            oldestCursor: msgRows.last?.date.map(String.init) ?? "",
-            newestCursor: msgRows.first?.date.map(String.init)
+            oldestCursor: messageRows.last?.date.map(String.init) ?? "",
+            newestCursor: messageRows.first?.date.map(String.init)
         )
     }
 }
@@ -941,10 +1038,10 @@ extension PlatformAPI {
         currentUserID: String,
         accountID: String
     ) throws -> [String: [PlatformSDK.Message]] {
-        let msgRows = Array(latestMessageRowsByChatGUID.values)
-        let payloadRows = try messagePayloadRows(db: db, msgRows: msgRows, threadID: "")
+        let messageRows = Array(latestMessageRowsByChatGUID.values)
+        let payloadRows = try messagePayloadRows(db: db, messageRows: messageRows, threadID: "")
         let messagesByRowID = try mapAndHashMessagesByRowID(
-            msgRows: msgRows,
+            messageRows: messageRows,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -952,8 +1049,8 @@ extension PlatformAPI {
         )
 
         var latestMessagesByChatGUID = [String: [PlatformSDK.Message]]()
-        for (guid, msgRow) in latestMessageRowsByChatGUID {
-            latestMessagesByChatGUID[guid] = messagesByRowID[msgRow.rowID] ?? []
+        for (guid, messageRow) in latestMessageRowsByChatGUID {
+            latestMessagesByChatGUID[guid] = messagesByRowID[messageRow.rowID] ?? []
         }
         return latestMessagesByChatGUID
     }
@@ -981,24 +1078,24 @@ extension PlatformAPI {
 
     nonisolated static func messagePayloadRows(
         db: IMDatabase,
-        msgRows: [MappedMessageRow],
+        messageRows: [MappedMessageRow],
         threadID: String
     ) throws -> MessagePayloadRows {
-        guard !msgRows.isEmpty else {
+        guard !messageRows.isEmpty else {
             return MessagePayloadRows(attachmentRows: [], reactionRows: [])
         }
 
-        let msgRowIDs = msgRows.map(\.rowID)
-        let msgGUIDs = msgRows.map(\.guid)
-        let chatRowIDs = Array(Set(msgRows.compactMap(\.chatRowID)))
+        let messageRowIDs = messageRows.map(\.rowID)
+        let messageGUIDs = messageRows.map(\.guid)
+        let chatRowIDs = Array(Set(messageRows.compactMap(\.chatRowID)))
         let reactionRows: [MappedReactionMessageRow]
         if !chatRowIDs.isEmpty {
-            reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatRowIDs: chatRowIDs)
+            reactionRows = try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatRowIDs: chatRowIDs)
         } else {
-            reactionRows = try db.mappedReactionRows(messageGUIDs: msgGUIDs, chatGUID: threadID)
+            reactionRows = try db.mappedReactionRows(messageGUIDs: messageGUIDs, chatGUID: threadID)
         }
         return MessagePayloadRows(
-            attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: msgRowIDs)),
+            attachmentRows: decorateAttachments(try db.mappedAttachmentRows(messageRowIDs: messageRowIDs)),
             reactionRows: reactionRows
         )
     }

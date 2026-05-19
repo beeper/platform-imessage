@@ -34,10 +34,10 @@ extension PlatformAPI {
         messageID: String
     ) throws -> MessageReference? {
         let messageGUID = messageGUID(fromID: messageID)
-        guard let msgRow = try db.mappedMessageRow(guid: messageGUID) else {
+        guard let messageRow = try db.mappedMessageRow(guid: messageGUID) else {
             return nil
         }
-        guard let threadID = try msgRow.threadID ?? db.threadIDForMessage(rowID: msgRow.rowID) else {
+        guard let threadID = try messageRow.threadID ?? db.threadIDForMessage(rowID: messageRow.rowID) else {
             return nil
         }
         return MessageReference(
@@ -54,15 +54,15 @@ extension PlatformAPI {
     ) throws -> MessageReference? {
         guard offset >= 0 else { return nil }
         let resolvedOriginalThreadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
-        guard let msgRow = try db.mappedLatestVisibleMessageRow(in: resolvedOriginalThreadID, offset: offset, ownedOnly: ownedOnly) else {
+        guard let messageRow = try db.mappedLatestVisibleMessageRow(in: resolvedOriginalThreadID, offset: offset, ownedOnly: ownedOnly) else {
             return nil
         }
-        guard let threadID = try resolvedOriginalThreadID ?? msgRow.threadID ?? db.threadIDForMessage(rowID: msgRow.rowID) else {
+        guard let threadID = try resolvedOriginalThreadID ?? messageRow.threadID ?? db.threadIDForMessage(rowID: messageRow.rowID) else {
             return nil
         }
         return MessageReference(
             threadID: Hasher.thread.tokenizeRemembering(pii: threadID),
-            messageID: msgRow.guid
+            messageID: messageRow.guid
         )
     }
 }

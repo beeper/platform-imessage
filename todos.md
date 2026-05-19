@@ -25,12 +25,13 @@
 - [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
 
 - cli
-  - [ ] one off command to print presence (dnd / dnd w notify) and typing status
+  - [ ] command to watch chat that prints new activity for just that chat, json new-line separated
+  - [ ] use better library for repl?
+  - [ ] autocomplete
   - [ ] tests
 
 ### Parity
 
-- [ ] add download attachment command
 - [ ] add delete message for me command
 - [ ] add add/remove group participant command
 - [ ] fix sending emoji reactions (🎉)
@@ -51,13 +52,13 @@
 - [x] publish to spm
 - [x] transpile to pure Swift with TypeScript/Electron bindings
 - [x] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
-- [x] remove event-watching side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps event watching from the first thread fetch (`cursor == nil`) via `EventWatcherLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting event watching from inside it makes calls non-idempotent. Fix by moving event-watcher bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventWatchingFromCurrentState` / `IMessageHost.startEventWatchingFromCurrentState` path.
+- [x] remove event-watching side effect from `PlatformAPI.getThreads(...)`. It currently bootstraps event watching from the first chat fetch (`cursor == nil`) via `EventWatcherLifecycle.shared.startBootstrapIfNecessary(...)`; a fetch function should only perform a single read and return data. Starting event watching from inside it makes calls non-idempotent. Fix by moving event-watcher bootstrap ownership to the caller/lifecycle layer, e.g. the existing explicit `startEventWatchingFromCurrentState` / `IMessageHost.startEventWatchingFromCurrentState` path.
 - [x] fix receiving typing indicators on tahoe
 - [x] fix graphic for old school tapback reactions (👍, ❤️) – should not be same as emoji reactions (like, heart)
-- [x] cli messages/threads command: add pagination
+- [x] cli messages/chats command: add pagination
 - [x] add undo send CLI command
 - [x] fix notify anyway on tahoe
-- [x] fix unmute thread on tahoe
+- [x] fix unmute chat on tahoe
 - instead of `thread_messages_refresh`
   - [x] new incoming messages should be state sync message upserts
   - [x] new added/removed reactions should be state sync message upserts/deletes (for the hidden reaction message) and a state sync message update (for the og message)
@@ -65,6 +66,10 @@
   - [x] messages getting read should be state sync message updates
 - [x] https://github.com/SwiftPackageIndex/PackageList/issues/new?template=add_package.yml
 - cli
-  - [x] resolve thread id as email/phone # if `any;-;` prefix isn't passed
+  - [x] resolve chat id as email/phone # if `any;-;` prefix isn't passed
   - [x] notarize before gh release and do universal binary/x86 target
   - [x] w system contacts, resolve phone #s and emails and populate `Thread.title`, `User.fullName`, `User.imgURL`
+  - [x] format flag for yaml readable output
+  - [x] one off command to print presence (dnd / dnd w notify) and typing status
+  - [x] syntax highlight
+- [x] add download attachment command

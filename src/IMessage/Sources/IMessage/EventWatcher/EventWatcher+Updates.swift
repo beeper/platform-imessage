@@ -33,7 +33,7 @@ private enum PendingMessage {
 extension EventWatcher {
     static func messageUpdateEvents(
         changes: [UpdatedMessageChange],
-        msgRowsByRowID: [Int: MappedMessageRow],
+        messageRowsByRowID: [Int: MappedMessageRow],
         attachmentRows: [MappedAttachmentRow],
         reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
@@ -47,24 +47,24 @@ extension EventWatcher {
         var pendingByRowID = OrderedDictionary<Int, PendingMessage>()
 
         for change in changes {
-            guard let msgRow = msgRowsByRowID[change.rowID] else {
+            guard let messageRow = messageRowsByRowID[change.rowID] else {
                 log.error("message update row \(change.rowID) couldn't be mapped, dropping")
                 continue
             }
-            let threadID = msgRow.threadID ?? change.chatGUID
+            let threadID = messageRow.threadID ?? change.chatGUID
 
-            if let associatedGUID = msgRow.associatedMessageGUID?.nonEmpty {
-                if let reaction = Self.reaction(for: msgRow) {
+            if let associatedGUID = messageRow.associatedMessageGUID?.nonEmpty {
+                if let reaction = Self.reaction(for: messageRow) {
                     let target = parseAssociatedMessageTarget(associatedGUID)
                     guard !target.messageID.isEmpty else {
-                        log.error("message row \(msgRow.rowID) is a reaction but doesn't point at a message, dropping reaction state sync")
+                        log.error("message row \(messageRow.rowID) is a reaction but doesn't point at a message, dropping reaction state sync")
                         continue
                     }
 
                     if change.isNew {
-                        pendingByRowID[msgRow.rowID] = .reactionAction(
+                        pendingByRowID[messageRow.rowID] = .reactionAction(
                             threadID: threadID,
-                            row: msgRow,
+                            row: messageRow,
                             reaction: reaction,
                             target: target
                         )
@@ -73,18 +73,18 @@ extension EventWatcher {
                     continue
                 }
 
-                traceMessageUpdates("message row \(msgRow.rowID) is associated but not a reaction; treating as a message state sync")
+                traceMessageUpdates("message row \(messageRow.rowID) is associated but not a reaction; treating as a message state sync")
             }
 
-            pendingByRowID[msgRow.rowID] = .normal(
+            pendingByRowID[messageRow.rowID] = .normal(
                 threadID: threadID,
-                row: msgRow,
+                row: messageRow,
                 change: change
             )
         }
 
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
-            msgRows: pendingByRowID.values.map(\.row),
+            messageRows: pendingByRowID.values.map(\.row),
             attachmentRows: attachmentRows,
             reactionRows: reactionRows,
             currentUserID: currentUserID,
@@ -160,15 +160,15 @@ extension EventWatcher {
             return []
         }
 
-        let msgRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
+        let messageRows = try db.mappedMessageRows(rowIDs: queryResult.updatedMessages.map(\.rowID))
         // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
         // chats yields multiple rows with the same ROWID. Keep first.
-        let msgRowsByRowID = Dictionary(msgRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
+        let messageRowsByRowID = Dictionary(messageRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
 
-        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, msgRows: Array(msgRowsByRowID.values), threadID: "")
+        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: Array(messageRowsByRowID.values), threadID: "")
         return try Self.messageUpdateEvents(
             changes: queryResult.updatedMessages,
-            msgRowsByRowID: msgRowsByRowID,
+            messageRowsByRowID: messageRowsByRowID,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
@@ -202,8 +202,8 @@ extension EventWatcher {
         }
     }
 
-    private static func reaction(for msgRow: MappedMessageRow) -> AssociatedReaction? {
-        guard let associatedMessageType = associatedMessageTypes[msgRow.associatedMessageType],
+    private static func reaction(for messageRow: MappedMessageRow) -> AssociatedReaction? {
+        guard let associatedMessageType = associatedMessageTypes[messageRow.associatedMessageType],
               case let .reaction(reaction) = associatedMessageType else {
             return nil
         }

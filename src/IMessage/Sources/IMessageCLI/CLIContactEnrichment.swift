@@ -232,12 +232,9 @@ enum CLIThreadContactEnricher {
     }
 
     private static func participantTitle(for participantObject: JSONObject) -> String? {
-        participantObject.string("nickname")?.nonEmpty
-            ?? participantObject.string("fullName")?.nonEmpty
-            ?? participantObject.string("username")?.nonEmpty
-            ?? participantObject.string("email")?.nonEmpty
-            ?? participantObject.string("phoneNumber")?.nonEmpty
-            ?? participantObject.string("id")?.nonEmpty
+        ["nickname", "fullName", "username", "email", "phoneNumber", "id"]
+            .compactMap { participantObject.string($0) }
+            .first(where: { !$0.isEmpty })
     }
 
     private static func derivedTitle(

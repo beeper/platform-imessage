@@ -123,6 +123,176 @@ private func pollPayloadMessageMapsAsReadableSummary(fileName: String) throws {
 }
 
 @Test
+private func editedMessageMapsEditHistory() throws {
+    var values = try loadFixture("message_event_edited")
+    var messageRow = try #require(values[0] as? FixtureJSONObject)
+    let originalValues = try loadFixture("message_event_new_outgoing")
+    let originalRow = try #require(originalValues[0] as? FixtureJSONObject)
+    let originalBody = try #require(originalRow["attributedBody"] as? Data)
+    messageRow["message_summary_info"] = try PropertyListSerialization.data(
+        fromPropertyList: [
+            "otr": ["0": "fixture"],
+            "ec": [
+                "0": [
+                    [
+                        "d": 1,
+                        "t": originalBody,
+                    ],
+                ],
+            ],
+        ],
+        format: .binary,
+        options: 0
+    )
+    values[0] = messageRow
+
+    let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
+    let reactionRows = try #require(values[2] as? [FixtureJSONObject])
+    let currentUserID = try #require(values[3] as? String)
+    let accountID = try #require(values[4] as? String)
+    let message = try #require(try Mapper(
+        messageRow: messageRow,
+        attachmentRows: attachmentRows,
+        reactionRows: reactionRows,
+        currentUserID: currentUserID,
+        accountID: accountID
+    ).mapMessage().first)
+
+    let edit = try #require(message.editHistory?.first)
+    #expect(edit.timestamp == 978_307_201_000)
+    #expect(edit.text == "outgoing fixture")
+}
+
+@Test
+private func editedMessageDropsMalformedEditTimestamp() throws {
+    var values = try loadFixture("message_event_edited")
+    var messageRow = try #require(values[0] as? FixtureJSONObject)
+    let originalValues = try loadFixture("message_event_new_outgoing")
+    let originalRow = try #require(originalValues[0] as? FixtureJSONObject)
+    let originalBody = try #require(originalRow["attributedBody"] as? Data)
+    messageRow["message_summary_info"] = try PropertyListSerialization.data(
+        fromPropertyList: [
+            "otr": ["0": "fixture"],
+            "ec": [
+                "0": [
+                    [
+                        "d": Int.max,
+                        "t": originalBody,
+                    ],
+                    [
+                        "d": 1,
+                        "t": originalBody,
+                    ],
+                ],
+            ],
+        ],
+        format: .binary,
+        options: 0
+    )
+    values[0] = messageRow
+
+    let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
+    let reactionRows = try #require(values[2] as? [FixtureJSONObject])
+    let currentUserID = try #require(values[3] as? String)
+    let accountID = try #require(values[4] as? String)
+    let message = try #require(try Mapper(
+        messageRow: messageRow,
+        attachmentRows: attachmentRows,
+        reactionRows: reactionRows,
+        currentUserID: currentUserID,
+        accountID: accountID
+    ).mapMessage().first)
+
+    let editHistory = try #require(message.editHistory)
+    #expect(editHistory.map(\.timestamp) == [978_307_201_000])
+}
+
+@Test
+private func editedMessageExcludesCurrentMessageFromEditHistory() throws {
+    var values = try loadFixture("message_event_edited")
+    var messageRow = try #require(values[0] as? FixtureJSONObject)
+    let editedBody = try #require(messageRow["attributedBody"] as? Data)
+    let originalValues = try loadFixture("message_event_new_outgoing")
+    let originalRow = try #require(originalValues[0] as? FixtureJSONObject)
+    let originalBody = try #require(originalRow["attributedBody"] as? Data)
+    messageRow["message_summary_info"] = try PropertyListSerialization.data(
+        fromPropertyList: [
+            "otr": ["0": "fixture"],
+            "ec": [
+                "0": [
+                    [
+                        "d": 1,
+                        "t": originalBody,
+                    ],
+                    [
+                        "d": 721_693_160,
+                        "t": editedBody,
+                    ],
+                ],
+            ],
+        ],
+        format: .binary,
+        options: 0
+    )
+    values[0] = messageRow
+
+    let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
+    let reactionRows = try #require(values[2] as? [FixtureJSONObject])
+    let currentUserID = try #require(values[3] as? String)
+    let accountID = try #require(values[4] as? String)
+    let message = try #require(try Mapper(
+        messageRow: messageRow,
+        attachmentRows: attachmentRows,
+        reactionRows: reactionRows,
+        currentUserID: currentUserID,
+        accountID: accountID
+    ).mapMessage().first)
+
+    let editHistory = try #require(message.editHistory)
+    #expect(editHistory.map(\.text) == ["outgoing fixture"])
+}
+
+@Test
+private func multipartEditHistoryDoesNotBleedIntoNextOutputPart() throws {
+    var values = try loadFixture("message_multipart_outgoing_with_reactions")
+    var messageRow = try #require(values[0] as? FixtureJSONObject)
+    let editedValues = try loadFixture("message_event_edited")
+    let editedRow = try #require(editedValues[0] as? FixtureJSONObject)
+    let editedBody = try #require(editedRow["attributedBody"] as? Data)
+    messageRow["message_summary_info"] = try PropertyListSerialization.data(
+        fromPropertyList: [
+            "ec": [
+                "0": [
+                    [
+                        "d": 1,
+                        "t": editedBody,
+                    ],
+                ],
+            ],
+        ],
+        format: .binary,
+        options: 0
+    )
+    values[0] = messageRow
+
+    let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
+    let reactionRows = try #require(values[2] as? [FixtureJSONObject])
+    let currentUserID = try #require(values[3] as? String)
+    let accountID = try #require(values[4] as? String)
+    let messages = try Mapper(
+        messageRow: messageRow,
+        attachmentRows: attachmentRows,
+        reactionRows: reactionRows,
+        currentUserID: currentUserID,
+        accountID: accountID
+    ).mapMessage()
+
+    #expect(messages.count == 4)
+    #expect(messages[0].editHistory?.map(\.timestamp) == [978_307_201_000])
+    #expect(messages[1].editHistory == nil)
+}
+
+@Test
 private func pollSentAssociatedMessageMapsAsAction() throws {
     let outgoing = try mappedFixtureMessage("message_poll_sent_outgoing")
     let incoming = try mappedFixtureMessage("message_poll_sent_incoming")
@@ -275,14 +445,14 @@ private func mappedFixtureMessages(_ fileName: String) throws -> [PlatformSDK.Me
     let values = try loadFixture(fileName)
     #expect(values.count == 5)
 
-    let msgRow = try #require(values[0] as? FixtureJSONObject)
+    let messageRow = try #require(values[0] as? FixtureJSONObject)
     let attachmentRows = try #require(values[1] as? [FixtureJSONObject])
     let reactionRows = try #require(values[2] as? [FixtureJSONObject])
     let currentUserID = try #require(values[3] as? String)
     let accountID = try #require(values[4] as? String)
 
     return try Mapper(
-        msgRow: msgRow,
+        messageRow: messageRow,
         attachmentRows: attachmentRows,
         reactionRows: reactionRows,
         currentUserID: currentUserID,

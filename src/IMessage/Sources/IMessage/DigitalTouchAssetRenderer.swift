@@ -31,15 +31,6 @@ enum DigitalTouchAssetRenderer {
         isCancelled: @escaping RenderCancellation
     ) throws -> URL {
         try AssetSupport.loadBundle(path: digitalTouchBalloonProviderPath, assetDescription: "DigitalTouchBalloonProvider")
-        let dataSourceClass: ETBalloonPluginDataSource.Type = try AssetSupport.privateClass(
-            "ETBalloonPluginDataSource",
-            assetDescription: digitalTouchAssetDescription
-        )
-        let controllerClass: ETMacBalloonPluginController.Type = try AssetSupport.privateClass(
-            "ETMacBalloonPluginController",
-            assetDescription: digitalTouchAssetDescription
-        )
-
         AssetSupport.prepareRenderThread()
 
         let payload = try AssetSupport.makePluginPayload(
@@ -49,9 +40,15 @@ enum DigitalTouchAssetRenderer {
             isFromMe: isFromMe
         )
 
-        let dataSource = dataSourceClass.init(pluginPayload: payload)
-        let controller = controllerClass.init(dataSource: dataSource, isFromMe: isFromMe)
-        guard let assetURL = controller.getAssetURL() else {
+        let dataSource = try AssetSupport.makePluginPayloadDataSource(
+            className: "ETBalloonPluginDataSource",
+            payload: payload,
+            assetDescription: digitalTouchAssetDescription
+        )
+        guard let controller = IMPrivateSPIDigitalTouchControllerCreate(dataSource, isFromMe) else {
+            throw ErrorMessage("Digital Touch private class ETMacBalloonPluginController is unavailable")
+        }
+        guard let assetURL = IMPrivateSPIDigitalTouchAssetURL(controller) else {
             throw ErrorMessage("Digital Touch renderer didn't return an asset URL")
         }
 
@@ -59,8 +56,10 @@ enum DigitalTouchAssetRenderer {
         try? FileManager.default.removeItem(at: assetURL)
 
         let completionFired = Protected(false)
-        controller.createFallbackMedia {
+        guard IMPrivateSPIDigitalTouchCreateFallbackMedia(controller, {
             completionFired.withLock { $0 = true }
+        }) else {
+            throw ErrorMessage("Digital Touch renderer can't create fallback media")
         }
 
         let renderedURL = try AssetSupport.waitForRenderedAsset(
