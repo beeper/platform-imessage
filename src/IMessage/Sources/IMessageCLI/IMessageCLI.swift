@@ -8,6 +8,14 @@ import PlatformSDK
 
 private let accountID = "default"
 private let prompt = "imessage> "
+private let asciiBanner = #"""
+  _                                                     _ _
+ (_)_ __ ___   ___  ___ ___  __ _  __ _  ___        ___| (_)
+ | | '_ ` _ \ / _ \/ __/ __|/ _` |/ _` |/ _ \_____ / __| | |
+ | | | | | | |  __/\__ \__ \ (_| | (_| |  __/_____| (__| | |
+ |_|_| |_| |_|\___||___/___/\__,_|\__, |\___|      \___|_|_|
+                                  |___/
+"""#
 private let commandCategories: [Category] = [.general, .chat, .message, .watching]
 private let quitCommands: Set<String> = ["q", "quit", "exit"]
 
@@ -985,7 +993,7 @@ private func runBootstrapFreeCommandIfNeeded(_ commandArgs: [String]) throws -> 
 }
 
 private func printCLIVersion() {
-    print("platform-imessage \(IMessageCLIVersion.packageVersion)")
+    print("imessage-cli \(IMessageCLIVersion.packageVersion)")
 }
 
 private func reactionCommand(
@@ -1288,7 +1296,8 @@ private func ensureRunnerState(_ options: RunnerOptions) throws -> RunnerState {
 
 private func printTopLevelHelp() {
     var lines = [
-        "platform-imessage Swift CLI \(IMessageCLIVersion.packageVersion)",
+        asciiBanner,
+        "imessage-cli \(IMessageCLIVersion.packageVersion)",
         "",
         "Usage:",
         "  imessage-cli [global options]",
