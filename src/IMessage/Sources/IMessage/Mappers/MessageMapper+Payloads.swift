@@ -307,7 +307,7 @@ extension Mapper {
             ?? option.string("attributedText").flatMap(\.nonEmpty)
     }
 
-    private func dataURLPayload(from url: String) -> String? {
+    func dataURLPayload(from url: String) -> String? {
         guard url.hasPrefix("data:"),
               let commaIndex = url.firstIndex(of: ",") else {
             return nil

@@ -29,20 +29,35 @@ const reviveSwiftDateFields = (value: unknown): void => {
   })
 }
 
+const reviveSwiftEditHistory = (value: unknown): void => {
+  if (!isMutableRecord(value)) return
+
+  if (Array.isArray(value.editHistory)) {
+    value.editHistory.forEach(reviveSwiftDateFields)
+  }
+}
+
 export const reviveSwiftMessageAPIValue = <T>(value: T): T => {
   // Intentionally mutates already-parsed Swift bridge payloads in place. These
   // values are transient event objects. Keep the work targeted to the event
   // envelope and state-sync entries instead of walking attachments/extras.
   if (Array.isArray(value)) {
-    value.forEach(reviveSwiftDateFields)
+    value.forEach(entry => {
+      reviveSwiftDateFields(entry)
+      reviveSwiftEditHistory(entry)
+    })
     return value
   }
   if (!isMutableRecord(value)) return value
 
   reviveSwiftDateFields(value)
+  reviveSwiftEditHistory(value)
 
   if (Array.isArray(value.entries)) {
-    value.entries.forEach(reviveSwiftDateFields)
+    value.entries.forEach(entry => {
+      reviveSwiftDateFields(entry)
+      reviveSwiftEditHistory(entry)
+    })
   }
   reviveSwiftDateFields(value.presence)
 

@@ -126,6 +126,7 @@ extension PlatformAPI {
             id: message.id,
             timestamp: message.timestamp,
             editedTimestamp: message.editedTimestamp,
+            editHistory: message.editHistory,
             expiresInSeconds: message.expiresInSeconds,
             forwardedCount: message.forwardedCount,
             forwardedFrom: message.forwardedFrom,

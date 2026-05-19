@@ -6,6 +6,7 @@ extension PlatformSDK {
         public let id: MessageID
         public let timestamp: Timestamp
         public let editedTimestamp: Timestamp?
+        public let editHistory: [MessageEdit]?
         public let expiresInSeconds: Int?
         public let forwardedCount: Int?
         public let forwardedFrom: JSONObject?

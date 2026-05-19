@@ -97,26 +97,42 @@ enum AssociatedMessageType {
 }
 
 enum MessagePart {
-    case text(index: Int, end: Int, text: String, attributes: PlatformSDK.TextAttributes?)
-    case attachment(index: Int, end: Int, attachmentID: String)
-    case unsent(index: Int, end: Int)
+    case text(index: Int, originalPart: Int?, end: Int, text: String, attributes: PlatformSDK.TextAttributes?)
+    case attachment(index: Int, originalPart: Int?, end: Int, attachmentID: String)
+    case unsent(index: Int, originalPart: Int?, end: Int)
 
     var index: Int {
         switch self {
-        case let .text(index, _, _, _), let .attachment(index, _, _), let .unsent(index, _):
+        case let .text(index, _, _, _, _), let .attachment(index, _, _, _), let .unsent(index, _, _):
             return index
+        }
+    }
+
+    var originalPart: Int? {
+        switch self {
+        case let .text(_, originalPart, _, _, _),
+             let .attachment(_, originalPart, _, _),
+             let .unsent(_, originalPart, _):
+            return originalPart
         }
     }
 
     var end: Int {
         switch self {
-        case let .text(_, end, _, _), let .attachment(_, end, _), let .unsent(_, end):
+        case let .text(_, _, end, _, _), let .attachment(_, _, end, _), let .unsent(_, _, end):
             return end
         }
     }
 
     var isText: Bool {
         if case .text = self {
+            return true
+        }
+        return false
+    }
+
+    var isUnsent: Bool {
+        if case .unsent = self {
             return true
         }
         return false

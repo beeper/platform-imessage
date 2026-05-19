@@ -55,12 +55,14 @@ struct Mapper {
         var messageParts = decodedMessageParts.isEmpty
             ? fallbackMessageParts(summaryInfo: summaryInfo, attachments: attachments)
             : decodedMessageParts
+        let editHistory = editHistoryByPart(summaryInfo: summaryInfo)
 
         let subject = subject()
         let addSubjectInline = shouldAddSubjectInline(subject, to: messageParts)
         if let subject, !addSubjectInline {
             messageParts.insert(.text(
                 index: -1,
+                originalPart: nil,
                 end: 0,
                 text: subject,
                 attributes: PlatformSDK.TextAttributes(entities: [
@@ -76,7 +78,8 @@ struct Mapper {
             partialMessage: partialMessage,
             partialHeader: partialHeader,
             partialFooter: partialFooter,
-            attachmentsByID: attachmentsByID
+            attachmentsByID: attachmentsByID,
+            editHistory: editHistory
         ).filter(shouldKeepMessage)
 
         if messages.isEmpty,
@@ -248,13 +251,13 @@ struct Mapper {
 
     private func fallbackMessageParts(summaryInfo: JSONObject, attachments: [PlatformSDK.Attachment]) -> [MessagePart] {
         if messageRow.attributedBody == nil, summaryInfo.hasValue("rp"), summaryInfo.dictionary("otr") != nil {
-            return [.unsent(index: 0, end: 0)]
+            return [.unsent(index: 0, originalPart: nil, end: 0)]
         }
         let text = removeObjectReplacementCharacter(messageRow.text ?? "")
             .replacingOccurrences(of: imessageExtensionCharacter, with: "")
-        return [.text(index: 0, end: 0, text: text, attributes: nil)]
+        return [.text(index: 0, originalPart: nil, end: 0, text: text, attributes: nil)]
             + attachments.enumerated().map { offset, attachment in
-                .attachment(index: offset + 1, end: 0, attachmentID: attachment.id)
+                .attachment(index: offset + 1, originalPart: nil, end: 0, attachmentID: attachment.id)
             }
     }
 
@@ -262,7 +265,7 @@ struct Mapper {
         guard let subject,
               !subject.isEmpty,
               let firstPart = parts.first,
-              case let .text(_, _, text, _) = firstPart else {
+              case let .text(_, _, _, text, _) = firstPart else {
             return false
         }
         return !text.isEmpty
@@ -273,13 +276,15 @@ struct Mapper {
         partialMessage: MessageDraft,
         partialHeader: MessagePatch,
         partialFooter: MessagePatch,
-        attachmentsByID: [String: PlatformSDK.Attachment]
+        attachmentsByID: [String: PlatformSDK.Attachment],
+        editHistory: [Int: [PlatformSDK.MessageEdit]]
     ) -> [MessageDraft] {
         parts.enumerated().map { partIndex, part in
             var message = partialMessage
             if parts.count > 1 {
                 message.extra["part"] = part.index
             }
+            let partEditHistory = editHistoryForPart(part, partCount: parts.count, editHistory: editHistory)
             if partIndex == 0 {
                 partialHeader.apply(to: &message)
             }
@@ -290,13 +295,16 @@ struct Mapper {
                 message.id = "\(message.id)_\(part.index)"
             }
             apply(part, to: &message, attachmentsByID: attachmentsByID)
+            if !part.isUnsent {
+                message.editHistory = editHistoryExcludingCurrentMessage(partEditHistory, currentMessage: message)
+            }
             return message
         }
     }
 
     private func apply(_ part: MessagePart, to message: inout MessageDraft, attachmentsByID: [String: PlatformSDK.Attachment]) {
         switch part {
-        case let .text(_, _, text, attributes):
+        case let .text(_, _, _, text, attributes):
             let isAttachmentPlaceholder = message.attachments?.isEmpty == false
                 && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if !isAttachmentPlaceholder, !text.isEmpty || message.text == nil {
@@ -305,7 +313,7 @@ struct Mapper {
             if let attributes {
                 message.textAttributes = attributes
             }
-        case let .attachment(_, _, attachmentID):
+        case let .attachment(_, _, _, attachmentID):
             if let attachment = attachmentsByID[attachmentID] {
                 message.attachments = [attachment]
             }
@@ -318,27 +326,9 @@ struct Mapper {
             message.tweets = []
             message.links = []
             message.reactions = []
+            message.editHistory = []
             message.text = "{{sender}} unsent a message"
         }
-    }
-
-    private func shouldKeepMessage(_ message: MessageDraft) -> Bool {
-        if let attachments = message.attachments, !attachments.isEmpty {
-            return true
-        }
-        if let tweets = message.tweets, !tweets.isEmpty {
-            return true
-        }
-        if let links = message.links, !links.isEmpty {
-            return true
-        }
-        if let iframeURL = message.iframeURL, !iframeURL.isEmpty {
-            return true
-        }
-        if let text = message.text, !text.isEmpty {
-            return true
-        }
-        return !(message.textHeading ?? "").isEmpty
     }
 
     private func unsupportedBalloonPlaceholder(
@@ -398,6 +388,25 @@ private func addingInlineSubject(_ subject: String, to message: MessageDraft) ->
 }
 
 extension Mapper {
+    fileprivate func shouldKeepMessage(_ message: MessageDraft) -> Bool {
+        if let attachments = message.attachments, !attachments.isEmpty {
+            return true
+        }
+        if let tweets = message.tweets, !tweets.isEmpty {
+            return true
+        }
+        if let links = message.links, !links.isEmpty {
+            return true
+        }
+        if let iframeURL = message.iframeURL, !iframeURL.isEmpty {
+            return true
+        }
+        if let text = message.text, !text.isEmpty {
+            return true
+        }
+        return !(message.textHeading ?? "").isEmpty
+    }
+
     func actionText(_ action: String) -> String {
         let actor = messageRow.isFromMe == 1 ? "You" : "{{sender}}"
         return "\(actor) \(action)"

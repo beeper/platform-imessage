@@ -4,6 +4,7 @@ struct MessageDraft {
     var id: String
     var timestamp: PlatformSDK.Timestamp
     var editedTimestamp: PlatformSDK.Timestamp?
+    var editHistory: [PlatformSDK.MessageEdit]?
     var senderID: String
     var text: String?
     var textAttributes: PlatformSDK.TextAttributes?
@@ -35,6 +36,7 @@ struct MessageDraft {
             id: id,
             timestamp: timestamp,
             editedTimestamp: editedTimestamp,
+            editHistory: editHistory,
             senderID: senderID,
             text: text,
             textAttributes: textAttributes,

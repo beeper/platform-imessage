@@ -24,8 +24,7 @@ extension Mapper {
         for fragment in fragments {
             let attributes = fragment.attributes
             let attachmentID = attributes["__kIMFileTransferGUIDAttributeName"] as? String
-            let part = attributes["__kIMMessagePartAttributeName"].map { "\($0)" }
-            let partNumber = part.flatMap(Int.init)
+            let partNumber = attributes["__kIMMessagePartAttributeName"].map { "\($0)" }.flatMap(Int.init)
 
             if let partNumber {
                 if let lastSeenPart,
@@ -35,8 +34,8 @@ extension Mapper {
                     let unsentParts = partNumber - lastSeenPart - 1
                     let startingIndexOfSent = fragment.scalarRange.lowerBound + unsentParts
                     for unsentIndex in (startingIndexOfSent - unsentParts) ..< startingIndexOfSent {
-                        parts.append(.unsent(index: parts.count, end: unsentIndex + 1))
                         let unsentPart = partNumber - (startingIndexOfSent - unsentIndex)
+                        parts.append(.unsent(index: parts.count, originalPart: unsentPart, end: unsentIndex + 1))
                         handledDeletedParts.append(unsentPart)
                     }
                 }
@@ -47,9 +46,9 @@ extension Mapper {
             let end = fragment.scalarRange.upperBound + handledDeletedParts.count
 
             if let attachmentID {
-                parts.append(.attachment(index: parts.count, end: end, attachmentID: attachmentID))
+                parts.append(.attachment(index: parts.count, originalPart: partNumber, end: end, attachmentID: attachmentID))
             } else {
-                appendTextFragment(fragment, part: part, from: from, end: end, to: &parts)
+                appendTextFragment(fragment, partNumber: partNumber, from: from, end: end, to: &parts)
             }
         }
 
@@ -82,15 +81,15 @@ extension Mapper {
 
     private func appendTextFragment(
         _ fragment: AttributedBodyDecoder.Fragment,
-        part: String?,
+        partNumber: Int?,
         from: Int,
         end: Int,
         to parts: inout [MessagePart]
     ) {
-        if part == nil || parts.isEmpty || !parts[parts.count - 1].isText {
-            parts.append(.text(index: parts.count, end: 0, text: "", attributes: nil))
+        if partNumber == nil || parts.isEmpty || !parts[parts.count - 1].isText {
+            parts.append(.text(index: parts.count, originalPart: partNumber, end: 0, text: "", attributes: nil))
         }
-        guard case let .text(index, _, existingText, existingAttributes) = parts[parts.count - 1] else {
+        guard case let .text(index, originalPart, _, existingText, existingAttributes) = parts[parts.count - 1] else {
             return
         }
 
@@ -101,7 +100,7 @@ extension Mapper {
             entities.append(entity)
             attributesForPart = PlatformSDK.TextAttributes(entities: entities)
         }
-        parts[parts.count - 1] = .text(index: index, end: end, text: text, attributes: attributesForPart)
+        parts[parts.count - 1] = .text(index: index, originalPart: originalPart, end: end, text: text, attributes: attributesForPart)
     }
 
     private func appendTrailingUnsentParts(
@@ -109,12 +108,13 @@ extension Mapper {
         deletedParts: [Int],
         handledDeletedParts: [Int]
     ) {
-        let trailingUnsentParts = deletedParts.count - handledDeletedParts.count
-        guard trailingUnsentParts > 0 else {
+        let handledDeletedParts = Set(handledDeletedParts)
+        let trailingDeletedParts = deletedParts.filter { !handledDeletedParts.contains($0) }
+        guard !trailingDeletedParts.isEmpty else {
             return
         }
-        for _ in 0 ..< trailingUnsentParts {
-            parts.append(.unsent(index: parts.count, end: parts.count + 1))
+        for deletedPart in trailingDeletedParts {
+            parts.append(.unsent(index: parts.count, originalPart: deletedPart, end: parts.count + 1))
         }
     }
 
@@ -123,13 +123,13 @@ extension Mapper {
             return
         }
         for index in 1 ..< parts.count {
-            guard case let .text(partIndex, end, text, attributes) = parts[index],
+            guard case let .text(partIndex, originalPart, end, text, attributes) = parts[index],
                   case let previous = parts[index - 1],
                   let entities = attributes?.entities else {
                 continue
             }
             let adjustedEntities = entities.map { $0.offsetting(by: -previous.end) }
-            parts[index] = .text(index: partIndex, end: end, text: text, attributes: PlatformSDK.TextAttributes(entities: adjustedEntities))
+            parts[index] = .text(index: partIndex, originalPart: originalPart, end: end, text: text, attributes: PlatformSDK.TextAttributes(entities: adjustedEntities))
         }
     }
 }
