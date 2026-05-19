@@ -22,7 +22,7 @@ struct TestBench: AsyncParsableCommand {
 
     static let configuration = CommandConfiguration(
         abstract: "Exercise functionality in IMDatabase.",
-        subcommands: [Watch.self, Messages.self, Chats.self, UnreadBenchmark.self, FSEventsCommand.self, TestIdleAware.self, ClosestSelectable.self],
+        subcommands: [Watch.self, Messages.self, Chats.self, FSEventsCommand.self, TestIdleAware.self, ClosestSelectable.self],
         )
 
     mutating func run() async throws {}
@@ -35,51 +35,6 @@ extension TestBench {
         func test(against chat: Chat) -> Bool {
             switch self {
             case .biz: chat.isBusiness
-            }
-        }
-    }
-}
-
-// MARK: - Unread Benchmark
-
-extension TestBench {
-    struct UnreadBenchmark: AsyncParsableCommand {
-        static let configuration = CommandConfiguration(
-            commandName: "bench-unreads",
-            abstract: "Benchmarks unread-state database queries."
-        )
-
-        @OptionGroup var options: TestBench.Options
-
-        @Option(name: .shortAndLong, help: "The number of timed runs for each query.")
-        var iterations: Int = 20
-
-        @Option(name: .long, help: "The number of chat GUIDs to use for the per-chat read-state query.")
-        var affectedChatCount: Int = 1
-
-        mutating func run() async throws {
-            bootstrap(logLevel: options.logLevel)
-
-            let db = try IMDatabase()
-            let initialStates = try db.chatStates()
-            let chatGUIDs = Array(initialStates.keys).sorted()
-            let affectedChatGUIDs = Array(chatGUIDs.prefix(max(affectedChatCount, 0)))
-
-            print("tracked chats with messages: \(chatGUIDs.count)")
-            print("initial unread chats: \(initialStates.values.filter(\.isUnread).count)")
-            print("per-chat read-state sample size: \(affectedChatGUIDs.count)")
-
-            try benchmark("chatStates() full pass", iterations: iterations) {
-                _ = try db.chatStates()
-            }
-
-            if !affectedChatGUIDs.isEmpty {
-                let result = try benchmark("isThreadRead(chatGUID:) x\(affectedChatGUIDs.count)", iterations: iterations) {
-                    for chatGUID in affectedChatGUIDs {
-                        _ = try db.isThreadRead(chatGUID: chatGUID)
-                    }
-                }
-                print("isThreadRead(chatGUID:) per chat: avg \((result.average / Double(affectedChatGUIDs.count)).formattedMs)")
             }
         }
     }
@@ -210,50 +165,6 @@ extension TestBench {
             print("\u{1b}[1;32mselectable part:", closest.closestSelectable, "\u{1b}[0m")
             print()
         }
-    }
-}
-
-private struct BenchmarkResult {
-    var average: Double
-    var median: Double
-    var p95: Double
-}
-
-@discardableResult
-private func benchmark(_ label: String, iterations: Int, block: () throws -> Void) throws -> BenchmarkResult {
-    let iterations = max(iterations, 1)
-    var measurements = [Double]()
-    measurements.reserveCapacity(iterations)
-
-    try block()
-
-    for _ in 0 ..< iterations {
-        let start = Date()
-        try block()
-        measurements.append(start.elapsedMilliseconds)
-    }
-
-    let sorted = measurements.sorted()
-    let average = measurements.reduce(0, +) / Double(measurements.count)
-    let median = percentile(0.5, in: sorted)
-    let p95 = percentile(0.95, in: sorted)
-
-    print("\(label): avg \(average.formattedMs), median \(median.formattedMs), p95 \(p95.formattedMs)")
-    return BenchmarkResult(average: average, median: median, p95: p95)
-}
-
-private func percentile(_ percentile: Double, in sortedValues: [Double]) -> Double {
-    guard let first = sortedValues.first else { return 0 }
-    guard sortedValues.count > 1 else { return first }
-
-    let boundedPercentile = min(max(percentile, 0), 1)
-    let index = Int((Double(sortedValues.count - 1) * boundedPercentile).rounded())
-    return sortedValues[index]
-}
-
-private extension Double {
-    var formattedMs: String {
-        String(format: "%.2fms", self)
     }
 }
 

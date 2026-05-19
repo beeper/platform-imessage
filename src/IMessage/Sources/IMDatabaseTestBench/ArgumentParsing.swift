@@ -7,7 +7,7 @@ extension Logger.Level: @retroactive ExpressibleByArgument {}
 
 // MARK: - IMDatabase
 
-extension DateOrdering: ExpressibleByArgument {
+extension DateOrdering: @retroactive ExpressibleByArgument {
     public static var allValueStrings: [String] {
         ["newest-first", "oldest-first"]
     }

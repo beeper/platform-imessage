@@ -32,7 +32,6 @@ var products: [Product] = [
         targets: ["IMessage"]
     ),
     .executable(name: "imessage-cli", targets: ["IMessageCLI"]),
-    .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
 ]
 
 var dependencies: [Package.Dependency] = [
@@ -135,18 +134,6 @@ var targets: [Target] = [
         path: "src/IMessage/Sources/IMessageCLI",
         swiftSettings: iMessageCLISwiftSettings,
         plugins: ["GenerateIMessageCLIVersionPlugin"]
-    ),
-    .executableTarget(
-        name: "IMDatabaseTestBench",
-        dependencies: [
-            "IMDatabase",
-            "IMessageCore",
-            "SQLite",
-            .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            .product(name: "Logging", package: "swift-log"),
-        ],
-        path: "src/IMessage/Sources/IMDatabaseTestBench",
-        exclude: ["README.md"]
     ),
     .plugin(
         name: "GenerateIMessageCLIVersionPlugin",
