@@ -95,6 +95,7 @@ extension IMDatabase {
 
         var timesWarnedAboutOrphanedMessage = 0
         var updatedMessages: [UpdatedMessageChange] = []
+        updatedMessages.reserveCapacity(rows.count)
         for row in rows {
             guard let guid = try await chatGUID(forMessageRowID: row.rowID, joinedGUID: row.chatGUID, isNew: row.isNew) else {
                 // For whatever reason it's possible for messages to not be
