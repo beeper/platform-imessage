@@ -90,6 +90,7 @@ var targets: [Target] = [
             "IMessagePrivateSPI",
             "EmojiSPI",
             "IMDatabase",
+            "LegacyFoundationShims",
             "PlatformSDK",
             .product(name: "Collections", package: "swift-collections"),
         ],
@@ -124,8 +125,8 @@ var targets: [Target] = [
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             .product(name: "Collections", package: "swift-collections"),
             "SQLite",
-            "ExceptionCatcher",
             "IMessageCore",
+            "LegacyFoundationShims",
         ],
         path: "src/IMessage/Sources/IMDatabase"
     ),
@@ -173,6 +174,11 @@ var targets: [Target] = [
         name: "CUnfairLock",
         dependencies: [],
         path: "src/IMessage/Sources/CUnfairLock"
+    ),
+    .target(
+        name: "LegacyFoundationShims",
+        dependencies: [],
+        path: "src/IMessage/Sources/LegacyFoundationShims"
     ),
     .target(
         name: "IMessageCore",

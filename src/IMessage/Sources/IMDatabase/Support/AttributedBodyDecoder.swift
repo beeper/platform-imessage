@@ -1,6 +1,6 @@
-import ExceptionCatcher
 import Foundation
 import IMessageCore
+import LegacyFoundationShims
 
 public enum AttributedBodyDecoder {
     public struct Fragment {
@@ -10,12 +10,10 @@ public enum AttributedBodyDecoder {
     }
 
     public static func attributedString(from data: Data) throws -> NSAttributedString {
-        guard let unarchiver = NSUnarchiver(forReadingWith: data) else {
-            throw ErrorMessage("couldn't create NSUnarchiver")
+        guard let unarchiver = _NSUnarchiver(forReadingWith: data) else {
+            throw ErrorMessage("couldn't create _NSUnarchiver")
         }
-
-        // this is technically unsafe (https://iosdevelopers.slack.com/archives/C031X84F6/p1658329958824499?thread_ts=1658147279.256379&cid=C031X84F6)
-        let decodedObject = try ExceptionCatcher.catch { unarchiver.decodeObject() }
+        let decodedObject = unarchiver.decodeObject()
 
         guard let decodedAttributedString: NSAttributedString = decodedObject as? NSAttributedString else {
             throw ErrorMessage("couldn't cast to attributed string (was actually \(type(of: decodedObject)))")

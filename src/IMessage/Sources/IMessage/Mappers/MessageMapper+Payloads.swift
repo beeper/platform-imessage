@@ -1,5 +1,6 @@
 import Foundation
 import IMessageCore
+import LegacyFoundationShims
 import PlatformSDK
 
 extension Mapper {
@@ -11,7 +12,7 @@ extension Mapper {
             let normalized = normalizeFoundationObject(plist)
             return unarchiveKeyedPayload(normalized) ?? normalized
         }
-        if let object = try? NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) {
+        if let object = try? NSKeyedUnarchiver._unarchiveTopLevelObjectWithData(data) {
             return normalizeFoundationObject(object)
         }
         return nil
