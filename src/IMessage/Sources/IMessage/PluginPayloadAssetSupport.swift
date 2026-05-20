@@ -161,7 +161,9 @@ enum PluginPayloadAssetSupport {
             }
         }
         guard result == 0 else {
-            throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EIO)
+            // Avoid Foundation.POSIXError here: its Swift conformance is not
+            // present in older Foundation builds that the addon supports.
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(result))
         }
     }
 

@@ -20,7 +20,9 @@ let hostSupportsChroma = ProcessInfo.processInfo.isOperatingSystemAtLeast(
 let hostSupportsChroma = false
 #endif
 
-let enableChromaHighlighting = swiftCompilerSupportsChroma && hostSupportsChroma
+// Chroma is only used by the CLI. Keep it out of Node bridge builds so the
+// packaged Electron addon preserves the package's macOS 11 deployment target.
+let enableChromaHighlighting = !includeNodeBridge && swiftCompilerSupportsChroma && hostSupportsChroma
 
 var products: [Product] = [
     .library(
