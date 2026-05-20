@@ -1,4 +1,5 @@
 import ArgumentParser
+import Combine
 import Foundation
 import IMDatabase
 import Logging
@@ -333,17 +334,23 @@ extension TestBench {
             try db.beginListeningForChanges()
             var states = try db.chatStates()
 
-            for try await _ in db.changes.subscribe() {
-                let newStates = try db.chatStates()
-                defer { states = newStates }
+            let subscription = db.changes.publisher.sink {
+                do {
+                    let newStates = try db.chatStates()
+                    defer { states = newStates }
 
-                var changedChatStates: [String: ChatState] = [:]
-                for (chatGUID, newState) in newStates where states[chatGUID] != newState {
-                    changedChatStates[chatGUID] = newState
+                    var changedChatStates: [String: ChatState] = [:]
+                    for (chatGUID, newState) in newStates where states[chatGUID] != newState {
+                        changedChatStates[chatGUID] = newState
+                    }
+
+                    print("changed unread states:", changedChatStates)
+                } catch {
+                    print("failed to read changed unread states:", error)
                 }
-
-                print("changed unread states:", changedChatStates)
             }
+            defer { subscription.cancel() }
+            await Task.never()
         }
     }
 }
@@ -409,21 +416,24 @@ extension TestBench {
 
             print("total watcher count: \(watchers.count)")
 
-            Task {
-                for try await event in topic.subscribe() {
-                    switch event {
-                    case let .fse(_, event):
-                        print("\(now()) \u{1b}[1;32m<FSEvents>      \u{1b}[0m [\(event.id)] \(event.path.shortenedPath) \u{1b}[1m\(event.flags)\u{1b}[0m")
-                    case let .dispatch(source, path, event):
+            let subscription = topic.publisher.sink { event in
+                switch event {
+                case let .fse(_, event):
+                    print("\(now()) \u{1b}[1;32m<FSEvents>      \u{1b}[0m [\(event.id)] \(event.path.shortenedPath) \u{1b}[1m\(event.flags)\u{1b}[0m")
+                case let .dispatch(source, path, event):
+                    do {
                         let linksLabel = switch try source.hasHardLinks() {
                         case .some(true): "\u{1b}[1;32m(has links)\u{1b}[0m"
                         case .some(false): "\u{1b}[1;31m(no links)\u{1b}[0m"
                         case nil: "\u{1b}[1;33m(unknown)\u{1b}[0m"
                         }
                         print("\(now()) \u{1b}[1;34m<DispatchSource>\u{1b}[0m (\(path.shortenedPath)) \u{1b}[1m<\(event.imdb_description)>\u{1b}[0m \(linksLabel)")
+                    } catch {
+                        print("\(now()) \u{1b}[1;31m<DispatchSource>\u{1b}[0m (\(path.shortenedPath)) failed to check hard links: \(error)")
                     }
                 }
             }
+            defer { subscription.cancel() }
 
             // calling `dispatchMain` crashes, so do this instead
             await Task.never()

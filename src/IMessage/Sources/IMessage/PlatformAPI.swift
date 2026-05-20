@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import IMDatabase
 import Logging
@@ -122,9 +123,12 @@ public final class PlatformAPI {
     public func subscribeToEvents(_ onEvent: @escaping EventCallback) {
         EventWatcherLifecycle.shared.subscribeToEvents(
             onEvent,
-            accountID: accountID,
             reportErrorMessage: errorMessageReporter
         )
+    }
+
+    public var eventPublisher: AnyPublisher<[ServerEvent], Never> {
+        EventWatcherLifecycle.shared.eventPublisher
     }
 
     public func startEventWatchingFromCurrentState() async throws {
@@ -140,7 +144,9 @@ public final class PlatformAPI {
         }.value
         try EventWatcherLifecycle.shared.startEventWatchingFromCurrentState(
             cursor: snapshot.cursor,
-            currentUserID: snapshot.currentUserID
+            currentUserID: snapshot.currentUserID,
+            accountID: accountID,
+            reportErrorMessage: errorMessageReporter
         )
     }
 

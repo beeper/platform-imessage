@@ -1,7 +1,42 @@
+import Combine
 import IMDatabase
+import IMessageCore
 @testable import IMessage
 import PlatformSDK
 import Testing
+
+@Test func eventWatcherLifecycleFansOutEventsToMultipleListeners() async throws {
+    await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
+
+    var firstPublisherCount = 0
+    var secondPublisherCount = 0
+    let firstPublisher = EventWatcherLifecycle.shared.eventPublisher.sink { firstPublisherCount += $0.count }
+    let secondPublisher = EventWatcherLifecycle.shared.eventPublisher.sink { secondPublisherCount += $0.count }
+    defer {
+        firstPublisher.cancel()
+        secondPublisher.cancel()
+    }
+
+    let callbackCounts = Protected<[String: Int]>([:])
+    EventWatcherLifecycle.shared.subscribeToEvents { events in
+        callbackCounts.withLock { $0["first", default: 0] += events.count }
+    }
+    EventWatcherLifecycle.shared.subscribeToEvents { events in
+        callbackCounts.withLock { $0["second", default: 0] += events.count }
+    }
+
+    try await EventWatcherLifecycle.shared.sendEvents([.deleteThreads(ids: ["fixture-thread"])])
+
+    #expect(firstPublisherCount == 1)
+    #expect(secondPublisherCount == 1)
+    #expect(await eventually {
+        callbackCounts.withLock {
+            $0["first"] == 1 && $0["second"] == 1
+        }
+    })
+
+    await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
+}
 
 @Test func reactionStateSyncEventsPreserveChangeOrder() throws {
     let threadID = "any;-;fixture-contact-a@example.invalid"
@@ -140,4 +175,16 @@ private func reactionActionRow(
         "associated_message_type": reactionType,
         "reply_to_guid": replyToGUID as Any,
     ])
+}
+
+private func eventually(_ condition: () -> Bool) async -> Bool {
+    for _ in 0..<100 {
+        if condition() {
+            return true
+        }
+
+        try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    return condition()
 }

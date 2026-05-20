@@ -1,32 +1,25 @@
+import Combine
+
 public final class Topic<T> {
-    public typealias BufferingPolicy = AsyncStream<T>.Continuation.BufferingPolicy
+    private let subject = Protected(PassthroughSubject<T, Never>())
 
-    private let bufferingPolicy: BufferingPolicy
-    private var subscriptions = Protected<[AsyncStream<T>.Continuation]>([])
-
-    public init(bufferingPolicy: BufferingPolicy = .unbounded) {
-        self.bufferingPolicy = bufferingPolicy
-    }
+    public init() {}
 }
 
 extension Topic: @unchecked Sendable {}
 
 public extension Topic {
-    func broadcast(_ value: sending T) {
-        subscriptions.withLock {
-            for subscription in $0 {
-                subscription.yield(value)
-            }
-        }
+    var publisher: AnyPublisher<T, Never> {
+        subject.read().eraseToAnyPublisher()
     }
 
-    func subscribe() -> AsyncStream<T> {
-        let (stream, cont) = AsyncStream.makeStream(of: T.self, bufferingPolicy: bufferingPolicy)
-        subscriptions.withLock {
-            $0.append(cont)
-        }
+    @discardableResult
+    func subscribe(_ receiveValue: @escaping (T) -> Void) -> AnyCancellable {
+        publisher.sink(receiveValue: receiveValue)
+    }
 
-        return stream
+    func broadcast(_ value: T) {
+        subject.read().send(value)
     }
 
     /**
@@ -35,11 +28,11 @@ public extension Topic {
      * New subscribers may still be registered after calling this method.
      */
     func finishCurrentSubscribers() {
-        subscriptions.withLock {
-            for subscription in $0 {
-                subscription.finish()
-            }
-            $0.removeAll()
+        let previousSubject = subject.withLock { currentSubject in
+            let previousSubject = currentSubject
+            currentSubject = PassthroughSubject<T, Never>()
+            return previousSubject
         }
+        previousSubject.send(completion: .finished)
     }
 }

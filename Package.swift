@@ -40,7 +40,6 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/beeper/BetterSwiftAX.git", from: "0.1.0"),
     .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
-    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.1"),
     .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.1"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.0-prerelease-2025-10-30"),
@@ -121,7 +120,6 @@ var targets: [Target] = [
         name: "IMDatabase",
         dependencies: [
             .product(name: "Logging", package: "swift-log"),
-            .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             .product(name: "Collections", package: "swift-collections"),
             "SQLite",
             "ExceptionCatcher",

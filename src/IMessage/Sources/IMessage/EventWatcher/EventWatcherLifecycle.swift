@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import IMDatabase
 import Logging
@@ -9,6 +10,11 @@ private let eventWatchingLog = Logger(imessageLabel: "event-watcher-lifecycle")
 final class EventWatcherLifecycle {
     static let shared = EventWatcherLifecycle()
 
+    var eventPublisher: AnyPublisher<[ServerEvent], Never> {
+        eventSubject.eraseToAnyPublisher()
+    }
+
+    private let eventSubject = PassthroughSubject<[ServerEvent], Never>()
     private let state: Protected<State> = Protected(State())
 
     private init() {}
@@ -19,14 +25,20 @@ final class EventWatcherLifecycle {
 
     func subscribeToEvents(
         _ onEvent: @escaping PlatformAPI.EventCallback,
-        accountID: String,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) {
+        let listener = EventListener(
+            onEvent: onEvent,
+            reportErrorMessage: reportErrorMessage
+        )
+        let cancellable = eventPublisher.sink { [listener] events in
+            listener.send(events)
+        }
+
         state.withLock { state in
-            state.subscription = Subscription(
-                onEvent: onEvent,
-                reportErrorMessage: reportErrorMessage,
-                accountID: accountID
+            state.listeners[UUID()] = ListenerRegistration(
+                listener: listener,
+                cancellable: cancellable
             )
         }
     }
@@ -36,7 +48,7 @@ final class EventWatcherLifecycle {
             let watchingTask = state.watchingTask
             state.watchingTask = nil
             if clearEventCallback {
-                state.subscription = nil
+                state.cancelListeners()
             }
             return watchingTask
         }
@@ -47,37 +59,38 @@ final class EventWatcherLifecycle {
             // Wait for the task to actually finish so callers (e.g. dispose())
             // don't return while the event watcher still holds the DB.
             await watchingTask.value
+        } else if clearEventCallback {
+            eventWatchingLog.debug("was asked to clear event callbacks; no event watcher task was running")
         } else {
             eventWatchingLog.warning("was asked to cancel event watcher task, but there isn't one; disregarding")
         }
     }
 
-    func startEventWatchingFromCurrentState(cursor: MessageUpdatesCursor, currentUserID: String) throws {
-        guard let subscription = state.withLock({ $0.subscription }) else {
-            throw ErrorMessage("subscribeToEvents must be called before startEventWatchingFromCurrentState")
-        }
+    func startEventWatchingFromCurrentState(
+        cursor: MessageUpdatesCursor,
+        currentUserID: String,
+        accountID: String,
+        reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
+    ) throws {
         try startWatching(
-            subscription: subscription,
             initialUpdatesCursor: cursor,
             currentUserID: currentUserID,
+            accountID: accountID,
+            reportErrorMessage: reportErrorMessage,
             source: "current state"
         )
     }
 
     func sendEvents(_ events: [ServerEvent]) async throws {
         guard !events.isEmpty else { return }
-        guard let subscription = state.withLock({ $0.subscription }) else {
-            eventWatchingLog.warning("dropping \(events.count) event(s); no event callback is subscribed")
-            return
-        }
-
-        try await subscription.onEvent(events)
+        eventSubject.send(events)
     }
 
     private func startWatching(
-        subscription: Subscription,
         initialUpdatesCursor: MessageUpdatesCursor,
         currentUserID: String,
+        accountID: String,
+        reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         source: String
     ) throws {
         let existingTask = state.withLock { state in
@@ -93,25 +106,25 @@ final class EventWatcherLifecycle {
         eventWatchingLog.debug("starting event watcher from \(source) with cursor: \(initialUpdatesCursor)")
 
         let eventWatcher = try EventWatcher(
-            serverEventSender: { events in
-                #if DEBUG
-                eventWatchingLog.debug("handing over \(events.count) value(s) to the event callback")
-                #endif
-                try await subscription.onEvent(events)
-            },
             initialUpdatesCursor: initialUpdatesCursor,
             currentUserID: currentUserID,
-            accountID: subscription.accountID,
-            reportErrorMessage: subscription.reportErrorMessage
+            accountID: accountID,
+            reportErrorMessage: reportErrorMessage
+        )
+        let eventForwarder = UncheckedSendableBox(
+            eventWatcher.events.sink { [eventSubject] events in
+                eventSubject.send(events)
+            }
         )
 
-        let watchingTask = Task {
+        let watchingTask = Task { [eventForwarder] in
+            defer { eventForwarder.value.cancel() }
             eventWatchingLog.debug("going to watch for database changes")
             do {
                 try await eventWatcher.watchForever()
             } catch {
                 eventWatchingLog.error("event watcher died: \(String(reflecting: error))")
-                try? subscription.reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
+                try? reportErrorMessage?("imsg event watcher died: \(String(reflecting: error))")
             }
         }
 
@@ -122,14 +135,62 @@ final class EventWatcherLifecycle {
 }
 
 extension EventWatcherLifecycle {
-    private struct Subscription {
-        var onEvent: PlatformAPI.EventCallback
-        var reportErrorMessage: PlatformAPI.ReportErrorMessage?
-        var accountID: String
+    private final class EventListener: @unchecked Sendable {
+        private let onEvent: PlatformAPI.EventCallback
+        private let reportErrorMessage: PlatformAPI.ReportErrorMessage?
+        private let pendingTask = Protected<Task<Void, Never>?>(nil)
+
+        init(
+            onEvent: @escaping PlatformAPI.EventCallback,
+            reportErrorMessage: PlatformAPI.ReportErrorMessage?
+        ) {
+            self.onEvent = onEvent
+            self.reportErrorMessage = reportErrorMessage
+        }
+
+        func send(_ events: [ServerEvent]) {
+            pendingTask.withLock { previousTask in
+                let task = Task { [onEvent, reportErrorMessage, previousTask] in
+                    await previousTask?.value
+                    guard !Task.isCancelled else { return }
+
+                    do {
+                        #if DEBUG
+                        eventWatchingLog.debug("handing over \(events.count) value(s) to an event callback")
+                        #endif
+                        try await onEvent(events)
+                    } catch {
+                        eventWatchingLog.error("event callback failed: \(String(reflecting: error))")
+                        try? reportErrorMessage?("imsg event callback failed: \(String(reflecting: error))")
+                    }
+                }
+                previousTask = task
+            }
+        }
+
+        func cancel() {
+            pendingTask.withLock { task in
+                task?.cancel()
+                task = nil
+            }
+        }
+    }
+
+    private struct ListenerRegistration {
+        var listener: EventListener
+        var cancellable: AnyCancellable
     }
 
     private struct State {
-        var subscription: Subscription?
+        var listeners: [UUID: ListenerRegistration] = [:]
         var watchingTask: Task<Void, Never>?
+
+        mutating func cancelListeners() {
+            for listener in listeners.values {
+                listener.listener.cancel()
+                listener.cancellable.cancel()
+            }
+            listeners.removeAll()
+        }
     }
 }

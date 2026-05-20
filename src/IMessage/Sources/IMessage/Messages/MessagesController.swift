@@ -72,7 +72,8 @@ final class MessagesController {
     let elements: MessagesAppElements
 
     private var lifecycleConveyor: RunLoopConveyor<ConveyorEvent>?
-    private var lifecycleEventsTask: Task<Void, Never>?
+    private let lifecycleEventsQueue = DispatchQueue(label: "imessage.lifecycle-events")
+    private var lifecycleEventsSubscription: AnyCancellable?
 
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
@@ -361,22 +362,25 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.error("unable to perform initial observation of main window: \(error)")
             }
 
-            // this task doesn't run on the thread with the run loop
-            self.lifecycleEventsTask = Task.detached {
-                func debuggingStatus() -> String {
-                    let app = self.app
+            // This subscription doesn't run on the thread with the run loop.
+            self.lifecycleEventsSubscription = observer.events.publisher
+                .receive(on: self.lifecycleEventsQueue)
+                .sink { [weak self] event in
+                    guard let self else { return }
 
-                    do {
-                        let window = try self.elements.mainWindow
-                        let frame = try window.frame()
-                        let position = try window.position()
-                        return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
-                    } catch {
-                        return "<failed to query: \(error)>"
+                    func debuggingStatus() -> String {
+                        let app = self.app
+
+                        do {
+                            let window = try self.elements.mainWindow
+                            let frame = try window.frame()
+                            let position = try window.position()
+                            return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
+                        } catch {
+                            return "<failed to query: \(error)>"
+                        }
                     }
-                }
 
-                for await event in observer.events.subscribe() {
                     func printLifecycle(event: String) {
                         lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
                     }
@@ -411,7 +415,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         }
                     }
                 }
-            }
         }, handlingWorkItemsWithinRunLoop: { event in
             guard case let .observeWindow(window) = event else { return }
             do {
@@ -1595,7 +1598,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
         lifecycleConveyor?.cancel()
-        lifecycleEventsTask?.cancel()
+        lifecycleEventsSubscription?.cancel()
 
         app.terminate()
     }

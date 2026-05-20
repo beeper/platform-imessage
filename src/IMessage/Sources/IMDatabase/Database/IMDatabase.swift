@@ -1,4 +1,4 @@
-import AsyncAlgorithms
+import Combine
 import Foundation
 import Logging
 import SQLite
@@ -36,7 +36,8 @@ public final class IMDatabase {
     // any time
     private var fileWatchers = [FileWatcher]()
 
-    private var debouncer: Task<Void, Never>?
+    private var debouncer: AnyCancellable?
+    private let pendingDebouncedBroadcast = Protected<Task<Void, Never>?>(nil)
 
     public var noisy = false
 
@@ -76,6 +77,10 @@ public final class IMDatabase {
             watcher.stopListeningIfNecessary()
         }
         debouncer?.cancel()
+        pendingDebouncedBroadcast.withLock {
+            $0?.cancel()
+            $0 = nil
+        }
     }
 }
 
@@ -129,15 +134,7 @@ public extension IMDatabase {
 
         try ensureDatabaseFileWatchers(broadcastingTo: unthrottledChanges)
 
-        debouncer = Task { [weak self] in
-            // this can't actually throw, but we can't use `AsyncSequence`'s
-            // `Failure` type argument due to deployment
-            do {
-                try await self?.broadcastDebouncedChanges(from: unthrottledChanges)
-            } catch {
-                log.error("debouncer died: \(error)")
-            }
-        }
+        debouncer = broadcastDebouncedChanges(from: unthrottledChanges)
     }
 
     private func ensureDatabaseFileWatchers(broadcastingTo topic: Topic<Void>) throws {
@@ -188,27 +185,30 @@ public extension IMDatabase {
         log.debug("watcher count after ensuring: \(fileWatchers.count)")
     }
 
-    private func broadcastDebouncedChanges(from topic: Topic<Void>) async throws {
-        var broadcaster: Task<Void, any Error>?
+    private func broadcastDebouncedChanges(from topic: Topic<Void>) -> AnyCancellable {
+        topic.publisher.sink { [weak self] in
+            guard let self else { return }
 
-        for try await _ in topic.subscribe() {
-            guard !Task.isCancelled else {
-                log.debug("debouncer was cancelled, bailing")
-                return
-            }
+            pendingDebouncedBroadcast.withLock { pendingBroadcast in
+                pendingBroadcast?.cancel()
+                pendingBroadcast = Task { [weak self] in
+                    guard let self else { return }
 
-            broadcaster?.cancel()
-            broadcaster = Task { [weak self] in
-                guard let self else { return }
+                    do {
+                        let debouncingPeriod = UInt64(debounceIntervalMs * 1_000_000)
+                        try await Task.sleep(nanoseconds: debouncingPeriod)
+                        try Task.checkCancellation()
 
-                let debouncingPeriod = UInt64(debounceIntervalMs * 1_000_000)
-                try await Task.sleep(nanoseconds: debouncingPeriod)
-                try Task.checkCancellation()
-
-                if noisy {
-                    log.debug("(noisy) IMDatabase is going to broadcast a change, post-debounce")
+                        if noisy {
+                            log.debug("(noisy) IMDatabase is going to broadcast a change, post-debounce")
+                        }
+                        changes.broadcast(())
+                    } catch is CancellationError {
+                        return
+                    } catch {
+                        log.error("debouncer died: \(error)")
+                    }
                 }
-                changes.broadcast(())
             }
         }
     }
