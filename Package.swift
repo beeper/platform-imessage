@@ -20,7 +20,11 @@ let hostSupportsChroma = ProcessInfo.processInfo.isOperatingSystemAtLeast(
 let hostSupportsChroma = false
 #endif
 
-let enableChromaHighlighting = swiftCompilerSupportsChroma && hostSupportsChroma
+let supportsChromaHighlighting = swiftCompilerSupportsChroma && hostSupportsChroma
+
+// Chroma is only used by the CLI. Keep the CLI target from depending on it in
+// Node bridge builds so the packaged Electron addon preserves macOS 11 support.
+let enableChromaHighlighting = supportsChromaHighlighting && !includeNodeBridge
 
 var products: [Product] = [
     .library(
@@ -55,8 +59,11 @@ var iMessageCLIDependencies: [Target.Dependency] = [
 var iMessageCLISwiftSettings: [SwiftSetting] = []
 var platforms: [SupportedPlatform] = [.macOS(.v11)]
 
-if enableChromaHighlighting {
+if supportsChromaHighlighting {
     dependencies.append(.package(url: "https://github.com/onevcat/Chroma.git", from: "0.3.1"))
+}
+
+if enableChromaHighlighting {
     iMessageCLIDependencies.append(.product(name: "Chroma", package: "Chroma"))
     iMessageCLISwiftSettings.append(.define("IMESSAGE_CLI_ENABLE_CHROMA"))
     platforms = [.macOS(.v13)]

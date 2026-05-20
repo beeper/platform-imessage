@@ -23,7 +23,7 @@ public final class IMDatabase {
     // `~/Library/Messages/`
     let messagesDataDirectory: URL
     // coalesce multiple filesystem changes if they happen in a short period
-    public var debounceInterval: Duration = .milliseconds(25)
+    public var debounceInterval: DispatchTimeInterval = .milliseconds(25)
 
     // let clients of this class subscribe to changes in in the `chat.db` file
     // (includes `chat.db-wal`, `chat.db-shm`). broadcasts to this `Topic` are
@@ -201,7 +201,7 @@ public extension IMDatabase {
             broadcaster = Task { [weak self] in
                 guard let self else { return }
 
-                try await Task.sleep(for: debounceInterval)
+                try await Task.sleep(nanoseconds: debounceInterval.nanoseconds)
                 try Task.checkCancellation()
 
                 if noisy {
