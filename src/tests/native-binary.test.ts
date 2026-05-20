@@ -11,7 +11,7 @@ const nativeAddonPaths = ['darwin-x64', 'darwin-arm64']
   }))
   .filter(({ binaryPath }) => fs.existsSync(binaryPath))
 
-const describeOnDarwin = process.env.IMESSAGE_CHECK_NATIVE_BINARY === '1' && process.platform === 'darwin' && nativeAddonPaths.length > 0
+const describeOnDarwin = process.platform === 'darwin' && nativeAddonPaths.length > 0
   ? describe
   : describe.skip
 
