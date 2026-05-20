@@ -33,17 +33,26 @@ const removeOutputBeforeWrite = (dest: string) =>
   // symlink target in build/* instead of from binaries/* next to NodeAPI.framework.
   fsp.rm(dest, { force: true })
 
-const ensureXcodeWorkspace = async (packagePath: string) => {
-  const workspaceFile = path.join(packagePath, '.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata')
-  await fsp.mkdir(path.dirname(workspaceFile), { recursive: true })
-  await fsp.writeFile(workspaceFile, `<?xml version="1.0" encoding="UTF-8"?>
+const XCODE_WORKSPACE_CONTENTS = `<?xml version="1.0" encoding="UTF-8"?>
 <Workspace
    version = "1.0">
    <FileRef
       location = "self:">
    </FileRef>
 </Workspace>
-`)
+`
+
+const ensureXcodeWorkspace = async (packagePath: string) => {
+  const workspaceFile = path.join(packagePath, '.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata')
+  const currentContents = await fsp.readFile(workspaceFile, 'utf8').catch(error => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw error
+  })
+
+  if (currentContents === XCODE_WORKSPACE_CONTENTS) return
+
+  await fsp.mkdir(path.dirname(workspaceFile), { recursive: true })
+  await fsp.writeFile(workspaceFile, XCODE_WORKSPACE_CONTENTS)
 }
 
 const uploadDebugFilesToSentry = async (searchPath: string): Promise<void> => {
