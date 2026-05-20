@@ -19,6 +19,10 @@ ORDER BY
     m.ROWID ASC
 """
 
+private let chatJoinRetryTimeout: TimeInterval = 3
+private let chatJoinRetryInterval: TimeInterval = 0.05
+private let chatJoinRetryIntervalNanoseconds = UInt64(chatJoinRetryInterval * 1_000_000_000)
+
 package struct UpdatedMessageChange {
     package let rowID: Int
     package let chatGUID: String
@@ -42,7 +46,7 @@ package struct UpdatedMessagesQueryResult {
 
 extension IMDatabase {
     package
-    func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
+    func messages(since cursor: MessageUpdatesCursor) async throws -> UpdatedMessagesQueryResult {
         let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 
         try statement.reset()
@@ -55,9 +59,8 @@ extension IMDatabase {
         var nextLastRowID = cursor.lastRowID
         var nextLastDateRead = cursor.lastDateRead
         var nextLastDateEdited = cursor.lastDateEdited
-        var timesWarnedAboutOrphanedMessage = 0
 
-        let updatedMessages: [UpdatedMessageChange] = try statement.compactMapRowsUntilDone { row in
+        let rows = try statement.mapRowsUntilDone { row in
             let messageRowID = try row[0].expect(Int.self)
             let isNew = messageRowID > cursor.lastRowID
             if isNew {
@@ -81,28 +84,48 @@ extension IMDatabase {
                 }
             }
 
-            guard let guid = try row[3].optional(String.self) else {
+            return (
+                rowID: messageRowID,
+                chatGUID: try row[3].optional(String.self),
+                isNew: isNew,
+                wasRead: wasRead,
+                wasEdited: wasEdited
+            )
+        }
+
+        var timesWarnedAboutOrphanedMessage = 0
+        var updatedMessages: [UpdatedMessageChange] = []
+        updatedMessages.reserveCapacity(rows.count)
+        for row in rows {
+            guard let guid = try await chatGUID(forMessageRowID: row.rowID, joinedGUID: row.chatGUID, isNew: row.isNew) else {
                 // For whatever reason it's possible for messages to not be
                 // joinable with chats. Right now I have one of these for a SMS
                 // TOTP verification code, which might've been automatically
                 // deleted in a weird way due to the autofill feature.
                 //
+                // New message rows can also briefly appear before their
+                // chat_message_join row is visible to our connection. The helper
+                // above gives that transient case a short chance to settle from
+                // a fresh statement after the main query has finished. If there
+                // is still no chat here, treat it as genuinely orphaned and skip
+                // it so the event watcher can keep moving.
+                //
                 // In case there are tons of orphaned messages, don't spam the
                 // logs with this message.
                 if timesWarnedAboutOrphanedMessage < 10 {
-                    log.error("couldn't join message \(messageRowID) to chat, dropping")
+                    log.error("couldn't join message \(row.rowID) to chat, dropping")
                     timesWarnedAboutOrphanedMessage += 1
                 }
-                return nil
+                continue
             }
 
-            return UpdatedMessageChange(
-                rowID: messageRowID,
+            updatedMessages.append(UpdatedMessageChange(
+                rowID: row.rowID,
                 chatGUID: guid,
-                isNew: isNew,
-                wasRead: wasRead,
-                wasEdited: wasEdited
-            )
+                isNew: row.isNew,
+                wasRead: row.wasRead,
+                wasEdited: row.wasEdited
+            ))
         }
 
         return UpdatedMessagesQueryResult(
@@ -113,5 +136,25 @@ extension IMDatabase {
                 lastDateEdited: nextLastDateEdited
             )
         )
+    }
+
+    private func chatGUID(forMessageRowID rowID: Int, joinedGUID: String?, isNew: Bool) async throws -> String? {
+        if let joinedGUID {
+            return joinedGUID
+        }
+        guard isNew else {
+            return nil
+        }
+
+        log.warning("couldn't join new message \(rowID) to chat, retrying briefly")
+        let deadline = Date().addingTimeInterval(chatJoinRetryTimeout)
+        repeat {
+            if let chatGUID = try threadIDForMessage(rowID: rowID) {
+                return chatGUID
+            }
+            try await Task.sleep(nanoseconds: chatJoinRetryIntervalNanoseconds)
+        } while Date() < deadline
+
+        return try threadIDForMessage(rowID: rowID)
     }
 }
