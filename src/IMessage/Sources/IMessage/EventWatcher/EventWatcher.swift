@@ -68,7 +68,7 @@ final class EventWatcher {
                 // Query unread states, compare to the previous set, and persist them.
                 try eventsToSend.append(contentsOf: diffChatStates())
                 // Ditto, but for any new messages/read state changes.
-                try eventsToSend.append(contentsOf: collectMessageUpdateEvents())
+                try await eventsToSend.append(contentsOf: collectMessageUpdateEvents())
             } catch {
                 Self.logger.error("couldn't collect event watcher events: \(String(reflecting: error)), continuing")
                 try? reportErrorMessage?("imsg event watcher: couldn't collect events: \(String(reflecting: error))")

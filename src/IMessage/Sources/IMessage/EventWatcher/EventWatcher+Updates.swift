@@ -143,9 +143,9 @@ extension EventWatcher {
         return events
     }
 
-    func collectMessageUpdateEvents() throws -> [ServerEvent] {
+    func collectMessageUpdateEvents() async throws -> [ServerEvent] {
         let previousCursor = updatesCursor
-        let queryResult = try db.messages(since: previousCursor)
+        let queryResult = try await db.messages(since: previousCursor)
         traceMessageUpdates("updated messages query returned \(queryResult.updatedMessages.count) updated message(s)")
 
         let events = try messageUpdateEvents(for: queryResult)
