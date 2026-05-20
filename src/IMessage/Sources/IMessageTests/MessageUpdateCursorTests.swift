@@ -2,7 +2,7 @@ import Foundation
 import IMDatabase
 import Testing
 
-@Test func newMessageWaitsBrieflyForChatJoin() throws {
+@Test func newMessageWaitsBrieflyForChatJoin() async throws {
     let fixture = try TahoeChatDatabaseFixture()
     defer { fixture.cleanup() }
 
@@ -11,7 +11,7 @@ import Testing
     try fixture.insertChatJoin(messageRowID: 11)
     fixture.insertChatJoin(messageRowID: 10, after: 0.05)
 
-    let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
+    let result = try await fixture.imDatabase.messages(since: MessageUpdatesCursor(
         lastRowID: 9,
         lastDateRead: Date(nanosecondsSinceReferenceDate: 0),
         lastDateEdited: Date(nanosecondsSinceReferenceDate: 0)

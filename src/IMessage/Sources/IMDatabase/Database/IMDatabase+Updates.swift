@@ -21,6 +21,7 @@ ORDER BY
 
 private let chatJoinRetryTimeout: TimeInterval = 3
 private let chatJoinRetryInterval: TimeInterval = 0.05
+private let chatJoinRetryIntervalNanoseconds = UInt64(chatJoinRetryInterval * 1_000_000_000)
 
 package struct UpdatedMessageChange {
     package let rowID: Int
@@ -45,7 +46,7 @@ package struct UpdatedMessagesQueryResult {
 
 extension IMDatabase {
     package
-    func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
+    func messages(since cursor: MessageUpdatesCursor) async throws -> UpdatedMessagesQueryResult {
         let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 
         try statement.reset()
@@ -93,8 +94,9 @@ extension IMDatabase {
         }
 
         var timesWarnedAboutOrphanedMessage = 0
-        let updatedMessages = try rows.compactMap { row -> UpdatedMessageChange? in
-            guard let guid = try chatGUID(forMessageRowID: row.rowID, joinedGUID: row.chatGUID, isNew: row.isNew) else {
+        var updatedMessages: [UpdatedMessageChange] = []
+        for row in rows {
+            guard let guid = try await chatGUID(forMessageRowID: row.rowID, joinedGUID: row.chatGUID, isNew: row.isNew) else {
                 // For whatever reason it's possible for messages to not be
                 // joinable with chats. Right now I have one of these for a SMS
                 // TOTP verification code, which might've been automatically
@@ -113,16 +115,16 @@ extension IMDatabase {
                     log.error("couldn't join message \(row.rowID) to chat, dropping")
                     timesWarnedAboutOrphanedMessage += 1
                 }
-                return nil
+                continue
             }
 
-            return UpdatedMessageChange(
+            updatedMessages.append(UpdatedMessageChange(
                 rowID: row.rowID,
                 chatGUID: guid,
                 isNew: row.isNew,
                 wasRead: row.wasRead,
                 wasEdited: row.wasEdited
-            )
+            ))
         }
 
         return UpdatedMessagesQueryResult(
@@ -135,7 +137,7 @@ extension IMDatabase {
         )
     }
 
-    private func chatGUID(forMessageRowID rowID: Int, joinedGUID: String?, isNew: Bool) throws -> String? {
+    private func chatGUID(forMessageRowID rowID: Int, joinedGUID: String?, isNew: Bool) async throws -> String? {
         if let joinedGUID {
             return joinedGUID
         }
@@ -149,7 +151,7 @@ extension IMDatabase {
             if let chatGUID = try threadIDForMessage(rowID: rowID) {
                 return chatGUID
             }
-            Thread.sleep(forTimeInterval: chatJoinRetryInterval)
+            try await Task.sleep(nanoseconds: chatJoinRetryIntervalNanoseconds)
         } while Date() < deadline
 
         return try threadIDForMessage(rowID: rowID)
