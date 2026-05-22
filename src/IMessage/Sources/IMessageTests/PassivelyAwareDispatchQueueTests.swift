@@ -73,6 +73,42 @@ import Testing
     #expect(Array(observations.read().prefix(2)) == ["began", "continuing"])
 }
 
+@Test func passivelyAwareQueueSuppressesContinuingIdleWhenIdleCallbackEnqueuesWork() {
+    let queue = PassivelyAwareDispatchQueue(label: testQueueLabel(), idleDelay: 0.02)
+    let observations = Protected<[String]>([])
+    let didScheduleReentrantWork = Protected<Bool>(false)
+    let initialWorkFinished = DispatchSemaphore(value: 0)
+    let reentrantWorkFinished = DispatchSemaphore(value: 0)
+    let idleObservedTwice = DispatchSemaphore(value: 0)
+
+    queue.setIdleCallback { quiescence in
+        let count = observations.withLock { observations in
+            observations.append(label(for: quiescence))
+            return observations.count
+        }
+        if !didScheduleReentrantWork.withLock({ scheduled in
+            defer { scheduled = true }
+            return scheduled
+        }) {
+            queue.async {
+                reentrantWorkFinished.signal()
+            }
+        }
+        if count == 2 {
+            idleObservedTwice.signal()
+        }
+    }
+
+    queue.async {
+        initialWorkFinished.signal()
+    }
+
+    #expect(initialWorkFinished.wait(timeout: .now() + 1) == .success)
+    #expect(reentrantWorkFinished.wait(timeout: .now() + 1) == .success)
+    #expect(idleObservedTwice.wait(timeout: .now() + 1) == .success)
+    #expect(Array(observations.read().prefix(2)) == ["began", "began"])
+}
+
 @Test func passivelyAwareQueueHandlesRapidConcurrentSubmissions() {
     let queue = PassivelyAwareDispatchQueue(label: testQueueLabel(), idleDelay: 0.01)
     let totalWorkItems = 500
