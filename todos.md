@@ -20,7 +20,6 @@
 - [ ] separate `UserDefaults` somehow so that CLI and other consumers don't share the prefs
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] improve misfire prevention and robustness
-- [ ] when the user sends a message w tweets/links, when the link/tweet preview resolves, send a message update event
 - [ ] when scheduled messages are actually sent, send a message update event
 - [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
 
@@ -63,6 +62,7 @@
   - [x] new added/removed reactions should be state sync message upserts/deletes (for the hidden reaction message) and a state sync message update (for the og message)
   - [x] messages edited should be state sync message updates
   - [x] messages getting read should be state sync message updates
+- [x] when the user sends a message w tweets/links, when the link/tweet preview resolves, send a message update event
 - [x] https://github.com/SwiftPackageIndex/PackageList/issues/new?template=add_package.yml
 - cli
   - [x] resolve chat id as email/phone # if `any;-;` prefix isn't passed

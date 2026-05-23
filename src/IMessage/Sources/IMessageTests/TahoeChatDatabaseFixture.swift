@@ -33,6 +33,7 @@ final class TahoeChatDatabaseFixture {
     func insertMessage(
         rowID: Int,
         guid: String? = nil,
+        text: String = "",
         date: Int? = nil,
         dateRead: Int = 0,
         dateEdited: Int = 0,
@@ -40,11 +41,12 @@ final class TahoeChatDatabaseFixture {
     ) throws {
         try database.execute(
             sqlWithoutEscaping: """
-            INSERT INTO message (ROWID, guid, date, date_read, date_edited, service)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO message (ROWID, guid, text, date, date_read, date_edited, service)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             rowID,
             guid ?? "message-\(rowID)",
+            text,
             date ?? rowID,
             dateRead,
             dateEdited,
@@ -83,6 +85,10 @@ final class TahoeChatDatabaseFixture {
                 into: database
             )
         }
+    }
+
+    func updateMessagePayloadData(rowID: Int, payloadData: Data) throws {
+        try database.execute(sqlWithoutEscaping: "UPDATE message SET payload_data = ? WHERE ROWID = ?", payloadData, rowID)
     }
 
     private static func insertChatJoin(

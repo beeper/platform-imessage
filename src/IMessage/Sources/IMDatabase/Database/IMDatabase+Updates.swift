@@ -19,34 +19,61 @@ ORDER BY
     m.ROWID ASC
 """
 
-private let chatJoinRetryTimeout: TimeInterval = 3
-private let chatJoinRetryInterval: TimeInterval = 0.05
-private let chatJoinRetryIntervalNanoseconds = UInt64(chatJoinRetryInterval * 1_000_000_000)
-
 package struct UpdatedMessageChange {
     package let rowID: Int
     package let chatGUID: String
     package let isNew: Bool
     package let wasRead: Bool
     package let wasEdited: Bool
+    package let isPreviewUpdate: Bool
 
-    package init(rowID: Int, chatGUID: String, isNew: Bool, wasRead: Bool, wasEdited: Bool) {
+    package init(
+        rowID: Int,
+        chatGUID: String,
+        isNew: Bool,
+        wasRead: Bool,
+        wasEdited: Bool,
+        isPreviewUpdate: Bool = false
+    ) {
         self.rowID = rowID
         self.chatGUID = chatGUID
         self.isNew = isNew
         self.wasRead = wasRead
         self.wasEdited = wasEdited
+        self.isPreviewUpdate = isPreviewUpdate
+    }
+
+    package func merging(_ other: UpdatedMessageChange) -> UpdatedMessageChange {
+        UpdatedMessageChange(
+            rowID: rowID,
+            chatGUID: chatGUID,
+            isNew: isNew || other.isNew,
+            wasRead: wasRead || other.wasRead,
+            wasEdited: wasEdited || other.wasEdited,
+            isPreviewUpdate: isPreviewUpdate || other.isPreviewUpdate
+        )
     }
 }
 
 package struct UpdatedMessagesQueryResult {
     package let updatedMessages: [UpdatedMessageChange]
+    package let unresolvedNewMessageRowIDs: [Int]
     package let nextCursor: MessageUpdatesCursor
+
+    package init(
+        updatedMessages: [UpdatedMessageChange],
+        unresolvedNewMessageRowIDs: [Int] = [],
+        nextCursor: MessageUpdatesCursor
+    ) {
+        self.updatedMessages = updatedMessages
+        self.unresolvedNewMessageRowIDs = unresolvedNewMessageRowIDs
+        self.nextCursor = nextCursor
+    }
 }
 
 extension IMDatabase {
     package
-    func messages(since cursor: MessageUpdatesCursor) async throws -> UpdatedMessagesQueryResult {
+    func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
         let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
 
         try statement.reset()
@@ -93,22 +120,28 @@ extension IMDatabase {
             )
         }
 
-        var timesWarnedAboutOrphanedMessage = 0
         var updatedMessages: [UpdatedMessageChange] = []
+        var unresolvedNewMessageRowIDs: [Int] = []
+        var timesWarnedAboutOrphanedMessage = 0
         updatedMessages.reserveCapacity(rows.count)
         for row in rows {
-            guard let guid = try await chatGUID(forMessageRowID: row.rowID, joinedGUID: row.chatGUID, isNew: row.isNew) else {
+            guard let guid = row.chatGUID else {
                 // For whatever reason it's possible for messages to not be
                 // joinable with chats. Right now I have one of these for a SMS
                 // TOTP verification code, which might've been automatically
                 // deleted in a weird way due to the autofill feature.
                 //
                 // New message rows can also briefly appear before their
-                // chat_message_join row is visible to our connection. The helper
-                // above gives that transient case a short chance to settle from
-                // a fresh statement after the main query has finished. If there
-                // is still no chat here, treat it as genuinely orphaned and skip
-                // it so the event watcher can keep moving.
+                // chat_message_join row is visible to our connection. Return
+                // those row IDs separately so EventWatcher can retry only on
+                // later filesystem-change ticks.
+                if row.isNew {
+                    unresolvedNewMessageRowIDs.append(row.rowID)
+                    continue
+                }
+
+                // Existing rows without a chat join are orphaned. Skip them so
+                // the event watcher can keep moving.
                 //
                 // In case there are tons of orphaned messages, don't spam the
                 // logs with this message.
@@ -130,31 +163,12 @@ extension IMDatabase {
 
         return UpdatedMessagesQueryResult(
             updatedMessages: updatedMessages,
+            unresolvedNewMessageRowIDs: unresolvedNewMessageRowIDs,
             nextCursor: MessageUpdatesCursor(
                 lastRowID: nextLastRowID,
                 lastDateRead: nextLastDateRead,
                 lastDateEdited: nextLastDateEdited
             )
         )
-    }
-
-    private func chatGUID(forMessageRowID rowID: Int, joinedGUID: String?, isNew: Bool) async throws -> String? {
-        if let joinedGUID {
-            return joinedGUID
-        }
-        guard isNew else {
-            return nil
-        }
-
-        log.warning("couldn't join new message \(rowID) to chat, retrying briefly")
-        let deadline = Date().addingTimeInterval(chatJoinRetryTimeout)
-        repeat {
-            if let chatGUID = try threadIDForMessage(rowID: rowID) {
-                return chatGUID
-            }
-            try await Task.sleep(nanoseconds: chatJoinRetryIntervalNanoseconds)
-        } while Date() < deadline
-
-        return try threadIDForMessage(rowID: rowID)
     }
 }

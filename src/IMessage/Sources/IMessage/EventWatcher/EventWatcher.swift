@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import IMDatabase
 import Logging
@@ -13,14 +14,31 @@ struct TimestampedChatState {
     }
 }
 
+struct PendingLinkPreviewCandidate {
+    let firstSeen: Date
+    let chatGUID: String
+}
+
 final class EventWatcher {
     static let logger = Logger(imessageLabel: "event-watcher")
 
-    var db: IMDatabase
+    let db: IMDatabase
 
     /// Tracks the last known state of every chat.
     var chatStates = [String: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
+    var pendingUnresolvedNewMessageRowIDs = OrderedDictionary<Int, Date>()
+    var pendingLinkPreviewCandidates = OrderedDictionary<Int, PendingLinkPreviewCandidate>()
+    /// Rows resolved during the current tick whose pending entries are cleared
+    /// only after the tick's events are successfully sent. On a send failure we
+    /// leave them pending so the next tick retries: the main-query cursor has
+    /// already advanced past these rows, so the pending maps are their only
+    /// recovery path. Repopulated from scratch on every tick.
+    var newMessageRowIDsAwaitingSendCommit: [Int] = []
+    var linkPreviewRowIDsAwaitingSendCommit: [Int] = []
+    /// One-shot timer that re-triggers a tick while pending resolution work
+    /// remains, so it isn't stranded when the database otherwise goes quiet.
+    var pendingWakeTask: Task<Void, Never>?
 
     let currentUserID: String
     let accountID: String
@@ -32,9 +50,10 @@ final class EventWatcher {
         initialUpdatesCursor: MessageUpdatesCursor,
         currentUserID: String,
         accountID: String,
+        db: IMDatabase? = nil,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
-        self.db = try IMDatabase()
+        self.db = try db ?? IMDatabase()
 
         if Defaults.eventWatcherTraceChangeListening {
             Self.logger.debug("tracing change listening, telling IMDatabase to be noisy")
@@ -46,6 +65,10 @@ final class EventWatcher {
         self.currentUserID = currentUserID
         self.accountID = accountID
         self.reportErrorMessage = reportErrorMessage
+    }
+
+    deinit {
+        pendingWakeTask?.cancel()
     }
 
     func watchForever() async throws {
@@ -79,7 +102,12 @@ final class EventWatcher {
                 continue
             }
 
-            guard !eventsToSend.isEmpty else { continue }
+            guard !eventsToSend.isEmpty else {
+                // Nothing to send means nothing can fail, so any rows resolved
+                // this tick are done — clear them from the pending maps.
+                commitPendingSends()
+                continue
+            }
 
             do {
                 guard !Task.isCancelled else {
@@ -90,9 +118,11 @@ final class EventWatcher {
                 Self.logger.debug("sending \(eventsToSend.count) event(s) to PAS")
                 #endif
                 try await sender(eventsToSend)
+                commitPendingSends()
             } catch {
                 Self.logger.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
                 try? reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
+                // Leave the resolved rows pending so the next tick retries them.
             }
         }
     }
