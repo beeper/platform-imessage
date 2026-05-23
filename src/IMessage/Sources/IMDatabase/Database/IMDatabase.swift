@@ -34,7 +34,7 @@ public final class IMDatabase {
     // file watchers for `chat.db` and `chat.db-wal`; these need to be
     // dynamically populated because the WAL can be deleted and (re)created at
     // any time
-    private var fileWatchers = [FileWatcher]()
+    private var fileWatchers = [String: FileWatcher]()
 
     private let listenerLock = Protected(())
     private var directoryWatcher: FSEventsWatcher?
@@ -111,6 +111,12 @@ public extension IMDatabase {
         }
     }
 
+    func stopListeningForChanges() {
+        listenerLock.withLock { _ in
+            stopListeningForChangesLocked()
+        }
+    }
+
     private func stopListeningForChangesLocked() {
         if let directoryWatcher {
             directoryWatcher.stop()
@@ -121,7 +127,7 @@ public extension IMDatabase {
         debouncer?.cancel()
         debouncer = nil
 
-        for watcher in fileWatchers {
+        for watcher in fileWatchers.values {
             watcher.stopListeningIfNecessary()
         }
         fileWatchers.removeAll()
@@ -174,34 +180,35 @@ public extension IMDatabase {
     }
 
     private func ensureDatabaseFileWatchers(broadcastingTo topic: Topic<Void>) throws {
-        if !fileWatchers.isEmpty {
-            let allWatchersHaveLinks = fileWatchers.allSatisfy { watcher in
-                do {
-                    return try watcher.hasHardLinks() == true
-                } catch {
-                    log.error("couldn't check if \(watcher) has hard links, assuming it does: \(error)")
-                    return false
-                }
-            }
+        let desiredWatchFiles = [
+            DatabaseWatchFile(url: chatDatabaseFile(in: messagesDataDirectory), required: true),
+            DatabaseWatchFile(url: chatDatabaseWalFile(in: messagesDataDirectory), required: false),
+        ]
+        let desiredWatchPaths = Set(desiredWatchFiles.map(\.url.path))
 
-            guard !allWatchersHaveLinks else {
-                log.debug("all file watchers have hard links, leaving them alone")
-                return
-            }
-
-            log.debug("at least one file watcher lacks hard links, purging all of em (\(fileWatchers.count))")
-            // TODO: watchers stop listening in deinit, so maybe this is
-            // unnecessary assuming we have no refcycles
-            for watcher in fileWatchers {
-                watcher.stopListeningIfNecessary()
-            }
-            fileWatchers.removeAll()
+        let staleWatchPaths = fileWatchers.keys.filter { !desiredWatchPaths.contains($0) }
+        for path in staleWatchPaths {
+            log.debug("purging stale FileWatcher for \(URL(fileURLWithPath: path).lastPathComponent)")
+            fileWatchers.removeValue(forKey: path)?.stopListeningIfNecessary()
         }
 
-        func watchFile(at path: URL) throws {
-            log.debug("setting up FileWatcher for \(path.lastPathComponent)")
+        let unlinkedWatchPaths = fileWatchers.compactMap { path, watcher -> String? in
+            do {
+                return try watcher.hasHardLinks() == true ? nil : path
+            } catch {
+                log.error("couldn't check if \(watcher) has hard links, recreating it: \(error)")
+                return path
+            }
+        }
+        for path in unlinkedWatchPaths {
+            log.debug("purging unlinked FileWatcher for \(URL(fileURLWithPath: path).lastPathComponent)")
+            fileWatchers.removeValue(forKey: path)?.stopListeningIfNecessary()
+        }
 
-            let watcher = FileWatcher(watching: path) { [weak self] _, event in
+        func makeWatcher(for file: URL) throws -> FileWatcher {
+            log.debug("setting up FileWatcher for \(file.lastPathComponent)")
+
+            let watcher = FileWatcher(watching: file) { [weak self] _, event in
                 guard let self else { return }
 
                 if noisy {
@@ -211,14 +218,35 @@ public extension IMDatabase {
             }
 
             try watcher.beginListening()
-            fileWatchers.append(watcher)
+            return watcher
         }
 
-        // watch `.db`/`.db-wal` files for changes
-        try watchFile(at: chatDatabaseFile(in: messagesDataDirectory))
-        try watchFile(at: chatDatabaseWalFile(in: messagesDataDirectory))
+        var newWatchers = [String: FileWatcher]()
+        for file in desiredWatchFiles where fileWatchers[file.url.path] == nil {
+            do {
+                newWatchers[file.url.path] = try makeWatcher(for: file.url)
+            } catch {
+                if file.required {
+                    log.debug("failed to set up required database file watcher, cleaning up \(newWatchers.count) new watcher(s)")
+                    for watcher in newWatchers.values {
+                        watcher.stopListeningIfNecessary()
+                    }
+                    throw error
+                }
+                log.debug("could not watch optional \(file.url.lastPathComponent); will retry on directory events: \(error)")
+            }
+        }
+
+        for (path, watcher) in newWatchers {
+            fileWatchers[path] = watcher
+        }
 
         log.debug("watcher count after ensuring: \(fileWatchers.count)")
+    }
+
+    private struct DatabaseWatchFile {
+        var url: URL
+        var required: Bool
     }
 
     private func broadcastDebouncedChanges(from topic: Topic<Void>) async throws {
