@@ -56,6 +56,13 @@ final class TahoeChatDatabaseFixture {
         )
     }
 
+    /// Inserts non-matching filler messages so search has to scan past them.
+    func insertFillerMessages(rowIDs: ClosedRange<Int>) throws {
+        for rowID in rowIDs {
+            try insertMessage(rowID: rowID, text: "recent filler \(rowID)")
+        }
+    }
+
     /// Builds an `attributedBody` blob in the same NSArchiver/typedstream format
     /// `chat.db` stores and `AttributedBodyDecoder` reads.
     static func attributedBody(_ string: String) -> Data {

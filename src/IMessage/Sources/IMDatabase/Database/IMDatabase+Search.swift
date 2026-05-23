@@ -56,9 +56,7 @@ extension IMDatabase {
     // │   .after  (+ cursor)  → ORDER BY date ASC,  ROWID ASC   (oldest-of-newer) │
     // │                                                                           │
     // │ Cursors are compound "date,rowID" so equal-date matches paginate without  │
-    // │ skips/duplicates. On a cap-hit with fewer than limit+1 matches, hasMore   │
-    // │ stays true and the continuation cursor is the last *scanned* row (not the │
-    // │ last *returned* match) so the next page resumes past the scanned window.  │
+    // │ skips/duplicates.                                                         │
     // └─────────────────────────────────────────────────────────────────────────┘
     package func searchMessageRowIDs(
         query: String,
@@ -75,20 +73,17 @@ extension IMDatabase {
 
         let queryLower = query.lowercased()
         let parsedCursor = cursor.flatMap(Self.parseSearchCursor)
-        let effectiveDirection = parsedCursor != nil ? (direction ?? .before) : .before
-        let isAscending = effectiveDirection == .after
+        let isAscending = parsedCursor != nil && (direction ?? .before) == .after
         let comparisonOperator = isAscending ? ">" : "<"
         let orderDirection = isAscending ? "ASC" : "DESC"
         let matchLimit = limit == Int.max ? limit : limit + 1
         let scanCap = limit == Int.max ? Int.max : limit * 200
 
-        // Build SQL query with optional filters
         var sql = """
         SELECT m.ROWID, m.date, m.text, m.attributedBody
         FROM message m
         """
 
-        // Add chat join if filtering by chatGUID
         if chatGUID != nil {
             sql += """
 
@@ -135,9 +130,7 @@ extension IMDatabase {
             params.append(parsedCursor.date)
             params.append(parsedCursor.rowID)
         }
-        if !params.isEmpty {
-            try statement.bind(params)
-        }
+        try statement.bind(params)
 
         var matched: [(rowID: Int, date: Int)] = []
         var lastScanned: (rowID: Int, date: Int)?
@@ -153,19 +146,15 @@ extension IMDatabase {
             let plainText = try row[2].optional(String.self)
             let attributedBodyData = try row[3].optional(Data.self)
 
-            // Try to get text from attributedBody first (more complete), fall back to text column
+            // Prefer attributedBody (more complete than the text column), falling back to it.
             var messageText: String?
-
             if let data = attributedBodyData {
                 messageText = try? AttributedBodyDecoder.plainText(from: data)
             }
-
-            // Fall back to plain text column
             if messageText == nil || messageText?.isEmpty == true {
                 messageText = plainText
             }
 
-            // Check if the decoded text actually contains the search query (case-insensitive)
             if let text = messageText, text.lowercased().contains(queryLower) {
                 matched.append((rowID: rowID, date: date))
                 if matched.count >= matchLimit {
@@ -188,8 +177,9 @@ extension IMDatabase {
         // truncated the scan before we could prove there were none.
         let hasMore = foundMore || capHit
 
-        var oldestCursor = Self.searchCursorString(returned.min(by: Self.searchOrderAscending))
-        var newestCursor = Self.searchCursorString(returned.max(by: Self.searchOrderAscending))
+        // `returned` is already in SQL (date, ROWID) order, so the boundaries are its ends.
+        var oldestCursor = Self.searchCursorString(isAscending ? returned.first : returned.last)
+        var newestCursor = Self.searchCursorString(isAscending ? returned.last : returned.first)
 
         // On a cap-hit without a full lookahead, resume from the last *scanned*
         // candidate so the next page doesn't rescan the same window (and so an
@@ -222,10 +212,5 @@ extension IMDatabase {
     private static func searchCursorString(_ row: (rowID: Int, date: Int)?) -> String? {
         guard let row else { return nil }
         return "\(row.date),\(row.rowID)"
-    }
-
-    /// Lexicographic `(date, rowID)` ordering, matching the SQL `ORDER BY date, ROWID`.
-    private static func searchOrderAscending(_ lhs: (rowID: Int, date: Int), _ rhs: (rowID: Int, date: Int)) -> Bool {
-        (lhs.date, lhs.rowID) < (rhs.date, rhs.rowID)
     }
 }

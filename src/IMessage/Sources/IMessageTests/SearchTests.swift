@@ -7,9 +7,7 @@ import Testing
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, text: "the buried project status update")
-    for rowID in 2 ... 402 {
-        try fixture.insertMessage(rowID: rowID, text: "recent filler \(rowID)")
-    }
+    try fixture.insertFillerMessages(rowIDs: 2 ... 402)
 
     let matchingRowIDs = try fixture.imDatabase.searchMessages(query: "project status", limit: 20)
 
@@ -53,9 +51,7 @@ import Testing
         text: "",
         attributedBody: TahoeChatDatabaseFixture.attributedBody("the buried project status update")
     )
-    for rowID in 2 ... 402 {
-        try fixture.insertMessage(rowID: rowID, text: "recent filler \(rowID)")
-    }
+    try fixture.insertFillerMessages(rowIDs: 2 ... 402)
 
     let matchingRowIDs = try fixture.imDatabase.searchMessages(query: "project status", limit: 20)
 
@@ -93,9 +89,7 @@ import Testing
     let fixture = try TahoeChatDatabaseFixture()
     defer { fixture.cleanup() }
 
-    for rowID in 1 ... 5 {
-        try fixture.insertMessage(rowID: rowID, text: "recent filler \(rowID)")
-    }
+    try fixture.insertFillerMessages(rowIDs: 1 ... 5)
 
     let result = try fixture.imDatabase.searchMessageRowIDs(query: "nonexistent", limit: 20)
 
@@ -111,9 +105,7 @@ import Testing
     // cap = limit * 200 = 200. The lone match sits oldest (rowID 1), behind 201 newer
     // filler rows, so it falls at scan position 202 — beyond the cap.
     try fixture.insertMessage(rowID: 1, text: "the buried project status update")
-    for rowID in 2 ... 202 {
-        try fixture.insertMessage(rowID: rowID, text: "recent filler \(rowID)")
-    }
+    try fixture.insertFillerMessages(rowIDs: 2 ... 202)
 
     let result = try fixture.imDatabase.searchMessageRowIDs(query: "project status", limit: 1)
 
