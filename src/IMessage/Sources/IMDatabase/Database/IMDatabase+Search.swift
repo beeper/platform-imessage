@@ -42,22 +42,17 @@ extension IMDatabase {
         ).rowIDs
     }
 
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ Search pagination                                                         │
-    // │                                                                           │
-    // │ attributedBody is a binary NSArchiver blob, so the match predicate can't  │
-    // │ live in SQL. We stream rows in (date, ROWID) order, decode + substring-   │
-    // │ match each in Swift, and stop as soon as we have limit+1 matches (the     │
-    // │ extra one is a lookahead that yields an accurate `hasMore` without being  │
-    // │ returned). A scan cap bounds the worst case: a rare/no-hit query would    │
-    // │ otherwise decode every message in the database.                           │
-    // │                                                                           │
-    // │   .before / no cursor → ORDER BY date DESC, ROWID DESC  (newest first)    │
-    // │   .after  (+ cursor)  → ORDER BY date ASC,  ROWID ASC   (oldest-of-newer) │
-    // │                                                                           │
-    // │ Cursors are compound "date,rowID" so equal-date matches paginate without  │
-    // │ skips/duplicates.                                                         │
-    // └─────────────────────────────────────────────────────────────────────────┘
+    // attributedBody is a binary NSArchiver blob, so the match predicate can't live in
+    // SQL. We stream rows in (date, ROWID) order, decode + substring-match each in Swift,
+    // and stop as soon as we have limit+1 matches (the extra one is a lookahead that
+    // yields an accurate `hasMore` without being returned). A scan cap bounds the worst
+    // case: a rare/no-hit query would otherwise decode every message in the database.
+    //
+    //   .before / no cursor → ORDER BY date DESC, ROWID DESC  (newest first)
+    //   .after  (+ cursor)  → ORDER BY date ASC,  ROWID ASC   (oldest-of-newer)
+    //
+    // Cursors are compound "date,rowID" so equal-date matches paginate without
+    // skips/duplicates.
     package func searchMessageRowIDs(
         query: String,
         chatGUID: String? = nil,
