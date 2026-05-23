@@ -48,6 +48,62 @@ import Testing
     #expect(await eventually { changes.subscriptionCount == 0 })
 }
 
+// Proves the backstop re-queries WITHOUT any broadcast(()): the result flips
+// after the (short, injected) backstop interval and is picked up by the poll,
+// well before the much-longer timeout.
+@Test func sentMessageIDWaitReQueriesOnBackstopWithoutTick() async throws {
+    let changes = Topic<Void>()
+    let sentRows = Protected<[DatabaseTickWaits.SentMessageID]>([])
+    let startedAt = Date()
+
+    Task {
+        try? await Task.sleep(forTimeInterval: 0.15)
+        sentRows.withLock {
+            $0 = [(rowID: 11, guid: "message-11")]
+        }
+    }
+
+    let result = try await DatabaseTickWaits.sentMessageIDs(
+        text: nil,
+        timeout: 2.5,
+        changes: changes,
+        backstopInterval: 0.1
+    ) {
+        sentRows.read()
+    }
+
+    #expect(result.map(\.rowID) == [11])
+    // Never broadcast: the backstop alone must have driven the re-query.
+    #expect(Date().timeIntervalSince(startedAt) < 1.0)
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+// Proves caller cancellation propagates: a never-satisfied wait with a long
+// timeout finishes promptly when its task is cancelled, and unsubscribes.
+@Test func sentMessageIDWaitPropagatesCallerCancellation() async throws {
+    let changes = Topic<Void>()
+
+    let task = Task {
+        try await DatabaseTickWaits.sentMessageIDs(
+            text: nil,
+            timeout: 5,
+            changes: changes
+        ) {
+            []
+        }
+    }
+
+    #expect(await eventually { changes.subscriptionCount == 1 })
+    task.cancel()
+
+    let startedAt = Date()
+    await #expect(throws: (any Error).self) {
+        _ = try await task.value
+    }
+    #expect(Date().timeIntervalSince(startedAt) < 1.0)
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
 @Test func sentMessageIDWaitReturnsPartialLinkSendAfterLinkTimeout() async throws {
     let changes = Topic<Void>()
     let queryCount = Protected(0)
@@ -169,6 +225,20 @@ import Testing
             timeout: 1,
             changes: changes,
             loadMessage: { messageWithNoAttachments() },
+            terminalAttachmentFailureState: { nil }
+        )
+    }
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+@Test func loadedAttachmentWaitThrowsWhenMessageNotFound() async throws {
+    let changes = Topic<Void>()
+    await #expect(throws: (any Error).self) {
+        try await DatabaseTickWaits.loadedAttachment(
+            messageID: "message-1",
+            timeout: 1,
+            changes: changes,
+            loadMessage: { nil },
             terminalAttachmentFailureState: { nil }
         )
     }

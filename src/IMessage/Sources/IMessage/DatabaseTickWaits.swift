@@ -17,6 +17,7 @@ enum DatabaseTickWaits {
         timeout: TimeInterval,
         changes: Topic<Void>,
         linkTimeout: TimeInterval = sentMessageLinkWaitTimeout,
+        backstopInterval: TimeInterval = databaseTickBackstopInterval,
         querySentMessageIDs: @escaping @Sendable () throws -> [SentMessageID]
     ) async throws -> [SentMessageID] {
         let startedAt = Date()
@@ -43,13 +44,14 @@ enum DatabaseTickWaits {
             } else {
                 wakeDeadline = timeoutDeadline
             }
-            _ = try await waitForChange(on: changeStream, until: wakeDeadline)
+            _ = try await waitForChange(on: changeStream, until: wakeDeadline, backstopInterval: backstopInterval)
         }
     }
 
     static func sentThreadIDs(
         timeout: TimeInterval,
         changes: Topic<Void>,
+        backstopInterval: TimeInterval = databaseTickBackstopInterval,
         querySentThreadIDs: @escaping @Sendable () throws -> [String?]
     ) async throws -> [String?] {
         let deadline = Date().addingTimeInterval(timeout)
@@ -61,7 +63,7 @@ enum DatabaseTickWaits {
                 return threadIDs
             }
 
-            _ = try await waitForChange(on: changeStream, until: deadline)
+            _ = try await waitForChange(on: changeStream, until: deadline, backstopInterval: backstopInterval)
         }
     }
 
@@ -69,6 +71,7 @@ enum DatabaseTickWaits {
         messageID: String,
         timeout: TimeInterval,
         changes: Topic<Void>,
+        backstopInterval: TimeInterval = databaseTickBackstopInterval,
         loadMessage: @escaping @Sendable () async throws -> PlatformSDK.Message?,
         terminalAttachmentFailureState: @escaping @Sendable () async throws -> Attachment.IMFileTransferState?
     ) async throws -> PlatformSDK.Message {
@@ -98,15 +101,15 @@ enum DatabaseTickWaits {
                 throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
             }
 
-            _ = try await waitForChange(on: changeStream, until: deadline)
+            _ = try await waitForChange(on: changeStream, until: deadline, backstopInterval: backstopInterval)
         }
     }
 
-    private static func waitForChange(on stream: AsyncStream<Void>, until deadline: Date) async throws -> Bool {
+    private static func waitForChange(on stream: AsyncStream<Void>, until deadline: Date, backstopInterval: TimeInterval) async throws -> Bool {
         let remainingTime = deadline.timeIntervalSinceNow
         guard remainingTime > 0 else { return false }
 
-        let sleepTime = min(remainingTime, databaseTickBackstopInterval)
+        let sleepTime = min(remainingTime, backstopInterval)
 
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {

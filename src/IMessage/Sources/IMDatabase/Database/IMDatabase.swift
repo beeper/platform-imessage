@@ -96,8 +96,41 @@ public extension IMDatabase {
     func beginListeningForChanges() throws {
         log.info("setting up filesystem watchers")
 
+        // Idempotent: a prior (possibly partial) setup may have left a debouncer
+        // Task and file watchers behind. Tear them down first so a retry doesn't
+        // leak the old debouncer Task or double-register watchers.
+        debouncer?.cancel()
+        debouncer = nil
+        for watcher in fileWatchers {
+            watcher.stopListeningIfNecessary()
+        }
+        fileWatchers.removeAll()
+
         let unthrottledChanges = Topic<Void>()
 
+        // If setup throws partway, clean up whatever we managed to register so a
+        // later retry starts from a clean slate instead of half-wired watchers.
+        var directoryWatcher: FSEventsWatcher?
+        func cleanupPartialSetup() {
+            if let directoryWatcher {
+                directoryWatcher.stop()
+                directoryWatcher.invalidate()
+            }
+            for watcher in fileWatchers {
+                watcher.stopListeningIfNecessary()
+            }
+            fileWatchers.removeAll()
+        }
+
+        do {
+            try setUpListeners(unthrottledChanges: unthrottledChanges, directoryWatcher: &directoryWatcher)
+        } catch {
+            cleanupPartialSetup()
+            throw error
+        }
+    }
+
+    private func setUpListeners(unthrottledChanges: Topic<Void>, directoryWatcher directoryWatcherOut: inout FSEventsWatcher?) throws {
         // listen to ~/Library/Messages itself in order to respond to the WAL
         // file being (re)created/deleted
         let directoryWatcher = try FSEventsWatcher(watchingPath: messagesDataDirectory.path, latency: 1.0) { [weak self] _, event in
@@ -125,6 +158,7 @@ public extension IMDatabase {
             }
         }
         directoryWatcher.setDispatchQueue(fsEventsQueue)
+        directoryWatcherOut = directoryWatcher
         try directoryWatcher.start()
 
         try ensureDatabaseFileWatchers(broadcastingTo: unthrottledChanges)
