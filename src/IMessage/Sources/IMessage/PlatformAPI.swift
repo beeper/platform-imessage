@@ -24,11 +24,14 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         // Claim setup once, then run watcher startup outside the state lock.
         let (db, shouldSetUp) = try state.withLock { state -> (IMDatabase, Bool) in
             let db = try ensureDatabase(&state)
-            guard !state.hasAttemptedChangeListeningSetup else {
+
+            switch state.changeListeningSetup {
+            case .notStarted, .failed:
+                state.changeListeningSetup = .starting
+                return (db, true)
+            case .starting, .listening:
                 return (db, false)
             }
-            state.hasAttemptedChangeListeningSetup = true
-            return (db, true)
         }
 
         guard shouldSetUp else {
@@ -37,11 +40,30 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
         do {
             try db.beginListeningForChanges()
+            state.withLock { state in
+                guard state.database === db, state.changeListeningSetup == .starting else { return }
+                state.changeListeningSetup = .listening
+            }
         } catch {
-            // DatabaseTickWaits' backstop polling preserves correctness if filesystem ticks are unavailable.
-            platformLog.error("failed to begin listening for database changes, falling back to backstop polling: \(error)")
+            state.withLock { state in
+                guard state.database === db, state.changeListeningSetup == .starting else { return }
+                state.changeListeningSetup = .failed
+            }
+            // DatabaseTickWaits' backstop polling preserves correctness until a later call retries listener setup.
+            platformLog.error("failed to begin listening for database changes, using backstop polling until retry: \(error)")
         }
         return db.changes
+    }
+
+    func stopListeningAndReset() {
+        let db = state.withLock { state -> IMDatabase? in
+            let db = state.database
+            state.database = nil
+            state.changeListeningSetup = .notStarted
+            return db
+        }
+
+        db?.stopListeningForChanges()
     }
 
     /// Lazily opens the process-wide database, caching it on `state`.
@@ -54,9 +76,16 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return db
     }
 
+    private enum ChangeListeningSetupState: Equatable {
+        case notStarted
+        case starting
+        case listening
+        case failed
+    }
+
     private struct State {
         var database: IMDatabase?
-        var hasAttemptedChangeListeningSetup = false
+        var changeListeningSetup: ChangeListeningSetupState = .notStarted
     }
 }
 
@@ -610,6 +639,7 @@ public final class PlatformAPI {
         currentUserCache.withLock { $0 = nil }
         SystemSettingsOnboarding.stop()
         await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
+        database.stopListeningAndReset()
         try await disposeCachedMessagesController()
     }
 
