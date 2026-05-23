@@ -146,7 +146,7 @@ extension IMDatabase {
             if let data = attributedBodyData {
                 messageText = try? AttributedBodyDecoder.plainText(from: data)
             }
-            if messageText == nil || messageText?.isEmpty == true {
+            if messageText?.isEmpty ?? true {
                 messageText = plainText
             }
 
