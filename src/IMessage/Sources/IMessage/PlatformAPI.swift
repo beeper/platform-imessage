@@ -26,7 +26,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
             let db = try ensureDatabase(&state)
 
             switch state.changeListeningSetup {
-            case .notStarted, .failed:
+            case .notStarted:
                 state.changeListeningSetup = .starting
                 return (db, true)
             case .starting, .listening:
@@ -47,7 +47,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         } catch {
             state.withLock { state in
                 guard state.database === db, state.changeListeningSetup == .starting else { return }
-                state.changeListeningSetup = .failed
+                state.changeListeningSetup = .notStarted
             }
             // DatabaseTickWaits' backstop polling preserves correctness until a later call retries listener setup.
             platformLog.error("failed to begin listening for database changes, using backstop polling until retry: \(error)")
@@ -80,7 +80,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         case notStarted
         case starting
         case listening
-        case failed
     }
 
     private struct State {
