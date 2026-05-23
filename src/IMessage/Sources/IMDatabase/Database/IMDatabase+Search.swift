@@ -74,27 +74,42 @@ extension IMDatabase {
         let matchLimit = limit == Int.max ? limit : limit + 1
         let scanCap = limit == Int.max ? Int.max : limit * 200
 
-        var sql = """
-        SELECT m.ROWID, m.date, m.text, m.attributedBody
-        FROM message m
-        """
+        // For chat-scoped search, start from chat_message_join's chat_id/date
+        // indexes (touching only the requested chat's messages) rather than
+        // filtering `message ORDER BY date` after the fact, which walks the
+        // whole date index to find a sparse chat. Mirrors mappedMessageRows.
+        let chatRowID: Int?
+        if let chatGUID {
+            guard let resolved = try mappedChatRowID(guid: chatGUID) else {
+                return MessageSearchResult(rowIDs: [], hasMore: false, oldestCursor: nil, newestCursor: nil)
+            }
+            chatRowID = resolved
+        } else {
+            chatRowID = nil
+        }
 
-        if chatGUID != nil {
-            sql += """
+        // Cursor/ordering keys: cmj's denormalized message_date/message_id when
+        // chat-scoped (keeps the chat index in play), else message's own columns.
+        let dateColumn = chatRowID != nil ? "cmj.message_date" : "m.date"
+        let rowIDColumn = chatRowID != nil ? "cmj.message_id" : "m.ROWID"
 
-            LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
-            LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+        var sql: String
+        if chatRowID != nil {
+            sql = """
+            SELECT m.ROWID, \(dateColumn), m.text, m.attributedBody
+            FROM chat_message_join AS cmj
+            INNER JOIN message AS m ON m.ROWID = cmj.message_id
+            WHERE cmj.chat_id = ?
+            AND (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
+            """
+        } else {
+            sql = """
+            SELECT m.ROWID, \(dateColumn), m.text, m.attributedBody
+            FROM message m
+            WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
             """
         }
 
-        sql += """
-
-        WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
-        """
-
-        if chatGUID != nil {
-            sql += "\nAND t.guid = ?"
-        }
         if mediaOnly {
             sql += "\nAND m.cache_has_attachments = 1"
         }
@@ -105,20 +120,20 @@ extension IMDatabase {
         }
         if parsedCursor != nil {
             // Stable compound comparison so equal-date matches aren't skipped.
-            sql += "\nAND (m.date \(comparisonOperator) ? OR (m.date = ? AND m.ROWID \(comparisonOperator) ?))"
+            sql += "\nAND (\(dateColumn) \(comparisonOperator) ? OR (\(dateColumn) = ? AND \(rowIDColumn) \(comparisonOperator) ?))"
         }
 
         sql += """
 
-        ORDER BY m.date \(orderDirection), m.ROWID \(orderDirection)
+        ORDER BY \(dateColumn) \(orderDirection), \(rowIDColumn) \(orderDirection)
         """
 
         let statement = try cachedStatement(forEscapedSQL: sql).reset()
 
-        // Bind parameters in declaration order: chatGUID, then cursor bounds.
+        // Bind parameters in declaration order: chat_id, then cursor bounds.
         var params: [any SQLiteBindable] = []
-        if let chatGUID {
-            params.append(chatGUID)
+        if let chatRowID {
+            params.append(chatRowID)
         }
         if let parsedCursor {
             params.append(parsedCursor.date)

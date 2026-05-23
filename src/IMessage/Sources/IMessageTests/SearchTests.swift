@@ -38,6 +38,93 @@ import Testing
     #expect(result.hasMore)
 }
 
+@Test func searchScopedToChatReturnsOnlyThatChatsMatches() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    // Two messages match the query; only one is joined to the fixture's chat.
+    try fixture.insertMessage(rowID: 1, text: "project status in chat")
+    try fixture.insertMessage(rowID: 2, text: "project status not in chat")
+    try fixture.insertChatJoin(messageRowID: 1)
+
+    let matchingRowIDs = try fixture.imDatabase.searchMessages(
+        query: "project status",
+        chatGUID: fixture.chatGUID,
+        limit: 20
+    )
+
+    #expect(matchingRowIDs == [1])
+}
+
+@Test func searchUnknownChatReturnsEmpty() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    try fixture.insertMessage(rowID: 1, text: "project status")
+    try fixture.insertChatJoin(messageRowID: 1)
+
+    let matchingRowIDs = try fixture.imDatabase.searchMessages(
+        query: "project status",
+        chatGUID: "any;-;+15555550199",
+        limit: 20
+    )
+
+    #expect(matchingRowIDs.isEmpty)
+}
+
+@Test func searchScopedToChatPaginatesEqualDateMatchesWithoutSkips() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    // Three same-date matches in the chat: paging must not skip the equal-date boundary.
+    for rowID in 1 ... 3 {
+        try fixture.insertMessage(rowID: rowID, text: "project status \(rowID)", date: 100)
+        try fixture.insertChatJoin(messageRowID: rowID, messageDate: 100)
+    }
+
+    let firstPage = try fixture.imDatabase.searchMessageRowIDs(
+        query: "project status",
+        chatGUID: fixture.chatGUID,
+        limit: 2
+    )
+    #expect(firstPage.rowIDs == [3, 2])
+    #expect(firstPage.hasMore)
+
+    let secondPage = try fixture.imDatabase.searchMessageRowIDs(
+        query: "project status",
+        chatGUID: fixture.chatGUID,
+        cursor: firstPage.oldestCursor,
+        direction: .before,
+        limit: 2
+    )
+    #expect(secondPage.rowIDs == [1])
+    #expect(!secondPage.hasMore)
+}
+
+@Test func searchScopedToChatAfterCursorReturnsContiguousNewerMatches() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    // Five ascending-date matches in the chat. Paging `.after` from the middle
+    // exercises the ascending cmj.message_date/message_id branch.
+    for rowID in 1 ... 5 {
+        try fixture.insertMessage(rowID: rowID, text: "project status \(rowID)", date: rowID * 10)
+        try fixture.insertChatJoin(messageRowID: rowID, messageDate: rowID * 10)
+    }
+
+    let afterPage = try fixture.imDatabase.searchMessageRowIDs(
+        query: "project status",
+        chatGUID: fixture.chatGUID,
+        cursor: "20,2", // matches newer than (date: 20, rowID: 2)
+        direction: .after,
+        limit: 2
+    )
+
+    // Ascending-of-newer: the two oldest matches strictly after the cursor.
+    #expect(afterPage.rowIDs == [3, 4])
+    #expect(afterPage.hasMore)
+}
+
 // MARK: - attributedBody decode path (T4)
 
 @Test func searchMatchesAttributedBodyOnlyMessagePastInitialWindow() throws {
