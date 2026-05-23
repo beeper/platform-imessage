@@ -4,7 +4,7 @@ public final class Topic<T> {
     public typealias BufferingPolicy = AsyncStream<T>.Continuation.BufferingPolicy
 
     private let bufferingPolicy: BufferingPolicy
-    private var subscriptions = Protected<[(id: UUID, continuation: AsyncStream<T>.Continuation)]>([])
+    private var subscriptions = Protected<[UUID: AsyncStream<T>.Continuation]>([:])
 
     public init(bufferingPolicy: BufferingPolicy = .unbounded) {
         self.bufferingPolicy = bufferingPolicy
@@ -16,7 +16,7 @@ extension Topic: @unchecked Sendable {}
 public extension Topic {
     func broadcast(_ value: sending T) {
         let currentSubscriptions = subscriptions.withLock {
-            $0.map(\.continuation)
+            Array($0.values)
         }
         for subscription in currentSubscriptions {
             subscription.yield(value)
@@ -28,11 +28,11 @@ public extension Topic {
         let (stream, cont) = AsyncStream.makeStream(of: T.self, bufferingPolicy: bufferingPolicy)
         cont.onTermination = { [weak self] _ in
             self?.subscriptions.withLock {
-                $0.removeAll { $0.id == id }
+                $0[id] = nil
             }
         }
         subscriptions.withLock {
-            $0.append((id, cont))
+            $0[id] = cont
         }
 
         return stream
@@ -49,7 +49,7 @@ public extension Topic {
      */
     func finishCurrentSubscribers() {
         let currentSubscriptions = subscriptions.withLock {
-            let current = $0.map(\.continuation)
+            let current = Array($0.values)
             $0.removeAll()
             return current
         }

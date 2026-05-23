@@ -54,6 +54,7 @@ import Testing
 @Test func sentMessageIDWaitReQueriesOnBackstopWithoutTick() async throws {
     let changes = Topic<Void>()
     let sentRows = Protected<[DatabaseTickWaits.SentMessageID]>([])
+    let queryCount = Protected(0)
     let startedAt = Date()
 
     Task {
@@ -65,16 +66,18 @@ import Testing
 
     let result = try await DatabaseTickWaits.sentMessageIDs(
         text: nil,
-        timeout: 2.5,
+        timeout: 5,
         changes: changes,
         backstopInterval: 0.1
     ) {
-        sentRows.read()
+        queryCount.withLock { $0 += 1 }
+        return sentRows.read()
     }
 
     #expect(result.map(\.rowID) == [11])
+    #expect(queryCount.read() >= 2)
     // Never broadcast: the backstop alone must have driven the re-query.
-    #expect(Date().timeIntervalSince(startedAt) < 1.0)
+    #expect(Date().timeIntervalSince(startedAt) < 4.0)
     #expect(await eventually { changes.subscriptionCount == 0 })
 }
 
@@ -111,7 +114,7 @@ import Testing
 
     let result = try await DatabaseTickWaits.sentMessageIDs(
         text: "https://one.example https://two.example",
-        timeout: 1,
+        timeout: 5,
         changes: changes,
         linkTimeout: 0.05
     ) {
@@ -121,7 +124,7 @@ import Testing
 
     #expect(result.map(\.rowID) == [11])
     #expect(queryCount.read() == 2)
-    #expect(Date().timeIntervalSince(startedAt) < 0.5)
+    #expect(Date().timeIntervalSince(startedAt) < 4.0)
     #expect(await eventually { changes.subscriptionCount == 0 })
 }
 

@@ -12,6 +12,11 @@ private let databaseTickBackstopInterval: TimeInterval = 1.0
 enum DatabaseTickWaits {
     typealias SentMessageID = (rowID: Int, guid: String)
 
+    private enum WaitResult<T> {
+        case finished(T)
+        case waitingUntil(Date)
+    }
+
     static func sentMessageIDs(
         text: String?,
         timeout: TimeInterval,
@@ -25,27 +30,32 @@ enum DatabaseTickWaits {
         let linkDeadline = startedAt.addingTimeInterval(linkTimeout)
         let expectedNewMessageIDCount = text.map { max($0.linkCount, 1) } ?? 1
 
-        while true {
-            let changeStream = changes.subscribe()
-            let sentMessageIDs = try querySentMessageIDs()
-            if sentMessageIDs.count == expectedNewMessageIDCount {
-                return sentMessageIDs
-            }
-            if text != nil, !sentMessageIDs.isEmpty, Date() >= linkDeadline {
-                return sentMessageIDs
-            }
-            if Date() >= timeoutDeadline {
-                throw ErrorMessage("timed out waiting for sent messages")
-            }
+        return try await waitForDatabaseResult(
+            changes: changes,
+            backstopInterval: backstopInterval,
+            query: {
+                try querySentMessageIDs()
+            },
+            evaluate: { sentMessageIDs in
+                if sentMessageIDs.count == expectedNewMessageIDCount {
+                    return .finished(sentMessageIDs)
+                }
+                if text != nil, !sentMessageIDs.isEmpty, Date() >= linkDeadline {
+                    return .finished(sentMessageIDs)
+                }
+                if Date() >= timeoutDeadline {
+                    throw ErrorMessage("timed out waiting for sent messages")
+                }
 
-            let wakeDeadline: Date
-            if text != nil, !sentMessageIDs.isEmpty {
-                wakeDeadline = min(timeoutDeadline, linkDeadline)
-            } else {
-                wakeDeadline = timeoutDeadline
+                let wakeDeadline: Date
+                if text != nil, !sentMessageIDs.isEmpty {
+                    wakeDeadline = min(timeoutDeadline, linkDeadline)
+                } else {
+                    wakeDeadline = timeoutDeadline
+                }
+                return .waitingUntil(wakeDeadline)
             }
-            _ = try await waitForChange(on: changeStream, until: wakeDeadline, backstopInterval: backstopInterval)
-        }
+        )
     }
 
     static func sentThreadIDs(
@@ -56,15 +66,19 @@ enum DatabaseTickWaits {
     ) async throws -> [String?] {
         let deadline = Date().addingTimeInterval(timeout)
 
-        while true {
-            let changeStream = changes.subscribe()
-            let threadIDs = try querySentThreadIDs()
-            if !threadIDs.contains(where: { $0 == nil }) || Date() >= deadline {
-                return threadIDs
+        return try await waitForDatabaseResult(
+            changes: changes,
+            backstopInterval: backstopInterval,
+            query: {
+                try querySentThreadIDs()
+            },
+            evaluate: { threadIDs in
+                if !threadIDs.contains(where: { $0 == nil }) || Date() >= deadline {
+                    return .finished(threadIDs)
+                }
+                return .waitingUntil(deadline)
             }
-
-            _ = try await waitForChange(on: changeStream, until: deadline, backstopInterval: backstopInterval)
-        }
+        )
     }
 
     static func loadedAttachment(
@@ -78,53 +92,74 @@ enum DatabaseTickWaits {
         let deadline = Date().addingTimeInterval(timeout)
         var isFirstRead = true
 
+        return try await waitForDatabaseResult(
+            changes: changes,
+            backstopInterval: backstopInterval,
+            query: {
+                try await loadMessage()
+                    .orThrow(ErrorMessage("Could not find message \(messageID)"))
+            },
+            evaluate: { message in
+                let attachments = message.attachments ?? []
+                if isFirstRead {
+                    guard !attachments.isEmpty else {
+                        throw ErrorMessage("Message \(messageID) has no attachments")
+                    }
+                    isFirstRead = false
+                }
+                if !attachments.isEmpty, !attachments.contains(where: { $0.loading == true }) {
+                    return .finished(message)
+                }
+
+                if let failureState = try await terminalAttachmentFailureState() {
+                    throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState.rawValue))")
+                }
+
+                guard Date() < deadline else {
+                    throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
+                }
+
+                return .waitingUntil(deadline)
+            }
+        )
+    }
+
+    private static func waitForDatabaseResult<T>(
+        changes: Topic<Void>,
+        backstopInterval: TimeInterval,
+        query: @escaping @Sendable () async throws -> T,
+        evaluate: (T) async throws -> WaitResult<T>
+    ) async throws -> T {
         while true {
             let changeStream = changes.subscribe()
-            let message = try await loadMessage()
-                .orThrow(ErrorMessage("Could not find message \(messageID)"))
-            let attachments = message.attachments ?? []
-            if isFirstRead {
-                guard !attachments.isEmpty else {
-                    throw ErrorMessage("Message \(messageID) has no attachments")
-                }
-                isFirstRead = false
+            let result = try await query()
+            switch try await evaluate(result) {
+            case let .finished(value):
+                return value
+            case let .waitingUntil(deadline):
+                try await waitForChange(on: changeStream, until: deadline, backstopInterval: backstopInterval)
             }
-            if !attachments.isEmpty, !attachments.contains(where: { $0.loading == true }) {
-                return message
-            }
-
-            if let failureState = try await terminalAttachmentFailureState() {
-                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState.rawValue))")
-            }
-
-            guard Date() < deadline else {
-                throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
-            }
-
-            _ = try await waitForChange(on: changeStream, until: deadline, backstopInterval: backstopInterval)
         }
     }
 
-    private static func waitForChange(on stream: AsyncStream<Void>, until deadline: Date, backstopInterval: TimeInterval) async throws -> Bool {
+    private static func waitForChange(on stream: AsyncStream<Void>, until deadline: Date, backstopInterval: TimeInterval) async throws {
         let remainingTime = deadline.timeIntervalSinceNow
-        guard remainingTime > 0 else { return false }
+        guard remainingTime > 0 else { return }
 
         let sleepTime = min(remainingTime, backstopInterval)
 
-        return try await withThrowingTaskGroup(of: Bool.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
                 var iterator = stream.makeAsyncIterator()
-                return await iterator.next() != nil
+                _ = await iterator.next()
             }
             group.addTask {
                 try await Task.sleep(forTimeInterval: sleepTime)
-                return false
             }
 
             do {
-                let changed = try await group.next() ?? false
+                _ = try await group.next()
                 group.cancelAll()
-                return changed
             } catch {
                 group.cancelAll()
                 throw error
