@@ -34,6 +34,7 @@ final class TahoeChatDatabaseFixture {
         rowID: Int,
         guid: String? = nil,
         text: String = "",
+        attributedBody: Data? = nil,
         date: Int? = nil,
         dateRead: Int = 0,
         dateEdited: Int = 0,
@@ -41,17 +42,24 @@ final class TahoeChatDatabaseFixture {
     ) throws {
         try database.execute(
             sqlWithoutEscaping: """
-            INSERT INTO message (ROWID, guid, text, date, date_read, date_edited, service)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO message (ROWID, guid, text, attributedBody, date, date_read, date_edited, service)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rowID,
             guid ?? "message-\(rowID)",
             text,
+            attributedBody,
             date ?? rowID,
             dateRead,
             dateEdited,
             service
         )
+    }
+
+    /// Builds an `attributedBody` blob in the same NSArchiver/typedstream format
+    /// `chat.db` stores and `AttributedBodyDecoder` reads.
+    static func attributedBody(_ string: String) -> Data {
+        NSArchiver.archivedData(withRootObject: NSAttributedString(string: string))
     }
 
     func insertChatJoin(

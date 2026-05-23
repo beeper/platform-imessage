@@ -108,21 +108,31 @@ public extension Statement {
         }
     }
 
+    func stepUntilStopped(handlingRows rowHandler: (_ selected: borrowing Row) throws -> Bool) throws {
+        defer { try! SQLiteError.check(sqlite3_reset(handle)) }
+
+        while try SQLiteError.check(sqlite3_step(handle), permitting: [SQLITE_ROW, SQLITE_DONE]) == SQLITE_ROW {
+            guard try rowHandler(Row(accessingColumnsOf: self)) else {
+                return
+            }
+        }
+    }
+
     func mapRowsUntilDone<T>(_ transform: (_ row: borrowing Row) throws -> T) throws -> [T] {
         var results = [T]()
-        try stepUntilDone {
+        try stepUntilDone(handlingRows: {
             try results.append(transform($0))
-        }
+        })
         return results
     }
 
     func compactMapRowsUntilDone<T>(_ transform: (_ row: borrowing Row) throws -> T?) throws -> [T] {
         var results = [T]()
-        try stepUntilDone {
+        try stepUntilDone(handlingRows: {
             if let result = try transform($0) {
                 results.append(result)
             }
-        }
+        })
         return results
     }
 }

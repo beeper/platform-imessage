@@ -40,3 +40,14 @@ extension Int: SQLiteBindable {
         try SQLiteError.check(sqlite3_bind_int64(handle, parameterIndex, Int64(self)))
     }
 }
+
+extension Optional: SQLiteBindable where Wrapped: SQLiteBindable {
+    public func unsafeBind(toPreparedStatement handle: OpaquePointer, at parameterIndex: Int32) throws {
+        switch self {
+        case let .some(value):
+            try value.unsafeBind(toPreparedStatement: handle, at: parameterIndex)
+        case .none:
+            try SQLiteError.check(sqlite3_bind_null(handle, parameterIndex))
+        }
+    }
+}
