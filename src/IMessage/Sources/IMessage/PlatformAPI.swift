@@ -21,23 +21,30 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     func changeTopic() throws -> Topic<Void> {
-        // Snapshot the db reference (and whether setup is still pending) under
-        // the lock, then run the external setup call OUTSIDE the lock:
+        // Snapshot the db reference under the lock and atomically claim the setup
+        // slot, then run the external setup call OUTSIDE the lock:
         // beginListeningForChanges opens FDs, creates an FSEventStream, and
         // spawns a Task, none of which should run while we hold the lock.
+        //
+        // The claim must be atomic: IMDatabase's watcher/debouncer state is NOT
+        // thread-safe, so two callers must never run beginListeningForChanges
+        // concurrently. We transition `.notStarted` -> `.starting` under the lock;
+        // only the winner runs setup. The loser returns the (already-created)
+        // topic immediately and relies on the 1.0s backstop in DatabaseTickWaits
+        // for correctness until the winner finishes wiring up the watchers.
         let (db, shouldSetUp) = try state.withLock { state -> (IMDatabase, Bool) in
             let db = try ensureDatabase(&state)
-            return (db, state.listening == .notStarted)
+            guard state.listening == .notStarted else {
+                return (db, false)
+            }
+            state.listening = .starting
+            return (db, true)
         }
 
         guard shouldSetUp else {
             return db.changes
         }
 
-        // Two callers can both observe `.notStarted` in a rare window and each
-        // run setup once. beginListeningForChanges is idempotent (it tears down
-        // any prior watchers/debouncer first), so at most one extra setup in
-        // that window is harmless; steady state never double-spawns watchers.
         do {
             try db.beginListeningForChanges()
             state.withLock { $0.listening = .listening }
@@ -67,6 +74,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     /// every wait after a persistent failure.
     private enum ListeningState {
         case notStarted
+        case starting
         case listening
         case failed
     }

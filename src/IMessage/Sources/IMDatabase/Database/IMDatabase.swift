@@ -158,8 +158,11 @@ public extension IMDatabase {
             }
         }
         directoryWatcher.setDispatchQueue(fsEventsQueue)
-        directoryWatcherOut = directoryWatcher
         try directoryWatcher.start()
+        // Only hand the watcher to the caller's cleanup path once it has actually
+        // started; stopping/invalidating a never-started FSEventStream trips a
+        // CoreServices state assertion.
+        directoryWatcherOut = directoryWatcher
 
         try ensureDatabaseFileWatchers(broadcastingTo: unthrottledChanges)
 
