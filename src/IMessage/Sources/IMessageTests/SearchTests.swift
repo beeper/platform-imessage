@@ -192,3 +192,30 @@ import Testing
     )
     #expect(back.rowIDs == [4, 5])
 }
+
+@Test func searchCapHitContinuationCursorSurfacesBuriedMatch() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    // The match sits oldest (rowID 1), behind 201 newer filler rows, so it falls at scan
+    // position 202 — past the cap (limit * 200 = 200). Page 1 returns nothing but a
+    // continuation cursor; feeding that cursor back must reach the buried match without
+    // rescanning the already-scanned window. This is the mechanism `hasMore` relies on:
+    // an empty cap-hit page is only correct if the continuation actually pages deeper.
+    try fixture.insertMessage(rowID: 1, text: "the buried project status update")
+    try fixture.insertFillerMessages(rowIDs: 2 ... 202)
+
+    let page1 = try fixture.imDatabase.searchMessageRowIDs(query: "project status", limit: 1)
+    #expect(page1.rowIDs.isEmpty) // match is past the scan cap
+    #expect(page1.hasMore) // cap-hit: keep paging
+    let cursor = try #require(page1.oldestCursor) // continuation past the scanned window
+
+    let page2 = try fixture.imDatabase.searchMessageRowIDs(
+        query: "project status",
+        cursor: cursor,
+        direction: .before,
+        limit: 1
+    )
+    #expect(page2.rowIDs == [1]) // continuation reached the buried match — no skip, no rescan
+    #expect(!page2.hasMore) // scan completed under the cap, so there are genuinely no more
+}
