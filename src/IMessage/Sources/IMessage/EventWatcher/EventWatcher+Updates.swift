@@ -184,7 +184,6 @@ extension EventWatcher {
         // an unrelated filesystem change happens to tick again.
         defer { schedulePendingWakeIfNeeded() }
 
-        // Each tick recomputes which resolved rows are awaiting a send commit.
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         linkPreviewRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
 
@@ -449,7 +448,6 @@ extension EventWatcher {
         var changes: [UpdatedMessageChange] = []
         var goneRowIDs: [Int] = []
         for rowID in rowIDs {
-            // Rows with no DB row are gone; drop them.
             guard let row = messageRowsByRowID[rowID] else {
                 goneRowIDs.append(rowID)
                 continue

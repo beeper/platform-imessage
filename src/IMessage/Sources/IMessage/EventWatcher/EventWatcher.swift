@@ -118,8 +118,6 @@ final class EventWatcher {
                 Self.logger.debug("sending \(eventsToSend.count) event(s) to PAS")
                 #endif
                 try await sender(eventsToSend)
-                // Send succeeded: it's now safe to clear the rows resolved this
-                // tick from the pending maps.
                 commitPendingSends()
             } catch {
                 Self.logger.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
