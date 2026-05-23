@@ -123,6 +123,71 @@ import Testing
     #expect(entry["id"] as? String == messageGUID)
 }
 
+@Test func missingChatJoinDropsNewMessageAfterTimeout() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 40
+    try fixture.insertMessage(rowID: rowID, text: "never joins a chat")
+    // Cursor already past the row so the main query returns nothing; only the
+    // seeded pending entry drives this tick.
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID)
+    watcher.pendingUnresolvedNewMessageRowIDs[rowID] = Date().addingTimeInterval(-4)
+
+    let events = try await watcher.collectMessageUpdateEvents()
+
+    #expect(events.isEmpty)
+    #expect(watcher.pendingUnresolvedNewMessageRowIDs[rowID] == nil)
+    #expect(watcher.pendingWakeTask == nil)
+}
+
+@Test func pendingLinkPreviewExpiresAfterTimeout() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 50
+    try insertOutgoingURLMessage(
+        fixture: fixture,
+        rowID: rowID,
+        guid: "00000000-0000-4000-8000-000000000050",
+        text: "https://fixture.example.invalid/link"
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID)
+    watcher.pendingLinkPreviewCandidates[rowID] = PendingLinkPreviewCandidate(
+        firstSeen: Date().addingTimeInterval(-121),
+        chatGUID: fixture.chatGUID
+    )
+
+    // Payload never landed; the candidate is past its budget and must be
+    // dropped without emitting a spurious update.
+    let events = try await watcher.collectMessageUpdateEvents()
+
+    #expect(events.isEmpty)
+    #expect(watcher.pendingLinkPreviewCandidates[rowID] == nil)
+    #expect(watcher.pendingWakeTask == nil)
+}
+
+@Test func deferredNewMessageArmsWakeUntilResolved() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 60
+    try fixture.insertMessage(rowID: rowID, guid: "00000000-0000-4000-8000-000000000060", text: "deferred")
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    let firstTickEvents = try await watcher.collectMessageUpdateEvents()
+    #expect(firstTickEvents.isEmpty)
+    // A wake is armed so the pending row still resolves if the DB goes quiet.
+    #expect(watcher.pendingWakeTask != nil)
+
+    try fixture.insertChatJoin(messageRowID: rowID)
+
+    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    #expect(secondTickEvents.count == 1)
+    // Nothing left pending, so the wake is cleared.
+    #expect(watcher.pendingWakeTask == nil)
+}
+
 @Test func outgoingURLPreviewPayloadUpdateEmitsMessageUpdateOnce() async throws {
     let fixture = try TahoeChatDatabaseFixture()
     defer { fixture.cleanup() }

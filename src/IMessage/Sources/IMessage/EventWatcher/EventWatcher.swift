@@ -29,6 +29,9 @@ final class EventWatcher {
     var updatesCursor: MessageUpdatesCursor
     var pendingUnresolvedNewMessageRowIDs = OrderedDictionary<Int, Date>()
     var pendingLinkPreviewCandidates = OrderedDictionary<Int, PendingLinkPreviewCandidate>()
+    /// One-shot timer that re-triggers a tick while pending resolution work
+    /// remains, so it isn't stranded when the database otherwise goes quiet.
+    var pendingWakeTask: Task<Void, Never>?
 
     let currentUserID: String
     let accountID: String
@@ -59,6 +62,10 @@ final class EventWatcher {
         self.currentUserID = currentUserID
         self.accountID = accountID
         self.reportErrorMessage = reportErrorMessage
+    }
+
+    deinit {
+        pendingWakeTask?.cancel()
     }
 
     func watchForever() async throws {
