@@ -114,7 +114,7 @@ import Testing
 
     try fixture.insertChatJoin(messageRowID: rowID)
 
-    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let secondTickEvents = try await collectAndCommit(watcher)
     let eventObject = try firstMessageEventObject(in: secondTickEvents)
     let entry = try firstMessageEntry(in: eventObject)
 
@@ -132,7 +132,7 @@ import Testing
     // Cursor already past the row so the main query returns nothing; only the
     // seeded pending entry drives this tick.
     let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID)
-    watcher.pendingUnresolvedNewMessageRowIDs[rowID] = Date().addingTimeInterval(-4)
+    watcher.pendingUnresolvedNewMessageRowIDs[rowID] = Date().addingTimeInterval(-11)
 
     let events = try await watcher.collectMessageUpdateEvents()
 
@@ -182,7 +182,7 @@ import Testing
 
     try fixture.insertChatJoin(messageRowID: rowID)
 
-    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let secondTickEvents = try await collectAndCommit(watcher)
     #expect(secondTickEvents.count == 1)
     // Nothing left pending, so the wake is cleared.
     #expect(watcher.pendingWakeTask == nil)
@@ -202,7 +202,7 @@ import Testing
     )
     let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
 
-    let firstTickEvents = try await watcher.collectMessageUpdateEvents()
+    let firstTickEvents = try await collectAndCommit(watcher)
     let firstEventObject = try firstMessageEventObject(in: firstTickEvents)
     let firstEntry = try firstMessageEntry(in: firstEventObject)
 
@@ -213,7 +213,7 @@ import Testing
 
     try fixture.updateMessagePayloadData(rowID: rowID, payloadData: try urlBalloonPayloadData())
 
-    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let secondTickEvents = try await collectAndCommit(watcher)
     let secondEventObject = try firstMessageEventObject(in: secondTickEvents)
     let patch = try firstMessageEntry(in: secondEventObject)
     let link = try firstLink(in: patch)
@@ -224,7 +224,7 @@ import Testing
     #expect(link["url"] as? String == "https://fixture.example.invalid/link")
     #expect(link["title"] as? String == "Fixture Link")
 
-    let thirdTickEvents = try await watcher.collectMessageUpdateEvents()
+    let thirdTickEvents = try await collectAndCommit(watcher)
     #expect(thirdTickEvents.isEmpty)
 }
 
@@ -242,7 +242,7 @@ import Testing
     )
     let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
 
-    let firstTickEvents = try await watcher.collectMessageUpdateEvents()
+    let firstTickEvents = try await collectAndCommit(watcher)
     #expect(firstTickEvents.count == 1)
 
     try fixture.updateMessagePayloadData(rowID: rowID, payloadData: try urlBalloonPayloadData())
@@ -252,7 +252,7 @@ import Testing
         rowID
     )
 
-    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let secondTickEvents = try await collectAndCommit(watcher)
     let eventObject = try firstMessageEventObject(in: secondTickEvents)
     let patch = try firstMessageEntry(in: eventObject)
     let link = try firstLink(in: patch)
@@ -262,6 +262,71 @@ import Testing
     #expect(patch["id"] as? String == messageGUID)
     #expect(patch["senderID"] != nil)
     #expect(link["title"] as? String == "Fixture Link")
+}
+
+@Test func batchResolvesPendingNewMessagesIndependently() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    // rowA has a chat join and resolves this tick.
+    let rowA = 80
+    try insertJoinedMessage(fixture: fixture, rowID: rowA, guid: "00000000-0000-4000-8000-000000000080", text: "resolves")
+    // rowB has no chat join yet and stays pending.
+    let rowB = 81
+    try fixture.insertMessage(rowID: rowB, text: "still pending")
+    // rowC has no chat join and is past the join budget, so it's dropped.
+    let rowC = 82
+    try fixture.insertMessage(rowID: rowC, text: "times out")
+
+    // Cursor past every row so the main query returns nothing; only the seeded
+    // pending entries drive this tick.
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowC)
+    let now = Date()
+    watcher.pendingUnresolvedNewMessageRowIDs[rowA] = now
+    watcher.pendingUnresolvedNewMessageRowIDs[rowB] = now
+    watcher.pendingUnresolvedNewMessageRowIDs[rowC] = now.addingTimeInterval(-11)
+
+    let events = try await collectAndCommit(watcher)
+    let eventObject = try firstMessageEventObject(in: events)
+
+    // Only rowA produced an event; rowB stays pending; rowC was dropped.
+    #expect(events.count == 1)
+    #expect(eventObject["mutationType"] as? String == "upsert")
+    #expect(watcher.pendingUnresolvedNewMessageRowIDs[rowA] == nil)
+    #expect(watcher.pendingUnresolvedNewMessageRowIDs[rowB] != nil)
+    #expect(watcher.pendingUnresolvedNewMessageRowIDs[rowC] == nil)
+}
+
+@Test func collectionErrorKeepsPendingWakeArmed() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 70
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID)
+    // A new message is awaiting chat-join resolution, well within budget.
+    watcher.pendingUnresolvedNewMessageRowIDs[rowID] = Date()
+
+    // Break the database so this tick throws while pending work remains.
+    try fixture.database.execute(sqlWithoutEscaping: "DROP TABLE message")
+
+    await #expect(throws: (any Error).self) {
+        try await watcher.collectMessageUpdateEvents()
+    }
+
+    // The `defer` re-armed the wake despite the throw, so the still-pending row
+    // keeps getting re-poked instead of being stranded on a quiet DB.
+    #expect(watcher.pendingWakeTask != nil)
+    #expect(watcher.pendingUnresolvedNewMessageRowIDs[rowID] != nil)
+}
+
+private func insertJoinedMessage(
+    fixture: TahoeChatDatabaseFixture,
+    rowID: Int,
+    guid: String,
+    text: String
+) throws {
+    try fixture.insertMessage(rowID: rowID, guid: guid, text: text)
+    try fixture.insertChatJoin(messageRowID: rowID)
 }
 
 private func normalMessageRow(
@@ -307,6 +372,16 @@ private func reactionActionRow(
         "associated_message_type": reactionType,
         "reply_to_guid": replyToGUID as Any,
     ])
+}
+
+/// Mirrors `watchForever`'s success path: collect a tick's events, then commit
+/// the pending-send removals as if the (no-op) sender had succeeded. Tests that
+/// assert post-resolution pending/wake state must commit, since resolved rows
+/// now stay pending until their events are sent.
+private func collectAndCommit(_ watcher: EventWatcher) async throws -> [ServerEvent] {
+    let events = try await watcher.collectMessageUpdateEvents()
+    watcher.commitPendingSends()
+    return events
 }
 
 private func fixtureEventWatcher(

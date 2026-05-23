@@ -6,7 +6,10 @@ import Logging
 import PlatformSDK
 
 private let log = Logger(imessageLabel: "event-watcher.updates")
-private let pendingChatJoinTimeout: TimeInterval = 3
+// Deferred chat-join resolution is non-blocking (it costs only a cheap batched
+// join per quiet-DB wake), so we can afford a generous budget before giving up
+// on a new message whose chat_message_join row never becomes visible.
+private let pendingChatJoinTimeout: TimeInterval = 10
 private let pendingLinkPreviewTimeout: TimeInterval = 2 * 60
 // How soon to re-tick when resolution work is outstanding and the database is
 // otherwise idle. New-message chat joins normally settle within a second, so we
@@ -40,23 +43,6 @@ private enum PendingMessage {
 private struct MessageUpdateEventContext {
     let events: [ServerEvent]
     let mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
-}
-
-/// Snapshot of `MappedMessageRow`s and mapped `PlatformSDK.Message`s that the
-/// pending-preview resolver has already paid the DB+mapping cost for; threaded
-/// into `messageUpdateEvents(for:precomputed:)` so it doesn't redo the same
-/// `mappedMessageRows` + `messagePayloadRows` + `mapAndHashMessagesByRowID`
-/// pass for those rows.
-private struct PrecomputedRows {
-    let messageRowsByRowID: [Int: MappedMessageRow]
-    let mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
-
-    static let empty = PrecomputedRows(messageRowsByRowID: [:], mappedMessagesByRowID: [:])
-}
-
-private struct ResolvedLinkPreviewChanges {
-    let changes: [UpdatedMessageChange]
-    let precomputed: PrecomputedRows
 }
 
 extension EventWatcher {
@@ -192,6 +178,16 @@ extension EventWatcher {
     }
 
     func collectMessageUpdateEvents() async throws -> [ServerEvent] {
+        // Re-arm the wake on every exit, including a thrown tick. Pending work
+        // must keep being re-poked when the DB goes quiet, regardless of a
+        // mid-tick failure — otherwise a single throw strands pending rows until
+        // an unrelated filesystem change happens to tick again.
+        defer { schedulePendingWakeIfNeeded() }
+
+        // Each tick recomputes which resolved rows are awaiting a send commit.
+        newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        linkPreviewRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+
         let previousCursor = updatesCursor
         let queryResult = try db.messages(since: previousCursor)
         traceMessageUpdates(
@@ -199,17 +195,32 @@ extension EventWatcher {
         )
 
         var changes = try resolvePendingNewMessageChanges()
-        let previewResolution = try resolvePendingLinkPreviewChanges()
+        let previewChanges = try resolvePendingLinkPreviewChanges()
         rememberPendingNewMessages(rowIDs: queryResult.unresolvedNewMessageRowIDs)
 
         changes.append(contentsOf: queryResult.updatedMessages)
-        changes.append(contentsOf: previewResolution.changes)
+        changes.append(contentsOf: previewChanges)
 
-        let events = try messageUpdateEvents(for: changes, precomputed: previewResolution.precomputed)
+        let events = try messageUpdateEvents(for: changes)
         traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
         updatesCursor = queryResult.nextCursor
-        schedulePendingWakeIfNeeded()
         return events
+    }
+
+    /// Clear the rows resolved this tick from the pending maps once their events
+    /// have been sent (or there was nothing to send). Re-evaluates the wake so it
+    /// reflects the now-smaller pending set. Called by `watchForever` after a
+    /// successful send; on a send failure it is skipped so the rows stay pending.
+    func commitPendingSends() {
+        for rowID in newMessageRowIDsAwaitingSendCommit {
+            pendingUnresolvedNewMessageRowIDs.removeValue(forKey: rowID)
+        }
+        for rowID in linkPreviewRowIDsAwaitingSendCommit {
+            pendingLinkPreviewCandidates.removeValue(forKey: rowID)
+        }
+        newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        linkPreviewRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        schedulePendingWakeIfNeeded()
     }
 
     /// Resolution of pending new messages and link previews only happens when
@@ -244,46 +255,33 @@ extension EventWatcher {
         }
     }
 
-    private func messageUpdateEvents(
-        for changes: [UpdatedMessageChange],
-        precomputed: PrecomputedRows = .empty
-    ) throws -> [ServerEvent] {
+    private func messageUpdateEvents(for changes: [UpdatedMessageChange]) throws -> [ServerEvent] {
         guard !changes.isEmpty else {
             traceMessageUpdates("no messages updated this time around")
             return []
         }
 
-        // Reuse rows and mappings that `resolvePendingLinkPreviewChanges` already
-        // paid the DB+mapping cost for; only fetch+map the rows the cache
-        // doesn't already cover. `messageUpdateEventContext` merges changes per
-        // rowID internally, so we don't pre-merge here.
-        var messageRowsByRowID = precomputed.messageRowsByRowID
         let changeRowIDs = OrderedSet(changes.map(\.rowID))
-        let rowIDsToFetch = changeRowIDs.filter { messageRowsByRowID[$0] == nil }
-        if !rowIDsToFetch.isEmpty {
-            let fetchedRows = try db.mappedMessageRows(rowIDs: Array(rowIDsToFetch))
-            // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
-            // chats yields multiple rows with the same ROWID. Keep first.
-            for row in fetchedRows where messageRowsByRowID[row.rowID] == nil {
-                messageRowsByRowID[row.rowID] = row
-            }
+        let fetchedRows = try db.mappedMessageRows(rowIDs: Array(changeRowIDs))
+        // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
+        // chats yields multiple rows with the same ROWID. Keep first.
+        var messageRowsByRowID = [Int: MappedMessageRow]()
+        for row in fetchedRows where messageRowsByRowID[row.rowID] == nil {
+            messageRowsByRowID[row.rowID] = row
         }
 
-        var mappedMessagesByRowID = precomputed.mappedMessagesByRowID
-        let rowsToMap = messageRowsByRowID.values.filter { mappedMessagesByRowID[$0.rowID] == nil }
-        if !rowsToMap.isEmpty {
-            let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: Array(rowsToMap), threadID: "")
-            let freshlyMapped = try PlatformAPI.mapAndHashMessagesByRowID(
-                messageRows: Array(rowsToMap),
-                attachmentRows: payloadRows.attachmentRows,
-                reactionRows: payloadRows.reactionRows,
-                currentUserID: currentUserID,
-                accountID: accountID
-            )
-            for (rowID, messages) in freshlyMapped {
-                mappedMessagesByRowID[rowID] = messages
-            }
-        }
+        // `resolvePendingLinkPreviewChanges` already fetched+mapped these rows to
+        // decide whether a preview surfaced, but it's a cold path (the >=5s
+        // preview wake), so we just re-fetch+remap here uniformly rather than
+        // thread a precomputed cache through the call graph.
+        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: Array(messageRowsByRowID.values), threadID: "")
+        let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
+            messageRows: Array(messageRowsByRowID.values),
+            attachmentRows: payloadRows.attachmentRows,
+            reactionRows: payloadRows.reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
 
         let context = try Self.messageUpdateEventContext(
             changes: changes,
@@ -367,7 +365,7 @@ extension EventWatcher {
 
         let now = Date()
         var resolvedChanges: [UpdatedMessageChange] = []
-        var rowIDsToRemove: [Int] = []
+        var timedOutRowIDs: [Int] = []
 
         // Resolve all pending row IDs in a single batched join instead of one
         // `threadIDForMessage` query per row. `mappedMessageRows` performs the
@@ -388,31 +386,35 @@ extension EventWatcher {
                     wasRead: false,
                     wasEdited: false
                 ))
-                rowIDsToRemove.append(rowID)
+                // Keep the row pending until its event is sent (commitPendingSends).
+                // The main-query cursor already advanced past it, so pending is the
+                // only recovery path if the send fails.
+                newMessageRowIDsAwaitingSendCommit.append(rowID)
                 continue
             }
 
             if now.timeIntervalSince(firstSeen) >= pendingChatJoinTimeout {
                 log.error("couldn't join message \(rowID) to chat after deferred ticks, dropping")
-                rowIDsToRemove.append(rowID)
+                timedOutRowIDs.append(rowID)
             }
         }
 
-        for rowID in rowIDsToRemove {
+        // Timed-out rows produce no event, so drop them now regardless of send.
+        for rowID in timedOutRowIDs {
             pendingUnresolvedNewMessageRowIDs.removeValue(forKey: rowID)
         }
 
         return resolvedChanges
     }
 
-    private func resolvePendingLinkPreviewChanges() throws -> ResolvedLinkPreviewChanges {
+    private func resolvePendingLinkPreviewChanges() throws -> [UpdatedMessageChange] {
         guard !pendingLinkPreviewCandidates.isEmpty else {
-            return ResolvedLinkPreviewChanges(changes: [], precomputed: .empty)
+            return []
         }
 
         expirePendingLinkPreviewCandidates()
         guard !pendingLinkPreviewCandidates.isEmpty else {
-            return ResolvedLinkPreviewChanges(changes: [], precomputed: .empty)
+            return []
         }
 
         let rowIDs = Array(pendingLinkPreviewCandidates.keys)
@@ -433,7 +435,7 @@ extension EventWatcher {
             for rowID in rowIDs where messageRowsByRowID[rowID] == nil {
                 pendingLinkPreviewCandidates.removeValue(forKey: rowID)
             }
-            return ResolvedLinkPreviewChanges(changes: [], precomputed: .empty)
+            return []
         }
 
         let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: readyRows, threadID: "")
@@ -449,11 +451,11 @@ extension EventWatcher {
         // `messagePayloadRows`/`mapAndHashMessagesByRowID` throw, candidates stay
         // in the map and are retried on the next tick rather than silently lost.
         var changes: [UpdatedMessageChange] = []
-        var rowIDsToRemove: [Int] = []
+        var goneRowIDs: [Int] = []
         for rowID in rowIDs {
             // Rows with no DB row are gone; drop them.
             guard let row = messageRowsByRowID[rowID] else {
-                rowIDsToRemove.append(rowID)
+                goneRowIDs.append(rowID)
                 continue
             }
 
@@ -470,27 +472,17 @@ extension EventWatcher {
                 wasEdited: false,
                 isPreviewUpdate: true
             ))
-            rowIDsToRemove.append(rowID)
+            // Keep the candidate pending until its preview event is sent
+            // (commitPendingSends); a send failure then retries it next tick.
+            linkPreviewRowIDsAwaitingSendCommit.append(rowID)
         }
 
-        for rowID in rowIDsToRemove {
+        // Gone rows produce no event, so drop them now regardless of send.
+        for rowID in goneRowIDs {
             pendingLinkPreviewCandidates.removeValue(forKey: rowID)
         }
 
-        // Only the rows that produced changes need to be threaded forward as the
-        // precomputed cache; `messageUpdateEvents(for:)` would have refetched and
-        // remapped exactly these rows otherwise. Other ready rows (no surfaced
-        // preview yet) are not in `changes`, so they don't need caching.
-        let resolvedRowIDs = Set(changes.map(\.rowID))
-        let precomputedMessageRows = messageRowsByRowID.filter { resolvedRowIDs.contains($0.key) }
-        let precomputedMappedMessages = mappedMessagesByRowID.filter { resolvedRowIDs.contains($0.key) }
-        return ResolvedLinkPreviewChanges(
-            changes: changes,
-            precomputed: PrecomputedRows(
-                messageRowsByRowID: precomputedMessageRows,
-                mappedMessagesByRowID: precomputedMappedMessages
-            )
-        )
+        return changes
     }
 
     private func expirePendingLinkPreviewCandidates() {
@@ -504,6 +496,20 @@ extension EventWatcher {
         }
     }
 
+    // Outgoing link previews render asynchronously: Messages writes the message
+    // row, then populates `payload_data` with the rich preview a moment later, so
+    // we track the row and emit a follow-up `isPreviewUpdate` once the preview
+    // lands. Known gaps (accepted, see plan-eng-review):
+    //  - Incoming messages arrive with the sender's preview already embedded, so
+    //    we only track outgoing rows (`isFromMe == 1`).
+    //  - We only track rows that already carry the URL balloon kind at first
+    //    sighting. If Messages inserts a plain-text row and flips
+    //    `balloon_bundle_id` later (without bumping date_read/date_edited), or the
+    //    watcher restarts between insert and hydration, the preview is missed,
+    //    because the polling query only watches ROWID/date_read/date_edited.
+    //  - The candidate is dropped on the first surfaced preview, so a richer
+    //    preview that hydrates later (e.g. image/video attachment after link
+    //    metadata) is not re-emitted, since attachment changes aren't tracked.
     private func trackPendingLinkPreviewCandidates(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow],
