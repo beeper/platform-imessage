@@ -88,29 +88,7 @@ final class TahoeChatDatabaseFixture {
     }
 
     func updateMessagePayloadData(rowID: Int, payloadData: Data) throws {
-        let sql = "UPDATE message SET payload_data = ? WHERE ROWID = ?"
-        var statement: OpaquePointer?
-        _ = try sql.withCString { sqlPointer in
-            try SQLiteError.check(sqlite3_prepare_v2(database.connection, sqlPointer, -1, &statement, nil))
-        }
-        defer {
-            sqlite3_finalize(statement)
-        }
-
-        try payloadData.withUnsafeBytes { buffer in
-            let SQLITE_TRANSIENT = -1
-            typealias SQLiteDestructor = @convention(c) (UnsafeMutableRawPointer?) -> Void
-            let transient = unsafeBitCast(SQLITE_TRANSIENT, to: SQLiteDestructor.self)
-            try SQLiteError.check(sqlite3_bind_blob(
-                statement,
-                1,
-                buffer.baseAddress,
-                Int32(payloadData.count),
-                transient
-            ))
-        }
-        try SQLiteError.check(sqlite3_bind_int64(statement, 2, Int64(rowID)))
-        try SQLiteError.check(sqlite3_step(statement) == SQLITE_DONE ? SQLITE_OK : sqlite3_errcode(database.connection))
+        try database.execute(sqlWithoutEscaping: "UPDATE message SET payload_data = ? WHERE ROWID = ?", payloadData, rowID)
     }
 
     private static func insertChatJoin(

@@ -39,7 +39,6 @@ private enum PendingMessage {
 
 private struct MessageUpdateEventContext {
     let events: [ServerEvent]
-    let messageRowsByRowID: [Int: MappedMessageRow]
     let mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
 }
 
@@ -72,7 +71,7 @@ extension EventWatcher {
     ) throws -> MessageUpdateEventContext {
         guard !changes.isEmpty else {
             traceMessageUpdates("no messages updated this time around")
-            return MessageUpdateEventContext(events: [], messageRowsByRowID: messageRowsByRowID, mappedMessagesByRowID: [:])
+            return MessageUpdateEventContext(events: [], mappedMessagesByRowID: [:])
         }
 
         let changes = mergedChangesByRowID(changes)
@@ -174,7 +173,6 @@ extension EventWatcher {
 
         return MessageUpdateEventContext(
             events: events,
-            messageRowsByRowID: messageRowsByRowID,
             mappedMessagesByRowID: mappedMessagesByRowID
         )
     }
@@ -256,7 +254,7 @@ extension EventWatcher {
         )
         trackPendingLinkPreviewCandidates(
             changes: changes,
-            messageRowsByRowID: context.messageRowsByRowID,
+            messageRowsByRowID: messageRowsByRowID,
             mappedMessagesByRowID: context.mappedMessagesByRowID
         )
         return context.events
