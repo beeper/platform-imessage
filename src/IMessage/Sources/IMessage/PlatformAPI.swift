@@ -8,26 +8,35 @@ private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
-private let waitForLinksTimeout: TimeInterval = 1.5
 private let waitForSentThreadTimeout: TimeInterval = 10
-private let sentMessagePollInterval: TimeInterval = 0.025
 private let loadAttachmentTimeout: TimeInterval = 60
-private let loadAttachmentInitialPollInterval: TimeInterval = 0.25
-private let loadAttachmentMaxPollInterval: TimeInterval = 5
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
-    private let database = Protected<IMDatabase?>()
+    private let state = Protected(State())
 
     func withDatabase<T>(_ action: (IMDatabase) throws -> T) throws -> T {
-        try database.withLock { cachedDatabase in
-            if let cachedDatabase {
-                return try action(cachedDatabase)
-            }
-
-            let newDatabase = try IMDatabase(createIndexes: true)
-            cachedDatabase = newDatabase
-            return try action(newDatabase)
+        try state.withLock { state in
+            let db = try state.database ?? IMDatabase(createIndexes: true)
+            state.database = db
+            return try action(db)
         }
+    }
+
+    func changeTopic() throws -> Topic<Void> {
+        try state.withLock { state in
+            let db = try state.database ?? IMDatabase(createIndexes: true)
+            state.database = db
+            if !state.isListeningForChanges {
+                try db.beginListeningForChanges()
+                state.isListeningForChanges = true
+            }
+            return db.changes
+        }
+    }
+
+    private struct State {
+        var database: IMDatabase?
+        var isListeningForChanges = false
     }
 }
 
@@ -410,36 +419,18 @@ public final class PlatformAPI {
         messageID: String,
         timeout: TimeInterval
     ) async throws -> PlatformSDK.Message {
-        let deadline = Date().addingTimeInterval(timeout)
-        var pollInterval = loadAttachmentInitialPollInterval
-        var isFirstRead = true
-
-        while true {
-            let message = try await getMessage(threadID: threadID, messageID: messageID)
-                .orThrow(ErrorMessage("Could not find message \(messageID)"))
-            let attachments = message.attachments ?? []
-            if isFirstRead {
-                guard !attachments.isEmpty else {
-                    throw ErrorMessage("Message \(messageID) has no attachments")
-                }
-                isFirstRead = false
+        let changes = try database.changeTopic()
+        return try await DatabaseTickWaits.loadedAttachment(
+            messageID: messageID,
+            timeout: timeout,
+            changes: changes,
+            loadMessage: {
+                try await self.getMessage(threadID: threadID, messageID: messageID)
+            },
+            terminalAttachmentFailureState: {
+                try await self.terminalAttachmentFailureState(messageID: messageID)
             }
-            if !attachments.isEmpty, !attachments.contains(where: { $0.loading == true }) {
-                return message
-            }
-
-            if let failureState = try await terminalAttachmentFailureState(messageID: messageID) {
-                throw ErrorMessage("Attachment in message \(messageID) failed to load (transfer state: \(failureState.rawValue))")
-            }
-
-            let remainingTime = deadline.timeIntervalSinceNow
-            guard remainingTime > 0 else {
-                throw ErrorMessage("Timed out waiting for attachment in message \(messageID) to load")
-            }
-
-            try await Task.sleep(forTimeInterval: min(pollInterval, remainingTime))
-            pollInterval = min(pollInterval * 2, loadAttachmentMaxPollInterval)
-        }
+        )
     }
 
     /// Returns the first attachment state on `messageID` that is terminal failure
@@ -764,46 +755,34 @@ public final class PlatformAPI {
         timeout: TimeInterval
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
+        let changes = try database.changeTopic()
         return try await Task.detached(priority: .userInitiated) {
-            let start = Date()
-            let expectedNewMessageIDCount = text.map { max($0.linkCount, 1) } ?? 1
-            var sentMessageIDs: [(rowID: Int, guid: String)] = []
-            while sentMessageIDs.count != expectedNewMessageIDCount {
-                sentMessageIDs = try database.withDatabase { db in
+            try await DatabaseTickWaits.sentMessageIDs(
+                text: text,
+                timeout: timeout,
+                changes: changes
+            ) {
+                try database.withDatabase { db in
                     try db.sentMessageIDs(since: lastRowID)
                 }
-                if text != nil, !sentMessageIDs.isEmpty, Date().timeIntervalSince(start) > waitForLinksTimeout {
-                    break
-                }
-                if Date().timeIntervalSince(start) > timeout {
-                    throw ErrorMessage("timed out waiting for sent messages")
-                }
-                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
             }
-            return sentMessageIDs
         }.value
     }
 
     private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
         let database = database
+        let changes = try database.changeTopic()
         return try await Task.detached(priority: .userInitiated) {
-            let sentThreadIDs = {
+            try await DatabaseTickWaits.sentThreadIDs(
+                timeout: waitForSentThreadTimeout,
+                changes: changes
+            ) {
                 try messageRowIDs.map { rowID in
                     try database.withDatabase { db in
                         try db.threadIDForMessage(rowID: rowID)
                     }
                 }
             }
-            var threadIDs = try sentThreadIDs()
-            let start = Date()
-            while threadIDs.contains(where: { $0 == nil }) {
-                try await Task.sleep(forTimeInterval: sentMessagePollInterval)
-                threadIDs = try sentThreadIDs()
-                if Date().timeIntervalSince(start) > waitForSentThreadTimeout {
-                    break
-                }
-            }
-            return threadIDs
         }.value
     }
 
