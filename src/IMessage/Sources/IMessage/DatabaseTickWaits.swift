@@ -5,6 +5,10 @@ import PlatformSDK
 
 private let sentMessageLinkWaitTimeout: TimeInterval = 1.5
 
+// Re-query at least this often even without a tick: FSEvents notifications can be
+// dropped or coalesced, so a missed tick costs ~1s instead of the full timeout.
+private let databaseTickBackstopInterval: TimeInterval = 1.0
+
 enum DatabaseTickWaits {
     typealias SentMessageID = (rowID: Int, guid: String)
 
@@ -102,13 +106,15 @@ enum DatabaseTickWaits {
         let remainingTime = deadline.timeIntervalSinceNow
         guard remainingTime > 0 else { return false }
 
+        let sleepTime = min(remainingTime, databaseTickBackstopInterval)
+
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
                 var iterator = stream.makeAsyncIterator()
                 return await iterator.next() != nil
             }
             group.addTask {
-                try await Task.sleep(forTimeInterval: remainingTime)
+                try await Task.sleep(forTimeInterval: sleepTime)
                 return false
             }
 

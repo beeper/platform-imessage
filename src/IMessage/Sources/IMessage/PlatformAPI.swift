@@ -16,22 +16,33 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
     func withDatabase<T>(_ action: (IMDatabase) throws -> T) throws -> T {
         try state.withLock { state in
-            let db = try state.database ?? IMDatabase(createIndexes: true)
-            state.database = db
-            return try action(db)
+            try action(try ensureDatabase(&state))
         }
     }
 
     func changeTopic() throws -> Topic<Void> {
         try state.withLock { state in
-            let db = try state.database ?? IMDatabase(createIndexes: true)
-            state.database = db
+            let db = try ensureDatabase(&state)
             if !state.isListeningForChanges {
-                try db.beginListeningForChanges()
-                state.isListeningForChanges = true
+                do {
+                    try db.beginListeningForChanges()
+                    state.isListeningForChanges = true
+                } catch {
+                    // Don't fail the wait: the topic just won't tick, and the
+                    // backstop in DatabaseTickWaits carries it at poll cadence.
+                    // Flag stays unset so the next call retries setup.
+                    platformLog.error("failed to begin listening for database changes, falling back to backstop polling: \(error)")
+                }
             }
             return db.changes
         }
+    }
+
+    /// Lazily opens the process-wide database, caching it on `state`.
+    private func ensureDatabase(_ state: inout State) throws -> IMDatabase {
+        let db = try state.database ?? IMDatabase(createIndexes: true)
+        state.database = db
+        return db
     }
 
     private struct State {
@@ -756,34 +767,33 @@ public final class PlatformAPI {
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
         let changes = try database.changeTopic()
-        return try await Task.detached(priority: .userInitiated) {
-            try await DatabaseTickWaits.sentMessageIDs(
-                text: text,
-                timeout: timeout,
-                changes: changes
-            ) {
-                try database.withDatabase { db in
-                    try db.sentMessageIDs(since: lastRowID)
-                }
+        // Not via Task.detached, so caller cancellation propagates and the wait
+        // stops promptly instead of running to its own timeout.
+        return try await DatabaseTickWaits.sentMessageIDs(
+            text: text,
+            timeout: timeout,
+            changes: changes
+        ) {
+            try database.withDatabase { db in
+                try db.sentMessageIDs(since: lastRowID)
             }
-        }.value
+        }
     }
 
     private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
         let database = database
         let changes = try database.changeTopic()
-        return try await Task.detached(priority: .userInitiated) {
-            try await DatabaseTickWaits.sentThreadIDs(
-                timeout: waitForSentThreadTimeout,
-                changes: changes
-            ) {
-                try messageRowIDs.map { rowID in
-                    try database.withDatabase { db in
-                        try db.threadIDForMessage(rowID: rowID)
-                    }
+        // Not via Task.detached, so caller cancellation propagates.
+        return try await DatabaseTickWaits.sentThreadIDs(
+            timeout: waitForSentThreadTimeout,
+            changes: changes
+        ) {
+            try messageRowIDs.map { rowID in
+                try database.withDatabase { db in
+                    try db.threadIDForMessage(rowID: rowID)
                 }
             }
-        }.value
+        }
     }
 
     private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [PlatformSDK.Message] {

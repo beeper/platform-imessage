@@ -1,4 +1,5 @@
 import Foundation
+import IMDatabase
 @testable import IMessage
 import IMessageCore
 import PlatformSDK
@@ -131,6 +132,97 @@ import Testing
     #expect(result.attachments?.first?.loading == false)
     #expect(queryCount.read() == 2)
     #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+@Test func sentMessageIDWaitThrowsOnTimeoutWithoutTick() async throws {
+    let changes = Topic<Void>()
+    await #expect(throws: (any Error).self) {
+        try await DatabaseTickWaits.sentMessageIDs(
+            text: nil,
+            timeout: 0.2,
+            changes: changes
+        ) {
+            []
+        }
+    }
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+@Test func sentThreadIDWaitReturnsPartialAfterDeadline() async throws {
+    let changes = Topic<Void>()
+    let result = try await DatabaseTickWaits.sentThreadIDs(
+        timeout: 0.2,
+        changes: changes
+    ) {
+        [nil, "thread-2"]
+    }
+
+    #expect(result == [nil, "thread-2"])
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+@Test func loadedAttachmentWaitThrowsWhenMessageHasNoAttachments() async throws {
+    let changes = Topic<Void>()
+    await #expect(throws: (any Error).self) {
+        try await DatabaseTickWaits.loadedAttachment(
+            messageID: "message-1",
+            timeout: 1,
+            changes: changes,
+            loadMessage: { messageWithNoAttachments() },
+            terminalAttachmentFailureState: { nil }
+        )
+    }
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+@Test func loadedAttachmentWaitThrowsOnTerminalFailureState() async throws {
+    let changes = Topic<Void>()
+    await #expect(throws: (any Error).self) {
+        try await DatabaseTickWaits.loadedAttachment(
+            messageID: "message-1",
+            timeout: 1,
+            changes: changes,
+            loadMessage: { messageWithAttachmentLoading(true) },
+            terminalAttachmentFailureState: { Attachment.IMFileTransferState.error }
+        )
+    }
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+@Test func loadedAttachmentWaitThrowsOnTimeoutWithoutTick() async throws {
+    let changes = Topic<Void>()
+    await #expect(throws: (any Error).self) {
+        try await DatabaseTickWaits.loadedAttachment(
+            messageID: "message-1",
+            timeout: 0.2,
+            changes: changes,
+            loadMessage: { messageWithAttachmentLoading(true) },
+            terminalAttachmentFailureState: { nil }
+        )
+    }
+    #expect(await eventually { changes.subscriptionCount == 0 })
+}
+
+// Guards the lock-release-before-finish() fix: calling finish() under the lock
+// would re-enter onTermination on the non-reentrant os_unfair_lock and deadlock.
+@Test func finishCurrentSubscribersDoesNotDeadlockAndClearsSubscriptions() {
+    let topic = Topic<Void>()
+    let streams = (0 ..< 5).map { _ in topic.subscribe() }
+    #expect(topic.subscriptionCount == 5)
+
+    topic.finishCurrentSubscribers()
+
+    #expect(topic.subscriptionCount == 0)
+    withExtendedLifetime(streams) {}
+}
+
+private func messageWithNoAttachments() -> PlatformSDK.Message {
+    PlatformSDK.Message(
+        id: "message-1",
+        timestamp: 1,
+        senderID: "sender-1",
+        attachments: []
+    )
 }
 
 private func messageWithAttachmentLoading(_ loading: Bool) -> PlatformSDK.Message {
