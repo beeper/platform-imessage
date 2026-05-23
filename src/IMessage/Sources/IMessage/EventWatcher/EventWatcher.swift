@@ -1,3 +1,4 @@
+import Collections
 import Foundation
 import IMDatabase
 import Logging
@@ -13,6 +14,11 @@ struct TimestampedChatState {
     }
 }
 
+struct PendingLinkPreviewCandidate {
+    let firstSeen: Date
+    let chatGUID: String
+}
+
 final class EventWatcher {
     static let logger = Logger(imessageLabel: "event-watcher")
 
@@ -21,6 +27,8 @@ final class EventWatcher {
     /// Tracks the last known state of every chat.
     var chatStates = [String: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
+    var pendingUnresolvedNewMessageRowIDs = OrderedDictionary<Int, Date>()
+    var pendingLinkPreviewCandidates = OrderedDictionary<Int, PendingLinkPreviewCandidate>()
 
     let currentUserID: String
     let accountID: String
@@ -32,9 +40,14 @@ final class EventWatcher {
         initialUpdatesCursor: MessageUpdatesCursor,
         currentUserID: String,
         accountID: String,
+        db: IMDatabase? = nil,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
-        self.db = try IMDatabase()
+        if let db {
+            self.db = db
+        } else {
+            self.db = try IMDatabase()
+        }
 
         if Defaults.eventWatcherTraceChangeListening {
             Self.logger.debug("tracing change listening, telling IMDatabase to be noisy")

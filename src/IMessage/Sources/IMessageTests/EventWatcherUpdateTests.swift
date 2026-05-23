@@ -1,5 +1,7 @@
+import Foundation
 import IMDatabase
 @testable import IMessage
+import IMessageCore
 import PlatformSDK
 import Testing
 
@@ -98,11 +100,111 @@ import Testing
     #expect(eventObject["mutationType"] as? String == "upsert")
 }
 
+@Test func missingChatJoinDefersNewMessageUntilLaterTick() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 10
+    let messageGUID = "00000000-0000-4000-8000-000000000044"
+    try fixture.insertMessage(rowID: rowID, guid: messageGUID, text: "hello from deferred row")
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    let firstTickEvents = try await watcher.collectMessageUpdateEvents()
+    #expect(firstTickEvents.isEmpty)
+
+    try fixture.insertChatJoin(messageRowID: rowID)
+
+    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let eventObject = try firstMessageEventObject(in: secondTickEvents)
+    let entry = try firstMessageEntry(in: eventObject)
+
+    #expect(secondTickEvents.count == 1)
+    #expect(eventObject["mutationType"] as? String == "upsert")
+    #expect(entry["id"] as? String == messageGUID)
+}
+
+@Test func outgoingURLPreviewPayloadUpdateEmitsMessageUpdateOnce() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 20
+    let messageGUID = "00000000-0000-4000-8000-000000000045"
+    try insertOutgoingURLMessage(
+        fixture: fixture,
+        rowID: rowID,
+        guid: messageGUID,
+        text: "https://fixture.example.invalid/link"
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    let firstTickEvents = try await watcher.collectMessageUpdateEvents()
+    let firstEventObject = try firstMessageEventObject(in: firstTickEvents)
+    let firstEntry = try firstMessageEntry(in: firstEventObject)
+
+    #expect(firstEventObject["mutationType"] as? String == "upsert")
+    #expect((firstEntry["links"] as? JSONArray)?.isEmpty != false)
+    #expect((firstEntry["tweets"] as? JSONArray)?.isEmpty != false)
+    #expect(firstEntry["iframeURL"] == nil)
+
+    try fixture.updateMessagePayloadData(rowID: rowID, payloadData: try urlBalloonPayloadData())
+
+    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let secondEventObject = try firstMessageEventObject(in: secondTickEvents)
+    let patch = try firstMessageEntry(in: secondEventObject)
+    let link = try firstLink(in: patch)
+
+    #expect(secondTickEvents.count == 1)
+    #expect(secondEventObject["mutationType"] as? String == "update")
+    #expect(patch["id"] as? String == messageGUID)
+    #expect(link["url"] as? String == "https://fixture.example.invalid/link")
+    #expect(link["title"] as? String == "Fixture Link")
+
+    let thirdTickEvents = try await watcher.collectMessageUpdateEvents()
+    #expect(thirdTickEvents.isEmpty)
+}
+
+@Test func readAndPreviewChangesForSameRowEmitOneFullUpdate() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 30
+    let messageGUID = "00000000-0000-4000-8000-000000000046"
+    try insertOutgoingURLMessage(
+        fixture: fixture,
+        rowID: rowID,
+        guid: messageGUID,
+        text: "https://fixture.example.invalid/link"
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    let firstTickEvents = try await watcher.collectMessageUpdateEvents()
+    #expect(firstTickEvents.count == 1)
+
+    try fixture.updateMessagePayloadData(rowID: rowID, payloadData: try urlBalloonPayloadData())
+    try fixture.database.execute(
+        sqlWithoutEscaping: "UPDATE message SET date_read = ?, is_read = 1 WHERE ROWID = ?",
+        1_000_000_000,
+        rowID
+    )
+
+    let secondTickEvents = try await watcher.collectMessageUpdateEvents()
+    let eventObject = try firstMessageEventObject(in: secondTickEvents)
+    let patch = try firstMessageEntry(in: eventObject)
+    let link = try firstLink(in: patch)
+
+    #expect(secondTickEvents.count == 1)
+    #expect(eventObject["mutationType"] as? String == "update")
+    #expect(patch["id"] as? String == messageGUID)
+    #expect(patch["senderID"] != nil)
+    #expect(link["title"] as? String == "Fixture Link")
+}
+
 private func normalMessageRow(
     rowID: Int,
     guid: String,
     threadID: String,
-    dateRead: Int? = nil
+    dateRead: Int? = nil,
+    text: String = "hello"
 ) throws -> MappedMessageRow {
     try MappedMessageRow(object: [
         "ROWID": rowID,
@@ -114,7 +216,7 @@ private func normalMessageRow(
         "handle_id": 1,
         "item_type": 0,
         "service": "iMessage",
-        "text": "hello",
+        "text": text,
         "threadID": threadID,
         "participantID": "fixture-contact-a@example.invalid",
     ])
@@ -140,4 +242,63 @@ private func reactionActionRow(
         "associated_message_type": reactionType,
         "reply_to_guid": replyToGUID as Any,
     ])
+}
+
+private func fixtureEventWatcher(
+    fixture: TahoeChatDatabaseFixture,
+    lastRowID: Int
+) throws -> EventWatcher {
+    try EventWatcher(
+        serverEventSender: { _ in },
+        initialUpdatesCursor: MessageUpdatesCursor(
+            lastRowID: lastRowID,
+            lastDateRead: Date(nanosecondsSinceReferenceDate: 0),
+            lastDateEdited: Date(nanosecondsSinceReferenceDate: 0)
+        ),
+        currentUserID: "fixture-self@example.invalid",
+        accountID: "default",
+        db: fixture.imDatabase
+    )
+}
+
+private func insertOutgoingURLMessage(
+    fixture: TahoeChatDatabaseFixture,
+    rowID: Int,
+    guid: String,
+    text: String
+) throws {
+    try fixture.insertMessage(rowID: rowID, guid: guid)
+    try fixture.database.execute(
+        sqlWithoutEscaping: """
+        UPDATE message
+        SET text = ?, is_from_me = 1, is_sent = 1, is_delivered = 1, balloon_bundle_id = ?
+        WHERE ROWID = ?
+        """,
+        text,
+        BalloonBundleKind.url.rawValue,
+        rowID
+    )
+    try fixture.insertChatJoin(messageRowID: rowID)
+}
+
+private func urlBalloonPayloadData() throws -> Data {
+    let values = try loadFixture("message_url_balloon")
+    let messageRow = try #require(values.first as? FixtureJSONObject)
+    return try #require(messageRow["payload_data"] as? Data)
+}
+
+private func firstMessageEventObject(in events: [ServerEvent]) throws -> JSONObject {
+    let eventObject = try #require(events.first?.jsonObject())
+    #expect(eventObject["objectName"] as? String == "message")
+    return eventObject
+}
+
+private func firstMessageEntry(in eventObject: JSONObject) throws -> JSONObject {
+    let entries = try #require(eventObject["entries"] as? [JSONObject])
+    return try #require(entries.first)
+}
+
+private func firstLink(in messageObject: JSONObject) throws -> JSONObject {
+    let links = try #require(messageObject["links"] as? [JSONObject])
+    return try #require(links.first)
 }

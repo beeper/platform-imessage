@@ -33,6 +33,7 @@ final class TahoeChatDatabaseFixture {
     func insertMessage(
         rowID: Int,
         guid: String? = nil,
+        text: String = "",
         date: Int? = nil,
         dateRead: Int = 0,
         dateEdited: Int = 0,
@@ -40,11 +41,12 @@ final class TahoeChatDatabaseFixture {
     ) throws {
         try database.execute(
             sqlWithoutEscaping: """
-            INSERT INTO message (ROWID, guid, date, date_read, date_edited, service)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO message (ROWID, guid, text, date, date_read, date_edited, service)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             rowID,
             guid ?? "message-\(rowID)",
+            text,
             date ?? rowID,
             dateRead,
             dateEdited,
@@ -83,6 +85,32 @@ final class TahoeChatDatabaseFixture {
                 into: database
             )
         }
+    }
+
+    func updateMessagePayloadData(rowID: Int, payloadData: Data) throws {
+        let sql = "UPDATE message SET payload_data = ? WHERE ROWID = ?"
+        var statement: OpaquePointer?
+        _ = try sql.withCString { sqlPointer in
+            try SQLiteError.check(sqlite3_prepare_v2(database.connection, sqlPointer, -1, &statement, nil))
+        }
+        defer {
+            sqlite3_finalize(statement)
+        }
+
+        try payloadData.withUnsafeBytes { buffer in
+            let SQLITE_TRANSIENT = -1
+            typealias SQLiteDestructor = @convention(c) (UnsafeMutableRawPointer?) -> Void
+            let transient = unsafeBitCast(SQLITE_TRANSIENT, to: SQLiteDestructor.self)
+            try SQLiteError.check(sqlite3_bind_blob(
+                statement,
+                1,
+                buffer.baseAddress,
+                Int32(payloadData.count),
+                transient
+            ))
+        }
+        try SQLiteError.check(sqlite3_bind_int64(statement, 2, Int64(rowID)))
+        try SQLiteError.check(sqlite3_step(statement) == SQLITE_DONE ? SQLITE_OK : sqlite3_errcode(database.connection))
     }
 
     private static func insertChatJoin(
