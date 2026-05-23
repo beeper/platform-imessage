@@ -966,7 +966,7 @@ public final class PlatformAPI {
         let threadID = try publicThreadID.map { try originalThreadID(db: db, $0) }
         let effectiveLimit = limit ?? messagePageLimit
         let pageDirection = pagination.map { MappedPageDirection(rawValue: $0.direction.rawValue)! }
-        let matchingRowIDs = try db.searchMessages(
+        let searchResult = try db.searchMessageRowIDs(
             query: query,
             chatGUID: threadID,
             mediaOnly: mediaOnly,
@@ -975,8 +975,16 @@ public final class PlatformAPI {
             direction: pageDirection,
             limit: effectiveLimit
         )
+        let matchingRowIDs = searchResult.rowIDs
         guard !matchingRowIDs.isEmpty else {
-            return PlatformSDK.PaginatedWithCursors(items: [], hasMore: false, oldestCursor: "")
+            // An empty page can still be a cap-hit continuation: preserve hasMore and
+            // the search-provided continuation cursor so the client can page deeper.
+            return PlatformSDK.PaginatedWithCursors(
+                items: [],
+                hasMore: searchResult.hasMore,
+                oldestCursor: searchResult.oldestCursor ?? "",
+                newestCursor: searchResult.newestCursor
+            )
         }
 
         let messageRows = try db.mappedMessageRows(rowIDs: matchingRowIDs)
@@ -990,11 +998,14 @@ public final class PlatformAPI {
             currentUserID: currentUserID,
             accountID: accountID
         )
+        // Cursors come from search (compound "date,rowID") rather than the displayed
+        // rows: the boundary may be a scanned-but-not-returned candidate on a cap-hit,
+        // and the search direction (not the always-DESC display order) defines them.
         return PlatformSDK.PaginatedWithCursors(
             items: messages,
-            hasMore: matchingRowIDs.count == effectiveLimit,
-            oldestCursor: messageRows.last?.date.map(String.init) ?? "",
-            newestCursor: messageRows.first?.date.map(String.init)
+            hasMore: searchResult.hasMore,
+            oldestCursor: searchResult.oldestCursor ?? "",
+            newestCursor: searchResult.newestCursor
         )
     }
 }
