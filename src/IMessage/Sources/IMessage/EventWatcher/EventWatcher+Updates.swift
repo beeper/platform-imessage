@@ -82,10 +82,10 @@ extension EventWatcher {
             return MessageUpdateEventContext(events: [], mappedMessagesByRowID: [:])
         }
 
-        let changes = mergedChangesByRowID(changes)
+        let mergedChanges = mergedChangesByRowID(changes)
         var pendingByRowID = OrderedDictionary<Int, PendingMessage>()
 
-        for change in changes {
+        for change in mergedChanges {
             guard let messageRow = messageRowsByRowID[change.rowID] else {
                 log.error("message update row \(change.rowID) couldn't be mapped, dropping")
                 continue
@@ -188,8 +188,7 @@ extension EventWatcher {
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         linkPreviewRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
 
-        let previousCursor = updatesCursor
-        let queryResult = try db.messages(since: previousCursor)
+        let queryResult = try db.messages(since: updatesCursor)
         traceMessageUpdates(
             "updated messages query returned \(queryResult.updatedMessages.count) updated message(s) and \(queryResult.unresolvedNewMessageRowIDs.count) unresolved new message(s)"
         )
@@ -247,9 +246,8 @@ extension EventWatcher {
         }
 
         let changes = db.changes
-        let nanoseconds = UInt64(interval * 1_000_000_000)
         pendingWakeTask = Task {
-            try? await Task.sleep(nanoseconds: nanoseconds)
+            try? await Task.sleep(forTimeInterval: interval)
             guard !Task.isCancelled else { return }
             changes.broadcast(())
         }
@@ -261,22 +259,20 @@ extension EventWatcher {
             return []
         }
 
-        let changeRowIDs = OrderedSet(changes.map(\.rowID))
-        let fetchedRows = try db.mappedMessageRows(rowIDs: Array(changeRowIDs))
+        // `mappedMessageRows` deduplicates the row IDs internally before querying.
+        let fetchedRows = try db.mappedMessageRows(rowIDs: changes.map(\.rowID))
         // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
         // chats yields multiple rows with the same ROWID. Keep first.
-        var messageRowsByRowID = [Int: MappedMessageRow]()
-        for row in fetchedRows where messageRowsByRowID[row.rowID] == nil {
-            messageRowsByRowID[row.rowID] = row
-        }
+        let messageRowsByRowID = Dictionary(fetchedRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
+        let messageRows = Array(messageRowsByRowID.values)
 
         // `resolvePendingLinkPreviewChanges` already fetched+mapped these rows to
         // decide whether a preview surfaced, but it's a cold path (the >=5s
         // preview wake), so we just re-fetch+remap here uniformly rather than
         // thread a precomputed cache through the call graph.
-        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: Array(messageRowsByRowID.values), threadID: "")
+        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: messageRows, threadID: "")
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
-            messageRows: Array(messageRowsByRowID.values),
+            messageRows: messageRows,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,

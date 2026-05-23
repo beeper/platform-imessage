@@ -22,7 +22,7 @@ struct PendingLinkPreviewCandidate {
 final class EventWatcher {
     static let logger = Logger(imessageLabel: "event-watcher")
 
-    var db: IMDatabase
+    let db: IMDatabase
 
     /// Tracks the last known state of every chat.
     var chatStates = [String: TimestampedChatState]()
@@ -53,11 +53,7 @@ final class EventWatcher {
         db: IMDatabase? = nil,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
-        if let db {
-            self.db = db
-        } else {
-            self.db = try IMDatabase()
-        }
+        self.db = try db ?? IMDatabase()
 
         if Defaults.eventWatcherTraceChangeListening {
             Self.logger.debug("tracing change listening, telling IMDatabase to be noisy")
