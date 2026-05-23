@@ -40,7 +40,10 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
     /// Lazily opens the process-wide database, caching it on `state`.
     private func ensureDatabase(_ state: inout State) throws -> IMDatabase {
-        let db = try state.database ?? IMDatabase(createIndexes: true)
+        if let cached = state.database {
+            return cached
+        }
+        let db = try IMDatabase(createIndexes: true)
         state.database = db
         return db
     }
