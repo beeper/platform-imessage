@@ -1,7 +1,7 @@
 import Foundation
 import IMDatabase
 @testable import IMessage
-import IMessageCore
+@testable import IMessageCore
 import PlatformSDK
 import Testing
 

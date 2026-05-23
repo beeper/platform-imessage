@@ -38,10 +38,6 @@ public extension Topic {
         return stream
     }
 
-    package var subscriptionCount: Int {
-        subscriptions.withLock { $0.count }
-    }
-
     /**
      * Finishes all current subscribers and empties the subscriptions list.
      *
@@ -56,5 +52,11 @@ public extension Topic {
         for subscription in currentSubscriptions {
             subscription.finish()
         }
+    }
+}
+
+extension Topic {
+    var subscriptionCount: Int {
+        subscriptions.withLock { $0.count }
     }
 }

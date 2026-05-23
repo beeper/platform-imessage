@@ -21,23 +21,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     func changeTopic() throws -> Topic<Void> {
-        // Snapshot the db reference under the lock and atomically claim the setup
-        // slot, then run the external setup call OUTSIDE the lock:
-        // beginListeningForChanges opens FDs, creates an FSEventStream, and
-        // spawns a Task, none of which should run while we hold the lock.
-        //
-        // The claim must be atomic: IMDatabase's watcher/debouncer state is NOT
-        // thread-safe, so two callers must never run beginListeningForChanges
-        // concurrently. We transition `.notStarted` -> `.starting` under the lock;
-        // only the winner runs setup. The loser returns the (already-created)
-        // topic immediately and relies on the 1.0s backstop in DatabaseTickWaits
-        // for correctness until the winner finishes wiring up the watchers.
+        // Claim setup once, then run watcher startup outside the state lock.
         let (db, shouldSetUp) = try state.withLock { state -> (IMDatabase, Bool) in
             let db = try ensureDatabase(&state)
-            guard state.listening == .notStarted else {
+            guard !state.hasAttemptedChangeListeningSetup else {
                 return (db, false)
             }
-            state.listening = .starting
+            state.hasAttemptedChangeListeningSetup = true
             return (db, true)
         }
 
@@ -47,14 +37,8 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 
         do {
             try db.beginListeningForChanges()
-            state.withLock { $0.listening = .listening }
         } catch {
-            // Policy: log once and accept backstop-degraded mode. The topic just
-            // won't tick, but the 1.0s backstop in DatabaseTickWaits carries
-            // correctness at poll cadence. We deliberately do NOT retry setup on
-            // every subsequent call (no backoff) to avoid log/FD churn on a
-            // persistent failure.
-            state.withLock { $0.listening = .failed }
+            // DatabaseTickWaits' backstop polling preserves correctness if filesystem ticks are unavailable.
             platformLog.error("failed to begin listening for database changes, falling back to backstop polling: \(error)")
         }
         return db.changes
@@ -70,18 +54,9 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return db
     }
 
-    /// Tracks change-listener setup so we set it up once and don't re-run it on
-    /// every wait after a persistent failure.
-    private enum ListeningState {
-        case notStarted
-        case starting
-        case listening
-        case failed
-    }
-
     private struct State {
         var database: IMDatabase?
-        var listening: ListeningState = .notStarted
+        var hasAttemptedChangeListeningSetup = false
     }
 }
 

@@ -111,7 +111,7 @@ public extension IMDatabase {
         }
     }
 
-    fileprivate func stopListeningForChangesLocked() {
+    private func stopListeningForChangesLocked() {
         if let directoryWatcher {
             directoryWatcher.stop()
             directoryWatcher.invalidate()

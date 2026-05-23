@@ -19,9 +19,11 @@
 - [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs w secondary instance off)
 - [ ] separate `UserDefaults` somehow so that CLI and other consumers don't share the prefs
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
-- [ ] improve misfire prevention and robustness
 - [ ] when scheduled messages are actually sent, send a message update event
 - [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
+
+- [ ] improve misfire prevention and robustness
+- [ ] DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that. [wip](https://github.com/beeper/platform-imessage/tree/purav/fix-imessage-send-upsert)
 
 - cli
   - [ ] command to watch chat that prints new activity for just that chat, json new-line separated

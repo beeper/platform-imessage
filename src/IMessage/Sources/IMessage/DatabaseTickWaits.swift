@@ -37,13 +37,14 @@ enum DatabaseTickWaits {
                 try querySentMessageIDs()
             },
             evaluate: { sentMessageIDs in
+                let now = Date()
                 if sentMessageIDs.count == expectedNewMessageIDCount {
                     return .finished(sentMessageIDs)
                 }
-                if text != nil, !sentMessageIDs.isEmpty, Date() >= linkDeadline {
+                if text != nil, !sentMessageIDs.isEmpty, now >= linkDeadline {
                     return .finished(sentMessageIDs)
                 }
-                if Date() >= timeoutDeadline {
+                if now >= timeoutDeadline {
                     throw ErrorMessage("timed out waiting for sent messages")
                 }
 
@@ -73,7 +74,7 @@ enum DatabaseTickWaits {
                 try querySentThreadIDs()
             },
             evaluate: { threadIDs in
-                if !threadIDs.contains(where: { $0 == nil }) || Date() >= deadline {
+                if !threadIDs.contains(nil) || Date() >= deadline {
                     return .finished(threadIDs)
                 }
                 return .waitingUntil(deadline)
@@ -157,13 +158,8 @@ enum DatabaseTickWaits {
                 try await Task.sleep(forTimeInterval: sleepTime)
             }
 
-            do {
-                _ = try await group.next()
-                group.cancelAll()
-            } catch {
-                group.cancelAll()
-                throw error
-            }
+            defer { group.cancelAll() }
+            _ = try await group.next()
         }
     }
 }
