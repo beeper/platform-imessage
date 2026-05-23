@@ -42,6 +42,23 @@ private struct MessageUpdateEventContext {
     let mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
 }
 
+/// Snapshot of `MappedMessageRow`s and mapped `PlatformSDK.Message`s that the
+/// pending-preview resolver has already paid the DB+mapping cost for; threaded
+/// into `messageUpdateEvents(for:precomputed:)` so it doesn't redo the same
+/// `mappedMessageRows` + `messagePayloadRows` + `mapAndHashMessagesByRowID`
+/// pass for those rows.
+private struct PrecomputedRows {
+    let messageRowsByRowID: [Int: MappedMessageRow]
+    let mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
+
+    static let empty = PrecomputedRows(messageRowsByRowID: [:], mappedMessagesByRowID: [:])
+}
+
+private struct ResolvedLinkPreviewChanges {
+    let changes: [UpdatedMessageChange]
+    let precomputed: PrecomputedRows
+}
+
 extension EventWatcher {
     static func messageUpdateEvents(
         changes: [UpdatedMessageChange],
@@ -51,11 +68,17 @@ extension EventWatcher {
         currentUserID: String,
         accountID: String
     ) throws -> [ServerEvent] {
-        try messageUpdateEventContext(
-            changes: changes,
-            messageRowsByRowID: messageRowsByRowID,
+        let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
+            messageRows: Array(messageRowsByRowID.values),
             attachmentRows: attachmentRows,
             reactionRows: reactionRows,
+            currentUserID: currentUserID,
+            accountID: accountID
+        )
+        return try messageUpdateEventContext(
+            changes: changes,
+            messageRowsByRowID: messageRowsByRowID,
+            mappedMessagesByRowID: mappedMessagesByRowID,
             currentUserID: currentUserID,
             accountID: accountID
         ).events
@@ -64,8 +87,7 @@ extension EventWatcher {
     private static func messageUpdateEventContext(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow],
-        attachmentRows: [MappedAttachmentRow],
-        reactionRows: [MappedReactionMessageRow],
+        mappedMessagesByRowID: [Int: [PlatformSDK.Message]],
         currentUserID: String,
         accountID: String
     ) throws -> MessageUpdateEventContext {
@@ -113,14 +135,6 @@ extension EventWatcher {
                 change: change
             )
         }
-
-        let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
-            messageRows: pendingByRowID.values.map(\.row),
-            attachmentRows: attachmentRows,
-            reactionRows: reactionRows,
-            currentUserID: currentUserID,
-            accountID: accountID
-        )
 
         var events = [ServerEvent]()
         for pending in pendingByRowID.values {
@@ -185,13 +199,13 @@ extension EventWatcher {
         )
 
         var changes = try resolvePendingNewMessageChanges()
-        let previewChanges = try resolvePendingLinkPreviewChanges()
+        let previewResolution = try resolvePendingLinkPreviewChanges()
         rememberPendingNewMessages(rowIDs: queryResult.unresolvedNewMessageRowIDs)
 
         changes.append(contentsOf: queryResult.updatedMessages)
-        changes.append(contentsOf: previewChanges)
+        changes.append(contentsOf: previewResolution.changes)
 
-        let events = try messageUpdateEvents(for: changes)
+        let events = try messageUpdateEvents(for: changes, precomputed: previewResolution.precomputed)
         traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
         updatesCursor = queryResult.nextCursor
         schedulePendingWakeIfNeeded()
@@ -230,25 +244,51 @@ extension EventWatcher {
         }
     }
 
-    private func messageUpdateEvents(for changes: [UpdatedMessageChange]) throws -> [ServerEvent] {
+    private func messageUpdateEvents(
+        for changes: [UpdatedMessageChange],
+        precomputed: PrecomputedRows = .empty
+    ) throws -> [ServerEvent] {
         guard !changes.isEmpty else {
             traceMessageUpdates("no messages updated this time around")
             return []
         }
 
-        // `messageUpdateEventContext` merges changes per rowID internally, so we
-        // don't pre-merge here; `mappedMessageRows` already dedups by rowID.
-        let messageRows = try db.mappedMessageRows(rowIDs: changes.map(\.rowID))
-        // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
-        // chats yields multiple rows with the same ROWID. Keep first.
-        let messageRowsByRowID = Dictionary(messageRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
+        // Reuse rows and mappings that `resolvePendingLinkPreviewChanges` already
+        // paid the DB+mapping cost for; only fetch+map the rows the cache
+        // doesn't already cover. `messageUpdateEventContext` merges changes per
+        // rowID internally, so we don't pre-merge here.
+        var messageRowsByRowID = precomputed.messageRowsByRowID
+        let changeRowIDs = OrderedSet(changes.map(\.rowID))
+        let rowIDsToFetch = changeRowIDs.filter { messageRowsByRowID[$0] == nil }
+        if !rowIDsToFetch.isEmpty {
+            let fetchedRows = try db.mappedMessageRows(rowIDs: Array(rowIDsToFetch))
+            // `messageJoins` LEFT JOINs `chat_message_join`, so a message in multiple
+            // chats yields multiple rows with the same ROWID. Keep first.
+            for row in fetchedRows where messageRowsByRowID[row.rowID] == nil {
+                messageRowsByRowID[row.rowID] = row
+            }
+        }
 
-        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: Array(messageRowsByRowID.values), threadID: "")
+        var mappedMessagesByRowID = precomputed.mappedMessagesByRowID
+        let rowsToMap = messageRowsByRowID.values.filter { mappedMessagesByRowID[$0.rowID] == nil }
+        if !rowsToMap.isEmpty {
+            let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: Array(rowsToMap), threadID: "")
+            let freshlyMapped = try PlatformAPI.mapAndHashMessagesByRowID(
+                messageRows: Array(rowsToMap),
+                attachmentRows: payloadRows.attachmentRows,
+                reactionRows: payloadRows.reactionRows,
+                currentUserID: currentUserID,
+                accountID: accountID
+            )
+            for (rowID, messages) in freshlyMapped {
+                mappedMessagesByRowID[rowID] = messages
+            }
+        }
+
         let context = try Self.messageUpdateEventContext(
             changes: changes,
             messageRowsByRowID: messageRowsByRowID,
-            attachmentRows: payloadRows.attachmentRows,
-            reactionRows: payloadRows.reactionRows,
+            mappedMessagesByRowID: mappedMessagesByRowID,
             currentUserID: currentUserID,
             accountID: accountID
         )
@@ -365,14 +405,14 @@ extension EventWatcher {
         return resolvedChanges
     }
 
-    private func resolvePendingLinkPreviewChanges() throws -> [UpdatedMessageChange] {
+    private func resolvePendingLinkPreviewChanges() throws -> ResolvedLinkPreviewChanges {
         guard !pendingLinkPreviewCandidates.isEmpty else {
-            return []
+            return ResolvedLinkPreviewChanges(changes: [], precomputed: .empty)
         }
 
         expirePendingLinkPreviewCandidates()
         guard !pendingLinkPreviewCandidates.isEmpty else {
-            return []
+            return ResolvedLinkPreviewChanges(changes: [], precomputed: .empty)
         }
 
         let rowIDs = Array(pendingLinkPreviewCandidates.keys)
@@ -393,7 +433,7 @@ extension EventWatcher {
             for rowID in rowIDs where messageRowsByRowID[rowID] == nil {
                 pendingLinkPreviewCandidates.removeValue(forKey: rowID)
             }
-            return []
+            return ResolvedLinkPreviewChanges(changes: [], precomputed: .empty)
         }
 
         let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: readyRows, threadID: "")
@@ -437,7 +477,20 @@ extension EventWatcher {
             pendingLinkPreviewCandidates.removeValue(forKey: rowID)
         }
 
-        return changes
+        // Only the rows that produced changes need to be threaded forward as the
+        // precomputed cache; `messageUpdateEvents(for:)` would have refetched and
+        // remapped exactly these rows otherwise. Other ready rows (no surfaced
+        // preview yet) are not in `changes`, so they don't need caching.
+        let resolvedRowIDs = Set(changes.map(\.rowID))
+        let precomputedMessageRows = messageRowsByRowID.filter { resolvedRowIDs.contains($0.key) }
+        let precomputedMappedMessages = mappedMessagesByRowID.filter { resolvedRowIDs.contains($0.key) }
+        return ResolvedLinkPreviewChanges(
+            changes: changes,
+            precomputed: PrecomputedRows(
+                messageRowsByRowID: precomputedMessageRows,
+                mappedMessagesByRowID: precomputedMappedMessages
+            )
+        )
     }
 
     private func expirePendingLinkPreviewCandidates() {
