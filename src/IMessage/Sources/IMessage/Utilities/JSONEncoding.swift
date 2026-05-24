@@ -22,19 +22,23 @@ private func jsonSerializable(_ value: Any?) -> Any {
     }
 
     switch value {
+    case let string as String:
+        return jsonSafeString(string)
     case let data as Data:
         return data.dataURL
     case let data as NSData:
         return data.dataURL
     case let dictionary as [String: Any]:
-        return dictionary.mapValues(jsonSerializable)
+        return dictionary.reduce(into: JSONObject()) { result, element in
+            result[jsonSafeString(element.key)] = jsonSerializable(element.value)
+        }
     case let dictionary as NSDictionary:
         var result = JSONObject()
         for (key, child) in dictionary {
             guard let key = key as? String else {
                 continue
             }
-            result[key] = jsonSerializable(child)
+            result[jsonSafeString(key)] = jsonSerializable(child)
         }
         return result
     case let array as [Any]:
@@ -48,6 +52,10 @@ private func jsonSerializable(_ value: Any?) -> Any {
     default:
         return value
     }
+}
+
+private func jsonSafeString(_ string: String) -> String {
+    String(decoding: string.utf8, as: UTF8.self)
 }
 
 private let encoder = JSONEncoder()
