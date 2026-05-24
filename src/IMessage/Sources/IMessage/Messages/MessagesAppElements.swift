@@ -2,8 +2,79 @@ import AppKit
 import AccessibilityControl
 import IMessageCore
 import Logging
+import WindowControl
 
 private let log = Logger(imessageLabel: "app-elements")
+
+private struct CharacterPickerPopover {
+    static let expectedSize = CGSize(width: 346, height: 470)
+    static let searchFieldTopInset: CGFloat = 38
+    static let windowWidthRange: ClosedRange<CGFloat> = 300...420
+    static let windowHeightRange: ClosedRange<CGFloat> = 420...560
+
+    let app: Accessibility.Element
+    let ownerPID: pid_t
+
+    func detachedPopover() throws -> Accessibility.Element? {
+        try windowCandidates()
+            .lazy
+            .compactMap(popover(forWindow:))
+            .first
+    }
+
+    func searchField(in popover: Accessibility.Element) -> Accessibility.Element? {
+        if let childrenInNavigationOrder = try? popover.childrenInNavigationOrder(),
+           let searchField = childrenInNavigationOrder.first(where: Self.isSearchTextField) {
+            return searchField
+        }
+
+        if let searchField = try? popover.children().first(where: Self.isSearchTextField) {
+            return searchField
+        }
+
+        return popover.recursiveChildren().lazy.first(where: Self.isSearchTextField)
+    }
+
+    static func isPopover(_ element: Accessibility.Element) -> Bool {
+        (try? element.role()) == Accessibility.Role.popover ||
+            (try? element.roleDescription()) == "popover"
+    }
+
+    private func popover(forWindow window: Window.Description) -> Accessibility.Element? {
+        let searchPoint = CGPoint(x: window.bounds.midX, y: window.bounds.minY + Self.searchFieldTopInset)
+        guard let hit = app.elementAtScreenPoint(searchPoint),
+              Self.isSearchTextField(hit),
+              let popover = try? hit.parent(),
+              Self.isPopover(popover)
+        else { return nil }
+
+        return popover
+    }
+
+    private func windowCandidates() throws -> [Window.Description] {
+        try Window.listDescriptions(.all, excludeDesktopElements: true)
+            .filter(isCandidateWindow)
+            .sorted { score($0) < score($1) }
+    }
+
+    private func isCandidateWindow(_ description: Window.Description) -> Bool {
+        description.owner == ownerPID &&
+            description.isOnscreen == true &&
+            description.alpha > 0 &&
+            Self.windowWidthRange.contains(description.bounds.width) &&
+            Self.windowHeightRange.contains(description.bounds.height)
+    }
+
+    private func score(_ description: Window.Description) -> CGFloat {
+        abs(description.bounds.width - Self.expectedSize.width) +
+            abs(description.bounds.height - Self.expectedSize.height)
+    }
+
+    private static func isSearchTextField(_ element: Accessibility.Element) -> Bool {
+        (try? element.subrole()) == Accessibility.Subrole.searchField ||
+            (try? element.roleDescription()) == "search text field"
+    }
+}
 
 struct ElementSearchError: Error, CustomStringConvertible {
     /// What was being searched for
@@ -67,6 +138,10 @@ final class MessagesAppElements {
     private let openDeepLink: (URL) throws -> Void
 
     let app: Accessibility.Element
+
+    private var characterPickerPopoverLocator: CharacterPickerPopover {
+        CharacterPickerPopover(app: app, ownerPID: runningApp.processIdentifier)
+    }
 
     private var cachedMainWindow: Accessibility.Element?
 
@@ -402,7 +477,7 @@ final class MessagesAppElements {
     #if false
     var customEmojiPopoverCharacters: [Accessibility.Element] {
         get throws {
-            let popover = try popover
+            let popover = try characterPickerPopover
             // the CPKCharactersTableView within NSScrollView (within _NSPopoverWindow)
             let table = try popover.recursiveChildren().lazy.first(where: { (try? $0.subrole() == "table") ?? false })
                 .orThrow(ErrorMessage("couldn't find table view containing emoji results"))
@@ -410,24 +485,24 @@ final class MessagesAppElements {
     }
     #endif
 
-    /// the first popover in the main window
-    var popover: Accessibility.Element {
+    /// CharacterPalette's popover is detached from Messages' AX tree on macOS Tahoe+.
+    var characterPickerPopover: Accessibility.Element {
         get throws {
-            try find("popover") {
-                try mainWindow
-                    .recursiveChildren()
-                    .lazy
-                    .first(where: { (try? $0.roleDescription() == "popover") ?? false })
+            try find("characterPickerPopover") {
+                if let attachedPopover = try? mainWindow.recursiveChildren().lazy.first(where: CharacterPickerPopover.isPopover) {
+                    return attachedPopover
+                }
+
+                return try characterPickerPopoverLocator.detachedPopover()
             }
         }
     }
 
-    /// the first search field within the first popover in the main window
-    var searchFieldWithinPopover: Accessibility.Element {
+    /// The search field within the emoji picker popover.
+    var characterPickerSearchField: Accessibility.Element {
         get throws {
-            try find("searchFieldWithinPopover") {
-                try popover
-                    .recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "search text field") ?? false })
+            try find("characterPickerSearchField") {
+                try characterPickerPopoverLocator.searchField(in: characterPickerPopover)
             }
         }
     }
