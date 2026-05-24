@@ -13,17 +13,18 @@ enum ImageMetadataReader {
         return cache
     }()
 
-    static func cachedRead(from filePath: String) -> ImageMetadata? {
-        guard let key = cacheKey(filePath: filePath) else {
+    static func cachedRead(from filePath: String, byteCount: Int? = nil) -> ImageMetadata? {
+        guard let key = cacheKey(filePath: filePath, byteCount: byteCount) else {
             return read(from: filePath)
         }
+        let nsCacheKey = key as NSString
 
-        if let cached = cache.object(forKey: key) {
+        if let cached = cache.object(forKey: nsCacheKey) {
             return cached.metadata
         }
 
         let metadata = read(from: filePath)
-        cache.setObject(CachedImageMetadata(metadata), forKey: key)
+        cache.setObject(CachedImageMetadata(metadata), forKey: nsCacheKey)
         return metadata
     }
 
@@ -50,12 +51,15 @@ enum ImageMetadataReader {
             : ImageMetadata(width: width, height: height)
     }
 
-    private static func cacheKey(filePath: String) -> NSString? {
+    private static func cacheKey(filePath: String, byteCount: Int?) -> String? {
         let url = URL(fileURLWithPath: filePath).standardizedFileURL
+        if let byteCount {
+            return "\(url.path)\u{0}\(byteCount)"
+        }
         guard let byteCount = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber else {
             return nil
         }
-        return "\(url.path)\u{0}\(byteCount.uint64Value)" as NSString
+        return "\(url.path)\u{0}\(byteCount.uint64Value)"
     }
 
     private final class CachedImageMetadata {
