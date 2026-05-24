@@ -2,8 +2,16 @@ import AppKit
 import AccessibilityControl
 import IMessageCore
 import Logging
+import WindowControl
 
 private let log = Logger(imessageLabel: "app-elements")
+
+private enum CharacterPickerPopover {
+    static let expectedSize = CGSize(width: 346, height: 470)
+    static let searchFieldTopInset: CGFloat = 38
+    static let windowWidthRange: ClosedRange<CGFloat> = 300...420
+    static let windowHeightRange: ClosedRange<CGFloat> = 420...560
+}
 
 struct ElementSearchError: Error, CustomStringConvertible {
     /// What was being searched for
@@ -410,26 +418,96 @@ final class MessagesAppElements {
     }
     #endif
 
-    /// the first popover in the main window
+    /// CharacterPalette's popover is detached from Messages' AX tree on macOS Tahoe.
     var popover: Accessibility.Element {
         get throws {
             try find("popover") {
-                try mainWindow
-                    .recursiveChildren()
-                    .lazy
-                    .first(where: { (try? $0.roleDescription() == "popover") ?? false })
+                if let attachedPopover = try? mainWindow.recursiveChildren().lazy.first(where: isPopover) {
+                    return attachedPopover
+                }
+
+                return try detachedCharacterPickerPopover()
             }
         }
     }
 
-    /// the first search field within the first popover in the main window
+    /// The search field within the emoji picker popover.
     var searchFieldWithinPopover: Accessibility.Element {
         get throws {
             try find("searchFieldWithinPopover") {
-                try popover
-                    .recursiveChildren().lazy.first(where: { (try? $0.roleDescription() == "search text field") ?? false })
+                try searchField(in: popover)
             }
         }
+    }
+
+    private func detachedCharacterPickerPopover() throws -> Accessibility.Element? {
+        try characterPickerWindowCandidates()
+            .lazy
+            .compactMap(popover(forCharacterPickerWindow:))
+            .first
+    }
+
+    private func popover(forCharacterPickerWindow window: Window.Description) -> Accessibility.Element? {
+        let searchPoint = CGPoint(
+            x: window.bounds.midX,
+            y: window.bounds.minY + CharacterPickerPopover.searchFieldTopInset
+        )
+        guard let hit = elementAtScreenPoint(searchPoint),
+              isSearchTextField(hit),
+              let popover = try? hit.parent(),
+              isPopover(popover)
+        else { return nil }
+
+        return popover
+    }
+
+    private func characterPickerWindowCandidates() throws -> [Window.Description] {
+        try Window.listDescriptions(.all, excludeDesktopElements: true)
+            .filter { description in
+                description.owner == runningApp.processIdentifier &&
+                    description.isOnscreen == true &&
+                    description.alpha > 0 &&
+                    CharacterPickerPopover.windowWidthRange.contains(description.bounds.width) &&
+                    CharacterPickerPopover.windowHeightRange.contains(description.bounds.height)
+            }
+            .sorted { lhs, rhs in
+                characterPickerWindowDistance(lhs) < characterPickerWindowDistance(rhs)
+            }
+    }
+
+    private func characterPickerWindowDistance(_ description: Window.Description) -> CGFloat {
+        abs(description.bounds.width - CharacterPickerPopover.expectedSize.width) +
+            abs(description.bounds.height - CharacterPickerPopover.expectedSize.height)
+    }
+
+    private func searchField(in popover: Accessibility.Element) throws -> Accessibility.Element? {
+        if let childrenInNavigationOrder = try? popover.childrenInNavigationOrder(),
+           let searchField = childrenInNavigationOrder.first(where: isSearchTextField) {
+            return searchField
+        }
+
+        if let searchField = try? popover.children().first(where: isSearchTextField) {
+            return searchField
+        }
+
+        return popover.recursiveChildren().lazy.first(where: isSearchTextField)
+    }
+
+    private func elementAtScreenPoint(_ point: CGPoint) -> Accessibility.Element? {
+        if let element = try? app.hitTest(x: Float(point.x), y: Float(point.y)) {
+            return element
+        }
+        return try? Accessibility.Element.systemWide.hitTest(x: Float(point.x), y: Float(point.y))
+    }
+
+    private func isPopover(_ element: Accessibility.Element) -> Bool {
+        (try? element.role()) == Accessibility.Role.popover ||
+            (try? element.roleDescription()) == "popover"
+    }
+
+    private func isSearchTextField(_ element: Accessibility.Element) -> Bool {
+        (try? element.subrole()) == Accessibility.Subrole.searchField ||
+            (try? element.roleDescription()) == "search text field"
     }
 
     var splitter: Accessibility.Element {
