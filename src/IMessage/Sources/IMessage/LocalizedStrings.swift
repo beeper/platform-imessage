@@ -33,6 +33,7 @@ enum LocalizedStrings {
     static let reactionHa = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.ha", value: nil, table: "Accessibility")
     static let reactionExclamation = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.exclamation", value: nil, table: "Accessibility")
     static let reactionQuestionMark = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.question.mark", value: nil, table: "Accessibility")
+    static let addEmojiTapback = chatKitFramework.localizedString(forKey: "ACCESSIBILITY_ADD_EMOJI_TAPBACK", value: nil, table: "ChatKit")
     static let reply = chatKitFrameworkAxBundle.localizedString(forKey: "balloon.message.reply", value: nil, table: "Accessibility")
     static let undoSend = chatKitFramework.localizedString(forKey: "UNDO_SEND_ACTION", value: nil, table: "ChatKit")
 

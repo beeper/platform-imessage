@@ -490,10 +490,33 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func directReactionAction(messageCell: Accessibility.Element, reaction: Reaction) throws -> Accessibility.Action? {
-        let actionName = "Name:\(reaction.directActionTitle)"
+        try customMessageAction(messageCell: messageCell, named: reaction.directActionTitle)
+    }
+
+    private func customMessageAction(messageCell: Accessibility.Element, named actionTitle: String) throws -> Accessibility.Action? {
+        let actionName = "Name:\(actionTitle)"
         return try messageCell.supportedActions().first {
             $0.name.value.hasPrefix("\(actionName)\n")
         }
+    }
+
+    private func openReactionPicker(messageCell: Accessibility.Element) throws {
+        let reactAction = try messageAction(messageCell: messageCell, action: .react)
+        try reactAction() // performing this 2x will close reaction view
+
+        if isSequoiaOrUp { // wait for animation
+            Thread.sleep(forTimeInterval: 0.75)
+        }
+    }
+
+    private func openCustomEmojiReactionPicker(messageCell: Accessibility.Element) throws {
+        if let action = try customMessageAction(messageCell: messageCell, named: LocalizedStrings.addEmojiTapback) {
+            try action()
+            return
+        }
+
+        try openReactionPicker(messageCell: messageCell)
+        try elements.addCustomEmojiReactionButton.press()
     }
 
     private func threadCellAction(threadCell: Accessibility.Element, namePrefix: String) throws -> Accessibility.Action? {
@@ -767,26 +790,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 return
             }
 
-            let reactAction = try messageAction(messageCell: $0, action: .react)
-            try reactAction() // performing this 2x will close reaction view
-
-            if isSequoiaOrUp { // wait for animation
-                Thread.sleep(forTimeInterval: 0.75)
-            }
-
             if case let .custom(emoji) = reaction, on {
                 guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
-                // to react with a custom emoji, find the smile button and wrangle the character picker popover
+                try openCustomEmojiReactionPicker(messageCell: $0)
                 // TODO: support being able to pick a skin tone
-                try elements.addCustomEmojiReactionButton.press()
-                Thread.sleep(forTimeInterval: 1.0) // wait for animation
                 let search: CharacterPickerSearch
                 do {
                     search = try CharacterPickerSearch(finding: emoji)
                 } catch {
                     throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
                 }
-                try elements.searchFieldWithinPopover.value(assign: search.query)
+                let searchField = try retry(withTimeout: 1.0, interval: 0.05) {
+                    try elements.searchFieldWithinPopover
+                }
+                try searchField.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
                 // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
                 try keyPresser.downArrow()
@@ -803,6 +820,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
                 return
             }
+
+            try openReactionPicker(messageCell: $0)
 
             let btn = try {
                 if isSequoiaOrUp {
