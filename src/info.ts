@@ -1,5 +1,5 @@
 import { PlatformInfo, MessageDeletionMode, Attribute, Participant } from '@textshq/platform-sdk'
-import { supportedReactions, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP, IS_SEQUOIA_15_5_OR_UP, IS_TAHOE_OR_UP } from './common-constants'
+import { supportedReactions, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_UP } from './common-constants'
 import { isSelectable } from './common-util'
 import { BeeperMessage } from './desktop-types'
 
@@ -49,7 +49,7 @@ const info: PlatformInfo = {
       ].filter(Boolean) : []
     ),
   ]),
-  reactions: IS_SEQUOIA_OR_UP && !IS_SEQUOIA_15_5_OR_UP && !IS_TAHOE_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : { supported: supportedReactions },
+  reactions: IS_SEQUOIA_OR_UP ? { supported: supportedReactions, canReactWithAllEmojis: true } : { supported: supportedReactions },
   attachments: {
     gifMimeType: 'image/gif',
     maxSize: {
