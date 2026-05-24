@@ -4,7 +4,6 @@
 
 - [ ] publish to homebrew
 - [ ] add example Swift script that consumes the library
-- [ ] add example JS script that consumes the library
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] replace SQLite w https://github.com/pointfreeco/sqlite-data and benchmark
@@ -13,15 +12,19 @@
 - [ ] consider folding callback from `PlatformAPI.onThreadSelected` into `subscribeToEvents`
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
-- [ ] run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>
 
-- [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
 - [ ] add cross-process coordination when more than one process is driving Messages.app at the same time (e.g. Beeper Desktop + a separate CLI process, or two CLIs w secondary instance off)
 - [ ] separate `UserDefaults` somehow so that CLI and other consumers don't share the prefs
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
-- [ ] improve misfire prevention and robustness
 - [ ] when scheduled messages are actually sent, send a message update event
 - [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
+
+- concurrency
+  - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
+  - [ ] kill `PassivelyAwareDispatchQueue`
+
+- [ ] improve misfire prevention and robustness
+- [ ] DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that. [wip](https://github.com/beeper/platform-imessage/tree/purav/fix-imessage-send-upsert)
 
 - cli
   - [ ] command to watch chat that prints new activity for just that chat, json new-line separated
@@ -29,20 +32,19 @@
   - [ ] autocomplete
   - [ ] tests
 
-### Parity
-
-- [ ] add delete message for me command
-- [ ] add add/remove group participant command
-- [ ] fix sending emoji reactions (🎉)
-- [ ] add rename group title command
-- [ ] add update group image command
-- [ ] add schedule message command
-- [ ] add draft message command
-- [ ] add leave group command
-- [ ] support rich text sending
-- [ ] support sending multipart messages (image(s) with caption)
-- [ ] fix parsing for multi-part messages w inline stickers
-- [ ] [fix real time sync of message deletions (for self, undo send already works)](https://github.com/beeper/platform-imessage/pull/63)
+- parity
+  - [ ] add delete message for me command
+  - [ ] add add/remove group participant command
+  - [ ] fix sending emoji reactions (🎉)
+  - [ ] add rename group title command
+  - [ ] add update group image command
+  - [ ] add schedule message command
+  - [ ] add draft message command
+  - [ ] add leave group command
+  - [ ] support rich text sending
+  - [ ] support sending multipart messages (image(s) with caption)
+  - [ ] fix parsing for multi-part messages w inline stickers
+  - [ ] [fix real time sync of message deletions (for self, undo send already works)](https://github.com/beeper/platform-imessage/pull/63)
 
 ### Done
 
@@ -73,3 +75,5 @@
   - [x] syntax highlight
 - [x] add download attachment command
 - [x] map all message edits
+- [x] add example JS script that consumes the library
+- [ ] ~~run with node instead of electron <https://github.com/kabiroberai/node-swift/issues/4>~~
