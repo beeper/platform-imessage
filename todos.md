@@ -35,7 +35,6 @@
 - parity
   - [ ] add delete message for me command
   - [ ] add add/remove group participant command
-  - [ ] fix sending emoji reactions (🎉)
   - [ ] add rename group title command
   - [ ] add update group image command
   - [ ] add schedule message command
@@ -73,6 +72,7 @@
   - [x] format flag for yaml readable output
   - [x] one off command to print presence (dnd / dnd w notify) and typing status
   - [x] syntax highlight
+- [x] fix sending emoji reactions (🎉)
 - [x] add download attachment command
 - [x] map all message edits
 - [x] add example JS script that consumes the library

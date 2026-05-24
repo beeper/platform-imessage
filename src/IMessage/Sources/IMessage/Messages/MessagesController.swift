@@ -801,7 +801,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
                 }
                 let searchField = try retry(withTimeout: 1.0, interval: 0.05) {
-                    try elements.searchFieldWithinPopover
+                    try elements.characterPickerSearchField
                 }
                 try searchField.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
