@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Beeper/BetterSwiftAX",
       "state" : {
-        "revision" : "b39d51e11b94767be641b3a4d4cdff17a1ca5bba",
-        "version" : "0.1.0"
+        "revision" : "46d4072819491962d3b402f4b9605cece503e0c5",
+        "version" : "0.1.1"
       }
     },
     {
