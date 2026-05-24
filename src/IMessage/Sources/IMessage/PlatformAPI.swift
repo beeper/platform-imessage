@@ -21,34 +21,13 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
     }
 
     func changeTopic() throws -> Topic<Void> {
-        // Claim setup once, then run watcher startup outside the state lock.
-        let (db, shouldSetUp) = try state.withLock { state -> (IMDatabase, Bool) in
-            let db = try ensureDatabase(&state)
-
-            switch state.changeListeningSetup {
-            case .notStarted:
-                state.changeListeningSetup = .starting
-                return (db, true)
-            case .starting, .listening:
-                return (db, false)
-            }
-        }
-
-        guard shouldSetUp else {
-            return db.changes
+        let db = try state.withLock { state in
+            try ensureDatabase(&state)
         }
 
         do {
             try db.beginListeningForChanges()
-            state.withLock { state in
-                guard state.database === db, state.changeListeningSetup == .starting else { return }
-                state.changeListeningSetup = .listening
-            }
         } catch {
-            state.withLock { state in
-                guard state.database === db, state.changeListeningSetup == .starting else { return }
-                state.changeListeningSetup = .notStarted
-            }
             // DatabaseTickWaits' backstop polling preserves correctness until a later call retries listener setup.
             platformLog.error("failed to begin listening for database changes, using backstop polling until retry: \(error)")
         }
@@ -59,7 +38,6 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         let db = state.withLock { state -> IMDatabase? in
             let db = state.database
             state.database = nil
-            state.changeListeningSetup = .notStarted
             return db
         }
 
@@ -76,15 +54,8 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         return db
     }
 
-    private enum ChangeListeningSetupState: Equatable {
-        case notStarted
-        case starting
-        case listening
-    }
-
     private struct State {
         var database: IMDatabase?
-        var changeListeningSetup: ChangeListeningSetupState = .notStarted
     }
 }
 

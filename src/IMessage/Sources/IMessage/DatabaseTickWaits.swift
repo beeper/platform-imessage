@@ -8,6 +8,7 @@ private let sentMessageLinkWaitTimeout: TimeInterval = 1.5
 // Re-query at least this often even without a tick: FSEvents notifications can be
 // dropped or coalesced, so a missed tick costs ~1s instead of the full timeout.
 private let databaseTickBackstopInterval: TimeInterval = 1.0
+private let loadedAttachmentMinimumRequeryInterval: TimeInterval = 0.25
 
 enum DatabaseTickWaits {
     typealias SentMessageID = (rowID: Int, guid: String)
@@ -87,6 +88,7 @@ enum DatabaseTickWaits {
         timeout: TimeInterval,
         changes: Topic<Void>,
         backstopInterval: TimeInterval = databaseTickBackstopInterval,
+        minimumRequeryInterval: TimeInterval = loadedAttachmentMinimumRequeryInterval,
         loadMessage: @escaping @Sendable () async throws -> PlatformSDK.Message?,
         terminalAttachmentFailureState: @escaping @Sendable () async throws -> Attachment.IMFileTransferState?
     ) async throws -> PlatformSDK.Message {
@@ -96,6 +98,7 @@ enum DatabaseTickWaits {
         return try await waitForDatabaseResult(
             changes: changes,
             backstopInterval: backstopInterval,
+            minimumRequeryInterval: minimumRequeryInterval,
             query: {
                 try await loadMessage()
                     .orThrow(ErrorMessage("Could not find message \(messageID)"))
@@ -128,6 +131,7 @@ enum DatabaseTickWaits {
     private static func waitForDatabaseResult<T>(
         changes: Topic<Void>,
         backstopInterval: TimeInterval,
+        minimumRequeryInterval: TimeInterval = 0,
         query: @escaping @Sendable () async throws -> T,
         evaluate: (T) async throws -> WaitResult<T>
     ) async throws -> T {
@@ -138,7 +142,9 @@ enum DatabaseTickWaits {
             case let .finished(value):
                 return value
             case let .waitingUntil(deadline):
+                let earliestNextQuery = Date().addingTimeInterval(minimumRequeryInterval)
                 try await waitForChange(on: changeStream, until: deadline, backstopInterval: backstopInterval)
+                try await waitUntil(earliestNextQuery, cappedAt: deadline)
             }
         }
     }
@@ -161,5 +167,12 @@ enum DatabaseTickWaits {
             defer { group.cancelAll() }
             _ = try await group.next()
         }
+    }
+
+    private static func waitUntil(_ date: Date, cappedAt deadline: Date) async throws {
+        let sleepUntil = min(date, deadline)
+        let remainingTime = sleepUntil.timeIntervalSinceNow
+        guard remainingTime > 0 else { return }
+        try await Task.sleep(forTimeInterval: remainingTime)
     }
 }

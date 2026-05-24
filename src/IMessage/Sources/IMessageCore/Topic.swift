@@ -56,7 +56,9 @@ public extension Topic {
 }
 
 extension Topic {
-    var subscriptionCount: Int {
+    // Internal test hook for leak/deadlock coverage; production callers should
+    // treat Topic as an opaque broadcaster.
+    var testingSubscriptionCount: Int {
         subscriptions.withLock { $0.count }
     }
 }

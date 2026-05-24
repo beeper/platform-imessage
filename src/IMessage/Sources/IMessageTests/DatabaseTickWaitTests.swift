@@ -11,10 +11,10 @@ import Testing
         for await _ in topic.subscribe() {}
     }
 
-    #expect(await eventually { topic.subscriptionCount == 1 })
+    #expect(await eventually { topic.testingSubscriptionCount == 1 })
     task.cancel()
     await task.value
-    #expect(await eventually { topic.subscriptionCount == 0 })
+    #expect(await eventually { topic.testingSubscriptionCount == 0 })
 }
 
 @Test func sentMessageIDWaitReadsAgainOnlyAfterDatabaseTick() async throws {
@@ -45,7 +45,7 @@ import Testing
     let result = try await task.value
     #expect(result.map(\.rowID) == [11])
     #expect(queryCount.read() == 2)
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 // Proves the backstop re-queries WITHOUT any broadcast(()): the result flips
@@ -53,16 +53,8 @@ import Testing
 // well before the much-longer timeout.
 @Test func sentMessageIDWaitReQueriesOnBackstopWithoutTick() async throws {
     let changes = Topic<Void>()
-    let sentRows = Protected<[DatabaseTickWaits.SentMessageID]>([])
     let queryCount = Protected(0)
     let startedAt = Date()
-
-    Task {
-        try? await Task.sleep(forTimeInterval: 0.15)
-        sentRows.withLock {
-            $0 = [(rowID: 11, guid: "message-11")]
-        }
-    }
 
     let result = try await DatabaseTickWaits.sentMessageIDs(
         text: nil,
@@ -71,14 +63,16 @@ import Testing
         backstopInterval: 0.1
     ) {
         queryCount.withLock { $0 += 1 }
-        return sentRows.read()
+        return Date().timeIntervalSince(startedAt) >= 0.15
+            ? [(rowID: 11, guid: "message-11")]
+            : []
     }
 
     #expect(result.map(\.rowID) == [11])
     #expect(queryCount.read() >= 2)
     // Never broadcast: the backstop alone must have driven the re-query.
     #expect(Date().timeIntervalSince(startedAt) < 4.0)
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 // Proves caller cancellation propagates: a never-satisfied wait with a long
@@ -96,7 +90,7 @@ import Testing
         }
     }
 
-    #expect(await eventually { changes.subscriptionCount == 1 })
+    #expect(await eventually { changes.testingSubscriptionCount == 1 })
     task.cancel()
 
     let startedAt = Date()
@@ -104,7 +98,7 @@ import Testing
         _ = try await task.value
     }
     #expect(Date().timeIntervalSince(startedAt) < 1.0)
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func sentMessageIDWaitReturnsPartialLinkSendAfterLinkTimeout() async throws {
@@ -125,7 +119,7 @@ import Testing
     #expect(result.map(\.rowID) == [11])
     #expect(queryCount.read() == 2)
     #expect(Date().timeIntervalSince(startedAt) < 4.0)
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func sentThreadIDWaitReadsAgainOnlyAfterDatabaseTick() async throws {
@@ -155,7 +149,7 @@ import Testing
     let result = try await task.value
     #expect(result == ["thread-1"])
     #expect(queryCount.read() == 2)
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func loadedAttachmentWaitReadsAgainOnlyAfterDatabaseTick() async throws {
@@ -190,7 +184,49 @@ import Testing
     let result = try await task.value
     #expect(result.attachments?.first?.loading == false)
     #expect(queryCount.read() == 2)
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
+}
+
+@Test func loadedAttachmentWaitCoalescesNoisyTicksUntilMinimumRequeryInterval() async throws {
+    let changes = Topic<Void>()
+    let currentMessage = Protected(messageWithAttachmentLoading(true))
+    let queryCount = Protected(0)
+
+    let task = Task {
+        try await DatabaseTickWaits.loadedAttachment(
+            messageID: "message-1",
+            timeout: 1,
+            changes: changes,
+            backstopInterval: 1,
+            minimumRequeryInterval: 0.5,
+            loadMessage: {
+                queryCount.withLock { $0 += 1 }
+                return currentMessage.read()
+            },
+            terminalAttachmentFailureState: {
+                nil
+            }
+        )
+    }
+
+    #expect(await eventually { queryCount.read() == 1 && changes.testingSubscriptionCount == 1 })
+
+    for _ in 0 ..< 5 {
+        changes.broadcast(())
+        try await Task.sleep(forTimeInterval: 0.01)
+    }
+    try await Task.sleep(forTimeInterval: 0.1)
+    #expect(queryCount.read() == 1)
+
+    currentMessage.withLock {
+        $0 = messageWithAttachmentLoading(false)
+    }
+    changes.broadcast(())
+
+    let result = try await task.value
+    #expect(result.attachments?.first?.loading == false)
+    #expect(queryCount.read() == 2)
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func sentMessageIDWaitThrowsOnTimeoutWithoutTick() async throws {
@@ -204,7 +240,7 @@ import Testing
             []
         }
     }
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func sentThreadIDWaitReturnsPartialAfterDeadline() async throws {
@@ -217,7 +253,7 @@ import Testing
     }
 
     #expect(result == [nil, "thread-2"])
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func loadedAttachmentWaitThrowsWhenMessageHasNoAttachments() async throws {
@@ -231,7 +267,7 @@ import Testing
             terminalAttachmentFailureState: { nil }
         )
     }
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func loadedAttachmentWaitThrowsWhenMessageNotFound() async throws {
@@ -245,7 +281,7 @@ import Testing
             terminalAttachmentFailureState: { nil }
         )
     }
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func loadedAttachmentWaitThrowsOnTerminalFailureState() async throws {
@@ -259,7 +295,7 @@ import Testing
             terminalAttachmentFailureState: { Attachment.IMFileTransferState.error }
         )
     }
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 @Test func loadedAttachmentWaitThrowsOnTimeoutWithoutTick() async throws {
@@ -273,7 +309,7 @@ import Testing
             terminalAttachmentFailureState: { nil }
         )
     }
-    #expect(await eventually { changes.subscriptionCount == 0 })
+    #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
 // Guards the lock-release-before-finish() fix: calling finish() under the lock
@@ -281,11 +317,11 @@ import Testing
 @Test func finishCurrentSubscribersDoesNotDeadlockAndClearsSubscriptions() {
     let topic = Topic<Void>()
     let streams = (0 ..< 5).map { _ in topic.subscribe() }
-    #expect(topic.subscriptionCount == 5)
+    #expect(topic.testingSubscriptionCount == 5)
 
     topic.finishCurrentSubscribers()
 
-    #expect(topic.subscriptionCount == 0)
+    #expect(topic.testingSubscriptionCount == 0)
     withExtendedLifetime(streams) {}
 }
 

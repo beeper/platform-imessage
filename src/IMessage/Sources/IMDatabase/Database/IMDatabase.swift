@@ -96,18 +96,8 @@ private extension IMDatabase {
 public extension IMDatabase {
     func beginListeningForChanges() throws {
         try listenerLock.withLock { _ in
-            log.info("setting up filesystem watchers")
-
-            stopListeningForChangesLocked()
-
-            let unthrottledChanges = Topic<Void>()
-
-            do {
-                try setUpListeners(unthrottledChanges: unthrottledChanges)
-            } catch {
-                stopListeningForChangesLocked()
-                throw error
-            }
+            guard directoryWatcher == nil else { return }
+            try startListeningForChangesLocked()
         }
     }
 
@@ -131,6 +121,21 @@ public extension IMDatabase {
             watcher.stopListeningIfNecessary()
         }
         fileWatchers.removeAll()
+    }
+
+    private func startListeningForChangesLocked() throws {
+        log.info("setting up filesystem watchers")
+
+        stopListeningForChangesLocked()
+
+        let unthrottledChanges = Topic<Void>()
+
+        do {
+            try setUpListeners(unthrottledChanges: unthrottledChanges)
+        } catch {
+            stopListeningForChangesLocked()
+            throw error
+        }
     }
 
     private func setUpListeners(unthrottledChanges: Topic<Void>) throws {
