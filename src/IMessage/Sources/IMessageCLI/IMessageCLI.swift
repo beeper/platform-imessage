@@ -47,18 +47,22 @@ struct IMessageCLI: AsyncParsableCommand {
     var verbose = false
 
     @Option(name: .long, help: "Format structured output as json or yaml/yml.")
-    var format: OutputFormat = .json
+    var format: OutputFormat?
+
+    @Flag(exclusivity: .exclusive, help: "Format structured output.")
+    var outputFormat: OutputFormat?
 
     @Argument(parsing: .allUnrecognized, help: "Command and command arguments.")
     var commandArgs: [String] = []
 
     mutating func run() async throws {
+        let selectedOutputFormat = try resolvedOutputFormat()
         let options = RunnerOptions(
             commandArgs: commandArgs,
             customDataDir: dataDir,
             keepAlive: stayOpen,
             loggingEnabled: verbose,
-            outputFormat: format,
+            outputFormat: selectedOutputFormat,
             subscribeToEvents: !noEvents,
             useSecondaryInstance: IMessageHost.useSecondaryInstanceEnvironment ?? useSecondaryInstance
         )
@@ -66,6 +70,13 @@ struct IMessageCLI: AsyncParsableCommand {
             return
         }
         try await Runner(options: options).run()
+    }
+
+    private func resolvedOutputFormat() throws -> OutputFormat {
+        if let format, let outputFormat, format != outputFormat {
+            throw ValidationError("Use only one output format. --format \(format.rawValue) conflicts with --\(outputFormat.rawValue).")
+        }
+        return outputFormat ?? format ?? .yaml
     }
 }
 
@@ -1312,6 +1323,8 @@ private func printTopLevelHelp() {
         "  --no-events              Do not subscribe to new DB changes after running commands",
         "  --stay-open              Run one command, then stay open in the interactive shell",
         "  --verbose                Enable verbose logging",
+        "  --yaml                   Format structured output as YAML (default)",
+        "  --json                   Format structured output as JSON",
         "  --format FORMAT          Format structured output as json or yaml/yml",
         "",
     ]

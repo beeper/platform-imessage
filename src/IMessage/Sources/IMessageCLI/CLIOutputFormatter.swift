@@ -6,9 +6,18 @@ import Yams
 import Chroma
 #endif
 
-enum OutputFormat: String, ExpressibleByArgument {
-    case json
+enum OutputFormat: String, CaseIterable, EnumerableFlag, ExpressibleByArgument {
     case yaml
+    case json
+
+    static func help(for value: OutputFormat) -> ArgumentHelp? {
+        switch value {
+        case .json:
+            return "Format structured output as JSON."
+        case .yaml:
+            return "Format structured output as YAML (default)."
+        }
+    }
 
     init?(argument: String) {
         switch argument.lowercased() {

@@ -50,8 +50,8 @@ swift run imessage-cli # builds the Swift CLI if needed, launches authorization 
 3. Run one-off commands:
 ```sh
 swift run imessage-cli current-user                                                                   # fetch logged-in user
-swift run imessage-cli chats                                                                          # fetch chats
-swift run imessage-cli --format yaml chats                                                            # fetch chats as YAML (also: yml, json)
+swift run imessage-cli chats                                                                          # fetch chats as YAML by default
+swift run imessage-cli --json chats                                                                   # fetch chats as JSON (also: --yaml, --format json/yaml/yml)
 swift run imessage-cli messages sjobs@apple.com                                                       # fetch messages for an existing chat
 
 swift run imessage-cli send 'any;-;sjobs@apple.com' "hello from shell"                                # text an email
