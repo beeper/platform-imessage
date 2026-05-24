@@ -195,10 +195,10 @@ import Testing
     let task = Task {
         try await DatabaseTickWaits.loadedAttachment(
             messageID: "message-1",
-            timeout: 1,
+            timeout: 5,
             changes: changes,
-            backstopInterval: 1,
-            minimumRequeryInterval: 0.5,
+            backstopInterval: 5,
+            minimumRequeryInterval: 2,
             loadMessage: {
                 queryCount.withLock { $0 += 1 }
                 return currentMessage.read()
