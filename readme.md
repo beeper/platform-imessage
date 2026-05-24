@@ -145,5 +145,6 @@ yarn build:cli:js
 
 - [beeper/imessage](https://github.com/beeper/imessage) – Matrix bridge that connects to Apple servers directly by identifying as an iMessage-capable Apple device
 - [mautrix/imessage](https://github.com/mautrix/imessage) – Matrix bridge that has a few different backends (SIP-disabled private APIs, BlueBubbles server, etc.)
-- [pypush](https://github.com/JJTech0130/pypush) – Original tech behind beeper/imessage 
+- [lrhodin/imessage](https://github.com/lrhodin/imessage) – Matrix bridge using rustpush & bridgev2
+- [pypush](https://github.com/JJTech0130/pypush) – Original tech behind beeper/imessage
 - [rustpush](https://github.com/OpenBubbles/rustpush) – Rust port of pypush
