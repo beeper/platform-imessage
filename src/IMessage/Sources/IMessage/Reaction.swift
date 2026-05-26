@@ -72,24 +72,10 @@ enum Reaction {
     ///
     /// Support for arbitrary emojis was added in macOS Sequoia.
     init?(emoji: Character) {
-        // NOTE: This is mapping actual emoji characters into the traditional set of iMessage Tapbacks.
-        // This means it's impossible to react with an actual heart emoji character, because it gets mapped to the "iMessage heart".
-        // It's possible to choosen between either in actual iMessage.
-        //
-        // (For robustness, also accept emojified codepoints even without U+FE0F.)
-        switch emoji {
-        /* ❤️ */ case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
-        /* 👍 */ case "\u{1f44d}": self = .like
-        /* 👎 */ case "\u{1f44e}": self = .dislike
-        /* 😂 */ case "\u{1f602}": self = .laugh
-        /* ‼️ */ case "\u{203c}", "\u{203c}\u{fe0f}": self = .emphasize
-        /* ❓ */ case "\u{2753}": self = .question
-        default:
-            guard #available(macOS 15, *) else {
-                return nil
-            }
-            self = .custom(emoji: emoji)
+        guard #available(macOS 15, *) else {
+            return nil
         }
+        self = .custom(emoji: emoji)
     }
 }
 
