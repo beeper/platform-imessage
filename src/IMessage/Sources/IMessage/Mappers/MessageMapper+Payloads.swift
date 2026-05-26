@@ -149,7 +149,7 @@ extension Mapper {
         guard let payload = unwrapDictionary(payloadData) else {
             return MessagePatch(textHeading: "Find My")
         }
-        let heading = payload.string("an").flatMap(\.nonEmpty) ?? "Find My"
+        let heading = pluginPayloadAppName(payload.string("an")) ?? "Find My"
         let footer = payload.string("ldtext").flatMap(\.nonEmpty)
         let location = findMyLocation(from: payload["URL"]).map { location in
             [

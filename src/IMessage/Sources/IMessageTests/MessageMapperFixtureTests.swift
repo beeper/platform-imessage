@@ -111,6 +111,28 @@ private func findMyPayloadMessageMapsAsLocation() throws {
     #expect(location["longitude"] as? Double == 56.78)
 }
 
+@Test
+private func findMyPayloadIgnoresInfoPlistLocalizationTableHeading() throws {
+    var values = try loadFixture("message_findmy_payload")
+    let seedPayload = try #require(fixtureMapper(values).payloadData())
+    let seedURL = try #require(unwrapDictionary(seedPayload)?["URL"])
+    var messageRow = try #require(values[0] as? FixtureJSONObject)
+    messageRow["payload_data"] = try NSKeyedArchiver.archivedData(
+        withRootObject: [
+            "an": "INFO_PLIST_LOCALIZABLE_STRINGS",
+            "ldtext": "Started Sharing Fixture Location",
+            "URL": seedURL,
+        ] as NSDictionary,
+        requiringSecureCoding: false
+    )
+    values[0] = messageRow
+
+    let message = try #require(try mappedFixtureMessages(from: values).first)
+
+    #expect(message.textHeading == "Find My")
+    #expect(message.textFooter == "Started Sharing Fixture Location")
+}
+
 @Test(arguments: ["message_poll_payload_outgoing", "message_poll_payload_incoming"])
 private func pollPayloadMessageMapsAsReadableSummary(fileName: String) throws {
     let message = try mappedFixtureMessage(fileName)
@@ -443,6 +465,14 @@ private func mappedFixtureMessage(_ fileName: String) throws -> PlatformSDK.Mess
 
 private func mappedFixtureMessages(_ fileName: String) throws -> [PlatformSDK.Message] {
     let values = try loadFixture(fileName)
+    return try mappedFixtureMessages(from: values)
+}
+
+private func mappedFixtureMessages(from values: [Any]) throws -> [PlatformSDK.Message] {
+    try fixtureMapper(values).mapMessage()
+}
+
+private func fixtureMapper(_ values: [Any]) throws -> Mapper {
     #expect(values.count == 5)
 
     let messageRow = try #require(values[0] as? FixtureJSONObject)
@@ -457,5 +487,5 @@ private func mappedFixtureMessages(_ fileName: String) throws -> [PlatformSDK.Me
         reactionRows: reactionRows,
         currentUserID: currentUserID,
         accountID: accountID
-    ).mapMessage()
+    )
 }

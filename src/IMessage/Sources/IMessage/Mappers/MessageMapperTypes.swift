@@ -152,6 +152,16 @@ func gamePigeonHeading(for game: String?) -> String {
     return "\(gamePigeonDisplayName): \(trimmed)"
 }
 
+func pluginPayloadAppName(_ value: String?) -> String? {
+    // Some Apple plugin payloads store the Info.plist localization table here
+    // instead of the resolved app name.
+    guard let name = value?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+          name != "INFO_PLIST_LOCALIZABLE_STRINGS" else {
+        return nil
+    }
+    return name
+}
+
 let unsupportedBalloonBundleNames: [String: String] = [
     "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.ActivityMessagesApp.MessagesExtension": "Activity",
     "com.apple.messages.chatbot": "Business Chat",

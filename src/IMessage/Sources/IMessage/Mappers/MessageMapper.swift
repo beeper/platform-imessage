@@ -368,10 +368,7 @@ struct Mapper {
     }
 
     private func balloonPayloadAppName(from payloadData: Any) -> String? {
-        guard let appName = unwrapDictionary(payloadData)?.string("an") else {
-            return nil
-        }
-        return appName.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        pluginPayloadAppName(unwrapDictionary(payloadData)?.string("an"))
     }
 }
 
