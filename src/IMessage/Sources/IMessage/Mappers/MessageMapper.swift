@@ -28,6 +28,9 @@ struct Mapper {
         let bundleKind = BalloonBundleKind(messageRow.balloonBundleID)
 
         if messageRow.itemType != 0 {
+            if hasBrandLogoImageAttachment() {
+                return []
+            }
             if let actionMessage = mapItemTypeMessage(partialMessage: partialMessage) {
                 return [actionMessage.message()]
             }

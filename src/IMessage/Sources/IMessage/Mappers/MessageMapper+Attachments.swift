@@ -4,6 +4,10 @@ import IMessageCore
 import PlatformSDK
 
 extension Mapper {
+    func hasBrandLogoImageAttachment() -> Bool {
+        return attachmentRows.contains(where: isBrandLogoImageAttachment)
+    }
+
     func attachment(from attachmentRow: MappedAttachmentRow) -> PlatformSDK.Attachment? {
         guard let transferState = attachmentRow.transferState else {
             return nil
@@ -125,6 +129,10 @@ extension Mapper {
         }
         return message
     }
+}
+
+private func isBrandLogoImageAttachment(_ attachmentRow: MappedAttachmentRow) -> Bool {
+    attachmentRow.transferName == "BrandLogoImage"
 }
 
 private extension PlatformSDK.Size {

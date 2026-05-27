@@ -145,6 +145,11 @@ private func pollPayloadMessageMapsAsReadableSummary(fileName: String) throws {
 }
 
 @Test
+private func brandLogoAssignmentOriginalMapsToNoMessages() throws {
+    #expect(try mappedOriginalFixtureMessages("message_brand_logo_assignment").isEmpty)
+}
+
+@Test
 private func editedMessageMapsEditHistory() throws {
     var values = try loadFixture("message_event_edited")
     var messageRow = try #require(values[0] as? FixtureJSONObject)
@@ -470,6 +475,22 @@ private func mappedFixtureMessages(_ fileName: String) throws -> [PlatformSDK.Me
 
 private func mappedFixtureMessages(from values: [Any]) throws -> [PlatformSDK.Message] {
     try fixtureMapper(values).mapMessage()
+}
+
+private func mappedOriginalFixtureMessages(_ fileName: String) throws -> [PlatformSDK.Message] {
+    let original = try loadFixture(fileName)
+    #expect(original.count == 3)
+    let messageRow = try #require(original[0] as? FixtureJSONObject)
+    let attachmentRows = try #require(original[1] as? [FixtureJSONObject])
+    let currentUserID = try #require(original[2] as? String)
+
+    return try Mapper(
+        messageRow: messageRow,
+        attachmentRows: attachmentRows,
+        reactionRows: [],
+        currentUserID: currentUserID,
+        accountID: "fixture-imessage-account"
+    ).mapMessage()
 }
 
 private func fixtureMapper(_ values: [Any]) throws -> Mapper {

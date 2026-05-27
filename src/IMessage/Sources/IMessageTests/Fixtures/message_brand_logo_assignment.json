@@ -1,0 +1,41 @@
+[
+  {
+    "error": 0,
+    "date_retracted": 0,
+    "date_delivered": 0,
+    "group_action_type": 3,
+    "ROWID": 1013190,
+    "was_detonated": 0,
+    "date_read": 0,
+    "date_edited": 0,
+    "date": 797497418843043000,
+    "threadID": "any;-;fixture-agent@example.invalid",
+    "chatRowID": 4547,
+    "associated_message_type": 0,
+    "share_status": 0,
+    "is_audio_message": 0,
+    "is_from_me": 0,
+    "schedule_type": 0,
+    "service": "RCS",
+    "handle_id": 0,
+    "is_delivered": 0,
+    "is_read": 0,
+    "guid": "CD65C3D3-F94B-404F-8C84-94456C7BF021",
+    "item_type": 3
+  },
+  [
+    {
+      "total_bytes": 3709,
+      "attachmentID": "at_0_CD65C3D3-F94B-404F-8C84-94456C7BF021",
+      "transfer_name": "BrandLogoImage",
+      "is_sticker": 0,
+      "fileName": "BrandLogoImage",
+      "msgRowID": 1013190,
+      "filename": "~/Fixtures/Attachments/da/10/at_0_CD65C3D3-F94B-404F-8C84-94456C7BF021/BrandLogoImage",
+      "transfer_state": 5,
+      "filePath": "/tmp/Fixtures/Attachments/da/10/at_0_CD65C3D3-F94B-404F-8C84-94456C7BF021/BrandLogoImage",
+      "ext": ""
+    }
+  ],
+  "fixture-self@example.invalid"
+]
