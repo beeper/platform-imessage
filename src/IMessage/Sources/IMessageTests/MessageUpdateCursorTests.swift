@@ -24,3 +24,19 @@ import Testing
     #expect(result.unresolvedNewMessageRowIDs == [10])
     #expect(result.nextCursor.lastRowID == 11)
 }
+
+@Test func extremeCursorDatesDoNotOverflowWhenRebound() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let farFutureDate = Date(nanosecondsSinceReferenceDate: Int.max)
+    #expect(farFutureDate.nanosecondsSinceReferenceDate == Int.max)
+
+    let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
+        lastRowID: Int.max,
+        lastDateRead: farFutureDate,
+        lastDateEdited: farFutureDate
+    ))
+
+    #expect(result.updatedMessages.isEmpty)
+}
