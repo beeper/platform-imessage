@@ -40,10 +40,11 @@ extension MessageQueryFilter {
 
         let rawDate = input[input.index(after: spaceIndex)...]
         let date = try Date.FormatStyle().day().month().year().hour().minute().second().parse(String(rawDate))
+        let dateNanoseconds = Int64(date.nanosecondsSinceReferenceDate)
 
         switch word {
-        case "before": return Self.before(date)
-        case "after": return Self.after(date)
+        case "before": return Self.before(nanosecondsSinceReferenceDate: dateNanoseconds)
+        case "after": return Self.after(nanosecondsSinceReferenceDate: dateNanoseconds)
         default:
             throw ValidationError("Malformed query filter. \"\(word)\" isn't a valid filter. Try \"before\" or \"after\".")
         }
