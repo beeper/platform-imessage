@@ -41,6 +41,12 @@ extension Int: SQLiteBindable {
     }
 }
 
+extension Int64: SQLiteBindable {
+    public func unsafeBind(toPreparedStatement handle: OpaquePointer, at parameterIndex: Int32) throws {
+        try SQLiteError.check(sqlite3_bind_int64(handle, parameterIndex, self))
+    }
+}
+
 extension Optional: SQLiteBindable where Wrapped: SQLiteBindable {
     public func unsafeBind(toPreparedStatement handle: OpaquePointer, at parameterIndex: Int32) throws {
         switch self {

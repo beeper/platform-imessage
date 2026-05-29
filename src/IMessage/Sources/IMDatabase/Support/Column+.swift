@@ -2,13 +2,21 @@ import Foundation
 import SQLite
 
 extension Column {
-    consuming func imCoreDate() throws -> Date? {
-        guard let nanoseconds = try optionalConverting(Int.self) else {
+    consuming func imCoreDateNanoseconds() throws -> Int64? {
+        guard let nanoseconds = try optionalConverting(Int64.self) else {
             return nil
         }
 
         // For unknown reasons `0` can be present instead of `NULL`. Treat them as the same.
         guard nanoseconds > 0 else {
+            return nil
+        }
+
+        return nanoseconds
+    }
+
+    consuming func imCoreDate() throws -> Date? {
+        guard let nanoseconds = try imCoreDateNanoseconds() else {
             return nil
         }
 

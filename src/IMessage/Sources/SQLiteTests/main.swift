@@ -32,3 +32,14 @@ import Testing
         try #expect(row[0].optionalConverting(String.self) == nil)
     }
 }
+
+@Test func int64IntegersRoundTripExactly() throws {
+    let database = try Database(connecting: ":memory:", flags: .readWrite)
+    try database.execute(sqlWithoutEscaping: "CREATE TABLE vals (val INTEGER)")
+    try database.execute(sqlWithoutEscaping: "INSERT INTO vals VALUES (?)", Int64.max - 1)
+
+    let stmt = try Statement.prepare(escapedSQL: "SELECT val FROM vals", for: database)
+    try stmt.stepUntilDone { row in
+        try #expect(row[0].expect(Int64.self) == Int64.max - 1)
+    }
+}

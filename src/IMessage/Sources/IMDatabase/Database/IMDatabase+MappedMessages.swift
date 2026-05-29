@@ -45,8 +45,8 @@ public extension IMDatabase {
         return try statement.mapRowsUntilDone { row in
             MessageUpdatesCursor(
                 lastRowID: try row[0].optionalConverting(Int.self) ?? 0,
-                lastDateRead: try row[1].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0),
-                lastDateEdited: try row[2].imCoreDate() ?? Date(nanosecondsSinceReferenceDate: 0)
+                lastDateReadNanoseconds: try row[1].imCoreDateNanoseconds() ?? 0,
+                lastDateEditedNanoseconds: try row[2].imCoreDateNanoseconds() ?? 0
             )
         }.first ?? .empty
     }

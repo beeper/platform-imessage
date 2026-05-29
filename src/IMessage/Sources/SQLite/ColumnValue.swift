@@ -30,6 +30,17 @@ extension Int: ColumnValue {
     }
 }
 
+extension Int64: ColumnValue {
+    public static let preferredDataType: Column.`Type` = .integer
+
+    public static func readNonNullConverting(
+        from statement: OpaquePointer,
+        at index: Column.Index,
+        ) throws(Column.Error) -> Int64 {
+        sqlite3_column_int64(statement, index)
+    }
+}
+
 extension Double: ColumnValue {
     public static let preferredDataType: Column.`Type` = .float
 

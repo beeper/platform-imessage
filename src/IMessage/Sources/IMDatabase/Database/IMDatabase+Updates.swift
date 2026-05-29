@@ -79,13 +79,13 @@ extension IMDatabase {
         try statement.reset()
         try statement.bind(
             cursor.lastRowID,
-            cursor.lastDateRead.nanosecondsSinceReferenceDate,
-            cursor.lastDateEdited.nanosecondsSinceReferenceDate
+            cursor.lastDateReadNanoseconds,
+            cursor.lastDateEditedNanoseconds
         )
 
         var nextLastRowID = cursor.lastRowID
-        var nextLastDateRead = cursor.lastDateRead
-        var nextLastDateEdited = cursor.lastDateEdited
+        var nextLastDateReadNanoseconds = cursor.lastDateReadNanoseconds
+        var nextLastDateEditedNanoseconds = cursor.lastDateEditedNanoseconds
 
         let rows = try statement.mapRowsUntilDone { row in
             let messageRowID = try row[0].expect(Int.self)
@@ -97,17 +97,17 @@ extension IMDatabase {
             var wasRead = false
             var wasEdited = false
 
-            if let dateRead = try row[1].imCoreDate() {
-                wasRead = dateRead > cursor.lastDateRead
+            if let dateReadNanoseconds = try row[1].imCoreDateNanoseconds() {
+                wasRead = dateReadNanoseconds > cursor.lastDateReadNanoseconds
                 if wasRead {
-                    nextLastDateRead = max(dateRead, nextLastDateRead)
+                    nextLastDateReadNanoseconds = max(dateReadNanoseconds, nextLastDateReadNanoseconds)
                 }
             }
 
-            if let dateEdited = try row[2].imCoreDate() {
-                wasEdited = dateEdited > cursor.lastDateEdited
+            if let dateEditedNanoseconds = try row[2].imCoreDateNanoseconds() {
+                wasEdited = dateEditedNanoseconds > cursor.lastDateEditedNanoseconds
                 if wasEdited {
-                    nextLastDateEdited = max(dateEdited, nextLastDateEdited)
+                    nextLastDateEditedNanoseconds = max(dateEditedNanoseconds, nextLastDateEditedNanoseconds)
                 }
             }
 
@@ -166,8 +166,8 @@ extension IMDatabase {
             unresolvedNewMessageRowIDs: unresolvedNewMessageRowIDs,
             nextCursor: MessageUpdatesCursor(
                 lastRowID: nextLastRowID,
-                lastDateRead: nextLastDateRead,
-                lastDateEdited: nextLastDateEdited
+                lastDateReadNanoseconds: nextLastDateReadNanoseconds,
+                lastDateEditedNanoseconds: nextLastDateEditedNanoseconds
             )
         )
     }

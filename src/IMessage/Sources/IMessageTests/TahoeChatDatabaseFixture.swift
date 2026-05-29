@@ -36,8 +36,8 @@ final class TahoeChatDatabaseFixture {
         text: String = "",
         attributedBody: Data? = nil,
         date: Int? = nil,
-        dateRead: Int = 0,
-        dateEdited: Int = 0,
+        dateRead: Int64 = 0,
+        dateEdited: Int64 = 0,
         service: String = "iMessage"
     ) throws {
         try database.execute(

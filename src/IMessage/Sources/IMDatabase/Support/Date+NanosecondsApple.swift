@@ -17,6 +17,10 @@ public extension Date {
     init(nanosecondsSinceReferenceDate nanos: Int) {
         self = Date(timeIntervalSinceReferenceDate: Double(nanos) / 1_000_000_000)
     }
+
+    init(nanosecondsSinceReferenceDate nanos: Int64) {
+        self = Date(timeIntervalSinceReferenceDate: Double(nanos) / 1_000_000_000)
+    }
 }
 
 // SQLite INTEGER is signed 64-bit, and malformed or extreme Messages dates can

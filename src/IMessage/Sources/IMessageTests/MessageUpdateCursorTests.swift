@@ -13,8 +13,8 @@ import Testing
     let startedAt = Date()
     let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
         lastRowID: 9,
-        lastDateRead: Date(nanosecondsSinceReferenceDate: 0),
-        lastDateEdited: Date(nanosecondsSinceReferenceDate: 0)
+        lastDateReadNanoseconds: 0,
+        lastDateEditedNanoseconds: 0
     ))
 
     #expect(Date().timeIntervalSince(startedAt) < 1)
@@ -29,14 +29,45 @@ import Testing
     let fixture = try TahoeChatDatabaseFixture()
     defer { fixture.cleanup() }
 
-    let farFutureDate = Date(nanosecondsSinceReferenceDate: Int.max)
-    #expect(farFutureDate.nanosecondsSinceReferenceDate == Int.max)
-
     let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
         lastRowID: Int.max,
-        lastDateRead: farFutureDate,
-        lastDateEdited: farFutureDate
+        lastDateReadNanoseconds: Int64.max,
+        lastDateEditedNanoseconds: Int64.max
     ))
 
     #expect(result.updatedMessages.isEmpty)
+}
+
+@Test func messageUpdateCursorSnapshotKeepsRawDateIntegers() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let exactDateRead = Int64.max - 1
+    let exactDateEdited = Int64.max - 2
+    try fixture.insertMessage(rowID: 10, dateRead: exactDateRead, dateEdited: exactDateEdited)
+
+    let cursor = try fixture.imDatabase.messageUpdateCursorSnapshot()
+
+    #expect(cursor.lastDateReadNanoseconds == exactDateRead)
+    #expect(cursor.lastDateEditedNanoseconds == exactDateEdited)
+}
+
+@Test func messageUpdatesCompareRawDateCursorIntegers() throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let cursorDateRead = Int64.max - 1
+    let updatedDateRead = Int64.max
+    try fixture.insertMessage(rowID: 10, dateRead: updatedDateRead)
+    try fixture.insertChatJoin(messageRowID: 10)
+
+    let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
+        lastRowID: 10,
+        lastDateReadNanoseconds: cursorDateRead,
+        lastDateEditedNanoseconds: 0
+    ))
+
+    #expect(result.updatedMessages.map(\.rowID) == [10])
+    #expect(result.updatedMessages.first?.wasRead == true)
+    #expect(result.nextCursor.lastDateReadNanoseconds == updatedDateRead)
 }

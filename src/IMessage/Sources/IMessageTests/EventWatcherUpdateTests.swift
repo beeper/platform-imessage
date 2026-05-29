@@ -392,8 +392,8 @@ private func fixtureEventWatcher(
         serverEventSender: { _ in },
         initialUpdatesCursor: MessageUpdatesCursor(
             lastRowID: lastRowID,
-            lastDateRead: Date(nanosecondsSinceReferenceDate: 0),
-            lastDateEdited: Date(nanosecondsSinceReferenceDate: 0)
+            lastDateReadNanoseconds: 0,
+            lastDateEditedNanoseconds: 0
         ),
         currentUserID: "fixture-self@example.invalid",
         accountID: "default",
