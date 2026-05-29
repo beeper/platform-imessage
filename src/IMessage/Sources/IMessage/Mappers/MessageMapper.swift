@@ -58,7 +58,7 @@ struct Mapper {
         var messageParts = decodedMessageParts.isEmpty
             ? fallbackMessageParts(summaryInfo: summaryInfo, attachments: attachments)
             : decodedMessageParts
-        let editHistory = editHistoryByPart(summaryInfo: summaryInfo)
+        let editInfo = parseEditMetadata(summaryInfo: summaryInfo)
 
         let subject = subject()
         let addSubjectInline = shouldAddSubjectInline(subject, to: messageParts)
@@ -82,7 +82,7 @@ struct Mapper {
             partialHeader: partialHeader,
             partialFooter: partialFooter,
             attachmentsByID: attachmentsByID,
-            editHistory: editHistory
+            editInfo: editInfo
         ).filter(shouldKeepMessage)
 
         if messages.isEmpty,
@@ -280,14 +280,17 @@ struct Mapper {
         partialHeader: MessagePatch,
         partialFooter: MessagePatch,
         attachmentsByID: [String: PlatformSDK.Attachment],
-        editHistory: [Int: [PlatformSDK.MessageEdit]]
+        editInfo: MessageEditMetadata
     ) -> [MessageDraft] {
         parts.enumerated().map { partIndex, part in
             var message = partialMessage
             if parts.count > 1 {
                 message.extra["part"] = part.index
             }
-            let partEditHistory = editHistoryForPart(part, partCount: parts.count, editHistory: editHistory)
+            if !editInfo.shouldApplyEditedTimestamp(to: part, outputPartCount: parts.count) {
+                message.editedTimestamp = nil
+            }
+            let partEditHistory = editInfo.history(for: part, outputPartCount: parts.count)
             if partIndex == 0 {
                 partialHeader.apply(to: &message)
             }

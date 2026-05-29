@@ -3,24 +3,70 @@ import IMDatabase
 import IMessageCore
 import PlatformSDK
 
-extension Mapper {
-    func editHistoryByPart(summaryInfo: JSONObject) -> [Int: [PlatformSDK.MessageEdit]] {
-        guard let editedEvents = summaryInfo.dictionary("ec") else {
-            return [:]
+struct MessageEditMetadata {
+    // `editedOriginalPartKeys` is a superset of `historyByOriginalPartKey.keys`: it also covers
+    // parts listed in `ep` and `ec` keys whose events produced no recoverable edits. The builder
+    // (`parseEditMetadata`) inserts every history key into the set, so the two stay in sync.
+    fileprivate let editedOriginalPartKeys: Set<Int>
+    fileprivate let historyByOriginalPartKey: [Int: [PlatformSDK.MessageEdit]]
+
+    func shouldApplyEditedTimestamp(
+        to part: MessagePart,
+        outputPartCount: Int
+    ) -> Bool {
+        guard outputPartCount > 1, !editedOriginalPartKeys.isEmpty else {
+            return true
+        }
+        guard let originalPartKey = part.originalPart else {
+            return false
+        }
+        return editedOriginalPartKeys.contains(originalPartKey)
+    }
+
+    func history(
+        for part: MessagePart,
+        outputPartCount: Int
+    ) -> [PlatformSDK.MessageEdit]? {
+        if let originalPartKey = part.originalPart {
+            return historyByOriginalPartKey[originalPartKey]
         }
 
-        var history = [Int: [PlatformSDK.MessageEdit]]()
-        for (partKey, rawEvents) in editedEvents {
-            guard let part = Int(partKey),
-                  let events = rawEvents as? [Any] else {
-                continue
-            }
-            let edits = events.compactMap(editHistoryEvent)
-            if !edits.isEmpty {
-                history[part] = edits
+        guard outputPartCount == 1 else {
+            return nil
+        }
+
+        return historyByOriginalPartKey[part.index]
+            ?? historyByOriginalPartKey[0]
+            ?? historyByOriginalPartKey[part.index - 1]
+    }
+}
+
+extension Mapper {
+    func parseEditMetadata(summaryInfo: JSONObject) -> MessageEditMetadata {
+        var editedOriginalPartKeys = Set(summaryInfo.array("ep").compactMap { ($0 as? NSNumber)?.intValue })
+        var historyByOriginalPartKey = [Int: [PlatformSDK.MessageEdit]]()
+
+        if let editedEvents = summaryInfo.dictionary("ec") {
+            for (rawOriginalPartKey, rawEvents) in editedEvents {
+                guard let originalPartKey = Int(rawOriginalPartKey) else {
+                    continue
+                }
+                editedOriginalPartKeys.insert(originalPartKey)
+
+                guard let events = rawEvents as? [Any] else {
+                    continue
+                }
+                let edits = events.compactMap(editHistoryEvent)
+                if !edits.isEmpty {
+                    historyByOriginalPartKey[originalPartKey] = edits
+                }
             }
         }
-        return history
+
+        return MessageEditMetadata(
+            editedOriginalPartKeys: editedOriginalPartKeys,
+            historyByOriginalPartKey: historyByOriginalPartKey
+        )
     }
 
     private func editHistoryEvent(_ rawEvent: Any) -> PlatformSDK.MessageEdit? {
@@ -83,25 +129,6 @@ extension Mapper {
             return nil
         }
         return dataURLPayload(from: string).flatMap { Data(base64Encoded: $0) }
-    }
-
-    func editHistoryForPart(
-        _ part: MessagePart,
-        partCount: Int,
-        editHistory: [Int: [PlatformSDK.MessageEdit]]
-    ) -> [PlatformSDK.MessageEdit]? {
-        if let originalPart = part.originalPart,
-           let history = editHistory[originalPart] {
-            return history
-        }
-
-        guard partCount == 1 else {
-            return nil
-        }
-
-        return editHistory[part.index]
-            ?? editHistory[0]
-            ?? editHistory[part.index - 1]
     }
 
     func editHistoryExcludingCurrentMessage(

@@ -320,6 +320,15 @@ private func multipartEditHistoryDoesNotBleedIntoNextOutputPart() throws {
 }
 
 @Test
+private func multipartEditedTimestampOnlyAppliesToEditedPart() throws {
+    let messages = try mappedFixtureMessages("message_multipart_outgoing_edited_caption")
+
+    #expect(messages.map(\.editedTimestamp) == [nil, 1_780_045_129_945])
+    #expect(messages.map(\.text) == [nil, "fixture caption text!!"])
+    #expect(messages[1].editHistory?.map(\.text) == ["fixture caption text??"])
+}
+
+@Test
 private func pollSentAssociatedMessageMapsAsAction() throws {
     let outgoing = try mappedFixtureMessage("message_poll_sent_outgoing")
     let incoming = try mappedFixtureMessage("message_poll_sent_incoming")
