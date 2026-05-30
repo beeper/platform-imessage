@@ -71,8 +71,9 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         if let originalFrame = anchorWindow.originalFrame {
             log.debug("eclipsing anchor original frame: \(originalFrame.formatted)")
         }
-        if let screen = anchorWindow.screen {
-            log.debug("screen with anchor frame: \(screen.frame.formatted) [visible: \(screen.visibleFrame.formatted)]")
+        if let screenFrame = anchorWindow.containingScreenFrame,
+           let visibleFrame = anchorWindow.containingScreenVisibleFrame {
+            log.debug("screen with anchor frame: \(screenFrame.formatted) [visible: \(visibleFrame.formatted)]")
         }
         if let main = NSScreen.main {
             log.debug("main screen: \(main.frame.formatted) [visible: \(main.visibleFrame.formatted)]")
@@ -161,17 +162,21 @@ private extension EclipsingWindowCoordinator {
         let screenFrame: NSRect
         /// The original Cocoa frame; only the Electron window has one.
         let originalFrame: NSRect?
-        /// Diagnostics only.
-        let screen: NSScreen?
+        /// Diagnostics only. Captured eagerly on the main thread so consumers
+        /// don't have to touch `NSScreen` from the automation queue.
+        let containingScreenFrame: NSRect?
+        let containingScreenVisibleFrame: NSRect?
         let debugLabel: String
         let description: String
 
         static func electron(_ window: NSWindow) -> AnchorWindow {
             let frame = EclipsingWindowCoordinator.screenFrame(for: window)
+            let screen = EclipsingWindowCoordinator.screen(containing: frame)
             return AnchorWindow(
                 screenFrame: frame,
                 originalFrame: window.frame,
-                screen: EclipsingWindowCoordinator.screen(containing: frame),
+                containingScreenFrame: screen?.frame,
+                containingScreenVisibleFrame: screen?.visibleFrame,
                 debugLabel: "Electron",
                 description: "Electron window"
             )
@@ -180,10 +185,12 @@ private extension EclipsingWindowCoordinator {
         static func external(_ description: Window.Description) -> AnchorWindow {
             let frame = NSRectFromCGRect(description.bounds) // CGWindow bounds are already in screen/AX space
             let name = description.ownerName ?? "unknown"
+            let screen = EclipsingWindowCoordinator.screen(containing: frame)
             return AnchorWindow(
                 screenFrame: frame,
                 originalFrame: nil,
-                screen: EclipsingWindowCoordinator.screen(containing: frame),
+                containingScreenFrame: screen?.frame,
+                containingScreenVisibleFrame: screen?.visibleFrame,
                 debugLabel: name,
                 description: "\(name) window (pid \(description.owner))"
             )
