@@ -1,6 +1,7 @@
 import Cocoa
 import AccessibilityControl
 import Logging
+import WindowControl
 
 private let log = Logger(imessageLabel: "eclipsing-window-coordinator")
 
@@ -213,17 +214,23 @@ private extension EclipsingWindowCoordinator {
         let excludedPIDs = Set([currentPID, messagesPID].compactMap { $0 })
         let windows = externalAnchorWindows(excludingPIDs: excludedPIDs)
 
+        // prefer the frontmost app's largest window; otherwise the largest window
+        // of whichever app owns the frontmost on-screen window (z-order order).
+        let chosen: AnchorWindow?
         if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
            !excludedPIDs.contains(frontmostPID),
            let frontmostWindow = largestExternalWindow(in: windows, ownerPID: frontmostPID) {
-            return frontmostWindow
+            chosen = frontmostWindow
+        } else if let firstWindowOwnerPID = windows.first?.ownerPID {
+            chosen = largestExternalWindow(in: windows, ownerPID: firstWindowOwnerPID)
+        } else {
+            chosen = nil
         }
 
-        guard let firstWindowOwnerPID = windows.first?.ownerPID else {
-            return nil
-        }
-        return largestExternalWindow(in: windows, ownerPID: firstWindowOwnerPID)
-            ?? windows.max(by: { $0.screenFrame.area < $1.screenFrame.area })
+        // resolve the host screen only for the window we actually return.
+        guard var anchor = chosen else { return nil }
+        anchor.screen = screen(containing: anchor.screenFrame)
+        return anchor
     }
 
     static func largestExternalWindow(in windows: [AnchorWindow], ownerPID: pid_t) -> AnchorWindow? {
@@ -233,37 +240,34 @@ private extension EclipsingWindowCoordinator {
     }
 
     static func externalAnchorWindows(excludingPIDs excludedPIDs: Set<pid_t>) -> [AnchorWindow] {
-        guard let windowInfos = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [NSDictionary] else {
+        guard let descriptions = try? Window.listDescriptions(.onScreen, excludeDesktopElements: true) else {
             return []
         }
 
-        return windowInfos.compactMap { windowInfo -> AnchorWindow? in
-            guard let ownerPID = windowInfo[kCGWindowOwnerPID] as? pid_t,
-                  !excludedPIDs.contains(ownerPID),
-                  (windowInfo[kCGWindowLayer] as? Int) == 0,
-                  (windowInfo[kCGWindowAlpha] as? Double ?? 1) > 0,
-                  let boundsValue = windowInfo[kCGWindowBounds],
-                  let bounds = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary)
+        return descriptions.compactMap { description -> AnchorWindow? in
+            guard !excludedPIDs.contains(description.owner),
+                  description.layer == 0,
+                  description.alpha > 0
             else {
                 return nil
             }
 
-            let frame = NSRectFromCGRect(bounds)
+            let frame = NSRectFromCGRect(description.bounds)
             guard frame.width >= Self.messagesAppMinimumSize.width,
                   frame.height >= Self.messagesAppMinimumSize.height
             else {
                 return nil
             }
 
-            let ownerName = windowInfo[kCGWindowOwnerName] as? String ?? "unknown"
-            let description = "\(ownerName) window (pid \(ownerPID))"
+            let ownerName = description.ownerName ?? "unknown"
+            // `screen` is resolved later, only for the window we ultimately pick.
             return AnchorWindow(
-                description: description,
+                description: "\(ownerName) window (pid \(description.owner))",
                 debugLabel: ownerName,
                 screenFrame: frame,
                 originalFrame: nil,
-                screen: screen(containing: frame),
-                ownerPID: ownerPID
+                screen: nil,
+                ownerPID: description.owner
             )
         }
     }
