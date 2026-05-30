@@ -148,13 +148,41 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
 }
 
 private extension EclipsingWindowCoordinator {
+    /// A fully-resolved eclipse anchor. All AppKit-derived geometry is captured
+    /// eagerly at construction (on the main thread, see `eclipsingAnchorWindow`),
+    /// so consumers on the background automation queue only read plain values.
     struct AnchorWindow {
-        var description: String
-        var debugLabel: String
-        var screenFrame: NSRect
-        var originalFrame: NSRect?
-        var screen: NSScreen?
-        var ownerPID: pid_t? = nil
+        /// Frame in screen/AX space (origin at the top-left of the primary display).
+        let screenFrame: NSRect
+        /// The original Cocoa frame; only the Electron window has one.
+        let originalFrame: NSRect?
+        /// Diagnostics only.
+        let screen: NSScreen?
+        let debugLabel: String
+        let description: String
+
+        static func electron(_ window: NSWindow) -> AnchorWindow {
+            let frame = EclipsingWindowCoordinator.screenFrame(for: window)
+            return AnchorWindow(
+                screenFrame: frame,
+                originalFrame: window.frame,
+                screen: EclipsingWindowCoordinator.screen(containing: frame),
+                debugLabel: "Electron",
+                description: "Electron window"
+            )
+        }
+
+        static func external(_ description: Window.Description) -> AnchorWindow {
+            let frame = NSRectFromCGRect(description.bounds) // CGWindow bounds are already in screen/AX space
+            let name = description.ownerName ?? "unknown"
+            return AnchorWindow(
+                screenFrame: frame,
+                originalFrame: nil,
+                screen: EclipsingWindowCoordinator.screen(containing: frame),
+                debugLabel: name,
+                description: "\(name) window (pid \(description.owner))"
+            )
+        }
     }
 
     private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.imessage.double(forKey: DefaultsKeys.hidingCoordinatorDebounce)) }
@@ -174,113 +202,81 @@ private extension EclipsingWindowCoordinator {
     static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
 
     static func eclipsingAnchorWindow(messagesPID: pid_t?) throws -> AnchorWindow {
-        if let window = NSApplication.shared.largestElectronWindow {
-            let screenFrame = screenFrame(for: window)
-            return AnchorWindow(
-                description: "Electron window",
-                debugLabel: "Electron",
-                screenFrame: screenFrame,
-                originalFrame: window.frame,
-                screen: window.screen
-            )
-        }
+        // These reads touch main-thread-affined AppKit state (NSApp.windows,
+        // NSWorkspace, NSScreen), but makeAutomatable runs on a background queue.
+        try onMain {
+            if let window = NSApplication.shared.largestElectronWindow {
+                return AnchorWindow.electron(window)
+            }
 
-        if let window = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
-            log.notice("falling back to external frontmost window for eclipsing: \(window.description)")
-            return window
-        }
+            if let description = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
+                let anchor = AnchorWindow.external(description)
+                log.notice("falling back to external frontmost window for eclipsing: \(anchor.description)")
+                return anchor
+            }
 
-        throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
+            throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
+        }
+    }
+
+    /// Runs `work` on the main thread synchronously, without deadlocking if the
+    /// caller is already on it.
+    private static func onMain<T>(_ work: () throws -> T) rethrows -> T {
+        if Thread.isMainThread {
+            return try work()
+        }
+        return try DispatchQueue.main.sync(execute: work)
     }
 
     static func screenFrame(for window: NSWindow) -> NSRect {
-        let frame = window.frame
-        guard let screen = window.screen else {
-            log.warning("can't determine which screen the Electron window is on, using original frame which will result in an unexpected position")
-            return frame
+        if window.screen == nil {
+            log.warning("can't determine which screen the Electron window is on; the eclipse position may be unexpected")
         }
-
-        // NSWindow frames are Cocoa coordinates with an origin at bottom-left.
-        // Accessibility window positions use the screen coordinate space with an
-        // origin at top-left, which matches CGWindow bounds.
-        return NSRect(
-            origin: NSPoint(x: frame.origin.x, y: screen.frame.height - frame.maxY),
-            size: frame.size
-        )
+        // NSWindow frames are Cocoa coordinates (origin bottom-left); Accessibility
+        // window positions use screen space (origin top-left, matching CGWindow bounds).
+        return window.frame.flippedBetweenCocoaAndScreenSpace()
     }
 
-    static func externalEclipsingAnchorWindow(messagesPID: pid_t?) -> AnchorWindow? {
-        let currentPID = getpid()
-        let excludedPIDs = Set([currentPID, messagesPID].compactMap { $0 })
-        let windows = externalAnchorWindows(excludingPIDs: excludedPIDs)
+    /// Picks an external on-screen window to eclipse behind when no Beeper/Electron
+    /// window is available. Best-effort: it prefers the window most likely to be in
+    /// front (the frontmost app's topmost window, else the topmost window overall),
+    /// but it can't guarantee z-order for a non-Beeper anchor, so the eclipse may
+    /// not fully hide Messages.
+    static func externalEclipsingAnchorWindow(messagesPID: pid_t?) -> Window.Description? {
+        let excludedPIDs = Set([getpid(), messagesPID].compactMap { $0 })
+        let candidates = externalAnchorWindows(excludingPIDs: excludedPIDs) // front-to-back z-order
 
-        // prefer the frontmost app's largest window; otherwise the largest window
-        // of whichever app owns the frontmost on-screen window (z-order order).
-        let chosen: AnchorWindow?
         if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
            !excludedPIDs.contains(frontmostPID),
-           let frontmostWindow = largestExternalWindow(in: windows, ownerPID: frontmostPID) {
-            chosen = frontmostWindow
-        } else if let firstWindowOwnerPID = windows.first?.ownerPID {
-            chosen = largestExternalWindow(in: windows, ownerPID: firstWindowOwnerPID)
-        } else {
-            chosen = nil
+           let frontmostWindow = candidates.first(where: { $0.owner == frontmostPID }) {
+            return frontmostWindow
         }
-
-        // resolve the host screen only for the window we actually return.
-        guard var anchor = chosen else { return nil }
-        anchor.screen = screen(containing: anchor.screenFrame)
-        return anchor
+        return candidates.first
     }
 
-    static func largestExternalWindow(in windows: [AnchorWindow], ownerPID: pid_t) -> AnchorWindow? {
-        windows
-            .filter { $0.ownerPID == ownerPID }
-            .max(by: { $0.screenFrame.area < $1.screenFrame.area })
-    }
-
-    static func externalAnchorWindows(excludingPIDs excludedPIDs: Set<pid_t>) -> [AnchorWindow] {
+    static func externalAnchorWindows(excludingPIDs excludedPIDs: Set<pid_t>) -> [Window.Description] {
+        // listDescriptions is resilient to individual malformed windows (it skips them).
         guard let descriptions = try? Window.listDescriptions(.onScreen, excludeDesktopElements: true) else {
             return []
         }
 
-        return descriptions.compactMap { description -> AnchorWindow? in
-            guard !excludedPIDs.contains(description.owner),
-                  description.layer == 0,
-                  description.alpha > 0
-            else {
-                return nil
-            }
-
-            let frame = NSRectFromCGRect(description.bounds)
-            guard frame.width >= Self.messagesAppMinimumSize.width,
-                  frame.height >= Self.messagesAppMinimumSize.height
-            else {
-                return nil
-            }
-
-            let ownerName = description.ownerName ?? "unknown"
-            // `screen` is resolved later, only for the window we ultimately pick.
-            return AnchorWindow(
-                description: "\(ownerName) window (pid \(description.owner))",
-                debugLabel: ownerName,
-                screenFrame: frame,
-                originalFrame: nil,
-                screen: nil,
-                ownerPID: description.owner
-            )
+        // NOTE: no size filter here — anchor size adequacy is enforced uniformly for
+        // both anchor kinds by the `shouldOnlyEclipseIfEncompasses` guard against the
+        // real targetSize in makeAutomatable.
+        return descriptions.filter { description in
+            !excludedPIDs.contains(description.owner)
+                && description.layer == 0
+                // skip near-transparent/fading windows that wouldn't actually hide Messages
+                && description.alpha >= 0.5
         }
     }
 
     static func screen(containing screenFrame: NSRect) -> NSScreen? {
-        let center = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
-        return NSScreen.screens.first { screen in
-            let topLeftFrame = NSRect(
-                origin: NSPoint(x: screen.frame.minX, y: screen.frame.height - screen.frame.maxY),
-                size: screen.frame.size
-            )
-            return topLeftFrame.contains(center)
-        }
+        // screenFrame is in screen/AX space (origin top-left); NSScreen frames are
+        // Cocoa space (origin bottom-left), so flip the center point before testing.
+        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return nil }
+        let cocoaCenter = NSPoint(x: screenFrame.midX, y: primaryHeight - screenFrame.midY)
+        return NSScreen.screens.first { $0.frame.contains(cocoaCenter) }
     }
 }
 

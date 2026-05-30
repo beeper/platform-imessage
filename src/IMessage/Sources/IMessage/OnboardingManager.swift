@@ -30,8 +30,8 @@ final class OnboardingManager {
     }
 
     func createOrUpdateWindow(_ bounds: CGRect) {
-        var rect = NSRectFromCGRect(bounds)
-        rect.origin.y = (NSScreen.main?.frame.height ?? 0) - rect.size.height - rect.origin.y
+        // `bounds` is in screen/AX space (CGWindow bounds); NSWindow wants Cocoa space.
+        let rect = NSRectFromCGRect(bounds).flippedBetweenCocoaAndScreenSpace()
 
         let authPromptShown = initialWidth ?? bounds.width > bounds.width
         if onboardingWindow == nil {
