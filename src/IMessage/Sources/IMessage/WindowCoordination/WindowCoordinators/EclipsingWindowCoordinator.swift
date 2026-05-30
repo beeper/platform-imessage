@@ -37,7 +37,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
-        let largestElectronWindow = try NSApp.largestElectronWindow.orThrow(WindowCoordinatorError.generic(message: "Couldn't find Electron window"))
+        let anchorWindow = try Self.eclipsingAnchorWindow(messagesPID: app?.processIdentifier)
 
         let originalMessagesFrame = try messagesWindow.frame()
         if windowFramePreEclipse == nil {
@@ -50,53 +50,40 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         if targetSize.height == 0 {
             // if `height` is 0, then the default value was overridden with a different/invalid type.
             // assume the user wants the height to match (so setting "match" as the height produces the desired effect).
-            targetSize.height = largestElectronWindow.frame.height
+            targetSize.height = anchorWindow.screenFrame.height
         } else if targetSize.height < 0 {
             // if the `height` is a negative number, treat it as a delta that's applied to the Beeper window height.
             // clamp to the minimum height because this "delta height" represents a best-effort preference.
-            targetSize.height = max(Self.messagesAppMinimumSize.height, largestElectronWindow.frame.height + targetSize.height)
+            targetSize.height = max(Self.messagesAppMinimumSize.height, anchorWindow.screenFrame.height + targetSize.height)
         }
 
         if !Self.messagesAppMinimumSize.encompasses(targetSize) {
             log.warning("target size \(targetSize) is smaller than the minimum size \(Self.messagesAppMinimumSize), trying anyways")
         }
 
-        let originalElectronFrame = largestElectronWindow.frame
-        let flippedElectronFrame: NSRect = {
-            guard let screen = largestElectronWindow.screen else {
-                log.warning("can't determine which screen the electron window is on, using original frame which will result in an unexpected position")
-                return originalElectronFrame
-            }
-
-            // the origin of the window frame is coincident with the bottom-left corner, and is in the cocoa coordinate space (origin at bottom-left)
-            // however, the screen coordinate space (which is used when manipulating windows via AX) has the origin at the top-left
-            // correct the frame to account for this
-            return NSRect(
-                origin: NSPoint(x: originalElectronFrame.origin.x, y: screen.frame.height - originalElectronFrame.maxY),
-                size: originalElectronFrame.size,
-                )
-        }()
-        log.debug("largest electron window frame (original): \(originalElectronFrame.formatted)")
-        log.debug("largest electron window frame (in screen space): \(flippedElectronFrame.formatted)")
-        if let screen = largestElectronWindow.screen {
-            log.debug("screen with electron frame: \(screen.frame.formatted) [visible: \(screen.visibleFrame.formatted)]")
+        log.debug("eclipsing anchor: \(anchorWindow.description), frame: \(anchorWindow.screenFrame.formatted)")
+        if let originalFrame = anchorWindow.originalFrame {
+            log.debug("eclipsing anchor original frame: \(originalFrame.formatted)")
+        }
+        if let screen = anchorWindow.screen {
+            log.debug("screen with anchor frame: \(screen.frame.formatted) [visible: \(screen.visibleFrame.formatted)]")
         }
         if let main = NSScreen.main {
             log.debug("main screen: \(main.frame.formatted) [visible: \(main.visibleFrame.formatted)]")
         }
-        guard flippedElectronFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
-            log.warning("the largest Electron window's frame \(originalElectronFrame.formatted) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing!")
+        guard anchorWindow.screenFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
+            log.warning("the eclipsing anchor's frame \(anchorWindow.screenFrame.formatted) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing!")
             return
         }
 
         // NOTE: this refers to the top-left corner of the Messages window
         let targetOrigin = {
-            var base = flippedElectronFrame.origin
+            var base = anchorWindow.screenFrame.origin
 
             if Self.eclipsingAlignment == "right" {
                 // make the right edge of the Messages window hug the right edge of the Beeper window.
                 // this is useful to avoid the window showing through a material in the Beeper window.
-                base.x = flippedElectronFrame.maxX - targetSize.width
+                base.x = anchorWindow.screenFrame.maxX - targetSize.width
             } else {
                 // left-alignment is naturally default
             }
@@ -119,7 +106,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             Task { @MainActor in
                 let debugger = EclipsingDebugger.shared
                 debugger.note(EclipsingRect(at: originalMessagesFrame, label: "Original", color: NSColor.systemRed.cgColor))
-                debugger.note(EclipsingRect(at: flippedElectronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
+                debugger.note(EclipsingRect(at: anchorWindow.screenFrame, label: anchorWindow.debugLabel, color: NSColor.systemGray.cgColor))
                 debugger.note(EclipsingRect(at: targetRect, label: "Target", color: NSColor.systemGreen.cgColor))
                 // i think this is up-to-date by now? might need to wait for a next
                 // runloop turn?
@@ -160,6 +147,15 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
 }
 
 private extension EclipsingWindowCoordinator {
+    struct AnchorWindow {
+        var description: String
+        var debugLabel: String
+        var screenFrame: NSRect
+        var originalFrame: NSRect?
+        var screen: NSScreen?
+        var ownerPID: pid_t? = nil
+    }
+
     private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.imessage.double(forKey: DefaultsKeys.hidingCoordinatorDebounce)) }
     private static var shouldOnlyEclipseIfEncompasses: Bool { Defaults.imessage.bool(forKey: DefaultsKeys.onlyEclipseIfEncompasses) }
     private static var eclipsingOffsetX: CGFloat { Defaults.imessage.double(forKey: DefaultsKeys.eclipsingOffsetX) }
@@ -175,6 +171,113 @@ private extension EclipsingWindowCoordinator {
 
     // Accurate as of macOS 15.3.2.
     static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
+
+    static func eclipsingAnchorWindow(messagesPID: pid_t?) throws -> AnchorWindow {
+        if let window = NSApplication.shared.largestElectronWindow {
+            let screenFrame = screenFrame(for: window)
+            return AnchorWindow(
+                description: "Electron window",
+                debugLabel: "Electron",
+                screenFrame: screenFrame,
+                originalFrame: window.frame,
+                screen: window.screen
+            )
+        }
+
+        if let window = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
+            log.notice("falling back to external frontmost window for eclipsing: \(window.description)")
+            return window
+        }
+
+        throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
+    }
+
+    static func screenFrame(for window: NSWindow) -> NSRect {
+        let frame = window.frame
+        guard let screen = window.screen else {
+            log.warning("can't determine which screen the Electron window is on, using original frame which will result in an unexpected position")
+            return frame
+        }
+
+        // NSWindow frames are Cocoa coordinates with an origin at bottom-left.
+        // Accessibility window positions use the screen coordinate space with an
+        // origin at top-left, which matches CGWindow bounds.
+        return NSRect(
+            origin: NSPoint(x: frame.origin.x, y: screen.frame.height - frame.maxY),
+            size: frame.size
+        )
+    }
+
+    static func externalEclipsingAnchorWindow(messagesPID: pid_t?) -> AnchorWindow? {
+        let currentPID = getpid()
+        let excludedPIDs = Set([currentPID, messagesPID].compactMap { $0 })
+        let windows = externalAnchorWindows(excludingPIDs: excludedPIDs)
+
+        if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+           !excludedPIDs.contains(frontmostPID),
+           let frontmostWindow = largestExternalWindow(in: windows, ownerPID: frontmostPID) {
+            return frontmostWindow
+        }
+
+        guard let firstWindowOwnerPID = windows.first?.ownerPID else {
+            return nil
+        }
+        return largestExternalWindow(in: windows, ownerPID: firstWindowOwnerPID)
+            ?? windows.max(by: { $0.screenFrame.area < $1.screenFrame.area })
+    }
+
+    static func largestExternalWindow(in windows: [AnchorWindow], ownerPID: pid_t) -> AnchorWindow? {
+        windows
+            .filter { $0.ownerPID == ownerPID }
+            .max(by: { $0.screenFrame.area < $1.screenFrame.area })
+    }
+
+    static func externalAnchorWindows(excludingPIDs excludedPIDs: Set<pid_t>) -> [AnchorWindow] {
+        guard let windowInfos = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [NSDictionary] else {
+            return []
+        }
+
+        return windowInfos.compactMap { windowInfo -> AnchorWindow? in
+            guard let ownerPID = windowInfo[kCGWindowOwnerPID] as? pid_t,
+                  !excludedPIDs.contains(ownerPID),
+                  (windowInfo[kCGWindowLayer] as? Int) == 0,
+                  (windowInfo[kCGWindowAlpha] as? Double ?? 1) > 0,
+                  let boundsValue = windowInfo[kCGWindowBounds],
+                  let bounds = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary)
+            else {
+                return nil
+            }
+
+            let frame = NSRectFromCGRect(bounds)
+            guard frame.width >= Self.messagesAppMinimumSize.width,
+                  frame.height >= Self.messagesAppMinimumSize.height
+            else {
+                return nil
+            }
+
+            let ownerName = windowInfo[kCGWindowOwnerName] as? String ?? "unknown"
+            let description = "\(ownerName) window (pid \(ownerPID))"
+            return AnchorWindow(
+                description: description,
+                debugLabel: ownerName,
+                screenFrame: frame,
+                originalFrame: nil,
+                screen: screen(containing: frame),
+                ownerPID: ownerPID
+            )
+        }
+    }
+
+    static func screen(containing screenFrame: NSRect) -> NSScreen? {
+        let center = NSPoint(x: screenFrame.midX, y: screenFrame.midY)
+        return NSScreen.screens.first { screen in
+            let topLeftFrame = NSRect(
+                origin: NSPoint(x: screen.frame.minX, y: screen.frame.height - screen.frame.maxY),
+                size: screen.frame.size
+            )
+            return topLeftFrame.contains(center)
+        }
+    }
 }
 
 // MARK: - Extensions
