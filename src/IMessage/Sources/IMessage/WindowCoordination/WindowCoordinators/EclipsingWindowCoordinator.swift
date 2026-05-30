@@ -38,7 +38,12 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
-        let anchorWindow = try Self.eclipsingAnchorWindow(messagesPID: app?.processIdentifier)
+        // Required so we can exclude the Messages window itself from external anchor candidates;
+        // without it the eclipse would no-op (positioning Messages on top of itself).
+        guard let messagesPID = app?.processIdentifier else {
+            throw WindowCoordinatorError.generic(message: "no app to coordinate")
+        }
+        let anchorWindow = try Self.eclipsingAnchorWindow(messagesPID: messagesPID)
 
         let originalMessagesFrame = try messagesWindow.frame()
         if windowFramePreEclipse == nil {
@@ -201,7 +206,7 @@ private extension EclipsingWindowCoordinator {
     // Accurate as of macOS 15.3.2.
     static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
 
-    static func eclipsingAnchorWindow(messagesPID: pid_t?) throws -> AnchorWindow {
+    static func eclipsingAnchorWindow(messagesPID: pid_t) throws -> AnchorWindow {
         // These reads touch main-thread-affined AppKit state (NSApp.windows,
         // NSWorkspace, NSScreen), but makeAutomatable runs on a background queue.
         try onMain {
@@ -242,8 +247,8 @@ private extension EclipsingWindowCoordinator {
     /// front (the frontmost app's topmost window, else the topmost window overall),
     /// but it can't guarantee z-order for a non-Beeper anchor, so the eclipse may
     /// not fully hide Messages.
-    static func externalEclipsingAnchorWindow(messagesPID: pid_t?) -> Window.Description? {
-        let excludedPIDs = Set([getpid(), messagesPID].compactMap { $0 })
+    static func externalEclipsingAnchorWindow(messagesPID: pid_t) -> Window.Description? {
+        let excludedPIDs: Set<pid_t> = [getpid(), messagesPID]
         let candidates = externalAnchorWindows(excludingPIDs: excludedPIDs) // front-to-back z-order
 
         if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
