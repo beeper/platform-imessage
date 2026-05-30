@@ -1,6 +1,7 @@
 import Cocoa
 import AccessibilityControl
 import Logging
+import WindowControl
 
 private let log = Logger(imessageLabel: "eclipsing-window-coordinator")
 
@@ -37,7 +38,12 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     }
 
     func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
-        let largestElectronWindow = try NSApp.largestElectronWindow.orThrow(WindowCoordinatorError.generic(message: "Couldn't find Electron window"))
+        // Required so we can exclude the Messages window itself from external anchor candidates;
+        // without it the eclipse would no-op (positioning Messages on top of itself).
+        guard let messagesPID = app?.processIdentifier else {
+            throw WindowCoordinatorError.generic(message: "no app to coordinate")
+        }
+        let anchorWindow = try Self.eclipsingAnchorWindow(messagesPID: messagesPID)
 
         let originalMessagesFrame = try messagesWindow.frame()
         if windowFramePreEclipse == nil {
@@ -50,53 +56,41 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         if targetSize.height == 0 {
             // if `height` is 0, then the default value was overridden with a different/invalid type.
             // assume the user wants the height to match (so setting "match" as the height produces the desired effect).
-            targetSize.height = largestElectronWindow.frame.height
+            targetSize.height = anchorWindow.screenFrame.height
         } else if targetSize.height < 0 {
             // if the `height` is a negative number, treat it as a delta that's applied to the Beeper window height.
             // clamp to the minimum height because this "delta height" represents a best-effort preference.
-            targetSize.height = max(Self.messagesAppMinimumSize.height, largestElectronWindow.frame.height + targetSize.height)
+            targetSize.height = max(Self.messagesAppMinimumSize.height, anchorWindow.screenFrame.height + targetSize.height)
         }
 
         if !Self.messagesAppMinimumSize.encompasses(targetSize) {
             log.warning("target size \(targetSize) is smaller than the minimum size \(Self.messagesAppMinimumSize), trying anyways")
         }
 
-        let originalElectronFrame = largestElectronWindow.frame
-        let flippedElectronFrame: NSRect = {
-            guard let screen = largestElectronWindow.screen else {
-                log.warning("can't determine which screen the electron window is on, using original frame which will result in an unexpected position")
-                return originalElectronFrame
-            }
-
-            // the origin of the window frame is coincident with the bottom-left corner, and is in the cocoa coordinate space (origin at bottom-left)
-            // however, the screen coordinate space (which is used when manipulating windows via AX) has the origin at the top-left
-            // correct the frame to account for this
-            return NSRect(
-                origin: NSPoint(x: originalElectronFrame.origin.x, y: screen.frame.height - originalElectronFrame.maxY),
-                size: originalElectronFrame.size,
-                )
-        }()
-        log.debug("largest electron window frame (original): \(originalElectronFrame.formatted)")
-        log.debug("largest electron window frame (in screen space): \(flippedElectronFrame.formatted)")
-        if let screen = largestElectronWindow.screen {
-            log.debug("screen with electron frame: \(screen.frame.formatted) [visible: \(screen.visibleFrame.formatted)]")
+        log.debug("eclipsing anchor: \(anchorWindow.description), frame: \(anchorWindow.screenFrame.formatted)")
+        if let originalFrame = anchorWindow.originalFrame {
+            log.debug("eclipsing anchor original frame: \(originalFrame.formatted)")
+        }
+        if let screenFrame = anchorWindow.containingScreenFrame,
+           let visibleFrame = anchorWindow.containingScreenVisibleFrame {
+            log.debug("screen with anchor frame: \(screenFrame.formatted) [visible: \(visibleFrame.formatted)]")
         }
         if let main = NSScreen.main {
             log.debug("main screen: \(main.frame.formatted) [visible: \(main.visibleFrame.formatted)]")
         }
-        guard flippedElectronFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
-            log.warning("the largest Electron window's frame \(originalElectronFrame.formatted) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing!")
+        guard anchorWindow.screenFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
+            log.warning("the eclipsing anchor's frame \(anchorWindow.screenFrame.formatted) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing!")
             return
         }
 
         // NOTE: this refers to the top-left corner of the Messages window
         let targetOrigin = {
-            var base = flippedElectronFrame.origin
+            var base = anchorWindow.screenFrame.origin
 
             if Self.eclipsingAlignment == "right" {
                 // make the right edge of the Messages window hug the right edge of the Beeper window.
                 // this is useful to avoid the window showing through a material in the Beeper window.
-                base.x = flippedElectronFrame.maxX - targetSize.width
+                base.x = anchorWindow.screenFrame.maxX - targetSize.width
             } else {
                 // left-alignment is naturally default
             }
@@ -119,7 +113,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
             Task { @MainActor in
                 let debugger = EclipsingDebugger.shared
                 debugger.note(EclipsingRect(at: originalMessagesFrame, label: "Original", color: NSColor.systemRed.cgColor))
-                debugger.note(EclipsingRect(at: flippedElectronFrame, label: "Electron", color: NSColor.systemGray.cgColor))
+                debugger.note(EclipsingRect(at: anchorWindow.screenFrame, label: anchorWindow.debugLabel, color: NSColor.systemGray.cgColor))
                 debugger.note(EclipsingRect(at: targetRect, label: "Target", color: NSColor.systemGreen.cgColor))
                 // i think this is up-to-date by now? might need to wait for a next
                 // runloop turn?
@@ -160,6 +154,49 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
 }
 
 private extension EclipsingWindowCoordinator {
+    /// A fully-resolved eclipse anchor. All AppKit-derived geometry is captured
+    /// eagerly at construction (on the main thread, see `eclipsingAnchorWindow`),
+    /// so consumers on the background automation queue only read plain values.
+    struct AnchorWindow {
+        /// Frame in screen/AX space (origin at the top-left of the primary display).
+        let screenFrame: NSRect
+        /// The original Cocoa frame; only the Electron window has one.
+        let originalFrame: NSRect?
+        /// Diagnostics only. Captured eagerly on the main thread so consumers
+        /// don't have to touch `NSScreen` from the automation queue.
+        let containingScreenFrame: NSRect?
+        let containingScreenVisibleFrame: NSRect?
+        let debugLabel: String
+        let description: String
+
+        static func electron(_ window: NSWindow) -> AnchorWindow {
+            let frame = EclipsingWindowCoordinator.screenFrame(for: window)
+            let screen = EclipsingWindowCoordinator.screen(containing: frame)
+            return AnchorWindow(
+                screenFrame: frame,
+                originalFrame: window.frame,
+                containingScreenFrame: screen?.frame,
+                containingScreenVisibleFrame: screen?.visibleFrame,
+                debugLabel: "Electron",
+                description: "Electron window"
+            )
+        }
+
+        static func external(_ description: Window.Description) -> AnchorWindow {
+            let frame = NSRectFromCGRect(description.bounds) // CGWindow bounds are already in screen/AX space
+            let name = description.ownerName ?? "unknown"
+            let screen = EclipsingWindowCoordinator.screen(containing: frame)
+            return AnchorWindow(
+                screenFrame: frame,
+                originalFrame: nil,
+                containingScreenFrame: screen?.frame,
+                containingScreenVisibleFrame: screen?.visibleFrame,
+                debugLabel: name,
+                description: "\(name) window (pid \(description.owner))"
+            )
+        }
+    }
+
     private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.imessage.double(forKey: DefaultsKeys.hidingCoordinatorDebounce)) }
     private static var shouldOnlyEclipseIfEncompasses: Bool { Defaults.imessage.bool(forKey: DefaultsKeys.onlyEclipseIfEncompasses) }
     private static var eclipsingOffsetX: CGFloat { Defaults.imessage.double(forKey: DefaultsKeys.eclipsingOffsetX) }
@@ -175,6 +212,84 @@ private extension EclipsingWindowCoordinator {
 
     // Accurate as of macOS 15.3.2.
     static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
+
+    static func eclipsingAnchorWindow(messagesPID: pid_t) throws -> AnchorWindow {
+        // These reads touch main-thread-affined AppKit state (NSApp.windows,
+        // NSWorkspace, NSScreen), but makeAutomatable runs on a background queue.
+        try onMain {
+            if let window = NSApplication.shared.largestElectronWindow {
+                return AnchorWindow.electron(window)
+            }
+
+            if let description = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
+                let anchor = AnchorWindow.external(description)
+                log.notice("falling back to external frontmost window for eclipsing: \(anchor.description)")
+                return anchor
+            }
+
+            throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
+        }
+    }
+
+    /// Runs `work` on the main thread synchronously, without deadlocking if the
+    /// caller is already on it.
+    private static func onMain<T>(_ work: () throws -> T) rethrows -> T {
+        if Thread.isMainThread {
+            return try work()
+        }
+        return try DispatchQueue.main.sync(execute: work)
+    }
+
+    static func screenFrame(for window: NSWindow) -> NSRect {
+        if window.screen == nil {
+            log.warning("can't determine which screen the Electron window is on; the eclipse position may be unexpected")
+        }
+        // NSWindow frames are Cocoa coordinates (origin bottom-left); Accessibility
+        // window positions use screen space (origin top-left, matching CGWindow bounds).
+        return window.frame.flippedBetweenCocoaAndScreenSpace()
+    }
+
+    /// Picks an external on-screen window to eclipse behind when no Beeper/Electron
+    /// window is available. Best-effort: it prefers the window most likely to be in
+    /// front (the frontmost app's topmost window, else the topmost window overall),
+    /// but it can't guarantee z-order for a non-Beeper anchor, so the eclipse may
+    /// not fully hide Messages.
+    static func externalEclipsingAnchorWindow(messagesPID: pid_t) -> Window.Description? {
+        let excludedPIDs: Set<pid_t> = [getpid(), messagesPID]
+        let candidates = externalAnchorWindows(excludingPIDs: excludedPIDs) // front-to-back z-order
+
+        if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+           !excludedPIDs.contains(frontmostPID),
+           let frontmostWindow = candidates.first(where: { $0.owner == frontmostPID }) {
+            return frontmostWindow
+        }
+        return candidates.first
+    }
+
+    static func externalAnchorWindows(excludingPIDs excludedPIDs: Set<pid_t>) -> [Window.Description] {
+        // listDescriptions is resilient to individual malformed windows (it skips them).
+        guard let descriptions = try? Window.listDescriptions(.onScreen, excludeDesktopElements: true) else {
+            return []
+        }
+
+        // NOTE: no size filter here — anchor size adequacy is enforced uniformly for
+        // both anchor kinds by the `shouldOnlyEclipseIfEncompasses` guard against the
+        // real targetSize in makeAutomatable.
+        return descriptions.filter { description in
+            !excludedPIDs.contains(description.owner)
+                && description.layer == 0
+                // skip near-transparent/fading windows that wouldn't actually hide Messages
+                && description.alpha >= 0.5
+        }
+    }
+
+    static func screen(containing screenFrame: NSRect) -> NSScreen? {
+        // screenFrame is in screen/AX space (origin top-left); NSScreen frames are
+        // Cocoa space (origin bottom-left), so flip the center point before testing.
+        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return nil }
+        let cocoaCenter = NSPoint(x: screenFrame.midX, y: primaryHeight - screenFrame.midY)
+        return NSScreen.screens.first { $0.frame.contains(cocoaCenter) }
+    }
 }
 
 // MARK: - Extensions

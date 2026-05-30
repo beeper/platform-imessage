@@ -3,10 +3,10 @@
     {
       "identity" : "betterswiftax",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Beeper/BetterSwiftAX",
+      "location" : "https://github.com/beeper/BetterSwiftAX.git",
       "state" : {
-        "revision" : "9115c521dcd41b9e9cbb4b5167ee8a14cff35c5c",
-        "version" : "0.1.2"
+        "revision" : "6c1c20fcd70d0a6718bfde30c0c7937b5a62d6a0",
+        "version" : "0.1.3"
       }
     },
     {
