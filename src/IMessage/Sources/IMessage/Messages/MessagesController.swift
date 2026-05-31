@@ -473,12 +473,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await windowCoordinator.makeAutomatable(mainWindow)
         }
 
-        let result: Result<T, Error>
-        do {
-            result = .success(try await operation())
-        } catch {
-            result = .failure(error)
-        }
+        let result = await Result(catching: operation)
 
         log.info("finishedAutomation")
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
