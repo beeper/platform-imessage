@@ -368,7 +368,7 @@ public final class PlatformAPI {
             if type == "typing" {
                 try await controller.sendTypingStatus(threadID: threadID)
             } else {
-                try controller.clearTypingStatus()
+                try await controller.clearTypingStatus()
             }
         }
     }
