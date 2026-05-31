@@ -5,6 +5,7 @@ import Logging
 
 private let log = Logger(imessageLabel: "onboarding-manager")
 
+@MainActor
 final class OnboardingManager {
     private var onboardingWindow: NSWindow?
     private var pollingTimer: Timer?
@@ -61,38 +62,36 @@ final class OnboardingManager {
     }
 
     func createWindow() {
-        DispatchQueue.main.async {
-            self.pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 guard let bounds = Self.getPrefsWindowBounds() else {
                     self.onboardingWindow?.setIsVisible(false)
                     return
                 }
                 self.createOrUpdateWindow(bounds)
             }
-            self.pollingTimer?.fire()
         }
+        pollingTimer?.fire()
     }
 
     func closeWindow() {
         log.info("OnboardingManager: closing window")
 
-        let close = {
-            self.onboardingWindow?.close()
-            self.onboardingWindow = nil
-            self.initialWidth = nil
-            self.pollingTimer?.invalidate()
-            self.pollingTimer = nil
-        }
-
-        if Thread.isMainThread {
-            close()
-        } else {
-            DispatchQueue.main.sync(execute: close)
-        }
+        onboardingWindow?.close()
+        onboardingWindow = nil
+        initialWidth = nil
+        pollingTimer?.invalidate()
+        pollingTimer = nil
     }
 
     deinit {
         log.debug("OnboardingManager: deinit")
-        self.closeWindow()
+        let onboardingWindow = onboardingWindow
+        let pollingTimer = pollingTimer
+        Task { @MainActor in
+            onboardingWindow?.close()
+            pollingTimer?.invalidate()
+        }
     }
 }

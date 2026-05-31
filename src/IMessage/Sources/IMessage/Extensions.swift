@@ -60,6 +60,7 @@ extension NSRect {
     /// primary display, the space used by Accessibility window positions and
     /// CGWindow bounds). The flip is about the primary display's height, so it is
     /// its own inverse and is correct regardless of which display the rect is on.
+    @MainActor
     func flippedBetweenCocoaAndScreenSpace() -> NSRect {
         guard let primaryHeight = NSScreen.screens.first?.frame.height else { return self }
         return NSRect(x: minX, y: primaryHeight - maxY, width: width, height: height)

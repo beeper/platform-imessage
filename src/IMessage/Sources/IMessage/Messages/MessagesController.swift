@@ -263,17 +263,18 @@ final class MessagesController {
         try assertSelectedThread(threadID: threadID)
     }
 
-    init(reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
+    init(reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
 
-        windowCoordinator = try getBestWindowCoordinator()
+        let coordinator = try getBestWindowCoordinator()
+        windowCoordinator = coordinator
 
-        let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
+        let launchMessages = { [coordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
             // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
+            if !coordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
                 Thread.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
@@ -296,7 +297,7 @@ final class MessagesController {
             }
             if let existingApp = messagesApps.first {
                 // if coordination is disabled, avoid unnecessarily terminating the app
-                if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
+                if coordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
                     log.info("reusing existing messages...")
                     app = existingApp
                 } else {
@@ -311,17 +312,19 @@ final class MessagesController {
             }
         }
 
-        windowCoordinator.app = app
+        let selectedApp = app
+        await MainActor.run {
+            coordinator.app = selectedApp
+        }
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        try app.waitForLaunch()
-        let selectedApp = app
+        try selectedApp.waitForLaunch()
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
             try Self.openDeepLink(url, targeting: selectedApp)
         })
 
-        keyPresser = KeyPresser(pid: app.processIdentifier)
+        keyPresser = KeyPresser(pid: selectedApp.processIdentifier)
 
         // if app.isHidden {
         //     debugLog("Unhiding Messages...")
@@ -384,10 +387,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     switch event {
                     case .appActivated:
                         printLifecycle(event: "APP activated")
-                        self.activateMessages()
+                        await self.activateMessages()
                     case .appDeactivated:
                         printLifecycle(event: "APP deactivated")
-                        self.deactivateMessages()
+                        await self.deactivateMessages()
                     case .appHidden: printLifecycle(event: "APP hidden")
                     case .appShown: printLifecycle(event: "APP shown")
                     case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
@@ -437,27 +440,34 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
 
-    @inlinable func prepareForAutomation() throws {
+    private func withAutomation<T>(_ operation: () throws -> T) async throws -> T {
+        try await prepareForAutomation()
+        do {
+            let result = try operation()
+            await finishedAutomation()
+            return result
+        } catch {
+            await finishedAutomation()
+            throw error
+        }
+    }
+
+    private func prepareForAutomation() async throws {
         log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
 
-        defer {
-            activityLock.lock()
-        }
-
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-            try windowCoordinator.makeAutomatable(mainWindow)
+            try await windowCoordinator.makeAutomatable(mainWindow)
         }
     }
 
-    @inlinable func finishedAutomation() {
+    private func finishedAutomation() async {
         log.info("finishedAutomation")
-        activityLock.unlock()
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             do {
-                try windowCoordinator.automationDidComplete(mainWindow)
+                try await windowCoordinator.automationDidComplete(mainWindow)
             } catch {
                 log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
             }
@@ -466,17 +476,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         scheduleCancelReplyTranscriptView()
     }
 
-    private var afterAutomationTask: DispatchWorkItem?
-
-    private static let queue = DispatchQueue(label: "messages-controller-queue")
+    private var afterAutomationTask: Task<Void, Never>?
 
     private func scheduleCancelReplyTranscriptView() {
-        afterAutomationTask = DispatchWorkItem { [self] in
-            activityLock.lock()
-            defer { activityLock.unlock() }
-            try? closeReplyTranscriptView(wait: false)
+        afterAutomationTask = Task { [weak self] in
+            do {
+                try await Task.sleep(forTimeInterval: 1.5)
+                try await PlatformAPI.onMessagesControllerQueue { [weak self] in
+                    try Task.checkCancellation()
+                    guard let self else { return }
+                    try closeReplyTranscriptView(wait: false)
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                log.error("failed to close reply transcript view after automation: \(String(reflecting: error))")
+            }
         }
-        afterAutomationTask.map { Self.queue.asyncAfter(deadline: .now() + 1.5, execute: $0) }
     }
 
     private func messageAction(messageCell: Accessibility.Element, action: MessageAction) throws -> Accessibility.Action {
@@ -612,65 +628,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func revealReplyTranscriptViaMenu() throws {
-        do {
-            let window = NSApp.largestElectronWindow
-            let previousLevel = window?.level
-            if let window {
-                DispatchQueue.main.sync {
-                    let higherLevel = NSWindow.Level(Int(CGWindowLevelForKey(.draggingWindow)))
-                    log.debug("reveal: elevating window to level \(higherLevel) (currently: \(window.level))")
-                    window.level = higherLevel
-                }
-            }
-            defer {
-                if let window, let previousLevel {
-                    DispatchQueue.main.sync {
-                        log.debug("reveal: lowering window to previous level \(previousLevel)")
-                        window.level = previousLevel
-                    }
-                }
-            }
-
-            try Self.queue.sync {
-                guard let cell = try? MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView) else {
-                    throw ErrorMessage("reveal: couldn't find selected message cell to show overlay with")
-                }
-
-                Thread.sleep(forTimeInterval: 1.0)
-                log.debug("reveal: 1/5 showing the cell's menu")
-                try cell.showMenu()
-                Thread.sleep(forTimeInterval: 0.1)
-
-                let targetTitle = LocalizedStrings.inlineReplyMenu
-                log.debug("reveal: 2/5 locating reply menu item (with title \"\(targetTitle)\")")
-
-                guard let menuItems = try? elements.menu.children() else {
-                    throw ErrorMessage("reveal: couldn't query menu item children")
-                }
-                guard let replyMenuItem = menuItems.first(where: { menuItem in
-                    guard let title = try? menuItem.title() else {
-                        return false
-                    }
-
-                    let idIfPossible = ((try? menuItem.identifier()).map { " [ID: \"\($0)\"]" }) ?? ""
-                    log.debug("reveal: 2/5   witnessed: \"\(title)\"\(idIfPossible)")
-                    return title == targetTitle
-                }) else {
-                    throw ErrorMessage("reveal: couldn't find reply menu item")
-                }
-
-                log.debug("reveal: 3/5 found, pressing")
-                try replyMenuItem.press()
-            }
-        }
-
-        log.debug("reveal: 4/5 sleeping for a bit")
-        Thread.sleep(forTimeInterval: 0.4)
-
-        log.debug("reveal: 5/5 done, proceeding with grabbing the cell")
-    }
-
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
 
@@ -777,86 +734,85 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         return MessageCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, cellID: cellID, cellRole: nil, overlay: false)
     }
 
-    func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
+    func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) async throws {
         let startTime = Date()
         defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withMessageCell(threadID: threadID, messageCell: messageCell) {
-            if let directAction = try directReactionAction(messageCell: $0, reaction: reaction) {
-                try directAction()
-                return
-            }
-
-            if case let .custom(emoji) = reaction, on {
-                guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
-                try openCustomEmojiReactionPicker(messageCell: $0)
-                // TODO: support being able to pick a skin tone
-                let search: CharacterPickerSearch
-                do {
-                    search = try CharacterPickerSearch(finding: emoji)
-                } catch {
-                    throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
+        try await withAutomation {
+            try withMessageCell(threadID: threadID, messageCell: messageCell) {
+                if let directAction = try directReactionAction(messageCell: $0, reaction: reaction) {
+                    try directAction()
+                    return
                 }
-                let searchField = try retry(withTimeout: 1.0, interval: 0.05) {
-                    try elements.characterPickerSearchField
-                }
-                try searchField.value(assign: search.query)
-                Thread.sleep(forTimeInterval: 0.75) // wait for search
-                // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
-                try keyPresser.downArrow()
-                // 6 columns in the character picker matrix
-                let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
-                // navigate to the emoji
-                for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                Thread.sleep(forTimeInterval: 0.1) // wait for selection
-                try keyPresser.return() // select
-                if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
-                    Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
-                    try keyPresser.return() // always select default skin tone
-                }
-                return
-            }
 
-            try openReactionPicker(messageCell: $0)
+                if case let .custom(emoji) = reaction, on {
+                    guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                    try openCustomEmojiReactionPicker(messageCell: $0)
+                    // TODO: support being able to pick a skin tone
+                    let search: CharacterPickerSearch
+                    do {
+                        search = try CharacterPickerSearch(finding: emoji)
+                    } catch {
+                        throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
+                    }
+                    let searchField = try retry(withTimeout: 1.0, interval: 0.05) {
+                        try elements.characterPickerSearchField
+                    }
+                    try searchField.value(assign: search.query)
+                    Thread.sleep(forTimeInterval: 0.75) // wait for search
+                    // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
+                    try keyPresser.downArrow()
+                    // 6 columns in the character picker matrix
+                    let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
+                    // navigate to the emoji
+                    for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                    for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                    Thread.sleep(forTimeInterval: 0.1) // wait for selection
+                    try keyPresser.return() // select
+                    if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
+                        Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
+                        try keyPresser.return() // always select default skin tone
+                    }
+                    return
+                }
 
-            let btn = try {
-                if isSequoiaOrUp {
-                    return try elements.tapbackPickerCollectionView.children()
-                        .first {
-                            // standard: "ha", "thumbsUp", etc. custom: emoji string
-                            let identifier = try? $0.identifier()
-                            return identifier == reaction.idOrEmoji
+                try openReactionPicker(messageCell: $0)
+
+                let btn = try {
+                    if isSequoiaOrUp {
+                        return try elements.tapbackPickerCollectionView.children()
+                            .first {
+                                // standard: "ha", "thumbsUp", etc. custom: emoji string
+                                let identifier = try? $0.identifier()
+                                return identifier == reaction.idOrEmoji
+                            }
+                            .orThrow(ErrorMessage("Could not find \(on ? "react" : "unreact") button"))
+                    }
+
+                    let idx = reaction.index!
+                    let buttons = try elements.reactButtons
+                    guard buttons.count > idx else {
+                        throw ErrorMessage("reactButtons count=\(buttons.count)")
+                    }
+
+                    return buttons[idx]
+                }()
+
+                try retry(withTimeout: 1.2, interval: 0.1) {
+                    let isSelected = try btn.isSelected()
+                    if isSelected != on {
+                        try btn.press()
+                        log.debug("Reaction: \(Result { try btn.localizedDescription() }) \(Result { try btn.isSelected() })")
+                        guard try btn.isSelected() == on else {
+                            throw ErrorMessage("Could not react")
                         }
-                        .orThrow(ErrorMessage("Could not find \(on ? "react" : "unreact") button"))
-                }
-
-                let idx = reaction.index!
-                let buttons = try elements.reactButtons
-                guard buttons.count > idx else {
-                    throw ErrorMessage("reactButtons count=\(buttons.count)")
-                }
-
-                return buttons[idx]
-            }()
-
-            try retry(withTimeout: 1.2, interval: 0.1) {
-                let isSelected = try btn.isSelected()
-                if isSelected != on {
-                    try btn.press()
-                    log.debug("Reaction: \(Result { try btn.localizedDescription() }) \(Result { try btn.isSelected() })")
-                    guard try btn.isSelected() == on else {
-                        throw ErrorMessage("Could not react")
                     }
                 }
             }
         }
     }
 
-    func undoSend(threadID: String, messageCell: MessageCell) throws {
+    func undoSend(threadID: String, messageCell: MessageCell) async throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("!isVenturaOrUp")
         }
@@ -864,38 +820,33 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withMessageCell(threadID: threadID, messageCell: messageCell) {
-            let undoSendAction = try messageAction(messageCell: $0, action: .undoSend)
-            try undoSendAction()
+        try await withAutomation {
+            try withMessageCell(threadID: threadID, messageCell: messageCell) {
+                let undoSendAction = try messageAction(messageCell: $0, action: .undoSend)
+                try undoSendAction()
+            }
         }
     }
 
-    func loadAttachment(threadID: String, messageCell: MessageCell) throws {
+    func loadAttachment(threadID: String, messageCell: MessageCell) async throws {
         let startTime = Date()
         defer { log.debug("loadAttachment took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
-            try messageCell.press()
+        try await withAutomation {
+            try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+                try messageCell.press()
+            }
         }
     }
 
     // NOTE: message editing works even when the window is ordered out
-    func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
+    func editMessage(threadID: String, messageCell: MessageCell, newText: String) async throws {
         guard isVenturaOrUp else {
             throw ErrorMessage("!isVenturaOrUp")
         }
 
         let startTime = Date()
         defer { log.debug("editMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
-
-        try prepareForAutomation()
-        defer { finishedAutomation() }
 
         func tryPressingCancelEditButton() {
             if let cancelEditButton = try? elements.cancelEditButton {
@@ -932,30 +883,32 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             tryPressingCancelEditButton()
         }
 
-        tryPressingCancelEditButton()
+        try await withAutomation {
+            tryPressingCancelEditButton()
 
-        try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
-            if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
-                log.debug("found \"Edit\" message action")
+            try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+                if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
+                    log.debug("found \"Edit\" message action")
 
+                    try retry(withTimeout: 6.0, interval: 2.0, {
+                        try editAction()
+                        try assignAndCommitEdit()
+                    }, onError: onError)
+
+                    return
+                }
+
+                // this doesn't work reliably:
+                // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
+                try messageCell.showMenu()
+                // retrying this too rapidly can cause the floating editor to appear more than once?
                 try retry(withTimeout: 6.0, interval: 2.0, {
-                    try editAction()
+                    Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
+                    try elements.menuEditItem.press()
+
                     try assignAndCommitEdit()
                 }, onError: onError)
-
-                return
             }
-
-            // this doesn't work reliably:
-            // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
-            try messageCell.showMenu()
-            // retrying this too rapidly can cause the floating editor to appear more than once?
-            try retry(withTimeout: 6.0, interval: 2.0, {
-                Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
-                try elements.menuEditItem.press()
-
-                try assignAndCommitEdit()
-            }, onError: onError)
         }
     }
 
@@ -1019,49 +972,48 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
      4. threadCell.press() action hack                                       (unreliable)
      */
-    func toggleThreadRead(threadID: String, read: Bool) throws {
+    func toggleThreadRead(threadID: String, read: Bool) async throws {
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
-            if isVenturaOrUp {
-                return try keyPresser.commandShiftU()
-            }
-            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
-            if Defaults.isSelectedThreadCellPinned() {
-                try triggerThreadCellAction(threadID: threadID, action: action)
-            } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
-                defer {
-                    if Defaults.pinnedThreadsCount() != pinnedCount {
-                        try? retry(withTimeout: 0.3, interval: 0.05) {
-                            log.debug("retrying unpin")
-                            try triggerThreadCellAction(threadID: threadID, action: .unpin)
+        try await withAutomation {
+            try withActivation(openBefore: url) {
+                try assertSelectedThread(threadID: threadID)
+                if isVenturaOrUp {
+                    return try keyPresser.commandShiftU()
+                }
+                let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
+                if Defaults.isSelectedThreadCellPinned() {
+                    try triggerThreadCellAction(threadID: threadID, action: action)
+                } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
+                    defer {
+                        if Defaults.pinnedThreadsCount() != pinnedCount {
+                            try? retry(withTimeout: 0.3, interval: 0.05) {
+                                log.debug("retrying unpin")
+                                try triggerThreadCellAction(threadID: threadID, action: .unpin)
+                            }
+                        }
+                        if Defaults.pinnedThreadsCount() != pinnedCount {
+                            reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                         }
                     }
-                    if Defaults.pinnedThreadsCount() != pinnedCount {
-                        reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
-                    }
+                    try triggerThreadCellAction(threadID: threadID, action: .pin)
+                    // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
+                    // openThread ensures scroll logic isn't executed
+                    try openThread(threadID)
+                    let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+                    defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
+                    try triggerThreadCellAction(threadCell: threadCell, action: action)
+                } else {
+                    try markAsReadWithPressHack(threadID: threadID)
                 }
-                try triggerThreadCellAction(threadID: threadID, action: .pin)
-                // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
-                // openThread ensures scroll logic isn't executed
-                try openThread(threadID)
-                let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
-                defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
-                try triggerThreadCellAction(threadCell: threadCell, action: action)
-            } else {
-                try markAsReadWithPressHack(threadID: threadID)
             }
         }
     }
 
-    func muteThread(threadID: String, muted: Bool) throws {
+    func muteThread(threadID: String, muted: Bool) async throws {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1069,26 +1021,25 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
-            let selectedThreadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
-            if muted {
-                try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
-            } else if let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts) {
-                try showAlertsAction()
-            } else {
-                let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
-                let action = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
-                    .orThrow(ErrorMessage("ThreadAction.showAlerts and \(hideAlertsOn) not found"))
-                try action()
+        try await withAutomation {
+            try withActivation(openBefore: url) {
+                try assertSelectedThread(threadID: threadID)
+                let selectedThreadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+                if muted {
+                    try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
+                } else if let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts) {
+                    try showAlertsAction()
+                } else {
+                    let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
+                    let action = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
+                        .orThrow(ErrorMessage("ThreadAction.showAlerts and \(hideAlertsOn) not found"))
+                    try action()
+                }
             }
         }
     }
 
-    func deleteThread(threadID: String) throws {
+    func deleteThread(threadID: String) async throws {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("deleteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1096,17 +1047,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
-            try triggerThreadCellAction(threadID: threadID, action: .delete)
-            try elements.alertSheetDeleteButton.press()
+        try await withAutomation {
+            try withActivation(openBefore: url) {
+                try assertSelectedThread(threadID: threadID)
+                try triggerThreadCellAction(threadID: threadID, action: .delete)
+                try elements.alertSheetDeleteButton.press()
+            }
         }
     }
 
-    func sendTypingStatus(threadID: String) throws {
+    func sendTypingStatus(threadID: String) async throws {
         // a space is enough to send a typing indicator, while ensuring that
         // users can't accidentally hit return to send a single-char message
         // (since Messages special-cases space-only messages). The NUL byte
@@ -1114,10 +1064,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // shows up client-side as a ghost message.
         let url = try MessagesDeepLink(threadID: threadID, body: " ").url()
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try openDeepLink(url)
+        try await withAutomation {
+            _ = try openDeepLink(url)
+        }
     }
 
     func clearTypingStatus() throws {
@@ -1254,7 +1203,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     // this method has a lot of combinations, test carefully
-    func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) throws {
+    func sendMessage(threadID: String?, addresses: [String]?, text: String?, filePath: String?, quotedMessage: MessageCell?) async throws {
         let startTime = Date()
         defer { log.debug("sendMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
@@ -1297,43 +1246,42 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             throw ErrorMessage("not implemented")
         }
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        // this isn't reliable so we use pasteFileInBodyFieldAndSend:
-        // if let filePath {
-        //     guard let address = threadIDToAddress(threadID) else { throw ErrorMessage("invalid threadID") }
-        //     try withAllWindowsClosed {
-        //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
-        //     }
-        // }
-        if let quotedMessage, !quotedMessage.overlay, let threadID {
-            try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
-            return
-        }
-
-        if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
-
-        try withActivation(openBefore: url) {
-            if let threadID { try assertSelectedThread(threadID: threadID) }
-
-            if quotedMessage != nil {
-                try waitUntilReplyTranscriptVisible()
-            }
-            if isComposeThreadSelected() {
-                // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
-                log.debug("waiting 3s for address to resolve")
-                Thread.sleep(forTimeInterval: 3)
+        try await withAutomation {
+            // this isn't reliable so we use pasteFileInBodyFieldAndSend:
+            // if let filePath {
+            //     guard let address = threadIDToAddress(threadID) else { throw ErrorMessage("invalid threadID") }
+            //     try withAllWindowsClosed {
+            //         try DraftsManager.saveDraft(address: String(address), filePath: filePath)
+            //     }
+            // }
+            if let quotedMessage, !quotedMessage.overlay, let threadID {
+                try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+                return
             }
 
-            let messageField = try elements.messageBodyField
-            if let text {
-                if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
-                    try assignToMessageField(messageField, text: text)
+            if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
+
+            try withActivation(openBefore: url) {
+                if let threadID { try assertSelectedThread(threadID: threadID) }
+
+                if quotedMessage != nil {
+                    try waitUntilReplyTranscriptVisible()
                 }
-                try sendMessageInField(messageField)
-            } else if let filePath {
-                try pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
+                if isComposeThreadSelected() {
+                    // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
+                    log.debug("waiting 3s for address to resolve")
+                    Thread.sleep(forTimeInterval: 3)
+                }
+
+                let messageField = try elements.messageBodyField
+                if let text {
+                    if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
+                        try assignToMessageField(messageField, text: text)
+                    }
+                    try sendMessageInField(messageField)
+                } else if let filePath {
+                    try pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
+                }
             }
         }
     }
@@ -1407,34 +1355,38 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     var messagesIsManuallyActivated = false
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
-    private func activateMessages() {
+    private func activateMessages() async {
         do {
-            lastActivate = Date()
-            messagesIsManuallyActivated = true
-            log.debug("activateMessages")
-            // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
-                try windowCoordinator.reset(window)
-                try windowCoordinator.userManuallyActivated(app)
+            try await PlatformAPI.onMessagesControllerQueue { [self] in
+                lastActivate = Date()
+                messagesIsManuallyActivated = true
+                log.debug("activateMessages")
+                // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+                if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
+                    try await windowCoordinator.reset(window)
+                    try await windowCoordinator.userManuallyActivated(app)
+                }
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
         }
     }
 
-    private func deactivateMessages() {
+    private func deactivateMessages() async {
         do {
-            lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
-            messagesIsManuallyActivated = false
-            log.debug("deactivateMessages")
-            // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            let window = elements.getMainWindow()
-            if Defaults.shouldCoordinateWindow {
-                try windowCoordinator.userManuallyDeactivated(app)
-            }
-            try? closeAllNonMainWindows()
-            if window != nil {
-                resetWindow()
+            try await PlatformAPI.onMessagesControllerQueue { [self] in
+                lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
+                messagesIsManuallyActivated = false
+                log.debug("deactivateMessages")
+                // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+                let window = elements.getMainWindow()
+                if Defaults.shouldCoordinateWindow {
+                    try await windowCoordinator.userManuallyDeactivated(app)
+                }
+                try? closeAllNonMainWindows()
+                if window != nil {
+                    resetWindow()
+                }
             }
         } catch {
             log.error("couldn't hide messages window caused by user activation: \(error)")
@@ -1491,44 +1443,29 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         )
     }
 
-    func notifyAnyway(threadID: String) throws {
+    func notifyAnyway(threadID: String) async throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
-            try elements.notifyAnywayButton.press()
+        try await withAutomation {
+            try withActivation(openBefore: url) {
+                try assertSelectedThread(threadID: threadID)
+                try elements.notifyAnywayButton.press()
+            }
         }
     }
 
-    func activityStatus(threadID: String) throws -> ThreadActivityObservation {
+    func activityStatus(threadID: String) async throws -> ThreadActivityObservation {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
         var observation = ThreadActivityObservation.unknown
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
-            observation = activityObservation()
+        try await withAutomation {
+            try withActivation(openBefore: url) {
+                try assertSelectedThread(threadID: threadID)
+                observation = activityObservation()
+            }
         }
         return observation
     }
-
-    /*
-     activityLock.lock() called by:
-     MessagesController.observe()
-     MessagesController.sendMessage()
-     MessagesController.setReaction()
-     MessagesController.sendTypingStatus()
-     MessagesController.notifyAnyway()
-     MessagesController.toggleThreadRead()
-     MessagesController.muteThread()
-     MessagesController.deleteThread()
-     */
-    private let activityLock = UnfairLock()
 
     private func waitForLayoutChange(timeout: TimeInterval) {
         let beganWaiting = Date()
@@ -1547,9 +1484,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    /// returns a callback meant to be assigned to a `PassivelyAwareDispatchQueue` that observes a single thread once
-    /// the passively aware dispatch queue should call the returned callback repeatedly
-    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> ((Quiescence) throws -> Void) {
+    /// returns a callback meant to be assigned to the passive-aware controller queue that observes a single thread once
+    /// the passive-aware queue should call the returned callback repeatedly
+    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> ((Quiescence) async throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         return { [weak self] _ in
@@ -1576,17 +1513,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             if lastThreadIDOpenedForObservation.read() != threadID {
                 log.debug("activity: entered idle state or thread id changed, opening deep link")
-                try prepareForAutomation()
-                defer { finishedAutomation() }
-
-                try openDeepLink(url)
-                log.debug("activity: opened deep link, waiting for layout change")
-                lastThreadIDOpenedForObservation.withLock { $0 = threadID }
-                waitForLayoutChange(timeout: 0.5)
+                try await withAutomation {
+                    _ = try self.openDeepLink(url)
+                    log.debug("activity: opened deep link, waiting for layout change")
+                    self.lastThreadIDOpenedForObservation.withLock { $0 = threadID }
+                    self.waitForLayoutChange(timeout: 0.5)
+                }
             }
-
-            guard activityLock.tryLock() else { return }
-            defer { activityLock.unlock() }
 
             let observationToSend = activityObservation()
             guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
@@ -1613,6 +1546,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
+        afterAutomationTask?.cancel()
         lifecycleConveyor?.cancel()
         lifecycleEventsTask?.cancel()
 

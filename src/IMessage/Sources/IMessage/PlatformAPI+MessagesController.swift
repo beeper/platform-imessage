@@ -19,7 +19,7 @@ private actor MessagesControllerCoordinator {
         reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>,
         forceInvalidate: Bool = false,
-        _ action: @escaping @Sendable (MessagesController) throws -> T
+        _ action: @escaping @Sendable (MessagesController) async throws -> T
     ) async throws -> T {
         if forceInvalidate {
             try await disposeCachedController()
@@ -36,7 +36,7 @@ private actor MessagesControllerCoordinator {
                     guard entry.value.isValid else {
                         throw MessagesControllerCoordinatorError.cachedControllerInvalid
                     }
-                    return try action(entry.value)
+                    return try await action(entry.value)
                 }
             } catch MessagesControllerCoordinatorError.cachedControllerInvalid {
                 platformMessagesControllerLog.debug("disposing cached MessagesController because it became invalid")
@@ -155,12 +155,12 @@ private extension MessagesControllerCoordinator {
 extension PlatformAPI {
     // IMessageHost is singleton-only within a process; PlatformAPI wrappers share
     // one MessagesController and queue for Messages.app automation.
-    static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
+    static let messagesControllerQueue = PassivelyAwareTaskQueue(label: "messages-controller-platform-queue", idleDelay: 1)
     fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
 
     func withMessagesController<T>(
         forceInvalidate: Bool = false,
-        _ action: @escaping @Sendable (MessagesController) throws -> T
+        _ action: @escaping @Sendable (MessagesController) async throws -> T
     ) async throws -> T {
         try await Self.messagesControllerCoordinator.withController(
             reportErrorMessage: errorMessageReporter,
@@ -175,18 +175,14 @@ extension PlatformAPI {
     }
 
     static func onMessagesControllerQueue<T>(
-        _ action: @escaping @Sendable () throws -> T
+        _ action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            messagesControllerQueue.async {
-                continuation.resume(with: Result { try action() })
-            }
-        }
+        try await messagesControllerQueue.async(action)
     }
 
     static func makeMessagesController(reportErrorMessage: ReportErrorMessage?) async throws -> MessagesController {
         try await Self.onMessagesControllerQueue {
-            try MessagesController(reportErrorMessage: { txt in
+            try await MessagesController(reportErrorMessage: { txt in
                 platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
                 try? reportErrorMessage?(txt)
             })

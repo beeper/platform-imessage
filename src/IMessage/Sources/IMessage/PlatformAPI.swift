@@ -264,7 +264,7 @@ public final class PlatformAPI {
 
             if let existingThread {
                 try await withMessagesController { controller in
-                    try controller.sendMessage(
+                    try await controller.sendMessage(
                         threadID: existingThreadID,
                         addresses: nil,
                         text: messageText,
@@ -277,7 +277,7 @@ public final class PlatformAPI {
         }
 
         try await withMessagesController { controller in
-            try controller.sendMessage(
+            try await controller.sendMessage(
                 threadID: nil,
                 addresses: userIDs,
                 text: messageText,
@@ -290,12 +290,12 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.muteThread(threadID: threadID, muted: muted) }
+        try await withMessagesController { try await $0.muteThread(threadID: threadID, muted: muted) }
     }
 
     public func deleteThread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.deleteThread(threadID: threadID) }
+        try await withMessagesController { try await $0.deleteThread(threadID: threadID) }
     }
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
@@ -310,7 +310,7 @@ public final class PlatformAPI {
             retries: quotedMessageID == nil ? 1 : 2,
             prepareAttempt: { try await self.lastMessageRowID() }
         ) { controller in
-            try controller.sendMessage(
+            try await controller.sendMessage(
                 threadID: threadID,
                 text: text,
                 filePath: filePath,
@@ -344,7 +344,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
+        try await withMessagesController { try await $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
     public func sendActivityIndicator(type: String, threadID publicThreadID: String?) async throws {
@@ -366,7 +366,7 @@ public final class PlatformAPI {
 
         try await withMessagesController { controller in
             if type == "typing" {
-                try controller.sendTypingStatus(threadID: threadID)
+                try await controller.sendTypingStatus(threadID: threadID)
             } else {
                 try controller.clearTypingStatus()
             }
@@ -375,7 +375,7 @@ public final class PlatformAPI {
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.undoSend(threadID: threadID, messageID: messageID) }
+        try await withMessagesController { try await $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
@@ -392,7 +392,7 @@ public final class PlatformAPI {
             }
 
             try await withMessagesController(forceInvalidate: attempt > 0) {
-                try $0.toggleThreadRead(threadID: threadID, read: true)
+                try await $0.toggleThreadRead(threadID: threadID, read: true)
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
@@ -421,7 +421,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: reference.threadID)
-        try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+        try await withMessagesController { try await $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
 
         let loadedMessage = try await waitForLoadedAttachment(
             threadID: reference.threadID,
@@ -491,17 +491,17 @@ public final class PlatformAPI {
 
     public func markAsUnread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.toggleThreadRead(threadID: threadID, read: false) }
+        try await withMessagesController { try await $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
     public func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.notifyAnyway(threadID: threadID) }
+        try await withMessagesController { try await $0.notifyAnyway(threadID: threadID) }
     }
 
     public func getThreadActivityStatus(threadID publicThreadID: String) async throws -> ThreadActivityObservation {
         let threadID = try originalThreadID(for: publicThreadID)
-        return try await withMessagesController { try $0.activityStatus(threadID: threadID) }
+        return try await withMessagesController { try await $0.activityStatus(threadID: threadID) }
     }
 
     public func onThreadSelected(
@@ -607,7 +607,7 @@ public final class PlatformAPI {
         // Clear cached state so logout/relogin in Messages.app while Beeper
         // restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
-        SystemSettingsOnboarding.stop()
+        await SystemSettingsOnboarding.stop()
         await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
         database.stopListeningAndReset()
         try await disposeCachedMessagesController()
@@ -677,7 +677,7 @@ public final class PlatformAPI {
             Self.messagesControllerQueue.setIdleCallback { quiescence in
                 guard threadObserveRequestToken.read() == requestID else { return }
                 do {
-                    try observe(quiescence)
+                    try await observe(quiescence)
                 } catch {
                     platformLog.error("failed to observe activity: \(error)")
                 }
@@ -689,7 +689,7 @@ public final class PlatformAPI {
             // unnecessarily running
             guard threadObserveRequestToken.read() == requestID else { return }
 
-            try observe(.began)
+            try await observe(.began)
         }
     }
 
@@ -698,13 +698,13 @@ public final class PlatformAPI {
         name: String,
         retries: Int,
         prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
-        _ action: @escaping @Sendable (MessagesController) throws -> Void,
+        _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
         try await retry(retries: retries) { attempt in
             let context = try await prepareAttempt()
             try await withMessagesController(forceInvalidate: attempt > 0) { controller in
-                try action(controller)
+                try await action(controller)
             }
             try await afterAttempt?(context)
             return context
@@ -720,7 +720,7 @@ public final class PlatformAPI {
             retries: 2,
             prepareAttempt: { try await self.lastMessageRowID() }
         ) { controller in
-            try controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
+            try await controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
         } afterAttempt: { lastRowID in
             _ = try await self.waitForMessageSend(
                 threadID: threadID,

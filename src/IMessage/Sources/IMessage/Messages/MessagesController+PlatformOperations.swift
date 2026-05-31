@@ -4,7 +4,7 @@ import IMessageCore
 private let platformOperationsLog = Logger(imessageLabel: "messages-controller-platform-operations")
 
 extension MessagesController {
-    func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) throws {
+    func setReaction(threadID: String, messageID: String, reactionName: String, on: Bool) async throws {
         let reaction = if let reaction = Reaction(platformSDKReactionKey: reactionName) {
             // try the "legacy" reactions first (keyed by `supported` in platform info)
             reaction
@@ -19,32 +19,32 @@ extension MessagesController {
         }
 
         let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID)
-        try setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
+        try await setReaction(threadID: threadID, messageCell: messageCell, reaction: reaction, on: on)
     }
 
-    func undoSend(threadID: String, messageID: String) throws {
+    func undoSend(threadID: String, messageID: String) async throws {
         let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID)
-        try undoSend(threadID: threadID, messageCell: messageCell)
+        try await undoSend(threadID: threadID, messageCell: messageCell)
     }
 
-    func editMessage(threadID: String, messageID: String, newText: String) throws {
+    func editMessage(threadID: String, messageID: String, newText: String) async throws {
         let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID, allowOverlay: false)
-        try editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
+        try await editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
     }
 
-    func loadAttachment(threadID: String, messageID: String) throws {
+    func loadAttachment(threadID: String, messageID: String) async throws {
         let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID, allowOverlay: false)
-        try loadAttachment(threadID: threadID, messageCell: messageCell)
+        try await loadAttachment(threadID: threadID, messageCell: messageCell)
     }
 
-    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) throws {
+    func sendMessage(threadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws {
         let quotedMessage: MessageCell? = if let quotedMessageID {
             try resolveMessageCell(threadID: threadID, platformMessageID: quotedMessageID)
         } else {
             nil
         }
 
-        try sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
+        try await sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
     }
 
     private func splitPlatformMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {

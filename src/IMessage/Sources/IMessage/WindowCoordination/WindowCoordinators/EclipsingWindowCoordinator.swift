@@ -15,6 +15,7 @@ private let log = Logger(imessageLabel: "eclipsing-window-coordinator")
  * even if the user briefly takes manual control of Messages.
  */
 final class EclipsingWindowCoordinator: WindowCoordinator {
+    @MainActor
     var app: NSRunningApplication? {
         didSet {
             if let app {
@@ -37,7 +38,8 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
     }
 
-    func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
+    @MainActor
+    func makeAutomatable(_ messagesWindow: Accessibility.Element) async throws {
         // Required so we can exclude the Messages window itself from external anchor candidates;
         // without it the eclipse would no-op (positioning Messages on top of itself).
         guard let messagesPID = app?.processIdentifier else {
@@ -123,11 +125,13 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
     }
 
-    func automationDidComplete(_: Accessibility.Element) throws {
+    @MainActor
+    func automationDidComplete(_: Accessibility.Element) async throws {
         hideDebouncer.requestHide()
     }
 
-    func reset(_ window: Accessibility.Element) throws {
+    @MainActor
+    func reset(_ window: Accessibility.Element) async throws {
         hideDebouncer.immediatelyUnhide()
 
         guard let originalFrame = windowFramePreEclipse else {
@@ -144,11 +148,13 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         try window.setFrame(originalFrame)
     }
 
-    func userManuallyActivated(_: NSRunningApplication) throws {
+    @MainActor
+    func userManuallyActivated(_: NSRunningApplication) async throws {
         hideDebouncer.immediatelyUnhide()
     }
 
-    func userManuallyDeactivated(_: NSRunningApplication) throws {
+    @MainActor
+    func userManuallyDeactivated(_: NSRunningApplication) async throws {
         hideDebouncer.requestHide()
     }
 }
@@ -169,6 +175,7 @@ private extension EclipsingWindowCoordinator {
         let debugLabel: String
         let description: String
 
+        @MainActor
         static func electron(_ window: NSWindow) -> AnchorWindow {
             let frame = EclipsingWindowCoordinator.screenFrame(for: window)
             let screen = EclipsingWindowCoordinator.screen(containing: frame)
@@ -182,6 +189,7 @@ private extension EclipsingWindowCoordinator {
             )
         }
 
+        @MainActor
         static func external(_ description: Window.Description) -> AnchorWindow {
             let frame = NSRectFromCGRect(description.bounds) // CGWindow bounds are already in screen/AX space
             let name = description.ownerName ?? "unknown"
@@ -213,33 +221,22 @@ private extension EclipsingWindowCoordinator {
     // Accurate as of macOS 15.3.2.
     static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
 
+    @MainActor
     static func eclipsingAnchorWindow(messagesPID: pid_t) throws -> AnchorWindow {
-        // These reads touch main-thread-affined AppKit state (NSApp.windows,
-        // NSWorkspace, NSScreen), but makeAutomatable runs on a background queue.
-        try onMain {
-            if let window = NSApplication.shared.largestElectronWindow {
-                return AnchorWindow.electron(window)
-            }
-
-            if let description = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
-                let anchor = AnchorWindow.external(description)
-                log.notice("falling back to external frontmost window for eclipsing: \(anchor.description)")
-                return anchor
-            }
-
-            throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
+        if let window = NSApplication.shared.largestElectronWindow {
+            return AnchorWindow.electron(window)
         }
+
+        if let description = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
+            let anchor = AnchorWindow.external(description)
+            log.notice("falling back to external frontmost window for eclipsing: \(anchor.description)")
+            return anchor
+        }
+
+        throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
     }
 
-    /// Runs `work` on the main thread synchronously, without deadlocking if the
-    /// caller is already on it.
-    private static func onMain<T>(_ work: () throws -> T) rethrows -> T {
-        if Thread.isMainThread {
-            return try work()
-        }
-        return try DispatchQueue.main.sync(execute: work)
-    }
-
+    @MainActor
     static func screenFrame(for window: NSWindow) -> NSRect {
         if window.screen == nil {
             log.warning("can't determine which screen the Electron window is on; the eclipse position may be unexpected")
@@ -254,6 +251,7 @@ private extension EclipsingWindowCoordinator {
     /// front (the frontmost app's topmost window, else the topmost window overall),
     /// but it can't guarantee z-order for a non-Beeper anchor, so the eclipse may
     /// not fully hide Messages.
+    @MainActor
     static func externalEclipsingAnchorWindow(messagesPID: pid_t) -> Window.Description? {
         let excludedPIDs: Set<pid_t> = [getpid(), messagesPID]
         let candidates = externalAnchorWindows(excludingPIDs: excludedPIDs) // front-to-back z-order
@@ -283,6 +281,7 @@ private extension EclipsingWindowCoordinator {
         }
     }
 
+    @MainActor
     static func screen(containing screenFrame: NSRect) -> NSScreen? {
         // screenFrame is in screen/AX space (origin top-left); NSScreen frames are
         // Cocoa space (origin bottom-left), so flip the center point before testing.
@@ -311,6 +310,7 @@ private extension NSSize {
 }
 
 extension NSApplication {
+    @MainActor
     var largestElectronWindow: NSWindow? {
         let prefix = Defaults.imessage.string(forKey: DefaultsKeys.eclipsingWindowClassNamePrefix) ?? "Electron"
         // XXX: It's likely possible for this read to race with Electron's main thread, or whatever actually owns the window.
