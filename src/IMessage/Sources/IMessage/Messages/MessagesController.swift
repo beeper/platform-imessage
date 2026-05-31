@@ -112,6 +112,38 @@ final class MessagesController {
         }
     }
 
+    private enum DeepLinkOpenPlan {
+        /// The request was already satisfied by routing to a secondary Messages instance.
+        case handledBySecondaryInstance(NSRunningApplication)
+        /// The request still needs to be opened via NSWorkspace with these options.
+        case open(NSWorkspace.OpenConfiguration)
+    }
+
+    private static func planDeepLinkOpen(
+        _ url: URL,
+        activating: Bool,
+        hiding: Bool,
+        targeting app: NSRunningApplication?
+    ) throws -> DeepLinkOpenPlan {
+        let shouldHide = hiding && Defaults.shouldCoordinateWindow
+        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
+        if Preferences.useSecondaryMessagesInstance, let app {
+            try MessagesInstanceTarget.sendDeepLink(url, to: app)
+            if activating {
+                app.activate()
+            }
+            if shouldHide {
+                app.hide()
+            }
+            return .handledBySecondaryInstance(app)
+        }
+
+        let openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = shouldHide
+        return .open(openOptions)
+    }
+
     @discardableResult
     static func openDeepLink(
         _ url: URL,
@@ -120,26 +152,14 @@ final class MessagesController {
         targeting app: NSRunningApplication? = nil,
         timeout: TimeInterval = 5
     ) async throws -> NSRunningApplication {
-        let shouldHide = hiding && Defaults.shouldCoordinateWindow
-        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
-        if Preferences.useSecondaryMessagesInstance, let app {
-            try Task.checkCancellation()
-            try MessagesInstanceTarget.sendDeepLink(url, to: app)
-            if activating {
-                app.activate()
-            }
-            if shouldHide {
-                app.hide()
-            }
+        try Task.checkCancellation()
+        switch try planDeepLinkOpen(url, activating: activating, hiding: hiding, targeting: app) {
+        case .handledBySecondaryInstance(let app):
             try Task.checkCancellation()
             return app
+        case .open(let openOptions):
+            return try await NSWorkspace.shared.open(url, configuration: openOptions, timeout: timeout)
         }
-
-        let openOptions = NSWorkspace.OpenConfiguration()
-        openOptions.activates = activating
-        openOptions.hides = shouldHide
-
-        return try await NSWorkspace.shared.open(url, configuration: openOptions, timeout: timeout)
     }
 
     static func requestDeepLinkOpen(
@@ -148,24 +168,12 @@ final class MessagesController {
         hiding: Bool = true,
         targeting app: NSRunningApplication? = nil
     ) throws {
-        let shouldHide = hiding && Defaults.shouldCoordinateWindow
-        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
-        if Preferences.useSecondaryMessagesInstance, let app {
-            try MessagesInstanceTarget.sendDeepLink(url, to: app)
-            if activating {
-                app.activate()
-            }
-            if shouldHide {
-                app.hide()
-            }
+        switch try planDeepLinkOpen(url, activating: activating, hiding: hiding, targeting: app) {
+        case .handledBySecondaryInstance:
             return
+        case .open(let openOptions):
+            NSWorkspace.shared.open(url, configuration: openOptions)
         }
-
-        let openOptions = NSWorkspace.OpenConfiguration()
-        openOptions.activates = activating
-        openOptions.hides = shouldHide
-
-        NSWorkspace.shared.open(url, configuration: openOptions)
     }
 
     private static func logDeepLinkOpen(_ url: URL, activating: Bool, hiding: Bool) {
@@ -465,9 +473,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func withAutomation<T>(_ operation: () async throws -> T) async throws -> T {
-        log.info("prepareForAutomation")
+        log.info("withAutomation: preparing")
         cancelReplyTranscriptViewTask?.cancel()
-        log.debug("prepareForAutomation: making the app automatable")
+        log.debug("withAutomation: making the app automatable")
 
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try await windowCoordinator.makeAutomatable(mainWindow)
@@ -475,7 +483,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let result = await Result(catching: operation)
 
-        log.info("finishedAutomation")
+        log.info("withAutomation: finished")
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             do {
                 try await windowCoordinator.automationDidComplete(mainWindow)
