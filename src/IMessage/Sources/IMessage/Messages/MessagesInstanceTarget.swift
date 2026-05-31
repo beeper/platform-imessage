@@ -49,10 +49,10 @@ enum MessagesInstanceTarget {
         configuration.createsNewApplicationInstance = true
         configuration.allowsRunningApplicationSubstitution = false
         configuration.addsToRecentItems = false
-        configuration.messagesInstanceLaunchIsUserAction = true
-        configuration.messagesInstancePreferRunningInstance = false
-        configuration.messagesInstanceLaunchWithoutRestoringState = true
-        configuration.messagesInstanceWaitForApplicationToCheckIn = true
+        configuration.launchIsUserAction = true
+        configuration.preferRunningInstance = false
+        configuration.launchWithoutRestoringState = true
+        configuration.waitForApplicationToCheckIn = true
 
         let waiter = DispatchSemaphore(value: 0)
         var result: Result<NSRunningApplication, Error>?
