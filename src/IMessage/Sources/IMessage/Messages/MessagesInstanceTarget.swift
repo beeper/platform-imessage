@@ -54,30 +54,20 @@ enum MessagesInstanceTarget {
         configuration.messagesInstanceLaunchWithoutRestoringState = true
         configuration.messagesInstanceWaitForApplicationToCheckIn = true
 
-        let waiter = DispatchSemaphore(value: 0)
-        var result: Result<NSRunningApplication, Error>?
-
-        NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { app, error in
-            if let error {
-                result = .failure(error)
-            } else if let app {
-                result = .success(app)
-            } else {
-                result = .failure(ErrorMessage("LaunchServices completed without returning Messages.app"))
-            }
-            waiter.signal()
-        }
-
-        let didLaunch = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: waiter.wait(timeout: .now() + timeout) == .success)
+        let app = try await NSWorkspace.shared.waitForRunningApplicationOpen(
+            timeout: timeout,
+            timeoutError: { ErrorMessage("Timed out waiting for secondary Messages.app launch after \(timeout)s") }
+        ) { finish in
+            NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { app, error in
+                if let error {
+                    finish(.failure(error))
+                } else if let app {
+                    finish(.success(app))
+                } else {
+                    finish(.failure(ErrorMessage("LaunchServices completed without returning Messages.app")))
+                }
             }
         }
-        guard didLaunch else {
-            throw ErrorMessage("Timed out waiting for secondary Messages.app launch after \(timeout)s")
-        }
-
-        let app = try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
         try await app.waitForLaunch(timeout: timeout)
 
         if let initialDeepLink {

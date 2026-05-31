@@ -3,15 +3,17 @@ import Foundation
 import IMessageCore
 
 extension NSWorkspace {
-    func open(
-        _ url: URL,
-        configuration: OpenConfiguration,
-        timeout: TimeInterval
+    typealias RunningApplicationOpenCompletion = @Sendable (Result<NSRunningApplication, Error>) -> Void
+
+    func waitForRunningApplicationOpen(
+        timeout: TimeInterval,
+        timeoutError: @escaping @Sendable () -> Error,
+        start: (@escaping RunningApplicationOpenCompletion) -> Void
     ) async throws -> NSRunningApplication {
         typealias OpenContinuation = CheckedContinuation<NSRunningApplication, Error>
         let state = Protected<(continuation: OpenContinuation?, completed: Bool)>((nil, false))
 
-        let finish: @Sendable (Result<NSRunningApplication, Error>) -> Void = { result in
+        let finish: RunningApplicationOpenCompletion = { result in
             let continuation = state.withLock { state -> OpenContinuation? in
                 guard !state.completed else {
                     return nil
@@ -39,22 +41,37 @@ extension NSWorkspace {
                 let timeoutTask = Task {
                     try? await Task.sleep(forTimeInterval: timeout)
                     guard !Task.isCancelled else { return }
-                    finish(.failure(ErrorMessage("Timed out opening URL via LaunchServices after \(timeout)s")))
+                    finish(.failure(timeoutError()))
                 }
 
-                open(url, configuration: configuration) { running, error in
+                start { result in
                     timeoutTask.cancel()
-                    if let error {
-                        finish(.failure(error))
-                    } else if let running {
-                        finish(.success(running))
-                    } else {
-                        finish(.failure(ErrorMessage("LaunchServices completed without returning an app")))
-                    }
+                    finish(result)
                 }
             }
         } onCancel: {
             finish(.failure(CancellationError()))
+        }
+    }
+
+    func open(
+        _ url: URL,
+        configuration: OpenConfiguration,
+        timeout: TimeInterval
+    ) async throws -> NSRunningApplication {
+        try await waitForRunningApplicationOpen(
+            timeout: timeout,
+            timeoutError: { ErrorMessage("Timed out opening URL via LaunchServices after \(timeout)s") }
+        ) { finish in
+            open(url, configuration: configuration) { running, error in
+                if let error {
+                    finish(.failure(error))
+                } else if let running {
+                    finish(.success(running))
+                } else {
+                    finish(.failure(ErrorMessage("LaunchServices completed without returning an app")))
+                }
+            }
         }
     }
 }
