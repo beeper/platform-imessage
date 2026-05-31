@@ -49,7 +49,6 @@ private struct Boom: Error {}
 }
 
 @Test func laneIdleFiresAfterWorkDrains() async throws {
-    // idleDelay raised to 0.1 to de-flake (wide margin under the 2s eventually timeout).
     let lane = MessagesControllerAutomationLane(idleDelay: 0.1)
     let idleCount = Protected<Int>(0)
     await lane.setIdleCallback { idleCount.withLock { $0 += 1 } }
@@ -60,7 +59,6 @@ private struct Boom: Error {}
 }
 
 @Test func laneIdleRepeatsWhileQuiet() async throws {
-    // idleDelay raised to 0.1 to de-flake (wide margin under the 2s eventually timeout).
     let lane = MessagesControllerAutomationLane(idleDelay: 0.1)
     let idleCount = Protected<Int>(0)
     await lane.setIdleCallback { idleCount.withLock { $0 += 1 } }
@@ -71,15 +69,9 @@ private struct Boom: Error {}
 }
 
 @Test func laneStaleIdleIsSuppressedByNewWorkEpochBump() async throws {
-    // Exercises the epoch guard (`idleCallbackIfStillCurrent`) and the epoch bump in
-    // `activeWorkSubmitted`. Sequence:
-    //   1. drain work -> an idle callback is scheduled for epoch E (sleeps idleDelay)
-    //   2. before idleDelay elapses, submit new work -> bumps idleEpoch past E and
-    //      cancels the in-flight idle, so the epoch-E idle is now stale
-    //   3. drain that work -> a fresh idle is scheduled for the new epoch
-    //   4. wait idleDelay * 2 -> only the fresh idle should ever fire; the stale
-    //      epoch-E idle must have been suppressed (no double-counting from two cycles)
-    let idleDelay: TimeInterval = 0.1 // de-flaked: wide margin under the 2s timeout
+    // Exercises the epoch guard (`idleCallbackIfStillCurrent`) and `activeWorkSubmitted`'s
+    // epoch bump: new work submitted before idleDelay elapses must cancel the stale idle.
+    let idleDelay: TimeInterval = 0.1
     let lane = MessagesControllerAutomationLane(idleDelay: idleDelay)
 
     // Record the time of each idle fire so we can reason about which cycle fired.
@@ -114,9 +106,6 @@ private struct Boom: Error {}
 }
 
 @Test func laneClearingIdleCallbackStopsFurtherIdleWork() async throws {
-    // idleDelay raised to 0.1 to de-flake; instead of a fixed sleep we wait for several
-    // idle cycles, clear the callback, then wait several more idle periods and assert the
-    // count is frozen.
     let idleDelay: TimeInterval = 0.1
     let lane = MessagesControllerAutomationLane(idleDelay: idleDelay)
     let idleCount = Protected<Int>(0)
@@ -220,7 +209,6 @@ private struct Boom: Error {}
 @Test func laneIdleUsesLatestCallbackAfterMidFlightSwap() async throws {
     // Swapping the idle callback while an action is in flight must drop the old
     // callback entirely; only the latest one fires once work drains.
-    // idleDelay raised to 0.1 to de-flake (wide margin under the 2s eventually timeout).
     let lane = MessagesControllerAutomationLane(idleDelay: 0.1)
     let firstCallbackFired = Protected<Bool>(false)
     let secondCallbackFired = Protected<Bool>(false)

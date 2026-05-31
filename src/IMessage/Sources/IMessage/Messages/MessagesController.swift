@@ -475,23 +475,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         cancelReplyTranscriptViewTask?.cancel()
         log.debug("withAutomation: making the app automatable")
 
-        // If makeAutomatable partially succeeds then throws, its window manipulation
-        // (e.g. eclipsing) would otherwise be left in place because the matching
-        // automationDidComplete (window restore) cleanup below would be skipped. Run the
-        // cleanup on the throw path before rethrowing so window state is always restored.
-        // A `defer` can't be used because the cleanup is `async`.
-        var madeAutomatable = false
+        // If makeAutomatable partially succeeds then throws, run the window-restore
+        // cleanup on the throw path before rethrowing so the app isn't left eclipsed.
+        // (Can't use `defer`: the cleanup is `async`.)
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             do {
                 try await windowCoordinator.makeAutomatable(mainWindow)
-                madeAutomatable = true
             } catch {
                 await automationDidComplete()
                 scheduleCancelReplyTranscriptView()
                 throw error
             }
         }
-        _ = madeAutomatable // set for clarity / future use; cleanup is keyed on the catch above
 
         let result = await Result(catching: operation)
 
@@ -503,13 +498,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         return try result.get()
     }
 
-    /// Runs the window coordinator's automation-complete (window restore) step.
-    /// Factored out so both the success path and the `makeAutomatable`-failed cleanup
-    /// path call it identically.
+    /// Window-restore step, shared by the success and makeAutomatable-failed paths.
     private func automationDidComplete() async {
-        // Preserve the original guard (only run cleanup when coordinating and a main
-        // window is present), but don't pass the non-Sendable AX element across the
-        // actor boundary — the coordinators don't use it.
+        // No AX element is passed across the actor boundary — the coordinators don't use it.
         guard Defaults.shouldCoordinateWindow, elements.getMainWindow() != nil else { return }
         do {
             try await windowCoordinator.automationDidComplete()
