@@ -162,47 +162,6 @@ final class MessagesAppElements {
         logTime: Bool = false,
         dumpOnError: Bool = false,
         in root: Accessibility.Element? = nil,
-        _ search: () throws -> Accessibility.Element?
-    ) throws -> Accessibility.Element {
-        let startTime = logTime ? Date() : nil
-
-        defer {
-            if let startTime {
-                log.debug("\(name) took \(startTime.timeIntervalSinceNow * -1000)ms")
-            }
-        }
-
-        var errors: [Error] = []
-        do {
-            if let result = try search() {
-                return result
-            }
-        } catch {
-            errors.append(error)
-        }
-
-        var dumpID: String?
-        if dumpOnError {
-            let id = String(UUID().uuidString.prefix(8)).lowercased()
-            dumpID = id
-            do {
-                var buffer = ""
-                try (root ?? app).dumpXML(to: &buffer, maxDepth: 10, excludingPII: true, includeActions: false, includeSections: true)
-                log.error("[\(id)] AX dump for \(name):\n\(buffer)")
-            } catch {
-                log.error("[\(id)] failed to dump AX tree for \(name): \(error)")
-                errors.append(error)
-            }
-        }
-
-        throw ElementSearchError(name: name, underlyingErrors: errors, dumpID: dumpID)
-    }
-
-    func find(
-        _ name: String,
-        logTime: Bool = false,
-        dumpOnError: Bool = false,
-        in root: Accessibility.Element? = nil,
         _ search: () async throws -> Accessibility.Element?
     ) async throws -> Accessibility.Element {
         let startTime = logTime ? Date() : nil
