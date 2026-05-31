@@ -673,7 +673,7 @@ public final class PlatformAPI {
 
             guard threadObserveRequestToken.read() == requestID else { return }
 
-            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
+            let observe = try controller.makeIdleActivityObserver(observingThreadID: threadID, statusSender: sendStatus)
             await Self.setMessagesControllerIdleCallback {
                 guard threadObserveRequestToken.read() == requestID else { return }
                 do {

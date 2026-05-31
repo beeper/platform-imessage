@@ -441,13 +441,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func withAutomation<T>(_ operation: () throws -> T) async throws -> T {
-        try await prepareForAutomation()
-        let result = Result(catching: operation)
-        await finishedAutomation()
-        return try result.get()
-    }
-
-    private func prepareForAutomation() async throws {
         log.info("prepareForAutomation")
         cancelReplyTranscriptViewTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
@@ -455,11 +448,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             try await windowCoordinator.makeAutomatable(mainWindow)
         }
-    }
 
-    private func finishedAutomation() async {
+        let result = Result(catching: operation)
+
         log.info("finishedAutomation")
-        // this isn't propagated to make finishedAutomation callable inside of defer { … }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
             do {
                 try await windowCoordinator.automationDidComplete(mainWindow)
@@ -469,6 +461,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
         // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
         scheduleCancelReplyTranscriptView()
+
+        return try result.get()
     }
 
     private var cancelReplyTranscriptViewTask: Task<Void, Never>?
@@ -1445,9 +1439,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    /// Returns a callback that observes one thread while controller work is idle.
-    /// The platform-level idle observer calls this repeatedly after active automation drains.
-    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> (() async throws -> Void) {
+    /// Returns an observer that checks one thread while controller work is idle.
+    /// The platform-level idle observer calls it repeatedly after active automation drains.
+    func makeIdleActivityObserver(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> (() async throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         return { [weak self] in
