@@ -500,7 +500,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private var cancelReplyTranscriptViewTask: Task<Void, Never>?
 
     private func scheduleCancelReplyTranscriptView() {
-        cancelReplyTranscriptViewTask = Task { [weak self] in
+        // This may be called while already executing on the messages-controller
+        // lane. A plain Task would inherit that task-local state, then trip the
+        // re-entrancy assertion when this delayed cleanup enqueues fresh lane work.
+        cancelReplyTranscriptViewTask = Task.detached { [weak self] in
             do {
                 try await Task.sleep(forTimeInterval: 1.5)
                 try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
