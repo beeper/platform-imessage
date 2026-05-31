@@ -56,17 +56,10 @@ enum MessagesInstanceTarget {
 
         let app = try await NSWorkspace.shared.waitForRunningApplicationOpen(
             timeout: timeout,
-            timeoutError: { ErrorMessage("Timed out waiting for secondary Messages.app launch after \(timeout)s") }
-        ) { finish in
-            NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { app, error in
-                if let error {
-                    finish(.failure(error))
-                } else if let app {
-                    finish(.success(app))
-                } else {
-                    finish(.failure(ErrorMessage("LaunchServices completed without returning Messages.app")))
-                }
-            }
+            timeoutMessage: "Timed out waiting for secondary Messages.app launch after \(timeout)s",
+            missingApplicationMessage: "LaunchServices completed without returning Messages.app"
+        ) { completion in
+            NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration, completionHandler: completion)
         }
         try await app.waitForLaunch(timeout: timeout)
 
