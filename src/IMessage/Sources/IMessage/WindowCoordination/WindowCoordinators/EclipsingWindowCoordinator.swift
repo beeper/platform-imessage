@@ -38,7 +38,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
     }
 
-    @MainActor
     func makeAutomatable(_ messagesWindow: Accessibility.Element) async throws {
         // Required so we can exclude the Messages window itself from external anchor candidates;
         // without it the eclipse would no-op (positioning Messages on top of itself).
@@ -125,12 +124,10 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
     }
 
-    @MainActor
     func automationDidComplete(_: Accessibility.Element) async throws {
         hideDebouncer.requestHide()
     }
 
-    @MainActor
     func reset(_ window: Accessibility.Element) async throws {
         hideDebouncer.immediatelyUnhide()
 
@@ -148,12 +145,10 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         try window.setFrame(originalFrame)
     }
 
-    @MainActor
     func userManuallyActivated(_: NSRunningApplication) async throws {
         hideDebouncer.immediatelyUnhide()
     }
 
-    @MainActor
     func userManuallyDeactivated(_: NSRunningApplication) async throws {
         hideDebouncer.requestHide()
     }

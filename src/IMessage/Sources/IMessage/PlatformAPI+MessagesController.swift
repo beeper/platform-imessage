@@ -11,27 +11,42 @@ private enum MessagesControllerCoordinatorError: Error {
     case pendingControllerInvalidated
 }
 
-private actor MessagesControllerSerializer {
+private actor MessagesControllerAutomationLane {
+    typealias IdleCallback = @Sendable () async -> Void
+
+    private let idleDelay: TimeInterval
     private var tail: Task<Void, Never>?
+    private var activeWorkCount = 0
+    private var idleEpoch: UInt = 0
+    private var idleCallback: IdleCallback?
+    private var idleTask: Task<Void, Never>?
+
+    init(idleDelay: TimeInterval) {
+        self.idleDelay = idleDelay
+    }
 
     func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
+        activeWorkWillBegin()
         let task = enqueue(action)
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
+        do {
+            let result = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
+            activeWorkDidFinish()
+            return result
+        } catch {
+            activeWorkDidFinish()
+            throw error
         }
     }
 
-    func run(_ action: @Sendable @escaping () async -> Void) async {
-        let task = enqueue {
-            await action()
-        }
-        await withTaskCancellationHandler {
-            _ = try? await task.value
-        } onCancel: {
-            task.cancel()
-        }
+    func setIdleCallback(_ callback: IdleCallback?) {
+        idleCallback = callback
+        idleEpoch += 1
+        idleTask?.cancel()
+        idleTask = nil
     }
 
     private func enqueue<T>(_ action: @Sendable @escaping () async throws -> T) -> Task<T, Error> {
@@ -47,48 +62,24 @@ private actor MessagesControllerSerializer {
         }
         return task
     }
-}
 
-private actor MessagesControllerIdleObservation {
-    typealias Callback = @Sendable () async -> Void
-    typealias IdleWorkRunner = @Sendable (@escaping @Sendable () async -> Void) async -> Void
-
-    private let idleDelay: TimeInterval
-    private var activeWorkCount = 0
-    private var epoch: UInt = 0
-    private var callback: Callback?
-    private var idleTask: Task<Void, Never>?
-
-    init(idleDelay: TimeInterval) {
-        self.idleDelay = idleDelay
-    }
-
-    func setCallback(_ callback: Callback?) {
-        self.callback = callback
-        epoch += 1
-        idleTask?.cancel()
-        idleTask = nil
-    }
-
-    func activeWorkWillBegin() {
-        epoch += 1
+    private func activeWorkWillBegin() {
+        idleEpoch += 1
         activeWorkCount += 1
         idleTask?.cancel()
         idleTask = nil
     }
 
-    func activeWorkDidFinish(runIdleWork: @escaping IdleWorkRunner) {
+    private func activeWorkDidFinish() {
         activeWorkCount = max(0, activeWorkCount - 1)
         guard activeWorkCount == 0 else { return }
-        scheduleIdleCallback(runIdleWork: runIdleWork)
+        scheduleIdleCallback()
     }
-}
 
-private extension MessagesControllerIdleObservation {
-    func scheduleIdleCallback(runIdleWork: @escaping IdleWorkRunner) {
-        guard callback != nil else { return }
+    private func scheduleIdleCallback() {
+        guard idleCallback != nil else { return }
 
-        let expectedEpoch = epoch
+        let expectedEpoch = idleEpoch
         let idleDelay = idleDelay
         idleTask = Task {
             do {
@@ -97,31 +88,35 @@ private extension MessagesControllerIdleObservation {
                 return
             }
 
-            await runIdleWork {
-                guard await self.shouldRunIdleCallback(expectedEpoch: expectedEpoch) else {
-                    return
-                }
-
-                await self.invokeCallback()
-
-                guard await self.shouldContinueIdleCallbacks(expectedEpoch: expectedEpoch) else {
-                    return
-                }
-                await self.scheduleIdleCallback(runIdleWork: runIdleWork)
-            }
+            let task = self.enqueueIdleCallback(expectedEpoch: expectedEpoch)
+            _ = try? await task.value
         }
     }
 
-    func shouldRunIdleCallback(expectedEpoch: UInt) -> Bool {
-        activeWorkCount == 0 && epoch == expectedEpoch && callback != nil && idleTask?.isCancelled == false
+    private func enqueueIdleCallback(expectedEpoch: UInt) -> Task<Void, Error> {
+        enqueue {
+            guard let callback = await self.idleCallbackToRun(expectedEpoch: expectedEpoch) else {
+                return
+            }
+
+            await callback()
+
+            guard await self.shouldContinueIdleCallbacks(expectedEpoch: expectedEpoch) else {
+                return
+            }
+            await self.scheduleIdleCallback()
+        }
     }
 
-    func invokeCallback() async {
-        await callback?()
+    private func idleCallbackToRun(expectedEpoch: UInt) -> IdleCallback? {
+        guard activeWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
+            return nil
+        }
+        return idleCallback
     }
 
-    func shouldContinueIdleCallbacks(expectedEpoch: UInt) -> Bool {
-        activeWorkCount == 0 && epoch == expectedEpoch && callback != nil
+    private func shouldContinueIdleCallbacks(expectedEpoch: UInt) -> Bool {
+        activeWorkCount == 0 && idleEpoch == expectedEpoch && idleCallback != nil
     }
 }
 
@@ -261,7 +256,7 @@ private extension MessagesControllerCoordinator {
     func dispose(_ entry: MessagesControllerEntry) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         try await PlatformAPI.onMessagesControllerQueue {
-            await PlatformAPI.setMessagesControllerIdleObservation(nil)
+            await PlatformAPI.setMessagesControllerIdleCallback(nil)
             entry.value.dispose()
         }
     }
@@ -269,9 +264,8 @@ private extension MessagesControllerCoordinator {
 
 extension PlatformAPI {
     // IMessageHost is singleton-only within a process; PlatformAPI wrappers share
-    // one MessagesController and one async serializer for Messages.app automation.
-    private static let messagesControllerSerializer = MessagesControllerSerializer()
-    private static let messagesControllerIdleObservation = MessagesControllerIdleObservation(idleDelay: 1)
+    // one MessagesController and one async lane for Messages.app automation.
+    private static let messagesControllerAutomationLane = MessagesControllerAutomationLane(idleDelay: 1)
     fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
 
     func withMessagesController<T>(
@@ -293,25 +287,13 @@ extension PlatformAPI {
     static func onMessagesControllerQueue<T>(
         _ action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        await messagesControllerIdleObservation.activeWorkWillBegin()
-        do {
-            let result = try await messagesControllerSerializer.run(action)
-            await messagesControllerIdleObservation.activeWorkDidFinish(runIdleWork: runMessagesControllerIdleWork)
-            return result
-        } catch {
-            await messagesControllerIdleObservation.activeWorkDidFinish(runIdleWork: runMessagesControllerIdleWork)
-            throw error
-        }
+        try await messagesControllerAutomationLane.run(action)
     }
 
-    static func setMessagesControllerIdleObservation(
+    static func setMessagesControllerIdleCallback(
         _ callback: (@Sendable () async -> Void)?
     ) async {
-        await messagesControllerIdleObservation.setCallback(callback)
-    }
-
-    private static let runMessagesControllerIdleWork: MessagesControllerIdleObservation.IdleWorkRunner = { action in
-        await messagesControllerSerializer.run(action)
+        await messagesControllerAutomationLane.setIdleCallback(callback)
     }
 
     static func makeMessagesController(reportErrorMessage: ReportErrorMessage?) async throws -> MessagesController {

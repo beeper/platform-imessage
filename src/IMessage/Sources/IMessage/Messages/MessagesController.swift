@@ -442,19 +442,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func withAutomation<T>(_ operation: () throws -> T) async throws -> T {
         try await prepareForAutomation()
-        do {
-            let result = try operation()
-            await finishedAutomation()
-            return result
-        } catch {
-            await finishedAutomation()
-            throw error
-        }
+        let result = Result(catching: operation)
+        await finishedAutomation()
+        return try result.get()
     }
 
     private func prepareForAutomation() async throws {
         log.info("prepareForAutomation")
-        afterAutomationTask?.cancel()
+        cancelReplyTranscriptViewTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
 
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
@@ -476,10 +471,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         scheduleCancelReplyTranscriptView()
     }
 
-    private var afterAutomationTask: Task<Void, Never>?
+    private var cancelReplyTranscriptViewTask: Task<Void, Never>?
 
     private func scheduleCancelReplyTranscriptView() {
-        afterAutomationTask = Task { [weak self] in
+        cancelReplyTranscriptViewTask = Task { [weak self] in
             do {
                 try await Task.sleep(forTimeInterval: 1.5)
                 try await PlatformAPI.onMessagesControllerQueue { [weak self] in
@@ -911,40 +906,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
         }
     }
-
-    #if false
-    // this is unusable because showing menu makes it first responder
-    // keep this code as documentation
-    func markAsReadWithMenu(threadID: String) throws {
-        try prepareForAutomation()
-        defer { finishedAutomation() }
-
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
-        try withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
-
-            let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
-            try threadCell.showMenu()
-
-            let menu = try elements.menu
-            /*
-             AXMenuItem unpin
-             AXMenuItem open_conversation_in_separate_window
-             AXMenuItem delete_conversation…
-             AXMenuItem
-             AXMenuItem details…
-             AXMenuItem hide_alerts
-             AXMenuItem mark_as_read
-             AXMenuItem
-             AXMenuItem
-             */
-            guard let markAsReadMenuItem = (try retry(withTimeout: 0.5, interval: 0.1) { try menu.children().first(where: { (try? $0.identifier()) == "mark_as_read" }) }) else {
-                throw ErrorMessage("markAsReadMenuItem not found")
-            }
-            try markAsReadMenuItem.press()
-        }
-    }
-    #endif
 
     // this only works when the messages.app window has been activated at least once
     // can randomly stop working. a reactivation of messages.app may fix (unhandled)
@@ -1546,7 +1507,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard !isDisposed else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
         isDisposed = true
-        afterAutomationTask?.cancel()
+        cancelReplyTranscriptViewTask?.cancel()
         lifecycleConveyor?.cancel()
         lifecycleEventsTask?.cancel()
 
