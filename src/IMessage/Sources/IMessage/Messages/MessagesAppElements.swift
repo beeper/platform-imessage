@@ -145,14 +145,7 @@ final class MessagesAppElements {
 
     private var cachedMainWindow: Accessibility.Element?
 
-    init(runningApp: NSRunningApplication, openDeepLink: @escaping (URL) throws -> Void = { url in
-        try MessagesController.requestDeepLinkOpen(url)
-        // `requestDeepLinkOpen` is fire-and-forget; give LaunchServices a moment to
-        // process the open so the next `getMainWindow()` attempt has a chance to see
-        // the new window. Without this, the `_mainWindowReally` retry can iterate
-        // (or exit) before the deep link actually takes effect.
-        Thread.sleep(forTimeInterval: 0.5)
-    }) {
+    init(runningApp: NSRunningApplication, openDeepLink: @escaping (URL) throws -> Void) {
         self.runningApp = runningApp
         self.openDeepLink = openDeepLink
         app = Accessibility.Element(pid: runningApp.processIdentifier)

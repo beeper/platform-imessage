@@ -97,7 +97,7 @@ final class MessagesController {
     private func resetWindow() {
         try? elements.searchField.cancel()
         try? expandSplitter()
-        try? closeReplyTranscriptView(wait: false)
+        try? closeReplyTranscriptView()
     }
 
     private static func terminateApp(_ app: NSRunningApplication) throws {
@@ -210,7 +210,7 @@ final class MessagesController {
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
-    private func assertSelectedThread(threadID: String) throws {
+    private func assertSelectedThread(threadID: String) async throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.imessage.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
@@ -240,7 +240,7 @@ final class MessagesController {
         let beganEnsuringThreadSelection = Date()
         var hasLoggedAboutStrategy = false
 
-        try retry(withTimeout: 1.2, interval: 0.05) {
+        try await retry(withTimeout: 1.2, interval: 0.05) {
             attempt += 1
             do {
                 let strategy = Defaults.imessage.string(forKey: DefaultsKeys.misfirePreventionFallbackStrategy)
@@ -270,7 +270,7 @@ final class MessagesController {
                     var sleepInterval = Defaults.imessage.double(forKey: DefaultsKeys.misfirePreventionSleepInterval)
                     if sleepInterval <= 0.0 { sleepInterval = 0.5 }
                     log.warning("misfire prevention: no fallback strategy specified; sleeping for \(sleepInterval)s instead")
-                    Thread.sleep(forTimeInterval: sleepInterval)
+                    try await Task.sleep(forTimeInterval: sleepInterval)
                 }
             } catch {
                 if attempt > 5 { // 250ms
@@ -288,7 +288,7 @@ final class MessagesController {
     private func openThread(_ threadID: String) async throws {
         try? self.clearTypingStatus()
         try await openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
-        try assertSelectedThread(threadID: threadID)
+        try await assertSelectedThread(threadID: threadID)
     }
 
     init(reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
@@ -509,7 +509,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
                     try Task.checkCancellation()
                     guard let self else { return }
-                    try closeReplyTranscriptView(wait: false)
+                    try closeReplyTranscriptView()
                 }
             } catch is CancellationError {
                 return
@@ -540,22 +540,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func openReactionPicker(messageCell: Accessibility.Element) throws {
+    private func openReactionPicker(messageCell: Accessibility.Element) async throws {
         let reactAction = try messageAction(messageCell: messageCell, action: .react)
         try reactAction() // performing this 2x will close reaction view
 
         if isSequoiaOrUp { // wait for animation
-            Thread.sleep(forTimeInterval: 0.75)
+            try await Task.sleep(forTimeInterval: 0.75)
         }
     }
 
-    private func openCustomEmojiReactionPicker(messageCell: Accessibility.Element) throws {
+    private func openCustomEmojiReactionPicker(messageCell: Accessibility.Element) async throws {
         if let action = try customMessageAction(messageCell: messageCell, named: LocalizedStrings.addEmojiTapback) {
             try action()
             return
         }
 
-        try openReactionPicker(messageCell: messageCell)
+        try await openReactionPicker(messageCell: messageCell)
         try elements.addCustomEmojiReactionButton.press()
     }
 
@@ -578,11 +578,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try triggerThreadCellAction(threadCell: threadCell, action: action)
     }
 
-    private func selectNextThreadAndScroll() throws {
+    private func selectNextThreadAndScroll() async throws {
         let selectedThreadCell = elements.selectedThreadCell
         // ctrlTab() acts differently, has no effect?
         try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
-        try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
+        try await retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
             let nextThreadCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
             if let selectedThreadCell, nextThreadCell == selectedThreadCell {
                 throw ErrorMessage("diff thread not selected")
@@ -620,7 +620,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let selectedCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
         if selectedCell.isInViewport { return selectedCell }
 
-        try selectNextThreadAndScroll()
+        try await selectNextThreadAndScroll()
         try await openThread(threadID)
 
         let selectedCellAfterScroll = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
@@ -659,23 +659,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         // without closing reply transcript, non-overlay deep link won't select the message
         if !messageCell.overlay {
-            try? closeReplyTranscriptView(wait: false)
+            try? closeReplyTranscriptView()
         }
 
         try await withActivation(openBefore: url) {
-            try assertSelectedThread(threadID: threadID)
+            try await assertSelectedThread(threadID: threadID)
 
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
             //     if messageCell.overlay {
             //         // alt: try? sendKeyPress(key: CGKeyCode(kVK_Escape))
-            //         closeReplyTranscriptView(wait: true)
+            //         try await closeReplyTranscriptViewAndWait()
             //     }
             // }
             if messageCell.overlay {
-                try waitUntilReplyTranscriptVisible()
+                try await waitUntilReplyTranscriptVisible()
             }
-            guard let selected = (try retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
+            guard let selected = (try await retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
                 guard let cell = try messageCell.overlay
                         ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
                         : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
@@ -771,7 +771,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
                 if case let .custom(emoji) = reaction, on {
                     guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
-                    try openCustomEmojiReactionPicker(messageCell: $0)
+                    try await openCustomEmojiReactionPicker(messageCell: $0)
                     // TODO: support being able to pick a skin tone
                     let search: CharacterPickerSearch
                     do {
@@ -779,7 +779,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     } catch {
                         throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
                     }
-                    let searchField = try retry(withTimeout: 1.0, interval: 0.05) {
+                    let searchField = try await retry(withTimeout: 1.0, interval: 0.05) {
                         try elements.characterPickerSearchField
                     }
                     try searchField.value(assign: search.query)
@@ -800,7 +800,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     return
                 }
 
-                try openReactionPicker(messageCell: $0)
+                try await openReactionPicker(messageCell: $0)
 
                 let btn = try {
                     if isSequoiaOrUp {
@@ -822,7 +822,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     return buttons[idx]
                 }()
 
-                try retry(withTimeout: 1.2, interval: 0.1) {
+                try await retry(withTimeout: 1.2, interval: 0.1) {
                     let isSelected = try btn.isSelected()
                     if isSelected != on {
                         try btn.press()
@@ -872,51 +872,52 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("editMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        func tryPressingCancelEditButton() {
+        func tryPressingCancelEditButton() async throws {
             if let cancelEditButton = try? elements.cancelEditButton {
                 // this is seemingly always available, even when you're not editing
                 log.debug("pressing cancel edit button")
 
                 do {
                     try cancelEditButton.press()
-                    Thread.sleep(forTimeInterval: 0.5)
                 } catch {
                     log.error("failed to press cancel edit button, continuing anyway: \(error)")
+                    return
                 }
+                try await Task.sleep(forTimeInterval: 0.5)
             } else {
                 log.debug("(no cancel edit button was found)")
             }
         }
 
-        func assignAndCommitEdit() throws {
-            Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforeReplacing))
+        func assignAndCommitEdit() async throws {
+            try await Task.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforeReplacing))
             let editableMessageField = try elements.editableMessageField
-            try assignToMessageField(editableMessageField, text: newText)
+            try await assignToMessageField(editableMessageField, text: newText)
 
-            Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforeFocusing))
-            focusMessageField(editableMessageField)
+            try await Task.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforeFocusing))
+            try await focusMessageField(editableMessageField)
 
-            Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
+            try await Task.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
             try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
             // todo: wait for it to disappear
         }
 
-        let onError = { (attempt: Int, error: (any Error)?) in
+        let onError = { (attempt: Int, error: (any Error)?) async throws in
             let errorDescription = String(describing: error)
             log.warning("failed to edit (attempt \(attempt)), pressing cancel edit button and retrying: \(errorDescription)")
-            tryPressingCancelEditButton()
+            try await tryPressingCancelEditButton()
         }
 
         try await withAutomation {
-            tryPressingCancelEditButton()
+            try await tryPressingCancelEditButton()
 
             try await withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
                 if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                     log.debug("found \"Edit\" message action")
 
-                    try retry(withTimeout: 6.0, interval: 2.0, {
+                    try await retry(withTimeout: 6.0, interval: 2.0, {
                         try editAction()
-                        try assignAndCommitEdit()
+                        try await assignAndCommitEdit()
                     }, onError: onError)
 
                     return
@@ -926,11 +927,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
                 try messageCell.showMenu()
                 // retrying this too rapidly can cause the floating editor to appear more than once?
-                try retry(withTimeout: 6.0, interval: 2.0, {
-                    Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
+                try await retry(withTimeout: 6.0, interval: 2.0, {
+                    try await Task.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
                     try elements.menuEditItem.press()
 
-                    try assignAndCommitEdit()
+                    try await assignAndCommitEdit()
                 }, onError: onError)
             }
         }
@@ -947,11 +948,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await openThread(threadID)
         let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
         // select any another cell and then come back
-        try selectNextThreadAndScroll()
+        try await selectNextThreadAndScroll()
         // scrollToVisible is needed since sometimes the thread cell can be behind the search input field causing .press() to focus the input field instead
         try threadCell.scrollToVisible()
         try threadCell.press()
-        try? assertSelectedThread(threadID: threadID)
+        try? await assertSelectedThread(threadID: threadID)
     }
 
     /*
@@ -970,7 +971,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try await withAutomation {
             try await withActivation(openBefore: url) {
-                try assertSelectedThread(threadID: threadID)
+                try await assertSelectedThread(threadID: threadID)
                 if isVenturaOrUp {
                     return try keyPresser.commandShiftU()
                 }
@@ -1022,7 +1023,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try await withAutomation {
             try await withActivation(openBefore: url) {
-                try assertSelectedThread(threadID: threadID)
+                try await assertSelectedThread(threadID: threadID)
                 let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
                 if muted {
                     try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
@@ -1048,7 +1049,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try await withAutomation {
             try await withActivation(openBefore: url) {
-                try assertSelectedThread(threadID: threadID)
+                try await assertSelectedThread(threadID: threadID)
                 try await triggerThreadCellAction(threadID: threadID, action: .delete)
                 try elements.alertSheetDeleteButton.press()
             }
@@ -1072,14 +1073,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try elements.messageBodyField.value(assign: "")
     }
 
-    private func focusMessageField(_ messageField: Accessibility.Element) {
-        try? retry(withTimeout: 0.8, interval: 0.1) {
-            // this doesn't ever focus in compose thread for some reason
-            try messageField.isFocused(assign: true)
-            if isComposeThreadSelected() { return }
-            guard try messageField.isFocused() else {
-                throw ErrorMessage("Could not focus message field")
+    private func focusMessageField(_ messageField: Accessibility.Element) async throws {
+        do {
+            try await retry(withTimeout: 0.8, interval: 0.1) {
+                // this doesn't ever focus in compose thread for some reason
+                try messageField.isFocused(assign: true)
+                if isComposeThreadSelected() { return }
+                guard try messageField.isFocused() else {
+                    throw ErrorMessage("Could not focus message field")
+                }
             }
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            return
         }
     }
 
@@ -1098,8 +1105,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func assignToMessageField(_ messageField: Accessibility.Element, text: String) throws {
-        try retry(withTimeout: 1, interval: 0.1) {
+    private func assignToMessageField(_ messageField: Accessibility.Element, text: String) async throws {
+        try await retry(withTimeout: 1, interval: 0.1) {
             try messageField.value(assign: text)
             // we don't test if messageFieldValue() == text here because a few ms later, messageFieldValue will likely change if text has @mentions
             let charCountResult = Result { try messageField.noOfChars() }
@@ -1115,16 +1122,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func sendMessageInField(_ messageField: Accessibility.Element) throws {
+    private func sendMessageInField(_ messageField: Accessibility.Element) async throws {
         log.debug("\(#function): focusing field and pressing return")
-        focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
+        try await focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
         try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         log.debug("\(#function): completed initial attempt")
 
         do {
             log.debug("\(#function): will now attempt to verify the send")
 
-            try retry(withTimeout: 1.5, interval: 0.1) {
+            try await retry(withTimeout: 1.5, interval: 0.1) {
                 let message = try messageFieldValue(messageField)
                 if !message.isEmpty {
                     let hasNewline = message.hasSuffix("\n")
@@ -1138,7 +1145,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 if attempt == 2 {
                     log.debug("\(#function): focusing and pressing enter again")
 
-                    self.focusMessageField(messageField)
+                    try await self.focusMessageField(messageField)
                     try? self.keyPresser.return()
                 } else if attempt == 6 {
                     log.debug("\(#function): focusing and pressing enter again (alt. strategy)")
@@ -1149,6 +1156,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             log.debug("\(#function): successfully verified the send")
+        } catch let error as CancellationError {
+            throw error
         } catch {
             // if we can't verify the message send, then blindly swallow the error and assume that the send went through; don't let
             // it bubble to the TypeScript side, which will retry (since we specifically do that for failed message sends). this
@@ -1161,25 +1170,28 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func closeReplyTranscriptView(wait: Bool) throws {
-        guard let rtv = try? elements.replyTranscriptView else { return }
+    @discardableResult
+    private func closeReplyTranscriptView() throws -> Bool {
+        guard let rtv = try? elements.replyTranscriptView else { return false }
         log.debug("calling replyTranscriptView.cancel()")
         try rtv.cancel()
-        func waitForReplyTranscriptsClose() throws {
-            try retry(withTimeout: 1.2, interval: 0.1) {
-                guard let pValue = try? elements.messageBodyField.placeholderValue(),
-                      pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
-                    throw ErrorMessage("replyTranscriptView visible")
-                }
-            }
-            Thread.sleep(forTimeInterval: 0.4) // wait for animation still
-        }
-        if wait { try waitForReplyTranscriptsClose() }
+        return true
     }
 
-    private func waitUntilReplyTranscriptVisible() throws {
+    private func closeReplyTranscriptViewAndWait() async throws {
+        guard try closeReplyTranscriptView() else { return }
+        try await retry(withTimeout: 1.2, interval: 0.1) {
+            guard let pValue = try? elements.messageBodyField.placeholderValue(),
+                  pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                throw ErrorMessage("replyTranscriptView visible")
+            }
+        }
+        try await Task.sleep(forTimeInterval: 0.4) // wait for animation still
+    }
+
+    private func waitUntilReplyTranscriptVisible() async throws {
         log.debug("waitUntilReplyTranscriptVisible")
-        try retry(withTimeout: 1.2, interval: 0.1) {
+        try await retry(withTimeout: 1.2, interval: 0.1) {
             guard let pValue = try? elements.messageBodyField.placeholderValue(),
                   pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
                 throw ErrorMessage("replyTranscriptView not visible")
@@ -1193,10 +1205,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try replyAction()
             let messageField = try elements.messageBodyField
             if let text {
-                try assignToMessageField(messageField, text: text)
-                try sendMessageInField(messageField)
+                try await assignToMessageField(messageField, text: text)
+                try await sendMessageInField(messageField)
             } else if let filePath {
-                try pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
+                try await pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
             }
         }
     }
@@ -1258,13 +1270,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 return
             }
 
-            if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
+            if quotedMessage == nil { try? await closeReplyTranscriptViewAndWait() } // needed even when opening deep link
 
             try await withActivation(openBefore: url) {
-                if let threadID { try assertSelectedThread(threadID: threadID) }
+                if let threadID { try await assertSelectedThread(threadID: threadID) }
 
                 if quotedMessage != nil {
-                    try waitUntilReplyTranscriptVisible()
+                    try await waitUntilReplyTranscriptVisible()
                 }
                 if isComposeThreadSelected() {
                     // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
@@ -1275,11 +1287,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 let messageField = try elements.messageBodyField
                 if let text {
                     if quotedMessage != nil { // text has to be manually assigned when quoted since ?body in deep link doesn't take any effect
-                        try assignToMessageField(messageField, text: text)
+                        try await assignToMessageField(messageField, text: text)
                     }
-                    try sendMessageInField(messageField)
+                    try await sendMessageInField(messageField)
                 } else if let filePath {
-                    try pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
+                    try await pasteFileInBodyFieldAndSend(messageField, filePath: filePath)
                 }
             }
         }
@@ -1325,16 +1337,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
     #endif
 
-    func pasteFileInBodyFieldAndSend(_ messageField: Accessibility.Element, filePath: String) throws {
+    func pasteFileInBodyFieldAndSend(_ messageField: Accessibility.Element, filePath: String) async throws {
         let fileURL = URL(fileURLWithPath: filePath)
         var messageField = messageField
         try? messageField.value(assign: "")
-        focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
+        try await focusMessageField(messageField) // focus is partially redundant, hitting ⌘ V without focus works too unless another text field is focused
         let pasteboard = NSPasteboard.general
-        try pasteboard.withRestoration {
+        try await pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
             try keyPresser.commandV()
-            try retry(withTimeout: 2, interval: 0.05) {
+            try await retry(withTimeout: 2, interval: 0.05) {
                 let charCountResult = Result { try messageField.noOfChars() }
                 guard case let .success(charCount) = charCountResult else {
                     messageField = try elements.messageBodyField
@@ -1346,7 +1358,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     throw ErrorMessage("file was not pasted: \(charCountResult)")
                 }
             }
-            try sendMessageInField(messageField)
+            try await sendMessageInField(messageField)
         }
     }
 
@@ -1456,7 +1468,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try await withAutomation {
             try await withActivation(openBefore: url) {
-                try assertSelectedThread(threadID: threadID)
+                try await assertSelectedThread(threadID: threadID)
                 try elements.notifyAnywayButton.press()
             }
         }
@@ -1468,25 +1480,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         var observation = ThreadActivityObservation.unknown
         try await withAutomation {
             try await withActivation(openBefore: url) {
-                try assertSelectedThread(threadID: threadID)
+                try await assertSelectedThread(threadID: threadID)
                 observation = activityObservation()
             }
         }
         return observation
     }
 
-    private func waitForLayoutChange(timeout: TimeInterval) {
+    private func waitForLayoutChange(timeout: TimeInterval) async throws {
         let beganWaiting = Date()
 
         while Date().timeIntervalSince(beganWaiting) < timeout {
-            guard let lastLayoutChange = lifecycleObserver.lastLayoutChange.read() else {
-                continue
-            }
-            if lastLayoutChange > beganWaiting {
+            if let lastLayoutChange = lifecycleObserver.lastLayoutChange.read(), lastLayoutChange > beganWaiting {
                 log.debug("observed layout change, exiting wait loop")
                 return
             }
-            Thread.sleep(forTimeInterval: 0.05) // 50ms
+            try await Task.sleep(forTimeInterval: 0.05) // 50ms
         }
 
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
@@ -1525,7 +1534,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     _ = try await self.openDeepLink(url)
                     log.debug("activity: opened deep link, waiting for layout change")
                     self.lastThreadIDOpenedForObservation.withLock { $0 = threadID }
-                    self.waitForLayoutChange(timeout: 0.5)
+                    try await self.waitForLayoutChange(timeout: 0.5)
                 }
             }
 

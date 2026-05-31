@@ -54,6 +54,39 @@ public func retry<T>(
 }
 
 public func retry<T>(
+    withTimeout timeout: TimeInterval,
+    interval: TimeInterval? = nil,
+    _ perform: () async throws -> T,
+    onError: ((_ attempt: Int, _ err: Error?) async throws -> Void)? = nil
+) async throws -> T {
+    let start = Date()
+    var res: Result<T, Error>!
+    var attempt = 0
+    repeat {
+        try Task.checkCancellation()
+        do {
+            return try await perform()
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            res = .failure(error)
+            do {
+                try await onError?(attempt, error)
+                attempt += 1
+            } catch let error as CancellationError {
+                throw error
+            } catch {
+                Log.errors.error("retry onError errored \(error)")
+            }
+        }
+        if let interval {
+            try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+        }
+    } while -start.timeIntervalSinceNow < timeout
+    return try res.get()
+}
+
+public func retry<T>(
     retries: Int,
     interval: TimeInterval? = nil,
     _ perform: (_ attempt: Int) async throws -> T,
