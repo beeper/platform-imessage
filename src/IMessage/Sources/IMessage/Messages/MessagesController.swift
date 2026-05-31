@@ -472,7 +472,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     var isValid: Bool {
-        !app.isTerminated && elements.currentMainWindow?.isFrameValid == true && isMessagesAppResponsive
+        !app.isTerminated && (elements.currentMainWindow?.isFrameValid) != nil && isMessagesAppResponsive
     }
 
     private func withAutomation<T>(_ operation: () async throws -> T) async throws -> T {
