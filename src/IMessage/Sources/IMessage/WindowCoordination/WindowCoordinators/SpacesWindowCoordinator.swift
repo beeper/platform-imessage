@@ -65,13 +65,13 @@ final class SpacesWindowCoordinator {
 extension SpacesWindowCoordinator: WindowCoordinator {
     var canReuseExtantInstance: Bool { true }
 
-    func makeAutomatable(_ window: Accessibility.Element) async throws {
+    func makeAutomatable(_ window: Accessibility.Element) throws {
         guard app?.isActive == false else { return }
         lastKnownWindow = window
         try moveLastKnownWindowToHiddenSpace()
     }
 
-    func reset(_ window: Accessibility.Element) async throws {
+    func reset(_ window: Accessibility.Element) throws {
         guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), lastKnownWindow != nil else {
             log.debug("can't reset, the last known window or current space was missing")
             return
@@ -80,11 +80,11 @@ extension SpacesWindowCoordinator: WindowCoordinator {
         try (window.window()).moveToSpace(currentSpace)
     }
 
-    func automationDidComplete(_: Accessibility.Element) async throws {
+    func automationDidComplete(_: Accessibility.Element) throws {
         // after automating, keep the window on the hidden space
     }
 
-    func userManuallyActivated(_: NSRunningApplication) async throws {
+    func userManuallyActivated(_: NSRunningApplication) throws {
         lastManualActivation = Date()
     }
 }

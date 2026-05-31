@@ -477,7 +477,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         cancelReplyTranscriptViewTask = Task { [weak self] in
             do {
                 try await Task.sleep(forTimeInterval: 1.5)
-                try await PlatformAPI.onMessagesControllerQueue { [weak self] in
+                try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
                     try Task.checkCancellation()
                     guard let self else { return }
                     try closeReplyTranscriptView(wait: false)
@@ -1318,7 +1318,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // we want to actually show the app
     private func activateMessages() async {
         do {
-            try await PlatformAPI.onMessagesControllerQueue { [self] in
+            try await PlatformAPI.runOnMessagesControllerLane { [self] in
                 lastActivate = Date()
                 messagesIsManuallyActivated = true
                 log.debug("activateMessages")
@@ -1335,7 +1335,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func deactivateMessages() async {
         do {
-            try await PlatformAPI.onMessagesControllerQueue { [self] in
+            try await PlatformAPI.runOnMessagesControllerLane { [self] in
                 lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
                 messagesIsManuallyActivated = false
                 log.debug("deactivateMessages")

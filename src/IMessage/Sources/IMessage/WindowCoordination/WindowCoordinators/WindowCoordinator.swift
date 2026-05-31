@@ -18,11 +18,11 @@ protocol WindowCoordinator: AnyObject {
      * This is called right before the app needs to be automated.
      */
     @MainActor
-    func makeAutomatable(_ window: Accessibility.Element) async throws
+    func makeAutomatable(_ window: Accessibility.Element) throws
 
     /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
     @MainActor
-    func automationDidComplete(_ window: Accessibility.Element) async throws
+    func automationDidComplete(_ window: Accessibility.Element) throws
 
     /**
      * Reverts the manipulations performed in `makeAutomatable`.
@@ -31,25 +31,25 @@ protocol WindowCoordinator: AnyObject {
      * resigns manual control.
      */
     @MainActor
-    func reset(_ window: Accessibility.Element) async throws
+    func reset(_ window: Accessibility.Element) throws
 
     /** Called when the user manually activates the app. `reset` is also called in this case. */
     @MainActor
-    func userManuallyActivated(_ app: NSRunningApplication) async throws
+    func userManuallyActivated(_ app: NSRunningApplication) throws
 
     /** Called when the user finishes manual control over the app. */
     @MainActor
-    func userManuallyDeactivated(_ app: NSRunningApplication) async throws
+    func userManuallyDeactivated(_ app: NSRunningApplication) throws
 }
 
 extension WindowCoordinator {
     @MainActor
-    func userManuallyActivated(_: NSRunningApplication) async throws {
+    func userManuallyActivated(_: NSRunningApplication) throws {
         // make this method optional
     }
 
     @MainActor
-    func userManuallyDeactivated(_: NSRunningApplication) async throws {
+    func userManuallyDeactivated(_: NSRunningApplication) throws {
         // make this method optional
     }
 }

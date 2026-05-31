@@ -16,7 +16,7 @@ private actor MessagesControllerAutomationLane {
 
     private let idleDelay: TimeInterval
     private var tail: Task<Void, Never>?
-    private var activeWorkCount = 0
+    private var queuedActiveWorkCount = 0
     private var idleEpoch: UInt = 0
     private var idleCallback: IdleCallback?
     private var idleTask: Task<Void, Never>?
@@ -28,17 +28,12 @@ private actor MessagesControllerAutomationLane {
     func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
         activeWorkWillBegin()
         let task = enqueue(action)
-        do {
-            let result = try await withTaskCancellationHandler {
-                try await task.value
-            } onCancel: {
-                task.cancel()
-            }
-            activeWorkDidFinish()
-            return result
-        } catch {
-            activeWorkDidFinish()
-            throw error
+        defer { activeWorkDidFinish() }
+
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
         }
     }
 
@@ -65,14 +60,14 @@ private actor MessagesControllerAutomationLane {
 
     private func activeWorkWillBegin() {
         idleEpoch += 1
-        activeWorkCount += 1
+        queuedActiveWorkCount += 1
         idleTask?.cancel()
         idleTask = nil
     }
 
     private func activeWorkDidFinish() {
-        activeWorkCount = max(0, activeWorkCount - 1)
-        guard activeWorkCount == 0 else { return }
+        queuedActiveWorkCount = max(0, queuedActiveWorkCount - 1)
+        guard queuedActiveWorkCount == 0 else { return }
         scheduleIdleCallback()
     }
 
@@ -109,14 +104,14 @@ private actor MessagesControllerAutomationLane {
     }
 
     private func idleCallbackToRun(expectedEpoch: UInt) -> IdleCallback? {
-        guard activeWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
+        guard queuedActiveWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
             return nil
         }
         return idleCallback
     }
 
     private func shouldContinueIdleCallbacks(expectedEpoch: UInt) -> Bool {
-        activeWorkCount == 0 && idleEpoch == expectedEpoch && idleCallback != nil
+        queuedActiveWorkCount == 0 && idleEpoch == expectedEpoch && idleCallback != nil
     }
 }
 
@@ -139,7 +134,7 @@ private actor MessagesControllerCoordinator {
             let entry = try await currentControllerEntry(reportErrorMessage: reportErrorMessage, hasBeenDisposed: hasBeenDisposed)
 
             do {
-                return try await PlatformAPI.onMessagesControllerQueue {
+                return try await PlatformAPI.runOnMessagesControllerLane {
                     guard !hasBeenDisposed.read() else {
                         throw ErrorMessage("PlatformAPI has been disposed")
                     }
@@ -255,7 +250,7 @@ private extension MessagesControllerCoordinator {
 
     func dispose(_ entry: MessagesControllerEntry) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
-        try await PlatformAPI.onMessagesControllerQueue {
+        try await PlatformAPI.runOnMessagesControllerLane {
             await PlatformAPI.setMessagesControllerIdleCallback(nil)
             entry.value.dispose()
         }
@@ -284,7 +279,7 @@ extension PlatformAPI {
         try await Self.messagesControllerCoordinator.disposeCachedController()
     }
 
-    static func onMessagesControllerQueue<T>(
+    static func runOnMessagesControllerLane<T>(
         _ action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await messagesControllerAutomationLane.run(action)
@@ -297,7 +292,7 @@ extension PlatformAPI {
     }
 
     static func makeMessagesController(reportErrorMessage: ReportErrorMessage?) async throws -> MessagesController {
-        try await Self.onMessagesControllerQueue {
+        try await Self.runOnMessagesControllerLane {
             try await MessagesController(reportErrorMessage: { txt in
                 platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
                 try? reportErrorMessage?(txt)
