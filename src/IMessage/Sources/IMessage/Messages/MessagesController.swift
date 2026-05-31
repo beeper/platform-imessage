@@ -981,10 +981,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                             reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                         }
                     }
-                    try await triggerThreadCellAction(threadID: threadID, action: .pin)
-                    // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
-                    // openThread ensures scroll logic isn't executed
                     do {
+                        try await triggerThreadCellAction(threadID: threadID, action: .pin)
+                        // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
+                        // openThread ensures scroll logic isn't executed
                         try await openThread(threadID)
                         let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
                         defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
