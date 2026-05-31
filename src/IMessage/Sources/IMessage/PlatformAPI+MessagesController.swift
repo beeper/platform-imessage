@@ -17,7 +17,15 @@ actor MessagesControllerAutomationLane {
 
     // True while an action runs on the lane. Re-entering the lane from within an
     // action would deadlock (the nested task awaits a tail the current action is
-    // blocking); task-locals propagate across hops so the assertion in `run` catches it.
+    // blocking); task-locals propagate across hops so the precondition in `run`
+    // catches it.
+    //
+    // WARNING: @TaskLocal values are also inherited by unstructured `Task {}`
+    // children spawned during a lane action. Such a child sees `isExecutingOnLane
+    // == true` even after the originating action returns, so this flag must NOT be
+    // used to gate an "inline fallback" — a leaked child re-entering the lane would
+    // run its action off-lane, concurrently, silently breaking serialization. The
+    // only safe response to re-entrancy is to fail (see `run`).
     @TaskLocal private static var isExecutingOnLane = false
 
     private let idleDelay: TimeInterval
@@ -32,10 +40,16 @@ actor MessagesControllerAutomationLane {
     }
 
     func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
-        assert(
+        // `precondition`, not `assert`: re-entrancy must fail loudly in release too.
+        // The failure mode otherwise is a *silent* deadlock (the nested op queues
+        // behind the current action while the current action awaits it) — which is
+        // undiagnosable in the field. A crash with this message is strictly better.
+        // See the WARNING on `isExecutingOnLane`: an "inline fallback" is NOT a safe
+        // alternative because the task-local leaks into spawned `Task {}` children.
+        precondition(
             !Self.isExecutingOnLane,
             "re-entrant runOnMessagesControllerLane would deadlock the serial lane: " +
-            "a lane action must not call back into the lane. Run the work inline instead."
+            "a lane action must not call back into the lane."
         )
         activeWorkWillBegin()
         let task = enqueue(action)

@@ -21,6 +21,8 @@
 
 - concurrency
   - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
+  - [ ] add a factory seam to `MessagesControllerCoordinator` (inject the controller-construction closure, default = real `MessagesController`) and unit-test the dedup/invalidate/dispose logic: concurrent callers share one construction, `cachedControllerInvalid` → rebuild, `forceInvalidate` disposes first, disposed-mid-flight throws+disposes. Currently untestable because `startControllerCreation` hard-codes the real constructor (needs Accessibility + Messages.app). Surfaced by /plan-eng-review on kb/modern-concurrency (Test Gap 2).
+  - [ ] make `withAutomation` cleanup fire when `makeAutomatable` partially succeeded: if `EclipsingWindowCoordinator.makeAutomatable` unhides/resizes the window and then a later throwing call (e.g. `position(assign:)`) throws or cancellation hits, `automationDidComplete` is skipped and Messages.app is left visible with stale `windowFramePreEclipse`. Move `makeAutomatable` inside the Result/cleanup scope or make it transactional. Pre-existing (the old prepare/finish+defer shared it); surfaced by codex outside-voice on kb/modern-concurrency (Finding 3).
 
 - [ ] improve misfire prevention and robustness
 - [ ] DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that. [wip](https://github.com/beeper/platform-imessage/tree/purav/fix-imessage-send-upsert)
