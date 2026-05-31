@@ -80,7 +80,7 @@ extension SpacesWindowCoordinator: WindowCoordinator {
         try (window.window()).moveToSpace(currentSpace)
     }
 
-    func automationDidComplete(_: Accessibility.Element) throws {
+    func automationDidComplete() throws {
         // after automating, keep the window on the hidden space
     }
 

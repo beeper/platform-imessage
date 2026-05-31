@@ -70,6 +70,33 @@ private struct RetryTestError: Error, Equatable { let id: Int }
     #expect(throws: CancellationError.self) { try result.get() }
 }
 
+@Test func retryAsyncRethrowsCancellationDuringOnError() async throws {
+    // `perform` always throws, so the retry enters `onError`; `onError` then sleeps for
+    // a full second. Cancelling the task while it is parked in `onError` must propagate
+    // CancellationError promptly (the sleep throws and `retry` rethrows it) rather than
+    // waiting out the whole 1s sleep.
+    let onErrorEntered = Protected<Bool>(false)
+
+    let task = Task {
+        try await retry(withTimeout: 60, interval: 0.01, { () async throws -> Int in
+            throw RetryTestError(id: -1)
+        }, onError: { _, _ in
+            onErrorEntered.withLock { $0 = true }
+            try await Task.sleep(forTimeInterval: 1) // cancelled mid-sleep
+        })
+    }
+
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { onErrorEntered.read() })
+    let cancelledAt = Date()
+    task.cancel()
+
+    let result = await task.result
+    #expect(throws: CancellationError.self) { try result.get() }
+    // Must surface promptly after cancellation, well before the 1s onError sleep would
+    // have elapsed.
+    #expect(cancelledAt.timeIntervalSinceNow * -1 < 0.2)
+}
+
 @Test func retryCountExhaustionThrowsAfterRetries() async throws {
     let attempts = Protected<Int>(0)
     await #expect(throws: RetryTestError.self) {

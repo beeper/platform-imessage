@@ -102,14 +102,17 @@ actor MessagesControllerAutomationLane {
 
         let expectedEpoch = idleEpoch
         let idleDelay = idleDelay
-        idleTask = Task {
+        idleTask = Task { [weak self] in
             do {
                 try await Task.sleep(forTimeInterval: idleDelay)
             } catch {
                 return
             }
 
-            let task = self.enqueuePassiveIdleCallback(expectedEpoch: expectedEpoch)
+            guard let self else { return }
+            // `await` the hop back onto the actor: with `[weak self]` the closure is no
+            // longer statically actor-isolated, so the actor-isolated enqueue must be awaited.
+            let task = await self.enqueuePassiveIdleCallback(expectedEpoch: expectedEpoch)
             _ = try? await task.value
         }
     }

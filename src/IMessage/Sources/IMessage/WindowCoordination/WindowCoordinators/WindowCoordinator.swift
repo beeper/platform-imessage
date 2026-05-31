@@ -24,9 +24,15 @@ protocol WindowCoordinator: AnyObject {
      */
     func makeAutomatable(_ window: Accessibility.Element) async throws
 
-    /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
+    /**
+     * Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window.
+     *
+     * Takes no window argument: implementations don't need one, and passing the
+     * non-`Sendable` `Accessibility.Element` across the actor boundary into this
+     * `@MainActor` method would be a concurrency violation.
+     */
     @MainActor
-    func automationDidComplete(_ window: Accessibility.Element) throws
+    func automationDidComplete() throws
 
     /**
      * Reverts the manipulations performed in `makeAutomatable`.

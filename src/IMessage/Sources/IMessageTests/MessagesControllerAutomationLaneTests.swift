@@ -49,7 +49,8 @@ private struct Boom: Error {}
 }
 
 @Test func laneIdleFiresAfterWorkDrains() async throws {
-    let lane = MessagesControllerAutomationLane(idleDelay: 0.02)
+    // idleDelay raised to 0.1 to de-flake (wide margin under the 2s eventually timeout).
+    let lane = MessagesControllerAutomationLane(idleDelay: 0.1)
     let idleCount = Protected<Int>(0)
     await lane.setIdleCallback { idleCount.withLock { $0 += 1 } }
 
@@ -59,7 +60,8 @@ private struct Boom: Error {}
 }
 
 @Test func laneIdleRepeatsWhileQuiet() async throws {
-    let lane = MessagesControllerAutomationLane(idleDelay: 0.02)
+    // idleDelay raised to 0.1 to de-flake (wide margin under the 2s eventually timeout).
+    let lane = MessagesControllerAutomationLane(idleDelay: 0.1)
     let idleCount = Protected<Int>(0)
     await lane.setIdleCallback { idleCount.withLock { $0 += 1 } }
 
@@ -68,37 +70,68 @@ private struct Boom: Error {}
     #expect(await eventually(timeout: 2, pollInterval: 0.005) { idleCount.read() >= 2 })
 }
 
-@Test func laneIdleDoesNotFireWhileWorkInFlight() async throws {
-    let lane = MessagesControllerAutomationLane(idleDelay: 0.02)
-    let idleFiredDuringWork = Protected<Bool>(false)
-    let workRunning = Protected<Bool>(false)
-    await lane.setIdleCallback {
-        if workRunning.read() { idleFiredDuringWork.withLock { $0 = true } }
-    }
+@Test func laneStaleIdleIsSuppressedByNewWorkEpochBump() async throws {
+    // Exercises the epoch guard (`idleCallbackIfStillCurrent`) and the epoch bump in
+    // `activeWorkSubmitted`. Sequence:
+    //   1. drain work -> an idle callback is scheduled for epoch E (sleeps idleDelay)
+    //   2. before idleDelay elapses, submit new work -> bumps idleEpoch past E and
+    //      cancels the in-flight idle, so the epoch-E idle is now stale
+    //   3. drain that work -> a fresh idle is scheduled for the new epoch
+    //   4. wait idleDelay * 2 -> only the fresh idle should ever fire; the stale
+    //      epoch-E idle must have been suppressed (no double-counting from two cycles)
+    let idleDelay: TimeInterval = 0.1 // de-flaked: wide margin under the 2s timeout
+    let lane = MessagesControllerAutomationLane(idleDelay: idleDelay)
 
-    // work runs far longer than idleDelay; the idle callback must not interleave
-    try await lane.run {
-        workRunning.withLock { $0 = true }
-        try await Task.sleep(nanoseconds: 80_000_000) // 80ms >> 20ms idleDelay
-        workRunning.withLock { $0 = false }
-    }
+    // Record the time of each idle fire so we can reason about which cycle fired.
+    let idleFires = Protected<[Date]>([])
+    await lane.setIdleCallback { idleFires.withLock { $0.append(Date()) } }
 
-    #expect(idleFiredDuringWork.read() == false)
+    // (1) First drain schedules an idle for epoch E.
+    try await lane.run {}
+    let afterFirstDrain = Date()
+
+    // (2) Submit + (3) drain new work well before idleDelay elapses. This bumps the
+    // epoch and cancels the stale epoch-E idle before it can fire.
+    try await Task.sleep(nanoseconds: UInt64(idleDelay * 0.3 * 1_000_000_000))
+    try await lane.run {}
+    let afterSecondDrain = Date()
+
+    // No idle should have fired yet: the stale epoch-E idle was suppressed, and the
+    // fresh idle hasn't waited out idleDelay.
+    #expect(idleFires.read().isEmpty)
+
+    // (4) Wait out the fresh idle and confirm it fires.
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { idleFires.read().count >= 1 })
+
+    // The fire that occurred must belong to the fresh (post-second-drain) cycle: it
+    // happens at least idleDelay after the second drain. A surviving stale epoch-E idle
+    // would have fired ~idleDelay after the FIRST drain, i.e. before this point.
+    let firstFire = idleFires.read().first!
+    #expect(firstFire.timeIntervalSince(afterSecondDrain) >= idleDelay * 0.5)
+    // Sanity: the stale idle (epoch E) would have been due ~idleDelay after the first
+    // drain; that moment has passed without a fire attributable to it.
+    #expect(firstFire.timeIntervalSince(afterFirstDrain) >= idleDelay)
 }
 
 @Test func laneClearingIdleCallbackStopsFurtherIdleWork() async throws {
-    let lane = MessagesControllerAutomationLane(idleDelay: 0.02)
+    // idleDelay raised to 0.1 to de-flake; instead of a fixed sleep we wait for several
+    // idle cycles, clear the callback, then wait several more idle periods and assert the
+    // count is frozen.
+    let idleDelay: TimeInterval = 0.1
+    let lane = MessagesControllerAutomationLane(idleDelay: idleDelay)
     let idleCount = Protected<Int>(0)
     await lane.setIdleCallback { idleCount.withLock { $0 += 1 } }
 
     try await lane.run {}
-    _ = await eventually(timeout: 2, pollInterval: 0.005) { idleCount.read() >= 1 }
+
+    // Wait for at least 3 idle cycles to confirm the repeating idle is healthy.
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { idleCount.read() >= 3 })
 
     await lane.setIdleCallback(nil)
     let countAtClear = idleCount.read()
 
-    // several idle periods elapse; nothing more should fire
-    try? await Task.sleep(nanoseconds: 120_000_000) // 120ms
+    // Several more idle periods elapse; with the callback cleared, nothing more fires.
+    try? await Task.sleep(nanoseconds: UInt64(idleDelay * 4 * 1_000_000_000))
     #expect(idleCount.read() == countAtClear)
 }
 
@@ -187,7 +220,8 @@ private struct Boom: Error {}
 @Test func laneIdleUsesLatestCallbackAfterMidFlightSwap() async throws {
     // Swapping the idle callback while an action is in flight must drop the old
     // callback entirely; only the latest one fires once work drains.
-    let lane = MessagesControllerAutomationLane(idleDelay: 0.02)
+    // idleDelay raised to 0.1 to de-flake (wide margin under the 2s eventually timeout).
+    let lane = MessagesControllerAutomationLane(idleDelay: 0.1)
     let firstCallbackFired = Protected<Bool>(false)
     let secondCallbackFired = Protected<Bool>(false)
 

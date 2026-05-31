@@ -130,7 +130,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
     }
 
-    func automationDidComplete(_: Accessibility.Element) throws {
+    func automationDidComplete() throws {
         hideDebouncer.requestHide()
     }
 

@@ -162,20 +162,6 @@ final class MessagesController {
         }
     }
 
-    static func requestDeepLinkOpen(
-        _ url: URL,
-        activating: Bool = false,
-        hiding: Bool = true,
-        targeting app: NSRunningApplication? = nil
-    ) throws {
-        switch try planDeepLinkOpen(url, activating: activating, hiding: hiding, targeting: app) {
-        case .handledBySecondaryInstance:
-            return
-        case .open(let openOptions):
-            NSWorkspace.shared.open(url, configuration: openOptions)
-        }
-    }
-
     private static func logDeepLinkOpen(_ url: URL, activating: Bool, hiding: Bool) {
         #if DEBUG
         let builtForDebugging = true
@@ -306,7 +292,10 @@ final class MessagesController {
                 try await Task.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
-            return try await Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
+            // Cold launch can be much slower than a routine in-session open (the app may
+            // need to start from scratch), so give it a generous timeout rather than the
+            // 5s default used by in-session openDeepLink calls.
+            return try await Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation, timeout: 30)
         }
 
         if Preferences.useSecondaryMessagesInstance {
@@ -349,7 +338,9 @@ final class MessagesController {
         try await selectedApp.waitForLaunch()
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
-            try Self.requestDeepLinkOpen(url, targeting: selectedApp)
+            // Awaitable (no longer fire-and-forget): callers can await the open completing
+            // rather than relying on a fixed sleep to paper over the race.
+            try await Self.openDeepLink(url, targeting: selectedApp)
         })
 
         keyPresser = KeyPresser(pid: selectedApp.processIdentifier)
@@ -403,7 +394,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     let app = self.app
 
                     do {
-                        let window = try self.elements.currentMainWindow.orThrow(ErrorMessage("main window not found"))
+                        // Use getMainWindow() (not currentMainWindow): this runs off the
+                        // automation lane, and currentMainWindow reads/validates the shared
+                        // `cachedMainWindow` that a lane op writes in `_mainWindowReally`,
+                        // which would race. getMainWindow() never touches the cache.
+                        let window = try self.elements.getMainWindow().orThrow(ErrorMessage("main window not found"))
                         let frame = try window.frame()
                         let position = try window.position()
                         return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
@@ -480,24 +475,47 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         cancelReplyTranscriptViewTask?.cancel()
         log.debug("withAutomation: making the app automatable")
 
+        // If makeAutomatable partially succeeds then throws, its window manipulation
+        // (e.g. eclipsing) would otherwise be left in place because the matching
+        // automationDidComplete (window restore) cleanup below would be skipped. Run the
+        // cleanup on the throw path before rethrowing so window state is always restored.
+        // A `defer` can't be used because the cleanup is `async`.
+        var madeAutomatable = false
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-            try await windowCoordinator.makeAutomatable(mainWindow)
+            do {
+                try await windowCoordinator.makeAutomatable(mainWindow)
+                madeAutomatable = true
+            } catch {
+                await automationDidComplete()
+                scheduleCancelReplyTranscriptView()
+                throw error
+            }
         }
+        _ = madeAutomatable // set for clarity / future use; cleanup is keyed on the catch above
 
         let result = await Result(catching: operation)
 
         log.info("withAutomation: finished")
-        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-            do {
-                try await windowCoordinator.automationDidComplete(mainWindow)
-            } catch {
-                log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
-            }
-        }
+        await automationDidComplete()
         // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
         scheduleCancelReplyTranscriptView()
 
         return try result.get()
+    }
+
+    /// Runs the window coordinator's automation-complete (window restore) step.
+    /// Factored out so both the success path and the `makeAutomatable`-failed cleanup
+    /// path call it identically.
+    private func automationDidComplete() async {
+        // Preserve the original guard (only run cleanup when coordinating and a main
+        // window is present), but don't pass the non-Sendable AX element across the
+        // actor boundary — the coordinators don't use it.
+        guard Defaults.shouldCoordinateWindow, elements.getMainWindow() != nil else { return }
+        do {
+            try await windowCoordinator.automationDidComplete()
+        } catch {
+            log.error("failed to call automationDidComplete on window coordinator: \(String(reflecting: error))")
+        }
     }
 
     private var cancelReplyTranscriptViewTask: Task<Void, Never>?
@@ -1400,9 +1418,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // is also mutated by `makeAutomatable` while running on the automation lane. Run the
         // coordinator manipulation on the lane too so this user-activation path is serialized
         // with automation instead of racing it off-main.
+        //
+        // Coalescing: the closure can run well behind in-flight automation (~seconds). If
+        // the user has since deactivated (messagesIsManuallyActivated flipped back to
+        // false), this activate is stale — skip it so we don't unhide a window the user
+        // already dismissed and so a queued activate/deactivate pair collapses.
         do {
             try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
                 guard let self else { return }
+                guard self.messagesIsManuallyActivated else {
+                    log.debug("activateMessages: skipping stale activation (user already deactivated)")
+                    return
+                }
                 // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
                 if Defaults.shouldCoordinateWindow, let window = self.elements.getMainWindow() {
                     try await self.windowCoordinator.reset(window)
@@ -1426,9 +1453,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // Serialize the window teardown with automation on the lane (same rationale as
         // activateMessages): the coordinator, closeAllNonMainWindows, and resetWindow all
         // touch window state that `makeAutomatable` mutates while running on the lane.
+        //
+        // Coalescing: mirror activateMessages. If the user re-activated before this
+        // closure ran (messagesIsManuallyActivated flipped back to true), this deactivate
+        // is stale — skip it so we don't tear down a window the user is now using.
         do {
             try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
                 guard let self else { return }
+                guard !self.messagesIsManuallyActivated else {
+                    log.debug("deactivateMessages: skipping stale deactivation (user re-activated)")
+                    return
+                }
                 // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
                 let window = self.elements.getMainWindow()
                 if Defaults.shouldCoordinateWindow {

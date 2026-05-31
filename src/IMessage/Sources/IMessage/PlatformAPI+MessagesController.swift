@@ -27,7 +27,12 @@ private actor MessagesControllerCoordinator {
             try await disposeCachedController()
         }
 
+        // Bound the loop so a controller that keeps coming up invalid can't spin forever;
+        // each iteration either succeeds, throws, or retries after an invalidation.
+        let maxInvalidations = 30
+        var invalidations = 0
         while true {
+            try Task.checkCancellation()
             let entry = try await currentControllerEntry(reportErrorMessage: reportErrorMessage, hasBeenDisposed: hasBeenDisposed)
 
             do {
@@ -43,7 +48,16 @@ private actor MessagesControllerCoordinator {
             } catch MessagesControllerCoordinatorError.cachedControllerInvalid {
                 platformMessagesControllerLog.debug("disposing cached MessagesController because it became invalid")
                 try await disposeIfCurrent(entry)
+                invalidations += 1
+                guard invalidations < maxInvalidations else {
+                    throw ErrorMessage("MessagesController repeatedly invalid")
+                }
             } catch MessagesControllerCoordinatorError.pendingControllerInvalidated {
+                try Task.checkCancellation()
+                invalidations += 1
+                guard invalidations < maxInvalidations else {
+                    throw ErrorMessage("MessagesController repeatedly invalid")
+                }
                 continue
             }
         }
