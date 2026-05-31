@@ -117,9 +117,39 @@ final class MessagesController {
         _ url: URL,
         activating: Bool = false,
         hiding: Bool = true,
-        targeting app: NSRunningApplication? = nil
-    ) throws -> NSRunningApplication {
+        targeting app: NSRunningApplication? = nil,
+        timeout: TimeInterval = 5
+    ) async throws -> NSRunningApplication {
         let shouldHide = hiding && Defaults.shouldCoordinateWindow
+        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
+        if Preferences.useSecondaryMessagesInstance, let app {
+            try Task.checkCancellation()
+            try MessagesInstanceTarget.sendDeepLink(url, to: app)
+            if activating {
+                app.activate()
+            }
+            if shouldHide {
+                app.hide()
+            }
+            try Task.checkCancellation()
+            return app
+        }
+
+        let openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = shouldHide
+
+        return try await NSWorkspace.shared.open(url, configuration: openOptions, timeout: timeout)
+    }
+
+    static func requestDeepLinkOpen(
+        _ url: URL,
+        activating: Bool = false,
+        hiding: Bool = true,
+        targeting app: NSRunningApplication? = nil
+    ) throws {
+        let shouldHide = hiding && Defaults.shouldCoordinateWindow
+        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
         if Preferences.useSecondaryMessagesInstance, let app {
             try MessagesInstanceTarget.sendDeepLink(url, to: app)
             if activating {
@@ -128,42 +158,32 @@ final class MessagesController {
             if shouldHide {
                 app.hide()
             }
-            return app
+            return
         }
 
         let openOptions = NSWorkspace.OpenConfiguration()
         openOptions.activates = activating
         openOptions.hides = shouldHide
 
-        let horribleWaiter = DispatchSemaphore(value: 0)
-        var result: Result<NSRunningApplication, Error>?
-        NSWorkspace.shared.open(url, configuration: openOptions) { running, error in
-            #if DEBUG
-            let builtForDebugging = true
-            #else
-            let builtForDebugging = false
-            #endif
-            if Defaults.deepLinkTracingPII || builtForDebugging {
-                log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(shouldHide))")
-            } else {
-                log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(shouldHide))")
-            }
+        NSWorkspace.shared.open(url, configuration: openOptions)
+    }
 
-            if let error {
-                result = .failure(error)
-            } else {
-                result = .success(running!)
-            }
-            horribleWaiter.signal()
+    private static func logDeepLinkOpen(_ url: URL, activating: Bool, hiding: Bool) {
+        #if DEBUG
+        let builtForDebugging = true
+        #else
+        let builtForDebugging = false
+        #endif
+        if Defaults.deepLinkTracingPII || builtForDebugging {
+            log.debug("🚀 OPENING DEEP LINK: \(url) (activating? \(activating), hiding? \(hiding))")
+        } else {
+            log.debug("🚀 OPENING DEEP LINK (activating? \(activating), hiding? \(hiding))")
         }
-        horribleWaiter.wait()
-
-        return try result!.get()
     }
 
     @discardableResult
-    private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
-        try Self.openDeepLink(url, activating: activating, hiding: hiding, targeting: app)
+    private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) async throws -> NSRunningApplication {
+        try await Self.openDeepLink(url, activating: activating, hiding: hiding, targeting: app)
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -257,9 +277,9 @@ final class MessagesController {
         }
     }
 
-    private func openThread(_ threadID: String) throws {
+    private func openThread(_ threadID: String) async throws {
         try? self.clearTypingStatus()
-        try openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try await openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
         try assertSelectedThread(threadID: threadID)
     }
 
@@ -272,13 +292,13 @@ final class MessagesController {
         let coordinator = try getBestWindowCoordinator()
         windowCoordinator = coordinator
 
-        let launchMessages = { [coordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
+        let launchMessages = { [coordinator] (withoutActivation: Bool) async throws -> NSRunningApplication in
             // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
             if !coordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
-                Thread.sleep(forTimeInterval: 0.1)
+                try await Task.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
+            return try await Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
         }
 
         if Preferences.useSecondaryMessagesInstance {
@@ -305,10 +325,10 @@ final class MessagesController {
                     try Self.terminateApp(existingApp)
                     // this is for markAsReadWithPressHack (monterey or lower)
                     // launch with activation because the hack doesn't work until the app is activated at least once
-                    app = try launchMessages(!isVenturaOrUp)
+                    app = try await launchMessages(!isVenturaOrUp)
                 }
             } else {
-                app = try launchMessages(false)
+                app = try await launchMessages(false)
             }
         }
 
@@ -321,7 +341,7 @@ final class MessagesController {
         try selectedApp.waitForLaunch()
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
-            try Self.openDeepLink(url, targeting: selectedApp)
+            try Self.requestDeepLinkOpen(url, targeting: selectedApp)
         })
 
         keyPresser = KeyPresser(pid: selectedApp.processIdentifier)
@@ -444,7 +464,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         !app.isTerminated && (try? elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
     }
 
-    private func withAutomation<T>(_ operation: () throws -> T) async throws -> T {
+    private func withAutomation<T>(_ operation: () async throws -> T) async throws -> T {
         log.info("prepareForAutomation")
         cancelReplyTranscriptViewTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
@@ -453,7 +473,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await windowCoordinator.makeAutomatable(mainWindow)
         }
 
-        let result = Result(catching: operation)
+        let result: Result<T, Error>
+        do {
+            result = .success(try await operation())
+        } catch {
+            result = .failure(error)
+        }
 
         log.info("finishedAutomation")
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
@@ -542,8 +567,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try action()
     }
 
-    private func triggerThreadCellAction(threadID: String, action: ThreadAction) throws {
-        let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+    private func triggerThreadCellAction(threadID: String, action: ThreadAction) async throws {
+        let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
         try triggerThreadCellAction(threadCell: threadCell, action: action)
     }
 
@@ -578,7 +603,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
      3. open target thread
      4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
      */
-    private func scrollAndGetSelectedThreadCell(threadID: String) throws -> Accessibility.Element {
+    private func scrollAndGetSelectedThreadCell(threadID: String) async throws -> Accessibility.Element {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("scrollAndGetSelectedThreadCell took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -590,7 +615,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         if selectedCell.isInViewport { return selectedCell }
 
         try selectNextThreadAndScroll()
-        try openThread(threadID)
+        try await openThread(threadID)
 
         let selectedCellAfterScroll = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
         if selectedCellAfterScroll.isInViewport { return selectedCellAfterScroll }
@@ -600,28 +625,28 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // performs `perform` while the Messages window is unhidden
     private func withActivation(
         openBefore: URL?, openAfter: URL? = nil,
-        perform: () throws -> Void
-    ) throws {
+        perform: () async throws -> Void
+    ) async throws {
         if let openBefore {
             #if DEBUG
             log.debug("withActivation: opening before performing: \(openBefore)")
             #endif
-            try openDeepLink(openBefore)
+            try await openDeepLink(openBefore)
         }
 
-        try perform()
+        try await perform()
 
         if let openAfter {
             if openAfter != openBefore {
                 #if DEBUG
                 debugLog("withActivation: opening after performing: \(openAfter)")
                 #endif
-                try openDeepLink(openAfter)
+                try await openDeepLink(openAfter)
             }
         }
     }
 
-    private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) throws -> Void) throws {
+    private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) async throws -> Void) async throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
 
         let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
@@ -631,7 +656,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try? closeReplyTranscriptView(wait: false)
         }
 
-        try withActivation(openBefore: url) {
+        try await withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
 
             // we don't close transcript view here because when reacting, closing it will undo the reaction
@@ -691,7 +716,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     throw ErrorMessage("Cell id mismatch")
                 }
             }
-            try action(targetCell)
+            try await action(targetCell)
         }
     }
 
@@ -732,7 +757,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         try await withAutomation {
-            try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            try await withMessageCell(threadID: threadID, messageCell: messageCell) {
                 if let directAction = try directReactionAction(messageCell: $0, reaction: reaction) {
                     try directAction()
                     return
@@ -752,18 +777,18 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         try elements.characterPickerSearchField
                     }
                     try searchField.value(assign: search.query)
-                    Thread.sleep(forTimeInterval: 0.75) // wait for search
+                    try await Task.sleep(forTimeInterval: 0.75) // wait for search
                     // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
                     try keyPresser.downArrow()
                     // 6 columns in the character picker matrix
                     let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
                     // navigate to the emoji
-                    for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                    for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                    Thread.sleep(forTimeInterval: 0.1) // wait for selection
+                    for _ in 0..<downArrows { try keyPresser.downArrow(); try await Task.sleep(forTimeInterval: 0.05) }
+                    for _ in 0..<rightArrows { try keyPresser.rightArrow(); try await Task.sleep(forTimeInterval: 0.05) }
+                    try await Task.sleep(forTimeInterval: 0.1) // wait for selection
                     try keyPresser.return() // select
                     if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
-                        Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
+                        try await Task.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
                         try keyPresser.return() // always select default skin tone
                     }
                     return
@@ -814,7 +839,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("undoSend took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         try await withAutomation {
-            try withMessageCell(threadID: threadID, messageCell: messageCell) {
+            try await withMessageCell(threadID: threadID, messageCell: messageCell) {
                 let undoSendAction = try messageAction(messageCell: $0, action: .undoSend)
                 try undoSendAction()
             }
@@ -826,7 +851,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("loadAttachment took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         try await withAutomation {
-            try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+            try await withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
                 try messageCell.press()
             }
         }
@@ -879,7 +904,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await withAutomation {
             tryPressingCancelEditButton()
 
-            try withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+            try await withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
                 if let editAction = try? messageAction(messageCell: messageCell, action: .edit) {
                     log.debug("found \"Edit\" message action")
 
@@ -907,14 +932,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // this only works when the messages.app window has been activated at least once
     // can randomly stop working. a reactivation of messages.app may fix (unhandled)
-    private func markAsReadWithPressHack(threadID: String) throws {
+    private func markAsReadWithPressHack(threadID: String) async throws {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("markAsReadWithPressHack took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        try openThread(threadID)
-        let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+        try await openThread(threadID)
+        let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
         // select any another cell and then come back
         try selectNextThreadAndScroll()
         // scrollToVisible is needed since sometimes the thread cell can be behind the search input field causing .press() to focus the input field instead
@@ -938,35 +963,44 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         try await withAutomation {
-            try withActivation(openBefore: url) {
+            try await withActivation(openBefore: url) {
                 try assertSelectedThread(threadID: threadID)
                 if isVenturaOrUp {
                     return try keyPresser.commandShiftU()
                 }
                 let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
                 if Defaults.isSelectedThreadCellPinned() {
-                    try triggerThreadCellAction(threadID: threadID, action: action)
+                    try await triggerThreadCellAction(threadID: threadID, action: action)
                 } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
-                    defer {
-                        if Defaults.pinnedThreadsCount() != pinnedCount {
-                            try? retry(withTimeout: 0.3, interval: 0.05) {
-                                log.debug("retrying unpin")
-                                try triggerThreadCellAction(threadID: threadID, action: .unpin)
+                    func restorePinsIfNecessary() async {
+                        guard Defaults.pinnedThreadsCount() != pinnedCount else { return }
+                        let deadline = Date().addingTimeInterval(0.3)
+                        repeat {
+                            log.debug("retrying unpin")
+                            if (try? await triggerThreadCellAction(threadID: threadID, action: .unpin)) != nil {
+                                break
                             }
-                        }
+                            try? await Task.sleep(forTimeInterval: 0.05)
+                        } while Date() < deadline
                         if Defaults.pinnedThreadsCount() != pinnedCount {
                             reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                         }
                     }
-                    try triggerThreadCellAction(threadID: threadID, action: .pin)
+                    try await triggerThreadCellAction(threadID: threadID, action: .pin)
                     // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
                     // openThread ensures scroll logic isn't executed
-                    try openThread(threadID)
-                    let threadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
-                    defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
-                    try triggerThreadCellAction(threadCell: threadCell, action: action)
+                    do {
+                        try await openThread(threadID)
+                        let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
+                        defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
+                        try triggerThreadCellAction(threadCell: threadCell, action: action)
+                    } catch {
+                        await restorePinsIfNecessary()
+                        throw error
+                    }
+                    await restorePinsIfNecessary()
                 } else {
-                    try markAsReadWithPressHack(threadID: threadID)
+                    try await markAsReadWithPressHack(threadID: threadID)
                 }
             }
         }
@@ -981,9 +1015,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         try await withAutomation {
-            try withActivation(openBefore: url) {
+            try await withActivation(openBefore: url) {
                 try assertSelectedThread(threadID: threadID)
-                let selectedThreadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
+                let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
                 if muted {
                     try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
                 } else if let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts) {
@@ -1007,9 +1041,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         try await withAutomation {
-            try withActivation(openBefore: url) {
+            try await withActivation(openBefore: url) {
                 try assertSelectedThread(threadID: threadID)
-                try triggerThreadCellAction(threadID: threadID, action: .delete)
+                try await triggerThreadCellAction(threadID: threadID, action: .delete)
                 try elements.alertSheetDeleteButton.press()
             }
         }
@@ -1024,7 +1058,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let url = try MessagesDeepLink(threadID: threadID, body: " ").url()
 
         try await withAutomation {
-            _ = try openDeepLink(url)
+            _ = try await openDeepLink(url)
         }
     }
 
@@ -1147,8 +1181,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private func sendReplyWithoutOverlay(threadID: String, quotedMessage: MessageCell, text: String?, filePath: String?) throws {
-        try withMessageCell(threadID: threadID, messageCell: quotedMessage) {
+    private func sendReplyWithoutOverlay(threadID: String, quotedMessage: MessageCell, text: String?, filePath: String?) async throws {
+        try await withMessageCell(threadID: threadID, messageCell: quotedMessage) {
             let replyAction = try messageAction(messageCell: $0, action: .reply)
             try replyAction()
             let messageField = try elements.messageBodyField
@@ -1214,13 +1248,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             //     }
             // }
             if let quotedMessage, !quotedMessage.overlay, let threadID {
-                try sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
+                try await sendReplyWithoutOverlay(threadID: threadID, quotedMessage: quotedMessage, text: text, filePath: filePath)
                 return
             }
 
             if quotedMessage == nil { try? closeReplyTranscriptView(wait: true) } // needed even when opening deep link
 
-            try withActivation(openBefore: url) {
+            try await withActivation(openBefore: url) {
                 if let threadID { try assertSelectedThread(threadID: threadID) }
 
                 if quotedMessage != nil {
@@ -1229,7 +1263,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 if isComposeThreadSelected() {
                     // since this is a new thread not in contacts, it may take a while for messages app to resolve that the address is imessage and not just sms
                     log.debug("waiting 3s for address to resolve")
-                    Thread.sleep(forTimeInterval: 3)
+                    try await Task.sleep(forTimeInterval: 3)
                 }
 
                 let messageField = try elements.messageBodyField
@@ -1406,7 +1440,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
         try await withAutomation {
-            try withActivation(openBefore: url) {
+            try await withActivation(openBefore: url) {
                 try assertSelectedThread(threadID: threadID)
                 try elements.notifyAnywayButton.press()
             }
@@ -1418,7 +1452,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         var observation = ThreadActivityObservation.unknown
         try await withAutomation {
-            try withActivation(openBefore: url) {
+            try await withActivation(openBefore: url) {
                 try assertSelectedThread(threadID: threadID)
                 observation = activityObservation()
             }
@@ -1473,7 +1507,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if lastThreadIDOpenedForObservation.read() != threadID {
                 log.debug("activity: entered idle state or thread id changed, opening deep link")
                 try await withAutomation {
-                    _ = try self.openDeepLink(url)
+                    _ = try await self.openDeepLink(url)
                     log.debug("activity: opened deep link, waiting for layout change")
                     self.lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                     self.waitForLayoutChange(timeout: 0.5)

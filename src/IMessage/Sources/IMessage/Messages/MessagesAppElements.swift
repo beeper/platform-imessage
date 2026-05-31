@@ -145,7 +145,7 @@ final class MessagesAppElements {
 
     private var cachedMainWindow: Accessibility.Element?
 
-    init(runningApp: NSRunningApplication, openDeepLink: @escaping (URL) throws -> Void = { try MessagesController.openDeepLink($0) }) {
+    init(runningApp: NSRunningApplication, openDeepLink: @escaping (URL) throws -> Void = { try MessagesController.requestDeepLinkOpen($0) }) {
         self.runningApp = runningApp
         self.openDeepLink = openDeepLink
         app = Accessibility.Element(pid: runningApp.processIdentifier)
