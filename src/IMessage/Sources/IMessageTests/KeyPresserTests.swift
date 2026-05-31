@@ -52,3 +52,37 @@ private func runOffMainThread(_ operation: @escaping () -> Void) async {
     let isMainThread = try #require(observedIsMainThread.read() as Bool?)
     #expect(isMainThread == true)
 }
+
+@Test func mappedKeyLookupRunsOnMainThreadEvenWhenKeyPressDoesNot() async throws {
+    let result = Protected<Result<Void, Error>?>()
+    let observedLookup = Protected<(key: Character, isMainThread: Bool)?>()
+    let observedKeyPress = Protected<(key: CGKeyCode, flags: CGEventFlags?, isMainThread: Bool)?>()
+
+    await runOffMainThread {
+        let keyPresser = KeyPresser(
+            pid: 0,
+            postKeyEvents: { key, flags in
+                observedKeyPress.withLock { $0 = (key, flags, Thread.isMainThread) }
+            },
+            keyCodeForCharacter: { key in
+                observedLookup.withLock { $0 = (key, Thread.isMainThread) }
+                return UInt16(kVK_ANSI_U)
+            }
+        )
+
+        result.withLock {
+            $0 = Result { try keyPresser.commandShiftU() }
+        }
+    }
+
+    try #require(result.read()).get()
+    let lookup = try #require(observedLookup.read())
+    #expect(lookup.key == "u")
+    #expect(lookup.isMainThread == true)
+
+    let keyPress = try #require(observedKeyPress.read())
+    #expect(keyPress.key == CGKeyCode(kVK_ANSI_U))
+    #expect(keyPress.flags?.contains(.maskCommand) == true)
+    #expect(keyPress.flags?.contains(.maskShift) == true)
+    #expect(keyPress.isMainThread == false)
+}

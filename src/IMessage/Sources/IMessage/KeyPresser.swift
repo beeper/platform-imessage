@@ -9,26 +9,30 @@ private let log = Logger(imessageLabel: "key-presser")
 class KeyPresser {
     let pid: pid_t
     private let postKeyEvents: (CGKeyCode, CGEventFlags?) throws -> Void
+    private let keyCodeForCharacter: (Character) -> UInt16?
 
-    init(pid: pid_t, postKeyEvents: ((CGKeyCode, CGEventFlags?) throws -> Void)? = nil) {
+    init(
+        pid: pid_t,
+        postKeyEvents: ((CGKeyCode, CGEventFlags?) throws -> Void)? = nil,
+        keyCodeForCharacter: ((Character) -> UInt16?)? = nil
+    ) {
         self.pid = pid
         self.postKeyEvents = postKeyEvents ?? { key, flags in
             try Self.post(key: key, flags: flags, to: pid)
         }
+        self.keyCodeForCharacter = keyCodeForCharacter ?? { KeyMap.shared[$0] }
     }
 
     static let src = CGEventSource(stateID: .hidSystemState)
 
-    private func perform(onMainThread: Bool, _ action: () throws -> Void) rethrows {
+    private func perform<T>(onMainThread: Bool, _ action: () throws -> T) rethrows -> T {
         guard onMainThread, !Thread.isMainThread else {
-            try action()
-            return
+            return try action()
         }
         log.debug("dispatching simulated keypress to main thread (queueName=\(__dispatch_queue_get_label(nil)))")
-        try DispatchQueue.main.sync {
+        return try DispatchQueue.main.sync {
             try action()
         }
-        return
     }
 
     private static func post(key: CGKeyCode, flags: CGEventFlags? = nil, to pid: pid_t) throws {
@@ -54,10 +58,8 @@ class KeyPresser {
     }
 
     private func pressMappedKey(_ key: Character, flags: CGEventFlags? = nil, onMainThread: Bool) throws {
-        try perform(onMainThread: onMainThread) {
-            guard let keyCode = KeyMap.shared[key] else { return }
-            try postKeyEvents(CGKeyCode(keyCode), flags)
-        }
+        guard let keyCode = perform(onMainThread: true, { keyCodeForCharacter(key) }) else { return }
+        try press(key: CGKeyCode(keyCode), flags: flags, onMainThread: onMainThread)
     }
 
     func `return`(onMainThread: Bool = false) throws {
