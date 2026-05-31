@@ -1350,21 +1350,28 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    var lastActivate: Date?
-    var messagesIsManuallyActivated = false
+    private struct ManualActivationState {
+        var lastActivate: Date?
+        var messagesIsManuallyActivated = false
+    }
+
+    private let manualActivationState = Protected(ManualActivationState())
+    private var messagesIsManuallyActivated: Bool {
+        manualActivationState.read().messagesIsManuallyActivated
+    }
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
     private func activateMessages() async {
         do {
-            try await PlatformAPI.runOnMessagesControllerLane { [self] in
-                lastActivate = Date()
-                messagesIsManuallyActivated = true
-                log.debug("activateMessages")
-                // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-                if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
-                    try await windowCoordinator.reset(window)
-                    try await windowCoordinator.userManuallyActivated(app)
-                }
+            manualActivationState.withLock {
+                $0.lastActivate = Date()
+                $0.messagesIsManuallyActivated = true
+            }
+            log.debug("activateMessages")
+            // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
+                try await windowCoordinator.reset(window)
+                try await windowCoordinator.userManuallyActivated(app)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
@@ -1373,19 +1380,21 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func deactivateMessages() async {
         do {
-            try await PlatformAPI.runOnMessagesControllerLane { [self] in
-                lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
-                messagesIsManuallyActivated = false
-                log.debug("deactivateMessages")
-                // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-                let window = elements.getMainWindow()
-                if Defaults.shouldCoordinateWindow {
-                    try await windowCoordinator.userManuallyDeactivated(app)
-                }
-                try? closeAllNonMainWindows()
-                if window != nil {
-                    resetWindow()
-                }
+            let lastActivate = manualActivationState.withLock { state in
+                let lastActivate = state.lastActivate
+                state.messagesIsManuallyActivated = false
+                return lastActivate
+            }
+            lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
+            log.debug("deactivateMessages")
+            // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+            let window = elements.getMainWindow()
+            if Defaults.shouldCoordinateWindow {
+                try await windowCoordinator.userManuallyDeactivated(app)
+            }
+            try? closeAllNonMainWindows()
+            if window != nil {
+                resetWindow()
             }
         } catch {
             log.error("couldn't hide messages window caused by user activation: \(error)")
