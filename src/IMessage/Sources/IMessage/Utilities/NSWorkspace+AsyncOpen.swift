@@ -11,17 +11,7 @@ extension NSWorkspace {
         typealias OpenContinuation = CheckedContinuation<NSRunningApplication, Error>
         let state = Protected<(continuation: OpenContinuation?, completed: Bool)>((nil, false))
 
-        let installContinuation: @Sendable (OpenContinuation) -> Bool = { continuation in
-            state.withLock { state in
-                guard !state.completed else {
-                    return false
-                }
-                state.continuation = continuation
-                return true
-            }
-        }
-
-        let finish: @Sendable (Result<NSRunningApplication, Error>) -> Void = { result in
+        let finish: @Sendable (@Sendable () -> Result<NSRunningApplication, Error>) -> Void = { makeResult in
             let continuation = state.withLock { state -> OpenContinuation? in
                 guard !state.completed else {
                     return nil
@@ -30,12 +20,18 @@ extension NSWorkspace {
                 defer { state.continuation = nil }
                 return state.continuation
             }
-            continuation?.resume(with: result)
+            continuation?.resume(with: makeResult())
         }
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: OpenContinuation) in
-                guard installContinuation(continuation) else {
+                guard state.withLock({
+                    guard !$0.completed else {
+                        return false
+                    }
+                    $0.continuation = continuation
+                    return true
+                }) else {
                     continuation.resume(throwing: CancellationError())
                     return
                 }
@@ -43,22 +39,22 @@ extension NSWorkspace {
                 let timeoutTask = Task {
                     try? await Task.sleep(forTimeInterval: timeout)
                     guard !Task.isCancelled else { return }
-                    finish(.failure(ErrorMessage("Timed out opening URL via LaunchServices after \(timeout)s")))
+                    finish { .failure(ErrorMessage("Timed out opening URL via LaunchServices after \(timeout)s")) }
                 }
 
                 open(url, configuration: configuration) { running, error in
                     timeoutTask.cancel()
                     if let error {
-                        finish(.failure(error))
+                        finish { .failure(error) }
                     } else if let running {
-                        finish(.success(running))
+                        finish { .success(running) }
                     } else {
-                        finish(.failure(ErrorMessage("LaunchServices completed without returning an app")))
+                        finish { .failure(ErrorMessage("LaunchServices completed without returning an app")) }
                     }
                 }
             }
         } onCancel: {
-            finish(.failure(CancellationError()))
+            finish { .failure(CancellationError()) }
         }
     }
 }
