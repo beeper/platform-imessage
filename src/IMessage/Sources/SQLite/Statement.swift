@@ -2,8 +2,6 @@ import Logging
 import Darwin
 import SQLite3
 
-private let log = Logger(label: "sqlite.stmt")
-
 public final class Statement {
     var handle: OpaquePointer
     var database: Database
@@ -21,10 +19,6 @@ public final class Statement {
             preconditionFailure("sqlite3_prepare_v3 didn't give us a statement")
         }
 
-        #if DEBUG
-        log.debug("PREPARED\n\n\(sql)\n\n")
-        #endif
-
         return Statement(handle: statement, database: database)
     }
 
@@ -34,7 +28,6 @@ public final class Statement {
     }
 
     deinit {
-        log.debug("finalizing prepared statement")
         try! SQLiteError.check(sqlite3_finalize(handle))
     }
 }
