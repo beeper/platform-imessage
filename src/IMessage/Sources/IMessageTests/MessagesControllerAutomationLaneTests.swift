@@ -11,17 +11,6 @@ import Testing
 
 private struct Boom: Error {}
 
-/// Poll until `predicate` holds or `timeout` elapses. Used instead of fixed
-/// sleeps so the idle-callback tests aren't flaky under load.
-private func eventually(timeout: TimeInterval = 2, _ predicate: @Sendable () -> Bool) async -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-        if predicate() { return true }
-        try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
-    }
-    return predicate()
-}
-
 @Test func laneSerializesConcurrentWork() async throws {
     // idleDelay is irrelevant here; keep it long so idle work doesn't interfere.
     let lane = MessagesControllerAutomationLane(idleDelay: 10)
@@ -66,7 +55,7 @@ private func eventually(timeout: TimeInterval = 2, _ predicate: @Sendable () -> 
 
     try await lane.run {}
 
-    #expect(await eventually { idleCount.read() >= 1 })
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { idleCount.read() >= 1 })
 }
 
 @Test func laneIdleRepeatsWhileQuiet() async throws {
@@ -76,7 +65,7 @@ private func eventually(timeout: TimeInterval = 2, _ predicate: @Sendable () -> 
 
     try await lane.run {}
 
-    #expect(await eventually { idleCount.read() >= 2 })
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { idleCount.read() >= 2 })
 }
 
 @Test func laneIdleDoesNotFireWhileWorkInFlight() async throws {
@@ -103,7 +92,7 @@ private func eventually(timeout: TimeInterval = 2, _ predicate: @Sendable () -> 
     await lane.setIdleCallback { idleCount.withLock { $0 += 1 } }
 
     try await lane.run {}
-    _ = await eventually { idleCount.read() >= 1 }
+    _ = await eventually(timeout: 2, pollInterval: 0.005) { idleCount.read() >= 1 }
 
     await lane.setIdleCallback(nil)
     let countAtClear = idleCount.read()
@@ -125,7 +114,7 @@ private func eventually(timeout: TimeInterval = 2, _ predicate: @Sendable () -> 
         }
     }
 
-    #expect(await eventually { firstStarted.read() })
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { firstStarted.read() })
     first.cancel()
 
     // a queued action behind the cancelled one must still execute
