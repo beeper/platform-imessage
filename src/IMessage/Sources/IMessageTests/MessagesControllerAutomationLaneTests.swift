@@ -145,3 +145,66 @@ private struct Boom: Error {}
     let value = try await lane.run { 42 }
     #expect(value == 42)
 }
+
+@Test func laneCancellingQueuedActionNeverRunsIt() async throws {
+    // Distinct from laneCancellingOneActionStillRunsOthers (which cancels an action
+    // that has already STARTED): here we cancel an action while it is still QUEUED
+    // behind a long-running one. It must surface an error and never execute its body.
+    let lane = MessagesControllerAutomationLane(idleDelay: 10)
+    let firstStarted = Protected<Bool>(false)
+    let releaseFirst = Protected<Bool>(false)
+    let secondRan = Protected<Bool>(false)
+
+    let first = Task {
+        try await lane.run {
+            firstStarted.withLock { $0 = true }
+            while !releaseFirst.read() {
+                try await Task.sleep(nanoseconds: 2_000_000) // 2ms
+            }
+        }
+    }
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { firstStarted.read() })
+
+    // Queue the second action behind the (still-running) first, then cancel it.
+    let second = Task {
+        try await lane.run { secondRan.withLock { $0 = true } }
+    }
+    try await Task.sleep(nanoseconds: 20_000_000) // let it enqueue behind `first`
+    second.cancel()
+
+    // Drain the lane.
+    releaseFirst.withLock { $0 = true }
+    _ = try? await first.value
+
+    let secondResult = await second.result
+    #expect(throws: (any Error).self) { try secondResult.get() }
+
+    // Give the lane a beat; the cancelled-while-queued body must not have run.
+    try await Task.sleep(nanoseconds: 50_000_000)
+    #expect(secondRan.read() == false)
+}
+
+@Test func laneIdleUsesLatestCallbackAfterMidFlightSwap() async throws {
+    // Swapping the idle callback while an action is in flight must drop the old
+    // callback entirely; only the latest one fires once work drains.
+    let lane = MessagesControllerAutomationLane(idleDelay: 0.02)
+    let firstCallbackFired = Protected<Bool>(false)
+    let secondCallbackFired = Protected<Bool>(false)
+
+    await lane.setIdleCallback { firstCallbackFired.withLock { $0 = true } }
+
+    try await lane.run {
+        await lane.setIdleCallback { secondCallbackFired.withLock { $0 = true } }
+        try await Task.sleep(nanoseconds: 10_000_000) // 10ms, still in flight
+    }
+
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { secondCallbackFired.read() })
+    #expect(firstCallbackFired.read() == false)
+}
+
+// NOTE: lane re-entrancy (calling `run` from within a `run` action) is guarded by a
+// `precondition` in `MessagesControllerAutomationLane.run`. Asserting that it traps
+// would require a Swift Testing exit test (subprocess + signal matching), which is
+// fragile and toolchain-version-sensitive, so it is intentionally not unit-tested
+// here. The contract is enforced by the precondition and documented on
+// `isExecutingOnLane`; see plan-eng-review (Issue 3 / Codex Finding 1).
