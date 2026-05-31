@@ -1484,8 +1484,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    /// returns a callback meant to be assigned to the passive-aware controller queue that observes a single thread once
-    /// the passive-aware queue should call the returned callback repeatedly
+    /// Returns a callback that observes one thread while controller work is idle.
+    /// The platform-level idle observer calls this repeatedly after active automation drains.
     func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> ((Quiescence) async throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 

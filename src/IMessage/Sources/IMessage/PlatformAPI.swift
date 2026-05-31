@@ -627,8 +627,8 @@ public final class PlatformAPI {
             return
         }
 
-        // reset the idle callback in case we fail and bail out
-        Self.messagesControllerQueue.setIdleCallback(nil)
+        // reset the idle observer in case we fail and bail out
+        await Self.setMessagesControllerIdleObservation(nil)
 
         let requestID = UUID()
         let threadObserveRequestToken = threadObserveRequestToken
@@ -674,7 +674,7 @@ public final class PlatformAPI {
             guard threadObserveRequestToken.read() == requestID else { return }
 
             let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
-            Self.messagesControllerQueue.setIdleCallback { quiescence in
+            await Self.setMessagesControllerIdleObservation { quiescence in
                 guard threadObserveRequestToken.read() == requestID else { return }
                 do {
                     try await observe(quiescence)
