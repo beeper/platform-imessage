@@ -14,11 +14,11 @@ extension NSApplication {
 }
 
 extension NSRunningApplication {
-    func waitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) throws {
+    func waitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) async throws {
         let start = Date()
         while !self.isFinishedLaunching {
             Log.default.notice("sleeping \(interval)s for \(String(describing: self.localizedName)) to finish launching")
-            Thread.sleep(forTimeInterval: interval)
+            try await Task.sleep(forTimeInterval: interval)
             if self.isTerminated {
                 throw ErrorMessage("\(String(describing: self.localizedName)) terminated")
             }
@@ -27,7 +27,7 @@ extension NSRunningApplication {
                 break
             }
         }
-        Thread.sleep(forTimeInterval: 0.01)
+        try await Task.sleep(forTimeInterval: 0.01)
     }
 }
 

@@ -38,7 +38,7 @@ enum MessagesInstanceTarget {
         activating: Bool = false,
         hiding: Bool = false,
         timeout: TimeInterval = 8
-    ) throws -> NSRunningApplication {
+    ) async throws -> NSRunningApplication {
         guard let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID) else {
             throw ErrorMessage("Could not find Messages.app via LaunchServices")
         }
@@ -68,12 +68,17 @@ enum MessagesInstanceTarget {
             waiter.signal()
         }
 
-        guard waiter.wait(timeout: .now() + timeout) == .success else {
+        let didLaunch = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: waiter.wait(timeout: .now() + timeout) == .success)
+            }
+        }
+        guard didLaunch else {
             throw ErrorMessage("Timed out waiting for secondary Messages.app launch after \(timeout)s")
         }
 
         let app = try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
-        try app.waitForLaunch(timeout: timeout)
+        try await app.waitForLaunch(timeout: timeout)
 
         if let initialDeepLink {
             try sendDeepLink(initialDeepLink, to: app)

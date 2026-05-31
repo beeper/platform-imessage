@@ -97,7 +97,7 @@ final class MessagesController {
     private func resetWindow() {
         try? elements.searchField.cancel()
         try? expandSplitter()
-        try? closeReplyTranscriptView()
+        _ = try? closeReplyTranscriptView()
     }
 
     private static func terminateApp(_ app: NSRunningApplication) throws {
@@ -311,7 +311,7 @@ final class MessagesController {
 
         if Preferences.useSecondaryMessagesInstance {
             log.info("launching secondary messages instance...")
-            app = try MessagesInstanceTarget.launchSecondaryInstance(
+            app = try await MessagesInstanceTarget.launchSecondaryInstance(
                 initialDeepLink: MessagesDeepLink.compose.url(),
                 activating: false,
                 hiding: false
@@ -346,7 +346,7 @@ final class MessagesController {
         }
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        try selectedApp.waitForLaunch()
+        try await selectedApp.waitForLaunch()
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
             try Self.requestDeepLinkOpen(url, targeting: selectedApp)
@@ -582,7 +582,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let selectedThreadCell = elements.selectedThreadCell
         // ctrlTab() acts differently, has no effect?
         try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
-        try await retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
+        try await retry(withTimeout: 0.5, interval: 0.05) { () async throws in // wait for hotkey to switch threads
             let nextThreadCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
             if let selectedThreadCell, nextThreadCell == selectedThreadCell {
                 throw ErrorMessage("diff thread not selected")
@@ -659,7 +659,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         // without closing reply transcript, non-overlay deep link won't select the message
         if !messageCell.overlay {
-            try? closeReplyTranscriptView()
+            _ = try? closeReplyTranscriptView()
         }
 
         try await withActivation(openBefore: url) {
@@ -675,7 +675,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if messageCell.overlay {
                 try await waitUntilReplyTranscriptVisible()
             }
-            guard let selected = (try await retry(withTimeout: 1, interval: 0.2) { () -> Accessibility.Element? in
+            guard let selected = (try await retry(withTimeout: 1, interval: 0.2) { () async throws -> Accessibility.Element? in
                 guard let cell = try messageCell.overlay
                         ? MessagesAppElements.firstMessageCell(in: elements.replyTranscriptView)
                         : MessagesAppElements.firstSelectedMessageCell(in: elements.transcriptView)
@@ -779,7 +779,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     } catch {
                         throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
                     }
-                    let searchField = try await retry(withTimeout: 1.0, interval: 0.05) {
+                    let searchField = try await retry(withTimeout: 1.0, interval: 0.05) { () async throws in
                         try elements.characterPickerSearchField
                     }
                     try searchField.value(assign: search.query)
@@ -822,7 +822,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     return buttons[idx]
                 }()
 
-                try await retry(withTimeout: 1.2, interval: 0.1) {
+                try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
                     let isSelected = try btn.isSelected()
                     if isSelected != on {
                         try btn.press()
@@ -1075,7 +1075,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func focusMessageField(_ messageField: Accessibility.Element) async throws {
         do {
-            try await retry(withTimeout: 0.8, interval: 0.1) {
+            try await retry(withTimeout: 0.8, interval: 0.1) { () async throws in
                 // this doesn't ever focus in compose thread for some reason
                 try messageField.isFocused(assign: true)
                 if isComposeThreadSelected() { return }
@@ -1106,7 +1106,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     private func assignToMessageField(_ messageField: Accessibility.Element, text: String) async throws {
-        try await retry(withTimeout: 1, interval: 0.1) {
+        try await retry(withTimeout: 1, interval: 0.1) { () async throws in
             try messageField.value(assign: text)
             // we don't test if messageFieldValue() == text here because a few ms later, messageFieldValue will likely change if text has @mentions
             let charCountResult = Result { try messageField.noOfChars() }
@@ -1131,7 +1131,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         do {
             log.debug("\(#function): will now attempt to verify the send")
 
-            try await retry(withTimeout: 1.5, interval: 0.1) {
+            try await retry(withTimeout: 1.5, interval: 0.1) { () async throws in
                 let message = try messageFieldValue(messageField)
                 if !message.isEmpty {
                     let hasNewline = message.hasSuffix("\n")
@@ -1180,7 +1180,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func closeReplyTranscriptViewAndWait() async throws {
         guard try closeReplyTranscriptView() else { return }
-        try await retry(withTimeout: 1.2, interval: 0.1) {
+        try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
             guard let pValue = try? elements.messageBodyField.placeholderValue(),
                   pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
                 throw ErrorMessage("replyTranscriptView visible")
@@ -1191,7 +1191,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func waitUntilReplyTranscriptVisible() async throws {
         log.debug("waitUntilReplyTranscriptVisible")
-        try await retry(withTimeout: 1.2, interval: 0.1) {
+        try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
             guard let pValue = try? elements.messageBodyField.placeholderValue(),
                   pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
                 throw ErrorMessage("replyTranscriptView not visible")
@@ -1346,7 +1346,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
             try keyPresser.commandV()
-            try await retry(withTimeout: 2, interval: 0.05) {
+            try await retry(withTimeout: 2, interval: 0.05) { () async throws in
                 let charCountResult = Result { try messageField.noOfChars() }
                 guard case let .success(charCount) = charCountResult else {
                     messageField = try elements.messageBodyField
