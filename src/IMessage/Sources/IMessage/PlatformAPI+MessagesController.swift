@@ -11,8 +11,14 @@ private enum MessagesControllerCoordinatorError: Error {
     case pendingControllerInvalidated
 }
 
-private actor MessagesControllerAutomationLane {
+// Internal (not `private`) so `@testable import IMessage` can exercise it.
+actor MessagesControllerAutomationLane {
     typealias IdleCallback = @Sendable () async -> Void
+
+    // True while an action runs on the lane. Re-entering the lane from within an
+    // action would deadlock (the nested task awaits a tail the current action is
+    // blocking); task-locals propagate across hops so the assertion in `run` catches it.
+    @TaskLocal private static var isExecutingOnLane = false
 
     private let idleDelay: TimeInterval
     private var tail: Task<Void, Never>?
@@ -26,6 +32,11 @@ private actor MessagesControllerAutomationLane {
     }
 
     func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
+        assert(
+            !Self.isExecutingOnLane,
+            "re-entrant runOnMessagesControllerLane would deadlock the serial lane: " +
+            "a lane action must not call back into the lane. Run the work inline instead."
+        )
         activeWorkWillBegin()
         let task = enqueue(action)
         defer { activeWorkDidFinish() }
@@ -49,7 +60,9 @@ private actor MessagesControllerAutomationLane {
         let task = Task {
             await previous?.value
             try Task.checkCancellation()
-            return try await action()
+            return try await Self.$isExecutingOnLane.withValue(true) {
+                try await action()
+            }
         }
 
         tail = Task {

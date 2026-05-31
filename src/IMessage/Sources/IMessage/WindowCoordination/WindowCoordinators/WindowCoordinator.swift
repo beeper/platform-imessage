@@ -16,9 +16,13 @@ protocol WindowCoordinator: AnyObject {
      * Manipulates the Messages window in such a way that it becomes controllable via Accessibility APIs.
      *
      * This is called right before the app needs to be automated.
+     *
+     * Intentionally NOT `@MainActor`: implementations perform blocking Accessibility/
+     * window-server IPC that must stay off the main thread (an unresponsive Messages.app
+     * would otherwise freeze the UI). Implementations hop to `@MainActor` only for the
+     * AppKit reads they actually need.
      */
-    @MainActor
-    func makeAutomatable(_ window: Accessibility.Element) throws
+    func makeAutomatable(_ window: Accessibility.Element) async throws
 
     /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
     @MainActor
@@ -29,9 +33,10 @@ protocol WindowCoordinator: AnyObject {
      *
      * For example, this is called when the user manually activates the app. Coordination should quiesce until the user
      * resigns manual control.
+     *
+     * Not `@MainActor`, for the same reason as `makeAutomatable`.
      */
-    @MainActor
-    func reset(_ window: Accessibility.Element) throws
+    func reset(_ window: Accessibility.Element) async throws
 
     /** Called when the user manually activates the app. `reset` is also called in this case. */
     @MainActor

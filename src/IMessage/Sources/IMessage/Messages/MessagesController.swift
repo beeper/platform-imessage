@@ -364,9 +364,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.error("unable to perform initial observation of main window: \(error)")
             }
 
-            // this task doesn't run on the thread with the run loop
-            self.lifecycleEventsTask = Task.detached {
+            // this task doesn't run on the thread with the run loop.
+            // `[weak self]` (re-checked each iteration) avoids a retain cycle: the task
+            // is stored on `self` but kept alive by `observer`'s stream, not `self`.
+            self.lifecycleEventsTask = Task.detached { [weak self] in
                 func debuggingStatus() -> String {
+                    guard let self else { return "<controller deallocated>" }
                     let app = self.app
 
                     do {
@@ -380,6 +383,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
 
                 for await event in observer.events.subscribe() {
+                    guard let self else { return }
                     func printLifecycle(event: String) {
                         lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
                     }
