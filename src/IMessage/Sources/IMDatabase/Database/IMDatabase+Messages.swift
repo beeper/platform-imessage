@@ -20,12 +20,12 @@ public struct MessageQueryFilter {
         self.sqlFragment = escapedSQLFragment
     }
 
-    public static func before(_ date: Date) -> Self {
-        MessageQueryFilter(escapedSQLFragment: "date < \(date.nanosecondsSinceReferenceDate)")
+    public static func before(nanosecondsSinceReferenceDate dateNanoseconds: Int64) -> Self {
+        MessageQueryFilter(escapedSQLFragment: "date < \(dateNanoseconds)")
     }
 
-    public static func after(_ date: Date) -> Self {
-        MessageQueryFilter(escapedSQLFragment: "date > \(date.nanosecondsSinceReferenceDate)")
+    public static func after(nanosecondsSinceReferenceDate dateNanoseconds: Int64) -> Self {
+        MessageQueryFilter(escapedSQLFragment: "date > \(dateNanoseconds)")
     }
 }
 
@@ -97,6 +97,9 @@ public extension IMDatabase {
 
 private extension Message {
     init(row: borrowing Row) throws {
+        let dateNanoseconds = try row[9].imCoreDateNanoseconds()
+        let dateReadNanoseconds = try row[10].imCoreDateNanoseconds()
+
         // (skipping `c.guid`)
         self = try Message(
             id: row[1].expect(Int.self),
@@ -111,8 +114,8 @@ private extension Message {
             },
             isFromMe: row[7].looseBool(),
             isSent: row[8].looseBool(),
-            date: row[9].imCoreDate(),
-            dateRead: row[10].imCoreDate(),
+            dateNanosecondsSinceReferenceDate: dateNanoseconds,
+            dateReadNanosecondsSinceReferenceDate: dateReadNanoseconds,
             summaryInfo: row[11].optionalConverting(Data.self).map(Message.SummaryInfo.init(blob:)),
             )
     }

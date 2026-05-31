@@ -23,6 +23,17 @@ public extension Date {
     }
 }
 
+extension Date {
+    init?(imCoreNanosecondsSinceReferenceDate nanos: Int64) {
+        let date = Date(nanosecondsSinceReferenceDate: nanos)
+        guard date < .distantFuture else {
+            return nil
+        }
+
+        self = date
+    }
+}
+
 // SQLite INTEGER is signed 64-bit, and malformed or extreme Messages dates can
 // round outside Int when converted Date -> Double -> integer. Clamp at this DB
 // boundary so rebinding cursors cannot trap the process.

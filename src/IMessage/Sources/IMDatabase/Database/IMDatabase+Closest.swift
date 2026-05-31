@@ -78,7 +78,7 @@ public extension IMDatabase {
             return nil
         }
 
-        guard let targetDate = message.date else {
+        guard let targetDateNanoseconds = message.dateNanosecondsSinceReferenceDate else {
             log.error("target's parent message has no date")
             // rare/impossible?
             return nil
@@ -113,7 +113,10 @@ public extension IMDatabase {
             // for the messages above our target so that we _always_ move "upwards". Otherwise, we'd enumerate message parts
             // by their normal ordering within each message.
             let messagesBefore = try messages(
-                in: chat, filter: .before(targetDate), order: .newestFirst, limit: searchRange
+                in: chat,
+                filter: .before(nanosecondsSinceReferenceDate: targetDateNanoseconds),
+                order: .newestFirst,
+                limit: searchRange
             )
             let partsBeforeWithinSelf = parts.filter { $0.index < target.index }.reversed()
             let partsBefore =
@@ -123,7 +126,10 @@ public extension IMDatabase {
             }
 
             let messagesAfter = try messages(
-                in: chat, filter: .after(targetDate), order: .oldestFirst, limit: searchRange
+                in: chat,
+                filter: .after(nanosecondsSinceReferenceDate: targetDateNanoseconds),
+                order: .oldestFirst,
+                limit: searchRange
             )
             let partsAfterWithinSelf = parts.filter { $0.index > target.index }
             let partsAfter = Array(partsAfterWithinSelf) + messagesAfter.flatMap(\.parts)

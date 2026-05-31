@@ -22,12 +22,7 @@ extension Column {
 
         // Explicitly check for bogus dates. If you let these escape into the rest of the
         // program then an integer overflow might make everything implode.
-        let date = Date(nanosecondsSinceReferenceDate: nanoseconds)
-        guard date < .distantFuture else {
-            return nil
-        }
-
-        return date
+        return Date(imCoreNanosecondsSinceReferenceDate: nanoseconds)
     }
 
     consuming func looseBool() throws -> Bool {

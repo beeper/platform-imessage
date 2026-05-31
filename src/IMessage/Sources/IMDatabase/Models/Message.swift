@@ -18,9 +18,18 @@ public struct Message: Identifiable {
     public var isFromMe: Bool
     public var isSent: Bool
 
+    /** Raw `message.date` value from chat.db. Use for DB follow-up queries that need exact cursor semantics. */
+    public var dateNanosecondsSinceReferenceDate: Int64?
+    /** Raw `message.date_read` value from chat.db. */
+    public var dateReadNanosecondsSinceReferenceDate: Int64?
+
     /** when the message was sent */
-    public var date: Date?
-    public var dateRead: Date?
+    public var date: Date? {
+        dateNanosecondsSinceReferenceDate.flatMap(Date.init(imCoreNanosecondsSinceReferenceDate:))
+    }
+    public var dateRead: Date? {
+        dateReadNanosecondsSinceReferenceDate.flatMap(Date.init(imCoreNanosecondsSinceReferenceDate:))
+    }
     public var dateDelivered: Date?
 
     /** joined from another table; `nil` if this hasn't been done yet */
