@@ -10,6 +10,7 @@ private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let loadAttachmentTimeout: TimeInterval = 60
+private let threadActivityObservationInterval: TimeInterval = 1
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let state = Protected(State())
@@ -82,6 +83,7 @@ public final class PlatformAPI {
     private let dndUserIDs = Protected(Set<String>())
 
     private let threadObserveRequestToken = Protected<UUID?>()
+    private let threadActivityObservationTask = Protected<Task<Void, Never>?>(nil)
     let hasBeenDisposed = Protected(false)
 
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
@@ -610,6 +612,7 @@ public final class PlatformAPI {
         SystemSettingsOnboarding.stop()
         await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
         database.stopListeningAndReset()
+        cancelThreadActivityObservation()
         try await disposeCachedMessagesController()
     }
 
@@ -623,16 +626,25 @@ public final class PlatformAPI {
         threadID: String,
         statusSender: @escaping @Sendable (ThreadActivityObservation) async throws -> Void
     ) async throws {
+        cancelThreadActivityObservation()
+
         guard Defaults.watchThreadActivity else {
             return
         }
 
-        // reset the idle callback in case we fail and bail out
-        Self.messagesControllerQueue.setIdleCallback(nil)
-
         let requestID = UUID()
         let threadObserveRequestToken = threadObserveRequestToken
         threadObserveRequestToken.withLock { $0 = requestID }
+        var observationLoopStarted = false
+        defer {
+            if !observationLoopStarted {
+                threadObserveRequestToken.withLock {
+                    if $0 == requestID {
+                        $0 = nil
+                    }
+                }
+            }
+        }
 
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
             Task {
@@ -644,7 +656,7 @@ public final class PlatformAPI {
             }
         }
 
-        try await withMessagesController { controller in
+        let didStartObservation = try await withMessagesController { controller in
             // only watch thread activity for iMessage chats
             // TODO: implement this for groups
             if !threadID.hasPrefix("iMessage;-;") {
@@ -654,42 +666,85 @@ public final class PlatformAPI {
                     #if DEBUG
                     platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
                     #endif
-                    return
+                    return false
                 }
 
                 let chat = try controller.db.chat(withGUID: threadID)
                 guard let chat else {
                     platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                    return
+                    return false
                 }
 
                 guard chat.serviceName == .imessage else {
                     #if DEBUG
                     platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
                     #endif
+                    return false
+                }
+            }
+
+            guard threadObserveRequestToken.read() == requestID else { return false }
+
+            try controller.observeThreadActivity(threadID: threadID, statusSender: sendStatus)
+            return true
+        }
+
+        guard didStartObservation else {
+            return
+        }
+
+        observationLoopStarted = true
+        startThreadActivityObservationLoop(
+            threadID: threadID,
+            requestID: requestID,
+            statusSender: sendStatus
+        )
+    }
+
+    private func cancelThreadActivityObservation() {
+        threadObserveRequestToken.withLock { $0 = nil }
+        threadActivityObservationTask.withLock { task in
+            task?.cancel()
+            task = nil
+        }
+    }
+
+    private func startThreadActivityObservationLoop(
+        threadID: String,
+        requestID: UUID,
+        statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void
+    ) {
+        let threadObserveRequestToken = threadObserveRequestToken
+        let task = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(forTimeInterval: threadActivityObservationInterval)
+                } catch {
                     return
                 }
-            }
 
-            guard threadObserveRequestToken.read() == requestID else { return }
+                guard !Task.isCancelled,
+                      let self,
+                      !hasBeenDisposed.read(),
+                      threadObserveRequestToken.read() == requestID
+                else {
+                    return
+                }
 
-            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
-            Self.messagesControllerQueue.setIdleCallback { quiescence in
-                guard threadObserveRequestToken.read() == requestID else { return }
                 do {
-                    try observe(quiescence)
+                    try await withMessagesController { controller in
+                        guard threadObserveRequestToken.read() == requestID else { return }
+                        try controller.observeThreadActivity(threadID: threadID, statusSender: statusSender)
+                    }
                 } catch {
-                    platformLog.error("failed to observe activity: \(error)")
+                    platformLog.error("failed to observe activity: \(String(reflecting: error))")
                 }
             }
+        }
 
-            // if another watchThreadActivity request has been enqueued
-            // after our current one (but before this block began executing),
-            // then this check will fail and prevent the current block from
-            // unnecessarily running
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            try observe(.began)
+        threadActivityObservationTask.withLock { currentTask in
+            currentTask?.cancel()
+            currentTask = task
         }
     }
 

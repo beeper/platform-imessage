@@ -1519,7 +1519,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /*
      activityLock.lock() called by:
-     MessagesController.observe()
+     MessagesController.observeThreadActivity()
      MessagesController.sendMessage()
      MessagesController.setReaction()
      MessagesController.sendTypingStatus()
@@ -1547,63 +1547,60 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    /// returns a callback meant to be assigned to a `PassivelyAwareDispatchQueue` that observes a single thread once
-    /// the passively aware dispatch queue should call the returned callback repeatedly
-    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> ((Quiescence) throws -> Void) {
+    func observeThreadActivity(
+        threadID: String,
+        statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void
+    ) throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        return { [weak self] _ in
-            guard let self else { return }
-
-            guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
-                log.debug("not observing activity, Messages is manually activated")
-                return
-            }
-
-            guard occlusionMonitor.visible else {
-                #if DEBUG
-                log.debug("not observing activity, window occluded")
-                #endif
-                return
-            }
-
-            guard isValid else {
-                #if DEBUG
-                log.debug("not observing activity, controller is invalid")
-                #endif
-                return
-            }
-
-            if lastThreadIDOpenedForObservation.read() != threadID {
-                log.debug("activity: entered idle state or thread id changed, opening deep link")
-                try prepareForAutomation()
-                defer { finishedAutomation() }
-
-                try openDeepLink(url)
-                log.debug("activity: opened deep link, waiting for layout change")
-                lastThreadIDOpenedForObservation.withLock { $0 = threadID }
-                waitForLayoutChange(timeout: 0.5)
-            }
-
-            guard activityLock.tryLock() else { return }
-            defer { activityLock.unlock() }
-
-            let observationToSend = activityObservation()
-            guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
-                #if DEBUG
-                log.debug("activity: same activity or too recent, skipping activity update")
-                #endif
-                return
-            }
-            defer {
-                lastSentActivityObservation = observationToSend
-                lastSentActivityObservationTime = Date()
-            }
-            #if DEBUG
-            log.debug("activity: sending: \(observationToSend)")
-            #endif
-            statusSender(observationToSend)
+        guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
+            log.debug("not observing activity, Messages is manually activated")
+            return
         }
+
+        guard occlusionMonitor.visible else {
+            #if DEBUG
+            log.debug("not observing activity, window occluded")
+            #endif
+            return
+        }
+
+        guard isValid else {
+            #if DEBUG
+            log.debug("not observing activity, controller is invalid")
+            #endif
+            return
+        }
+
+        if lastThreadIDOpenedForObservation.read() != threadID {
+            log.debug("activity: thread changed, opening deep link")
+            try prepareForAutomation()
+            defer { finishedAutomation() }
+
+            try openDeepLink(url)
+            log.debug("activity: opened deep link, waiting for layout change")
+            lastThreadIDOpenedForObservation.withLock { $0 = threadID }
+            waitForLayoutChange(timeout: 0.5)
+        }
+
+        guard activityLock.tryLock() else { return }
+        defer { activityLock.unlock() }
+
+        let observationToSend = activityObservation()
+        guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
+            #if DEBUG
+            log.debug("activity: same activity or too recent, skipping activity update")
+            #endif
+            return
+        }
+        defer {
+            lastSentActivityObservation = observationToSend
+            lastSentActivityObservationTime = Date()
+        }
+        #if DEBUG
+        log.debug("activity: sending: \(observationToSend)")
+        #endif
+        statusSender(observationToSend)
     }
 
     private var isDisposed = false

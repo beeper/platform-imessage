@@ -1,3 +1,4 @@
+import Dispatch
 import IMessageCore
 import Logging
 
@@ -146,7 +147,6 @@ private extension MessagesControllerCoordinator {
     func dispose(_ entry: MessagesControllerEntry) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         try await PlatformAPI.onMessagesControllerQueue {
-            PlatformAPI.messagesControllerQueue.setIdleCallback(nil)
             entry.value.dispose()
         }
     }
@@ -155,7 +155,7 @@ private extension MessagesControllerCoordinator {
 extension PlatformAPI {
     // IMessageHost is singleton-only within a process; PlatformAPI wrappers share
     // one MessagesController and queue for Messages.app automation.
-    static let messagesControllerQueue = PassivelyAwareDispatchQueue(label: "messages-controller-platform-queue", idleDelay: 1)
+    static let messagesControllerQueue = DispatchQueue(label: "messages-controller-platform-queue")
     fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
 
     func withMessagesController<T>(
