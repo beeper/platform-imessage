@@ -21,7 +21,6 @@
 
 - concurrency
   - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
-  - [ ] kill `PassivelyAwareDispatchQueue`
 
 - [ ] improve misfire prevention and robustness
 - [ ] DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that. [wip](https://github.com/beeper/platform-imessage/tree/purav/fix-imessage-send-upsert)

@@ -50,7 +50,7 @@ private actor MessagesControllerSerializer {
 }
 
 private actor MessagesControllerIdleObservation {
-    typealias Callback = @Sendable (Quiescence) async -> Void
+    typealias Callback = @Sendable () async -> Void
     typealias IdleWorkRunner = @Sendable (@escaping @Sendable () async -> Void) async -> Void
 
     private let idleDelay: TimeInterval
@@ -80,12 +80,12 @@ private actor MessagesControllerIdleObservation {
     func activeWorkDidFinish(runIdleWork: @escaping IdleWorkRunner) {
         activeWorkCount = max(0, activeWorkCount - 1)
         guard activeWorkCount == 0 else { return }
-        scheduleIdleCallback(.began, runIdleWork: runIdleWork)
+        scheduleIdleCallback(runIdleWork: runIdleWork)
     }
 }
 
 private extension MessagesControllerIdleObservation {
-    func scheduleIdleCallback(_ quiescence: Quiescence, runIdleWork: @escaping IdleWorkRunner) {
+    func scheduleIdleCallback(runIdleWork: @escaping IdleWorkRunner) {
         guard callback != nil else { return }
 
         let expectedEpoch = epoch
@@ -102,12 +102,12 @@ private extension MessagesControllerIdleObservation {
                     return
                 }
 
-                await self.invokeCallback(quiescence)
+                await self.invokeCallback()
 
                 guard await self.shouldContinueIdleCallbacks(expectedEpoch: expectedEpoch) else {
                     return
                 }
-                await self.scheduleIdleCallback(.continuing, runIdleWork: runIdleWork)
+                await self.scheduleIdleCallback(runIdleWork: runIdleWork)
             }
         }
     }
@@ -116,8 +116,8 @@ private extension MessagesControllerIdleObservation {
         activeWorkCount == 0 && epoch == expectedEpoch && callback != nil && idleTask?.isCancelled == false
     }
 
-    func invokeCallback(_ quiescence: Quiescence) async {
-        await callback?(quiescence)
+    func invokeCallback() async {
+        await callback?()
     }
 
     func shouldContinueIdleCallbacks(expectedEpoch: UInt) -> Bool {
@@ -305,7 +305,7 @@ extension PlatformAPI {
     }
 
     static func setMessagesControllerIdleObservation(
-        _ callback: (@Sendable (Quiescence) async -> Void)?
+        _ callback: (@Sendable () async -> Void)?
     ) async {
         await messagesControllerIdleObservation.setCallback(callback)
     }

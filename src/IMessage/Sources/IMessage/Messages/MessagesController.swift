@@ -1486,10 +1486,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /// Returns a callback that observes one thread while controller work is idle.
     /// The platform-level idle observer calls this repeatedly after active automation drains.
-    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> ((Quiescence) async throws -> Void) {
+    func idleCallback(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> (() async throws -> Void) {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        return { [weak self] _ in
+        return { [weak self] in
             guard let self else { return }
 
             guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {

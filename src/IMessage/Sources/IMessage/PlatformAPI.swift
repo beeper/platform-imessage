@@ -674,10 +674,10 @@ public final class PlatformAPI {
             guard threadObserveRequestToken.read() == requestID else { return }
 
             let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
-            await Self.setMessagesControllerIdleObservation { quiescence in
+            await Self.setMessagesControllerIdleObservation {
                 guard threadObserveRequestToken.read() == requestID else { return }
                 do {
-                    try await observe(quiescence)
+                    try await observe()
                 } catch {
                     platformLog.error("failed to observe activity: \(error)")
                 }
@@ -689,7 +689,7 @@ public final class PlatformAPI {
             // unnecessarily running
             guard threadObserveRequestToken.read() == requestID else { return }
 
-            try await observe(.began)
+            try await observe()
         }
     }
 
