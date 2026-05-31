@@ -14,18 +14,6 @@ extension NSPasteboard {
         }
     }
 
-    func withRestoration(perform: () throws -> Void) rethrows {
-        let backup = self.backup()
-        defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
-                self.prepareForNewContents()
-                if let backup { self.writeObjects(backup) }
-            }
-        }
-        self.prepareForNewContents(with: .currentHostOnly) // currentHostOnly disables universal clipboard
-        try perform()
-    }
-
     func withRestoration(perform: () async throws -> Void) async rethrows {
         let backup = self.backup()
         defer {

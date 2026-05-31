@@ -26,7 +26,7 @@ actor MessagesControllerAutomationLane {
 
     private let idleDelay: TimeInterval
     private var tail: Task<Void, Never>?
-    private var queuedActiveWorkCount = 0
+    private var pendingActiveWorkCount = 0
     private var idleEpoch: UInt = 0
     private var idleCallback: IdleCallback?
     private var idleTask: Task<Void, Never>?
@@ -47,9 +47,9 @@ actor MessagesControllerAutomationLane {
             "re-entrant runOnMessagesControllerLane would deadlock the serial lane: " +
             "a lane action must not call back into the lane."
         )
-        activeWorkWillBegin()
+        activeWorkSubmitted()
         let task = enqueue(action)
-        defer { activeWorkDidFinish() }
+        defer { activeWorkCompleted() }
 
         return try await withTaskCancellationHandler {
             try await task.value
@@ -81,19 +81,19 @@ actor MessagesControllerAutomationLane {
         return task
     }
 
-    private func activeWorkWillBegin() {
+    private func activeWorkSubmitted() {
         idleEpoch += 1
-        queuedActiveWorkCount += 1
+        pendingActiveWorkCount += 1
         idleTask?.cancel()
         idleTask = nil
     }
 
-    private func activeWorkDidFinish() {
-        // Every activeWorkDidFinish must pair with a prior activeWorkWillBegin.
+    private func activeWorkCompleted() {
+        // Every activeWorkCompleted must pair with a prior activeWorkSubmitted.
         // The assert surfaces an imbalance in debug; the max(0,…) keeps release safe.
-        assert(queuedActiveWorkCount > 0, "activeWorkDidFinish without a matching activeWorkWillBegin")
-        queuedActiveWorkCount = max(0, queuedActiveWorkCount - 1)
-        guard queuedActiveWorkCount == 0 else { return }
+        assert(pendingActiveWorkCount > 0, "activeWorkCompleted without a matching activeWorkSubmitted")
+        pendingActiveWorkCount = max(0, pendingActiveWorkCount - 1)
+        guard pendingActiveWorkCount == 0 else { return }
         scheduleIdleCallback()
     }
 
@@ -130,13 +130,13 @@ actor MessagesControllerAutomationLane {
     }
 
     private func idleCallbackIfStillCurrent(expectedEpoch: UInt) -> IdleCallback? {
-        guard queuedActiveWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
+        guard pendingActiveWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
             return nil
         }
         return idleCallback
     }
 
     private func shouldContinueIdleCallbacks(expectedEpoch: UInt) -> Bool {
-        queuedActiveWorkCount == 0 && idleEpoch == expectedEpoch && idleCallback != nil
+        pendingActiveWorkCount == 0 && idleEpoch == expectedEpoch && idleCallback != nil
     }
 }

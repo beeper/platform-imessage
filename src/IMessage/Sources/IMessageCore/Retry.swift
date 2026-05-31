@@ -63,6 +63,7 @@ public func retry<T>(
     var res: Result<T, Error>!
     var attempt = 0
     repeat {
+        await Task.yield()
         try Task.checkCancellation()
         do {
             return try await perform()
