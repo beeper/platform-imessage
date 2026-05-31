@@ -83,14 +83,14 @@ private actor MessagesControllerAutomationLane {
                 return
             }
 
-            let task = self.enqueueIdleCallback(expectedEpoch: expectedEpoch)
+            let task = self.enqueuePassiveIdleCallback(expectedEpoch: expectedEpoch)
             _ = try? await task.value
         }
     }
 
-    private func enqueueIdleCallback(expectedEpoch: UInt) -> Task<Void, Error> {
+    private func enqueuePassiveIdleCallback(expectedEpoch: UInt) -> Task<Void, Error> {
         enqueue {
-            guard let callback = await self.idleCallbackToRun(expectedEpoch: expectedEpoch) else {
+            guard let callback = await self.idleCallbackIfStillCurrent(expectedEpoch: expectedEpoch) else {
                 return
             }
 
@@ -103,7 +103,7 @@ private actor MessagesControllerAutomationLane {
         }
     }
 
-    private func idleCallbackToRun(expectedEpoch: UInt) -> IdleCallback? {
+    private func idleCallbackIfStillCurrent(expectedEpoch: UInt) -> IdleCallback? {
         guard queuedActiveWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
             return nil
         }
@@ -197,7 +197,13 @@ private extension MessagesControllerCoordinator {
 
     private func startControllerCreation(reportErrorMessage: PlatformAPI.ReportErrorMessage?) -> Task<MessagesControllerEntry, Error> {
         let task = Task {
-            try await Self.makeControllerEntry(reportErrorMessage: reportErrorMessage)
+            let controller = try await PlatformAPI.runOnMessagesControllerLane {
+                try await MessagesController(reportErrorMessage: { txt in
+                    platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
+                    try? reportErrorMessage?(txt)
+                })
+            }
+            return MessagesControllerEntry(controller)
         }
         pendingController = task
         return task
@@ -233,11 +239,6 @@ private extension MessagesControllerCoordinator {
             }
             throw error
         }
-    }
-
-    static func makeControllerEntry(reportErrorMessage: PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry {
-        let controller = try await PlatformAPI.makeMessagesController(reportErrorMessage: reportErrorMessage)
-        return MessagesControllerEntry(controller)
     }
 
     func disposeIfCurrent(_ entry: MessagesControllerEntry) async throws {
@@ -291,12 +292,4 @@ extension PlatformAPI {
         await messagesControllerAutomationLane.setIdleCallback(callback)
     }
 
-    static func makeMessagesController(reportErrorMessage: ReportErrorMessage?) async throws -> MessagesController {
-        try await Self.runOnMessagesControllerLane {
-            try await MessagesController(reportErrorMessage: { txt in
-                platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
-                try? reportErrorMessage?(txt)
-            })
-        }
-    }
 }
