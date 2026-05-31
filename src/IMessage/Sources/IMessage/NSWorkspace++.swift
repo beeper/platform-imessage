@@ -13,7 +13,7 @@ extension NSWorkspace.OpenConfiguration {
         static let waitForApplicationToCheckIn = "_kLSOpenOptionWaitForApplicationToCheckInKey"
     }
 
-    var messagesInstanceAdditionalOptions: [String: Any] {
+    var launchServicesAdditionalOptions: [String: Any] {
         get {
             guard responds(to: PrivateKeys.getAdditionalOptions),
                   let result = perform(PrivateKeys.getAdditionalOptions)?
@@ -29,38 +29,38 @@ extension NSWorkspace.OpenConfiguration {
         }
     }
 
-    func setMessagesInstanceBoolOption(_ value: Bool?, forKey key: String) {
-        var options = messagesInstanceAdditionalOptions
+    func setLaunchServicesBoolOption(_ value: Bool?, forKey key: String) {
+        var options = launchServicesAdditionalOptions
         if let value {
             options[key] = value
         } else {
             options.removeValue(forKey: key)
         }
-        messagesInstanceAdditionalOptions = options
+        launchServicesAdditionalOptions = options
     }
 
-    var messagesInstanceLaunchesInBackground: Bool? {
-        get { messagesInstanceAdditionalOptions[PrivateKeys.backgroundLaunch] as? Bool }
-        set { setMessagesInstanceBoolOption(newValue, forKey: PrivateKeys.backgroundLaunch) }
+    var launchesInBackground: Bool? {
+        get { launchServicesAdditionalOptions[PrivateKeys.backgroundLaunch] as? Bool }
+        set { setLaunchServicesBoolOption(newValue, forKey: PrivateKeys.backgroundLaunch) }
     }
 
-    var messagesInstanceLaunchIsUserAction: Bool? {
-        get { messagesInstanceAdditionalOptions[PrivateKeys.launchIsUserAction] as? Bool }
-        set { setMessagesInstanceBoolOption(newValue, forKey: PrivateKeys.launchIsUserAction) }
+    var launchIsUserAction: Bool? {
+        get { launchServicesAdditionalOptions[PrivateKeys.launchIsUserAction] as? Bool }
+        set { setLaunchServicesBoolOption(newValue, forKey: PrivateKeys.launchIsUserAction) }
     }
 
-    var messagesInstancePreferRunningInstance: Bool? {
-        get { messagesInstanceAdditionalOptions[PrivateKeys.preferRunningInstance] as? Bool }
-        set { setMessagesInstanceBoolOption(newValue, forKey: PrivateKeys.preferRunningInstance) }
+    var preferRunningInstance: Bool? {
+        get { launchServicesAdditionalOptions[PrivateKeys.preferRunningInstance] as? Bool }
+        set { setLaunchServicesBoolOption(newValue, forKey: PrivateKeys.preferRunningInstance) }
     }
 
-    var messagesInstanceLaunchWithoutRestoringState: Bool? {
-        get { messagesInstanceAdditionalOptions[PrivateKeys.launchWithoutRestoringState] as? Bool }
-        set { setMessagesInstanceBoolOption(newValue, forKey: PrivateKeys.launchWithoutRestoringState) }
+    var launchWithoutRestoringState: Bool? {
+        get { launchServicesAdditionalOptions[PrivateKeys.launchWithoutRestoringState] as? Bool }
+        set { setLaunchServicesBoolOption(newValue, forKey: PrivateKeys.launchWithoutRestoringState) }
     }
 
-    var messagesInstanceWaitForApplicationToCheckIn: Bool? {
-        get { messagesInstanceAdditionalOptions[PrivateKeys.waitForApplicationToCheckIn] as? Bool }
-        set { setMessagesInstanceBoolOption(newValue, forKey: PrivateKeys.waitForApplicationToCheckIn) }
+    var waitForApplicationToCheckIn: Bool? {
+        get { launchServicesAdditionalOptions[PrivateKeys.waitForApplicationToCheckIn] as? Bool }
+        set { setLaunchServicesBoolOption(newValue, forKey: PrivateKeys.waitForApplicationToCheckIn) }
     }
 }
