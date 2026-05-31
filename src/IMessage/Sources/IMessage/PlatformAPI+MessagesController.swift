@@ -93,6 +93,9 @@ actor MessagesControllerAutomationLane {
     }
 
     private func activeWorkDidFinish() {
+        // Every activeWorkDidFinish must pair with a prior activeWorkWillBegin.
+        // The assert surfaces an imbalance in debug; the max(0,…) keeps release safe.
+        assert(queuedActiveWorkCount > 0, "activeWorkDidFinish without a matching activeWorkWillBegin")
         queuedActiveWorkCount = max(0, queuedActiveWorkCount - 1)
         guard queuedActiveWorkCount == 0 else { return }
         scheduleIdleCallback()
@@ -185,23 +188,35 @@ private actor MessagesControllerCoordinator {
         current = nil
         self.pendingController = nil
 
-        var pendingError: Error?
-        if let pendingController {
-            do {
-                let created = try await pendingController.value
-                try await dispose(created)
-            } catch {
-                pendingError = error
+        // Run the await-construction-then-dispose inside an unstructured Task so it is
+        // immune to cancellation of *this* call. Unstructured tasks don't inherit the
+        // caller's cancellation, and `await disposal.value` completes regardless of it.
+        // Otherwise, if the caller is cancelled while we await `pendingController.value`,
+        // this method would throw, the detached construction Task would keep running,
+        // and the MessagesController it creates (having launched Messages.app) would
+        // never be disposed — a leak. We deliberately do NOT cancel `pendingController`
+        // itself: cancelling construction mid app-launch could leave a half-launched
+        // Messages.app.
+        let disposal = Task {
+            var pendingError: Error?
+            if let pendingController {
+                do {
+                    let created = try await pendingController.value
+                    try await self.dispose(created)
+                } catch {
+                    pendingError = error
+                }
+            }
+
+            if let entry {
+                try await self.dispose(entry)
+            }
+
+            if let pendingError {
+                throw pendingError
             }
         }
-
-        if let entry {
-            try await dispose(entry)
-        }
-
-        if let pendingError {
-            throw pendingError
-        }
+        try await disposal.value
     }
 }
 

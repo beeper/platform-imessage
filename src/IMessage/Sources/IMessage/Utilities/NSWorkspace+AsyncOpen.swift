@@ -12,17 +12,27 @@ extension NSWorkspace {
         start: (@escaping RunningApplicationOpenHandler) -> Void
     ) async throws -> NSRunningApplication {
         typealias OpenContinuation = CheckedContinuation<NSRunningApplication, Error>
-        let state = Protected<(continuation: OpenContinuation?, completed: Bool)>((nil, false))
+        let state = Protected<(continuation: OpenContinuation?, completed: Bool, timeoutTask: Task<Void, Never>?)>((nil, false, nil))
 
+        // Single completion point. Whoever finishes first (LaunchServices callback,
+        // the timeout, or caller cancellation) resumes the continuation and tears down
+        // the timeout task; everyone else is a no-op via the `completed` flag. Cancelling
+        // the timeout task here (rather than only in the success callback) means a
+        // cancelled or errored open doesn't leave the timeout task sleeping with its
+        // captured state retained until the deadline.
         let finish: @Sendable (Result<NSRunningApplication, Error>) -> Void = { result in
-            let continuation = state.withLock { state -> OpenContinuation? in
+            let (continuation, timeoutTask) = state.withLock { state -> (OpenContinuation?, Task<Void, Never>?) in
                 guard !state.completed else {
-                    return nil
+                    return (nil, nil)
                 }
                 state.completed = true
-                defer { state.continuation = nil }
-                return state.continuation
+                let continuation = state.continuation
+                let timeoutTask = state.timeoutTask
+                state.continuation = nil
+                state.timeoutTask = nil
+                return (continuation, timeoutTask)
             }
+            timeoutTask?.cancel()
             continuation?.resume(with: result)
         }
 
@@ -44,9 +54,11 @@ extension NSWorkspace {
                     guard !Task.isCancelled else { return }
                     finish(.failure(ErrorMessage(timeoutMessage)))
                 }
+                // Publish the handle before calling `start` so a synchronous completion
+                // can still cancel the timeout task through `finish`.
+                state.withLock { $0.timeoutTask = timeoutTask }
 
                 start { running, error in
-                    timeoutTask.cancel()
                     if let error {
                         finish(.failure(error))
                     } else if let running {
