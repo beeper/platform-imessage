@@ -75,7 +75,7 @@ final class MessagesController {
 
     private var windowCoordinator: WindowCoordinator
     let contacts = Contacts()
-    private var reportErrorMessage: ((_ txt: String) -> Void)?
+    private var reportErrorMessage: ((String) -> Void)?
 
     let occlusionMonitor = OcclusionMonitor()
 
@@ -255,7 +255,7 @@ final class MessagesController {
         try assertSelectedThread(threadID: threadID)
     }
 
-    init(reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
+    init(reportErrorMessage: @escaping (String) -> Void) throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
@@ -320,12 +320,13 @@ final class MessagesController {
         guard isValid else {
             dispose() // since deinit isn't called when init throws
             throw ErrorMessage("""
-Initialized MessagesController in an invalid state:
-appTerminated=\(app.isTerminated)
-mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
-isMessagesAppResponsive=\(isMessagesAppResponsive)
-""")
+            Initialized MessagesController in an invalid state:
+            appTerminated=\(app.isTerminated)
+            mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+            isMessagesAppResponsive=\(isMessagesAppResponsive)
+            """)
         }
+        
         resetWindow()
     }
 

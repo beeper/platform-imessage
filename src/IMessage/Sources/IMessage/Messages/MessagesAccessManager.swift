@@ -45,7 +45,8 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         NSApplication.shared.prepareAndActivate()
     }
 
-    @MainActor func requestAccess() async throws {
+    @MainActor
+    func requestAccess() async throws {
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
         openPanel.delegate = self
