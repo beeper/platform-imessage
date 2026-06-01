@@ -338,8 +338,6 @@ final class MessagesController {
         try await selectedApp.waitForLaunch()
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
-            // Awaitable (no longer fire-and-forget): callers can await the open completing
-            // rather than relying on a fixed sleep to paper over the race.
             try await Self.openDeepLink(url, targeting: selectedApp)
         })
 

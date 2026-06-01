@@ -11,7 +11,6 @@ private enum MessagesControllerCoordinatorError: Error {
     case pendingControllerInvalidated
 }
 
-
 private actor MessagesControllerCoordinator {
     private var current: MessagesControllerEntry?
     // Actors are reentrant across awaits, so concurrent callers share one in-flight construction.
