@@ -14,11 +14,6 @@ private let log = Logger(imessageLabel: "messages-controller")
 private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 
 let messagesBundleID = "com.apple.MobileSMS"
-let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
-let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
-let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
-let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))
-let isTahoeOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
 
 private enum MessageAction {
     case react, reply, undoSend
@@ -304,7 +299,7 @@ final class MessagesController {
                     try Self.terminateApp(existingApp)
                     // this is for markAsReadWithPressHack (monterey or lower)
                     // launch with activation because the hack doesn't work until the app is activated at least once
-                    app = try launchMessages(!isVenturaOrUp)
+                    app = try launchMessages(!MacOSVersion.isAtLeast(.ventura))
                 }
             } else {
                 app = try launchMessages(false)
@@ -504,7 +499,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let reactAction = try messageAction(messageCell: messageCell, action: .react)
         try reactAction() // performing this 2x will close reaction view
 
-        if isSequoiaOrUp { // wait for animation
+        if MacOSVersion.isAtLeast(.sequoia) { // wait for animation
             Thread.sleep(forTimeInterval: 0.75)
         }
     }
@@ -752,9 +747,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             throw ErrorMessage("Could not find message \(messageGUID)")
         }
 
-        let cellID: String? = isSonomaOrUp ? nil : message.balloonBundleID
+        let cellID: String? = MacOSVersion.isAtLeast(.sonoma) ? nil : message.balloonBundleID
         let isReply: Bool = message.threadOriginatorGUID != nil
-        let overlay: Bool = allowOverlay && isMontereyOrUp && !isReply && (partIndex == nil || partIndex == 0)
+        let overlay: Bool = allowOverlay && MacOSVersion.isAtLeast(.monterey) && !isReply && (partIndex == nil || partIndex == 0)
 
         if overlay {
             return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
@@ -791,7 +786,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             if case let .custom(emoji) = reaction, on {
-                guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
+                guard MacOSVersion.isAtLeast(.sequoia) else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
                 try openCustomEmojiReactionPicker(messageCell: $0)
                 // TODO: support being able to pick a skin tone
                 let search: CharacterPickerSearch
@@ -824,7 +819,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try openReactionPicker(messageCell: $0)
 
             let btn = try {
-                if isSequoiaOrUp {
+                if MacOSVersion.isAtLeast(.sequoia) {
                     return try elements.tapbackPickerCollectionView.children()
                         .first {
                             // standard: "ha", "thumbsUp", etc. custom: emoji string
@@ -857,8 +852,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func undoSend(threadID: String, messageCell: MessageCell) throws {
-        guard isVenturaOrUp else {
-            throw ErrorMessage("!isVenturaOrUp")
+        guard MacOSVersion.isAtLeast(.ventura) else {
+            throw ErrorMessage("Only supported on macOS Ventura or later")
         }
 
         let startTime = Date()
@@ -887,8 +882,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // NOTE: message editing works even when the window is ordered out
     func editMessage(threadID: String, messageCell: MessageCell, newText: String) throws {
-        guard isVenturaOrUp else {
-            throw ErrorMessage("!isVenturaOrUp")
+        guard MacOSVersion.isAtLeast(.ventura) else {
+            throw ErrorMessage("Only supported on macOS Ventura or later")
         }
 
         let startTime = Date()
@@ -1030,7 +1025,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
-            if isVenturaOrUp {
+            if MacOSVersion.isAtLeast(.ventura) {
                 return try keyPresser.commandShiftU()
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
@@ -1137,7 +1132,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String {
         do {
-            if isVenturaOrUp {
+            if MacOSVersion.isAtLeast(.ventura) {
                 let value = try (messageField.value() as? NSAttributedString)
                     .orThrow(ErrorMessage("couldn't cast message field value to NSAttributedString"))
                 return value.string
@@ -1273,7 +1268,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     }
                 } else if let filePath {
                     // we don't always use OSA for files bc send file is randomly unreliable
-                    if !isMontereyOrUp { // messages.app in big sur doesn't correctly paste the file
+                    if !MacOSVersion.isAtLeast(.monterey) { // messages.app in big sur doesn't correctly paste the file
                         // safe for the same reasons as the message above
                         try? clearTypingStatus()
                         try OSA.send(threadID: threadID, filePath: filePath)
@@ -1457,7 +1452,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // AXStaticText, localizedDescription="￼ Steve has notifications silenced"
         // AXButton, localizedDescription="Notify Anyway"
         let presenceStatus: PlatformSDK.UserPresenceStatus? = {
-            guard isMontereyOrUp else { return nil }
+            guard MacOSVersion.isAtLeast(.monterey) else { return nil }
             for elt in cellsToCheck.reversed() {
                 guard let child = try? elt.children[0] else { continue }
                 let childRole = try? child.role()

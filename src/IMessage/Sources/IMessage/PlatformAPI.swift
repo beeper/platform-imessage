@@ -254,7 +254,7 @@ public final class PlatformAPI {
         }
 
         if userIDs.count == 1 {
-            let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(userIDs[0])"
+            let existingThreadID = "\(MacOSVersion.isAtLeast(.tahoe) ? "any" : "iMessage");-;\(userIDs[0])"
             let existingThread = try await runDBQuery { db, currentUser, accountID in
                 try Self.getThread(
                     db: db,
@@ -337,7 +337,7 @@ public final class PlatformAPI {
     }
 
     public func editMessage(threadID publicThreadID: String, messageID: String, content text: String?) async throws {
-        guard isVenturaOrUp else {
+        guard MacOSVersion.isAtLeast(.ventura) else {
             throw ErrorMessage("Only supported on macOS Ventura or later")
         }
 
@@ -362,7 +362,7 @@ public final class PlatformAPI {
         let threadID = try originalThreadID(for: publicThreadID)
 
         // Group chat typing indicators require Tahoe+.
-        guard isTahoeOrUp || singleParticipantAddress(threadID) != nil else {
+        guard MacOSVersion.isAtLeast(.tahoe) || singleParticipantAddress(threadID) != nil else {
             return
         }
 

@@ -130,7 +130,14 @@ final class MessagesAppElements {
         guard count > 0 else { return [] }
 
         // Send Later cells can render after live activity/presence rows on Sequoia+.
-        let lastN = isSequoiaOrUp ? 10 : (isMontereyOrUp ? 3 : 1)
+        let lastN: Int
+        if MacOSVersion.isAtLeast(.sequoia) {
+            lastN = 10
+        } else if MacOSVersion.isAtLeast(.monterey) {
+            lastN = 3
+        } else {
+            lastN = 1
+        }
         return try transcriptView.children(range: (count - min(count, lastN))..<count)
     }
 
