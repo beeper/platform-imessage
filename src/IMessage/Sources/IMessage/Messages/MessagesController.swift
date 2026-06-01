@@ -16,9 +16,7 @@ private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 let messagesBundleID = "com.apple.MobileSMS"
 
 private enum MessageAction {
-    case react, reply, undoSend
-    /// might've been added around macOS 15; unknown
-    case edit
+    case react, reply, undoSend, edit
 
     var localized: String {
         switch self {
@@ -76,7 +74,6 @@ final class MessagesController {
     private var lastSentActivityObservationTime: Date?
 
     private var windowCoordinator: WindowCoordinator
-    private let keyPresser: KeyPresser
     let contacts = Contacts()
     private var reportErrorMessage: ((_ txt: String) -> Void)?
 
@@ -316,17 +313,6 @@ final class MessagesController {
             try Self.openDeepLink(url, targeting: selectedApp)
         })
 
-        keyPresser = KeyPresser(pid: app.processIdentifier)
-
-        // if app.isHidden {
-        //     debugLog("Unhiding Messages...")
-        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
-        //         app.unhide()
-        //         if app.isHidden {
-        //             throw ErrorMessage("Could not launch Messages")
-        //         }
-        //     }
-        // }
         let observer = LifecycleObserver()
         lifecycleObserver = observer
         setUpLifecycleConveyor(with: lifecycleObserver)
@@ -536,7 +522,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func selectNextThreadAndScroll() throws {
         let selectedThreadCell = elements.selectedThreadCell
         // ctrlTab() acts differently, has no effect?
-        try keyPresser.commandRightBracket() // scrolls to next thread cell, rare edge case: won't work for the last item
+        try KeyPresser.sendCommandRightBracket(to: app.processIdentifier) // scrolls to next thread cell, rare edge case: won't work for the last item
         try retry(withTimeout: 0.5, interval: 0.05) { // wait for hotkey to switch threads
             let nextThreadCell = try elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
             if let selectedThreadCell, nextThreadCell == selectedThreadCell {
@@ -559,7 +545,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
      elements.selectedThreadCell is an invalid reference if selected cell is offscreen
 
      #3
-     1. keyPresser.command1
+     1. KeyPresser.sendCommand1
      2. open and get compose cell
      3. open target thread
      4. triggerThreadCellAction(threadCell: composeCell, action: .delete) // scrolls to wanted thread
@@ -801,17 +787,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 try searchField.value(assign: search.query)
                 Thread.sleep(forTimeInterval: 0.75) // wait for search
                 // focus the matrix (tab also seems to work for this? full keyboard access needed maybe?)
-                try keyPresser.downArrow()
+                try KeyPresser.sendDownArrow(to: app.processIdentifier)
                 // 6 columns in the character picker matrix
                 let (downArrows, rightArrows) = search.position.quotientAndRemainder(dividingBy: 6)
                 // navigate to the emoji
-                for _ in 0..<downArrows { try keyPresser.downArrow(); Thread.sleep(forTimeInterval: 0.05) }
-                for _ in 0..<rightArrows { try keyPresser.rightArrow(); Thread.sleep(forTimeInterval: 0.05) }
+                for _ in 0..<downArrows { try KeyPresser.sendDownArrow(to: app.processIdentifier); Thread.sleep(forTimeInterval: 0.05) }
+                for _ in 0..<rightArrows { try KeyPresser.sendRightArrow(to: app.processIdentifier); Thread.sleep(forTimeInterval: 0.05) }
                 Thread.sleep(forTimeInterval: 0.1) // wait for selection
-                try keyPresser.return() // select
+                try KeyPresser.sendReturn(to: app.processIdentifier) // select
                 if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
                     Thread.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
-                    try keyPresser.return() // always select default skin tone
+                    try KeyPresser.sendReturn(to: app.processIdentifier) // always select default skin tone
                 }
                 return
             }
@@ -917,7 +903,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             focusMessageField(editableMessageField)
 
             Thread.sleep(forTimeInterval: Defaults.imessage.double(forKey: DefaultsKeys.editingDelayBeforePressingMenuItem))
-            try keyPresser.return() // elements.editConfirmButton.press() works only after a 0.2s+ delay
+            try KeyPresser.sendReturn(to: app.processIdentifier) // elements.editConfirmButton.press() works only after a 0.2s+ delay
             // todo: wait for it to disappear
         }
 
@@ -942,7 +928,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
 
             // this doesn't work reliably:
-            // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); keyPresser.commandE()
+            // try $0.press(); $0.isFocused(assign: true); $0.isSelected(assign: true); KeyPresser.sendCommandE(to: app.processIdentifier)
             try messageCell.showMenu()
             // retrying this too rapidly can cause the floating editor to appear more than once?
             try retry(withTimeout: 6.0, interval: 2.0, {
@@ -1026,7 +1012,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
             if MacOSVersion.isAtLeast(.ventura) {
-                return try keyPresser.commandShiftU()
+                return try KeyPresser.sendCommandShiftU(to: app.processIdentifier)
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
@@ -1165,7 +1151,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
         log.debug("\(#function): focusing field and pressing return")
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
+        try KeyPresser.sendReturn(to: app.processIdentifier) // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
         log.debug("\(#function): completed initial attempt")
 
         do {
@@ -1186,12 +1172,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     log.debug("\(#function): focusing and pressing enter again")
 
                     self.focusMessageField(messageField)
-                    try? self.keyPresser.return()
+                    try? KeyPresser.sendReturn(to: self.app.processIdentifier)
                 } else if attempt == 6 {
                     log.debug("\(#function): focusing and pressing enter again (alt. strategy)")
 
                     try? messageField.press()
-                    try? self.keyPresser.return()
+                    try? KeyPresser.sendReturn(to: self.app.processIdentifier)
                 }
             }
 
@@ -1381,7 +1367,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let pasteboard = NSPasteboard.general
         try pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
-            try keyPresser.commandV()
+            try KeyPresser.sendCommandV(to: app.processIdentifier)
             try retry(withTimeout: 2, interval: 0.05) {
                 let charCountResult = Result { try messageField.noOfChars() }
                 guard case let .success(charCount) = charCountResult else {
