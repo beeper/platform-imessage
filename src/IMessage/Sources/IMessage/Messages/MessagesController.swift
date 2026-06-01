@@ -685,20 +685,21 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if messageCell.overlay {
                 try await waitUntilReplyTranscriptVisible()
             }
-            guard let selected = (try await retry(withTimeout: 1, interval: 0.2) { () async throws -> Accessibility.Element? in
+            guard let (selected, transcript) = (try await retry(withTimeout: 1, interval: 0.2) { () async throws -> (cell: Accessibility.Element, transcript: Accessibility.Element)? in
+                let transcript: Accessibility.Element
                 let cell: Accessibility.Element?
                 if messageCell.overlay {
-                    let transcript = try await elements.replyTranscriptView
+                    transcript = try await elements.replyTranscriptView
                     cell = try MessagesAppElements.firstMessageCell(in: transcript)
                 } else {
-                    let transcript = try await elements.transcriptView
+                    transcript = try await elements.transcriptView
                     cell = try MessagesAppElements.firstSelectedMessageCell(in: transcript)
                 }
                 guard let cell else {
                     throw ErrorMessage("message cell nil")
                 }
                 guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
-                return cell
+                return (cell, transcript)
             }) else {
                 throw ErrorMessage("Could not find message cell")
             }
@@ -708,12 +709,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             } else {
                 let containerCell = try selected.parent()
                 let containerFrame = try containerCell.frame()
-                let transcript: Accessibility.Element
-                if messageCell.overlay {
-                    transcript = try await elements.replyTranscriptView
-                } else {
-                    transcript = try await elements.transcriptView
-                }
                 let containerCells = try MessagesAppElements.messageContainerCells(
                     in: transcript
                 )

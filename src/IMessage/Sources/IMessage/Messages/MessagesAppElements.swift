@@ -396,10 +396,10 @@ final class MessagesAppElements {
         let predicate = { (el: Accessibility.Element) -> Bool in
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
-        // takes ~8ms
-        if let transcriptView = try? await mainWindowSections.first(where: predicate) { return transcriptView }
         // takes ~19ms
         let window = try await mainWindow
+        // takes ~8ms
+        if let transcriptView = try? Self.getSectionObjects(window: window).first(where: predicate) { return transcriptView }
         if let transcriptView = window.recursiveChildren().lazy.first(where: predicate) { return transcriptView }
         throw ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found")
     }
