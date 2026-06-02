@@ -44,11 +44,12 @@ extension MessagesController {
         let isReply: Bool = message.threadOriginatorGUID != nil
         let overlay: Bool = allowOverlay && isMontereyOrUp && !isReply
         let targetPartIndex = partIndex ?? 0
-        let targetPart = message.parts.first { $0.index.rawValue == targetPartIndex }
+        let parts = message.parts
+        let targetPart = parts.first { $0.index.rawValue == targetPartIndex }
 
         switch resolveMessageCellResolution(
             partIndex: partIndex,
-            partCount: message.parts.count,
+            partCount: parts.count,
             targetPartExists: targetPart != nil,
             overlay: overlay
         ) {

@@ -31,13 +31,7 @@ describe('canQuoteMessage', () => {
   })
 
   test('pre-Monterey falls back to isSelectable', () => {
-    const canQuote = canReactMessage(false) // same isSelectable reference shape
-    expect(canQuoteMessage(false)).toBeDefined()
-    expect(canQuoteMessage(false)!(plainText)).toBe(true)
-    expect(canQuoteMessage(false)!(emojiOnly)).toBe(false)
-    expect(canQuoteMessage(false)!(attachment)).toBe(false)
-    // sanity: behaves like isSelectable
-    expect(canQuoteMessage(false)!(plainText)).toBe(canQuote(plainText))
+    expect(canQuoteMessage(false)).toBe(isSelectable)
   })
 })
 
