@@ -156,7 +156,6 @@ final class MessagesController {
         try Task.checkCancellation()
         switch try planDeepLinkOpen(url, activating: activating, hiding: hiding, targeting: app) {
         case .handledBySecondaryInstance(let app):
-            try Task.checkCancellation()
             return app
         case .open(let openOptions):
             return try await NSWorkspace.shared.open(url, configuration: openOptions, timeout: timeout)
