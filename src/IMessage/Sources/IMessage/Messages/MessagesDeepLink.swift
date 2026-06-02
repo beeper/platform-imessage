@@ -4,8 +4,7 @@ import IMessageCore
 enum MessagesDeepLink {
     case addresses([String], body: String?)
     case group(chatID: String, body: String?)
-    // case message(guid: String)
-    case message(guid: String, overlay: Bool?)
+    case message(guid: String, partIndex: Int?, overlay: Bool?)
 
     static let compose: MessagesDeepLink = .addresses([], body: nil)
 
@@ -44,10 +43,10 @@ enum MessagesDeepLink {
                 URLQueryItem(name: "body", value: body)
             ]
             return try components.url.orThrow(ErrorMessage("Invalid iMessage chat: \(chatID)"))
-        case let .message(guid, overlay):
+        case let .message(guid, partIndex, overlay):
             guard !guid.contains("_") else { throw ErrorMessage("Invalid message GUID, contains _: \(guid)") }
             components.queryItems = [
-                URLQueryItem(name: "message-guid", value: guid)
+                URLQueryItem(name: "message-guid", value: partIndex.map { "p:\($0)/\(guid)" } ?? guid)
             ]
             if overlay == true {
                 components.queryItems?.append(URLQueryItem(name: "overlay", value: "1"))
