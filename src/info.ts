@@ -3,6 +3,8 @@ import { supportedReactions, IS_MONTEREY_OR_UP, IS_VENTURA_OR_UP, IS_SEQUOIA_OR_
 import { isSelectable } from './common-util'
 import { BeeperMessage } from './desktop-types'
 
+// Keep reply/react capability checks in sync with MessagesController.resolveMessageCell (src/IMessage/Sources/IMessage/Messages/MessagesController.swift)
+// undefined here means () => true
 const canQuote = IS_MONTEREY_OR_UP ? undefined : isSelectable
 const canReact = IS_MONTEREY_OR_UP
   ? (message: BeeperMessage) => !message.linkedMessageID || isSelectable(message)
