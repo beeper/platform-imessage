@@ -157,6 +157,8 @@ private let messageEventFixtures = [
                 "tweets": JSONArray(),
                 "links": JSONArray(),
                 "editHistory": JSONArray(),
+                "textHeading": "",
+                "textFooter": "",
                 "isAction": true,
                 "parseTemplate": true,
             ]]),
@@ -193,6 +195,8 @@ private func undoSendEventClearsRichMessageFields() throws {
     #expect((patch["tweets"] as? JSONArray)?.isEmpty == true)
     #expect((patch["links"] as? JSONArray)?.isEmpty == true)
     #expect((patch["editHistory"] as? JSONArray)?.isEmpty == true)
+    #expect(patch["textHeading"] as? String == "")
+    #expect(patch["textFooter"] as? String == "")
 }
 
 @Test

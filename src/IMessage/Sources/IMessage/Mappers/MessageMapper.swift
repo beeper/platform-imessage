@@ -333,6 +333,8 @@ struct Mapper {
             message.links = []
             message.reactions = []
             message.editHistory = []
+            message.textHeading = ""
+            message.textFooter = ""
             message.text = "{{sender}} unsent a message"
         }
     }
