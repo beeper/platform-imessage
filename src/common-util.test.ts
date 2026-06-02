@@ -11,6 +11,8 @@ const linkMessage = msg({ text: 'see this', links: [{} as any] })
 const noText = msg({ text: null as any })
 const linkedPlain = msg({ text: 'hi', linkedMessageID: 'abc' })
 const linkedEmoji = msg({ text: '😀', linkedMessageID: 'abc' })
+const cannotReplyPlain = msg({ text: 'hello', extra: { canReply: false } })
+const cannotReplyAttachment = msg({ text: 'caption', attachments: [{} as any], extra: { canReply: false } })
 
 describe('isSelectable', () => {
   test('text-only messages are selectable', () => {
@@ -26,12 +28,19 @@ describe('isSelectable', () => {
 })
 
 describe('canQuoteMessage', () => {
-  test('Monterey+ allows quoting anything (undefined sentinel = always allowed)', () => {
-    expect(canQuoteMessage(true)).toBeUndefined()
+  test('Monterey+ allows normal messages and rejects messages marked as non-replyable', () => {
+    const canQuote = canQuoteMessage(true)
+    expect(canQuote(plainText)).toBe(true)
+    expect(canQuote(attachment)).toBe(true)
+    expect(canQuote(cannotReplyPlain)).toBe(false)
   })
 
-  test('pre-Monterey falls back to isSelectable', () => {
-    expect(canQuoteMessage(false)).toBe(isSelectable)
+  test('pre-Monterey requires a selectable message that is not marked as non-replyable', () => {
+    const canQuote = canQuoteMessage(false)
+    expect(canQuote(plainText)).toBe(true)
+    expect(canQuote(emojiOnly)).toBe(false)
+    expect(canQuote(cannotReplyPlain)).toBe(false)
+    expect(canQuote(cannotReplyAttachment)).toBe(false)
   })
 })
 
@@ -56,5 +65,10 @@ describe('canReactMessage', () => {
     expect(canReact(attachment)).toBe(false)
     expect(canReact(linkedPlain)).toBe(true)
     expect(canReact(linkedEmoji)).toBe(false)
+  })
+
+  test('canReply does not affect reaction eligibility', () => {
+    expect(canReactMessage(true)(cannotReplyAttachment)).toBe(true)
+    expect(canReactMessage(false)(cannotReplyPlain)).toBe(true)
   })
 })

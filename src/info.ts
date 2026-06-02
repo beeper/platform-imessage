@@ -4,7 +4,6 @@ import { canQuoteMessage, canReactMessage } from './common-util'
 
 // canQuote / canReact (defined in common-util) gate the reply / react UI; keep them
 // consistent with what MessagesController.resolveMessageCell can actually select.
-// canQuote === undefined is Beeper Desktop's "always allowed" sentinel.
 const canQuote = canQuoteMessage(IS_MONTEREY_OR_UP)
 const canReact = canReactMessage(IS_MONTEREY_OR_UP)
 

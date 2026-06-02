@@ -10,10 +10,12 @@ export const isSelectable = (message: BeeperMessage): boolean =>
     && message.text != null
     && !isEmojiOrSpacesOnlyString(message.text))
 
-// OS-parameterized so the reply/react truth table is unit-testable. undefined = "always
-// allowed" (Beeper Desktop's sentinel). Keep consistent with resolveMessageCell.
-export const canQuoteMessage = (isMontereyOrUp: boolean): ((message: BeeperMessage) => boolean) | undefined =>
-  (isMontereyOrUp ? undefined : isSelectable)
+// OS-parameterized so the reply/react truth table is unit-testable. Keep
+// consistent with resolveMessageCell and message-level reply capability.
+export const canQuoteMessage = (isMontereyOrUp: boolean): (message: BeeperMessage) => boolean =>
+  (isMontereyOrUp
+    ? (message: BeeperMessage) => message.extra?.canReply !== false
+    : (message: BeeperMessage) => message.extra?.canReply !== false && isSelectable(message))
 
 export const canReactMessage = (isMontereyOrUp: boolean): (message: BeeperMessage) => boolean =>
   (isMontereyOrUp
