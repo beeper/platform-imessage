@@ -9,34 +9,21 @@ enum MessageCellResolution: Equatable {
 }
 
 // Pure branch selection, split out so it's unit-testable without a live Messages.app.
-//   partIndex != nil ............... .direct(partIndex)   (parts 1+)
-//   nil, Monterey+, partCount > 1 .. .direct(0)           (multi-part part 0)
-//   nil, single-part / pre-Monterey  bare guid or closest-selectable fallback
+//   partIndex != nil ... address the part directly via p:N/guid
+//   overlay / no parts . direct bare-GUID link
+//   otherwise .......... closest-selectable fallback
 func resolveMessageCellResolution(
     partIndex: Int?,
     partCount: Int,
     targetPartExists: Bool,
-    isMontereyOrUp: Bool,
     overlay: Bool
 ) -> MessageCellResolution {
     if partIndex != nil, !targetPartExists {
         return .partNotFound
     }
-
-    // The platform strips the `_0` suffix from part 0, so a bare GUID on a genuinely
-    // multi-part message is addressed explicitly as part 0; single-part keeps the bare GUID.
-    let directPartIndex: Int? = if partIndex != nil {
-        partIndex
-    } else if isMontereyOrUp, partCount > 1, targetPartExists {
-        0
-    } else {
-        nil
+    if overlay || partCount == 0 || partIndex != nil {
+        return .direct(partIndex: partIndex)
     }
-
-    if overlay || partCount == 0 || directPartIndex != nil {
-        return .direct(partIndex: directPartIndex)
-    }
-
     return targetPartExists ? .closestSelectable : .partNotFound
 }
 
@@ -63,7 +50,6 @@ extension MessagesController {
             partIndex: partIndex,
             partCount: message.parts.count,
             targetPartExists: targetPart != nil,
-            isMontereyOrUp: isMontereyOrUp,
             overlay: overlay
         ) {
         case .partNotFound:

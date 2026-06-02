@@ -42,20 +42,18 @@ public struct ClosestMessagePart {
 //  essential operations (such as replying, reactions, etc.) that are possible
 //  for each message part.
 //
-//  A part can be addressed DIRECTLY by opening a deep link of the form
-//  `p:<index>/<guid>` (see MessagesDeepLink), then committing the usual crimes
-//  (puppeting the app with the accessibility APIs). This direct form works even
-//  for parts that a plain GUID-only deep link could NOT select on its own —
-//  notably attachments and messages consisting entirely of emoji (jumbo). On
-//  Monterey+, MessagesController.resolveMessageCell takes this path for every
-//  addressable part; the platform strips the `_0` suffix from part 0
-//  (MessageMapper), so a bare GUID is resolved to `p:0/guid` for genuinely
-//  multi-part messages too.
+//  A part with index >= 1 can be addressed DIRECTLY by opening a deep link of the
+//  form `p:<index>/<guid>` (see MessagesDeepLink), then committing the usual crimes
+//  (puppeting the app with the accessibility APIs). This direct form works even for
+//  parts that a plain GUID-only deep link could NOT select on its own — notably
+//  attachments and messages consisting entirely of emoji (jumbo). Part 0 is
+//  referenced by a bare GUID (the platform strips the `_0` suffix) and is equivalent
+//  to `p:0/guid`, so it gains nothing from the direct form and still relies on this
+//  fallback when its part isn't selectable.
 //
-//  This closest-selectable logic is now the FALLBACK, used only when we do NOT
-//  address the part directly: pre-Monterey (where the `p:N/` form isn't used) and
-//  the bare-GUID path for single-part messages. If the part we land on isn't
-//  selectable through ordinary means, we scan vertically for the closest
+//  So this closest-selectable logic is the FALLBACK, used when we don't address the
+//  part directly: pre-Monterey, and part-0 / bare-GUID references whose part isn't
+//  selectable through ordinary means. In that case we scan vertically for the closest
 //  selectable message part. This includes sibling parts within the target message
 //  itself, as well as other messages. If we find one, we make note of the index
 //  offset, open the appropriate deep link, and correct accordingly.
