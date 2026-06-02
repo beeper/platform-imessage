@@ -124,6 +124,9 @@ struct Mapper {
         if isSMS {
             extra["isSMS"] = true
         }
+        if shouldMarkCannotReply {
+            extra["canReply"] = false
+        }
         var message = MessageDraft(
             id: messageRow.guid,
             timestamp: sent,
@@ -141,6 +144,14 @@ struct Mapper {
             message.seen = .timestamp(seen)
         }
         return message
+    }
+
+    private var shouldMarkCannotReply: Bool {
+        guard let balloonBundleID = messageRow.balloonBundleID,
+              messageRow.threadOriginatorGUID?.nonEmpty == nil else {
+            return false
+        }
+        return !balloonBundleID.contains(BalloonBundleKind.url.rawValue)
     }
 
     private func applyStatusFields(to message: inout MessageDraft, dates: MessageDates) {
@@ -333,6 +344,8 @@ struct Mapper {
             message.links = []
             message.reactions = []
             message.editHistory = []
+            message.textHeading = ""
+            message.textFooter = ""
             message.text = "{{sender}} unsent a message"
         }
     }

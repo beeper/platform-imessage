@@ -29,6 +29,7 @@ export interface BeeperMessageExtra extends iMessageExtra {
   isE2EE?: boolean
   // set by platform-imessage
   isSMS?: true | undefined
+  canReply?: false
   eventType?: string
   replyThreadID?: string | null
   lastDeletionID?: string | null

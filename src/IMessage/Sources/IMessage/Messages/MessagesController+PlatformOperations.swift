@@ -47,19 +47,8 @@ extension MessagesController {
         try await sendMessage(threadID: threadID, addresses: nil, text: text, filePath: filePath, quotedMessage: quotedMessage)
     }
 
-    private func splitPlatformMessageID(_ messageID: String) -> (messageGUID: String, partIndex: Int?) {
-        let components = messageID.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: false)
-        let messageGUID = String(components[0])
-
-        guard components.count > 1 else {
-            return (messageGUID, nil)
-        }
-
-        return (messageGUID, Int(components[1]))
-    }
-
     private func resolveMessageCell(threadID: String, platformMessageID messageID: String, allowOverlay: Bool = true) throws -> MessageCell {
-        let (messageGUID, partIndex) = splitPlatformMessageID(messageID)
+        let (messageGUID, partIndex) = messageIDParts(fromID: messageID)
 
         return try resolveMessageCell(
             threadID: threadID,

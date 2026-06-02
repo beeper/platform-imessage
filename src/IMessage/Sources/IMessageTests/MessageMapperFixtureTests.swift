@@ -399,39 +399,47 @@ private func gamePigeonMessagesUsePayloadHeadingAndUpdateCaption() throws {
 private func unsupportedExtensionMessageMapsAsActionPlaceholder() throws {
     let outgoing = try mappedFixtureMessage("message_unsupported_extension_outgoing")
     let incoming = try mappedFixtureMessage("message_unsupported_extension_incoming")
+    let outgoingExtra = try #require(outgoing.extra as? FixtureJSONObject)
+    let incomingExtra = try #require(incoming.extra as? FixtureJSONObject)
 
     #expect(outgoing.text == "You sent a message from Fixture App")
     #expect(outgoing.textHeading == nil)
     #expect(outgoing.linkedMessageID == "00000000-0000-4000-8000-000000000035")
     #expect(outgoing.isAction == true)
     #expect(outgoing.parseTemplate == true)
+    #expect(outgoingExtra["canReply"] as? Bool == false)
 
     #expect(incoming.text == "{{sender}} sent a message from Fixture App")
     #expect(incoming.textHeading == nil)
     #expect(incoming.linkedMessageID == "00000000-0000-4000-8000-000000000035")
     #expect(incoming.isAction == true)
     #expect(incoming.parseTemplate == true)
+    #expect(incomingExtra["canReply"] as? Bool == false)
 }
 
 @Test
 private func urlBalloonMessageKeepsLinkOnlyContent() throws {
     let message = try mappedFixtureMessage("message_url_balloon")
     let link = try #require(message.links?.first)
+    let extra = try #require(message.extra as? FixtureJSONObject)
 
     #expect(message.links?.count == 1)
     #expect(link.url == "https://fixture.example.invalid/link")
     #expect(link.title == "Fixture Link")
+    #expect(extra["canReply"] == nil)
 }
 
 @Test
 private func digitalTouchMessageDropsWhitespacePlaceholderText() throws {
     let message = try mappedFixtureMessage("message_digital_touch")
     let attachment = try #require(message.attachments?.first)
+    let extra = try #require(message.extra as? FixtureJSONObject)
 
     #expect(message.text == nil)
     #expect(message.textHeading == "Digital Touch Message")
     #expect(attachment.id == "4BED3FC2-0A9D-43BD-926C-4C5078465350")
     #expect(attachment.srcURL == "asset://$accountID/dt/4BED3FC2-0A9D-43BD-926C-4C5078465350.10027.mov")
+    #expect(extra["canReply"] as? Bool == false)
 }
 
 @Test

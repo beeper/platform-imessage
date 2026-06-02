@@ -40,19 +40,23 @@ public struct ClosestMessagePart {
 //  part to their own message. This means that a single iMessage message can be       | - - - - - - - - - - - +|
 //  backed by multiple messages on Beeper.) Naturally, we need to bridge              +------------------------+
 //  essential operations (such as replying, reactions, etc.) that are possible
-//  for each message part. This is done by opening a deep link with the message
-//  GUID (_not_ including the part, which we can't specify), and committing the
-//  usual crimes (puppeting the app with the accessibility APIs).
+//  for each message part.
 //
-//  HOWEVER, for whatever reason, certain types of message parts cannot be
-//  properly selected by deep links in this manner. Notably: attachments,
-//  messages consisting entirely of emoji (jumbo), and probably more. _This_,
-//  ultimately, is what this logic is intended to circumvent. If the user
-//  wishes to address a message part that we cannot select through ordinary
-//  means, we scan vertically for the closest selectable message part. This
-//  includes sibling parts within the target message itself, as well as other
-//  messages. If we find one, we make note of the index offset, open the
-//  appropriate deep link, and correct accordingly.
+//  A part with index >= 1 can be addressed DIRECTLY by opening a deep link of the
+//  form `p:<index>/<guid>` (see MessagesDeepLink), then committing the usual crimes
+//  (puppeting the app with the accessibility APIs). This direct form works even for
+//  parts that a plain GUID-only deep link could NOT select on its own — notably
+//  attachments and messages consisting entirely of emoji (jumbo). Part 0 is
+//  referenced by a bare GUID (the platform strips the `_0` suffix) and is equivalent
+//  to `p:0/guid`, so it gains nothing from the direct form and still relies on this
+//  fallback when its part isn't selectable.
+//
+//  So this closest-selectable logic is the FALLBACK, used when we don't address the
+//  part directly: pre-Monterey, and part-0 / bare-GUID references whose part isn't
+//  selectable through ordinary means. In that case we scan vertically for the closest
+//  selectable message part. This includes sibling parts within the target message
+//  itself, as well as other messages. If we find one, we make note of the index
+//  offset, open the appropriate deep link, and correct accordingly.
 //
 //  With a message selected, we are able to orient ourselves and pivot to the
 //  actual message part the user actually wanted to interact with via the

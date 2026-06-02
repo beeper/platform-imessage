@@ -52,7 +52,8 @@ private enum ThreadAction {
 
 struct MessageCell: Codable {
     let messageGUID: String
-    let offset: Int
+    let partIndex: Int?
+    let axOffset: Int
     let cellID: String?
     let cellRole: String?
     let overlay: Bool
@@ -665,7 +666,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) async throws -> Void) async throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
 
-        let url = try MessagesDeepLink.message(guid: messageCell.messageGUID, overlay: messageCell.overlay).url()
+        let url = try MessagesDeepLink.message(
+            guid: messageCell.messageGUID,
+            partIndex: messageCell.partIndex,
+            overlay: messageCell.overlay
+        ).url()
 
         // without closing reply transcript, non-overlay deep link won't select the message
         if !messageCell.overlay {
@@ -704,7 +709,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 throw ErrorMessage("Could not find message cell")
             }
             let targetCell: Accessibility.Element
-            if messageCell.offset == 0 {
+            if messageCell.axOffset == 0 {
                 targetCell = selected
             } else {
                 let containerCell = try selected.parent()
@@ -717,7 +722,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     throw ErrorMessage("Could not find target message cell")
                 }
 
-                let targetIndex: Int = (idx - messageCell.offset)
+                let targetIndex: Int = (idx - messageCell.axOffset)
 
                 guard targetIndex >= 0, targetIndex < containerCells.count else {
                     throw ErrorMessage("Desired index \(targetIndex) is out of bounds (array count: \(containerCells.count))")
@@ -740,38 +745,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             try await action(targetCell)
         }
-    }
-
-    func resolveMessageCell(threadID _: String, messageGUID: String, partIndex: Int?, allowOverlay: Bool = true) throws -> MessageCell {
-        let guid = GUID<Message>(stringLiteral: messageGUID)
-
-        guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
-            throw ErrorMessage("Could not find message \(messageGUID)")
-        }
-
-        let cellID: String? = isSonomaOrUp ? nil : message.balloonBundleID
-        let isReply: Bool = message.threadOriginatorGUID != nil
-        let overlay: Bool = allowOverlay && isMontereyOrUp && !isReply && (partIndex == nil || partIndex == 0)
-
-        if overlay {
-            return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
-        }
-
-        guard !message.parts.isEmpty else {
-            return MessageCell(messageGUID: messageGUID, offset: 0, cellID: cellID, cellRole: nil, overlay: overlay)
-        }
-
-        let targetPartIndex = Int(partIndex ?? 0)
-
-        guard let targetPart: Message.Part = message.parts.first(where: { $0.index.rawValue == targetPartIndex }) else {
-            throw ErrorMessage("Could not find the target part")
-        }
-
-        guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
-            throw ErrorMessage("Could not resolve selectable message cell")
-        }
-
-        return MessageCell(messageGUID: closest.closestSelectable.parentMessageGUID.description, offset: closest.offsetFromTarget, cellID: cellID, cellRole: nil, overlay: false)
     }
 
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) async throws {
@@ -1264,7 +1237,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let url: URL
         if let quotedMessage {
-            url = try MessagesDeepLink.message(guid: quotedMessage.messageGUID, overlay: quotedMessage.overlay).url()
+            url = try MessagesDeepLink.message(
+                guid: quotedMessage.messageGUID,
+                partIndex: quotedMessage.partIndex,
+                overlay: quotedMessage.overlay
+            ).url()
         } else if let threadID {
             url = try MessagesDeepLink(threadID: threadID, body: text).url()
         } else if let addresses {
