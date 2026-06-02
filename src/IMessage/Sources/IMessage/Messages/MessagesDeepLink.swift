@@ -46,6 +46,7 @@ enum MessagesDeepLink {
         case let .message(guid, partIndex, overlay):
             guard !guid.contains("_") else { throw ErrorMessage("Invalid message GUID, contains _: \(guid)") }
             components.queryItems = [
+                // p:0/GUID and GUID are equivalent
                 URLQueryItem(name: "message-guid", value: partIndex.map { "p:\($0)/\(guid)" } ?? guid)
             ]
             if overlay == true {

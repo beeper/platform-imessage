@@ -750,55 +750,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func resolveMessageCell(
-        threadID _: String,
-        messageGUID: String,
-        partIndex: Int?,
-        allowOverlay: Bool = true
-    ) throws -> MessageCell {
-        let guid = GUID<Message>(stringLiteral: messageGUID)
-
-        guard let (message, chatGUID) = try db.message(with: guid, withAttachments: false) else {
-            throw ErrorMessage("Could not find message \(messageGUID)")
-        }
-
-        let cellID: String? = isSonomaOrUp ? nil : message.balloonBundleID
-        let isReply: Bool = message.threadOriginatorGUID != nil
-        let overlay: Bool = allowOverlay && isMontereyOrUp && !isReply
-        let targetPartIndex = partIndex ?? 0
-        let targetPart = message.parts.first { $0.index.rawValue == targetPartIndex }
-
-        if partIndex != nil && targetPart == nil {
-            throw ErrorMessage("Could not find the target part")
-        }
-
-        if overlay || message.parts.isEmpty || partIndex != nil {
-            return MessageCell(
-                messageGUID: messageGUID,
-                partIndex: partIndex,
-                axOffset: 0,
-                cellID: cellID,
-                cellRole: nil,
-                overlay: overlay
-            )
-        }
-
-        guard let targetPart else {
-            throw ErrorMessage("Could not find the target part")
-        }
-        guard let closest = try db.findClosestSelectablePart(from: targetPart, parentMessage: message, in: chatGUID) else {
-            throw ErrorMessage("Could not resolve selectable message cell")
-        }
-        return MessageCell(
-            messageGUID: closest.closestSelectable.parentMessageGUID.description,
-            partIndex: nil,
-            axOffset: closest.offsetFromTarget,
-            cellID: cellID,
-            cellRole: nil,
-            overlay: false
-        )
-    }
-
     func setReaction(threadID: String, messageCell: MessageCell, reaction: Reaction, on: Bool) throws {
         let startTime = Date()
         defer { log.debug("setReaction took \(startTime.timeIntervalSinceNow * -1000)ms") }
