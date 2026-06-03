@@ -81,8 +81,18 @@ public final class PlatformAPI {
     private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
 
-    private let threadObserveRequestToken = Protected<UUID?>()
+    private static let selectedThreadActivityState = Protected<SelectedThreadActivityState?>()
     let hasBeenDisposed = Protected(false)
+
+    private struct SelectedThreadActivityState: Sendable {
+        let owner: ObjectIdentifier
+        let threadID: String
+        let publicThreadID: String
+        let hashedThreadID: String
+        let singleParticipantID: String?
+        let dndUserIDs: Protected<Set<String>>
+        let sendEvents: EventCallback
+    }
 
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
         self.accountID = accountID
@@ -491,74 +501,48 @@ public final class PlatformAPI {
     }
 
     public func onThreadSelected(
-        threadID publicThreadID: String,
+        threadID publicThreadID: String?,
         sendEvents: @escaping EventCallback
     ) async throws {
-        guard !publicThreadID.isEmpty else {
+        guard let publicThreadID, !publicThreadID.isEmpty else {
+            clearSelectedThreadActivity()
             return
         }
 
-        let threadID = try originalThreadID(for: publicThreadID)
-
-        guard !Preferences.enabledExperiments.contains("no_watch_thread") else {
+        guard Defaults.watchThreadActivity,
+              !Preferences.enabledExperiments.contains("no_watch_thread")
+        else {
+            clearSelectedThreadActivity()
             return
+        }
+
+        let threadID: String
+        do {
+            threadID = try originalThreadID(for: publicThreadID)
+        } catch {
+            clearSelectedThreadActivity()
+            throw error
         }
 
         let singleParticipantID = singleParticipantAddress(threadID)
-        let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
+        let selectedThread = SelectedThreadActivityState(
+            owner: ObjectIdentifier(self),
+            threadID: threadID,
+            publicThreadID: publicThreadID,
+            hashedThreadID: Hasher.thread.tokenizeRemembering(pii: threadID),
+            singleParticipantID: singleParticipantID,
+            dndUserIDs: dndUserIDs,
+            sendEvents: sendEvents
+        )
+        Self.selectedThreadActivityState.withLock { $0 = selectedThread }
         platformLog.debug("activity/\(publicThreadID): watching")
 
-        try await watchThreadActivity(threadID: threadID) { [dndUserIDs] status in
-            platformLog.debug("activity/\(publicThreadID): received \(status)")
-
-            guard let singleParticipantID else {
-                platformLog.debug("activity/\(publicThreadID): NOT syncing; not a single participant \(status)")
+        try await withMessagesController { controller in
+            guard try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller) else {
+                self.clearSelectedThreadActivity()
                 return
             }
-
-            let hashedParticipantID = Hasher.participant.tokenizeRemembering(pii: singleParticipantID)
-            let hadDNDStatus = dndUserIDs.withLock { $0.contains(singleParticipantID) }
-            var events: [ServerEvent] = [
-                .userActivity(
-                    activityType: status.activityType,
-                    threadID: hashedThreadID,
-                    participantID: hashedParticipantID,
-                    durationMilliseconds: 120_000,
-                    customLabel: nil
-                )
-            ]
-
-            if let presenceStatus = status.presenceStatus {
-                dndUserIDs.withLock {
-                    _ = $0.insert(singleParticipantID)
-                }
-                events.append(
-                    .userPresenceUpdated(
-                        PlatformSDK.UserPresence(
-                            userID: hashedParticipantID,
-                            status: presenceStatus
-                        )
-                    )
-                )
-            } else if status.didObservePresence, hadDNDStatus {
-                dndUserIDs.withLock {
-                    _ = $0.remove(singleParticipantID)
-                }
-                events.append(
-                    .userPresenceUpdated(
-                        PlatformSDK.UserPresence(
-                            userID: hashedParticipantID,
-                            status: .idle
-                        )
-                    )
-                )
-            } else if status.didObservePresence {
-                dndUserIDs.withLock {
-                    _ = $0.remove(singleParticipantID)
-                }
-            }
-
-            try await sendEvents(events)
+            await Self.observeSelectedThreadActivity(using: controller)
         }
     }
 
@@ -590,6 +574,7 @@ public final class PlatformAPI {
         }
 
         hasBeenDisposed.withLock { $0 = true }
+        clearSelectedThreadActivityIfOwned()
         // Clear cached state so logout/relogin in Messages.app while Beeper
         // restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
@@ -605,77 +590,130 @@ public final class PlatformAPI {
         }
     }
 
-    private func watchThreadActivity(
-        threadID: String,
-        statusSender: @escaping @Sendable (ThreadActivityObservation) async throws -> Void
-    ) async throws {
-        guard Defaults.watchThreadActivity else {
+    private func clearSelectedThreadActivity() {
+        Self.selectedThreadActivityState.withLock { $0 = nil }
+    }
+
+    private func clearSelectedThreadActivityIfOwned() {
+        let owner = ObjectIdentifier(self)
+        Self.selectedThreadActivityState.withLock { state in
+            guard state?.owner == owner else { return }
+            state = nil
+        }
+    }
+
+    private static func threadSupportsActivityObservation(threadID: String, controller: MessagesController) throws -> Bool {
+        // only watch thread activity for iMessage chats
+        // TODO: implement this for groups
+        if threadID.hasPrefix("iMessage;-;") {
+            return true
+        }
+
+        guard threadID.hasPrefix("any;-;") else {
+            // only bother checking the database if the GUID can't tell us what service the chat is for
+            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+            #if DEBUG
+            platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+            #endif
+            return false
+        }
+
+        let chat = try controller.db.chat(withGUID: threadID)
+        guard let chat else {
+            platformLog.error("onThreadSelected: couldn't locate the chat to watch in the database")
+            return false
+        }
+
+        guard chat.serviceName == .imessage else {
+            #if DEBUG
+            platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+            #endif
+            return false
+        }
+
+        return true
+    }
+
+    static func observeSelectedThreadActivity(using controller: MessagesController) async {
+        guard let selectedThread = selectedThreadActivityState.read() else {
             return
         }
 
-        // reset the idle observer in case we fail and bail out
-        await Self.setMessagesControllerIdleCallback(nil)
-
-        let requestID = UUID()
-        let threadObserveRequestToken = threadObserveRequestToken
-        threadObserveRequestToken.withLock { $0 = requestID }
-
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
             Task {
-                do {
-                    try await statusSender(status)
-                } catch {
-                    platformLog.error("failed to send activity status: \(String(reflecting: error))")
+                guard let currentThread = selectedThreadActivityState.read(),
+                      currentThread.threadID == selectedThread.threadID
+                else {
+                    return
                 }
+                await sendThreadActivityStatus(status, selectedThread: currentThread)
             }
         }
 
-        try await withMessagesController { controller in
-            // only watch thread activity for iMessage chats
-            // TODO: implement this for groups
-            if !threadID.hasPrefix("iMessage;-;") {
-                guard threadID.hasPrefix("any;-;") else {
-                    // only bother checking the database if the GUID can't tell us what service the chat is for
-                    // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-                    #if DEBUG
-                    platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-                    #endif
-                    return
-                }
+        do {
+            try await controller.observeIdleActivity(threadID: selectedThread.threadID, statusSender: sendStatus)
+        } catch {
+            platformLog.error("failed to observe activity: \(error)")
+        }
+    }
 
-                let chat = try controller.db.chat(withGUID: threadID)
-                guard let chat else {
-                    platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                    return
-                }
+    private static func sendThreadActivityStatus(
+        _ status: ThreadActivityObservation,
+        selectedThread: SelectedThreadActivityState
+    ) async {
+        platformLog.debug("activity/\(selectedThread.publicThreadID): received \(status)")
 
-                guard chat.serviceName == .imessage else {
-                    #if DEBUG
-                    platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-                    #endif
-                    return
-                }
+        guard let singleParticipantID = selectedThread.singleParticipantID else {
+            platformLog.debug("activity/\(selectedThread.publicThreadID): NOT syncing; not a single participant \(status)")
+            return
+        }
+
+        let hashedParticipantID = Hasher.participant.tokenizeRemembering(pii: singleParticipantID)
+        let hadDNDStatus = selectedThread.dndUserIDs.withLock { $0.contains(singleParticipantID) }
+        var events: [ServerEvent] = [
+            .userActivity(
+                activityType: status.activityType,
+                threadID: selectedThread.hashedThreadID,
+                participantID: hashedParticipantID,
+                durationMilliseconds: 120_000,
+                customLabel: nil
+            )
+        ]
+
+        if let presenceStatus = status.presenceStatus {
+            selectedThread.dndUserIDs.withLock {
+                _ = $0.insert(singleParticipantID)
             }
-
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            let observe = try controller.makeIdleActivityObserver(observingThreadID: threadID, statusSender: sendStatus)
-            await Self.setMessagesControllerIdleCallback {
-                guard threadObserveRequestToken.read() == requestID else { return }
-                do {
-                    try await observe()
-                } catch {
-                    platformLog.error("failed to observe activity: \(error)")
-                }
+            events.append(
+                .userPresenceUpdated(
+                    PlatformSDK.UserPresence(
+                        userID: hashedParticipantID,
+                        status: presenceStatus
+                    )
+                )
+            )
+        } else if status.didObservePresence, hadDNDStatus {
+            selectedThread.dndUserIDs.withLock {
+                _ = $0.remove(singleParticipantID)
             }
+            events.append(
+                .userPresenceUpdated(
+                    PlatformSDK.UserPresence(
+                        userID: hashedParticipantID,
+                        status: .idle
+                    )
+                )
+            )
+        } else if status.didObservePresence {
+            selectedThread.dndUserIDs.withLock {
+                _ = $0.remove(singleParticipantID)
+            }
+        }
 
-            // if another watchThreadActivity request has been enqueued
-            // after our current one (but before this block began executing),
-            // then this check will fail and prevent the current block from
-            // unnecessarily running
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            try await observe()
+        do {
+            try await selectedThread.sendEvents(events)
+        } catch {
+            platformLog.error("failed to send activity status: \(String(reflecting: error))")
         }
     }
 

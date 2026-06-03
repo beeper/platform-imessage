@@ -125,7 +125,9 @@ private extension MessagesControllerCoordinator {
                     try? reportErrorMessage?(txt)
                 })
             }
-            return MessagesControllerEntry(controller)
+            let entry = MessagesControllerEntry(controller)
+            await PlatformAPI.installMessagesControllerIdleCallback(for: entry)
+            return entry
         }
         pendingController = task
         return task
@@ -174,7 +176,7 @@ private extension MessagesControllerCoordinator {
     func dispose(_ entry: MessagesControllerEntry) async throws {
         Log.default.notice("[PlatformAPI] disposing MessagesController")
         try await PlatformAPI.runOnMessagesControllerLane {
-            await PlatformAPI.setMessagesControllerIdleCallback(nil)
+            await PlatformAPI.clearMessagesControllerIdleCallback(ifOwnedBy: entry)
             entry.value.dispose()
         }
     }
@@ -184,6 +186,7 @@ extension PlatformAPI {
     // IMessageHost is singleton-only within a process; PlatformAPI wrappers share
     // one MessagesController and one async lane for Messages.app automation.
     private static let messagesControllerAutomationLane = MessagesControllerAutomationLane(idleDelay: 1)
+    private static let messagesControllerIdleCallbackOwner = Protected<ObjectIdentifier?>()
     fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
 
     func withMessagesController<T>(
@@ -212,6 +215,26 @@ extension PlatformAPI {
         _ callback: (@Sendable () async -> Void)?
     ) async {
         await messagesControllerAutomationLane.setIdleCallback(callback)
+    }
+
+    fileprivate static func installMessagesControllerIdleCallback(for entry: MessagesControllerEntry) async {
+        let owner = ObjectIdentifier(entry.value)
+        messagesControllerIdleCallbackOwner.withLock { $0 = owner }
+        await setMessagesControllerIdleCallback { [entry] in
+            guard messagesControllerIdleCallbackOwner.read() == owner else { return }
+            await PlatformAPI.observeSelectedThreadActivity(using: entry.value)
+        }
+    }
+
+    fileprivate static func clearMessagesControllerIdleCallback(ifOwnedBy entry: MessagesControllerEntry) async {
+        let owner = ObjectIdentifier(entry.value)
+        let shouldClear = messagesControllerIdleCallbackOwner.withLock { currentOwner in
+            guard currentOwner == owner else { return false }
+            currentOwner = nil
+            return true
+        }
+        guard shouldClear else { return }
+        await setMessagesControllerIdleCallback(nil)
     }
 
 }

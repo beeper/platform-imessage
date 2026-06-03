@@ -1524,59 +1524,55 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    /// Returns an observer that checks one thread while controller work is idle.
+    /// Checks one thread while controller work is idle.
     /// The platform-level idle observer calls it repeatedly after active automation drains.
-    func makeIdleActivityObserver(observingThreadID threadID: String, statusSender: @escaping (ThreadActivityObservation) -> Void) throws -> (() async throws -> Void) {
+    func observeIdleActivity(threadID: String, statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void) async throws {
         let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
 
-        return { [weak self] in
-            guard let self else { return }
-
-            guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
-                log.debug("not observing activity, Messages is manually activated")
-                return
-            }
-
-            guard occlusionMonitor.visible else {
-                #if DEBUG
-                log.debug("not observing activity, window occluded")
-                #endif
-                return
-            }
-
-            guard isValid else {
-                #if DEBUG
-                log.debug("not observing activity, controller is invalid")
-                #endif
-                return
-            }
-
-            if lastThreadIDOpenedForObservation.read() != threadID {
-                log.debug("activity: entered idle state or thread id changed, opening deep link")
-                try await withAutomation {
-                    _ = try await self.openDeepLink(url)
-                    log.debug("activity: opened deep link, waiting for layout change")
-                    self.lastThreadIDOpenedForObservation.withLock { $0 = threadID }
-                    try await self.waitForLayoutChange(timeout: 0.5)
-                }
-            }
-
-            let observationToSend = await activityObservation()
-            guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
-                #if DEBUG
-                log.debug("activity: same activity or too recent, skipping activity update")
-                #endif
-                return
-            }
-            defer {
-                lastSentActivityObservation = observationToSend
-                lastSentActivityObservationTime = Date()
-            }
-            #if DEBUG
-            log.debug("activity: sending: \(observationToSend)")
-            #endif
-            statusSender(observationToSend)
+        guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
+            log.debug("not observing activity, Messages is manually activated")
+            return
         }
+
+        guard occlusionMonitor.visible else {
+            #if DEBUG
+            log.debug("not observing activity, window occluded")
+            #endif
+            return
+        }
+
+        guard isValid else {
+            #if DEBUG
+            log.debug("not observing activity, controller is invalid")
+            #endif
+            return
+        }
+
+        if lastThreadIDOpenedForObservation.read() != threadID {
+            log.debug("activity: entered idle state or thread id changed, opening deep link")
+            try await withAutomation {
+                _ = try await self.openDeepLink(url)
+                log.debug("activity: opened deep link, waiting for layout change")
+                self.lastThreadIDOpenedForObservation.withLock { $0 = threadID }
+                try await self.waitForLayoutChange(timeout: 0.5)
+            }
+        }
+
+        let observationToSend = await activityObservation()
+        guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
+            #if DEBUG
+            log.debug("activity: same activity or too recent, skipping activity update")
+            #endif
+            return
+        }
+        defer {
+            lastSentActivityObservation = observationToSend
+            lastSentActivityObservationTime = Date()
+        }
+        #if DEBUG
+        log.debug("activity: sending: \(observationToSend)")
+        #endif
+        statusSender(observationToSend)
     }
 
     private var isDisposed = false

@@ -290,7 +290,6 @@ export default class AppleiMessage implements PlatformAPI {
   notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
 
   onThreadSelected = async (hashedThreadID: ThreadID | null) => {
-    if (!hashedThreadID) return
     if (!this.onEvent) return
 
     const swiftAPI = this.swiftPlatformAPI!
