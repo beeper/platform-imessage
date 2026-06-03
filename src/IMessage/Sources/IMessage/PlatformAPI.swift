@@ -459,23 +459,9 @@ public final class PlatformAPI {
             let guid = messageGUID(fromID: messageID)
             guard let msgRow = try db.mappedMessageRow(guid: guid) else { return nil }
 
-            let terminalFailureStates: Set<Attachment.IMFileTransferState> = [
-                .error,
-                .recoverableError,
-                .rejected,
-            ]
-
-            let attachmentRows: [MappedAttachmentRow] = try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
-
-            for attachmentRow in attachmentRows {
-                guard let rawTransferState = attachmentRow.transferState else { continue }
-                let transferState = Attachment.IMFileTransferState(rawValue: rawTransferState)
-                if terminalFailureStates.contains(transferState) {
-                    return transferState
-                }
-            }
-
-            return nil
+            return try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
+                .compactMap { $0.transferState.map(Attachment.IMFileTransferState.init(rawValue:)) }
+                .first { $0.isTerminalFailure }
         }
     }
 

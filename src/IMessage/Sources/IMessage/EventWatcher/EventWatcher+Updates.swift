@@ -423,19 +423,34 @@ extension EventWatcher {
             pendingMessageHydrationCandidates.removeValue(forKey: rowID)
         }
 
-        // Only pay the payload fetch + map/hash for rows that could plausibly be
-        // ready. A link preview lives in `payload_data`, so rows whose payload
-        // hasn't landed can't surface one yet and stay pending cheaply (just the
-        // join above) rather than paying the full pass on every wake until the
-        // timeout. Attachment readiness lives in the `attachment` table (not in
-        // `MappedMessageRow`), so those rows must always be checked.
-        let hydratableRows = messageRows.filter { row in
-            guard let kind = pendingMessageHydrationCandidates[row.rowID]?.kind else {
-                return false
-            }
-            switch kind {
-            case .linkPreview: return row.payloadData?.isEmpty == false
-            case .attachmentLoad: return true
+        // Cheap gate before the expensive payload fetch + map/hash. A link preview
+        // lives in `payload_data`, so rows whose payload hasn't landed stay pending
+        // for just the join cost. Attachment readiness lives in the `attachment`
+        // table, so read those rows' transfer_state directly: rows with every
+        // attachment finished graduate to the payload pass; terminally-failed (or
+        // attachment-less) rows are dropped now since they'll never resolve;
+        // still-transferring rows stay pending.
+        let attachmentRowIDs = messageRows.compactMap { row in
+            pendingMessageHydrationCandidates[row.rowID]?.kind == .attachmentLoad ? row.rowID : nil
+        }
+        let transferStates = try attachmentTransferStates(forMessageRowIDs: attachmentRowIDs)
+
+        var hydratableRows: [MappedMessageRow] = []
+        for row in messageRows {
+            switch pendingMessageHydrationCandidates[row.rowID]?.kind {
+            case .linkPreview:
+                if row.payloadData?.isEmpty == false {
+                    hydratableRows.append(row)
+                }
+            case .attachmentLoad:
+                let states = transferStates[row.rowID] ?? []
+                if states.isEmpty || states.contains(where: \.isTerminalFailure) {
+                    pendingMessageHydrationCandidates.removeValue(forKey: row.rowID)
+                } else if states.allSatisfy({ $0 == .finished }) {
+                    hydratableRows.append(row)
+                }
+            case nil:
+                break
             }
         }
         guard !hydratableRows.isEmpty else {
@@ -452,25 +467,21 @@ extension EventWatcher {
         )
 
         var changes: [UpdatedMessageChange] = []
-        for rowID in rowIDs {
-            guard let row = messageRowsByRowID[rowID],
-                  let candidate = pendingMessageHydrationCandidates[rowID] else {
+        for row in hydratableRows {
+            guard let candidate = pendingMessageHydrationCandidates[row.rowID] else {
                 continue
             }
 
-            let mappedMessages = mappedMessagesByRowID[rowID] ?? []
-            let isReady = switch candidate.kind {
-            case .linkPreview:
-                Self.mappedMessagesContainPreview(mappedMessages)
-            case .attachmentLoad:
-                Self.mappedMessagesHaveLoadedAttachments(mappedMessages)
-            }
-            guard isReady else {
+            // Attachments were already confirmed finished by the transfer_state
+            // gate; a link preview needs a second look because a populated
+            // `payload_data` doesn't guarantee a preview actually surfaced.
+            if candidate.kind == .linkPreview,
+               !Self.mappedMessagesContainPreview(mappedMessagesByRowID[row.rowID] ?? []) {
                 continue
             }
 
             changes.append(UpdatedMessageChange(
-                rowID: rowID,
+                rowID: row.rowID,
                 chatGUID: row.threadID ?? candidate.chatGUID,
                 isNew: false,
                 wasRead: false,
@@ -479,10 +490,21 @@ extension EventWatcher {
             ))
             // Keep the candidate pending until its hydration event is sent
             // (commitPendingSends); a send failure then retries it next tick.
-            messageHydrationRowIDsAwaitingSendCommit.append(rowID)
+            messageHydrationRowIDsAwaitingSendCommit.append(row.rowID)
         }
 
         return changes
+    }
+
+    private func attachmentTransferStates(forMessageRowIDs messageRowIDs: [Int]) throws -> [Int: [Attachment.IMFileTransferState]] {
+        guard !messageRowIDs.isEmpty else { return [:] }
+        var byMessageRowID: [Int: [Attachment.IMFileTransferState]] = [:]
+        for attachmentRow in try db.mappedAttachmentRows(messageRowIDs: messageRowIDs) {
+            guard let rawTransferState = attachmentRow.transferState else { continue }
+            byMessageRowID[attachmentRow.msgRowID, default: []]
+                .append(Attachment.IMFileTransferState(rawValue: rawTransferState))
+        }
+        return byMessageRowID
     }
 
     private func expirePendingMessageHydrationCandidates() {
@@ -496,21 +518,32 @@ extension EventWatcher {
         }
     }
 
-    // Outgoing link previews render asynchronously: Messages writes the message
-    // row, then populates `payload_data` with the rich preview a moment later, so
-    // we track the row and emit a follow-up `isHydrationUpdate` once the preview
-    // lands. Known gaps (accepted, see plan-eng-review):
-    //  - Incoming messages arrive with the sender's preview already embedded, so
-    //    we only track outgoing rows (`isFromMe == 1`).
-    //  - We only track rows that already carry the URL balloon kind at first
-    //    sighting. If Messages inserts a plain-text row and flips
-    //    `balloon_bundle_id` later (without bumping date_read/date_edited), or the
-    //    watcher restarts between insert and hydration, the preview is missed,
-    //    because the polling query only watches ROWID/date_read/date_edited.
-    //  - The candidate is dropped on the first surfaced preview, so a richer
-    //    preview that adds attachments after link metadata is still missed unless
-    //    an earlier emitted message already contained those attachments as
+    // Some message content hydrates after the row is first written, so we track
+    // the row and emit a follow-up `isHydrationUpdate` once it lands. Two kinds:
+    //
+    //  - Link preview: Messages writes the row, then populates `payload_data`
+    //    with the rich preview a moment later. Tracked for OUTGOING URL rows only
+    //    (`isFromMe == 1`, URL balloon) — incoming messages arrive with the
+    //    sender's preview already embedded. Resolved when a preview surfaces.
+    //  - Attachment load: an attachment row starts at a transferring state and
+    //    flips to `finished` once the file lands. Tracked for ANY direction
+    //    (incoming downloads and outgoing uploads alike) whenever a mapped
+    //    attachment is still `loading`. Resolved when every attachment finishes;
+    //    a terminal `transfer_state` failure drops the candidate without an event.
+    //
+    // Known gaps (accepted, see plan-eng-review):
+    //  - Both kinds rely on the row appearing in `changes` while still un-hydrated.
+    //    The polling query only watches ROWID/date_read/date_edited, so if Messages
+    //    flips `balloon_bundle_id`/`transfer_state` without bumping those columns,
+    //    or the watcher restarts between insert and hydration, the follow-up is
+    //    missed.
+    //  - A link-preview candidate is dropped on the first surfaced preview, so a
+    //    richer preview that adds attachments after the link metadata is missed
+    //    unless an earlier emitted state already carried those attachments as
     //    `loading`.
+    //  - A terminally-failed attachment is dropped silently: we stop polling but
+    //    don't emit a corrective event, so the last-sent `loading` state sticks in
+    //    the consumer (tracked separately — surface a failed attachment state).
     private func trackPendingMessageHydrationCandidates(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow],
@@ -575,11 +608,5 @@ extension EventWatcher {
         messages.contains { message in
             message.attachments?.contains { $0.loading == true } == true
         }
-    }
-
-    private static func mappedMessagesHaveLoadedAttachments(_ messages: [PlatformSDK.Message]) -> Bool {
-        messages.contains { message in
-            message.attachments?.isEmpty == false
-        } && !mappedMessagesContainLoadingAttachments(messages)
     }
 }
