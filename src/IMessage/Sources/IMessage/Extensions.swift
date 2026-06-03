@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import IMessageCore
 
 extension NSApplication {
@@ -14,20 +15,25 @@ extension NSApplication {
 }
 
 extension NSRunningApplication {
-    func waitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) async throws {
-        let start = Date()
-        while !self.isFinishedLaunching {
-            Log.default.notice("sleeping \(interval)s for \(String(describing: self.localizedName)) to finish launching")
-            try await Task.sleep(forTimeInterval: interval)
-            if self.isTerminated {
-                throw ErrorMessage("\(String(describing: self.localizedName)) terminated")
-            }
-            if start.timeIntervalSinceNow < -seconds {
-                Log.default.notice("assuming \(String(describing: self.localizedName)) has launched") // sometimes this gets stuck in an infinite loop
-                break
+    func waitForLaunch(timeout seconds: TimeInterval = 5) async throws {
+        var cancellable: AnyCancellable?
+        _ = cancellable
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            if isFinishedLaunching {
+                continuation.resume()
+            } else {
+                cancellable = self.publisher(for: \.isFinishedLaunching, options: [.initial, .new])
+                    .filter { $0 } // we only care about isFinishedLaunching = true
+                    .first()
+                    .timeout(.seconds(seconds), scheduler: DispatchQueue.global())
+                    .sink { _ in
+                        continuation.resume()
+                    } receiveValue: { _ in
+                        
+                    }
             }
         }
-        try await Task.sleep(forTimeInterval: 0.01)
     }
 }
 
