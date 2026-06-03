@@ -73,7 +73,7 @@ const info: PlatformInfo = {
       'The Messages app needs to stay open in the background.',
       'The Messages app might briefly appear onscreen as you interact with iMessage chats.',
       ...[(() => {
-        if (IS_MONTEREY_OR_UP) return "Reacting/replying to some types of messages isn't supported."
+        if (IS_MONTEREY_OR_UP) return "Reacting to some types of messages isn't supported."
         return "On macOS Big Sur, reacting/replying to non-text messages isn't supported. We recommend updating to the latest macOS."
       })()],
       'Your iMessage chats won’t be synced to your other devices.',

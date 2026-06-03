@@ -17,6 +17,7 @@
 - [ ] separate `UserDefaults` somehow so that CLI and other consumers don't share the prefs
 - [ ] user manually killing the messages.app causes cli to not detect that ("Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor"")
 - [ ] when scheduled messages are actually sent, send a message update event
+- [ ] surface terminal-failure attachment state so a failed/rejected download clears the loading spinner. Today `loading = transferState != .finished` (`MessageMapper+Attachments.swift:26`), so error/recoverableError/rejected (states 6/7/8, `Attachment.swift:31-33`) read as `loading: true` forever; `PlatformSDK.Attachment` (`PlatformSDKAttachment.swift:26`) has no failed flag. After the EventWatcher hydration path stops polling failed transfers, the last emitted state still says loading, so the consumer spins indefinitely. Needs: a failed/error field on the attachment type + mapper wiring + EventWatcher emitting it on terminal failure + consumer-side rendering. The EventWatcher hydration path already drops terminally-failed candidates via `IMFileTransferState.isTerminalFailure`.
 - [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
 
 - concurrency

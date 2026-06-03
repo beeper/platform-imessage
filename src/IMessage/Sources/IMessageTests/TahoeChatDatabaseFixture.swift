@@ -106,6 +106,43 @@ final class TahoeChatDatabaseFixture {
         try database.execute(sqlWithoutEscaping: "UPDATE message SET payload_data = ? WHERE ROWID = ?", payloadData, rowID)
     }
 
+    func insertAttachment(
+        rowID: Int,
+        messageRowID: Int,
+        guid: String? = nil,
+        filename: String,
+        transferName: String? = nil,
+        totalBytes: Int = 0,
+        transferState: Int
+    ) throws {
+        try database.execute(
+            sqlWithoutEscaping: """
+            INSERT INTO attachment (ROWID, guid, original_guid, filename, transfer_name, total_bytes, transfer_state)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            rowID,
+            guid ?? "attachment-\(rowID)",
+            "original-attachment-\(rowID)",
+            filename,
+            transferName ?? (filename as NSString).lastPathComponent,
+            totalBytes,
+            transferState
+        )
+        try database.execute(
+            sqlWithoutEscaping: "INSERT INTO message_attachment_join (message_id, attachment_id) VALUES (?, ?)",
+            messageRowID,
+            rowID
+        )
+    }
+
+    func updateAttachmentTransferState(rowID: Int, transferState: Int) throws {
+        try database.execute(
+            sqlWithoutEscaping: "UPDATE attachment SET transfer_state = ? WHERE ROWID = ?",
+            transferState,
+            rowID
+        )
+    }
+
     private static func insertChatJoin(
         messageRowID: Int,
         chatRowID: Int,

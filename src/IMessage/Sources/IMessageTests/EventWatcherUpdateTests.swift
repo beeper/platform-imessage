@@ -153,9 +153,10 @@ import Testing
         text: "https://fixture.example.invalid/link"
     )
     let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID)
-    watcher.pendingLinkPreviewCandidates[rowID] = PendingLinkPreviewCandidate(
+    watcher.pendingMessageHydrationCandidates[rowID] = PendingMessageHydrationCandidate(
         firstSeen: Date().addingTimeInterval(-121),
-        chatGUID: fixture.chatGUID
+        chatGUID: fixture.chatGUID,
+        kind: .linkPreview
     )
 
     // Payload never landed; the candidate is past its budget and must be
@@ -163,7 +164,7 @@ import Testing
     let events = try await watcher.collectMessageUpdateEvents()
 
     #expect(events.isEmpty)
-    #expect(watcher.pendingLinkPreviewCandidates[rowID] == nil)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] == nil)
     #expect(watcher.pendingWakeTask == nil)
 }
 
@@ -226,6 +227,167 @@ import Testing
 
     let thirdTickEvents = try await collectAndCommit(watcher)
     #expect(thirdTickEvents.isEmpty)
+}
+
+@Test func loadingAttachmentEmitsFullUpdateWhenTransferFinishes() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 21
+    let attachmentRowID = 210
+    let messageGUID = "00000000-0000-4000-8000-000000000047"
+    try insertJoinedMessage(fixture: fixture, rowID: rowID, guid: messageGUID, text: "")
+    try fixture.insertAttachment(
+        rowID: attachmentRowID,
+        messageRowID: rowID,
+        guid: "00000000-0000-4000-8000-000000000210",
+        filename: "/tmp/fixture-loading.jpg",
+        totalBytes: 10,
+        transferState: Attachment.IMFileTransferState.transferring.rawValue
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    let firstTickEvents = try await collectAndCommit(watcher)
+    let firstEventObject = try firstMessageEventObject(in: firstTickEvents)
+    let firstEntry = try firstMessageEntry(in: firstEventObject)
+    let loadingAttachment = try firstAttachment(in: firstEntry)
+
+    #expect(firstEventObject["mutationType"] as? String == "upsert")
+    #expect(loadingAttachment["loading"] as? Bool == true)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] != nil)
+    #expect(watcher.pendingWakeTask != nil)
+
+    try fixture.updateAttachmentTransferState(
+        rowID: attachmentRowID,
+        transferState: Attachment.IMFileTransferState.finished.rawValue
+    )
+
+    let secondTickEvents = try await collectAndCommit(watcher)
+    let secondEventObject = try firstMessageEventObject(in: secondTickEvents)
+    let patch = try firstMessageEntry(in: secondEventObject)
+    let loadedAttachment = try firstAttachment(in: patch)
+
+    #expect(secondTickEvents.count == 1)
+    #expect(secondEventObject["mutationType"] as? String == "update")
+    #expect(patch["id"] as? String == "\(messageGUID)_1")
+    #expect(loadedAttachment["loading"] as? Bool == false)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] == nil)
+    #expect(watcher.pendingWakeTask == nil)
+}
+
+@Test func pendingAttachmentLoadExpiresAfterTimeout() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 22
+    try insertJoinedMessage(fixture: fixture, rowID: rowID, guid: "00000000-0000-4000-8000-000000000048", text: "")
+    try fixture.insertAttachment(
+        rowID: 220,
+        messageRowID: rowID,
+        filename: "/tmp/fixture-never-loads.jpg",
+        transferState: Attachment.IMFileTransferState.transferring.rawValue
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID)
+    watcher.pendingMessageHydrationCandidates[rowID] = PendingMessageHydrationCandidate(
+        firstSeen: Date().addingTimeInterval(-121),
+        chatGUID: fixture.chatGUID,
+        kind: .attachmentLoad
+    )
+
+    let events = try await watcher.collectMessageUpdateEvents()
+
+    #expect(events.isEmpty)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] == nil)
+    #expect(watcher.pendingWakeTask == nil)
+}
+
+@Test func multiAttachmentWaitsForAllTransfersBeforeUpdating() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 23
+    let messageGUID = "00000000-0000-4000-8000-000000000049"
+    try insertJoinedMessage(fixture: fixture, rowID: rowID, guid: messageGUID, text: "")
+    try fixture.insertAttachment(
+        rowID: 230,
+        messageRowID: rowID,
+        guid: "00000000-0000-4000-8000-000000000230",
+        filename: "/tmp/fixture-album-1.jpg",
+        totalBytes: 10,
+        transferState: Attachment.IMFileTransferState.transferring.rawValue
+    )
+    try fixture.insertAttachment(
+        rowID: 231,
+        messageRowID: rowID,
+        guid: "00000000-0000-4000-8000-000000000231",
+        filename: "/tmp/fixture-album-2.jpg",
+        totalBytes: 10,
+        transferState: Attachment.IMFileTransferState.transferring.rawValue
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    // First tick: both attachments loading -> candidate tracked, wake armed.
+    _ = try await collectAndCommit(watcher)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] != nil)
+    #expect(watcher.pendingWakeTask != nil)
+
+    // Only one attachment finishes -> message is not ready, so no event fires and
+    // the candidate stays pending (guards against album flicker).
+    try fixture.updateAttachmentTransferState(
+        rowID: 230,
+        transferState: Attachment.IMFileTransferState.finished.rawValue
+    )
+    let partialTickEvents = try await collectAndCommit(watcher)
+    #expect(partialTickEvents.isEmpty)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] != nil)
+    #expect(watcher.pendingWakeTask != nil)
+
+    // The second attachment finishes -> exactly one full update, candidate cleared.
+    try fixture.updateAttachmentTransferState(
+        rowID: 231,
+        transferState: Attachment.IMFileTransferState.finished.rawValue
+    )
+    let finalTickEvents = try await collectAndCommit(watcher)
+    let finalEventObject = try firstMessageEventObject(in: finalTickEvents)
+
+    #expect(finalTickEvents.count == 1)
+    #expect(finalEventObject["mutationType"] as? String == "update")
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] == nil)
+    #expect(watcher.pendingWakeTask == nil)
+}
+
+@Test func failedAttachmentTransferDropsCandidateWithoutEmitting() async throws {
+    let fixture = try TahoeChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    let rowID = 24
+    try insertJoinedMessage(fixture: fixture, rowID: rowID, guid: "00000000-0000-4000-8000-000000000050", text: "")
+    try fixture.insertAttachment(
+        rowID: 240,
+        messageRowID: rowID,
+        guid: "00000000-0000-4000-8000-000000000240",
+        filename: "/tmp/fixture-fails.jpg",
+        totalBytes: 10,
+        transferState: Attachment.IMFileTransferState.transferring.rawValue
+    )
+    let watcher = try fixtureEventWatcher(fixture: fixture, lastRowID: rowID - 1)
+
+    // First tick: attachment loading -> candidate tracked, wake armed.
+    _ = try await collectAndCommit(watcher)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] != nil)
+    #expect(watcher.pendingWakeTask != nil)
+
+    // Transfer fails terminally -> the candidate is dropped on the very next tick
+    // (no event, wake disarmed) instead of polling for the full hydration timeout.
+    try fixture.updateAttachmentTransferState(
+        rowID: 240,
+        transferState: Attachment.IMFileTransferState.error.rawValue
+    )
+    let events = try await collectAndCommit(watcher)
+
+    #expect(events.isEmpty)
+    #expect(watcher.pendingMessageHydrationCandidates[rowID] == nil)
+    #expect(watcher.pendingWakeTask == nil)
 }
 
 @Test func readAndPreviewChangesForSameRowEmitOneFullUpdate() async throws {
@@ -441,4 +603,9 @@ private func firstMessageEntry(in eventObject: JSONObject) throws -> JSONObject 
 private func firstLink(in messageObject: JSONObject) throws -> JSONObject {
     let links = try #require(messageObject["links"] as? [JSONObject])
     return try #require(links.first)
+}
+
+private func firstAttachment(in messageObject: JSONObject) throws -> JSONObject {
+    let attachments = try #require(messageObject["attachments"] as? [JSONObject])
+    return try #require(attachments.first)
 }
