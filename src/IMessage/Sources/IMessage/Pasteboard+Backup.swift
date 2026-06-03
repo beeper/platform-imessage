@@ -14,6 +14,7 @@ extension NSPasteboard {
         }
     }
 
+    // TODO: replace with Task and figure out if the delay is really needed
     func withRestoration(perform: () async throws -> Void) async rethrows {
         let backup = self.backup()
         defer {

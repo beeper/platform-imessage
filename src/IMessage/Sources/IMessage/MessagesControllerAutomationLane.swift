@@ -128,6 +128,7 @@ actor MessagesControllerAutomationLane {
             guard await self.shouldContinueIdleCallbacks(expectedEpoch: expectedEpoch) else {
                 return
             }
+            
             await self.scheduleIdleCallback()
         }
     }
