@@ -10,6 +10,7 @@ private let sentMessageLinkWaitTimeout: TimeInterval = 1.5
 private let databaseTickBackstopInterval: TimeInterval = 1.0
 private let loadedAttachmentMinimumRequeryInterval: TimeInterval = 0.25
 
+// todo: DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that
 enum DatabaseTickWaits {
     typealias SentMessageID = (rowID: Int, guid: String)
 

@@ -236,6 +236,10 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
     public let filePath: String?
     public let size: [String: Int]?
 
+    public var transferStateValue: Attachment.IMFileTransferState? {
+        transferState.map(Attachment.IMFileTransferState.init(rawValue:))
+    }
+
     public init(
         msgRowID: Int,
         filename: String?,

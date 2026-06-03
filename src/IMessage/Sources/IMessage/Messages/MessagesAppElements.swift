@@ -10,7 +10,7 @@ private struct CharacterPickerPopover {
     static let expectedSize = CGSize(width: 346, height: 470)
     static let searchFieldTopInset: CGFloat = 38
     static let windowWidthRange: ClosedRange<CGFloat> = 300...420
-    static let windowHeightRange: ClosedRange<CGFloat> = 420...560
+    static let windowHeightRange: ClosedRange<CGFloat> = 350...560
 
     let app: Accessibility.Element
     let ownerPID: pid_t

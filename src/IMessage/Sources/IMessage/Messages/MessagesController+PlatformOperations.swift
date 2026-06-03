@@ -33,7 +33,7 @@ extension MessagesController {
     }
 
     func loadAttachment(threadID: String, messageID: String) async throws {
-        let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID, allowOverlay: false)
+        let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID)
         try await loadAttachment(threadID: threadID, messageCell: messageCell)
     }
 

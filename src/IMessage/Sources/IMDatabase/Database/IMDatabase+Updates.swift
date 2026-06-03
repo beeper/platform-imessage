@@ -25,7 +25,10 @@ package struct UpdatedMessageChange {
     package let isNew: Bool
     package let wasRead: Bool
     package let wasEdited: Bool
-    package let isPreviewUpdate: Bool
+    /// A late-hydration update (link preview or attachment load surfacing after
+    /// the row was first emitted). Consumers treat it identically to an edit:
+    /// it forces a full repatch rather than a read-receipt patch.
+    package let isHydrationUpdate: Bool
 
     package init(
         rowID: Int,
@@ -33,14 +36,14 @@ package struct UpdatedMessageChange {
         isNew: Bool,
         wasRead: Bool,
         wasEdited: Bool,
-        isPreviewUpdate: Bool = false
+        isHydrationUpdate: Bool = false
     ) {
         self.rowID = rowID
         self.chatGUID = chatGUID
         self.isNew = isNew
         self.wasRead = wasRead
         self.wasEdited = wasEdited
-        self.isPreviewUpdate = isPreviewUpdate
+        self.isHydrationUpdate = isHydrationUpdate
     }
 
     package func merging(_ other: UpdatedMessageChange) -> UpdatedMessageChange {
@@ -50,7 +53,7 @@ package struct UpdatedMessageChange {
             isNew: isNew || other.isNew,
             wasRead: wasRead || other.wasRead,
             wasEdited: wasEdited || other.wasEdited,
-            isPreviewUpdate: isPreviewUpdate || other.isPreviewUpdate
+            isHydrationUpdate: isHydrationUpdate || other.isHydrationUpdate
         )
     }
 }
