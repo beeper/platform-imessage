@@ -66,12 +66,19 @@ enum PromptAutomation {
     }
 
     static func disableNotificationsForApp(named appName: String) async throws -> Bool {
-        let app = try NSWorkspace.shared.open(
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        
+        // hides shows a gray background and doesn't render the UI
+        configuration.hides = true
+        
+        let app = try await NSWorkspace.shared.open(
             URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!,
-            options: [.withoutActivation], // .andHide shows a gray background and doesn't render the UI
-            configuration: [:]
+            configuration: configuration
         )
+        
         try await app.waitForLaunch()
+        
         return try await retry(withTimeout: 3, interval: 0.1) {
             let appElement = Accessibility.Element(pid: app.processIdentifier)
             let windows = try appElement.appWindows()
