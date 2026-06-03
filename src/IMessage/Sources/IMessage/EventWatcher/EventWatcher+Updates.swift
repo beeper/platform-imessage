@@ -430,10 +430,10 @@ extension EventWatcher {
         // attachment finished graduate to the payload pass; terminally-failed (or
         // attachment-less) rows are dropped now since they'll never resolve;
         // still-transferring rows stay pending.
-        let attachmentRowIDs = messageRows.compactMap { row in
+        let attachmentLoadMessageRowIDs = messageRows.compactMap { row in
             pendingMessageHydrationCandidates[row.rowID]?.kind == .attachmentLoad ? row.rowID : nil
         }
-        let transferStates = try attachmentTransferStates(forMessageRowIDs: attachmentRowIDs)
+        let transferStates = try attachmentTransferStates(forMessageRowIDs: attachmentLoadMessageRowIDs)
 
         var hydratableRows: [MappedMessageRow] = []
         for row in messageRows {
