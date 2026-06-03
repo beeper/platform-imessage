@@ -32,5 +32,11 @@ public extension Attachment {
         public static let recoverableError = Self(rawValue: 7)
         public static let rejected = Self(rawValue: 8)
         public static let thumbnail = Self(rawValue: 9)
+
+        /// A state the file will never recover from, so any waiter should give up
+        /// rather than poll out its full timeout budget.
+        public var isTerminalFailure: Bool {
+            self == .error || self == .recoverableError || self == .rejected
+        }
     }
 }

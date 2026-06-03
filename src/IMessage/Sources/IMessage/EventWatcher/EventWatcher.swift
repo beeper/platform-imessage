@@ -14,9 +14,15 @@ struct TimestampedChatState {
     }
 }
 
-struct PendingLinkPreviewCandidate {
+enum PendingMessageHydrationKind {
+    case linkPreview
+    case attachmentLoad
+}
+
+struct PendingMessageHydrationCandidate {
     let firstSeen: Date
     let chatGUID: String
+    let kind: PendingMessageHydrationKind
 }
 
 final class EventWatcher {
@@ -28,14 +34,14 @@ final class EventWatcher {
     var chatStates = [String: TimestampedChatState]()
     var updatesCursor: MessageUpdatesCursor
     var pendingUnresolvedNewMessageRowIDs = OrderedDictionary<Int, Date>()
-    var pendingLinkPreviewCandidates = OrderedDictionary<Int, PendingLinkPreviewCandidate>()
+    var pendingMessageHydrationCandidates = OrderedDictionary<Int, PendingMessageHydrationCandidate>()
     /// Rows resolved during the current tick whose pending entries are cleared
     /// only after the tick's events are successfully sent. On a send failure we
     /// leave them pending so the next tick retries: the main-query cursor has
     /// already advanced past these rows, so the pending maps are their only
     /// recovery path. Repopulated from scratch on every tick.
     var newMessageRowIDsAwaitingSendCommit: [Int] = []
-    var linkPreviewRowIDsAwaitingSendCommit: [Int] = []
+    var messageHydrationRowIDsAwaitingSendCommit: [Int] = []
     /// One-shot timer that re-triggers a tick while pending resolution work
     /// remains, so it isn't stranded when the database otherwise goes quiet.
     var pendingWakeTask: Task<Void, Never>?
