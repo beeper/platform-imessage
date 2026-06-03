@@ -498,13 +498,9 @@ extension EventWatcher {
 
     private func attachmentTransferStates(forMessageRowIDs messageRowIDs: [Int]) throws -> [Int: [Attachment.IMFileTransferState]] {
         guard !messageRowIDs.isEmpty else { return [:] }
-        var byMessageRowID: [Int: [Attachment.IMFileTransferState]] = [:]
-        for attachmentRow in try db.mappedAttachmentRows(messageRowIDs: messageRowIDs) {
-            guard let rawTransferState = attachmentRow.transferState else { continue }
-            byMessageRowID[attachmentRow.msgRowID, default: []]
-                .append(Attachment.IMFileTransferState(rawValue: rawTransferState))
-        }
-        return byMessageRowID
+        let attachmentRows = try db.mappedAttachmentRows(messageRowIDs: messageRowIDs)
+        return Dictionary(grouping: attachmentRows, by: \.msgRowID)
+            .mapValues { $0.compactMap(\.transferStateValue) }
     }
 
     private func expirePendingMessageHydrationCandidates() {
@@ -563,14 +559,14 @@ extension EventWatcher {
                !Self.mappedMessagesContainPreview(mappedMessages) {
                 rememberPendingMessageHydrationCandidate(
                     row: row,
-                    change: change,
+                    chatGUID: change.chatGUID,
                     firstSeen: now,
                     kind: .linkPreview
                 )
             } else if Self.mappedMessagesContainLoadingAttachments(mappedMessages) {
                 rememberPendingMessageHydrationCandidate(
                     row: row,
-                    change: change,
+                    chatGUID: change.chatGUID,
                     firstSeen: now,
                     kind: .attachmentLoad
                 )
@@ -582,7 +578,7 @@ extension EventWatcher {
 
     private func rememberPendingMessageHydrationCandidate(
         row: MappedMessageRow,
-        change: UpdatedMessageChange,
+        chatGUID: String,
         firstSeen: Date,
         kind: PendingMessageHydrationKind
     ) {
@@ -591,7 +587,7 @@ extension EventWatcher {
         }
         pendingMessageHydrationCandidates[row.rowID] = PendingMessageHydrationCandidate(
             firstSeen: firstSeen,
-            chatGUID: row.threadID ?? change.chatGUID,
+            chatGUID: row.threadID ?? chatGUID,
             kind: kind
         )
     }

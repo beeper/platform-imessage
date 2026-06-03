@@ -460,7 +460,7 @@ public final class PlatformAPI {
             guard let msgRow = try db.mappedMessageRow(guid: guid) else { return nil }
 
             return try db.mappedAttachmentRows(messageRowIDs: [msgRow.rowID])
-                .compactMap { $0.transferState.map(Attachment.IMFileTransferState.init(rawValue:)) }
+                .compactMap(\.transferStateValue)
                 .first { $0.isTerminalFailure }
         }
     }
