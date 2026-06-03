@@ -236,7 +236,6 @@ public struct MappedAttachmentRow: MappedDatabaseRow {
     public let filePath: String?
     public let size: [String: Int]?
 
-    /// `transferState` decoded into its enum form, or `nil` if the column was unset.
     public var transferStateValue: Attachment.IMFileTransferState? {
         transferState.map(Attachment.IMFileTransferState.init(rawValue:))
     }
