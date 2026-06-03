@@ -10,12 +10,13 @@ private let log = Logger(imessageLabel: "event-watcher.updates")
 // join per quiet-DB wake), so we can afford a generous budget before giving up
 // on a new message whose chat_message_join row never becomes visible.
 private let pendingChatJoinTimeout: TimeInterval = 10
-private let pendingLinkPreviewTimeout: TimeInterval = 2 * 60
+private let pendingMessageHydrationTimeout: TimeInterval = 2 * 60
 // How soon to re-tick when resolution work is outstanding and the database is
 // otherwise idle. New-message chat joins normally settle within a second, so we
-// poll them tightly; link previews can take much longer, so we poll them lazily.
+// poll them tightly; previews and attachments can take longer, so we reuse the
+// existing lazy hydration wake for both.
 private let pendingNewMessageWakeInterval: TimeInterval = 0.5
-private let pendingLinkPreviewWakeInterval: TimeInterval = 5
+private let pendingMessageHydrationWakeInterval: TimeInterval = 5
 
 private func traceMessageUpdates(_ message: @autoclosure () -> Logger.Message) {
     guard Defaults.eventWatcherTraceMessageUpdates else { return }
@@ -185,7 +186,7 @@ extension EventWatcher {
         defer { schedulePendingWakeIfNeeded() }
 
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
-        linkPreviewRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        messageHydrationRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
 
         let queryResult = try db.messages(since: updatesCursor)
         traceMessageUpdates(
@@ -193,11 +194,11 @@ extension EventWatcher {
         )
 
         var changes = try resolvePendingNewMessageChanges()
-        let previewChanges = try resolvePendingLinkPreviewChanges()
+        let hydrationChanges = try resolvePendingMessageHydrationChanges()
         rememberPendingNewMessages(rowIDs: queryResult.unresolvedNewMessageRowIDs)
 
         changes.append(contentsOf: queryResult.updatedMessages)
-        changes.append(contentsOf: previewChanges)
+        changes.append(contentsOf: hydrationChanges)
 
         let events = try messageUpdateEvents(for: changes)
         traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
@@ -213,15 +214,15 @@ extension EventWatcher {
         for rowID in newMessageRowIDsAwaitingSendCommit {
             pendingUnresolvedNewMessageRowIDs.removeValue(forKey: rowID)
         }
-        for rowID in linkPreviewRowIDsAwaitingSendCommit {
-            pendingLinkPreviewCandidates.removeValue(forKey: rowID)
+        for rowID in messageHydrationRowIDsAwaitingSendCommit {
+            pendingMessageHydrationCandidates.removeValue(forKey: rowID)
         }
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
-        linkPreviewRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        messageHydrationRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         schedulePendingWakeIfNeeded()
     }
 
-    /// Resolution of pending new messages and link previews only happens when
+    /// Resolution of pending new messages and hydration only happens when
     /// `collectMessageUpdateEvents` runs, which is otherwise driven solely by
     /// filesystem-change ticks. If the database goes quiet, arm a one-shot wake
     /// so outstanding work still resolves (or expires) within its budget. The
@@ -233,8 +234,8 @@ extension EventWatcher {
         let interval: TimeInterval?
         if !pendingUnresolvedNewMessageRowIDs.isEmpty {
             interval = pendingNewMessageWakeInterval
-        } else if !pendingLinkPreviewCandidates.isEmpty {
-            interval = pendingLinkPreviewWakeInterval
+        } else if !pendingMessageHydrationCandidates.isEmpty {
+            interval = pendingMessageHydrationWakeInterval
         } else {
             interval = nil
         }
@@ -265,10 +266,10 @@ extension EventWatcher {
         let messageRowsByRowID = Dictionary(fetchedRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
         let messageRows = Array(messageRowsByRowID.values)
 
-        // `resolvePendingLinkPreviewChanges` already fetched+mapped these rows to
-        // decide whether a preview surfaced, but it's a cold path (the >=5s
-        // preview wake), so we just re-fetch+remap here uniformly rather than
-        // thread a precomputed cache through the call graph.
+        // `resolvePendingMessageHydrationChanges` already fetched+mapped these
+        // rows to decide whether a preview or attachment surfaced, but it's a
+        // cold path (the >=5s hydration wake), so we just re-fetch+remap here
+        // rather than thread a precomputed cache through the call graph.
         let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: messageRows, threadID: "")
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
             messageRows: messageRows,
@@ -285,7 +286,7 @@ extension EventWatcher {
             currentUserID: currentUserID,
             accountID: accountID
         )
-        trackPendingLinkPreviewCandidates(
+        trackPendingMessageHydrationCandidates(
             changes: changes,
             messageRowsByRowID: messageRowsByRowID,
             mappedMessagesByRowID: context.mappedMessagesByRowID
@@ -297,9 +298,9 @@ extension EventWatcher {
         case full, read
 
         init?(_ change: UpdatedMessageChange) {
-            // Full patches dominate read receipts: a same-tick edit/preview+read
+            // Full patches dominate read receipts: a same-tick edit/hydration+read
             // replaces stale merged message state in one update event.
-            if change.wasEdited || change.isPreviewUpdate {
+            if change.wasEdited || change.isHydrationUpdate {
                 self = .full
             } else if change.wasRead {
                 self = .read
@@ -402,59 +403,69 @@ extension EventWatcher {
         return resolvedChanges
     }
 
-    private func resolvePendingLinkPreviewChanges() throws -> [UpdatedMessageChange] {
-        guard !pendingLinkPreviewCandidates.isEmpty else {
+    private func resolvePendingMessageHydrationChanges() throws -> [UpdatedMessageChange] {
+        guard !pendingMessageHydrationCandidates.isEmpty else {
             return []
         }
 
-        expirePendingLinkPreviewCandidates()
-        guard !pendingLinkPreviewCandidates.isEmpty else {
+        expirePendingMessageHydrationCandidates()
+        guard !pendingMessageHydrationCandidates.isEmpty else {
             return []
         }
 
-        let rowIDs = Array(pendingLinkPreviewCandidates.keys)
+        let rowIDs = Array(pendingMessageHydrationCandidates.keys)
         let messageRows = try db.mappedMessageRows(rowIDs: rowIDs)
         let messageRowsByRowID = Dictionary(messageRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
 
-        // A link preview lives in `payload_data`; until that column is populated
-        // the expensive payload fetch + map/hash can't surface a preview. Map only
-        // rows whose payload has actually landed so the rest stay pending cheaply
-        // (just the `mappedMessageRows` join above) instead of paying the full
-        // fetch-and-hash pass on every tick for up to the preview timeout.
-        let readyRows = messageRowsByRowID.values.filter { $0.payloadData?.isEmpty == false }
+        // Candidates whose row has vanished produce no event and have no fallible
+        // work left, so drop them now regardless of what the payload pass finds.
+        for rowID in rowIDs where messageRowsByRowID[rowID] == nil {
+            pendingMessageHydrationCandidates.removeValue(forKey: rowID)
+        }
 
-        guard !readyRows.isEmpty else {
-            // Only rows that are confirmed gone (no DB row) are safe to drop here,
-            // since no fallible work remains. Rows still awaiting their payload
-            // stay pending.
-            for rowID in rowIDs where messageRowsByRowID[rowID] == nil {
-                pendingLinkPreviewCandidates.removeValue(forKey: rowID)
+        // Only pay the payload fetch + map/hash for rows that could plausibly be
+        // ready. A link preview lives in `payload_data`, so rows whose payload
+        // hasn't landed can't surface one yet and stay pending cheaply (just the
+        // join above) rather than paying the full pass on every wake until the
+        // timeout. Attachment readiness lives in the `attachment` table (not in
+        // `MappedMessageRow`), so those rows must always be checked.
+        let hydratableRows = messageRows.filter { row in
+            guard let kind = pendingMessageHydrationCandidates[row.rowID]?.kind else {
+                return false
             }
+            switch kind {
+            case .linkPreview: return row.payloadData?.isEmpty == false
+            case .attachmentLoad: return true
+            }
+        }
+        guard !hydratableRows.isEmpty else {
             return []
         }
 
-        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: readyRows, threadID: "")
+        let payloadRows = try PlatformAPI.messagePayloadRows(db: db, messageRows: hydratableRows, threadID: "")
         let mappedMessagesByRowID = try PlatformAPI.mapAndHashMessagesByRowID(
-            messageRows: readyRows,
+            messageRows: hydratableRows,
             attachmentRows: payloadRows.attachmentRows,
             reactionRows: payloadRows.reactionRows,
             currentUserID: currentUserID,
             accountID: accountID
         )
 
-        // Defer every map mutation until after the throwing calls above. If
-        // `messagePayloadRows`/`mapAndHashMessagesByRowID` throw, candidates stay
-        // in the map and are retried on the next tick rather than silently lost.
         var changes: [UpdatedMessageChange] = []
-        var goneRowIDs: [Int] = []
         for rowID in rowIDs {
-            guard let row = messageRowsByRowID[rowID] else {
-                goneRowIDs.append(rowID)
+            guard let row = messageRowsByRowID[rowID],
+                  let candidate = pendingMessageHydrationCandidates[rowID] else {
                 continue
             }
 
-            guard let candidate = pendingLinkPreviewCandidates[rowID],
-                  Self.mappedMessagesContainPreview(mappedMessagesByRowID[rowID] ?? []) else {
+            let mappedMessages = mappedMessagesByRowID[rowID] ?? []
+            let isReady = switch candidate.kind {
+            case .linkPreview:
+                Self.mappedMessagesContainPreview(mappedMessages)
+            case .attachmentLoad:
+                Self.mappedMessagesHaveLoadedAttachments(mappedMessages)
+            }
+            guard isReady else {
                 continue
             }
 
@@ -464,35 +475,30 @@ extension EventWatcher {
                 isNew: false,
                 wasRead: false,
                 wasEdited: false,
-                isPreviewUpdate: true
+                isHydrationUpdate: true
             ))
-            // Keep the candidate pending until its preview event is sent
+            // Keep the candidate pending until its hydration event is sent
             // (commitPendingSends); a send failure then retries it next tick.
-            linkPreviewRowIDsAwaitingSendCommit.append(rowID)
-        }
-
-        // Gone rows produce no event, so drop them now regardless of send.
-        for rowID in goneRowIDs {
-            pendingLinkPreviewCandidates.removeValue(forKey: rowID)
+            messageHydrationRowIDsAwaitingSendCommit.append(rowID)
         }
 
         return changes
     }
 
-    private func expirePendingLinkPreviewCandidates() {
+    private func expirePendingMessageHydrationCandidates() {
         let now = Date()
-        let expiredRowIDs = pendingLinkPreviewCandidates.compactMap { element -> Int? in
+        let expiredRowIDs = pendingMessageHydrationCandidates.compactMap { element -> Int? in
             let (rowID, candidate) = element
-            return now.timeIntervalSince(candidate.firstSeen) >= pendingLinkPreviewTimeout ? rowID : nil
+            return now.timeIntervalSince(candidate.firstSeen) >= pendingMessageHydrationTimeout ? rowID : nil
         }
         for rowID in expiredRowIDs {
-            pendingLinkPreviewCandidates.removeValue(forKey: rowID)
+            pendingMessageHydrationCandidates.removeValue(forKey: rowID)
         }
     }
 
     // Outgoing link previews render asynchronously: Messages writes the message
     // row, then populates `payload_data` with the rich preview a moment later, so
-    // we track the row and emit a follow-up `isPreviewUpdate` once the preview
+    // we track the row and emit a follow-up `isHydrationUpdate` once the preview
     // lands. Known gaps (accepted, see plan-eng-review):
     //  - Incoming messages arrive with the sender's preview already embedded, so
     //    we only track outgoing rows (`isFromMe == 1`).
@@ -502,33 +508,59 @@ extension EventWatcher {
     //    watcher restarts between insert and hydration, the preview is missed,
     //    because the polling query only watches ROWID/date_read/date_edited.
     //  - The candidate is dropped on the first surfaced preview, so a richer
-    //    preview that hydrates later (e.g. image/video attachment after link
-    //    metadata) is not re-emitted, since attachment changes aren't tracked.
-    private func trackPendingLinkPreviewCandidates(
+    //    preview that adds attachments after link metadata is still missed unless
+    //    an earlier emitted message already contained those attachments as
+    //    `loading`.
+    private func trackPendingMessageHydrationCandidates(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow],
         mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
     ) {
         let now = Date()
-        for change in changes where change.isNew {
-            guard let row = messageRowsByRowID[change.rowID],
-                  row.isFromMe == 1,
-                  row.balloonBundleID == BalloonBundleKind.url.rawValue else {
+        let rowsAwaitingSend = Set(messageHydrationRowIDsAwaitingSendCommit)
+        for change in changes where !rowsAwaitingSend.contains(change.rowID) {
+            guard let row = messageRowsByRowID[change.rowID] else {
                 continue
             }
 
-            if Self.mappedMessagesContainPreview(mappedMessagesByRowID[row.rowID] ?? []) {
-                pendingLinkPreviewCandidates.removeValue(forKey: row.rowID)
-                continue
-            }
-
-            if pendingLinkPreviewCandidates[row.rowID] == nil {
-                pendingLinkPreviewCandidates[row.rowID] = PendingLinkPreviewCandidate(
+            let mappedMessages = mappedMessagesByRowID[row.rowID] ?? []
+            if change.isNew,
+               row.isFromMe == 1,
+               row.balloonBundleID == BalloonBundleKind.url.rawValue,
+               !Self.mappedMessagesContainPreview(mappedMessages) {
+                rememberPendingMessageHydrationCandidate(
+                    row: row,
+                    change: change,
                     firstSeen: now,
-                    chatGUID: row.threadID ?? change.chatGUID
+                    kind: .linkPreview
                 )
+            } else if Self.mappedMessagesContainLoadingAttachments(mappedMessages) {
+                rememberPendingMessageHydrationCandidate(
+                    row: row,
+                    change: change,
+                    firstSeen: now,
+                    kind: .attachmentLoad
+                )
+            } else if pendingMessageHydrationCandidates[row.rowID]?.kind == .attachmentLoad {
+                pendingMessageHydrationCandidates.removeValue(forKey: row.rowID)
             }
         }
+    }
+
+    private func rememberPendingMessageHydrationCandidate(
+        row: MappedMessageRow,
+        change: UpdatedMessageChange,
+        firstSeen: Date,
+        kind: PendingMessageHydrationKind
+    ) {
+        guard pendingMessageHydrationCandidates[row.rowID] == nil else {
+            return
+        }
+        pendingMessageHydrationCandidates[row.rowID] = PendingMessageHydrationCandidate(
+            firstSeen: firstSeen,
+            chatGUID: row.threadID ?? change.chatGUID,
+            kind: kind
+        )
     }
 
     private static func mappedMessagesContainPreview(_ messages: [PlatformSDK.Message]) -> Bool {
@@ -537,5 +569,17 @@ extension EventWatcher {
                 || message.tweets?.isEmpty == false
                 || message.iframeURL?.isEmpty == false
         }
+    }
+
+    private static func mappedMessagesContainLoadingAttachments(_ messages: [PlatformSDK.Message]) -> Bool {
+        messages.contains { message in
+            message.attachments?.contains { $0.loading == true } == true
+        }
+    }
+
+    private static func mappedMessagesHaveLoadedAttachments(_ messages: [PlatformSDK.Message]) -> Bool {
+        messages.contains { message in
+            message.attachments?.isEmpty == false
+        } && !mappedMessagesContainLoadingAttachments(messages)
     }
 }
