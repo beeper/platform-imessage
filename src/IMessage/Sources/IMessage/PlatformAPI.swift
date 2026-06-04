@@ -505,9 +505,7 @@ public final class PlatformAPI {
             return
         }
 
-        guard Defaults.watchThreadActivity,
-              !Preferences.enabledExperiments.contains("no_watch_thread")
-        else {
+        guard Defaults.watchThreadActivity else {
             clearSelectedThreadActivity()
             return
         }
