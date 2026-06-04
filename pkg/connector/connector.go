@@ -60,7 +60,7 @@ func (c *Connector) GetName() bridgev2.BridgeName {
 		DisplayName:          "iMessage",
 		NetworkURL:           "https://www.apple.com/ios/messages/",
 		NetworkID:            "imessage",
-		BeeperBridgeType:     "github.com/beeper/platform-imessage",
+		BeeperBridgeType:     "imessage",
 		DefaultPort:          29340,
 		DefaultCommandPrefix: "!imessage",
 	}
