@@ -603,9 +603,9 @@ public final class PlatformAPI {
     }
 
     private static func threadSupportsActivityObservation(threadID: String, controller: MessagesController) throws -> Bool {
-        // only watch thread activity for iMessage chats
+        // only watch thread activity for iMessage/RCS chats
         // TODO: implement this for groups
-        if threadID.hasPrefix("iMessage;-;") {
+        if threadID.hasPrefix("iMessage;-;") || threadID.hasPrefix("RCS;-;") {
             return true
         }
 
@@ -624,9 +624,9 @@ public final class PlatformAPI {
             return false
         }
 
-        guard chat.serviceName == .imessage else {
+        guard chat.serviceName == .imessage || chat.serviceName == .rcs else {
             #if DEBUG
-            platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
+            platformLog.debug("chat definitely isn't an iMessage/RCS 1:1 DM, not watching for activity")
             #endif
             return false
         }
