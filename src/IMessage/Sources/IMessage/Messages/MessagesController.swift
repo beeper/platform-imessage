@@ -1256,7 +1256,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 overlay: quotedMessage.overlay,
                 threadID: threadID
             )
-        } else if let quotedMessage {
+        } else if let quotedMessage { // todo: this branch shouldn't exist, threadID can be fetched from message guid
             deepLink = MessagesDeepLink.message(
                 guid: quotedMessage.messageGUID,
                 partIndex: quotedMessage.partIndex,
