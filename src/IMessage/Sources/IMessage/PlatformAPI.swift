@@ -87,11 +87,7 @@ public final class PlatformAPI {
     private struct SelectedThreadActivityState: Sendable {
         let owner: ObjectIdentifier
         let threadID: String
-        let publicThreadID: String
-        let hashedThreadID: String
-        let singleParticipantID: String?
-        let dndUserIDs: Protected<Set<String>>
-        let sendEvents: EventCallback
+        let sendStatus: @Sendable (ThreadActivityObservation) async -> Void
     }
 
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
@@ -525,15 +521,66 @@ public final class PlatformAPI {
         }
 
         let singleParticipantID = singleParticipantAddress(threadID)
+        let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         let selectedThread = SelectedThreadActivityState(
             owner: ObjectIdentifier(self),
-            threadID: threadID,
-            publicThreadID: publicThreadID,
-            hashedThreadID: Hasher.thread.tokenizeRemembering(pii: threadID),
-            singleParticipantID: singleParticipantID,
-            dndUserIDs: dndUserIDs,
-            sendEvents: sendEvents
-        )
+            threadID: threadID
+        ) { [dndUserIDs] status in
+            platformLog.debug("activity/\(publicThreadID): received \(status)")
+
+            guard let singleParticipantID else {
+                platformLog.debug("activity/\(publicThreadID): NOT syncing; not a single participant \(status)")
+                return
+            }
+
+            let hashedParticipantID = Hasher.participant.tokenizeRemembering(pii: singleParticipantID)
+            let hadDNDStatus = dndUserIDs.withLock { $0.contains(singleParticipantID) }
+            var events: [ServerEvent] = [
+                .userActivity(
+                    activityType: status.activityType,
+                    threadID: hashedThreadID,
+                    participantID: hashedParticipantID,
+                    durationMilliseconds: 120_000,
+                    customLabel: nil
+                )
+            ]
+
+            if let presenceStatus = status.presenceStatus {
+                dndUserIDs.withLock {
+                    _ = $0.insert(singleParticipantID)
+                }
+                events.append(
+                    .userPresenceUpdated(
+                        PlatformSDK.UserPresence(
+                            userID: hashedParticipantID,
+                            status: presenceStatus
+                        )
+                    )
+                )
+            } else if status.didObservePresence, hadDNDStatus {
+                dndUserIDs.withLock {
+                    _ = $0.remove(singleParticipantID)
+                }
+                events.append(
+                    .userPresenceUpdated(
+                        PlatformSDK.UserPresence(
+                            userID: hashedParticipantID,
+                            status: .idle
+                        )
+                    )
+                )
+            } else if status.didObservePresence {
+                dndUserIDs.withLock {
+                    _ = $0.remove(singleParticipantID)
+                }
+            }
+
+            do {
+                try await sendEvents(events)
+            } catch {
+                platformLog.error("failed to send activity status: \(String(reflecting: error))")
+            }
+        }
         Self.selectedThreadActivityState.withLock { $0 = selectedThread }
         platformLog.debug("activity/\(publicThreadID): watching")
 
@@ -646,7 +693,7 @@ public final class PlatformAPI {
                 else {
                     return
                 }
-                await sendThreadActivityStatus(status, selectedThread: currentThread)
+                await currentThread.sendStatus(status)
             }
         }
 
@@ -654,66 +701,6 @@ public final class PlatformAPI {
             try await controller.observeIdleActivity(threadID: selectedThread.threadID, statusSender: sendStatus)
         } catch {
             platformLog.error("failed to observe activity: \(error)")
-        }
-    }
-
-    private static func sendThreadActivityStatus(
-        _ status: ThreadActivityObservation,
-        selectedThread: SelectedThreadActivityState
-    ) async {
-        platformLog.debug("activity/\(selectedThread.publicThreadID): received \(status)")
-
-        guard let singleParticipantID = selectedThread.singleParticipantID else {
-            platformLog.debug("activity/\(selectedThread.publicThreadID): NOT syncing; not a single participant \(status)")
-            return
-        }
-
-        let hashedParticipantID = Hasher.participant.tokenizeRemembering(pii: singleParticipantID)
-        let hadDNDStatus = selectedThread.dndUserIDs.withLock { $0.contains(singleParticipantID) }
-        var events: [ServerEvent] = [
-            .userActivity(
-                activityType: status.activityType,
-                threadID: selectedThread.hashedThreadID,
-                participantID: hashedParticipantID,
-                durationMilliseconds: 120_000,
-                customLabel: nil
-            )
-        ]
-
-        if let presenceStatus = status.presenceStatus {
-            selectedThread.dndUserIDs.withLock {
-                _ = $0.insert(singleParticipantID)
-            }
-            events.append(
-                .userPresenceUpdated(
-                    PlatformSDK.UserPresence(
-                        userID: hashedParticipantID,
-                        status: presenceStatus
-                    )
-                )
-            )
-        } else if status.didObservePresence, hadDNDStatus {
-            selectedThread.dndUserIDs.withLock {
-                _ = $0.remove(singleParticipantID)
-            }
-            events.append(
-                .userPresenceUpdated(
-                    PlatformSDK.UserPresence(
-                        userID: hashedParticipantID,
-                        status: .idle
-                    )
-                )
-            )
-        } else if status.didObservePresence {
-            selectedThread.dndUserIDs.withLock {
-                _ = $0.remove(singleParticipantID)
-            }
-        }
-
-        do {
-            try await selectedThread.sendEvents(events)
-        } catch {
-            platformLog.error("failed to send activity status: \(String(reflecting: error))")
         }
     }
 
