@@ -9,6 +9,7 @@ import (
 	"github.com/beeper/platform-imessage/pkg/imessageid"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/status"
 )
 
@@ -101,12 +102,12 @@ func (l *LocalLogin) complete(ctx context.Context) (*bridgev2.LoginStep, error) 
 		return nil, fmt.Errorf("failed to get local iMessage user: %w", err)
 	}
 
-	loginID := imessageid.MakeUserLoginID(currentUser.ID)
+	loginID := l.localUserLoginID(currentUser.ID)
 	existingLogins := l.loginsForUser()
 	if len(existingLogins) > 1 {
 		return nil, fmt.Errorf("%s already has multiple local iMessage logins; remove the extra logins before reconnecting", l.User.MXID)
 	}
-	if len(existingLogins) == 1 {
+	if len(existingLogins) == 1 && existingLogins[0].ID == loginID {
 		existing := existingLogins[0]
 		loginID = existing.ID
 	}
@@ -150,6 +151,19 @@ func (l *LocalLogin) complete(ctx context.Context) (*bridgev2.LoginStep, error) 
 			UserLogin:   ul,
 		},
 	}, nil
+}
+
+func (l *LocalLogin) localUserLoginID(currentUserID string) networkid.UserLoginID {
+	if l.Main != nil && l.Main.Bridge != nil && l.Main.Bridge.Bot != nil {
+		localpart, _, ok := strings.Cut(strings.TrimPrefix(string(l.Main.Bridge.Bot.GetMXID()), "@"), ":")
+		if ok {
+			localpart = strings.TrimSuffix(localpart, "bot")
+			if localpart != "" {
+				return networkid.UserLoginID(localpart)
+			}
+		}
+	}
+	return imessageid.MakeUserLoginID(currentUserID)
 }
 
 func (l *LocalLogin) permissionStep(status *imessage.AuthorizationStatus) *bridgev2.LoginStep {

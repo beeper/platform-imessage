@@ -44,17 +44,6 @@ func (c *Client) Connect(ctx context.Context) {
 		return
 	}
 	if !authStatus.Authorized {
-		authStatus, err = c.IM.RequestAuthorization("all")
-		if err != nil {
-			c.UserLogin.BridgeState.Send(status.BridgeState{
-				StateEvent: status.StateBadCredentials,
-				Error:      "IMESSAGE_PERMISSION_REQUEST_FAILED",
-				Message:    err.Error(),
-			})
-			return
-		}
-	}
-	if !authStatus.Authorized {
 		c.UserLogin.BridgeState.Send(status.BridgeState{
 			StateEvent: status.StateBadCredentials,
 			Error:      "IMESSAGE_PERMISSIONS_MISSING",
@@ -62,7 +51,6 @@ func (c *Client) Connect(ctx context.Context) {
 		})
 		return
 	}
-	c.requestOptionalAccessibility(authStatus)
 	if _, err := c.IM.CurrentUser(); err != nil {
 		c.UserLogin.BridgeState.Send(status.BridgeState{
 			StateEvent: status.StateBadCredentials,
@@ -85,19 +73,6 @@ func (c *Client) Connect(ctx context.Context) {
 	c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 	go c.syncExistingChats()
 	go c.eventLoop(stopEventLoop)
-}
-
-func (c *Client) requestOptionalAccessibility(authStatus *imessage.AuthorizationStatus) {
-	for _, permission := range authStatus.Permissions {
-		if permission.ID == "accessibility" && !permission.Authorized {
-			go func() {
-				if _, err := c.IM.RequestAuthorization("accessibility"); err != nil {
-					c.UserLogin.Log.Warn().Err(err).Msg("Failed to request iMessage Accessibility permission")
-				}
-			}()
-			return
-		}
-	}
 }
 
 func missingPermissionMessage(authStatus *imessage.AuthorizationStatus) string {

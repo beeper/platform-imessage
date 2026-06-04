@@ -251,10 +251,12 @@ private func requestAuthorization(_ target: String) async throws -> [String: Any
             }
         case "messages-data":
             if (try? await MacPermissions.canAccessMessagesDir()) != true {
-                do {
-                    try await MacPermissions.askForMessagesDirAccess()
-                } catch {
-                    MacPermissions.askForFullDiskAccess()
+                Task { @MainActor in
+                    do {
+                        try await MacPermissions.askForMessagesDirAccess()
+                    } catch {
+                        MacPermissions.askForFullDiskAccess()
+                    }
                 }
             }
         case "automation":
