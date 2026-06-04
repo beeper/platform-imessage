@@ -70,7 +70,9 @@ enum PromptAutomation {
         configuration.activates = false
         
         // hides shows a gray background and doesn't render the UI
-        configuration.hides = true
+        configuration.activates = false
+        
+        let app = try await NSWorkspace.shared.open(
         
         let app = try await NSWorkspace.shared.open(
             URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!,
