@@ -135,7 +135,7 @@ final class MessagesAppElements {
     }
 
     private let runningApp: NSRunningApplication
-    private let openDeepLink: (URL) async throws -> Void
+    private let openDeepLink: (MessagesDeepLink) async throws -> Void
 
     let app: Accessibility.Element
 
@@ -145,7 +145,7 @@ final class MessagesAppElements {
 
     private var cachedMainWindow: Accessibility.Element?
 
-    init(runningApp: NSRunningApplication, openDeepLink: @escaping (URL) async throws -> Void) {
+    init(runningApp: NSRunningApplication, openDeepLink: @escaping (MessagesDeepLink) async throws -> Void) {
         self.runningApp = runningApp
         self.openDeepLink = openDeepLink
         app = Accessibility.Element(pid: runningApp.processIdentifier)
@@ -282,7 +282,7 @@ final class MessagesAppElements {
                     log.notice("mainWindow: using compose deep link to try to get main window")
                     // await the open so the retry waits for it to complete (rather than
                     // racing a fire-and-forget open against the next getMainWindow attempt).
-                    try await self.openDeepLink(MessagesDeepLink.compose.url())
+                    try await self.openDeepLink(MessagesDeepLink.compose)
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")

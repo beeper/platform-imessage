@@ -77,7 +77,7 @@ final class MessagesController {
 
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
-    private var lastThreadIDOpenedForObservation = Protected<String?>()
+    private var lastOpenedThreadID: String?
     private var lastSentActivityObservation: ThreadActivityObservation?
     private var lastSentActivityObservationTime: Date?
 
@@ -147,13 +147,14 @@ final class MessagesController {
 
     @discardableResult
     static func openDeepLink(
-        _ url: URL,
+        _ deepLink: MessagesDeepLink,
         activating: Bool = false,
         hiding: Bool = true,
         targeting app: NSRunningApplication? = nil,
         timeout: TimeInterval = 5
     ) async throws -> NSRunningApplication {
         try Task.checkCancellation()
+        let url = try deepLink.url()
         switch try planDeepLinkOpen(url, activating: activating, hiding: hiding, targeting: app) {
         case .handledBySecondaryInstance(let app):
             return app
@@ -176,8 +177,17 @@ final class MessagesController {
     }
 
     @discardableResult
-    private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) async throws -> NSRunningApplication {
-        try await Self.openDeepLink(url, activating: activating, hiding: hiding, targeting: app)
+    private func openDeepLink(
+        _ deepLink: MessagesDeepLink,
+        activating: Bool = false,
+        hiding: Bool = true
+    ) async throws -> NSRunningApplication {
+        lastOpenedThreadID = nil
+        let app = try await Self.openDeepLink(deepLink, activating: activating, hiding: hiding, targeting: app)
+        if let targetThreadID = deepLink.targetThreadID {
+            lastOpenedThreadID = targetThreadID
+        }
+        return app
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
@@ -273,7 +283,7 @@ final class MessagesController {
 
     private func openThread(_ threadID: String) async throws {
         try? await self.clearTypingStatus()
-        try await openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
+        try await openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil))
         try await assertSelectedThread(threadID: threadID)
     }
 
@@ -295,7 +305,7 @@ final class MessagesController {
             // Cold launch can be much slower than a routine in-session open (the app may
             // need to start from scratch), so give it a generous timeout rather than the
             // 5s default used by in-session openDeepLink calls.
-            return try await Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation, timeout: 30)
+            return try await Self.openDeepLink(MessagesDeepLink.compose, activating: !withoutActivation, timeout: 30)
         }
 
         if Preferences.useSecondaryMessagesInstance {
@@ -337,8 +347,8 @@ final class MessagesController {
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         try await selectedApp.waitForLaunch()
 
-        elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
-            try await Self.openDeepLink(url, targeting: selectedApp)
+        elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { deepLink in
+            try await Self.openDeepLink(deepLink, targeting: selectedApp)
         })
 
         keyPresser = KeyPresser(pid: selectedApp.processIdentifier)
@@ -640,12 +650,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     // performs `perform` while the Messages window is unhidden
     private func withActivation(
-        openBefore: URL?, openAfter: URL? = nil,
+        openBefore: MessagesDeepLink?,
+        openAfter: MessagesDeepLink? = nil,
         perform: () async throws -> Void
     ) async throws {
+        let openBeforeURL = try openBefore?.url()
         if let openBefore {
             #if DEBUG
-            log.debug("withActivation: opening before performing: \(openBefore)")
+            log.debug("withActivation: opening before performing: \(openBeforeURL?.absoluteString ?? "<nil>")")
             #endif
             try await openDeepLink(openBefore)
         }
@@ -653,9 +665,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await perform()
 
         if let openAfter {
-            if openAfter != openBefore {
+            let openAfterURL = try openAfter.url()
+            if openAfterURL != openBeforeURL {
                 #if DEBUG
-                debugLog("withActivation: opening after performing: \(openAfter)")
+                debugLog("withActivation: opening after performing: \(openAfterURL)")
                 #endif
                 try await openDeepLink(openAfter)
             }
@@ -665,18 +678,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) async throws -> Void) async throws {
         log.debug("withMessageCell (messageCell=\(messageCell))")
 
-        let url = try MessagesDeepLink.message(
+        let deepLink = MessagesDeepLink.message(
             guid: messageCell.messageGUID,
             partIndex: messageCell.partIndex,
-            overlay: messageCell.overlay
-        ).url()
+            overlay: messageCell.overlay,
+            threadID: threadID
+        )
 
         // without closing reply transcript, non-overlay deep link won't select the message
         if !messageCell.overlay {
             _ = try? await closeReplyTranscriptView()
         }
 
-        try await withActivation(openBefore: url) {
+        try await withActivation(openBefore: deepLink) {
             try await assertSelectedThread(threadID: threadID)
 
             // we don't close transcript view here because when reacting, closing it will undo the reaction
@@ -955,10 +969,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         try await withAutomation {
-            try await withActivation(openBefore: url) {
+            try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 if isVenturaOrUp {
                     return try keyPresser.commandShiftU()
@@ -1007,10 +1021,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         try await withAutomation {
-            try await withActivation(openBefore: url) {
+            try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
                 if muted {
@@ -1033,10 +1047,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("deleteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         try await withAutomation {
-            try await withActivation(openBefore: url) {
+            try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 try await triggerThreadCellAction(threadID: threadID, action: .delete)
                 try await elements.alertSheetDeleteButton.press()
@@ -1050,10 +1064,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // (since Messages special-cases space-only messages). The NUL byte
         // is another option that doesn't get sent to the server, but it
         // shows up client-side as a ghost message.
-        let url = try MessagesDeepLink(threadID: threadID, body: " ").url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: " ")
 
         try await withAutomation {
-            _ = try await openDeepLink(url)
+            _ = try await openDeepLink(deepLink)
         }
     }
 
@@ -1234,17 +1248,24 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
         }
 
-        let url: URL
-        if let quotedMessage {
-            url = try MessagesDeepLink.message(
+        let deepLink: MessagesDeepLink
+        if let quotedMessage, let threadID {
+            deepLink = MessagesDeepLink.message(
+                guid: quotedMessage.messageGUID,
+                partIndex: quotedMessage.partIndex,
+                overlay: quotedMessage.overlay,
+                threadID: threadID
+            )
+        } else if let quotedMessage {
+            deepLink = MessagesDeepLink.message(
                 guid: quotedMessage.messageGUID,
                 partIndex: quotedMessage.partIndex,
                 overlay: quotedMessage.overlay
-            ).url()
+            )
         } else if let threadID {
-            url = try MessagesDeepLink(threadID: threadID, body: text).url()
+            deepLink = try MessagesDeepLink(threadID: threadID, body: text)
         } else if let addresses {
-            url = try MessagesDeepLink.addresses(addresses, body: text).url()
+            deepLink = MessagesDeepLink.addresses(addresses, body: text)
         } else {
             throw ErrorMessage("not implemented")
         }
@@ -1264,7 +1285,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             if quotedMessage == nil { try? await closeReplyTranscriptViewAndWait() } // needed even when opening deep link
 
-            try await withActivation(openBefore: url) {
+            try await withActivation(openBefore: deepLink) {
                 if let threadID { try await assertSelectedThread(threadID: threadID) }
 
                 if quotedMessage != nil {
@@ -1386,6 +1407,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         do {
             try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
                 guard let self else { return }
+                self.lastOpenedThreadID = nil
                 guard self.messagesIsManuallyActivated else {
                     log.debug("activateMessages: skipping stale activation (user already deactivated)")
                     return
@@ -1487,10 +1509,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func notifyAnyway(threadID: String) async throws {
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         try await withAutomation {
-            try await withActivation(openBefore: url) {
+            try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 try await elements.notifyAnywayButton.press()
             }
@@ -1498,11 +1520,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     func activityStatus(threadID: String) async throws -> ThreadActivityObservation {
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         var observation = ThreadActivityObservation.unknown
         try await withAutomation {
-            try await withActivation(openBefore: url) {
+            try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 observation = await activityObservation()
             }
@@ -1527,7 +1549,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     /// Checks one thread while controller work is idle.
     /// The platform-level idle observer calls it repeatedly after active automation drains.
     func observeIdleActivity(threadID: String, statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void) async throws {
-        let url = try MessagesDeepLink(threadID: threadID, body: nil).url()
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
             log.debug("not observing activity, Messages is manually activated")
@@ -1548,12 +1570,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             return
         }
 
-        if lastThreadIDOpenedForObservation.read() != threadID {
+        if lastOpenedThreadID != threadID {
             log.debug("activity: entered idle state or thread id changed, opening deep link")
             try await withAutomation {
-                _ = try await self.openDeepLink(url)
+                _ = try await self.openDeepLink(deepLink)
                 log.debug("activity: opened deep link, waiting for layout change")
-                self.lastThreadIDOpenedForObservation.withLock { $0 = threadID }
                 try await self.waitForLayoutChange(timeout: 0.5)
             }
         }
