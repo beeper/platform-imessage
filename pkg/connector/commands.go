@@ -94,6 +94,55 @@ func fnNotifyAnyway(ce *commands.Event) {
 	ce.Reply("Notify Anyway sent.")
 }
 
+var cmdActivityStatus = &commands.FullHandler{
+	Func: fnActivityStatus,
+	Name: "activity-status",
+	Help: commands.HelpMeta{
+		Section:     commands.HelpSectionChats,
+		Description: "Show current iMessage typing and Focus status for the current portal.",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnActivityStatus(ce *commands.Event) {
+	client, ok := clientForCommand(ce, true)
+	if !ok {
+		return
+	}
+	status, err := client.IM.ActivityStatus(string(ce.Portal.ID))
+	if err != nil {
+		ce.Log.Err(err).Msg("Failed to get iMessage activity status")
+		ce.Reply("Failed to get iMessage activity status: %v", err)
+		return
+	}
+	ce.Reply(formatActivityStatus(status))
+}
+
+var cmdSelectChat = &commands.FullHandler{
+	Func: fnSelectChat,
+	Name: "select-chat",
+	Help: commands.HelpMeta{
+		Section:     commands.HelpSectionChats,
+		Description: "Select this iMessage chat for local activity watching.",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnSelectChat(ce *commands.Event) {
+	client, ok := clientForCommand(ce, true)
+	if !ok {
+		return
+	}
+	if err := client.IM.WatchChat(string(ce.Portal.ID)); err != nil {
+		ce.Log.Err(err).Msg("Failed to select iMessage chat")
+		ce.Reply("Failed to select iMessage chat: %v", err)
+		return
+	}
+	ce.Reply("Selected iMessage chat for activity watching.")
+}
+
 var cmdSearchMessages = &commands.FullHandler{
 	Func: fnSearchMessages,
 	Name: "search-messages",
@@ -130,6 +179,23 @@ func fnSearchMessages(ce *commands.Event) {
 		return
 	}
 	ce.Reply(formatSearchResults(page.Items, threadID == ""))
+}
+
+func formatActivityStatus(status *imessage.ActivityStatus) string {
+	if status == nil {
+		return "iMessage activity status is unknown."
+	}
+	activity := status.ActivityType
+	if activity == "" {
+		activity = "none"
+	}
+	presence := status.PresenceStatus
+	if presence == "" && !status.DidObservePresence {
+		presence = "unknown"
+	} else if presence == "" {
+		presence = "none"
+	}
+	return fmt.Sprintf("Activity: `%s`\nPresence: `%s`", activity, presence)
 }
 
 func clientForCommand(ce *commands.Event, preferPortal bool) (*Client, bool) {

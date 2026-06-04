@@ -59,13 +59,11 @@ func (c *Client) handleMessageStateSync(evt imessage.StateSyncEvent) error {
 					if len(existing) == 0 {
 						return nil, bridgev2.ErrIgnoringRemoteEvent
 					}
-					return &bridgev2.ConvertedEdit{
-						ModifiedParts: []*bridgev2.ConvertedEditPart{{
-							Part:    existing[0],
-							Type:    event.EventMessage,
-							Content: c.messageTextContentFromIMessage(ctx, data),
-						}},
-					}, nil
+					converted, err := c.convertMessageFromIMessage(ctx, portal, intent, data)
+					if err != nil {
+						return nil, err
+					}
+					return editFromUpdatedMessage(existing, converted)
 				},
 			})
 		}
@@ -83,6 +81,35 @@ func (c *Client) handleMessageStateSync(evt imessage.StateSyncEvent) error {
 		}
 	}
 	return nil
+}
+
+func editFromUpdatedMessage(existing []*database.Message, converted *bridgev2.ConvertedMessage) (*bridgev2.ConvertedEdit, error) {
+	if len(existing) == 0 || converted == nil || len(converted.Parts) == 0 {
+		return nil, bridgev2.ErrIgnoringRemoteEvent
+	}
+	edit := &bridgev2.ConvertedEdit{}
+	modifiedCount := len(converted.Parts)
+	if len(existing) < modifiedCount {
+		modifiedCount = len(existing)
+	}
+	for i := 0; i < modifiedCount; i++ {
+		editPart := converted.Parts[i].ToEditPart(existing[i])
+		if editPart != nil {
+			edit.ModifiedParts = append(edit.ModifiedParts, editPart)
+		}
+	}
+	if len(converted.Parts) > len(existing) {
+		edit.AddedParts = &bridgev2.ConvertedMessage{
+			ReplyTo:    converted.ReplyTo,
+			Disappear:  converted.Disappear,
+			ThreadRoot: converted.ThreadRoot,
+			Parts:      converted.Parts[len(existing):],
+		}
+	}
+	if len(existing) > len(converted.Parts) {
+		edit.DeletedParts = existing[len(converted.Parts):]
+	}
+	return edit, nil
 }
 
 func (c *Client) handleReactionStateSync(evt imessage.StateSyncEvent) error {
@@ -111,14 +138,75 @@ func (c *Client) handleReactionStateSync(evt imessage.StateSyncEvent) error {
 			return err
 		}
 		for _, id := range ids {
+			reactionID := string(id)
+			senderID, reactionKey := c.reactionSenderAndKey(context.Background(), targetMessageID, reactionID)
 			c.UserLogin.QueueRemoteEvent(&simplevent.Reaction{
-				EventMeta:     c.eventMeta(evt.ObjectIDs.ThreadID, imessage.Message{ThreadID: evt.ObjectIDs.ThreadID}),
+				EventMeta:     c.eventMeta(evt.ObjectIDs.ThreadID, imessage.Message{ThreadID: evt.ObjectIDs.ThreadID, SenderID: string(senderID)}),
 				TargetMessage: targetMessageID,
 				EmojiID:       networkid.EmojiID(id),
+				Emoji:         reactionKey,
+				ReactionDBMeta: &imessageid.ReactionMetadata{
+					ReactionID:  reactionID,
+					ReactionKey: reactionKey,
+				},
 			})
 		}
 	}
 	return nil
+}
+
+var standardIMessageReactionKeys = []string{
+	"emphasize",
+	"question",
+	"dislike",
+	"sticker",
+	"heart",
+	"laugh",
+	"like",
+}
+
+func backfillReactionFromIMessage(reaction imessage.Reaction) *bridgev2.BackfillReaction {
+	return &bridgev2.BackfillReaction{
+		Sender:     bridgev2.EventSender{Sender: imessageid.MakeUserID(reaction.ParticipantID)},
+		EmojiID:    networkid.EmojiID(reaction.ID),
+		Emoji:      reaction.ReactionKey,
+		DBMetadata: reactionDBMetadata(reaction.ID, reaction.ReactionKey),
+	}
+}
+
+func reactionDBMetadata(reactionID, reactionKey string) *imessageid.ReactionMetadata {
+	return &imessageid.ReactionMetadata{
+		ReactionID:  reactionID,
+		ReactionKey: reactionKey,
+	}
+}
+
+func splitStandardIMessageReactionID(reactionID string) (senderID networkid.UserID, reactionKey string) {
+	for _, key := range standardIMessageReactionKeys {
+		if strings.HasSuffix(reactionID, key) && len(reactionID) > len(key) {
+			return imessageid.MakeUserID(strings.TrimSuffix(reactionID, key)), key
+		}
+	}
+	return "", ""
+}
+
+func (c *Client) reactionSenderAndKey(ctx context.Context, targetMessageID networkid.MessageID, reactionID string) (networkid.UserID, string) {
+	if c.Main != nil && c.Main.Bridge != nil && c.Main.Bridge.DB != nil && c.Main.Bridge.DB.Reaction != nil {
+		reactions, err := c.Main.Bridge.DB.Reaction.GetAllToMessage(ctx, receiver(c.UserLogin), targetMessageID)
+		if err == nil {
+			for _, reaction := range reactions {
+				if reaction.EmojiID != networkid.EmojiID(reactionID) {
+					continue
+				}
+				reactionKey := reaction.Emoji
+				if meta, ok := reaction.Metadata.(*imessageid.ReactionMetadata); ok && meta.ReactionKey != "" {
+					reactionKey = meta.ReactionKey
+				}
+				return reaction.SenderID, reactionKey
+			}
+		}
+	}
+	return splitStandardIMessageReactionID(reactionID)
 }
 
 func (c *Client) handleThreadStateSync(evt imessage.StateSyncEvent) error {

@@ -207,14 +207,19 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessages(threadID: String, pagination: PlatformSDK.PaginationArg?) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
+    public func getMessages(
+        threadID: String,
+        pagination: PlatformSDK.PaginationArg?,
+        limit: Int? = nil
+    ) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessages(
                 db: db,
                 threadID: threadID,
                 pagination: pagination,
                 currentUserID: currentUser.id,
-                accountID: accountID
+                accountID: accountID,
+                limit: limit
             )
         }
     }

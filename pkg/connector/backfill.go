@@ -32,11 +32,7 @@ func (c *Client) FetchMessages(ctx context.Context, params bridgev2.FetchMessage
 		}
 		reactions := make([]*bridgev2.BackfillReaction, 0, len(msg.Reactions))
 		for _, reaction := range msg.Reactions {
-			reactions = append(reactions, &bridgev2.BackfillReaction{
-				Sender:  bridgev2.EventSender{Sender: imessageid.MakeUserID(reaction.ParticipantID)},
-				EmojiID: networkid.EmojiID(reaction.ID),
-				Emoji:   reaction.ReactionKey,
-			})
+			reactions = append(reactions, backfillReactionFromIMessage(reaction))
 		}
 		messages = append(messages, &bridgev2.BackfillMessage{
 			ConvertedMessage: converted,
@@ -69,9 +65,14 @@ func backfillPagination(params bridgev2.FetchMessagesParams) *imessage.Paginatio
 	if params.Forward {
 		direction = "after"
 	}
+	limit := params.Count
+	if limit < 0 {
+		limit = 0
+	}
 	return &imessage.Pagination{
 		Cursor:    cursor,
 		Direction: direction,
+		Limit:     limit,
 	}
 }
 

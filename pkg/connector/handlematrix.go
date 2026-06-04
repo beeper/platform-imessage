@@ -34,17 +34,24 @@ func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 		err  error
 	)
 
+	if err := c.ensureAccessibilityForSending(); err != nil {
+		return nil, err
+	}
+
 	quotedMessageID := ""
 	if msg.ReplyTo != nil {
-		quotedMessageID = string(msg.ReplyTo.ID)
+		quotedMessageID = platformMessageID(msg.ReplyTo)
 	}
 
 	if msg.Content.MsgType.IsText() {
 		sent, err = c.IM.SendText(string(msg.Portal.ID), msg.Content.Body, quotedMessageID)
 		if err != nil && quotedMessageID == "" {
-			sent, err = c.createChatFromSyntheticPortal(string(msg.Portal.ID), msg.Content.Body, msg.Portal.Name)
+			sent, err = c.createChatFromSyntheticPortal(ctx, string(msg.Portal.ID), msg.Content.Body, msg.Portal.Name)
 		}
 	} else if msg.Content.MsgType.IsMedia() {
+		if quotedMessageID == "" && len(recipientsFromThreadID(string(msg.Portal.ID))) > 0 {
+			return nil, matrixUnsupported("new iMessage chats must be started with a text message before sending attachments")
+		}
 		var tempPath string
 		tempPath, err = c.downloadMatrixMedia(ctx, msg)
 		if err == nil {
@@ -69,13 +76,30 @@ func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 			SenderID:  c.GetUserID(),
 			Timestamp: messageTimestamp(*first),
 			Metadata: &imessageid.MessageMetadata{
-				ThreadID: string(msg.Portal.ID),
+				ThreadID: responseThreadID(string(msg.Portal.ID), *first),
 			},
 		},
 	}, nil
 }
 
-func (c *Client) createChatFromSyntheticPortal(threadID, text, title string) ([]imessage.Message, error) {
+func (c *Client) ensureAccessibilityForSending() error {
+	authStatus, err := c.IM.AuthorizationStatus()
+	if err != nil {
+		return err
+	}
+	for _, permission := range authStatus.Permissions {
+		if permission.ID != "accessibility" || permission.Authorized {
+			continue
+		}
+		if _, requestErr := c.IM.RequestAuthorization("accessibility"); requestErr != nil {
+			return requestErr
+		}
+		return errors.New("Accessibility permission is required to send iMessages. Enable this bridge in System Settings > Privacy & Security > Accessibility, then retry sending")
+	}
+	return nil
+}
+
+func (c *Client) createChatFromSyntheticPortal(ctx context.Context, threadID, text, title string) ([]imessage.Message, error) {
 	recipients := recipientsFromThreadID(threadID)
 	if len(recipients) == 0 {
 		return nil, errors.New("portal ID does not contain synthetic iMessage recipients")
@@ -85,10 +109,20 @@ func (c *Client) createChatFromSyntheticPortal(threadID, text, title string) ([]
 		return nil, err
 	}
 	if thread != nil && thread.PartialLastMessage != nil {
+		if thread.ID != "" && thread.ID != threadID {
+			c.reIDPortal(ctx, threadID, thread.ID)
+		}
 		thread.PartialLastMessage.ThreadID = thread.ID
 		return []imessage.Message{*thread.PartialLastMessage}, nil
 	}
 	return c.findRecentlyCreatedMessage(threadID, text)
+}
+
+func responseThreadID(portalID string, msg imessage.Message) string {
+	if msg.ThreadID != "" {
+		return msg.ThreadID
+	}
+	return portalID
 }
 
 func (c *Client) findRecentlyCreatedMessage(oldThreadID, text string) ([]imessage.Message, error) {
@@ -114,6 +148,9 @@ func (c *Client) findRecentlyCreatedMessage(oldThreadID, text string) ([]imessag
 }
 
 func recipientsFromThreadID(threadID string) []string {
+	if !strings.HasPrefix(threadID, "any;-;") && !strings.HasPrefix(threadID, "group;-;") {
+		return nil
+	}
 	parts := strings.Split(threadID, ";-;")
 	if len(parts) < 2 {
 		return nil
@@ -154,7 +191,7 @@ func (c *Client) downloadMatrixMedia(ctx context.Context, msg *bridgev2.MatrixMe
 }
 
 func (c *Client) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
-	return c.IM.Edit(string(msg.Portal.ID), string(msg.EditTarget.ID), msg.Content.Body)
+	return c.IM.Edit(string(msg.Portal.ID), platformMessageID(msg.EditTarget), msg.Content.Body)
 }
 
 func (c *Client) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
@@ -170,33 +207,78 @@ func (c *Client) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.Matr
 
 func (c *Client) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (*database.Reaction, error) {
 	emoji := msg.Content.RelatesTo.Key
-	err := c.IM.React(string(msg.Portal.ID), string(msg.TargetMessage.ID), emoji, true)
+	emojiID := c.makeOwnReactionID(emoji)
+	if err := c.removeSupersededIMessageReactions(ctx, msg, emojiID); err != nil {
+		return nil, err
+	}
+	err := c.IM.React(string(msg.Portal.ID), platformMessageID(msg.TargetMessage), emoji, true)
 	if err != nil {
 		return nil, err
 	}
 	return &database.Reaction{
 		SenderID:  c.GetUserID(),
-		EmojiID:   c.makeOwnReactionID(emoji),
+		EmojiID:   emojiID,
 		Emoji:     emoji,
 		Timestamp: time.Now(),
 		Metadata: &imessageid.ReactionMetadata{
-			ReactionID:  string(c.makeOwnReactionID(emoji)),
+			ReactionID:  string(emojiID),
 			ReactionKey: emoji,
 		},
 	}, nil
 }
 
+func (c *Client) removeSupersededIMessageReactions(ctx context.Context, msg *bridgev2.MatrixReaction, newEmojiID networkid.EmojiID) error {
+	if c.Main == nil || c.Main.Bridge == nil || c.Main.Bridge.DB == nil || c.Main.Bridge.DB.Reaction == nil || msg == nil || msg.TargetMessage == nil {
+		return nil
+	}
+	oldReactions, err := c.Main.Bridge.DB.Reaction.GetAllToMessageBySender(ctx, receiver(c.UserLogin), msg.TargetMessage.ID, c.GetUserID())
+	if err != nil {
+		return err
+	}
+	for _, oldReaction := range oldReactions {
+		if !shouldRemoveSupersededReaction(oldReaction, msg.ExistingReactionsToKeep, newEmojiID) {
+			continue
+		}
+		reactionKey := reactionKeyFromDBReaction(oldReaction)
+		if reactionKey == "" {
+			continue
+		}
+		if err := c.IM.React(string(msg.Portal.ID), platformReactionMessageID(oldReaction), reactionKey, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func shouldRemoveSupersededReaction(reaction *database.Reaction, keep []*database.Reaction, newEmojiID networkid.EmojiID) bool {
+	if reaction == nil || reaction.EmojiID == newEmojiID {
+		return false
+	}
+	for _, kept := range keep {
+		if kept == nil {
+			continue
+		}
+		if kept.MessageID == reaction.MessageID &&
+			kept.MessagePartID == reaction.MessagePartID &&
+			kept.SenderID == reaction.SenderID &&
+			kept.EmojiID == reaction.EmojiID {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *Client) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
 	return c.IM.React(
 		string(msg.Portal.ID),
-		string(msg.TargetReaction.MessageID),
-		msg.TargetReaction.Emoji,
+		platformReactionMessageID(msg.TargetReaction),
+		reactionKeyFromDBReaction(msg.TargetReaction),
 		false,
 	)
 }
 
 func (c *Client) HandleMatrixMessageRemove(ctx context.Context, msg *bridgev2.MatrixMessageRemove) error {
-	return c.IM.DeleteMessage(string(msg.Portal.ID), string(msg.TargetMessage.ID))
+	return c.IM.DeleteMessage(string(msg.Portal.ID), platformMessageID(msg.TargetMessage))
 }
 
 func (c *Client) HandleMatrixReadReceipt(ctx context.Context, msg *bridgev2.MatrixReadReceipt) error {
@@ -237,6 +319,60 @@ func (c *Client) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2.Matri
 
 func (c *Client) makeOwnReactionID(reactionKey string) networkid.EmojiID {
 	return networkid.EmojiID(string(c.GetUserID()) + reactionKey)
+}
+
+func reactionKeyFromDBReaction(reaction *database.Reaction) string {
+	if reaction == nil {
+		return ""
+	}
+	if meta, ok := reaction.Metadata.(*imessageid.ReactionMetadata); ok && meta.ReactionKey != "" {
+		return meta.ReactionKey
+	}
+	if reaction.Emoji != "" {
+		return reaction.Emoji
+	}
+	_, reactionKey := splitStandardIMessageReactionID(string(reaction.EmojiID))
+	return reactionKey
+}
+
+func platformMessageID(message *database.Message) string {
+	if message == nil {
+		return ""
+	}
+	return platformMessageIDParts(message.ID, message.PartID)
+}
+
+func platformReactionMessageID(reaction *database.Reaction) string {
+	if reaction == nil {
+		return ""
+	}
+	return platformMessageIDParts(reaction.MessageID, reaction.MessagePartID)
+}
+
+func platformMessageIDParts(messageID networkid.MessageID, partID networkid.PartID) string {
+	if messageID == "" {
+		return ""
+	}
+	if platformMessageIDHasPart(string(messageID)) {
+		return string(messageID)
+	}
+	if partID == "" {
+		return string(messageID)
+	}
+	return string(messageID) + "_" + string(partID)
+}
+
+func platformMessageIDHasPart(messageID string) bool {
+	_, part, ok := strings.Cut(messageID, "_")
+	if !ok || part == "" {
+		return false
+	}
+	for _, char := range part {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func messageTextContentFromIMessage(msg imessage.Message) *event.MessageEventContent {

@@ -17,7 +17,13 @@ var (
 	_ bridgev2.IdentifierResolvingNetworkAPI = (*Client)(nil)
 	_ bridgev2.ContactListingNetworkAPI      = (*Client)(nil)
 	_ bridgev2.UserSearchingNetworkAPI       = (*Client)(nil)
+	_ bridgev2.GhostDMCreatingNetworkAPI     = (*Client)(nil)
+	_ bridgev2.IdentifierValidatingNetwork   = (*Connector)(nil)
 )
+
+func (c *Connector) ValidateUserID(id networkid.UserID) bool {
+	return validIMessageIdentifier(string(id))
+}
 
 func (c *Client) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
 	thread, err := c.IM.Chat(string(portal.ID))
@@ -35,9 +41,9 @@ func (c *Client) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridg
 }
 
 func (c *Client) ResolveIdentifier(ctx context.Context, identifier string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
-	identifier = strings.TrimSpace(identifier)
-	if identifier == "" {
-		return nil, matrixUnsupported("empty iMessage identifier")
+	identifier = normalizeIMessageIdentifier(identifier)
+	if !validIMessageIdentifier(identifier) {
+		return nil, matrixUnsupported("invalid iMessage identifier")
 	}
 	user := imessage.User{ID: identifier, Username: identifier}
 	resp := &bridgev2.ResolveIdentifierResponse{
@@ -48,6 +54,13 @@ func (c *Client) ResolveIdentifier(ctx context.Context, identifier string, creat
 		resp.Chat = c.syntheticChatResponse([]string{identifier}, "")
 	}
 	return resp, nil
+}
+
+func (c *Client) CreateChatWithGhost(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.CreateChatResponse, error) {
+	if ghost == nil || !validIMessageIdentifier(string(ghost.ID)) {
+		return nil, matrixUnsupported("invalid iMessage user ID")
+	}
+	return c.syntheticChatResponse([]string{string(ghost.ID)}, ""), nil
 }
 
 func (c *Client) GetContactList(ctx context.Context) ([]*bridgev2.ResolveIdentifierResponse, error) {
@@ -91,6 +104,18 @@ func (c *Client) contactResponses(filter string) ([]*bridgev2.ResolveIdentifierR
 		return string(out[i].UserID) < string(out[j].UserID)
 	})
 	return out, nil
+}
+
+func normalizeIMessageIdentifier(identifier string) string {
+	return strings.TrimSpace(identifier)
+}
+
+func validIMessageIdentifier(identifier string) bool {
+	identifier = normalizeIMessageIdentifier(identifier)
+	return identifier != "" &&
+		!strings.Contains(identifier, ";-;") &&
+		!strings.Contains(identifier, ",") &&
+		!strings.ContainsAny(identifier, "\x00\r\n\t")
 }
 
 func contactMatches(filter string, user imessage.User, info *bridgev2.UserInfo) bool {

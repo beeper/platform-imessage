@@ -78,7 +78,12 @@ private final class BridgeRuntime: @unchecked Sendable {
             let values = events.map { $0.jsonObject() }
             self?.appendEventBatch(values)
         }
-        try await api.startEventWatchingFromCurrentState()
+        do {
+            try await api.startEventWatchingFromCurrentState()
+        } catch {
+            clearEventsStarted()
+            throw error
+        }
     }
 
     func watchChat(threadID: String) async throws {
@@ -95,6 +100,12 @@ private final class BridgeRuntime: @unchecked Sendable {
         let shouldStart = !eventsStarted
         eventsStarted = true
         return shouldStart
+    }
+
+    private func clearEventsStarted() {
+        lock.lock()
+        eventsStarted = false
+        lock.unlock()
     }
 
     private func appendEventBatch(_ events: [Any]) {
@@ -123,22 +134,27 @@ private final class BridgeRuntime: @unchecked Sendable {
 private struct PaginationInput: Decodable {
     let cursor: String
     let direction: String
+    let limit: Int?
 }
 
 private func parsePagination(_ raw: UnsafePointer<CChar>?) throws -> PlatformSDK.PaginationArg? {
+    try parsePaginationInput(raw).pagination
+}
+
+private func parsePaginationInput(_ raw: UnsafePointer<CChar>?) throws -> (pagination: PlatformSDK.PaginationArg?, limit: Int?) {
     guard let raw else {
-        return nil
+        return (nil, nil)
     }
     let string = String(cString: raw)
     guard !string.isEmpty else {
-        return nil
+        return (nil, nil)
     }
     let data = Data(string.utf8)
     let decoded = try JSONDecoder().decode(PaginationInput.self, from: data)
     guard let direction = PlatformSDK.PaginationDirection(rawValue: decoded.direction) else {
         throw ErrorMessage("invalid pagination direction \(decoded.direction)")
     }
-    return PlatformSDK.PaginationArg(cursor: decoded.cursor, direction: direction)
+    return (PlatformSDK.PaginationArg(cursor: decoded.cursor, direction: direction), decoded.limit)
 }
 
 private func parseStringArray(_ raw: UnsafePointer<CChar>) throws -> [String] {
@@ -181,10 +197,10 @@ private func authorizationStatus() async -> [String: Any] {
             id: "accessibility",
             title: "Accessibility",
             status: accessibility,
-            required: true,
+            required: false,
             detail: accessibility == .authorized
                 ? "The bridge can control Messages.app."
-                : "Enable this bridge in System Settings > Privacy & Security > Accessibility."
+                : "Enable this bridge in System Settings > Privacy & Security > Accessibility to send messages and automate Messages.app."
         ),
         permissionStatus(
             id: "contacts",
@@ -215,14 +231,14 @@ private func authorizationStatus() async -> [String: Any] {
     ]
 
     return [
-        "authorized": accessibility == .authorized && contacts == .authorized && messagesData == .authorized,
+        "authorized": contacts == .authorized && messagesData == .authorized,
         "permissions": permissions,
     ]
 }
 
 private func requestAuthorization(_ target: String) async throws -> [String: Any] {
     let names: [String] = target == "all" || target.isEmpty
-        ? ["accessibility", "contacts", "messages-data", "automation"]
+        ? ["contacts", "messages-data", "automation"]
         : [target]
 
     for name in names {
@@ -230,14 +246,19 @@ private func requestAuthorization(_ target: String) async throws -> [String: Any
         case "accessibility":
             MacPermissions.askForAccessibilityAccess()
         case "contacts":
-            _ = try? await MacPermissions.askForContactsAccess()
+            Task.detached {
+                _ = try? await MacPermissions.askForContactsAccess()
+            }
         case "messages-data":
-            try? await MacPermissions.askForMessagesDirAccess()
             if (try? await MacPermissions.canAccessMessagesDir()) != true {
-                MacPermissions.askForFullDiskAccess()
+                do {
+                    try await MacPermissions.askForMessagesDirAccess()
+                } catch {
+                    MacPermissions.askForFullDiskAccess()
+                }
             }
         case "automation":
-            try? await MacPermissions.askForAutomationAccess()
+            break
         default:
             throw ErrorMessage("unknown authorization target \(name)")
         }
@@ -377,8 +398,12 @@ public func imessage_bridge_messages(
 ) -> UnsafeMutablePointer<CChar>? {
     runBlocking {
         let threadID = String(cString: threadID)
-        let pagination = try parsePagination(paginationJSON)
-        return try await BridgeRuntime.shared.platformAPI().getMessages(threadID: threadID, pagination: pagination).jsonObject
+        let paginationInput = try parsePaginationInput(paginationJSON)
+        return try await BridgeRuntime.shared.platformAPI().getMessages(
+            threadID: threadID,
+            pagination: paginationInput.pagination,
+            limit: paginationInput.limit
+        ).jsonObject
     }
 }
 
@@ -534,6 +559,13 @@ public func imessage_bridge_notify_anyway(_ threadID: UnsafePointer<CChar>) -> U
     runBlocking {
         try await BridgeRuntime.shared.platformAPI().notifyAnyway(threadID: String(cString: threadID))
         return true
+    }
+}
+
+@_cdecl("imessage_bridge_activity_status")
+public func imessage_bridge_activity_status(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await BridgeRuntime.shared.platformAPI().getThreadActivityStatus(threadID: String(cString: threadID)).jsonObject
     }
 }
 

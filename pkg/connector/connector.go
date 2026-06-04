@@ -27,6 +27,8 @@ func (c *Connector) Init(br *bridgev2.Bridge) {
 	br.Commands.(*commands.Processor).AddHandlers(
 		cmdCreateIMessageChat,
 		cmdNotifyAnyway,
+		cmdActivityStatus,
+		cmdSelectChat,
 		cmdSearchMessages,
 	)
 }

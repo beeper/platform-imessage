@@ -33,6 +33,13 @@ type Page[T any] struct {
 type Pagination struct {
 	Cursor    string `json:"cursor"`
 	Direction string `json:"direction"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+type ActivityStatus struct {
+	ActivityType       string `json:"activityType"`
+	PresenceStatus     string `json:"presenceStatus,omitempty"`
+	DidObservePresence bool   `json:"didObservePresence"`
 }
 
 func (p *Pagination) JSON() (string, error) {

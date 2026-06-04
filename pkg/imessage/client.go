@@ -192,6 +192,18 @@ func (c *Client) NotifyAnyway(threadID string) error {
 	return err
 }
 
+func (c *Client) ActivityStatus(threadID string) (*ActivityStatus, error) {
+	raw, err := lib.ActivityStatus(threadID)
+	if err != nil {
+		return nil, err
+	}
+	status, err := decode[ActivityStatus](raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode activity status: %w", err)
+	}
+	return &status, nil
+}
+
 func (c *Client) Typing(threadID string, enabled bool) error {
 	_, err := lib.Typing(threadID, enabled)
 	return err

@@ -26,6 +26,7 @@ char *imessage_bridge_mark_unread(const char *thread_id);
 char *imessage_bridge_mute(const char *thread_id, int32_t muted);
 char *imessage_bridge_delete_chat(const char *thread_id);
 char *imessage_bridge_notify_anyway(const char *thread_id);
+char *imessage_bridge_activity_status(const char *thread_id);
 char *imessage_bridge_typing(const char *thread_id, int32_t enabled);
 char *imessage_bridge_watch_chat(const char *thread_id);
 char *imessage_bridge_search_messages(const char *query, const char *thread_id, const char *pagination_json, int32_t limit);
@@ -215,6 +216,12 @@ func NotifyAnyway(threadID string) (json.RawMessage, error) {
 	threadIDC, freeThreadID := cstr(threadID)
 	defer freeThreadID()
 	return call(func() *C.char { return C.imessage_bridge_notify_anyway(threadIDC) })
+}
+
+func ActivityStatus(threadID string) (json.RawMessage, error) {
+	threadIDC, freeThreadID := cstr(threadID)
+	defer freeThreadID()
+	return call(func() *C.char { return C.imessage_bridge_activity_status(threadIDC) })
 }
 
 func Typing(threadID string, enabled bool) (json.RawMessage, error) {

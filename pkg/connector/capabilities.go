@@ -18,6 +18,7 @@ var generalCaps = &bridgev2.NetworkGeneralCapabilities{
 	Provisioning: bridgev2.ProvisioningCapabilities{
 		ResolveIdentifier: bridgev2.ResolveIdentifierCapabilities{
 			CreateDM:    true,
+			LookupEmail: true,
 			AnyPhone:    true,
 			ContactList: true,
 			Search:      true,
@@ -30,11 +31,11 @@ func (c *Connector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities {
 }
 
 func (c *Connector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 1
+	return 1, 2
 }
 
 var roomCaps = &event.RoomFeatures{
-	ID: "com.beeper.imessage.capabilities.2026_06_04",
+	ID: "com.beeper.imessage.capabilities.2026_06_05",
 	Formatting: map[event.FormattingFeature]event.CapabilitySupportLevel{
 		event.FmtBold:          event.CapLevelDropped,
 		event.FmtItalic:        event.CapLevelDropped,
@@ -80,5 +81,10 @@ var roomCaps = &event.RoomFeatures{
 }
 
 func (c *Client) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
-	return roomCaps.Clone()
+	caps := roomCaps.Clone()
+	if portal != nil && len(recipientsFromThreadID(string(portal.ID))) > 0 {
+		caps.ID = "com.beeper.imessage.capabilities.2026_06_05.synthetic"
+		caps.File = nil
+	}
+	return caps
 }

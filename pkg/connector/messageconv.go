@@ -47,7 +47,16 @@ func (c *Client) convertMessageFromIMessage(ctx context.Context, portal *bridgev
 			DBMetadata: messageDBMetadata(msg),
 		})
 	}
+	setConvertedMessagePartIDs(converted.Parts)
 	return converted, nil
+}
+
+func setConvertedMessagePartIDs(parts []*bridgev2.ConvertedMessagePart) {
+	for i, part := range parts {
+		if part != nil {
+			part.ID = imessageid.MakePartID(i)
+		}
+	}
 }
 
 func (c *Client) convertAttachmentFromIMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, msg imessage.Message, attachment imessage.Attachment) (*bridgev2.ConvertedMessagePart, error) {
