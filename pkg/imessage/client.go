@@ -173,6 +173,11 @@ func (c *Client) Typing(threadID string, enabled bool) error {
 	return err
 }
 
+func (c *Client) WatchChat(threadID string) error {
+	_, err := lib.WatchChat(threadID)
+	return err
+}
+
 func (c *Client) SearchMessages(query, threadID string, pagination *Pagination, limit int) (*Page[Message], error) {
 	paginationJSON, err := pagination.JSON()
 	if err != nil {

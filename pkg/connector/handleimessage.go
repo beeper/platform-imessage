@@ -28,6 +28,7 @@ func (c *Client) handleMessageStateSync(evt imessage.StateSyncEvent) error {
 				message.ThreadID = evt.ObjectIDs.ThreadID
 			}
 			message := message
+			c.queueMessageActionChange(context.Background(), message)
 			c.UserLogin.QueueRemoteEvent(&simplevent.Message[imessage.Message]{
 				EventMeta: c.eventMeta(message.ThreadID, message),
 				ID:        imessageid.MakeMessageID(message.ID),
@@ -62,7 +63,7 @@ func (c *Client) handleMessageStateSync(evt imessage.StateSyncEvent) error {
 						ModifiedParts: []*bridgev2.ConvertedEditPart{{
 							Part:    existing[0],
 							Type:    event.EventMessage,
-							Content: messageTextContentFromIMessage(data),
+							Content: c.messageTextContentFromIMessage(ctx, data),
 						}},
 					}, nil
 				},
@@ -98,6 +99,10 @@ func (c *Client) handleReactionStateSync(evt imessage.StateSyncEvent) error {
 				TargetMessage: targetMessageID,
 				EmojiID:       networkid.EmojiID(reaction.ID),
 				Emoji:         reaction.ReactionKey,
+				ReactionDBMeta: &imessageid.ReactionMetadata{
+					ReactionID:  reaction.ID,
+					ReactionKey: reaction.ReactionKey,
+				},
 			})
 		}
 	case "delete":
@@ -138,12 +143,100 @@ func (c *Client) handleThreadStateSync(evt imessage.StateSyncEvent) error {
 	for _, thread := range threads {
 		thread := thread
 		c.reIDKnownSyntheticPortals(context.Background(), thread)
+		c.queueThreadReadState(thread)
 		c.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
 			EventMeta: c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
 			ChatInfo:  c.chatInfoFromThread(thread),
 		})
 	}
 	return nil
+}
+
+func (c *Client) queueThreadReadState(thread imessage.Thread) {
+	unread := thread.IsUnread
+	if thread.IsMarkedUnread != nil {
+		unread = *thread.IsMarkedUnread
+	}
+	c.UserLogin.QueueRemoteEvent(&simplevent.MarkUnread{
+		EventMeta: c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventMarkUnread),
+		Unread:    unread,
+	})
+	if thread.LastReadMessageID != "" && !unread {
+		readUpTo := messageTimestamp(imessage.Message{Timestamp: thread.Timestamp})
+		if thread.LastReadMessageSortKey > 0 {
+			readUpTo = messageTimestamp(imessage.Message{Timestamp: thread.LastReadMessageSortKey})
+		}
+		c.UserLogin.QueueRemoteEvent(&simplevent.Receipt{
+			EventMeta:  c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventReadReceipt),
+			LastTarget: imessageid.MakeMessageID(thread.LastReadMessageID),
+			Targets:    []networkid.MessageID{imessageid.MakeMessageID(thread.LastReadMessageID)},
+			ReadUpTo:   readUpTo,
+		})
+	}
+}
+
+func (c *Client) queueMessageActionChange(ctx context.Context, message imessage.Message) {
+	if message.Action == nil || message.ThreadID == "" {
+		return
+	}
+	if message.Action.Type == "thread_img_changed" {
+		c.queueThreadResync(ctx, message.ThreadID)
+		return
+	}
+	change := c.chatInfoChangeFromAction(*message.Action)
+	if change == nil {
+		return
+	}
+	c.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
+		EventMeta:      c.eventMeta(message.ThreadID, message).WithType(bridgev2.RemoteEventChatInfoChange),
+		ChatInfoChange: change,
+	})
+}
+
+func (c *Client) chatInfoChangeFromAction(action imessage.MessageAction) *bridgev2.ChatInfoChange {
+	switch action.Type {
+	case "thread_title_updated", "group_thread_created":
+		return &bridgev2.ChatInfoChange{
+			ChatInfo: &bridgev2.ChatInfo{Name: &action.Title},
+		}
+	case "thread_participants_added", "thread_participants_removed":
+		membership := event.MembershipJoin
+		prevMembership := event.MembershipLeave
+		if action.Type == "thread_participants_removed" {
+			membership = event.MembershipLeave
+			prevMembership = event.MembershipJoin
+		}
+		members := bridgev2.ChatMemberMap{}
+		participants := map[string]imessage.User{}
+		for _, participant := range action.Participants {
+			participants[participant.ID] = participant
+		}
+		for _, participantID := range action.ParticipantIDs {
+			if participantID == "" {
+				continue
+			}
+			user := participants[participantID]
+			if user.ID == "" {
+				user = imessage.User{ID: participantID, Username: participantID}
+			}
+			userID := imessageid.MakeUserID(participantID)
+			members.Set(bridgev2.ChatMember{
+				EventSender:    bridgev2.EventSender{Sender: userID},
+				Membership:     membership,
+				PrevMembership: prevMembership,
+				UserInfo:       c.userInfoFromUser(user),
+				MemberSender:   bridgev2.EventSender{Sender: imessageid.MakeUserID(action.ActorParticipantID)},
+			})
+		}
+		if len(members) == 0 {
+			return nil
+		}
+		return &bridgev2.ChatInfoChange{
+			MemberChanges: &bridgev2.ChatMemberList{MemberMap: members},
+		}
+	default:
+		return nil
+	}
 }
 
 func (c *Client) reIDKnownSyntheticPortals(ctx context.Context, thread imessage.Thread) {

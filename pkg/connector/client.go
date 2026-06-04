@@ -99,6 +99,9 @@ func (c *Client) eventLoop() {
 
 func (c *Client) handleStateSyncEvent(evt imessage.StateSyncEvent) error {
 	if evt.Type != "state_sync" {
+		if evt.Type == "user_activity" {
+			c.handleUserActivity(evt)
+		}
 		return nil
 	}
 	switch evt.ObjectName {
@@ -113,6 +116,26 @@ func (c *Client) handleStateSyncEvent(evt imessage.StateSyncEvent) error {
 	}
 }
 
+func (c *Client) handleUserActivity(evt imessage.StateSyncEvent) {
+	if evt.ThreadID == "" || evt.ParticipantID == "" {
+		return
+	}
+	timeout := 120 * time.Second
+	if evt.DurationMS > 0 {
+		timeout = time.Duration(evt.DurationMS) * time.Millisecond
+	}
+	if evt.ActivityType != "typing" {
+		timeout = 0
+	}
+	meta := c.baseEventMeta(evt.ThreadID).WithType(bridgev2.RemoteEventTyping)
+	meta.Sender = bridgev2.EventSender{Sender: imessageid.MakeUserID(evt.ParticipantID)}
+	c.UserLogin.QueueRemoteEvent(&simplevent.Typing{
+		EventMeta: meta,
+		Timeout:   timeout,
+		Type:      bridgev2.TypingTypeText,
+	})
+}
+
 func (c *Client) syncExistingChats() {
 	page, err := c.IM.Chats(nil)
 	if err != nil {
@@ -122,6 +145,7 @@ func (c *Client) syncExistingChats() {
 	for _, thread := range page.Items {
 		thread := thread
 		c.reIDKnownSyntheticPortals(context.Background(), thread)
+		c.queueThreadReadState(thread)
 		c.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
 			EventMeta: c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
 			ChatInfo:  c.chatInfoFromThread(thread),

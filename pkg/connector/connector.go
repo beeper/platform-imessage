@@ -9,6 +9,7 @@ import (
 	"github.com/beeper/platform-imessage/pkg/imessage"
 	"github.com/beeper/platform-imessage/pkg/imessageid"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/commands"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 )
@@ -23,6 +24,11 @@ var _ bridgev2.StoppableNetwork = (*Connector)(nil)
 
 func (c *Connector) Init(br *bridgev2.Bridge) {
 	c.Bridge = br
+	br.Commands.(*commands.Processor).AddHandlers(
+		cmdCreateIMessageChat,
+		cmdNotifyAnyway,
+		cmdSearchMessages,
+	)
 }
 
 func (c *Connector) Start(ctx context.Context) error {
@@ -66,6 +72,7 @@ func (c *Connector) GetDBMetaTypes() database.MetaTypes {
 		Portal:    func() any { return &imessageid.PortalMetadata{} },
 		Ghost:     func() any { return &imessageid.GhostMetadata{} },
 		Message:   func() any { return &imessageid.MessageMetadata{} },
+		Reaction:  func() any { return &imessageid.ReactionMetadata{} },
 	}
 }
 

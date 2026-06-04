@@ -159,9 +159,10 @@ func (c *Client) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit)
 
 func (c *Client) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
 	emoji := msg.Content.RelatesTo.Key
+	emojiID := c.makeOwnReactionID(emoji)
 	return bridgev2.MatrixReactionPreResponse{
 		SenderID:     c.GetUserID(),
-		EmojiID:      networkid.EmojiID(emoji),
+		EmojiID:      emojiID,
 		Emoji:        emoji,
 		MaxReactions: 1,
 	}, nil
@@ -175,9 +176,13 @@ func (c *Client) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixR
 	}
 	return &database.Reaction{
 		SenderID:  c.GetUserID(),
-		EmojiID:   networkid.EmojiID(emoji),
+		EmojiID:   c.makeOwnReactionID(emoji),
 		Emoji:     emoji,
 		Timestamp: time.Now(),
+		Metadata: &imessageid.ReactionMetadata{
+			ReactionID:  string(c.makeOwnReactionID(emoji)),
+			ReactionKey: emoji,
+		},
 	}, nil
 }
 
@@ -202,7 +207,10 @@ func (c *Client) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.Matr
 	if msg.Portal == nil {
 		return nil
 	}
-	return c.IM.MarkRead(string(msg.Portal.ID))
+	if err := c.IM.MarkRead(string(msg.Portal.ID)); err != nil {
+		return err
+	}
+	return c.IM.WatchChat(string(msg.Portal.ID))
 }
 
 func (c *Client) HandleMatrixTyping(ctx context.Context, msg *bridgev2.MatrixTyping) error {
@@ -227,6 +235,10 @@ func (c *Client) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2.Matri
 	return c.IM.DeleteChat(string(msg.Portal.ID))
 }
 
+func (c *Client) makeOwnReactionID(reactionKey string) networkid.EmojiID {
+	return networkid.EmojiID(string(c.GetUserID()) + reactionKey)
+}
+
 func messageTextContentFromIMessage(msg imessage.Message) *event.MessageEventContent {
 	body := msg.Text
 	if body == "" && len(msg.Attachments) > 0 {
@@ -239,4 +251,36 @@ func messageTextContentFromIMessage(msg imessage.Message) *event.MessageEventCon
 		MsgType: event.MsgText,
 		Body:    body,
 	}
+}
+
+func (c *Client) messageTextContentFromIMessage(ctx context.Context, msg imessage.Message) *event.MessageEventContent {
+	content := messageTextContentFromIMessage(msg)
+	content.Mentions = c.mentionsFromIMessage(ctx, msg)
+	content.BeeperLinkPreviews = linkPreviewsFromIMessage(msg)
+	return content
+}
+
+func linkPreviewsFromIMessage(msg imessage.Message) []*event.BeeperLinkPreview {
+	if len(msg.Links) == 0 {
+		return nil
+	}
+	previews := make([]*event.BeeperLinkPreview, 0, len(msg.Links))
+	for _, link := range msg.Links {
+		if link.URL == "" && link.OriginalURL == "" {
+			continue
+		}
+		matched := link.OriginalURL
+		if matched == "" {
+			matched = link.URL
+		}
+		previews = append(previews, &event.BeeperLinkPreview{
+			MatchedURL: matched,
+			LinkPreview: event.LinkPreview{
+				CanonicalURL: link.URL,
+				Title:        link.Title,
+				Description:  link.Summary,
+			},
+		})
+	}
+	return previews
 }

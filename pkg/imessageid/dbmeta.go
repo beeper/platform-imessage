@@ -18,6 +18,11 @@ type MessageMetadata struct {
 	AttachmentURLs []string `json:"attachment_urls,omitempty"`
 }
 
+type ReactionMetadata struct {
+	ReactionID  string `json:"reaction_id,omitempty"`
+	ReactionKey string `json:"reaction_key,omitempty"`
+}
+
 type GhostMetadata struct {
 	ContactID string `json:"contact_id,omitempty"`
 }

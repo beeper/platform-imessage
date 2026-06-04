@@ -31,7 +31,7 @@ func (c *Client) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bri
 }
 
 func (c *Client) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
-	return userInfoFromUser(imessage.User{ID: string(ghost.ID)}), nil
+	return c.userInfoFromUser(imessage.User{ID: string(ghost.ID)}), nil
 }
 
 func (c *Client) ResolveIdentifier(ctx context.Context, identifier string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
@@ -42,7 +42,7 @@ func (c *Client) ResolveIdentifier(ctx context.Context, identifier string, creat
 	user := imessage.User{ID: identifier, Username: identifier}
 	resp := &bridgev2.ResolveIdentifierResponse{
 		UserID:   imessageid.MakeUserID(identifier),
-		UserInfo: userInfoFromUser(user),
+		UserInfo: c.userInfoFromUser(user),
 	}
 	if createChat {
 		resp.Chat = c.syntheticChatResponse([]string{identifier}, "")
@@ -73,7 +73,7 @@ func (c *Client) contactResponses(filter string) ([]*bridgev2.ResolveIdentifierR
 			if participant.ID == "" {
 				continue
 			}
-			info := userInfoFromUser(participant)
+			info := c.userInfoFromUser(participant)
 			if filter != "" && !contactMatches(filter, participant, info) {
 				continue
 			}
@@ -120,7 +120,7 @@ func (c *Client) syntheticChatResponse(participants []string, name string) *brid
 		members.Set(bridgev2.ChatMember{
 			EventSender: bridgev2.EventSender{Sender: userID},
 			Membership:  event.MembershipJoin,
-			UserInfo:    userInfoFromUser(imessage.User{ID: participant, Username: participant}),
+			UserInfo:    c.userInfoFromUser(imessage.User{ID: participant, Username: participant}),
 		})
 	}
 	info := &bridgev2.ChatInfo{
@@ -152,7 +152,7 @@ func (c *Client) chatInfoFromThread(thread imessage.Thread) *bridgev2.ChatInfo {
 		memberMap.Set(bridgev2.ChatMember{
 			EventSender: bridgev2.EventSender{Sender: userID},
 			Membership:  event.MembershipJoin,
-			UserInfo:    userInfoFromUser(participant),
+			UserInfo:    c.userInfoFromUser(participant),
 		})
 	}
 	memberMap.Set(bridgev2.ChatMember{
@@ -176,10 +176,13 @@ func (c *Client) chatInfoFromThread(thread imessage.Thread) *bridgev2.ChatInfo {
 	if thread.Title != "" {
 		info.Name = &thread.Title
 	}
+	if thread.ImgURL != "" {
+		info.Avatar = c.avatarFromURL(thread.ImgURL)
+	}
 	return info
 }
 
-func userInfoFromUser(user imessage.User) *bridgev2.UserInfo {
+func (c *Client) userInfoFromUser(user imessage.User) *bridgev2.UserInfo {
 	displayName := user.FullName
 	if displayName == "" {
 		displayName = user.Nickname
@@ -197,7 +200,23 @@ func userInfoFromUser(user imessage.User) *bridgev2.UserInfo {
 	info := &bridgev2.UserInfo{
 		Name: &displayName,
 	}
+	if user.ImgURL != "" {
+		info.Avatar = c.avatarFromURL(user.ImgURL)
+	}
 	return info
+}
+
+func (c *Client) avatarFromURL(rawURL string) *bridgev2.Avatar {
+	if rawURL == "" {
+		return nil
+	}
+	return &bridgev2.Avatar{
+		ID: networkid.AvatarID(rawURL),
+		Get: func(ctx context.Context) ([]byte, error) {
+			data, _, err := c.readAttachmentURL(ctx, rawURL, 0)
+			return data, err
+		},
+	}
 }
 
 func receiver(login *bridgev2.UserLogin) networkid.UserLoginID {

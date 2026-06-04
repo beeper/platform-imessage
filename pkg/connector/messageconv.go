@@ -23,9 +23,10 @@ func (c *Client) convertMessageFromIMessage(ctx context.Context, portal *bridgev
 	}
 
 	if strings.TrimSpace(msg.Text) != "" || len(msg.Attachments) == 0 {
+		content := c.messageTextContentFromIMessage(ctx, msg)
 		converted.Parts = append(converted.Parts, &bridgev2.ConvertedMessagePart{
 			Type:       event.EventMessage,
-			Content:    messageTextContentFromIMessage(msg),
+			Content:    content,
 			DBMetadata: messageDBMetadata(msg),
 		})
 	}
@@ -39,9 +40,10 @@ func (c *Client) convertMessageFromIMessage(ctx context.Context, portal *bridgev
 	}
 
 	if len(converted.Parts) == 0 {
+		content := c.messageTextContentFromIMessage(ctx, msg)
 		converted.Parts = append(converted.Parts, &bridgev2.ConvertedMessagePart{
 			Type:       event.EventMessage,
-			Content:    messageTextContentFromIMessage(msg),
+			Content:    content,
 			DBMetadata: messageDBMetadata(msg),
 		})
 	}
@@ -80,7 +82,38 @@ func (c *Client) attachmentBytes(ctx context.Context, msg imessage.Message, atta
 		if err := c.IM.LoadAttachment(msg.ID); err != nil {
 			return nil, "", "", err
 		}
-		return nil, "", "", fmt.Errorf("attachment %s has no source URL after load request", attachment.ID)
+		reloaded, err := c.IM.Chat(msg.ThreadID)
+		if err != nil {
+			return nil, "", "", err
+		}
+		if reloaded != nil && reloaded.PartialLastMessage != nil && reloaded.PartialLastMessage.ID == msg.ID {
+			for _, loadedAttachment := range reloaded.PartialLastMessage.Attachments {
+				if loadedAttachment.ID == attachment.ID && loadedAttachment.SrcURL != "" {
+					attachment = loadedAttachment
+					break
+				}
+			}
+		}
+		if attachment.SrcURL == "" {
+			page, err := c.IM.Messages(msg.ThreadID, nil)
+			if err != nil {
+				return nil, "", "", err
+			}
+			for _, loadedMessage := range page.Items {
+				if loadedMessage.ID != msg.ID {
+					continue
+				}
+				for _, loadedAttachment := range loadedMessage.Attachments {
+					if loadedAttachment.ID == attachment.ID && loadedAttachment.SrcURL != "" {
+						attachment = loadedAttachment
+						break
+					}
+				}
+			}
+		}
+		if attachment.SrcURL == "" {
+			return nil, "", "", fmt.Errorf("attachment %s has no source URL after load request", attachment.ID)
+		}
 	}
 	data, path, err := c.readAttachmentURL(ctx, attachment.SrcURL, 0)
 	if err != nil {
@@ -196,4 +229,25 @@ func messageDBMetadata(msg imessage.Message) *imessageid.MessageMetadata {
 		}
 	}
 	return meta
+}
+
+func (c *Client) mentionsFromIMessage(ctx context.Context, msg imessage.Message) *event.Mentions {
+	if msg.TextAttributes == nil {
+		return nil
+	}
+	mentions := &event.Mentions{}
+	for _, entity := range msg.TextAttributes.Entities {
+		if entity.MentionedUser == nil || entity.MentionedUser.ID == "" {
+			continue
+		}
+		ghost, err := c.Main.Bridge.GetGhostByID(ctx, imessageid.MakeUserID(entity.MentionedUser.ID))
+		if err != nil || ghost == nil {
+			continue
+		}
+		mentions.Add(ghost.Intent.GetMXID())
+	}
+	if len(mentions.UserIDs) == 0 && !mentions.Room {
+		return nil
+	}
+	return mentions
 }

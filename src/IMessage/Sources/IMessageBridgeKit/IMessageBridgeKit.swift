@@ -81,6 +81,14 @@ private final class BridgeRuntime: @unchecked Sendable {
         try await api.startEventWatchingFromCurrentState()
     }
 
+    func watchChat(threadID: String) async throws {
+        let api = try platformAPI()
+        try await api.onThreadSelected(threadID: threadID) { [weak self] events in
+            let values = events.map { $0.jsonObject() }
+            self?.appendEventBatch(values)
+        }
+    }
+
     private func markEventsStarted() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -438,6 +446,14 @@ public func imessage_bridge_typing(
             type: enabled != 0 ? "typing" : "none",
             threadID: String(cString: threadID)
         )
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_watch_chat")
+public func imessage_bridge_watch_chat(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await BridgeRuntime.shared.watchChat(threadID: String(cString: threadID))
         return true
     }
 }
