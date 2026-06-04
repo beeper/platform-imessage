@@ -43,6 +43,30 @@ func (c *Client) CurrentUser() (*CurrentUser, error) {
 	return &user, nil
 }
 
+func (c *Client) AuthorizationStatus() (*AuthorizationStatus, error) {
+	raw, err := lib.AuthorizationStatus()
+	if err != nil {
+		return nil, err
+	}
+	status, err := decode[AuthorizationStatus](raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode authorization status: %w", err)
+	}
+	return &status, nil
+}
+
+func (c *Client) RequestAuthorization(target string) (*AuthorizationStatus, error) {
+	raw, err := lib.RequestAuthorization(target)
+	if err != nil {
+		return nil, err
+	}
+	status, err := decode[AuthorizationStatus](raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode authorization status: %w", err)
+	}
+	return &status, nil
+}
+
 func (c *Client) Chats(pagination *Pagination) (*Page[Thread], error) {
 	paginationJSON, err := pagination.JSON()
 	if err != nil {

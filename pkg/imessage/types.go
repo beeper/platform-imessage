@@ -9,6 +9,20 @@ type CurrentUser struct {
 	PhoneNumber string `json:"phoneNumber,omitempty"`
 }
 
+type AuthorizationStatus struct {
+	Authorized  bool               `json:"authorized"`
+	Permissions []PermissionStatus `json:"permissions"`
+}
+
+type PermissionStatus struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`
+	Authorized bool   `json:"authorized"`
+	Required   bool   `json:"required"`
+	Detail     string `json:"detail,omitempty"`
+}
+
 type Page[T any] struct {
 	Items        []T    `json:"items"`
 	HasMore      bool   `json:"hasMore"`

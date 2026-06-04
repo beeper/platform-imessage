@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/beeper/platform-imessage/pkg/imessage"
@@ -21,15 +23,34 @@ type Client struct {
 	UserLogin *bridgev2.UserLogin
 	IM        *imessage.Client
 
+	stopEventLock sync.Mutex
 	stopEventLoop chan struct{}
-	stopOnce      sync.Once
+	loggedIn      atomic.Bool
 }
 
 var _ bridgev2.NetworkAPI = (*Client)(nil)
 var _ bridgev2.NetworkAPIWithUserID = (*Client)(nil)
 
 func (c *Client) Connect(ctx context.Context) {
+	c.loggedIn.Store(false)
 	c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
+	authStatus, err := c.IM.AuthorizationStatus()
+	if err != nil {
+		c.UserLogin.BridgeState.Send(status.BridgeState{
+			StateEvent: status.StateBadCredentials,
+			Error:      "IMESSAGE_PERMISSION_CHECK_FAILED",
+			Message:    err.Error(),
+		})
+		return
+	}
+	if !authStatus.Authorized {
+		c.UserLogin.BridgeState.Send(status.BridgeState{
+			StateEvent: status.StateBadCredentials,
+			Error:      "IMESSAGE_PERMISSIONS_MISSING",
+			Message:    missingPermissionMessage(authStatus),
+		})
+		return
+	}
 	if _, err := c.IM.CurrentUser(); err != nil {
 		c.UserLogin.BridgeState.Send(status.BridgeState{
 			StateEvent: status.StateBadCredentials,
@@ -38,6 +59,8 @@ func (c *Client) Connect(ctx context.Context) {
 		})
 		return
 	}
+	stopEventLoop := c.resetEventLoop()
+	c.loggedIn.Store(true)
 	c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 
 	if err := c.IM.StartEvents(); err != nil {
@@ -45,17 +68,37 @@ func (c *Client) Connect(ctx context.Context) {
 		return
 	}
 	go c.syncExistingChats()
-	go c.eventLoop()
+	go c.eventLoop(stopEventLoop)
+}
+
+func missingPermissionMessage(authStatus *imessage.AuthorizationStatus) string {
+	if authStatus == nil {
+		return "Local iMessage permissions are missing"
+	}
+	var missing []string
+	for _, permission := range authStatus.Permissions {
+		if permission.Required && !permission.Authorized {
+			missing = append(missing, permission.Title)
+		}
+	}
+	if len(missing) == 0 {
+		return "Local iMessage permissions are missing"
+	}
+	return "Missing local iMessage permissions: " + strings.Join(missing, ", ")
 }
 
 func (c *Client) Disconnect() {
-	c.stopOnce.Do(func() {
+	c.loggedIn.Store(false)
+	c.stopEventLock.Lock()
+	defer c.stopEventLock.Unlock()
+	if c.stopEventLoop != nil {
 		close(c.stopEventLoop)
-	})
+		c.stopEventLoop = nil
+	}
 }
 
 func (c *Client) IsLoggedIn() bool {
-	return true
+	return c.loggedIn.Load()
 }
 
 func (c *Client) LogoutRemote(ctx context.Context) {
@@ -70,7 +113,17 @@ func (c *Client) GetUserID() networkid.UserID {
 	return imessageid.MakeUserID(string(c.UserLogin.ID))
 }
 
-func (c *Client) eventLoop() {
+func (c *Client) resetEventLoop() <-chan struct{} {
+	c.stopEventLock.Lock()
+	defer c.stopEventLock.Unlock()
+	if c.stopEventLoop != nil {
+		close(c.stopEventLoop)
+	}
+	c.stopEventLoop = make(chan struct{})
+	return c.stopEventLoop
+}
+
+func (c *Client) eventLoop(stopEventLoop <-chan struct{}) {
 	timeout := c.Main.Config.EventPollTimeoutMS
 	if timeout <= 0 {
 		timeout = 30000
@@ -78,7 +131,7 @@ func (c *Client) eventLoop() {
 
 	for {
 		select {
-		case <-c.stopEventLoop:
+		case <-stopEventLoop:
 			return
 		default:
 		}

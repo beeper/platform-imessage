@@ -10,6 +10,8 @@ package lib
 char *imessage_bridge_init(const char *data_dir, int32_t verbose, int32_t use_secondary_instance);
 char *imessage_bridge_dispose(void);
 char *imessage_bridge_current_user(void);
+char *imessage_bridge_authorization_status(void);
+char *imessage_bridge_request_authorization(const char *target);
 char *imessage_bridge_chats(const char *pagination_json);
 char *imessage_bridge_chat(const char *thread_id);
 char *imessage_bridge_messages(const char *thread_id, const char *pagination_json);
@@ -93,6 +95,16 @@ func Dispose() (json.RawMessage, error) {
 
 func CurrentUser() (json.RawMessage, error) {
 	return call(func() *C.char { return C.imessage_bridge_current_user() })
+}
+
+func AuthorizationStatus() (json.RawMessage, error) {
+	return call(func() *C.char { return C.imessage_bridge_authorization_status() })
+}
+
+func RequestAuthorization(target string) (json.RawMessage, error) {
+	targetC, freeTarget := optionalCStr(target)
+	defer freeTarget()
+	return call(func() *C.char { return C.imessage_bridge_request_authorization(targetC) })
 }
 
 func Chats(paginationJSON string) (json.RawMessage, error) {

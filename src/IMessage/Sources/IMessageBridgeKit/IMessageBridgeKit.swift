@@ -159,6 +159,93 @@ private func assetResponse(_ result: PlatformAPI.AssetResult) -> Any {
     }
 }
 
+private func permissionStatus(id: String, title: String, status: MacPermissionAuthStatus, required: Bool, detail: String) -> [String: Any] {
+    [
+        "id": id,
+        "title": title,
+        "status": status.rawValue,
+        "authorized": status == .authorized,
+        "required": required,
+        "detail": detail,
+    ]
+}
+
+private func authorizationStatus() async -> [String: Any] {
+    let accessibility = MacPermissions.getAuthStatus(.accessibility)
+    let contacts = MacPermissions.getAuthStatus(.contacts)
+    let messagesDataOK = (try? await MacPermissions.canAccessMessagesDir()) == true
+    let messagesData: MacPermissionAuthStatus = messagesDataOK ? .authorized : .denied
+
+    let permissions: [[String: Any]] = [
+        permissionStatus(
+            id: "accessibility",
+            title: "Accessibility",
+            status: accessibility,
+            required: true,
+            detail: accessibility == .authorized
+                ? "The bridge can control Messages.app."
+                : "Enable this bridge in System Settings > Privacy & Security > Accessibility."
+        ),
+        permissionStatus(
+            id: "contacts",
+            title: "Contacts",
+            status: contacts,
+            required: true,
+            detail: contacts == .authorized
+                ? "The bridge can look up contact names and avatars."
+                : "Allow Contacts access so bridged chats can use local contact names and avatars."
+        ),
+        permissionStatus(
+            id: "messages-data",
+            title: "Messages Data",
+            status: messagesData,
+            required: true,
+            detail: messagesData == .authorized
+                ? "The bridge can read your local Messages database."
+                : "Allow access to ~/Library/Messages. If the folder picker does not grant access, enable Full Disk Access."
+        ),
+        [
+            "id": "automation",
+            "title": "Automation",
+            "status": "requestable",
+            "authorized": true,
+            "required": false,
+            "detail": "The bridge asks for Apple Events access to Messages.app during setup when macOS requires it.",
+        ],
+    ]
+
+    return [
+        "authorized": accessibility == .authorized && contacts == .authorized && messagesData == .authorized,
+        "permissions": permissions,
+    ]
+}
+
+private func requestAuthorization(_ target: String) async throws -> [String: Any] {
+    let names: [String] = target == "all" || target.isEmpty
+        ? ["accessibility", "contacts", "messages-data", "automation"]
+        : [target]
+
+    for name in names {
+        switch name {
+        case "accessibility":
+            MacPermissions.askForAccessibilityAccess()
+        case "contacts":
+            _ = try? await MacPermissions.askForContactsAccess()
+        case "messages-data":
+            try? await MacPermissions.askForMessagesDirAccess()
+            if (try? await MacPermissions.canAccessMessagesDir()) != true {
+                MacPermissions.askForFullDiskAccess()
+            }
+        case "automation":
+            try? await MacPermissions.askForAutomationAccess()
+        default:
+            throw ErrorMessage("unknown authorization target \(name)")
+        }
+    }
+
+    return await authorizationStatus()
+}
+
 private func jsonValue(_ raw: String) -> Any {
     guard let data = raw.data(using: .utf8),
           let value = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
@@ -249,6 +336,20 @@ public func imessage_bridge_dispose() -> UnsafeMutablePointer<CChar>? {
 public func imessage_bridge_current_user() -> UnsafeMutablePointer<CChar>? {
     runBlocking {
         try await BridgeRuntime.shared.platformAPI().getCurrentUser().jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_authorization_status")
+public func imessage_bridge_authorization_status() -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        await authorizationStatus()
+    }
+}
+
+@_cdecl("imessage_bridge_request_authorization")
+public func imessage_bridge_request_authorization(_ target: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await requestAuthorization(target.map(String.init(cString:)) ?? "all")
     }
 }
 

@@ -3,6 +3,8 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/beeper/platform-imessage/pkg/imessage"
 	"github.com/beeper/platform-imessage/pkg/imessageid"
@@ -12,9 +14,9 @@ import (
 )
 
 const (
-	loginFlowLocal = "local"
-	loginStepLocal = "com.beeper.imessage.login.local"
-	loginStepDone  = "com.beeper.imessage.login.complete"
+	loginFlowLocal       = "local"
+	loginStepPermissions = "com.beeper.imessage.login.permissions"
+	loginStepDone        = "com.beeper.imessage.login.complete"
 )
 
 func (c *Connector) GetLoginFlows() []bridgev2.LoginFlow {
@@ -43,14 +45,67 @@ type LocalLogin struct {
 }
 
 var _ bridgev2.LoginProcess = (*LocalLogin)(nil)
+var _ bridgev2.LoginProcessDisplayAndWait = (*LocalLogin)(nil)
 
 func (l *LocalLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
+	if err := l.ensureOnlyLocalLoginOwner(ctx); err != nil {
+		return nil, err
+	}
+
+	authStatus, err := l.IM.AuthorizationStatus()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check local iMessage permissions: %w", err)
+	}
+	if authStatus.Authorized {
+		return l.complete(ctx)
+	}
+
+	authStatus, err = l.IM.RequestAuthorization("all")
+	if err != nil {
+		return nil, fmt.Errorf("failed to request local iMessage permissions: %w", err)
+	}
+	if authStatus.Authorized {
+		return l.complete(ctx)
+	}
+
+	return l.permissionStep(authStatus), nil
+}
+
+func (l *LocalLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		if err := l.ensureOnlyLocalLoginOwner(ctx); err != nil {
+			return nil, err
+		}
+
+		authStatus, err := l.IM.AuthorizationStatus()
+		if err != nil {
+			return nil, fmt.Errorf("failed to check local iMessage permissions: %w", err)
+		}
+		if authStatus.Authorized {
+			return l.complete(ctx)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (l *LocalLogin) complete(ctx context.Context) (*bridgev2.LoginStep, error) {
 	currentUser, err := l.IM.CurrentUser()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local iMessage user: %w", err)
 	}
 
 	loginID := imessageid.MakeUserLoginID(currentUser.ID)
+	if existing := l.existingLoginForUser(); existing != nil {
+		loginID = existing.ID
+	}
 	remoteName := currentUser.DisplayText
 	if remoteName == "" {
 		remoteName = currentUser.Email
@@ -76,7 +131,7 @@ func (l *LocalLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 			PhoneNumber: currentUser.PhoneNumber,
 		},
 	}, &bridgev2.NewLoginParams{
-		DeleteOnConflict: true,
+		DeleteOnConflict: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create iMessage login: %w", err)
@@ -91,6 +146,68 @@ func (l *LocalLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 			UserLogin:   ul,
 		},
 	}, nil
+}
+
+func (l *LocalLogin) permissionStep(status *imessage.AuthorizationStatus) *bridgev2.LoginStep {
+	return &bridgev2.LoginStep{
+		Type:         bridgev2.LoginStepTypeDisplayAndWait,
+		StepID:       loginStepPermissions,
+		Instructions: permissionInstructions(status),
+		DisplayAndWaitParams: &bridgev2.LoginDisplayAndWaitParams{
+			Type: bridgev2.LoginDisplayTypeNothing,
+		},
+	}
+}
+
+func permissionInstructions(status *imessage.AuthorizationStatus) string {
+	var lines []string
+	lines = append(lines,
+		"Grant local iMessage permissions on this Mac. The bridge will continue automatically after macOS reports that access is available.",
+		"",
+	)
+	for _, permission := range status.Permissions {
+		if !permission.Required {
+			continue
+		}
+		marker := "[ ]"
+		if permission.Authorized {
+			marker = "[ok]"
+		}
+		line := fmt.Sprintf("%s %s", marker, permission.Title)
+		if permission.Detail != "" {
+			line += " - " + permission.Detail
+		}
+		lines = append(lines, line)
+	}
+	lines = append(lines, "", "If a settings window opened, enable this bridge there and return to Beeper.")
+	return strings.Join(lines, "\n")
+}
+
+func (l *LocalLogin) existingLoginForUser() *bridgev2.UserLogin {
+	for _, login := range l.Main.Bridge.GetAllCachedUserLogins() {
+		if login.UserMXID == l.User.MXID {
+			return login
+		}
+	}
+	return nil
+}
+
+func (l *LocalLogin) ensureOnlyLocalLoginOwner(ctx context.Context) error {
+	for _, login := range l.Main.Bridge.GetAllCachedUserLogins() {
+		if login.UserMXID != l.User.MXID {
+			return fmt.Errorf("local iMessage is already connected by %s; this bridge can only have one local iMessage login", login.UserMXID)
+		}
+	}
+	userIDs, err := l.Main.Bridge.DB.UserLogin.GetAllUserIDsWithLogins(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check existing iMessage logins: %w", err)
+	}
+	for _, userID := range userIDs {
+		if userID != l.User.MXID {
+			return fmt.Errorf("local iMessage is already connected by %s; this bridge can only have one local iMessage login", userID)
+		}
+	}
+	return nil
 }
 
 func (l *LocalLogin) Cancel() {}

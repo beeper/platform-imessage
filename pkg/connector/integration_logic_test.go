@@ -191,6 +191,83 @@ func TestCapabilitiesDoNotAdvertiseUnsupportedGroupCreation(t *testing.T) {
 	}
 }
 
+func TestPermissionInstructions(t *testing.T) {
+	instructions := permissionInstructions(&imessage.AuthorizationStatus{
+		Permissions: []imessage.PermissionStatus{{
+			Title:      "Accessibility",
+			Authorized: true,
+			Required:   true,
+			Detail:     "The bridge can control Messages.app.",
+		}, {
+			Title:    "Messages Data",
+			Required: true,
+			Detail:   "Allow access to ~/Library/Messages.",
+		}, {
+			Title:  "Automation",
+			Detail: "Optional prompt.",
+		}},
+	})
+	if !strings.Contains(instructions, "[ok] Accessibility - The bridge can control Messages.app.") {
+		t.Fatalf("missing authorized permission line:\n%s", instructions)
+	}
+	if !strings.Contains(instructions, "[ ] Messages Data - Allow access to ~/Library/Messages.") {
+		t.Fatalf("missing missing-permission line:\n%s", instructions)
+	}
+	if strings.Contains(instructions, "Automation") {
+		t.Fatalf("optional permission should not be shown as blocking:\n%s", instructions)
+	}
+}
+
+func TestMissingPermissionMessage(t *testing.T) {
+	message := missingPermissionMessage(&imessage.AuthorizationStatus{
+		Permissions: []imessage.PermissionStatus{{
+			Title:    "Accessibility",
+			Required: true,
+		}, {
+			Title:      "Contacts",
+			Required:   true,
+			Authorized: true,
+		}, {
+			Title: "Automation",
+		}},
+	})
+	if message != "Missing local iMessage permissions: Accessibility" {
+		t.Fatalf("unexpected missing permission message: %q", message)
+	}
+}
+
+func TestClientLoginStateAndEventLoopReset(t *testing.T) {
+	client := &Client{}
+	if client.IsLoggedIn() {
+		t.Fatal("new client should not report logged in")
+	}
+
+	first := client.resetEventLoop()
+	client.loggedIn.Store(true)
+	client.Disconnect()
+	if client.IsLoggedIn() {
+		t.Fatal("disconnect should clear logged-in state")
+	}
+	select {
+	case <-first:
+	default:
+		t.Fatal("disconnect should close the active event loop channel")
+	}
+
+	second := client.resetEventLoop()
+	select {
+	case <-second:
+		t.Fatal("reset should create a fresh open event loop channel")
+	default:
+	}
+	client.Disconnect()
+	select {
+	case <-second:
+	default:
+		t.Fatal("disconnect should close the reset event loop channel")
+	}
+}
+
 func TestMessageMetadataAndSearchFormatting(t *testing.T) {
 	meta := messageDBMetadata(imessage.Message{
 		ThreadID: "thread",
