@@ -278,7 +278,9 @@ struct SettingsView: View {
     }
 }
 
+#if ENABLE_SWIFTUI_PREVIEWS
 @available(macOS 13, *)
 #Preview {
     SettingsView()
 }
+#endif

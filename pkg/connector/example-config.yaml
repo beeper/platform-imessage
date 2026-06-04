@@ -1,0 +1,11 @@
+bridge:
+    command_prefix: "!imessage"
+    permissions:
+        "*": relay
+        "@admin:example.com": admin
+
+network:
+    data_dir: ./imessage-data
+    verbose: false
+    use_secondary_instance: true
+    event_poll_timeout_ms: 30000
