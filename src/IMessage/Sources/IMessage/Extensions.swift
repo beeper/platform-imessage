@@ -16,22 +16,26 @@ extension NSApplication {
 
 extension NSRunningApplication {
     func waitForLaunch(timeout seconds: TimeInterval = 5) async throws {
-        var cancellable: AnyCancellable?
-        _ = cancellable
+        if isFinishedLaunching, !isTerminated {
+            return
+        }
 
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            if isFinishedLaunching {
-                continuation.resume()
-            } else {
-                cancellable = self.publisher(for: \.isFinishedLaunching, options: [.initial, .new])
-                    .filter { $0 } // we only care about isFinishedLaunching = true
-                    .first()
-                    .timeout(.seconds(seconds), scheduler: DispatchQueue.global())
-                    .sink { _ in
-                        continuation.resume()
-                    } receiveValue: { _ in
-                        
-                    }
+        try await withTimeout(seconds) {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                defer {
+                    group.cancelAll()
+                }
+
+                group.addTask { [self] in
+                    try await self.waitForValue(\.isFinishedLaunching, true)
+                }
+
+                group.addTask { [self] in
+                    try await self.waitForValue(\.isTerminated, true)
+                    throw ErrorMessage("Application terminated while waiting for launch")
+                }
+
+                try await group.next()
             }
         }
     }
