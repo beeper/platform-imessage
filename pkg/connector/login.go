@@ -53,6 +53,10 @@ func (l *LocalLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 		return nil, err
 	}
 
+	if l.Main.Config.ShouldSkipPermissionValidation() {
+		return l.complete(ctx)
+	}
+
 	authStatus, err := l.IM.AuthorizationStatus()
 	if err != nil {
 		return nil, fmt.Errorf("failed to check local iMessage permissions: %w", err)
@@ -60,21 +64,16 @@ func (l *LocalLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	if authStatus.Authorized {
 		return l.complete(ctx)
 	}
-
-	authStatus, err = l.IM.RequestAuthorization("all")
-	if err != nil {
-		return nil, fmt.Errorf("failed to request local iMessage permissions: %w", err)
-	}
-	if authStatus.Authorized {
-		return l.complete(ctx)
-	}
-
 	return l.permissionStep(authStatus), nil
 }
 
 func (l *LocalLogin) SubmitUserInput(ctx context.Context, _ map[string]string) (*bridgev2.LoginStep, error) {
 	if err := l.ensureOnlyLocalLoginOwner(ctx); err != nil {
 		return nil, err
+	}
+
+	if l.Main.Config.ShouldSkipPermissionValidation() {
+		return l.complete(ctx)
 	}
 
 	authStatus, err := l.IM.AuthorizationStatus()
@@ -186,7 +185,7 @@ func (l *LocalLogin) permissionStep(status *imessage.AuthorizationStatus) *bridg
 func permissionInstructions(status *imessage.AuthorizationStatus) string {
 	var lines []string
 	lines = append(lines,
-		"Grant local iMessage permissions on this Mac, then choose Permissions granted and submit.",
+		"Grant the missing local iMessage permissions on this Mac, then choose Permissions granted and submit.",
 		"",
 	)
 	for _, permission := range status.Permissions {

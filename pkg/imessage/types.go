@@ -12,6 +12,7 @@ type CurrentUser struct {
 type AuthorizationStatus struct {
 	Authorized  bool               `json:"authorized"`
 	Permissions []PermissionStatus `json:"permissions"`
+	Automation  AutomationStatus   `json:"automation,omitempty"`
 }
 
 type PermissionStatus struct {
@@ -21,6 +22,19 @@ type PermissionStatus struct {
 	Authorized bool   `json:"authorized"`
 	Required   bool   `json:"required"`
 	Detail     string `json:"detail,omitempty"`
+}
+
+type AutomationStatus struct {
+	Status              string `json:"status,omitempty"`
+	Available           bool   `json:"available"`
+	Reason              string `json:"reason,omitempty"`
+	Message             string `json:"message,omitempty"`
+	FrontmostBundleID   string `json:"frontmostBundleID,omitempty"`
+	FrontmostName       string `json:"frontmostName,omitempty"`
+	MessagesRunning     bool   `json:"messagesRunning"`
+	MessagesActive      bool   `json:"messagesActive"`
+	MessagesHidden      bool   `json:"messagesHidden"`
+	MessagesWindowCount int    `json:"messagesWindowCount,omitempty"`
 }
 
 type Page[T any] struct {

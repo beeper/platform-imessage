@@ -275,18 +275,34 @@ final class MessagesAppElements {
                     log.notice("mainWindow: using compose deep link to try to get main window")
                     try self.openDeepLink(MessagesDeepLink.compose.url())
                 } else if attempt == 1 {
+                    log.notice("mainWindow: activating Messages and reopening compose deep link to create main window")
+                    self.runningApp.unhide()
+                    self.runningApp.activate()
+                    try MessagesController.openDeepLink(
+                        MessagesDeepLink.compose.url(),
+                        activating: true,
+                        hiding: false,
+                        targeting: self.runningApp
+                    )
+                } else if attempt == 2 {
+                    log.notice("mainWindow: sending Command-N to create Messages main window")
+                    self.runningApp.unhide()
+                    self.runningApp.activate()
+                    Thread.sleep(forTimeInterval: 0.2)
+                    try KeyPresser(pid: self.runningApp.processIdentifier).commandN(onMainThread: false)
+                } else if attempt == 3 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
                         Defaults.resetPrompts()
                     }
-                } else if attempt == 2 {
+                } else if attempt == 4 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.error("mainWindow: some prompts are still visible, force terminating")
                         // regular terminate wont work since all window close buttons are disabled
                         self.runningApp.forceTerminate()
                         // this should invalidate the MessagesController
                     }
-                } else if attempt > 3 {
+                } else if attempt > 5 {
                     do {
                         try self.dismissAnyPresentedSheet()
                     } catch {

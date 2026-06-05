@@ -2,7 +2,9 @@ package connector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/beeper/platform-imessage/pkg/imessage"
 	"github.com/beeper/platform-imessage/pkg/imessageid"
+	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -33,10 +36,15 @@ func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 		sent []imessage.Message
 		err  error
 	)
+	log := zerolog.Ctx(ctx).With().
+		Str("imessage_portal_id", string(msg.Portal.ID)).
+		Str("imessage_msgtype", string(msg.Content.MsgType)).
+		Logger()
 
 	if err := c.ensureAccessibilityForSending(); err != nil {
 		return nil, err
 	}
+	log.Debug().Msg("iMessage outgoing permission preflight passed")
 
 	quotedMessageID := ""
 	if msg.ReplyTo != nil {
@@ -44,9 +52,14 @@ func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 	}
 
 	if msg.Content.MsgType.IsText() {
-		sent, err = c.IM.SendText(string(msg.Portal.ID), msg.Content.Body, quotedMessageID)
-		if err != nil && quotedMessageID == "" {
+		if shouldCreateChatForOutgoingText(string(msg.Portal.ID), quotedMessageID) {
+			log.Debug().
+				Strs("imessage_recipients", recipientsFromThreadID(string(msg.Portal.ID))).
+				Msg("Starting synthetic iMessage chat from outgoing text")
 			sent, err = c.createChatFromSyntheticPortal(ctx, string(msg.Portal.ID), msg.Content.Body, msg.Portal.Name)
+		} else {
+			log.Debug().Str("quoted_message_id", quotedMessageID).Msg("Sending iMessage text")
+			sent, err = c.IM.SendText(string(msg.Portal.ID), msg.Content.Body, quotedMessageID)
 		}
 	} else if msg.Content.MsgType.IsMedia() {
 		if quotedMessageID == "" && len(recipientsFromThreadID(string(msg.Portal.ID))) > 0 {
@@ -62,8 +75,9 @@ func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 		return nil, matrixUnsupported("unsupported iMessage Matrix message type")
 	}
 	if err != nil {
-		return nil, err
+		return nil, c.decorateAutomationError(err)
 	}
+	log.Debug().Int("sent_count", len(sent)).Msg("iMessage outgoing send returned")
 
 	first, err := firstSentMessage(sent)
 	if err != nil {
@@ -83,6 +97,10 @@ func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 }
 
 func (c *Client) ensureAccessibilityForSending() error {
+	if c.Main.Config.ShouldSkipPermissionValidation() {
+		return nil
+	}
+
 	authStatus, err := c.IM.AuthorizationStatus()
 	if err != nil {
 		return err
@@ -99,6 +117,10 @@ func (c *Client) ensureAccessibilityForSending() error {
 	return nil
 }
 
+func shouldCreateChatForOutgoingText(portalID, quotedMessageID string) bool {
+	return quotedMessageID == "" && len(recipientsFromThreadID(portalID)) > 0
+}
+
 func (c *Client) createChatFromSyntheticPortal(ctx context.Context, threadID, text, title string) ([]imessage.Message, error) {
 	recipients := recipientsFromThreadID(threadID)
 	if len(recipients) == 0 {
@@ -108,7 +130,11 @@ func (c *Client) createChatFromSyntheticPortal(ctx context.Context, threadID, te
 	if err != nil {
 		return nil, err
 	}
-	if thread != nil && thread.PartialLastMessage != nil {
+	zerolog.Ctx(ctx).Debug().
+		Strs("imessage_recipients", recipients).
+		Bool("has_thread", thread != nil).
+		Msg("iMessage CreateChat returned")
+	if thread != nil && sentPartialLastMessageMatches(thread.PartialLastMessage, text) {
 		if thread.ID != "" && thread.ID != threadID {
 			c.reIDPortal(ctx, threadID, thread.ID)
 		}
@@ -116,6 +142,13 @@ func (c *Client) createChatFromSyntheticPortal(ctx context.Context, threadID, te
 		return []imessage.Message{*thread.PartialLastMessage}, nil
 	}
 	return c.findRecentlyCreatedMessage(threadID, text)
+}
+
+func sentPartialLastMessageMatches(message *imessage.Message, text string) bool {
+	if message == nil || message.Text != text {
+		return false
+	}
+	return message.IsSender == nil || *message.IsSender
 }
 
 func responseThreadID(portalID string, msg imessage.Message) string {
@@ -127,6 +160,8 @@ func responseThreadID(portalID string, msg imessage.Message) string {
 
 func (c *Client) findRecentlyCreatedMessage(oldThreadID, text string) ([]imessage.Message, error) {
 	startedAt := time.Now().Add(-5 * time.Second)
+	expectedParticipants := canonicalParticipantSet(recipientsFromThreadID(oldThreadID))
+	selfIdentifiers := c.currentUserIdentifiers()
 	for attempt := 0; attempt < 20; attempt++ {
 		page, err := c.IM.SearchMessages(text, "", nil, 20)
 		if err != nil {
@@ -138,6 +173,12 @@ func (c *Client) findRecentlyCreatedMessage(oldThreadID, text string) ([]imessag
 			}
 			if msg.IsSender != nil && !*msg.IsSender {
 				continue
+			}
+			if len(expectedParticipants) > 0 {
+				thread, err := c.IM.Chat(msg.ThreadID)
+				if err != nil || thread == nil || !participantSetMatchesThread(expectedParticipants, *thread, selfIdentifiers) {
+					continue
+				}
 			}
 			c.reIDPortal(context.Background(), oldThreadID, msg.ThreadID)
 			return []imessage.Message{msg}, nil
@@ -195,8 +236,12 @@ func (c *Client) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit)
 }
 
 func (c *Client) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
-	emoji := msg.Content.RelatesTo.Key
-	emojiID := c.makeOwnReactionID(emoji)
+	emoji := matrixReactionKey(msg)
+	platformKey, ok := platformReactionKeyFromBridge(emoji)
+	if !ok {
+		return bridgev2.MatrixReactionPreResponse{}, unsupportedIMessageReaction(emoji)
+	}
+	emojiID := c.makeOwnReactionID(platformKey)
 	return bridgev2.MatrixReactionPreResponse{
 		SenderID:     c.GetUserID(),
 		EmojiID:      emojiID,
@@ -206,12 +251,16 @@ func (c *Client) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.Matr
 }
 
 func (c *Client) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (*database.Reaction, error) {
-	emoji := msg.Content.RelatesTo.Key
-	emojiID := c.makeOwnReactionID(emoji)
+	emoji := matrixReactionKey(msg)
+	platformKey, ok := platformReactionKeyFromBridge(emoji)
+	if !ok {
+		return nil, unsupportedIMessageReaction(emoji)
+	}
+	emojiID := c.makeOwnReactionID(platformKey)
 	if err := c.removeSupersededIMessageReactions(ctx, msg, emojiID); err != nil {
 		return nil, err
 	}
-	err := c.IM.React(string(msg.Portal.ID), platformMessageID(msg.TargetMessage), emoji, true)
+	err := c.IM.React(string(msg.Portal.ID), platformMessageID(msg.TargetMessage), platformKey, true)
 	if err != nil {
 		return nil, err
 	}
@@ -222,9 +271,43 @@ func (c *Client) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixR
 		Timestamp: time.Now(),
 		Metadata: &imessageid.ReactionMetadata{
 			ReactionID:  string(emojiID),
-			ReactionKey: emoji,
+			ReactionKey: platformKey,
 		},
 	}, nil
+}
+
+func matrixReactionKey(msg *bridgev2.MatrixReaction) string {
+	if msg == nil {
+		return ""
+	}
+	if msg.Content != nil {
+		if key := strings.TrimSpace(msg.Content.RelatesTo.Key); key != "" {
+			return normalizeBridgeReactionKey(key)
+		}
+	}
+	if msg.Event == nil {
+		return ""
+	}
+	var raw struct {
+		RelatesTo struct {
+			Key string `json:"key"`
+		} `json:"m.relates_to"`
+	}
+	if len(msg.Event.Content.VeryRaw) > 0 && json.Unmarshal(msg.Event.Content.VeryRaw, &raw) == nil {
+		if key := strings.TrimSpace(raw.RelatesTo.Key); key != "" {
+			return normalizeBridgeReactionKey(key)
+		}
+	}
+	if relatesTo, ok := msg.Event.Content.Raw["m.relates_to"].(map[string]any); ok {
+		if key, ok := relatesTo["key"].(string); ok {
+			return normalizeBridgeReactionKey(key)
+		}
+	}
+	return ""
+}
+
+func unsupportedIMessageReaction(reactionKey string) error {
+	return matrixUnsupported(fmt.Sprintf("unsupported iMessage reaction %q (%x)", reactionKey, []byte(reactionKey)))
 }
 
 func (c *Client) removeSupersededIMessageReactions(ctx context.Context, msg *bridgev2.MatrixReaction, newEmojiID networkid.EmojiID) error {
@@ -282,7 +365,15 @@ func (c *Client) HandleMatrixMessageRemove(ctx context.Context, msg *bridgev2.Ma
 }
 
 func (c *Client) HandleMatrixReadReceipt(ctx context.Context, msg *bridgev2.MatrixReadReceipt) error {
-	return c.IM.MarkRead(string(msg.Portal.ID))
+	if msg.Portal == nil {
+		return nil
+	}
+	err := c.IM.MarkRead(string(msg.Portal.ID))
+	if shouldIgnoreBestEffortAutomationError(err) {
+		zerolog.Ctx(ctx).Warn().Err(err).Str("imessage_portal_id", string(msg.Portal.ID)).Msg("Ignoring best-effort iMessage read receipt failure")
+		return nil
+	}
+	return err
 }
 
 func (c *Client) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.MatrixViewingChat) error {
@@ -290,6 +381,10 @@ func (c *Client) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.Matr
 		return nil
 	}
 	if err := c.IM.MarkRead(string(msg.Portal.ID)); err != nil {
+		if shouldIgnoreBestEffortAutomationError(err) {
+			zerolog.Ctx(ctx).Warn().Err(err).Str("imessage_portal_id", string(msg.Portal.ID)).Msg("Ignoring best-effort iMessage viewing-chat read failure")
+			return c.IM.WatchChat(string(msg.Portal.ID))
+		}
 		return err
 	}
 	return c.IM.WatchChat(string(msg.Portal.ID))
@@ -317,6 +412,29 @@ func (c *Client) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2.Matri
 	return c.IM.DeleteChat(string(msg.Portal.ID))
 }
 
+func shouldIgnoreBestEffortAutomationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := err.Error()
+	return strings.Contains(errText, "Could not get main Messages window") ||
+		strings.Contains(errText, "Initialized MessagesController in an invalid state")
+}
+
+func (c *Client) decorateAutomationError(err error) error {
+	if err == nil || !shouldIgnoreBestEffortAutomationError(err) {
+		return err
+	}
+	authStatus, statusErr := c.IM.AuthorizationStatus()
+	if statusErr != nil || authStatus == nil || authStatus.Automation.Message == "" {
+		return err
+	}
+	if state := bridgeStateForAutomationStatus(authStatus.Automation); state != nil {
+		c.UserLogin.BridgeState.Send(*state)
+	}
+	return fmt.Errorf("%s: %w", authStatus.Automation.Message, err)
+}
+
 func (c *Client) makeOwnReactionID(reactionKey string) networkid.EmojiID {
 	return networkid.EmojiID(string(c.GetUserID()) + reactionKey)
 }
@@ -329,6 +447,9 @@ func reactionKeyFromDBReaction(reaction *database.Reaction) string {
 		return meta.ReactionKey
 	}
 	if reaction.Emoji != "" {
+		if platformKey, ok := platformReactionKeyFromBridge(reaction.Emoji); ok {
+			return platformKey
+		}
 		return reaction.Emoji
 	}
 	_, reactionKey := splitStandardIMessageReactionID(string(reaction.EmojiID))

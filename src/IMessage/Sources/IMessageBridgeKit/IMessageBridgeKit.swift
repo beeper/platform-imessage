@@ -1,10 +1,12 @@
 import Darwin
+import AppKit
 import Foundation
 import IMessage
 import IMessageCore
 import PlatformSDK
 
 private let defaultAccountID = "default"
+private let bridgeAutomationTimeout: TimeInterval = 45
 
 private final class BridgeRuntime: @unchecked Sendable {
     static let shared = BridgeRuntime()
@@ -17,7 +19,7 @@ private final class BridgeRuntime: @unchecked Sendable {
     private var eventBatches: [Any] = []
     private var eventsStarted = false
 
-    func initialize(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool) throws {
+    func initialize(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool, coordinateWindow: Bool) throws {
         lock.lock()
         defer { lock.unlock() }
 
@@ -25,7 +27,8 @@ private final class BridgeRuntime: @unchecked Sendable {
             IMessageHost.bootstrapWithOptions(
                 dataDirPath: dataDirPath,
                 verbose: verbose,
-                useSecondaryInstance: useSecondaryInstance
+                useSecondaryInstance: useSecondaryInstance,
+                coordinateWindow: coordinateWindow
             )
             didBootstrap = true
         }
@@ -186,6 +189,58 @@ private func permissionStatus(id: String, title: String, status: MacPermissionAu
     ]
 }
 
+private func messagesWindowCount() -> Int {
+    guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+        return 0
+    }
+    return windows.filter { window in
+        guard let ownerName = window[kCGWindowOwnerName as String] as? String else {
+            return false
+        }
+        return ownerName == "Messages"
+    }.count
+}
+
+private func automationStatus(accessibility: MacPermissionAuthStatus) -> [String: Any] {
+    let frontmost = NSWorkspace.shared.frontmostApplication
+    let frontmostBundleID = frontmost?.bundleIdentifier ?? ""
+    let frontmostName = frontmost?.localizedName ?? ""
+    let messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MobileSMS")
+    let messagesApp = messagesApps.first
+    let windowCount = messagesWindowCount()
+
+    var status = "available"
+    var reason = ""
+    var message = "Messages.app automation is available."
+
+    if frontmostBundleID == "com.apple.loginwindow" {
+        status = "unavailable"
+        reason = "LOGINWINDOW_FRONTMOST"
+        message = "The macOS GUI session is at loginwindow, so Messages.app cannot expose an automatable main window. Unlock or focus the user desktop session, then retry."
+    } else if accessibility != .authorized {
+        status = "degraded"
+        reason = "ACCESSIBILITY_NOT_AUTHORIZED"
+        message = "Accessibility is not authorized, so sending and other Messages.app automation may fail."
+    } else if messagesApp != nil && windowCount == 0 {
+        status = "degraded"
+        reason = "MESSAGES_WINDOW_NOT_VISIBLE"
+        message = "Messages.app is running but no on-screen Messages window is visible yet."
+    }
+
+    return [
+        "status": status,
+        "available": status != "unavailable",
+        "reason": reason,
+        "message": message,
+        "frontmostBundleID": frontmostBundleID,
+        "frontmostName": frontmostName,
+        "messagesRunning": messagesApp != nil,
+        "messagesActive": messagesApp?.isActive ?? false,
+        "messagesHidden": messagesApp?.isHidden ?? false,
+        "messagesWindowCount": windowCount,
+    ]
+}
+
 private func authorizationStatus() async -> [String: Any] {
     let accessibility = MacPermissions.getAuthStatus(.accessibility)
     let contacts = MacPermissions.getAuthStatus(.contacts)
@@ -233,21 +288,31 @@ private func authorizationStatus() async -> [String: Any] {
     return [
         "authorized": contacts == .authorized && messagesData == .authorized,
         "permissions": permissions,
+        "automation": automationStatus(accessibility: accessibility),
     ]
 }
 
 private func requestAuthorization(_ target: String) async throws -> [String: Any] {
-    let names: [String] = target == "all" || target.isEmpty
-        ? ["contacts", "messages-data", "automation"]
-        : [target]
+    let names: [String] = switch target {
+    case "", "all":
+        ["contacts", "messages-data", "automation"]
+    case "all-with-accessibility":
+        ["accessibility", "contacts", "messages-data", "automation"]
+    default:
+        [target]
+    }
 
     for name in names {
         switch name {
         case "accessibility":
-            MacPermissions.askForAccessibilityAccess()
+            if MacPermissions.getAuthStatus(.accessibility) != .authorized {
+                MacPermissions.askForAccessibilityAccess()
+            }
         case "contacts":
-            Task.detached {
-                _ = try? await MacPermissions.askForContactsAccess()
+            if MacPermissions.getAuthStatus(.contacts) != .authorized {
+                Task.detached {
+                    _ = try? await MacPermissions.askForContactsAccess()
+                }
             }
         case "messages-data":
             if (try? await MacPermissions.canAccessMessagesDir()) != true {
@@ -298,25 +363,33 @@ private func cString(_ string: String?) -> UnsafeMutablePointer<CChar>? {
     strdup(string ?? #"{"ok":false,"error":"failed to encode response"}"#)
 }
 
-private func runBlocking(_ operation: @escaping () async throws -> Any?) -> UnsafeMutablePointer<CChar>? {
-    let semaphore = DispatchSemaphore(value: 0)
-    let box = Protected<Result<Any?, Error>?>(nil)
+private func runBlocking(timeout: TimeInterval? = nil, _ operation: @escaping () async throws -> Any?) -> UnsafeMutablePointer<CChar>? {
+	let semaphore = DispatchSemaphore(value: 0)
+	let box = Protected<Result<Any?, Error>?>(nil)
 
-    Task {
-        do {
-            let value = try await operation()
-            box.withLock { $0 = .success(value) }
-        } catch {
-            box.withLock { $0 = .failure(error) }
-        }
-        semaphore.signal()
-    }
+	let task = Task {
+		do {
+			let value = try await operation()
+			box.withLock { $0 = .success(value) }
+		} catch {
+			box.withLock { $0 = .failure(error) }
+		}
+		semaphore.signal()
+	}
 
-    semaphore.wait()
-    switch box.read() {
-    case let .success(value):
-        return response(ok: value)
-    case let .failure(error):
+	if let timeout {
+		let deadline = DispatchTime.now() + timeout
+		if semaphore.wait(timeout: deadline) == .timedOut {
+			task.cancel()
+			return response(error: ErrorMessage("operation timed out after \(Int(timeout))s"))
+		}
+	} else {
+		semaphore.wait()
+	}
+	switch box.read() {
+	case let .success(value):
+		return response(ok: value)
+	case let .failure(error):
         return response(error: error)
     case nil:
         return response(error: ErrorMessage("operation ended without a result"))
@@ -332,14 +405,16 @@ public func imessage_bridge_free(_ pointer: UnsafeMutablePointer<CChar>?) {
 public func imessage_bridge_init(
     _ dataDir: UnsafePointer<CChar>?,
     _ verbose: Int32,
-    _ useSecondaryInstance: Int32
+    _ useSecondaryInstance: Int32,
+    _ coordinateWindow: Int32
 ) -> UnsafeMutablePointer<CChar>? {
     do {
         let dataDirPath = dataDir.map(String.init(cString:)) ?? NSTemporaryDirectory()
         try BridgeRuntime.shared.initialize(
             dataDirPath: dataDirPath,
             verbose: verbose != 0,
-            useSecondaryInstance: useSecondaryInstance != 0
+            useSecondaryInstance: useSecondaryInstance != 0,
+            coordinateWindow: coordinateWindow != 0
         )
         return response(ok: ["accountID": defaultAccountID])
     } catch {
@@ -411,15 +486,15 @@ public func imessage_bridge_messages(
 
 @_cdecl("imessage_bridge_send_text")
 public func imessage_bridge_send_text(
-    _ threadID: UnsafePointer<CChar>,
-    _ text: UnsafePointer<CChar>,
-    _ quotedMessageID: UnsafePointer<CChar>?
+	_ threadID: UnsafePointer<CChar>,
+	_ text: UnsafePointer<CChar>,
+	_ quotedMessageID: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
-        let quoted = quotedMessageID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
-        let result = try await BridgeRuntime.shared.platformAPI().sendMessage(
-            threadID: String(cString: threadID),
-            text: String(cString: text),
+	runBlocking(timeout: bridgeAutomationTimeout) {
+		let quoted = quotedMessageID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+		let result = try await BridgeRuntime.shared.platformAPI().sendMessage(
+			threadID: String(cString: threadID),
+			text: String(cString: text),
             filePath: nil,
             quotedMessageID: quoted
         )
@@ -429,15 +504,15 @@ public func imessage_bridge_send_text(
 
 @_cdecl("imessage_bridge_send_file")
 public func imessage_bridge_send_file(
-    _ threadID: UnsafePointer<CChar>,
-    _ filePath: UnsafePointer<CChar>,
-    _ quotedMessageID: UnsafePointer<CChar>?
+	_ threadID: UnsafePointer<CChar>,
+	_ filePath: UnsafePointer<CChar>,
+	_ quotedMessageID: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
-        let quoted = quotedMessageID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
-        let result = try await BridgeRuntime.shared.platformAPI().sendMessage(
-            threadID: String(cString: threadID),
-            text: nil,
+	runBlocking(timeout: bridgeAutomationTimeout) {
+		let quoted = quotedMessageID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+		let result = try await BridgeRuntime.shared.platformAPI().sendMessage(
+			threadID: String(cString: threadID),
+			text: nil,
             filePath: String(cString: filePath),
             quotedMessageID: quoted
         )
@@ -447,15 +522,15 @@ public func imessage_bridge_send_file(
 
 @_cdecl("imessage_bridge_create_chat")
 public func imessage_bridge_create_chat(
-    _ recipientsJSON: UnsafePointer<CChar>,
-    _ messageText: UnsafePointer<CChar>,
-    _ title: UnsafePointer<CChar>?
+	_ recipientsJSON: UnsafePointer<CChar>,
+	_ messageText: UnsafePointer<CChar>,
+	_ title: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
-        let title = title.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
-        let result = try await BridgeRuntime.shared.platformAPI().createThread(
-            userIDs: try parseStringArray(recipientsJSON),
-            title: title,
+	runBlocking(timeout: bridgeAutomationTimeout) {
+		let title = title.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+		let result = try await BridgeRuntime.shared.platformAPI().createThread(
+			userIDs: try parseStringArray(recipientsJSON),
+			title: title,
             messageText: String(cString: messageText)
         )
         return result.jsonValue
@@ -468,7 +543,7 @@ public func imessage_bridge_edit(
     _ messageID: UnsafePointer<CChar>,
     _ text: UnsafePointer<CChar>
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().editMessage(
             threadID: String(cString: threadID),
             messageID: String(cString: messageID),
@@ -483,7 +558,7 @@ public func imessage_bridge_delete_message(
     _ threadID: UnsafePointer<CChar>,
     _ messageID: UnsafePointer<CChar>
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().deleteMessage(
             threadID: String(cString: threadID),
             messageID: String(cString: messageID)
@@ -499,7 +574,7 @@ public func imessage_bridge_react(
     _ reactionKey: UnsafePointer<CChar>,
     _ enabled: Int32
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         let api = try BridgeRuntime.shared.platformAPI()
         if enabled != 0 {
             try await api.addReaction(
@@ -520,7 +595,7 @@ public func imessage_bridge_react(
 
 @_cdecl("imessage_bridge_mark_read")
 public func imessage_bridge_mark_read(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().sendReadReceipt(threadID: String(cString: threadID))
         return true
     }
@@ -528,7 +603,7 @@ public func imessage_bridge_mark_read(_ threadID: UnsafePointer<CChar>) -> Unsaf
 
 @_cdecl("imessage_bridge_mark_unread")
 public func imessage_bridge_mark_unread(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().markAsUnread(threadID: String(cString: threadID))
         return true
     }
@@ -539,7 +614,7 @@ public func imessage_bridge_mute(
     _ threadID: UnsafePointer<CChar>,
     _ muted: Int32
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().updateThread(
             threadID: String(cString: threadID),
             muted: muted != 0
@@ -550,7 +625,7 @@ public func imessage_bridge_mute(
 
 @_cdecl("imessage_bridge_delete_chat")
 public func imessage_bridge_delete_chat(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().deleteThread(threadID: String(cString: threadID))
         return true
     }
@@ -558,7 +633,7 @@ public func imessage_bridge_delete_chat(_ threadID: UnsafePointer<CChar>) -> Uns
 
 @_cdecl("imessage_bridge_notify_anyway")
 public func imessage_bridge_notify_anyway(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().notifyAnyway(threadID: String(cString: threadID))
         return true
     }
@@ -576,7 +651,7 @@ public func imessage_bridge_typing(
     _ threadID: UnsafePointer<CChar>,
     _ enabled: Int32
 ) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().sendActivityIndicator(
             type: enabled != 0 ? "typing" : "none",
             threadID: String(cString: threadID)
@@ -587,7 +662,7 @@ public func imessage_bridge_typing(
 
 @_cdecl("imessage_bridge_watch_chat")
 public func imessage_bridge_watch_chat(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.watchChat(threadID: String(cString: threadID))
         return true
     }
@@ -632,7 +707,7 @@ public func imessage_bridge_get_asset(
 
 @_cdecl("imessage_bridge_load_attachment")
 public func imessage_bridge_load_attachment(_ messageID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
-    runBlocking {
+    runBlocking(timeout: bridgeAutomationTimeout) {
         try await BridgeRuntime.shared.platformAPI().loadAttachment(messageID: String(cString: messageID))
         return true
     }

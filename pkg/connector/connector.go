@@ -48,7 +48,7 @@ func (c *Connector) Start(ctx context.Context) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return fmt.Errorf("failed to create iMessage data dir: %w", err)
 	}
-	return imessage.Init(dataDir, c.Config.Verbose, c.Config.UseSecondaryInstance)
+	return imessage.Init(dataDir, c.Config.Verbose, c.Config.UseSecondaryInstance, c.Config.CoordinateWindow)
 }
 
 func (c *Connector) Stop() {

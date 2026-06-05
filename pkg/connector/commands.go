@@ -256,8 +256,9 @@ func (c *Client) queueCreatedThread(ctx context.Context, thread imessage.Thread)
 	c.reIDKnownSyntheticPortals(ctx, thread)
 	c.queueThreadReadState(thread)
 	c.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
-		EventMeta: c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
-		ChatInfo:  c.chatInfoFromThread(thread),
+		EventMeta:       c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
+		ChatInfo:        c.chatInfoFromThread(thread),
+		LatestMessageTS: threadLatestMessageTimestamp(thread),
 	})
 }
 

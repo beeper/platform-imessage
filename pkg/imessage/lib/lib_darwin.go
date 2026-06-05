@@ -7,7 +7,7 @@ package lib
 #include <stdint.h>
 #include <stdlib.h>
 
-char *imessage_bridge_init(const char *data_dir, int32_t verbose, int32_t use_secondary_instance);
+char *imessage_bridge_init(const char *data_dir, int32_t verbose, int32_t use_secondary_instance, int32_t coordinate_window);
 char *imessage_bridge_dispose(void);
 char *imessage_bridge_current_user(void);
 char *imessage_bridge_authorization_status(void);
@@ -82,11 +82,11 @@ func optionalCStr(input string) (*C.char, func()) {
 	return cstr(input)
 }
 
-func Init(dataDir string, verbose, useSecondaryInstance bool) (json.RawMessage, error) {
+func Init(dataDir string, verbose, useSecondaryInstance, coordinateWindow bool) (json.RawMessage, error) {
 	dataDirC, freeDataDir := cstr(dataDir)
 	defer freeDataDir()
 	return call(func() *C.char {
-		return C.imessage_bridge_init(dataDirC, boolToCInt(verbose), boolToCInt(useSecondaryInstance))
+		return C.imessage_bridge_init(dataDirC, boolToCInt(verbose), boolToCInt(useSecondaryInstance), boolToCInt(coordinateWindow))
 	})
 }
 

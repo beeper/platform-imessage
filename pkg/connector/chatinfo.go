@@ -18,6 +18,7 @@ var (
 	_ bridgev2.ContactListingNetworkAPI      = (*Client)(nil)
 	_ bridgev2.UserSearchingNetworkAPI       = (*Client)(nil)
 	_ bridgev2.GhostDMCreatingNetworkAPI     = (*Client)(nil)
+	_ bridgev2.GroupCreatingNetworkAPI       = (*Client)(nil)
 	_ bridgev2.IdentifierValidatingNetwork   = (*Connector)(nil)
 )
 
@@ -63,6 +64,58 @@ func (c *Client) CreateChatWithGhost(ctx context.Context, ghost *bridgev2.Ghost)
 	return c.syntheticChatResponse([]string{string(ghost.ID)}, ""), nil
 }
 
+func (c *Client) CreateGroup(ctx context.Context, params *bridgev2.GroupCreateParams) (*bridgev2.CreateChatResponse, error) {
+	if params == nil {
+		return nil, matrixUnsupported("missing iMessage group parameters")
+	}
+	selfIdentifiers := c.currentUserIdentifiers()
+	participants := make([]string, 0, len(params.Participants))
+	for _, participant := range params.Participants {
+		participant := normalizeIMessageIdentifier(string(participant))
+		if selfIdentifiers[participant] {
+			continue
+		}
+		if !validIMessageIdentifier(participant) {
+			return nil, matrixUnsupported("invalid iMessage group participant")
+		}
+		participants = append(participants, participant)
+	}
+	if len(participants) < 2 {
+		return nil, matrixUnsupported("iMessage groups need at least two recipients")
+	}
+	name := ""
+	if params.Name != nil {
+		name = strings.TrimSpace(params.Name.Name)
+	}
+	existingThread, err := c.existingThreadWithParticipants(participants)
+	if err != nil {
+		return nil, err
+	}
+	if existingThread != nil {
+		return c.chatResponseFromThread(*existingThread), nil
+	}
+	return c.syntheticChatResponse(participants, name), nil
+}
+
+func (c *Client) currentUserIdentifiers() map[string]bool {
+	identifiers := map[string]bool{}
+	if c == nil || c.IM == nil {
+		return identifiers
+	}
+	currentUser, err := c.IM.CurrentUser()
+	if err != nil || currentUser == nil {
+		return identifiers
+	}
+	for _, identifier := range []string{currentUser.ID, currentUser.Email, currentUser.PhoneNumber} {
+		identifier = normalizeIMessageIdentifier(identifier)
+		if identifier != "" {
+			identifiers[identifier] = true
+			identifiers[canonicalIMessageIdentifier(identifier)] = true
+		}
+	}
+	return identifiers
+}
+
 func (c *Client) GetContactList(ctx context.Context) ([]*bridgev2.ResolveIdentifierResponse, error) {
 	contacts, err := c.contactResponses("")
 	if err != nil {
@@ -83,7 +136,7 @@ func (c *Client) contactResponses(filter string) ([]*bridgev2.ResolveIdentifierR
 	seen := map[string]*bridgev2.ResolveIdentifierResponse{}
 	for _, thread := range page.Items {
 		for _, participant := range thread.Participants.Items {
-			if participant.ID == "" {
+			if participant.ID == "" || isSelfParticipant(participant) {
 				continue
 			}
 			info := c.userInfoFromUser(participant)
@@ -110,6 +163,18 @@ func normalizeIMessageIdentifier(identifier string) string {
 	return strings.TrimSpace(identifier)
 }
 
+func canonicalIMessageIdentifier(identifier string) string {
+	return strings.ToLower(normalizeIMessageIdentifier(identifier))
+}
+
+func canonicalPortalParticipantID(identifier string) string {
+	canonical := canonicalIMessageIdentifier(identifier)
+	if canonical == "" {
+		return normalizeIMessageIdentifier(identifier)
+	}
+	return canonical
+}
+
 func validIMessageIdentifier(identifier string) bool {
 	identifier = normalizeIMessageIdentifier(identifier)
 	return identifier != "" &&
@@ -132,6 +197,9 @@ func contactMatches(filter string, user imessage.User, info *bridgev2.UserInfo) 
 }
 
 func (c *Client) syntheticChatResponse(participants []string, name string) *bridgev2.CreateChatResponse {
+	for i, participant := range participants {
+		participants[i] = canonicalPortalParticipantID(participant)
+	}
 	sort.Strings(participants)
 	threadID := "any;-;" + strings.Join(participants, ",")
 	roomType := database.RoomTypeDM
@@ -148,6 +216,7 @@ func (c *Client) syntheticChatResponse(participants []string, name string) *brid
 			UserInfo:    c.userInfoFromUser(imessage.User{ID: participant, Username: participant}),
 		})
 	}
+	members.Set(c.selfChatMember())
 	info := &bridgev2.ChatInfo{
 		Type: &roomType,
 		Members: &bridgev2.ChatMemberList{
@@ -165,14 +234,86 @@ func (c *Client) syntheticChatResponse(participants []string, name string) *brid
 	}
 }
 
+func (c *Client) chatResponseFromThread(thread imessage.Thread) *bridgev2.CreateChatResponse {
+	return &bridgev2.CreateChatResponse{
+		PortalKey:  portalKey(thread.ID, c.UserLogin.ID),
+		PortalInfo: c.chatInfoFromThread(thread),
+	}
+}
+
+func (c *Client) existingThreadWithParticipants(participants []string) (*imessage.Thread, error) {
+	if c == nil || c.IM == nil {
+		return nil, nil
+	}
+	expected := canonicalParticipantSet(participants)
+	if len(expected) < 2 {
+		return nil, nil
+	}
+
+	var pagination *imessage.Pagination
+	for pageCount := 0; pageCount < 200; pageCount++ {
+		page, err := c.IM.Chats(pagination)
+		if err != nil {
+			return nil, err
+		}
+		for _, thread := range page.Items {
+			if thread.Type != imessage.ThreadTypeGroup && !threadIDIsGroup(thread.ID) {
+				continue
+			}
+			if participantSetMatchesThread(expected, thread, c.currentUserIdentifiers()) {
+				return &thread, nil
+			}
+		}
+		if !page.HasMore || page.OldestCursor == "" {
+			break
+		}
+		pagination = &imessage.Pagination{Cursor: page.OldestCursor, Direction: "before"}
+	}
+	return nil, nil
+}
+
+func canonicalParticipantSet(participants []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(participants))
+	for _, participant := range participants {
+		if canonical := canonicalIMessageIdentifier(participant); canonical != "" {
+			out[canonical] = struct{}{}
+		}
+	}
+	return out
+}
+
+func participantSetMatchesThread(expected map[string]struct{}, thread imessage.Thread, selfIdentifiers map[string]bool) bool {
+	actual := make(map[string]struct{}, len(thread.Participants.Items))
+	for _, participant := range thread.Participants.Items {
+		canonical := canonicalIMessageIdentifier(participant.ID)
+		if canonical == "" || isSelfParticipant(participant) || selfIdentifiers[normalizeIMessageIdentifier(participant.ID)] || selfIdentifiers[canonical] {
+			continue
+		}
+		actual[canonical] = struct{}{}
+	}
+	if len(actual) != len(expected) {
+		return false
+	}
+	for participant := range expected {
+		if _, ok := actual[participant]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *Client) chatInfoFromThread(thread imessage.Thread) *bridgev2.ChatInfo {
 	roomType := database.RoomTypeDefault
-	if thread.Type == imessage.ThreadTypeSingle {
+	if thread.Type == imessage.ThreadTypeSingle && !threadIDIsGroup(thread.ID) {
 		roomType = database.RoomTypeDM
 	}
 
+	selfIdentifiers := c.currentUserIdentifiers()
 	memberMap := bridgev2.ChatMemberMap{}
-	for _, participant := range thread.Participants.Items {
+	for _, participant := range participantsForChatInfo(thread, roomType, selfIdentifiers) {
+		if isSelfParticipant(participant) || selfIdentifiers[normalizeIMessageIdentifier(participant.ID)] {
+			continue
+		}
 		userID := imessageid.MakeUserID(participant.ID)
 		memberMap.Set(bridgev2.ChatMember{
 			EventSender: bridgev2.EventSender{Sender: userID},
@@ -180,15 +321,7 @@ func (c *Client) chatInfoFromThread(thread imessage.Thread) *bridgev2.ChatInfo {
 			UserInfo:    c.userInfoFromUser(participant),
 		})
 	}
-	memberMap.Set(bridgev2.ChatMember{
-		EventSender: bridgev2.EventSender{
-			IsFromMe:    true,
-			SenderLogin: c.UserLogin.ID,
-			Sender:      c.GetUserID(),
-			ForceDMUser: false,
-		},
-		Membership: event.MembershipJoin,
-	})
+	memberMap.Set(c.selfChatMember())
 
 	info := &bridgev2.ChatInfo{
 		Members: &bridgev2.ChatMemberList{
@@ -196,7 +329,8 @@ func (c *Client) chatInfoFromThread(thread imessage.Thread) *bridgev2.ChatInfo {
 			TotalMemberCount: len(memberMap),
 			MemberMap:        memberMap,
 		},
-		Type: &roomType,
+		Type:        &roomType,
+		CanBackfill: true,
 	}
 	if thread.Title != "" {
 		info.Name = &thread.Title
@@ -205,6 +339,64 @@ func (c *Client) chatInfoFromThread(thread imessage.Thread) *bridgev2.ChatInfo {
 		info.Avatar = c.avatarFromURL(thread.ImgURL)
 	}
 	return info
+}
+
+func (c *Client) selfChatMember() bridgev2.ChatMember {
+	return bridgev2.ChatMember{
+		EventSender: bridgev2.EventSender{
+			IsFromMe:    true,
+			SenderLogin: c.UserLogin.ID,
+			Sender:      c.GetUserID(),
+			ForceDMUser: false,
+		},
+		Membership: event.MembershipJoin,
+	}
+}
+
+func isSelfParticipant(participant imessage.User) bool {
+	return participant.IsSelf != nil && *participant.IsSelf
+}
+
+func threadIDIsGroup(threadID string) bool {
+	return strings.Contains(threadID, ";+;") || strings.HasPrefix(threadID, "group;-;")
+}
+
+func participantsForChatInfo(thread imessage.Thread, roomType database.RoomType, selfIdentifierMaps ...map[string]bool) []imessage.User {
+	selfIdentifiers := map[string]bool{}
+	if len(selfIdentifierMaps) > 0 && selfIdentifierMaps[0] != nil {
+		selfIdentifiers = selfIdentifierMaps[0]
+	}
+	participants := make([]imessage.User, 0, len(thread.Participants.Items))
+	for _, participant := range thread.Participants.Items {
+		if participant.ID == "" || isSelfParticipant(participant) || selfIdentifiers[normalizeIMessageIdentifier(participant.ID)] {
+			continue
+		}
+		participants = append(participants, participant)
+	}
+	if roomType != database.RoomTypeDM || len(participants) <= 1 {
+		return participants
+	}
+	if identifier := singleThreadIdentifier(thread.ID); identifier != "" {
+		for _, participant := range participants {
+			if participant.ID == identifier {
+				return []imessage.User{participant}
+			}
+		}
+	}
+	return participants[:1]
+}
+
+func singleThreadIdentifier(threadID string) string {
+	parts := strings.SplitN(threadID, ";", 3)
+	if len(parts) != 3 || parts[1] != "-" {
+		return ""
+	}
+	switch parts[0] {
+	case "any", "iMessage", "SMS", "RCS":
+		return parts[2]
+	default:
+		return ""
+	}
 }
 
 func (c *Client) userInfoFromUser(user imessage.User) *bridgev2.UserInfo {

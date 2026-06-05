@@ -20,15 +20,18 @@ enum ThreadMapper {
         let selfID = chat.lastAddressedHandle.flatMap(\.nonEmpty)
             ?? chat.accountLogin.map(mapAccountLogin).flatMap(\.nonEmpty)
             ?? context.currentUser.id
-        let firstParticipantID = handleRows.first?.participantID
+        let localSelfIdentifiers = selfIdentifiers(selfID: selfID, currentUser: context.currentUser)
 
         let chatDisplayName = chat.displayName
-        var participants = handleRows.compactMap { mapParticipant($0, chatDisplayName: chatDisplayName) }
-        if context.currentUser.id != firstParticipantID {
-            participants.append(mapSelfParticipant(selfID: selfID, currentUserID: context.currentUser.id))
+        var participants = handleRows.compactMap { row -> PlatformSDK.Participant? in
+            if isSelfHandle(row, selfIdentifiers: localSelfIdentifiers) {
+                return nil
+            }
+            return mapParticipant(row, chatDisplayName: chatDisplayName)
         }
+        participants.append(mapSelfParticipant(selfID: selfID, currentUserID: context.currentUser.id))
 
-        let isGroup = chat.roomName?.isEmpty == false
+        let isGroup = threadIsGroup(threadID: guid, roomName: chat.roomName)
         let isReadOnly = chat.state == 0 && chat.properties != nil
         let props = propertyListDictionary(chat.properties)
         let unreadCount = context.unreadCounts[chat.rowID] ?? 0
@@ -85,6 +88,23 @@ enum ThreadMapper {
             fullName: fields.fullName,
             isSelf: true
         ))
+    }
+
+    private static func selfIdentifiers(selfID: String, currentUser: PlatformSDK.CurrentUser) -> Set<String> {
+        Set([selfID, currentUser.id, currentUser.email, currentUser.phoneNumber].compactMap(normalizedIdentifier))
+    }
+
+    private static func isSelfHandle(_ row: MappedHandleRow, selfIdentifiers: Set<String>) -> Bool {
+        [row.participantID, row.uncanonicalizedID].compactMap(normalizedIdentifier).contains { selfIdentifiers.contains($0) }
+    }
+
+    private static func normalizedIdentifier(_ value: String?) -> String? {
+        guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !normalized.isEmpty
+        else {
+            return nil
+        }
+        return normalized
     }
 
     private static func isPhoneLike(_ id: String) -> Bool {

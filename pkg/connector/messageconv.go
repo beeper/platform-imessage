@@ -1,9 +1,14 @@
 package connector
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"mime"
 	"net/http"
 	"net/url"
@@ -68,6 +73,7 @@ func (c *Client) convertAttachmentFromIMessage(ctx context.Context, portal *brid
 	if err != nil {
 		return nil, err
 	}
+	info := fileInfoForAttachment(data, attachment, mimeType)
 	return &bridgev2.ConvertedMessagePart{
 		Type: event.EventMessage,
 		Content: &event.MessageEventContent{
@@ -76,14 +82,34 @@ func (c *Client) convertAttachmentFromIMessage(ctx context.Context, portal *brid
 			FileName: fileName,
 			URL:      mxc,
 			File:     file,
-			Info: &event.FileInfo{
-				MimeType: mimeType,
-				Size:     len(data),
-				MauGIF:   attachment.IsGif,
-			},
+			Info:     info,
 		},
 		DBMetadata: messageDBMetadata(msg),
 	}, nil
+}
+
+func fileInfoForAttachment(data []byte, attachment imessage.Attachment, mimeType string) *event.FileInfo {
+	info := &event.FileInfo{
+		MimeType: mimeType,
+		Size:     len(data),
+		MauGIF:   attachment.IsGif,
+	}
+	if width, height := imageDimensions(data, mimeType); width > 0 && height > 0 {
+		info.Width = width
+		info.Height = height
+	}
+	return info
+}
+
+func imageDimensions(data []byte, mimeType string) (width, height int) {
+	if !strings.HasPrefix(mimeType, "image/") || len(data) == 0 {
+		return 0, 0
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0
+	}
+	return config.Width, config.Height
 }
 
 func (c *Client) attachmentBytes(ctx context.Context, msg imessage.Message, attachment imessage.Attachment) ([]byte, string, string, error) {

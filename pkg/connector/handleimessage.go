@@ -29,6 +29,9 @@ func (c *Client) handleMessageStateSync(evt imessage.StateSyncEvent) error {
 			}
 			message := message
 			c.queueMessageActionChange(context.Background(), message)
+			if isReactionActionMessage(message) {
+				continue
+			}
 			c.UserLogin.QueueRemoteEvent(&simplevent.Message[imessage.Message]{
 				EventMeta: c.eventMeta(message.ThreadID, message),
 				ID:        imessageid.MakeMessageID(message.ID),
@@ -83,6 +86,14 @@ func (c *Client) handleMessageStateSync(evt imessage.StateSyncEvent) error {
 	return nil
 }
 
+func isReactionActionMessage(message imessage.Message) bool {
+	if message.Action == nil {
+		return false
+	}
+	return message.Action.Type == "message_reaction_created" ||
+		message.Action.Type == "message_reaction_deleted"
+}
+
 func editFromUpdatedMessage(existing []*database.Message, converted *bridgev2.ConvertedMessage) (*bridgev2.ConvertedEdit, error) {
 	if len(existing) == 0 || converted == nil || len(converted.Parts) == 0 {
 		return nil, bridgev2.ErrIgnoringRemoteEvent
@@ -122,10 +133,10 @@ func (c *Client) handleReactionStateSync(evt imessage.StateSyncEvent) error {
 		}
 		for _, reaction := range reactions {
 			c.UserLogin.QueueRemoteEvent(&simplevent.Reaction{
-				EventMeta:     c.eventMeta(evt.ObjectIDs.ThreadID, imessage.Message{ThreadID: evt.ObjectIDs.ThreadID, SenderID: reaction.ParticipantID}),
+				EventMeta:     c.eventMeta(evt.ObjectIDs.ThreadID, imessage.Message{ThreadID: evt.ObjectIDs.ThreadID, SenderID: reaction.ParticipantID}).WithType(bridgev2.RemoteEventReaction),
 				TargetMessage: targetMessageID,
 				EmojiID:       networkid.EmojiID(reaction.ID),
-				Emoji:         reaction.ReactionKey,
+				Emoji:         bridgeReactionKeyFromPlatform(reaction.ReactionKey),
 				ReactionDBMeta: &imessageid.ReactionMetadata{
 					ReactionID:  reaction.ID,
 					ReactionKey: reaction.ReactionKey,
@@ -141,7 +152,7 @@ func (c *Client) handleReactionStateSync(evt imessage.StateSyncEvent) error {
 			reactionID := string(id)
 			senderID, reactionKey := c.reactionSenderAndKey(context.Background(), targetMessageID, reactionID)
 			c.UserLogin.QueueRemoteEvent(&simplevent.Reaction{
-				EventMeta:     c.eventMeta(evt.ObjectIDs.ThreadID, imessage.Message{ThreadID: evt.ObjectIDs.ThreadID, SenderID: string(senderID)}),
+				EventMeta:     c.eventMeta(evt.ObjectIDs.ThreadID, imessage.Message{ThreadID: evt.ObjectIDs.ThreadID, SenderID: string(senderID)}).WithType(bridgev2.RemoteEventReactionRemove),
 				TargetMessage: targetMessageID,
 				EmojiID:       networkid.EmojiID(id),
 				Emoji:         reactionKey,
@@ -165,11 +176,69 @@ var standardIMessageReactionKeys = []string{
 	"like",
 }
 
+var bridgeReactionToPlatformReaction = map[string]string{
+	"❤":    "heart",
+	"❤️":   "heart",
+	"👍":    "like",
+	"👍️":   "like",
+	"👎":    "dislike",
+	"👎️":   "dislike",
+	"HAHA": "laugh",
+	"‼️":   "emphasize",
+	"‼":    "emphasize",
+	"❓":    "question",
+	"❓️":   "question",
+}
+
+var platformReactionToBridgeReaction = map[string]string{
+	"heart":     "❤️",
+	"like":      "👍",
+	"dislike":   "👎",
+	"laugh":     "HAHA",
+	"emphasize": "‼️",
+	"question":  "❓",
+}
+
+func bridgeReactionKeyFromPlatform(reactionKey string) string {
+	if bridgeKey, ok := platformReactionToBridgeReaction[reactionKey]; ok {
+		return bridgeKey
+	}
+	return reactionKey
+}
+
+func platformReactionKeyFromBridge(reactionKey string) (string, bool) {
+	reactionKey = normalizeBridgeReactionKey(reactionKey)
+	if platformKey, ok := bridgeReactionToPlatformReaction[reactionKey]; ok {
+		return platformKey, true
+	}
+	if _, ok := platformReactionToBridgeReaction[reactionKey]; ok {
+		return reactionKey, true
+	}
+	return "", false
+}
+
+func normalizeBridgeReactionKey(reactionKey string) string {
+	switch strings.TrimSpace(reactionKey) {
+	case "❤", "❤️":
+		return "❤️"
+	case "👍", "👍️":
+		return "👍"
+	case "👎", "👎️":
+		return "👎"
+	case "‼", "‼️":
+		return "‼️"
+	case "❓", "❓️":
+		return "❓"
+	default:
+		return strings.TrimSpace(reactionKey)
+	}
+}
+
 func backfillReactionFromIMessage(reaction imessage.Reaction) *bridgev2.BackfillReaction {
 	return &bridgev2.BackfillReaction{
 		Sender:     bridgev2.EventSender{Sender: imessageid.MakeUserID(reaction.ParticipantID)},
 		EmojiID:    networkid.EmojiID(reaction.ID),
-		Emoji:      reaction.ReactionKey,
+		Emoji:      bridgeReactionKeyFromPlatform(reaction.ReactionKey),
 		DBMetadata: reactionDBMetadata(reaction.ID, reaction.ReactionKey),
 	}
 }
@@ -202,11 +271,12 @@ func (c *Client) reactionSenderAndKey(ctx context.Context, targetMessageID netwo
 				if meta, ok := reaction.Metadata.(*imessageid.ReactionMetadata); ok && meta.ReactionKey != "" {
 					reactionKey = meta.ReactionKey
 				}
-				return reaction.SenderID, reactionKey
+				return reaction.SenderID, bridgeReactionKeyFromPlatform(reactionKey)
 			}
 		}
 	}
-	return splitStandardIMessageReactionID(reactionID)
+	senderID, reactionKey := splitStandardIMessageReactionID(reactionID)
+	return senderID, bridgeReactionKeyFromPlatform(reactionKey)
 }
 
 func (c *Client) handleThreadStateSync(evt imessage.StateSyncEvent) error {
@@ -233,8 +303,9 @@ func (c *Client) handleThreadStateSync(evt imessage.StateSyncEvent) error {
 		c.reIDKnownSyntheticPortals(context.Background(), thread)
 		c.queueThreadReadState(thread)
 		c.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
-			EventMeta: c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
-			ChatInfo:  c.chatInfoFromThread(thread),
+			EventMeta:       c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
+			ChatInfo:        c.chatInfoFromThread(thread),
+			LatestMessageTS: threadLatestMessageTimestamp(thread),
 		})
 	}
 	return nil
@@ -328,7 +399,7 @@ func (c *Client) chatInfoChangeFromAction(action imessage.MessageAction) *bridge
 }
 
 func (c *Client) reIDKnownSyntheticPortals(ctx context.Context, thread imessage.Thread) {
-	for _, sourceID := range syntheticPortalIDsForThread(thread) {
+	for _, sourceID := range syntheticPortalIDsForThread(thread, c.currentUserIdentifiers()) {
 		c.reIDPortal(ctx, sourceID, thread.ID)
 	}
 }
@@ -347,11 +418,18 @@ func (c *Client) reIDPortal(ctx context.Context, sourceID, targetID string) {
 	}
 }
 
-func syntheticPortalIDsForThread(thread imessage.Thread) []string {
+func syntheticPortalIDsForThread(thread imessage.Thread, selfIdentifierMaps ...map[string]bool) []string {
+	selfIdentifiers := map[string]bool{}
+	if len(selfIdentifierMaps) > 0 && selfIdentifierMaps[0] != nil {
+		selfIdentifiers = selfIdentifierMaps[0]
+	}
 	participants := make([]string, 0, len(thread.Participants.Items))
 	for _, participant := range thread.Participants.Items {
-		if participant.ID != "" {
-			participants = append(participants, participant.ID)
+		participantID := normalizeIMessageIdentifier(participant.ID)
+		canonicalParticipantID := canonicalIMessageIdentifier(participantID)
+		if participantID != "" && !isSelfParticipant(participant) &&
+			!selfIdentifiers[participantID] && !selfIdentifiers[canonicalParticipantID] {
+			participants = append(participants, canonicalPortalParticipantID(participant.ID))
 		}
 	}
 	if len(participants) == 0 {

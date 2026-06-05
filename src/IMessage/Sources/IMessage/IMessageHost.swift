@@ -86,13 +86,14 @@ public enum IMessageHost {
         }
     }
 
-    public static func bootstrapWithOptions(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool) {
+    public static func bootstrapWithOptions(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool, coordinateWindow: Bool = true) {
         Preferences.setLoggingDirectory(dataDirPath)
         Preferences.setUseSecondaryInstance(useSecondaryInstance)
         Preferences.configureHashing(defaultEnabled: false)
         Preferences.isLoggingEnabled = verbose
         Log.consoleOutputEnabled = verbose
         Defaults.registerDefaults()
+        Defaults.imessage.set(coordinateWindow, forKey: DefaultsKeys.windowCoordination)
 
         bootstrapLock.lock()
         defer { bootstrapLock.unlock() }

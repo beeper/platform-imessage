@@ -1,9 +1,13 @@
 package connector
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/beeper/platform-imessage/pkg/imessage"
 	"github.com/beeper/platform-imessage/pkg/imessageid"
@@ -11,6 +15,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/commands"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
 )
 
@@ -47,8 +52,12 @@ func TestParseCreateChatCommand(t *testing.T) {
 }
 
 func TestSyntheticPortalIDsForThread(t *testing.T) {
+	isSelf := true
 	dmIDs := syntheticPortalIDsForThread(imessage.Thread{
-		Participants: imessage.Page[imessage.User]{Items: []imessage.User{{ID: "+15551234567"}}},
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "+15551234567"},
+			{ID: "me@example.com", IsSelf: &isSelf},
+		}},
 	})
 	if !reflect.DeepEqual(dmIDs, []string{
 		"any;-;+15551234567",
@@ -61,11 +70,89 @@ func TestSyntheticPortalIDsForThread(t *testing.T) {
 	groupIDs := syntheticPortalIDsForThread(imessage.Thread{
 		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
 			{ID: "b@example.com"},
+			{ID: "me@example.com", IsSelf: &isSelf},
 			{ID: "a@example.com"},
 		}},
 	})
 	if !reflect.DeepEqual(groupIDs, []string{"group;-;a@example.com,b@example.com"}) {
 		t.Fatalf("unexpected group synthetic IDs: %#v", groupIDs)
+	}
+
+	groupIDs = syntheticPortalIDsForThread(imessage.Thread{
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "b@example.com"},
+			{ID: "me@example.com"},
+			{ID: "a@example.com"},
+		}},
+	}, map[string]bool{"me@example.com": true})
+	if !reflect.DeepEqual(groupIDs, []string{"group;-;a@example.com,b@example.com"}) {
+		t.Fatalf("unmarked self identifier should not be part of synthetic group ID: %#v", groupIDs)
+	}
+
+	groupIDs = syntheticPortalIDsForThread(imessage.Thread{
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "Bob@Example.com"},
+			{ID: "Me@Example.com"},
+			{ID: "alice@example.com"},
+		}},
+	}, map[string]bool{"me@example.com": true})
+	if !reflect.DeepEqual(groupIDs, []string{"group;-;alice@example.com,bob@example.com"}) {
+		t.Fatalf("synthetic group IDs should be canonicalized: %#v", groupIDs)
+	}
+}
+
+func TestParticipantSetMatchesExistingGroup(t *testing.T) {
+	isSelf := true
+	thread := imessage.Thread{
+		ID:   "any;+;chat123",
+		Type: imessage.ThreadTypeGroup,
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "Alice@Example.com"},
+			{ID: "+15551234567"},
+			{ID: "me@example.com", IsSelf: &isSelf},
+		}},
+	}
+	expected := canonicalParticipantSet([]string{"+15551234567", "alice@example.com"})
+	if !participantSetMatchesThread(expected, thread, map[string]bool{"me@example.com": true}) {
+		t.Fatal("expected existing group participants to match case-insensitively while ignoring self")
+	}
+
+	missing := canonicalParticipantSet([]string{"+15551234567", "bob@example.com"})
+	if participantSetMatchesThread(missing, thread, map[string]bool{"me@example.com": true}) {
+		t.Fatal("group with different participants must not match")
+	}
+}
+
+func TestReactionActionMessagesAreNotBridgedAsText(t *testing.T) {
+	reactionCreated := imessage.Message{
+		ID: "reaction-action",
+		Action: &imessage.MessageAction{
+			Type: "message_reaction_created",
+		},
+	}
+	if !isReactionActionMessage(reactionCreated) {
+		t.Fatal("reaction-created action messages should be suppressed as text")
+	}
+
+	reactionDeleted := imessage.Message{
+		ID: "reaction-delete-action",
+		Action: &imessage.MessageAction{
+			Type: "message_reaction_deleted",
+		},
+	}
+	if !isReactionActionMessage(reactionDeleted) {
+		t.Fatal("reaction-deleted action messages should be suppressed as text")
+	}
+
+	titleChange := imessage.Message{
+		ID: "title-action",
+		Action: &imessage.MessageAction{
+			Type:  "thread_title_updated",
+			Title: "New title",
+		},
+	}
+	if isReactionActionMessage(titleChange) {
+		t.Fatal("non-reaction action messages must not be suppressed by the reaction filter")
 	}
 }
 
@@ -122,6 +209,29 @@ func TestConvertedMessagePartIDsAreStable(t *testing.T) {
 	}
 }
 
+func TestFileInfoForAttachmentIncludesImageDimensions(t *testing.T) {
+	const png1x2Base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAADUlEQVR4nGNgYGD4DwABBAEAghnFoQAAAABJRU5ErkJggg=="
+	data, err := base64.StdEncoding.DecodeString(png1x2Base64)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info := fileInfoForAttachment(data, imessage.Attachment{}, "image/png")
+	if info.Size != len(data) {
+		t.Fatalf("unexpected file size: %d", info.Size)
+	}
+	if info.Width != 1 || info.Height != 2 {
+		t.Fatalf("expected image dimensions in Matrix file info, got %dx%d", info.Width, info.Height)
+	}
+}
+
+func TestFileInfoForAttachmentSkipsDimensionsForGenericFiles(t *testing.T) {
+	info := fileInfoForAttachment([]byte("plain text"), imessage.Attachment{}, "text/plain")
+	if info.Width != 0 || info.Height != 0 {
+		t.Fatalf("did not expect generic file dimensions, got %dx%d", info.Width, info.Height)
+	}
+}
+
 func TestResponseThreadIDPrefersRealThread(t *testing.T) {
 	if got := responseThreadID("group;-;a,b", imessage.Message{ThreadID: "iMessage;-;real-chat"}); got != "iMessage;-;real-chat" {
 		t.Fatalf("expected real thread ID, got %q", got)
@@ -148,6 +258,7 @@ func TestRecipientsFromThreadIDOnlyAcceptsSyntheticCreationPortals(t *testing.T)
 
 func TestChatInfoFromThreadIncludesMembersAndAvatar(t *testing.T) {
 	client := testClient()
+	self := true
 	thread := imessage.Thread{
 		ID:     "iMessage;-;chat",
 		Title:  "Project",
@@ -156,6 +267,7 @@ func TestChatInfoFromThreadIncludesMembersAndAvatar(t *testing.T) {
 		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
 			{ID: "alice@example.com", FullName: "Alice", ImgURL: "asset://account/alice/1.heic"},
 			{ID: "bob@example.com", FullName: "Bob"},
+			{ID: "self@example.com", IsSelf: &self},
 		}},
 	}
 
@@ -169,6 +281,9 @@ func TestChatInfoFromThreadIncludesMembersAndAvatar(t *testing.T) {
 	if info.Avatar == nil || info.Avatar.ID != networkid.AvatarID(thread.ImgURL) {
 		t.Fatalf("unexpected room avatar: %#v", info.Avatar)
 	}
+	if !info.CanBackfill {
+		t.Fatal("real iMessage thread should advertise bridgev2 backfill support")
+	}
 	if info.Members == nil || !info.Members.IsFull || info.Members.TotalMemberCount != 3 {
 		t.Fatalf("unexpected member list metadata: %#v", info.Members)
 	}
@@ -178,6 +293,103 @@ func TestChatInfoFromThreadIncludesMembersAndAvatar(t *testing.T) {
 	}
 	if alice.UserInfo.Avatar == nil || alice.UserInfo.Avatar.ID != "asset://account/alice/1.heic" {
 		t.Fatalf("unexpected Alice avatar: %#v", alice.UserInfo.Avatar)
+	}
+	if _, ok := info.Members.MemberMap[imessageid.MakeUserID("self@example.com")]; ok {
+		t.Fatal("self participant should not be added as a remote ghost")
+	}
+}
+
+func TestParticipantsForChatInfoSkipsUnmarkedSelfIdentifier(t *testing.T) {
+	thread := imessage.Thread{
+		ID:   "any;+;group",
+		Type: imessage.ThreadTypeGroup,
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "alice@example.com"},
+			{ID: "me@example.com"},
+			{ID: "bob@example.com"},
+		}},
+	}
+
+	participants := participantsForChatInfo(thread, database.RoomTypeDefault, map[string]bool{"me@example.com": true})
+	if len(participants) != 2 || participants[0].ID != "alice@example.com" || participants[1].ID != "bob@example.com" {
+		t.Fatalf("unmarked self identifier should be excluded from chat info participants: %#v", participants)
+	}
+}
+
+func TestChatInfoFromThreadTreatsGroupThreadIDAsGroupEvenIfTypeIsSingle(t *testing.T) {
+	client := testClient()
+	self := true
+	thread := imessage.Thread{
+		ID:   "any;+;untitled-group",
+		Type: imessage.ThreadTypeSingle,
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "alice@example.com"},
+			{ID: "bob@example.com"},
+			{ID: "self@example.com", IsSelf: &self},
+		}},
+	}
+
+	info := client.chatInfoFromThread(thread)
+	if info.Type == nil || *info.Type != database.RoomTypeDefault {
+		t.Fatalf("multi-remote iMessage thread should be a group, got %#v", info.Type)
+	}
+	if info.Members == nil || info.Members.TotalMemberCount != 3 {
+		t.Fatalf("expected two remote members plus bridge user, got %#v", info.Members)
+	}
+}
+
+func TestChatInfoFromThreadKeepsMultiHandleSingleAsDM(t *testing.T) {
+	client := testClient()
+	thread := imessage.Thread{
+		ID:   "any;-;alice@example.com",
+		Type: imessage.ThreadTypeSingle,
+		Participants: imessage.Page[imessage.User]{Items: []imessage.User{
+			{ID: "alice@example.com"},
+			{ID: "+15551234567"},
+		}},
+	}
+
+	info := client.chatInfoFromThread(thread)
+	if info.Type == nil || *info.Type != database.RoomTypeDM {
+		t.Fatalf("multi-handle single-recipient thread should stay a DM, got %#v", info.Type)
+	}
+	if info.Members == nil || info.Members.TotalMemberCount != 2 {
+		t.Fatalf("expected one remote member plus bridge user, got %#v", info.Members)
+	}
+	if _, ok := info.Members.MemberMap[imessageid.MakeUserID("+15551234567")]; ok {
+		t.Fatal("alternate DM handle should not be exposed as a second remote member")
+	}
+}
+
+func TestSyntheticChatResponseDoesNotAdvertiseBackfill(t *testing.T) {
+	client := testClient()
+	resp := client.syntheticChatResponse([]string{"alice@example.com"}, "")
+	if resp.PortalInfo == nil {
+		t.Fatal("expected portal info")
+	}
+	if resp.PortalInfo.CanBackfill {
+		t.Fatal("synthetic pre-send portal should not advertise backfill until reconciled to a real thread")
+	}
+}
+
+func TestThreadLatestMessageTimestamp(t *testing.T) {
+	thread := imessage.Thread{
+		Timestamp: 1700000000000,
+		PartialLastMessage: &imessage.Message{
+			Timestamp: 1700000001234,
+		},
+	}
+	if got, want := threadLatestMessageTimestamp(thread), time.UnixMilli(1700000001234); !got.Equal(want) {
+		t.Fatalf("expected partial last message timestamp %s, got %s", want, got)
+	}
+
+	thread.PartialLastMessage = nil
+	if got, want := threadLatestMessageTimestamp(thread), time.UnixMilli(1700000000000); !got.Equal(want) {
+		t.Fatalf("expected thread timestamp %s, got %s", want, got)
+	}
+
+	if got := threadLatestMessageTimestamp(imessage.Thread{}); !got.IsZero() {
+		t.Fatalf("expected zero timestamp for empty thread, got %s", got)
 	}
 }
 
@@ -242,6 +454,51 @@ func TestBackfillPagination(t *testing.T) {
 	if fallbackPage == nil || fallbackPage.Cursor != "message-id" || fallbackPage.Direction != "before" {
 		t.Fatalf("unexpected fallback pagination: %#v", fallbackPage)
 	}
+
+	repairedPage := backfillPagination(bridgev2.FetchMessagesParams{
+		Cursor: networkid.PaginationCursor("02F90C51-B1F7-4C30-8F5D-55CB535130F6"),
+		AnchorMessage: &database.Message{
+			ID:       networkid.MessageID("message-id"),
+			Metadata: &imessageid.MessageMetadata{Cursor: "1696075189006000000"},
+		},
+	})
+	if repairedPage == nil || repairedPage.Cursor != "1696075189006000000" {
+		t.Fatalf("unexpected repaired pagination cursor: %#v", repairedPage)
+	}
+	if !isIMessagePaginationCursor("1696075189006000000") || isIMessagePaginationCursor("message-id") {
+		t.Fatal("iMessage pagination cursor validation should only accept numeric cursors")
+	}
+
+	page := &imessage.Page[imessage.Message]{
+		OldestCursor: "oldest",
+		NewestCursor: "newest",
+	}
+	if got := nextBackfillCursor(page, false); got != "oldest" {
+		t.Fatalf("backward backfill should use oldest cursor, got %q", got)
+	}
+	if got := nextBackfillCursor(page, true); got != "newest" {
+		t.Fatalf("forward backfill should use newest cursor, got %q", got)
+	}
+
+	imessagePage := &imessage.Page[imessage.Message]{
+		Items: []imessage.Message{
+			{ID: "old-id", Cursor: "old-cursor"},
+			{ID: "new-id", Cursor: "new-cursor"},
+		},
+	}
+	if got := nextBackfillCursor(imessagePage, false); got != "old-cursor" {
+		t.Fatalf("backward cursor fallback should use oldest returned message cursor, got %q", got)
+	}
+	if got := nextBackfillCursor(imessagePage, true); got != "new-cursor" {
+		t.Fatalf("forward cursor fallback should use newest returned message cursor, got %q", got)
+	}
+
+	idOnlyPage := &imessage.Page[imessage.Message]{
+		Items: []imessage.Message{{ID: "old-id"}, {ID: "new-id"}},
+	}
+	if got := nextBackfillCursor(idOnlyPage, false); got != "old-id" {
+		t.Fatalf("messages without platform cursors should fall back to IDs, got %q", got)
+	}
 }
 
 func TestIMessageReactionMetadataAndDeleteSender(t *testing.T) {
@@ -262,7 +519,7 @@ func TestIMessageReactionMetadataAndDeleteSender(t *testing.T) {
 
 	client := testClient()
 	senderID, reactionKey = client.reactionSenderAndKey(t.Context(), networkid.MessageID("message-id"), "bob@example.comheart")
-	if senderID != "bob@example.com" || reactionKey != "heart" {
+	if senderID != "bob@example.com" || reactionKey != "❤️" {
 		t.Fatalf("unexpected fallback reaction sender/key: %q %q", senderID, reactionKey)
 	}
 
@@ -271,12 +528,72 @@ func TestIMessageReactionMetadataAndDeleteSender(t *testing.T) {
 		ReactionKey:   "like",
 		ParticipantID: "alice@example.com",
 	})
-	if backfillReaction.Sender.Sender != "alice@example.com" || backfillReaction.EmojiID != "alice@example.comlike" {
+	if backfillReaction.Sender.Sender != "alice@example.com" || backfillReaction.EmojiID != "alice@example.comlike" || backfillReaction.Emoji != "👍" {
 		t.Fatalf("unexpected backfill reaction: %#v", backfillReaction)
 	}
 	meta, ok := backfillReaction.DBMetadata.(*imessageid.ReactionMetadata)
 	if !ok || meta.ReactionID != "alice@example.comlike" || meta.ReactionKey != "like" {
 		t.Fatalf("unexpected backfill reaction metadata: %#v", backfillReaction.DBMetadata)
+	}
+}
+
+func TestIMessageReactionKeyMapping(t *testing.T) {
+	for bridgeKey, platformKey := range map[string]string{
+		"❤️":   "heart",
+		"❤":    "heart",
+		"👍":    "like",
+		"👍️":   "like",
+		"👎":    "dislike",
+		"👎️":   "dislike",
+		"HAHA": "laugh",
+		"‼️":   "emphasize",
+		"‼":    "emphasize",
+		"❓":    "question",
+		"❓️":   "question",
+	} {
+		got, ok := platformReactionKeyFromBridge(bridgeKey)
+		if !ok || got != platformKey {
+			t.Fatalf("expected %q to map to %q, got %q ok=%v", bridgeKey, platformKey, got, ok)
+		}
+	}
+
+	for platformKey, bridgeKey := range platformReactionToBridgeReaction {
+		if got := bridgeReactionKeyFromPlatform(platformKey); got != bridgeKey {
+			t.Fatalf("expected %q to map back to %q, got %q", platformKey, bridgeKey, got)
+		}
+	}
+
+	if _, ok := platformReactionKeyFromBridge("😂"); ok {
+		t.Fatal("custom reactions must not be sent to platform-imessage when capabilities advertise fixed tapbacks only")
+	}
+}
+
+func TestMatrixReactionKeyReadsParsedAndRawContent(t *testing.T) {
+	parsed := matrixReactionKey(&bridgev2.MatrixReaction{
+		MatrixEventBase: bridgev2.MatrixEventBase[*event.ReactionEventContent]{
+			Content: &event.ReactionEventContent{RelatesTo: event.RelatesTo{Key: "👍"}},
+		},
+	})
+	if parsed != "👍" {
+		t.Fatalf("expected parsed reaction key, got %q", parsed)
+	}
+
+	variant := matrixReactionKey(&bridgev2.MatrixReaction{
+		MatrixEventBase: bridgev2.MatrixEventBase[*event.ReactionEventContent]{
+			Content: &event.ReactionEventContent{RelatesTo: event.RelatesTo{Key: "👍️"}},
+		},
+	})
+	if variant != "👍" {
+		t.Fatalf("expected variation selector reaction key to normalize, got %q", variant)
+	}
+
+	raw := matrixReactionKey(&bridgev2.MatrixReaction{
+		MatrixEventBase: bridgev2.MatrixEventBase[*event.ReactionEventContent]{
+			Event: &event.Event{Content: event.Content{VeryRaw: []byte(`{"m.relates_to":{"key":"HAHA"}}`)}},
+		},
+	})
+	if raw != "HAHA" {
+		t.Fatalf("expected raw reaction key, got %q", raw)
 	}
 }
 
@@ -290,8 +607,8 @@ func TestReactionKeyFromDBReaction(t *testing.T) {
 		t.Fatalf("expected metadata reaction key, got %q", got)
 	}
 
-	if got := reactionKeyFromDBReaction(&database.Reaction{Emoji: "😂"}); got != "😂" {
-		t.Fatalf("expected emoji fallback, got %q", got)
+	if got := reactionKeyFromDBReaction(&database.Reaction{Emoji: "👍"}); got != "like" {
+		t.Fatalf("expected visible reaction fallback to become platform key, got %q", got)
 	}
 
 	if got := reactionKeyFromDBReaction(&database.Reaction{EmojiID: networkid.EmojiID("alice@example.comheart")}); got != "heart" {
@@ -431,9 +748,12 @@ func TestEditFromUpdatedMessageDeletesSurplusParts(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesDoNotAdvertiseUnsupportedGroupCreation(t *testing.T) {
+func TestCapabilitiesAdvertiseSyntheticGroupCreation(t *testing.T) {
 	conn := &Connector{}
 	general := conn.GetCapabilities()
+	if general.ImplicitReadReceipts {
+		t.Fatal("implicit read receipts should stay disabled because mark-read uses Messages.app automation")
+	}
 	if !general.Provisioning.ResolveIdentifier.CreateDM {
 		t.Fatal("expected CreateDM to be advertised")
 	}
@@ -443,8 +763,15 @@ func TestCapabilitiesDoNotAdvertiseUnsupportedGroupCreation(t *testing.T) {
 	if !general.Provisioning.ResolveIdentifier.ContactList || !general.Provisioning.ResolveIdentifier.Search {
 		t.Fatalf("expected contact list and search capabilities: %#v", general.Provisioning.ResolveIdentifier)
 	}
-	if len(general.Provisioning.GroupCreation) != 0 {
-		t.Fatalf("standard group creation must not be advertised for iMessage initial-message flows: %#v", general.Provisioning.GroupCreation)
+	groupCaps, ok := general.Provisioning.GroupCreation["group"]
+	if !ok {
+		t.Fatalf("expected iMessage synthetic group creation to be advertised: %#v", general.Provisioning.GroupCreation)
+	}
+	if !groupCaps.Participants.Allowed || !groupCaps.Participants.Required || groupCaps.Participants.MinLength != 2 {
+		t.Fatalf("unexpected iMessage group participant capability: %#v", groupCaps.Participants)
+	}
+	if !groupCaps.Name.Allowed {
+		t.Fatalf("expected iMessage group names to be allowed: %#v", groupCaps.Name)
 	}
 
 	client := testClient()
@@ -457,6 +784,19 @@ func TestCapabilitiesDoNotAdvertiseUnsupportedGroupCreation(t *testing.T) {
 	if first.Formatting[event.FmtBold] != event.CapLevelDropped {
 		t.Fatalf("formatting should be declared dropped, got %v", first.Formatting[event.FmtBold])
 	}
+	if !reflect.DeepEqual(first.AllowedReactions, supportedIMessageReactions) || first.CustomEmojiReactions {
+		t.Fatalf("unexpected reaction capability declaration: allowed=%#v custom=%v", first.AllowedReactions, first.CustomEmojiReactions)
+	}
+	if first.File[event.MsgImage].MimeTypes["image/jpeg"] != event.CapLevelFullySupported ||
+		first.File[event.MsgImage].MimeTypes["*/*"] != event.CapabilitySupportLevel(0) {
+		t.Fatalf("image capability should match platform-imessage supported MIME types: %#v", first.File[event.MsgImage].MimeTypes)
+	}
+	if first.File[event.MsgFile].MimeTypes["*/*"] != event.CapLevelFullySupported {
+		t.Fatalf("generic file capability should allow all MIME types: %#v", first.File[event.MsgFile].MimeTypes)
+	}
+	if !first.ReadReceipts {
+		t.Fatal("explicit read receipts should remain advertised")
+	}
 
 	syntheticPortal := &bridgev2.Portal{Portal: &database.Portal{PortalKey: networkid.PortalKey{ID: "group;-;alice@example.com,bob@example.com"}}}
 	syntheticCaps := client.GetCapabilities(t.Context(), syntheticPortal)
@@ -467,6 +807,48 @@ func TestCapabilitiesDoNotAdvertiseUnsupportedGroupCreation(t *testing.T) {
 	existingCaps := client.GetCapabilities(t.Context(), existingPortal)
 	if existingCaps.File == nil {
 		t.Fatal("existing iMessage portals should advertise file sending")
+	}
+}
+
+func TestCreateGroupReturnsSyntheticPortal(t *testing.T) {
+	client := testClient()
+	resp, err := client.CreateGroup(t.Context(), &bridgev2.GroupCreateParams{
+		Participants: []networkid.UserID{"bob@example.com", "alice@example.com"},
+		Name:         &event.RoomNameEventContent{Name: "Project"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil || resp.PortalKey.ID != "group;-;alice@example.com,bob@example.com" {
+		t.Fatalf("unexpected group create response: %#v", resp)
+	}
+	if resp.PortalInfo == nil || resp.PortalInfo.Name == nil || *resp.PortalInfo.Name != "Project" {
+		t.Fatalf("expected group name in portal info: %#v", resp.PortalInfo)
+	}
+	if resp.PortalInfo.Type == nil || *resp.PortalInfo.Type != database.RoomTypeDefault {
+		t.Fatalf("expected group room type, got %#v", resp.PortalInfo.Type)
+	}
+	if resp.PortalInfo.Members == nil || !resp.PortalInfo.Members.IsFull || resp.PortalInfo.Members.TotalMemberCount != 3 {
+		t.Fatalf("expected two remote members plus bridge user in synthetic group: %#v", resp.PortalInfo.Members)
+	}
+	self := resp.PortalInfo.Members.MemberMap[client.GetUserID()]
+	if !self.IsFromMe || self.SenderLogin != client.UserLogin.ID || self.Membership != event.MembershipJoin {
+		t.Fatalf("expected synthetic group to include bridge user membership: %#v", self)
+	}
+}
+
+func TestSyntheticDMIncludesBridgeUser(t *testing.T) {
+	client := testClient()
+	resp := client.syntheticChatResponse([]string{"alice@example.com"}, "")
+	if resp == nil || resp.PortalInfo == nil || resp.PortalInfo.Members == nil {
+		t.Fatalf("unexpected synthetic DM response: %#v", resp)
+	}
+	if resp.PortalInfo.Members.TotalMemberCount != 2 {
+		t.Fatalf("expected remote member plus bridge user in synthetic DM: %#v", resp.PortalInfo.Members)
+	}
+	self := resp.PortalInfo.Members.MemberMap[client.GetUserID()]
+	if !self.IsFromMe || self.SenderLogin != client.UserLogin.ID || self.Membership != event.MembershipJoin {
+		t.Fatalf("expected synthetic DM to include bridge user membership: %#v", self)
 	}
 }
 
@@ -512,6 +894,117 @@ func TestMissingPermissionMessage(t *testing.T) {
 	})
 	if message != "Missing local iMessage permissions: Accessibility" {
 		t.Fatalf("unexpected missing permission message: %q", message)
+	}
+}
+
+func TestAuthorizationStatusDecodesAutomationHealth(t *testing.T) {
+	var authStatus imessage.AuthorizationStatus
+	if err := json.Unmarshal([]byte(`{
+		"authorized": true,
+		"automation": {
+			"status": "unavailable",
+			"available": false,
+			"reason": "LOGINWINDOW_FRONTMOST",
+			"message": "Unlock the desktop session.",
+			"frontmostBundleID": "com.apple.loginwindow",
+			"frontmostName": "loginwindow",
+			"messagesRunning": true,
+			"messagesActive": false,
+			"messagesHidden": false,
+			"messagesWindowCount": 1
+		}
+	}`), &authStatus); err != nil {
+		t.Fatal(err)
+	}
+	if authStatus.Automation.Available || authStatus.Automation.Reason != "LOGINWINDOW_FRONTMOST" || authStatus.Automation.FrontmostBundleID != "com.apple.loginwindow" {
+		t.Fatalf("unexpected automation status: %#v", authStatus.Automation)
+	}
+}
+
+func TestBridgeStateForUnavailableAutomation(t *testing.T) {
+	state := bridgeStateForAutomationStatus(imessage.AutomationStatus{
+		Status:              "unavailable",
+		Available:           false,
+		Reason:              "LOGINWINDOW_FRONTMOST",
+		Message:             "Unlock the desktop session.",
+		FrontmostBundleID:   "com.apple.loginwindow",
+		FrontmostName:       "loginwindow",
+		MessagesRunning:     true,
+		MessagesWindowCount: 1,
+	})
+	if state == nil {
+		t.Fatal("expected transient bridge state for unavailable automation")
+	}
+	if state.StateEvent != status.StateConnected || state.Error != "IMESSAGE_AUTOMATION_UNAVAILABLE" {
+		t.Fatalf("unexpected bridge state: %#v", state)
+	}
+	if state.Reason != "LOGINWINDOW_FRONTMOST" || state.Info["frontmost_bundle_id"] != "com.apple.loginwindow" {
+		t.Fatalf("missing automation details: %#v", state.Info)
+	}
+
+	if available := bridgeStateForAutomationStatus(imessage.AutomationStatus{Status: "available", Available: true}); available != nil {
+		t.Fatalf("available automation should not produce bridge state: %#v", available)
+	}
+}
+
+func TestSkipPermissionValidationDefaultsOn(t *testing.T) {
+	var config Config
+	if !config.ShouldSkipPermissionValidation() {
+		t.Fatal("omitted skip_permission_validation should default to true")
+	}
+
+	explicitFalse := false
+	config.SkipPermissionValidation = &explicitFalse
+	if config.ShouldSkipPermissionValidation() {
+		t.Fatal("explicit false skip_permission_validation should be honored")
+	}
+}
+
+func TestSendPermissionCheckHonorsSkipValidationDefault(t *testing.T) {
+	client := &Client{Main: &Connector{}}
+	if err := client.ensureAccessibilityForSending(); err != nil {
+		t.Fatalf("default skip_permission_validation should skip send-time permission prompts: %v", err)
+	}
+}
+
+func TestSyntheticTextMessagesUseCreateChat(t *testing.T) {
+	if !shouldCreateChatForOutgoingText("any;-;cigdem.cabuker@icloud.com", "") {
+		t.Fatal("new synthetic DM text should use CreateChat instead of SendText")
+	}
+	if !shouldCreateChatForOutgoingText("group;-;alice@example.com,bob@example.com", "") {
+		t.Fatal("new synthetic group text should use CreateChat instead of SendText")
+	}
+	if shouldCreateChatForOutgoingText("any;-;cigdem.cabuker@icloud.com", "reply-id") {
+		t.Fatal("replies should not use CreateChat")
+	}
+	if shouldCreateChatForOutgoingText("iMessage;-;real-chat", "") {
+		t.Fatal("real iMessage thread IDs should use SendText")
+	}
+}
+
+func TestCreateChatIgnoresStalePartialLastMessage(t *testing.T) {
+	isSender := true
+	if sentPartialLastMessageMatches(&imessage.Message{Text: "old", IsSender: &isSender}, "new") {
+		t.Fatal("stale partial last message must not be used as the new send response")
+	}
+	if !sentPartialLastMessageMatches(&imessage.Message{Text: "new", IsSender: &isSender}, "new") {
+		t.Fatal("matching own partial last message should be usable")
+	}
+	isNotSender := false
+	if sentPartialLastMessageMatches(&imessage.Message{Text: "new", IsSender: &isNotSender}, "new") {
+		t.Fatal("incoming partial last message must not be used as the own send response")
+	}
+}
+
+func TestBestEffortAutomationErrorClassifier(t *testing.T) {
+	if !shouldIgnoreBestEffortAutomationError(errors.New("Initialized MessagesController in an invalid state:\nmwFrameValid=failure(Could not get main Messages window)")) {
+		t.Fatal("expected missing Messages main window errors to be best-effort for implicit read receipts")
+	}
+	if shouldIgnoreBestEffortAutomationError(errors.New("operation timed out after 45s")) {
+		t.Fatal("generic send timeouts must not be ignored")
+	}
+	if shouldIgnoreBestEffortAutomationError(nil) {
+		t.Fatal("nil errors must not be classified as ignored")
 	}
 }
 

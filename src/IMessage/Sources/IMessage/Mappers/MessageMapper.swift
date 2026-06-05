@@ -18,7 +18,7 @@ struct Mapper {
         let attachments = attachmentRows.compactMap { attachment(from: $0) }
         let service = messageRow.service
         let isSMS = service == "SMS" || service == "RCS"
-        let isGroup = !(messageRow.roomName ?? "").isEmpty
+        let isGroup = threadIsGroup(threadID: messageRow.threadID, roomName: messageRow.roomName)
         let dates = MessageDates(row: messageRow)
         let summaryInfo = parseSummaryInfo()
 

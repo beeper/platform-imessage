@@ -13,8 +13,10 @@ import (
 const maxTextLength = 200_000
 const maxFileSize = 100 * 1024 * 1024
 
+var supportedIMessageReactions = []string{"❤️", "👍", "👎", "HAHA", "‼️", "❓"}
+
 var generalCaps = &bridgev2.NetworkGeneralCapabilities{
-	ImplicitReadReceipts: true,
+	ImplicitReadReceipts: false,
 	Provisioning: bridgev2.ProvisioningCapabilities{
 		ResolveIdentifier: bridgev2.ResolveIdentifierCapabilities{
 			CreateDM:    true,
@@ -22,6 +24,19 @@ var generalCaps = &bridgev2.NetworkGeneralCapabilities{
 			AnyPhone:    true,
 			ContactList: true,
 			Search:      true,
+		},
+		GroupCreation: map[string]bridgev2.GroupTypeCapabilities{
+			"group": {
+				TypeDescription: "iMessage group",
+				Name: bridgev2.GroupFieldCapability{
+					Allowed: true,
+				},
+				Participants: bridgev2.GroupFieldCapability{
+					Allowed:   true,
+					Required:  true,
+					MinLength: 2,
+				},
+			},
 		},
 	},
 }
@@ -45,19 +60,35 @@ var roomCaps = &event.RoomFeatures{
 	},
 	File: map[event.CapabilityMsgType]*event.FileFeatures{
 		event.MsgImage: {
-			MimeTypes: map[string]event.CapabilitySupportLevel{"*/*": event.CapLevelFullySupported},
-			Caption:   event.CapLevelDropped,
-			MaxSize:   maxFileSize,
+			MimeTypes: map[string]event.CapabilitySupportLevel{
+				"image/jpeg": event.CapLevelFullySupported,
+				"image/png":  event.CapLevelFullySupported,
+				"image/gif":  event.CapLevelFullySupported,
+				"image/webp": event.CapLevelFullySupported,
+			},
+			Caption: event.CapLevelDropped,
+			MaxSize: maxFileSize,
 		},
 		event.MsgVideo: {
-			MimeTypes: map[string]event.CapabilitySupportLevel{"*/*": event.CapLevelFullySupported},
-			Caption:   event.CapLevelDropped,
-			MaxSize:   maxFileSize,
+			MimeTypes: map[string]event.CapabilitySupportLevel{
+				"video/mp4":  event.CapLevelFullySupported,
+				"video/webm": event.CapLevelFullySupported,
+				"video/ogg":  event.CapLevelFullySupported,
+			},
+			Caption: event.CapLevelDropped,
+			MaxSize: maxFileSize,
 		},
 		event.MsgAudio: {
-			MimeTypes: map[string]event.CapabilitySupportLevel{"*/*": event.CapLevelFullySupported},
-			Caption:   event.CapLevelDropped,
-			MaxSize:   maxFileSize,
+			MimeTypes: map[string]event.CapabilitySupportLevel{
+				"audio/mpeg": event.CapLevelFullySupported,
+				"audio/mp4":  event.CapLevelFullySupported,
+				"audio/ogg":  event.CapLevelFullySupported,
+				"audio/wav":  event.CapLevelFullySupported,
+				"audio/webm": event.CapLevelFullySupported,
+				"audio/aac":  event.CapLevelFullySupported,
+			},
+			Caption: event.CapLevelDropped,
+			MaxSize: maxFileSize,
 		},
 		event.MsgFile: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{"*/*": event.CapLevelFullySupported},
@@ -65,19 +96,21 @@ var roomCaps = &event.RoomFeatures{
 			MaxSize:   maxFileSize,
 		},
 	},
-	MaxTextLength:       maxTextLength,
-	Reply:               event.CapLevelFullySupported,
-	Edit:                event.CapLevelFullySupported,
-	EditMaxAge:          ptr.Ptr(jsontime.S(15 * time.Minute)),
-	Delete:              event.CapLevelFullySupported,
-	DeleteForMe:         false,
-	DeleteMaxAge:        ptr.Ptr(jsontime.S(2 * time.Minute)),
-	Reaction:            event.CapLevelFullySupported,
-	ReactionCount:       1,
-	ReadReceipts:        true,
-	TypingNotifications: true,
-	MarkAsUnread:        true,
-	DeleteChat:          true,
+	MaxTextLength:        maxTextLength,
+	Reply:                event.CapLevelFullySupported,
+	Edit:                 event.CapLevelFullySupported,
+	EditMaxAge:           ptr.Ptr(jsontime.S(15 * time.Minute)),
+	Delete:               event.CapLevelFullySupported,
+	DeleteForMe:          false,
+	DeleteMaxAge:         ptr.Ptr(jsontime.S(2 * time.Minute)),
+	Reaction:             event.CapLevelFullySupported,
+	ReactionCount:        1,
+	AllowedReactions:     supportedIMessageReactions,
+	CustomEmojiReactions: false,
+	ReadReceipts:         true,
+	TypingNotifications:  true,
+	MarkAsUnread:         true,
+	DeleteChat:           true,
 }
 
 func (c *Client) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {

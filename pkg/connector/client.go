@@ -34,22 +34,24 @@ var _ bridgev2.NetworkAPIWithUserID = (*Client)(nil)
 func (c *Client) Connect(ctx context.Context) {
 	c.loggedIn.Store(false)
 	c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
-	authStatus, err := c.IM.AuthorizationStatus()
-	if err != nil {
-		c.UserLogin.BridgeState.Send(status.BridgeState{
-			StateEvent: status.StateBadCredentials,
-			Error:      "IMESSAGE_PERMISSION_CHECK_FAILED",
-			Message:    err.Error(),
-		})
-		return
-	}
-	if !authStatus.Authorized {
-		c.UserLogin.BridgeState.Send(status.BridgeState{
-			StateEvent: status.StateBadCredentials,
-			Error:      "IMESSAGE_PERMISSIONS_MISSING",
-			Message:    missingPermissionMessage(authStatus),
-		})
-		return
+	if !c.Main.Config.ShouldSkipPermissionValidation() {
+		authStatus, err := c.IM.AuthorizationStatus()
+		if err != nil {
+			c.UserLogin.BridgeState.Send(status.BridgeState{
+				StateEvent: status.StateBadCredentials,
+				Error:      "IMESSAGE_PERMISSION_CHECK_FAILED",
+				Message:    err.Error(),
+			})
+			return
+		}
+		if !authStatus.Authorized {
+			c.UserLogin.BridgeState.Send(status.BridgeState{
+				StateEvent: status.StateBadCredentials,
+				Error:      "IMESSAGE_PERMISSIONS_MISSING",
+				Message:    missingPermissionMessage(authStatus),
+			})
+			return
+		}
 	}
 	if _, err := c.IM.CurrentUser(); err != nil {
 		c.UserLogin.BridgeState.Send(status.BridgeState{
@@ -59,6 +61,7 @@ func (c *Client) Connect(ctx context.Context) {
 		})
 		return
 	}
+	automationState := c.automationBridgeState()
 	stopEventLoop := c.resetEventLoop()
 	if err := c.IM.StartEvents(); err != nil {
 		c.stopCurrentEventLoop()
@@ -70,9 +73,48 @@ func (c *Client) Connect(ctx context.Context) {
 		return
 	}
 	c.loggedIn.Store(true)
-	c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+	if automationState != nil {
+		c.UserLogin.BridgeState.Send(*automationState)
+	} else {
+		c.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+	}
 	go c.syncExistingChats()
 	go c.eventLoop(stopEventLoop)
+}
+
+func (c *Client) automationBridgeState() *status.BridgeState {
+	authStatus, err := c.IM.AuthorizationStatus()
+	if err != nil || authStatus == nil || authStatus.Automation.Available || authStatus.Automation.Status == "" {
+		return nil
+	}
+	return bridgeStateForAutomationStatus(authStatus.Automation)
+}
+
+func bridgeStateForAutomationStatus(automation imessage.AutomationStatus) *status.BridgeState {
+	if automation.Available || automation.Status == "" {
+		return nil
+	}
+	message := automation.Message
+	if message == "" {
+		message = "Messages.app automation is unavailable"
+	}
+	return &status.BridgeState{
+		StateEvent: status.StateConnected,
+		Error:      "IMESSAGE_AUTOMATION_UNAVAILABLE",
+		Message:    message,
+		Reason:     automation.Reason,
+		Info: map[string]interface{}{
+			"automation_status":       automation.Status,
+			"frontmost_bundle_id":     automation.FrontmostBundleID,
+			"frontmost_name":          automation.FrontmostName,
+			"messages_running":        automation.MessagesRunning,
+			"messages_active":         automation.MessagesActive,
+			"messages_hidden":         automation.MessagesHidden,
+			"messages_window_count":   automation.MessagesWindowCount,
+			"messages_status_reason":  automation.Reason,
+			"messages_status_message": message,
+		},
+	}
 }
 
 func missingPermissionMessage(authStatus *imessage.AuthorizationStatus) string {
@@ -208,16 +250,16 @@ func (c *Client) syncExistingChats() {
 		c.reIDKnownSyntheticPortals(context.Background(), thread)
 		c.queueThreadReadState(thread)
 		c.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
-			EventMeta: c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
-			ChatInfo:  c.chatInfoFromThread(thread),
+			EventMeta:       c.baseEventMeta(thread.ID).WithType(bridgev2.RemoteEventChatResync),
+			ChatInfo:        c.chatInfoFromThread(thread),
+			LatestMessageTS: threadLatestMessageTimestamp(thread),
 		})
 		messages, err := c.IM.Messages(thread.ID, nil)
 		if err != nil {
 			c.UserLogin.Log.Warn().Err(err).Str("thread_id", thread.ID).Msg("Failed to sync iMessage messages")
 			continue
 		}
-		for i := len(messages.Items) - 1; i >= 0; i-- {
-			message := messages.Items[i]
+		for _, message := range messages.Items {
 			evt := imessage.StateSyncEvent{
 				Type:         "state_sync",
 				ObjectName:   "message",
@@ -243,6 +285,16 @@ func messageTimestamp(message imessage.Message) time.Time {
 		return time.Now()
 	}
 	return time.UnixMilli(message.Timestamp)
+}
+
+func threadLatestMessageTimestamp(thread imessage.Thread) time.Time {
+	if thread.PartialLastMessage != nil {
+		return messageTimestamp(*thread.PartialLastMessage)
+	}
+	if thread.Timestamp != 0 {
+		return time.UnixMilli(thread.Timestamp)
+	}
+	return time.Time{}
 }
 
 func matrixUnsupported(msg string) error {

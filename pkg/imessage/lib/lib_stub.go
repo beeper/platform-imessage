@@ -11,7 +11,7 @@ func unsupported() (json.RawMessage, error) {
 	return nil, fmt.Errorf("platform-imessage bridge is only supported on macOS with cgo")
 }
 
-func Init(dataDir string, verbose, useSecondaryInstance bool) (json.RawMessage, error) {
+func Init(dataDir string, verbose, useSecondaryInstance, coordinateWindow bool) (json.RawMessage, error) {
 	return unsupported()
 }
 

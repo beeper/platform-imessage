@@ -9,8 +9,8 @@ import (
 
 type Client struct{}
 
-func Init(dataDir string, verbose, useSecondaryInstance bool) error {
-	_, err := lib.Init(dataDir, verbose, useSecondaryInstance)
+func Init(dataDir string, verbose, useSecondaryInstance, coordinateWindow bool) error {
+	_, err := lib.Init(dataDir, verbose, useSecondaryInstance, coordinateWindow)
 	return err
 }
 
