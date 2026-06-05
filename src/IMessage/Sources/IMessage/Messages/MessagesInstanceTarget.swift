@@ -54,23 +54,20 @@ enum MessagesInstanceTarget {
         configuration.launchWithoutRestoringState = true
         configuration.waitForApplicationToCheckIn = true
 
-        let app = try await NSWorkspace.shared.waitForRunningApplicationOpen(
-            timeout: timeout,
-            timeoutMessage: "Timed out waiting for secondary Messages.app launch after \(timeout)s",
-            missingApplicationMessage: "LaunchServices completed without returning Messages.app"
-        ) { completion in
-            NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration, completionHandler: completion)
+        let application = try await withTimeout(timeout) {
+            try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
         }
-        try await app.waitForLaunch(timeout: timeout)
+
+        try await application.waitForLaunch(timeout: timeout)
 
         if let initialDeepLink {
-            try sendDeepLink(initialDeepLink, to: app)
+            try sendDeepLink(initialDeepLink, to: application)
         }
 
         if hiding {
-            app.hide()
+            application.hide()
         }
 
-        return app
+        return application
     }
 }
