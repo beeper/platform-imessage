@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import IMessageCore
 import Logging
+import WindowControl
 
 private let log = Logger(imessageLabel: "onboarding-manager")
 
@@ -19,14 +20,13 @@ final class OnboardingManager {
     }
 
     static func getPrefsWindowBounds() -> CGRect? {
-        guard let allWindowInfos = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [NSDictionary],
-              let sysPrefWinInfo = allWindowInfos.first(where: { $0[kCGWindowOwnerName] as? String == Self.sysPrefsTitle }),
-              // todo review force cast
-              let bounds = CGRect(dictionaryRepresentation: sysPrefWinInfo[kCGWindowBounds] as! CFDictionary)
+        guard let windowDescriptions = try? Window.listDescriptions(.onScreen, excludeDesktopElements: true),
+              let systemSettingsWindow = windowDescriptions.first(where: { $0.ownerName == Self.sysPrefsTitle })
         else {
             return nil
         }
-        return bounds
+
+        return systemSettingsWindow.bounds
     }
 
     func createOrUpdateWindow(_ bounds: CGRect) {
