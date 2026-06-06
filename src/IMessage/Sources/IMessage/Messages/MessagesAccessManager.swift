@@ -20,7 +20,12 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         super.init()
         if let bookmark = UserDefaults.standard.data(forKey: Self.messagesBookmarkKey) {
             var isStale = false
-            url = try? URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &isStale)
+            url = (try? URL(
+                resolvingBookmarkData: bookmark,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )) ?? (try? URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &isStale))
             if isStale || url?.startAccessingSecurityScopedResource() == false {
                 url = nil
             }
@@ -84,7 +89,11 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         guard url.startAccessingSecurityScopedResource() else {
             throw ErrorMessage("Could not authorize access to the Messages directory")
         }
-        let bookmark = try url.bookmarkData()
+        let bookmark = try url.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
         UserDefaults.standard.set(bookmark, forKey: Self.messagesBookmarkKey)
         self.url?.stopAccessingSecurityScopedResource()
         self.url = url
