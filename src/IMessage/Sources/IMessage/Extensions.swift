@@ -20,7 +20,7 @@ extension NSRunningApplication {
             return
         }
 
-        try await withTimeout(seconds) {
+        try await Task.withTimeout(seconds) {
             try await withThrowingTaskGroup(of: Void.self) { group in
                 defer {
                     group.cancelAll()

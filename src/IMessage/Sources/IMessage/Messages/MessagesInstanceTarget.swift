@@ -54,7 +54,7 @@ enum MessagesInstanceTarget {
         configuration.launchWithoutRestoringState = true
         configuration.waitForApplicationToCheckIn = true
 
-        let application = try await withTimeout(timeout) {
+        let application = try await Task.withTimeout(timeout) {
             try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
         }
 

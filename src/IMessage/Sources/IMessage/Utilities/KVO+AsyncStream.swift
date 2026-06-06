@@ -112,7 +112,7 @@ public extension NSObjectProtocol where Self: NSObject {
         options: NSKeyValueObservingOptions = [.initial, .new],
         where predicate: @escaping @Sendable (Value) async throws -> Bool
     ) async throws -> Value {
-        try await withTimeout(timeout) { [self] in
+        try await Task.withTimeout(timeout) { [self] in
             guard let value = try await self.waitForValue(keyPath, options: options, where: predicate) else {
                 throw Swift.CancellationError()
             }

@@ -159,7 +159,7 @@ final class MessagesController {
         case .handledBySecondaryInstance(let app):
             return app
         case .open(let openOptions):
-            return try await withTimeout(timeout) {
+            return try await Task.withTimeout(timeout) {
                 try await NSWorkspace.shared.open(url, configuration: openOptions)
             }
         }
