@@ -50,6 +50,7 @@ export const roomFeatures = {
 
   delete: CapabilitySupportLevel.FullySupported,
   delete_max_age: 60 * 2,
+  delete_chat: true,
 
   reaction: CapabilitySupportLevel.FullySupported,
   reaction_count: 1,
