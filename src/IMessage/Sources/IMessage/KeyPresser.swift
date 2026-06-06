@@ -74,6 +74,10 @@ class KeyPresser {
         try pressMappedKey("v", flags: .maskCommand, onMainThread: onMainThread)
     }
 
+    func commandN(onMainThread: Bool = true) throws {
+        try pressMappedKey("n", flags: .maskCommand, onMainThread: onMainThread)
+    }
+
     /// marks as read/unread on ventura
     func commandShiftU(onMainThread: Bool = true) throws {
         try pressMappedKey("u", flags: [.maskCommand, .maskShift], onMainThread: onMainThread)

@@ -35,6 +35,11 @@ var products: [Product] = [
         name: "IMessage",
         targets: ["IMessage"]
     ),
+    .library(
+        name: "IMessageBridgeKit",
+        type: .dynamic,
+        targets: ["IMessageBridgeKit"]
+    ),
     .executable(name: "imessage-cli", targets: ["IMessageCLI"]),
     .executable(name: "IMDatabaseTestBench", targets: ["IMDatabaseTestBench"]),
 ]
@@ -101,6 +106,15 @@ var targets: [Target] = [
             .product(name: "Collections", package: "swift-collections"),
         ],
         path: "src/IMessage/Sources/IMessage"
+    ),
+    .target(
+        name: "IMessageBridgeKit",
+        dependencies: [
+            "IMessage",
+            "IMessageCore",
+            "PlatformSDK",
+        ],
+        path: "src/IMessage/Sources/IMessageBridgeKit"
     ),
     .target(
         name: "IMessagePrivateSPI",

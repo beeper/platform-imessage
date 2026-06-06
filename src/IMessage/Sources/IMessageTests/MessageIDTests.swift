@@ -27,6 +27,13 @@ private let fixtureMessageGUID = "08E8CAE0-FA6F-408D-8E22-FB0712D116D9"
     #expect(trailing.partIndex == nil)
 }
 
+@Test func threadIDGroupDetectionDoesNotRequireRoomName() {
+    #expect(threadIsGroup(threadID: "iMessage;+;untitled-group", roomName: nil))
+    #expect(threadIsGroup(threadID: "SMS;+;untitled-group", roomName: ""))
+    #expect(threadIsGroup(threadID: "iMessage;-;alice@example.com", roomName: "Alice and Bob"))
+    #expect(!threadIsGroup(threadID: "iMessage;-;alice@example.com", roomName: nil))
+}
+
 @Test func messagesDeepLinkAllowsPartAddressedMessageGUID() throws {
     let items = try queryItems(for: MessagesDeepLink.message(guid: fixtureMessageGUID, partIndex: 1, overlay: false).url())
 

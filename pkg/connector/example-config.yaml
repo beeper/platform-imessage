@@ -1,0 +1,6 @@
+data_dir: ./imessage-data
+verbose: false
+use_secondary_instance: false
+coordinate_window: false
+event_poll_timeout_ms: 30000
+skip_permission_validation: true

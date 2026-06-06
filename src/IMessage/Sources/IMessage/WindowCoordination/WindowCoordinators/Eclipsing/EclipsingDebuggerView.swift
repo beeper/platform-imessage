@@ -204,6 +204,7 @@ struct EclipsingDebuggerView: View {
     }
 }
 
+#if ENABLE_SWIFTUI_PREVIEWS
 @available(macOS 14, *)
 #Preview {
     @Previewable var state = EclipsingDebuggerState(points: [
@@ -216,3 +217,4 @@ struct EclipsingDebuggerView: View {
     EclipsingDebuggerView(state: state)
         .frame(width: 1920 / 4, height: 1080 / 4)
 }
+#endif

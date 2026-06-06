@@ -23,3 +23,10 @@ func singleParticipantAddress(_ threadID: String) -> String? {
 func threadIDIsForGroup(_ id: String) -> Bool {
     splitThreadID(id).map { $0.1 == MessagesDeepLink.groupThreadType } == true
 }
+
+func threadIsGroup(threadID: String?, roomName: String?) -> Bool {
+    if threadID.map(threadIDIsForGroup) == true {
+        return true
+    }
+    return roomName?.isEmpty == false
+}

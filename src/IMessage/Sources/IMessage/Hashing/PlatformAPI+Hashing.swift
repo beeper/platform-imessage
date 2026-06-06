@@ -3,11 +3,12 @@ import IMessageCore
 import PlatformSDK
 
 private let platformAPIHasWarmedThreadHasher = Protected(false)
+private let platformAPIHasWarmedParticipantHasher = Protected(false)
 
 extension PlatformAPI {
-    nonisolated static func originalThreadID(db: IMDatabase, _ threadID: String) throws -> String {
-        guard threadID.hasPrefix("imsg") else {
-            return threadID
+	nonisolated static func originalThreadID(db: IMDatabase, _ threadID: String) throws -> String {
+		guard threadID.hasPrefix("imsg") else {
+			return threadID
         }
         do {
             return try Hasher.thread.recoverOriginal(fromToken: threadID)
@@ -22,13 +23,40 @@ extension PlatformAPI {
                     _ = Hasher.thread.tokenizeHashRemembering(pii: guid)
                 }
             }
-            return try Hasher.thread.recoverOriginal(fromToken: threadID)
-        }
-    }
+			return try Hasher.thread.recoverOriginal(fromToken: threadID)
+		}
+	}
 
-    nonisolated static func mapAndHashMessages(
-        messageRows: [MappedMessageRow],
-        attachmentRows: [MappedAttachmentRow],
+	nonisolated static func originalParticipantID(db: IMDatabase, _ participantID: String) throws -> String {
+		guard participantID.hasPrefix("imsg") else {
+			return participantID
+		}
+		do {
+			return try Hasher.participant.recoverOriginal(fromToken: participantID)
+		} catch {
+			let shouldWarm = platformAPIHasWarmedParticipantHasher.withLock { hasWarmed in
+				guard !hasWarmed else { return false }
+				hasWarmed = true
+				return true
+			}
+			if shouldWarm {
+				let chatRows = try db.mappedThreadRows(cursor: nil, direction: nil, limit: 10_000)
+				let handleRowsByChatRowID = try db.mappedThreadParticipantRows(chatRowIDs: chatRows.map(\.rowID))
+				for handleRows in handleRowsByChatRowID.values {
+					for row in handleRows {
+						for id in [row.participantID, row.uncanonicalizedID].compactMap({ $0 }) where !id.isEmpty {
+							_ = Hasher.participant.tokenizeHashRemembering(pii: id)
+						}
+					}
+				}
+			}
+			return try Hasher.participant.recoverOriginal(fromToken: participantID)
+		}
+	}
+
+	nonisolated static func mapAndHashMessages(
+		messageRows: [MappedMessageRow],
+		attachmentRows: [MappedAttachmentRow],
         reactionRows: [MappedReactionMessageRow],
         currentUserID: String,
         accountID: String

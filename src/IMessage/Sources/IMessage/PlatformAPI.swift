@@ -207,14 +207,19 @@ public final class PlatformAPI {
         }
     }
 
-    public func getMessages(threadID: String, pagination: PlatformSDK.PaginationArg?) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
+    public func getMessages(
+        threadID: String,
+        pagination: PlatformSDK.PaginationArg?,
+        limit: Int? = nil
+    ) async throws -> PlatformSDK.Paginated<PlatformSDK.Message> {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessages(
                 db: db,
                 threadID: threadID,
                 pagination: pagination,
                 currentUserID: currentUser.id,
-                accountID: accountID
+                accountID: accountID,
+                limit: limit
             )
         }
     }
@@ -251,8 +256,12 @@ public final class PlatformAPI {
             throw ErrorMessage("no message")
         }
 
-        if userIDs.count == 1 {
-            let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(userIDs[0])"
+        let resolvedUserIDs = try await runDBQuery { db, _, _ in
+            try userIDs.map { try Self.originalParticipantID(db: db, $0) }
+        }
+
+        if resolvedUserIDs.count == 1 {
+            let existingThreadID = "\(isTahoeOrUp ? "any" : "iMessage");-;\(resolvedUserIDs[0])"
             let existingThread = try await runDBQuery { db, currentUser, accountID in
                 try Self.getThread(
                     db: db,
@@ -263,29 +272,46 @@ public final class PlatformAPI {
             }
 
             if let existingThread {
-                try await withMessagesController { controller in
-                    try controller.sendMessage(
-                        threadID: existingThreadID,
-                        addresses: nil,
-                        text: messageText,
-                        filePath: nil,
-                        quotedMessage: nil
-                    )
-                }
+                _ = try await sendTextViaOSA(threadID: existingThreadID, text: messageText)
                 return .thread(existingThread)
             }
+        } else if let existingGroup = try await existingGroupThread(userIDs: resolvedUserIDs) {
+            try await withMessagesController { controller in
+                try controller.sendMessage(
+                    threadID: existingGroup.threadID,
+                    addresses: nil,
+                    text: messageText,
+                    filePath: nil,
+                    quotedMessage: nil
+                )
+            }
+            return .thread(existingGroup.thread)
         }
 
-        try await withMessagesController { controller in
+        let lastRowID = try await performControllerOperation(
+            name: "createThread",
+            retries: 1,
+            prepareAttempt: { try await self.lastMessageRowID() }
+        ) { controller in
             try controller.sendMessage(
                 threadID: nil,
-                addresses: userIDs,
+                addresses: resolvedUserIDs,
                 text: messageText,
                 filePath: nil,
                 quotedMessage: nil
             )
         }
-        return .boolean(true)
+
+        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: messageText, timeout: messageSendTimeout)
+        let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
+        guard let threadID = sentThreadIDs.compactMap({ $0 }).first,
+              let thread = try await runDBQuery({ db, currentUser, accountID in
+                  try Self.getThread(db: db, threadID: threadID, currentUser: currentUser, accountID: accountID)
+              })
+        else {
+            return .boolean(true)
+        }
+        return .thread(thread)
     }
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
@@ -303,6 +329,10 @@ public final class PlatformAPI {
 
         if threadID.hasPrefix("SMS;-;"), threadID.contains("@") {
             throw ErrorMessage("Cannot send message to email address over SMS")
+        }
+
+        if quotedMessageID == nil, filePath == nil, let text, canSendTextViaOSA(threadID: threadID, text: text) {
+            return try await sendTextViaOSA(threadID: threadID, text: text)
         }
 
         let lastRowID = try await performControllerOperation(
@@ -732,17 +762,23 @@ public final class PlatformAPI {
         expectedLinkedMessageID: String?,
         text: String?,
         lastRowID: Int,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        validateThreadWithController: Bool = true
     ) async throws -> PlatformSDK.MessageSendResult {
         let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
         let address = threadIDToAddress(threadID)
-        let sentThreadIsValid = try await withMessagesController { controller in
-            sentThreadIDs.allSatisfy { sentThreadID in
-                if sentThreadID == threadID { return true }
-                guard let sentThreadID else { return false }
-                return controller.isSameContact(address, threadIDToAddress(sentThreadID))
+        let sentThreadIsValid: Bool
+        if validateThreadWithController {
+            sentThreadIsValid = try await withMessagesController { controller in
+                sentThreadIDs.allSatisfy { sentThreadID in
+                    if sentThreadID == threadID { return true }
+                    guard let sentThreadID else { return false }
+                    return controller.isSameContact(address, threadIDToAddress(sentThreadID))
+                }
             }
+        } else {
+            sentThreadIsValid = sentThreadIDs.allSatisfy { $0 == threadID }
         }
 
         guard sentThreadIsValid else {
@@ -753,6 +789,33 @@ public final class PlatformAPI {
         let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
+    }
+
+    private func sendTextViaOSA(threadID: String, text: String) async throws -> PlatformSDK.MessageSendResult {
+        let lastRowID = try await lastMessageRowID()
+        try OSA.send(threadID: threadID, text: text)
+        return try await waitForMessageSend(
+            threadID: threadID,
+            expectedLinkedMessageID: nil,
+            text: text,
+            lastRowID: lastRowID,
+            timeout: messageSendTimeout,
+            validateThreadWithController: false
+        )
+    }
+
+    private func canSendTextViaOSA(threadID: String, text: String) -> Bool {
+        singleParticipantAddress(threadID) != nil &&
+            !Defaults.disableOSAFastPath &&
+            !Preferences.useSecondaryMessagesInstance &&
+            !text.contains("@") &&
+            !text.containsLink
+    }
+
+    private func existingGroupThread(userIDs: [String]) async throws -> (threadID: String, thread: PlatformSDK.Thread)? {
+        try await runDBQuery { db, currentUser, accountID in
+            try Self.existingGroupThread(db: db, userIDs: userIDs, currentUser: currentUser, accountID: accountID)
+        }
     }
 
     private func waitForSentMessageIDs(
@@ -825,6 +888,11 @@ public final class PlatformAPI {
         try? errorMessageReporter?(message)
     }
 
+    nonisolated private static func normalizedChatIdentifier(_ value: String?) -> String? {
+        let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized?.isEmpty == false ? normalized : nil
+    }
+
     nonisolated static func getThreads(
         db: IMDatabase,
         folderName: String,
@@ -859,6 +927,47 @@ public final class PlatformAPI {
         }
         let context = try threadMapperContext(db: db, chatRows: [chatRow], currentUser: currentUser, accountID: accountID)
         return try ThreadMapper.mapThread(chatRow, context: context)
+    }
+
+    nonisolated static func existingGroupThread(
+        db: IMDatabase,
+        userIDs: [String],
+        currentUser: PlatformSDK.CurrentUser,
+        accountID: String
+    ) throws -> (threadID: String, thread: PlatformSDK.Thread)? {
+        let requestedParticipants = Set(userIDs.compactMap(normalizedChatIdentifier))
+        guard requestedParticipants.count == userIDs.count, requestedParticipants.count > 1 else {
+            return nil
+        }
+
+        let chatRows = try db.mappedThreadRows(cursor: nil, direction: nil, limit: 10_000)
+            .filter { threadIsGroup(threadID: $0.guid, roomName: $0.roomName) }
+        let handleRowsByChatRowID = try db.mappedThreadParticipantRows(chatRowIDs: chatRows.map(\.rowID))
+
+        for chatRow in chatRows {
+            let selfIdentifiers = Set([
+                chatRow.lastAddressedHandle,
+                chatRow.accountLogin,
+                currentUser.id,
+                currentUser.email,
+                currentUser.phoneNumber,
+            ].compactMap(normalizedChatIdentifier))
+            let participants = Set((handleRowsByChatRowID[chatRow.rowID] ?? []).compactMap { row -> String? in
+                let identifiers = [row.participantID, row.uncanonicalizedID].compactMap(normalizedChatIdentifier)
+                guard !identifiers.contains(where: { selfIdentifiers.contains($0) }) else {
+                    return nil
+                }
+                return identifiers.first
+            })
+            guard participants == requestedParticipants else {
+                continue
+            }
+
+            let context = try threadMapperContext(db: db, chatRows: [chatRow], currentUser: currentUser, accountID: accountID)
+            return (chatRow.guid, try ThreadMapper.mapThread(chatRow, context: context))
+        }
+
+        return nil
     }
 
     nonisolated static func getMessages(

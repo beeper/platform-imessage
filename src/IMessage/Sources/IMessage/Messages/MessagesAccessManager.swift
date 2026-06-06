@@ -11,22 +11,46 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
     }
 
     private static let messagesBookmarkKey = "TXTMessagesBookmark"
+    private static let sharedBookmarkSuiteNames = [
+        "com.beeper.platform-imessage.bridge",
+        "imessage-cli",
+    ]
 
     private let expectedURL = MessagesPaths.messagesDirectory
 
     var url: URL?
+    var hasAccessGrant: Bool { url != nil }
 
     override init() {
         super.init()
-        if let bookmark = UserDefaults.standard.data(forKey: Self.messagesBookmarkKey) {
+        if let bookmark = Self.bookmarkData() {
             var isStale = false
-            url = try? URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &isStale)
+            url = try? URL(
+                resolvingBookmarkData: bookmark,
+                options: [.withSecurityScope],
+                bookmarkDataIsStale: &isStale
+            )
             if isStale || url?.startAccessingSecurityScopedResource() == false {
                 url = nil
             }
         }
 
         log.debug("do we have an initial url? \(url != nil)")
+    }
+
+    private static func bookmarkStores() -> [UserDefaults] {
+        var stores = [UserDefaults.standard]
+        stores.append(contentsOf: sharedBookmarkSuiteNames.compactMap(UserDefaults.init(suiteName:)))
+        return stores
+    }
+
+    private static func bookmarkData() -> Data? {
+        for store in bookmarkStores() {
+            if let bookmark = store.data(forKey: messagesBookmarkKey) {
+                return bookmark
+            }
+        }
+        return nil
     }
 
     private func isExpectedURL(_ url: URL) -> Bool {
@@ -84,8 +108,10 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         guard url.startAccessingSecurityScopedResource() else {
             throw ErrorMessage("Could not authorize access to the Messages directory")
         }
-        let bookmark = try url.bookmarkData()
-        UserDefaults.standard.set(bookmark, forKey: Self.messagesBookmarkKey)
+        let bookmark = try url.bookmarkData(options: [.withSecurityScope])
+        for store in Self.bookmarkStores() {
+            store.set(bookmark, forKey: Self.messagesBookmarkKey)
+        }
         self.url?.stopAccessingSecurityScopedResource()
         self.url = url
     }

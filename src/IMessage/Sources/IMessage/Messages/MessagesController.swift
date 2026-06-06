@@ -439,7 +439,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     @inlinable func prepareForAutomation() throws {
-        log.info("prepareForAutomation")
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
 
@@ -453,7 +452,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     @inlinable func finishedAutomation() {
-        log.info("finishedAutomation")
         activityLock.unlock()
         // this isn't propagated to make finishedAutomation callable inside of defer { … }
         if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
@@ -1143,7 +1141,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private func sendMessageInField(_ messageField: Accessibility.Element) throws {
         log.debug("\(#function): focusing field and pressing return")
         focusMessageField(messageField) // focus is partially redundant, hitting enter without focus works too unless another text field is focused
-        try keyPresser.return() // in some random cases hitting enter will not send the message (even without automation), until the message input is clicked/focused
+        try keyPresser.return(onMainThread: false) // embedded bridge calls can block the main queue while waiting for send completion
         log.debug("\(#function): completed initial attempt")
 
         do {
@@ -1164,12 +1162,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     log.debug("\(#function): focusing and pressing enter again")
 
                     self.focusMessageField(messageField)
-                    try? self.keyPresser.return()
+                    try? self.keyPresser.return(onMainThread: false)
                 } else if attempt == 6 {
                     log.debug("\(#function): focusing and pressing enter again (alt. strategy)")
 
                     try? messageField.press()
-                    try? self.keyPresser.return()
+                    try? self.keyPresser.return(onMainThread: false)
                 }
             }
 

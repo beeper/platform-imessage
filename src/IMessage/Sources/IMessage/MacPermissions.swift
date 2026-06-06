@@ -63,11 +63,21 @@ public enum MacPermissions {
     }
 
     public static func askForMessagesDirAccess() async throws {
+        if (try? await canAccessMessagesDir()) == true {
+            return
+        }
         try await accessManager.requestAccess()
     }
 
+    public static func hasMessagesDirAccessGrant() -> Bool {
+        accessManager.hasAccessGrant
+    }
+
     public static func canAccessMessagesDir() async throws -> Bool {
-        try await Task.detached(priority: .userInitiated) {
+        if accessManager.hasAccessGrant {
+            return true
+        }
+        return try await Task.detached(priority: .userInitiated) {
             _ = try IMDatabase()
             return true
         }.value

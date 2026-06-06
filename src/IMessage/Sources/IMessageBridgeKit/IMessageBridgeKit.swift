@@ -1,0 +1,728 @@
+import Darwin
+import AppKit
+import Foundation
+import IMessage
+import IMessageCore
+import PlatformSDK
+
+private let defaultAccountID = "default"
+private let bridgeAutomationTimeout: TimeInterval = 45
+
+private final class BridgeRuntime: @unchecked Sendable {
+    static let shared = BridgeRuntime()
+
+    private let lock = NSLock()
+    private var api: PlatformAPI?
+    private var didBootstrap = false
+
+    private let eventCondition = NSCondition()
+    private var eventBatches: [Any] = []
+    private var eventsStarted = false
+
+    func initialize(dataDirPath: String, verbose: Bool, useSecondaryInstance: Bool, coordinateWindow: Bool) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if !didBootstrap {
+            IMessageHost.bootstrapWithOptions(
+                dataDirPath: dataDirPath,
+                verbose: verbose,
+                useSecondaryInstance: useSecondaryInstance,
+                coordinateWindow: coordinateWindow
+            )
+            didBootstrap = true
+        }
+
+        if api == nil {
+            api = try PlatformAPI(accountID: defaultAccountID)
+        }
+    }
+
+    func platformAPI() throws -> PlatformAPI {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let api {
+            return api
+        }
+        let api = try PlatformAPI(accountID: defaultAccountID)
+        self.api = api
+        return api
+    }
+
+    func dispose() async throws {
+        let currentAPI = takeAPIForDispose()
+        try await currentAPI?.dispose()
+        resetEventQueue()
+    }
+
+    private func takeAPIForDispose() -> PlatformAPI? {
+        lock.lock()
+        defer { lock.unlock() }
+        let currentAPI = api
+        api = nil
+        eventsStarted = false
+        return currentAPI
+    }
+
+    private func resetEventQueue() {
+        eventCondition.lock()
+        eventBatches.removeAll()
+        eventCondition.broadcast()
+        eventCondition.unlock()
+    }
+
+    func startEvents() async throws {
+        let api = try platformAPI()
+
+        guard markEventsStarted() else { return }
+
+        api.subscribeToEvents { [weak self] events in
+            let values = events.map { $0.jsonObject() }
+            self?.appendEventBatch(values)
+        }
+        do {
+            try await api.startEventWatchingFromCurrentState()
+        } catch {
+            clearEventsStarted()
+            throw error
+        }
+    }
+
+    func watchChat(threadID: String) async throws {
+        let api = try platformAPI()
+        try await api.onThreadSelected(threadID: threadID) { [weak self] events in
+            let values = events.map { $0.jsonObject() }
+            self?.appendEventBatch(values)
+        }
+    }
+
+    private func markEventsStarted() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let shouldStart = !eventsStarted
+        eventsStarted = true
+        return shouldStart
+    }
+
+    private func clearEventsStarted() {
+        lock.lock()
+        eventsStarted = false
+        lock.unlock()
+    }
+
+    private func appendEventBatch(_ events: [Any]) {
+        eventCondition.lock()
+        eventBatches.append(events)
+        eventCondition.signal()
+        eventCondition.unlock()
+    }
+
+    func nextEventBatch(timeoutMilliseconds: Int) -> Any? {
+        eventCondition.lock()
+        defer { eventCondition.unlock() }
+
+        if eventBatches.isEmpty, timeoutMilliseconds > 0 {
+            let deadline = Date(timeIntervalSinceNow: Double(timeoutMilliseconds) / 1000.0)
+            while eventBatches.isEmpty, eventCondition.wait(until: deadline) {}
+        }
+
+        guard !eventBatches.isEmpty else {
+            return nil
+        }
+        return eventBatches.removeFirst()
+    }
+}
+
+private struct PaginationInput: Decodable {
+    let cursor: String
+    let direction: String
+    let limit: Int?
+}
+
+private func parsePagination(_ raw: UnsafePointer<CChar>?) throws -> PlatformSDK.PaginationArg? {
+    try parsePaginationInput(raw).pagination
+}
+
+private func parsePaginationInput(_ raw: UnsafePointer<CChar>?) throws -> (pagination: PlatformSDK.PaginationArg?, limit: Int?) {
+    guard let raw else {
+        return (nil, nil)
+    }
+    let string = String(cString: raw)
+    guard !string.isEmpty else {
+        return (nil, nil)
+    }
+    let data = Data(string.utf8)
+    let decoded = try JSONDecoder().decode(PaginationInput.self, from: data)
+    guard let direction = PlatformSDK.PaginationDirection(rawValue: decoded.direction) else {
+        throw ErrorMessage("invalid pagination direction \(decoded.direction)")
+    }
+    return (PlatformSDK.PaginationArg(cursor: decoded.cursor, direction: direction), decoded.limit)
+}
+
+private func parseStringArray(_ raw: UnsafePointer<CChar>) throws -> [String] {
+    let string = String(cString: raw)
+    let data = Data(string.utf8)
+    guard let values = try JSONSerialization.jsonObject(with: data) as? [String] else {
+        throw ErrorMessage("expected JSON string array")
+    }
+    return values
+}
+
+private func assetResponse(_ result: PlatformAPI.AssetResult) -> Any {
+    switch result {
+    case let .url(url):
+        return ["url": url]
+    case let .data(data):
+        return ["dataBase64": data.base64EncodedString()]
+    }
+}
+
+private func permissionStatus(id: String, title: String, status: MacPermissionAuthStatus, required: Bool, detail: String) -> [String: Any] {
+    [
+        "id": id,
+        "title": title,
+        "status": status.rawValue,
+        "authorized": status == .authorized,
+        "required": required,
+        "detail": detail,
+    ]
+}
+
+private func messagesWindowCount() -> Int {
+    guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+        return 0
+    }
+    return windows.filter { window in
+        guard let ownerName = window[kCGWindowOwnerName as String] as? String else {
+            return false
+        }
+        return ownerName == "Messages"
+    }.count
+}
+
+private func automationStatus(accessibility: MacPermissionAuthStatus) -> [String: Any] {
+    let frontmost = NSWorkspace.shared.frontmostApplication
+    let frontmostBundleID = frontmost?.bundleIdentifier ?? ""
+    let frontmostName = frontmost?.localizedName ?? ""
+    let messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MobileSMS")
+    let messagesApp = messagesApps.first
+    let windowCount = messagesWindowCount()
+
+    var status = "available"
+    var reason = ""
+    var message = "Messages.app automation is available."
+
+    if frontmostBundleID == "com.apple.loginwindow" {
+        status = "unavailable"
+        reason = "LOGINWINDOW_FRONTMOST"
+        message = "The macOS GUI session is at loginwindow, so Messages.app cannot expose an automatable main window. Unlock or focus the user desktop session, then retry."
+    } else if accessibility != .authorized {
+        status = "degraded"
+        reason = "ACCESSIBILITY_NOT_AUTHORIZED"
+        message = "Accessibility is not authorized, so sending and other Messages.app automation may fail."
+    } else if messagesApp != nil && windowCount == 0 {
+        status = "degraded"
+        reason = "MESSAGES_WINDOW_NOT_VISIBLE"
+        message = "Messages.app is running but no on-screen Messages window is visible yet."
+    }
+
+    return [
+        "status": status,
+        "available": status != "unavailable",
+        "reason": reason,
+        "message": message,
+        "frontmostBundleID": frontmostBundleID,
+        "frontmostName": frontmostName,
+        "messagesRunning": messagesApp != nil,
+        "messagesActive": messagesApp?.isActive ?? false,
+        "messagesHidden": messagesApp?.isHidden ?? false,
+        "messagesWindowCount": windowCount,
+    ]
+}
+
+private func authorizationStatus() async -> [String: Any] {
+    let accessibility = MacPermissions.getAuthStatus(.accessibility)
+    let contacts = MacPermissions.getAuthStatus(.contacts)
+    let messagesDataOK = (try? await MacPermissions.canAccessMessagesDir()) == true
+    let messagesData: MacPermissionAuthStatus = messagesDataOK ? .authorized : .denied
+
+    let permissions: [[String: Any]] = [
+        permissionStatus(
+            id: "accessibility",
+            title: "Accessibility",
+            status: accessibility,
+            required: false,
+            detail: accessibility == .authorized
+                ? "The bridge can control Messages.app."
+                : "Enable this bridge in System Settings > Privacy & Security > Accessibility to send messages and automate Messages.app."
+        ),
+        permissionStatus(
+            id: "contacts",
+            title: "Contacts",
+            status: contacts,
+            required: true,
+            detail: contacts == .authorized
+                ? "The bridge can look up contact names and avatars."
+                : "Allow Contacts access so bridged chats can use local contact names and avatars."
+        ),
+        permissionStatus(
+            id: "messages-data",
+            title: "Messages Data",
+            status: messagesData,
+            required: true,
+            detail: messagesData == .authorized
+                ? "The bridge can read your local Messages database."
+                : "Allow access to ~/Library/Messages. If the folder picker does not grant access, enable Full Disk Access."
+        ),
+        [
+            "id": "automation",
+            "title": "Automation",
+            "status": "requestable",
+            "authorized": true,
+            "required": false,
+            "detail": "The bridge asks for Apple Events access to Messages.app during setup when macOS requires it.",
+        ],
+    ]
+
+    return [
+        "authorized": contacts == .authorized && messagesData == .authorized,
+        "permissions": permissions,
+        "automation": automationStatus(accessibility: accessibility),
+    ]
+}
+
+private func requestAuthorization(_ target: String) async throws -> [String: Any] {
+    let names: [String] = switch target {
+    case "", "all":
+        ["contacts", "messages-data", "automation"]
+    case "all-with-accessibility":
+        ["accessibility", "contacts", "messages-data", "automation"]
+    default:
+        [target]
+    }
+
+    for name in names {
+        switch name {
+        case "accessibility":
+            if MacPermissions.getAuthStatus(.accessibility) != .authorized {
+                MacPermissions.askForAccessibilityAccess()
+            }
+        case "contacts":
+            if MacPermissions.getAuthStatus(.contacts) != .authorized {
+                Task.detached {
+                    _ = try? await MacPermissions.askForContactsAccess()
+                }
+            }
+        case "messages-data":
+            if (try? await MacPermissions.canAccessMessagesDir()) != true {
+                Task { @MainActor in
+                    do {
+                        try await MacPermissions.askForMessagesDirAccess()
+                    } catch {
+                        MacPermissions.askForFullDiskAccess()
+                    }
+                }
+            }
+        case "automation":
+            break
+        default:
+            throw ErrorMessage("unknown authorization target \(name)")
+        }
+    }
+
+    return await authorizationStatus()
+}
+
+private func jsonValue(_ raw: String) -> Any {
+    guard let data = raw.data(using: .utf8),
+          let value = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+    else {
+        return raw
+    }
+    return value
+}
+
+private func response(ok value: Any?) -> UnsafeMutablePointer<CChar>? {
+    let object: [String: Any] = [
+        "ok": true,
+        "payload": value ?? NSNull(),
+    ]
+    return cString(try? encodeJSON(object))
+}
+
+private func response(error: Error) -> UnsafeMutablePointer<CChar>? {
+    let object: [String: Any] = [
+        "ok": false,
+        "error": String(describing: error),
+    ]
+    return cString(try? encodeJSON(object))
+}
+
+private func cString(_ string: String?) -> UnsafeMutablePointer<CChar>? {
+    strdup(string ?? #"{"ok":false,"error":"failed to encode response"}"#)
+}
+
+private func runBlocking(timeout: TimeInterval? = nil, _ operation: @escaping () async throws -> Any?) -> UnsafeMutablePointer<CChar>? {
+	let semaphore = DispatchSemaphore(value: 0)
+	let box = Protected<Result<Any?, Error>?>(nil)
+
+	let task = Task {
+		do {
+			let value = try await operation()
+			box.withLock { $0 = .success(value) }
+		} catch {
+			box.withLock { $0 = .failure(error) }
+		}
+		semaphore.signal()
+	}
+
+	if let timeout {
+		let deadline = DispatchTime.now() + timeout
+		if semaphore.wait(timeout: deadline) == .timedOut {
+			task.cancel()
+			return response(error: ErrorMessage("operation timed out after \(Int(timeout))s"))
+		}
+	} else {
+		semaphore.wait()
+	}
+	switch box.read() {
+	case let .success(value):
+		return response(ok: value)
+	case let .failure(error):
+        return response(error: error)
+    case nil:
+        return response(error: ErrorMessage("operation ended without a result"))
+    }
+}
+
+@_cdecl("imessage_bridge_free")
+public func imessage_bridge_free(_ pointer: UnsafeMutablePointer<CChar>?) {
+    free(pointer)
+}
+
+@_cdecl("imessage_bridge_init")
+public func imessage_bridge_init(
+    _ dataDir: UnsafePointer<CChar>?,
+    _ verbose: Int32,
+    _ useSecondaryInstance: Int32,
+    _ coordinateWindow: Int32
+) -> UnsafeMutablePointer<CChar>? {
+    do {
+        let dataDirPath = dataDir.map(String.init(cString:)) ?? NSTemporaryDirectory()
+        try BridgeRuntime.shared.initialize(
+            dataDirPath: dataDirPath,
+            verbose: verbose != 0,
+            useSecondaryInstance: useSecondaryInstance != 0,
+            coordinateWindow: coordinateWindow != 0
+        )
+        return response(ok: ["accountID": defaultAccountID])
+    } catch {
+        return response(error: error)
+    }
+}
+
+@_cdecl("imessage_bridge_dispose")
+public func imessage_bridge_dispose() -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await BridgeRuntime.shared.dispose()
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_current_user")
+public func imessage_bridge_current_user() -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await BridgeRuntime.shared.platformAPI().getCurrentUser().jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_authorization_status")
+public func imessage_bridge_authorization_status() -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        await authorizationStatus()
+    }
+}
+
+@_cdecl("imessage_bridge_request_authorization")
+public func imessage_bridge_request_authorization(_ target: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await requestAuthorization(target.map(String.init(cString:)) ?? "all")
+    }
+}
+
+@_cdecl("imessage_bridge_chats")
+public func imessage_bridge_chats(_ paginationJSON: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        let pagination = try parsePagination(paginationJSON)
+        let page = try await BridgeRuntime.shared.platformAPI().getThreads(folderName: "normal", pagination: pagination)
+        return page.jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_chat")
+public func imessage_bridge_chat(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        let threadID = String(cString: threadID)
+        return try await BridgeRuntime.shared.platformAPI().getThread(threadID: threadID)?.jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_messages")
+public func imessage_bridge_messages(
+    _ threadID: UnsafePointer<CChar>,
+    _ paginationJSON: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        let threadID = String(cString: threadID)
+        let paginationInput = try parsePaginationInput(paginationJSON)
+        return try await BridgeRuntime.shared.platformAPI().getMessages(
+            threadID: threadID,
+            pagination: paginationInput.pagination,
+            limit: paginationInput.limit
+        ).jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_send_text")
+public func imessage_bridge_send_text(
+	_ threadID: UnsafePointer<CChar>,
+	_ text: UnsafePointer<CChar>,
+	_ quotedMessageID: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+	runBlocking(timeout: bridgeAutomationTimeout) {
+		let quoted = quotedMessageID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+		let result = try await BridgeRuntime.shared.platformAPI().sendMessage(
+			threadID: String(cString: threadID),
+			text: String(cString: text),
+            filePath: nil,
+            quotedMessageID: quoted
+        )
+        return result.jsonValue
+    }
+}
+
+@_cdecl("imessage_bridge_send_file")
+public func imessage_bridge_send_file(
+	_ threadID: UnsafePointer<CChar>,
+	_ filePath: UnsafePointer<CChar>,
+	_ quotedMessageID: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+	runBlocking(timeout: bridgeAutomationTimeout) {
+		let quoted = quotedMessageID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+		let result = try await BridgeRuntime.shared.platformAPI().sendMessage(
+			threadID: String(cString: threadID),
+			text: nil,
+            filePath: String(cString: filePath),
+            quotedMessageID: quoted
+        )
+        return result.jsonValue
+    }
+}
+
+@_cdecl("imessage_bridge_create_chat")
+public func imessage_bridge_create_chat(
+	_ recipientsJSON: UnsafePointer<CChar>,
+	_ messageText: UnsafePointer<CChar>,
+	_ title: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+	runBlocking(timeout: bridgeAutomationTimeout) {
+		let title = title.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+		let result = try await BridgeRuntime.shared.platformAPI().createThread(
+			userIDs: try parseStringArray(recipientsJSON),
+			title: title,
+            messageText: String(cString: messageText)
+        )
+        return result.jsonValue
+    }
+}
+
+@_cdecl("imessage_bridge_edit")
+public func imessage_bridge_edit(
+    _ threadID: UnsafePointer<CChar>,
+    _ messageID: UnsafePointer<CChar>,
+    _ text: UnsafePointer<CChar>
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().editMessage(
+            threadID: String(cString: threadID),
+            messageID: String(cString: messageID),
+            content: String(cString: text)
+        )
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_delete_message")
+public func imessage_bridge_delete_message(
+    _ threadID: UnsafePointer<CChar>,
+    _ messageID: UnsafePointer<CChar>
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().deleteMessage(
+            threadID: String(cString: threadID),
+            messageID: String(cString: messageID)
+        )
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_react")
+public func imessage_bridge_react(
+    _ threadID: UnsafePointer<CChar>,
+    _ messageID: UnsafePointer<CChar>,
+    _ reactionKey: UnsafePointer<CChar>,
+    _ enabled: Int32
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        let api = try BridgeRuntime.shared.platformAPI()
+        if enabled != 0 {
+            try await api.addReaction(
+                threadID: String(cString: threadID),
+                messageID: String(cString: messageID),
+                reactionKey: String(cString: reactionKey)
+            )
+        } else {
+            try await api.removeReaction(
+                threadID: String(cString: threadID),
+                messageID: String(cString: messageID),
+                reactionKey: String(cString: reactionKey)
+            )
+        }
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_mark_read")
+public func imessage_bridge_mark_read(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().sendReadReceipt(threadID: String(cString: threadID))
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_mark_unread")
+public func imessage_bridge_mark_unread(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().markAsUnread(threadID: String(cString: threadID))
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_mute")
+public func imessage_bridge_mute(
+    _ threadID: UnsafePointer<CChar>,
+    _ muted: Int32
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().updateThread(
+            threadID: String(cString: threadID),
+            muted: muted != 0
+        )
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_delete_chat")
+public func imessage_bridge_delete_chat(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().deleteThread(threadID: String(cString: threadID))
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_notify_anyway")
+public func imessage_bridge_notify_anyway(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().notifyAnyway(threadID: String(cString: threadID))
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_activity_status")
+public func imessage_bridge_activity_status(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await BridgeRuntime.shared.platformAPI().getThreadActivityStatus(threadID: String(cString: threadID)).jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_typing")
+public func imessage_bridge_typing(
+    _ threadID: UnsafePointer<CChar>,
+    _ enabled: Int32
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().sendActivityIndicator(
+            type: enabled != 0 ? "typing" : "none",
+            threadID: String(cString: threadID)
+        )
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_watch_chat")
+public func imessage_bridge_watch_chat(_ threadID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.watchChat(threadID: String(cString: threadID))
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_search_messages")
+public func imessage_bridge_search_messages(
+    _ query: UnsafePointer<CChar>,
+    _ threadID: UnsafePointer<CChar>?,
+    _ paginationJSON: UnsafePointer<CChar>?,
+    _ limit: Int32
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        let thread = threadID.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+        let pagination = try parsePagination(paginationJSON)
+        let page = try await BridgeRuntime.shared.platformAPI().searchMessages(
+            typed: String(cString: query),
+            threadID: thread,
+            mediaOnly: nil,
+            sender: nil,
+            pagination: pagination,
+            limit: limit > 0 ? Int(limit) : nil
+        )
+        return page.jsonObject
+    }
+}
+
+@_cdecl("imessage_bridge_get_asset")
+public func imessage_bridge_get_asset(
+    _ pathHex: UnsafePointer<CChar>,
+    _ methodName: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        let method = methodName.map(String.init(cString:)).flatMap { $0.isEmpty ? nil : $0 }
+        let result = try await BridgeRuntime.shared.platformAPI().getAsset(
+            pathHex: String(cString: pathHex),
+            methodName: method
+        )
+        return assetResponse(result)
+    }
+}
+
+@_cdecl("imessage_bridge_load_attachment")
+public func imessage_bridge_load_attachment(_ messageID: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    runBlocking(timeout: bridgeAutomationTimeout) {
+        try await BridgeRuntime.shared.platformAPI().loadAttachment(messageID: String(cString: messageID))
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_start_events")
+public func imessage_bridge_start_events() -> UnsafeMutablePointer<CChar>? {
+    runBlocking {
+        try await BridgeRuntime.shared.startEvents()
+        return true
+    }
+}
+
+@_cdecl("imessage_bridge_next_events")
+public func imessage_bridge_next_events(_ timeoutMilliseconds: Int32) -> UnsafeMutablePointer<CChar>? {
+    let events = BridgeRuntime.shared.nextEventBatch(timeoutMilliseconds: Int(timeoutMilliseconds))
+    return response(ok: events)
+}
