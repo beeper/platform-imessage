@@ -505,11 +505,6 @@ public final class PlatformAPI {
             return
         }
 
-        guard Defaults.watchThreadActivity else {
-            clearSelectedThreadActivity()
-            return
-        }
-
         let threadID: String
         do {
             threadID = try originalThreadID(for: publicThreadID)
@@ -583,11 +578,15 @@ public final class PlatformAPI {
         platformLog.debug("activity/\(publicThreadID): watching")
 
         try await withMessagesController { controller in
-            guard try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller) else {
-                self.clearSelectedThreadActivity()
-                return
+            let readActivity = if Defaults.watchThreadActivity {
+                try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller)
+            } else {
+                false
             }
-            await Self.observeSelectedThreadActivity(using: controller)
+            await Self.observeSelectedThreadActivity(using: controller, readActivity: readActivity)
+            if !readActivity {
+                self.clearSelectedThreadActivity()
+            }
         }
     }
 
@@ -679,7 +678,7 @@ public final class PlatformAPI {
         return true
     }
 
-    static func observeSelectedThreadActivity(using controller: MessagesController) async {
+    static func observeSelectedThreadActivity(using controller: MessagesController, readActivity: Bool = true) async {
         guard let selectedThread = selectedThreadActivityState.read() else {
             return
         }
@@ -696,7 +695,11 @@ public final class PlatformAPI {
         }
 
         do {
-            try await controller.observeIdleActivity(threadID: selectedThread.threadID, statusSender: sendStatus)
+            try await controller.observeIdleActivity(
+                threadID: selectedThread.threadID,
+                readActivity: readActivity,
+                statusSender: sendStatus
+            )
         } catch {
             platformLog.error("failed to observe activity: \(error)")
         }

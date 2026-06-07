@@ -1550,25 +1550,22 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /// Checks one thread while controller work is idle.
     /// The platform-level idle observer calls it repeatedly after active automation drains.
-    func observeIdleActivity(threadID: String, statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void) async throws {
+    func observeIdleActivity(
+        threadID: String,
+        readActivity: Bool,
+        statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void
+    ) async throws {
         let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
-
-        guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
-            log.debug("not observing activity, Messages is manually activated")
-            return
-        }
-
-        guard occlusionMonitor.visible else {
-            #if DEBUG
-            log.debug("not observing activity, window occluded")
-            #endif
-            return
-        }
 
         guard isValid else {
             #if DEBUG
             log.debug("not observing activity, controller is invalid")
             #endif
+            return
+        }
+
+        guard !messagesIsManuallyActivated else {
+            log.debug("not observing activity, Messages is manually activated")
             return
         }
 
@@ -1579,6 +1576,25 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.debug("activity: opened deep link, waiting for layout change")
                 try await self.waitForLayoutChange(timeout: 0.5)
             }
+        }
+
+        guard readActivity else {
+            #if DEBUG
+            log.debug("not observing activity, thread doesn't support activity observation")
+            #endif
+            return
+        }
+
+        guard !Defaults.shouldCoordinateWindow else {
+            log.debug("not observing activity, Messages window is being coordinated")
+            return
+        }
+
+        guard occlusionMonitor.visible else {
+            #if DEBUG
+            log.debug("not observing activity, window occluded")
+            #endif
+            return
         }
 
         let observationToSend = await activityObservation()
