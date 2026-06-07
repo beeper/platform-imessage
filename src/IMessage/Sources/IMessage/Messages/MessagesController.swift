@@ -653,28 +653,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // performs `perform` while the Messages window is unhidden
     private func withActivation(
         openBefore: MessagesDeepLink?,
-        openAfter: MessagesDeepLink? = nil,
         perform: () async throws -> Void
     ) async throws {
-        let openBeforeURL = try openBefore?.url()
         if let openBefore {
             #if DEBUG
-            log.debug("withActivation: opening before performing: \(openBeforeURL?.absoluteString ?? "<nil>")")
+            let openBeforeURL = try openBefore.url()
+            log.debug("withActivation: opening before performing: \(openBeforeURL.absoluteString)")
             #endif
             try await openDeepLink(openBefore)
         }
 
         try await perform()
-
-        if let openAfter {
-            let openAfterURL = try openAfter.url()
-            if openAfterURL != openBeforeURL {
-                #if DEBUG
-                debugLog("withActivation: opening after performing: \(openAfterURL)")
-                #endif
-                try await openDeepLink(openAfter)
-            }
-        }
     }
 
     private func withMessageCell(threadID: String, messageCell: MessageCell, action: (_ cell: Accessibility.Element) async throws -> Void) async throws {
