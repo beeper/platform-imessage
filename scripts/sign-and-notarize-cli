@@ -49,9 +49,7 @@ case "$arch" in
     ;;
 esac
 
-# Signing and notarization are delegated to the a8c-ci-toolkit `sign_and_notarize`
-# command, which the toolkit Buildkite plugin puts on PATH. The Developer ID cert
-# must already be in the keychain (release-cli.sh runs `fastlane set_up_signing`).
+# This comes from CI toolkit
 if ! command -v sign_and_notarize >/dev/null 2>&1; then
   printf >&2 "sign_and_notarize not on PATH (provided by the a8c-ci-toolkit plugin)\n"
   exit 1
