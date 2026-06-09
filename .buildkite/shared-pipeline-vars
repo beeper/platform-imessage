@@ -4,9 +4,10 @@
 # rendered pipeline. Keeps plugin pins and the agent image id out of the
 # pipeline.yml itself.
 
-# TEMPORARY: pinned to the branch adding the macOS `sign_and_notarize` command.
-# Revert to a released tag (>= the version that ships it) before merging.
-CI_TOOLKIT_PLUGIN_VERSION='mokagio/macos-sign-and-notarize'
+# TEMPORARY: pinned to a commit on the `mokagio/macos-sign-and-notarize` branch
+# adding the macOS `sign_and_notarize` command. Revert to a released tag
+# (>= the version that ships it) before merging.
+CI_TOOLKIT_PLUGIN_VERSION='6848c743aa50e332ec95809cf2c50eaf00cfcf1e'
 NVM_PLUGIN_VERSION='0.6.0'
 XCODE_VERSION=$(sed -E 's/^~> ?//' .xcode-version)
 
