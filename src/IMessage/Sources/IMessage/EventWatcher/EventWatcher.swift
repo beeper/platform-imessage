@@ -80,6 +80,11 @@ final class EventWatcher {
     func watchForever() async throws {
         chatStates = try db.chatStates().mapValues(TimestampedChatState.init)
         try db.beginListeningForChanges()
+        defer { db.stopListeningForChanges() }
+        guard !Task.isCancelled else {
+            Self.logger.info("event watcher task was canceled after setting up change listening, bailing")
+            return
+        }
 
         for try await _ in db.changes.subscribe() {
             guard !Task.isCancelled else {

@@ -5,6 +5,7 @@ import IMessageCore
 import PlatformSDK
 
 private let eventWatchingLog = Logger(imessageLabel: "event-watcher-lifecycle")
+private let eventWatcherShutdownGracePeriod: TimeInterval = 2
 
 final class EventWatcherLifecycle {
     static let shared = EventWatcherLifecycle()
@@ -31,7 +32,10 @@ final class EventWatcherLifecycle {
         }
     }
 
-    func cancelWatchingIfNecessary(clearEventCallback: Bool) async {
+    func cancelWatchingIfNecessary(
+        clearEventCallback: Bool,
+        shutdownGracePeriod: TimeInterval? = eventWatcherShutdownGracePeriod
+    ) async {
         let watchingTask = state.withLock { state in
             let watchingTask = state.watchingTask
             state.watchingTask = nil
@@ -44,9 +48,16 @@ final class EventWatcherLifecycle {
         if let watchingTask {
             eventWatchingLog.info("was asked to cancel event watcher task, doing so")
             watchingTask.cancel()
-            // Wait for the task to actually finish so callers (e.g. dispose())
-            // don't return while the event watcher still holds the DB.
-            await watchingTask.value
+            guard let shutdownGracePeriod else {
+                eventWatchingLog.info("not waiting for event watcher task to finish after cancellation")
+                return
+            }
+
+            if await waitForWatchingTaskToFinish(watchingTask, timeout: shutdownGracePeriod) {
+                eventWatchingLog.info("event watcher task finished after cancellation")
+            } else {
+                eventWatchingLog.error("event watcher task did not finish within \(shutdownGracePeriod)s after cancellation; continuing teardown")
+            }
         } else {
             eventWatchingLog.warning("was asked to cancel event watcher task, but there isn't one; disregarding")
         }
@@ -115,6 +126,40 @@ final class EventWatcherLifecycle {
             }
         }
 
+        state.withLock { state in
+            state.watchingTask = watchingTask
+        }
+    }
+
+    private func waitForWatchingTaskToFinish(_ watchingTask: Task<Void, Never>, timeout: TimeInterval) async -> Bool {
+        guard timeout > 0 else { return false }
+
+        return await withCheckedContinuation { continuation in
+            let result = Protected<CheckedContinuation<Bool, Never>?>(continuation)
+
+            let resumeOnce: @Sendable (Bool) -> Void = { didFinish in
+                let continuation = result.withLock { continuation in
+                    let existing = continuation
+                    continuation = nil
+                    return existing
+                }
+                continuation?.resume(returning: didFinish)
+            }
+
+            Task {
+                await watchingTask.value
+                resumeOnce(true)
+            }
+
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                resumeOnce(false)
+            }
+        }
+    }
+
+    // Internal test hook for cancellation timeout coverage.
+    func setWatchingTaskForTesting(_ watchingTask: Task<Void, Never>?) {
         state.withLock { state in
             state.watchingTask = watchingTask
         }

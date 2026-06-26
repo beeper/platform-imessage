@@ -594,7 +594,7 @@ public final class PlatformAPI {
         // restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
         SystemSettingsOnboarding.stop()
-        await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
+        await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true, shutdownGracePeriod: nil)
         database.stopListeningAndReset()
         try await disposeCachedMessagesController()
     }
