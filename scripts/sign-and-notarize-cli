@@ -49,37 +49,14 @@ case "$arch" in
     ;;
 esac
 
-key_id="${APP_STORE_CONNECT_API_KEY_KEY_ID-}"
-issuer_id="${APP_STORE_CONNECT_API_KEY_ISSUER_ID-}"
-key_pem="${APP_STORE_CONNECT_API_KEY_KEY-}"
-
-if [ -z "$key_id" ] || [ -z "$issuer_id" ] || [ -z "$key_pem" ]; then
-  printf >&2 "missing API key env: set APP_STORE_CONNECT_API_KEY_{KEY_ID,ISSUER_ID,KEY}\n"
+# This comes from CI toolkit
+if ! command -v sign_and_notarize >/dev/null 2>&1; then
+  printf >&2 "sign_and_notarize not on PATH (provided by the a8c-ci-toolkit plugin)\n"
   exit 1
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
-
-# Resolve the codesigning identity from the keychain by team id so the
-# script works for any Developer ID cert, not just the hardcoded org name.
-# `IDENTITY` env var bypasses the lookup if you need to force a specific cert.
-identity="${IDENTITY:-}"
-if [ -z "$identity" ]; then
-  identity="$(security find-identity -v -p codesigning | awk -v team="(${team_id})" '
-    /Developer ID Application:/ && index($0, team) {
-      sub(/^[^"]*"/, "")
-      sub(/"[^"]*$/, "")
-      print
-      exit
-    }
-  ')"
-fi
-if [ -z "$identity" ]; then
-  printf >&2 "no Developer ID Application identity for team %s in keychain\n" "$team_id"
-  printf >&2 "(set IDENTITY=... to override)\n"
-  exit 1
-fi
 
 entitlements="$repo_root/scripts/imessage-cli.entitlements"
 cli_swift_flags=(-Xswiftc -DIMESSAGE_DISABLE_PRIVATE_SPI_ASSETS)
@@ -110,57 +87,10 @@ else
 fi
 
 printf "==> stripping debug symbols\n"
-# strip must happen before codesign — stripping invalidates an existing
+# strip must happen before signing — stripping invalidates an existing
 # signature, and the release asset shrinks meaningfully without it
 strip "$binary"
 
-printf "==> codesigning %s\n" "$binary"
-codesign --force \
-  --options runtime \
-  --timestamp \
-  --entitlements "$entitlements" \
-  --sign "$identity" \
-  "$binary"
+sign_and_notarize --team-id "$team_id" --entitlements "$entitlements" "$binary"
 
-printf "==> verifying codesign\n"
-codesign --verify --strict --verbose=2 "$binary"
-codesign --display --verbose=2 "$binary" 2>&1 | grep -E "Authority|TeamIdentifier|Signature|flags|Hash" || true
-
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-
-p8="$work/AuthKey_${key_id}.p8"
-# the env var stores the PEM with `\n` as literal backslash-n; %b decodes
-# the escapes into real newlines. Trailing \n is required — notarytool
-# rejects PEM that doesn't end with a newline as `invalidPEMDocument`
-printf '%b\n' "$key_pem" > "$p8"
-chmod 600 "$p8"
-
-zip_path="$work/imessage-cli.zip"
-ditto -c -k "$binary" "$zip_path"
-
-printf "==> submitting to notarytool (this can take a few minutes)\n"
-submit_json="$work/submit.json"
-xcrun notarytool submit "$zip_path" \
-  --key "$p8" \
-  --key-id "$key_id" \
-  --issuer "$issuer_id" \
-  --wait \
-  --output-format json \
-  > "$submit_json"
-
-cat "$submit_json"
-printf "\n"
-
-status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$submit_json")"
-submission_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$submit_json")"
-
-if [ "$status" != "Accepted" ]; then
-  printf >&2 "==> notarization status: %s — fetching log\n" "$status"
-  xcrun notarytool log "$submission_id" \
-    --key "$p8" --key-id "$key_id" --issuer "$issuer_id"
-  exit 1
-fi
-
-printf "==> notarization accepted (id=%s)\n" "$submission_id"
 printf "==> signed binary at: %s\n" "$binary"
