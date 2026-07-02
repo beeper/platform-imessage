@@ -4,9 +4,9 @@ import Testing
 
 @Suite(.serialized)
 struct EventWatcherLifecycleTests {
-    @Test func cancelWatchingCanSkipWaitingForStuckWatcher() async {
+    @Test func cancelWatchingCancelsStuckWatcherWithoutWaiting() async {
         let lifecycle = EventWatcherLifecycle.shared
-        await lifecycle.cancelWatchingIfNecessary(clearEventCallback: true, shutdownGracePeriod: 0.001)
+        lifecycle.cancelWatchingIfNecessary(clearEventCallback: true)
 
         let gate = ContinuationGate()
         let stuckTask = Task {
@@ -17,37 +17,8 @@ struct EventWatcherLifecycleTests {
 
         lifecycle.setWatchingTaskForTesting(stuckTask)
 
-        let start = Date()
-        await lifecycle.cancelWatchingIfNecessary(clearEventCallback: true, shutdownGracePeriod: nil)
-        let elapsed = Date().timeIntervalSince(start)
+        lifecycle.cancelWatchingIfNecessary(clearEventCallback: true)
 
-        #expect(elapsed < 0.05)
-        #expect(stuckTask.isCancelled)
-        #expect(!lifecycle.isWatching)
-
-        await gate.open()
-        await stuckTask.value
-    }
-
-    @Test func cancelWatchingTimesOutWhenWatcherDoesNotFinish() async {
-        let lifecycle = EventWatcherLifecycle.shared
-        await lifecycle.cancelWatchingIfNecessary(clearEventCallback: true, shutdownGracePeriod: 0.001)
-
-        let gate = ContinuationGate()
-        let stuckTask = Task {
-            await gate.wait()
-        }
-
-        #expect(await eventually { await gate.isWaiting })
-
-        lifecycle.setWatchingTaskForTesting(stuckTask)
-
-        let start = Date()
-        await lifecycle.cancelWatchingIfNecessary(clearEventCallback: true, shutdownGracePeriod: 0.05)
-        let elapsed = Date().timeIntervalSince(start)
-
-        #expect(elapsed >= 0.05)
-        #expect(elapsed < 0.5)
         #expect(stuckTask.isCancelled)
         #expect(!lifecycle.isWatching)
 

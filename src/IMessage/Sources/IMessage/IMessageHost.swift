@@ -112,7 +112,7 @@ public enum IMessageHost {
     }
 
     public static func stopEventWatching() async {
-        await EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: false)
+        EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: false)
     }
 
     public static var isEventWatching: Bool {

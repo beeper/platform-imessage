@@ -78,63 +78,67 @@ final class EventWatcher {
     }
 
     func watchForever() async throws {
-        chatStates = try db.chatStates().mapValues(TimestampedChatState.init)
-        try db.beginListeningForChanges()
-        defer { db.stopListeningForChanges() }
-        guard !Task.isCancelled else {
-            Self.logger.info("event watcher task was canceled after setting up change listening, bailing")
-            return
-        }
-
-        for try await _ in db.changes.subscribe() {
+        try await withTaskCancellationHandler {
+            chatStates = try db.chatStates().mapValues(TimestampedChatState.init)
+            try db.beginListeningForChanges()
+            defer { db.stopListeningForChanges() }
             guard !Task.isCancelled else {
-                Self.logger.info("woke up in response to db change but event watcher task was canceled, bailing")
+                Self.logger.info("event watcher task was canceled after setting up change listening, bailing")
                 return
             }
-
-            if Defaults.eventWatcherTraceChangeListening {
-                Self.logger.debug("event watcher was informed about database change")
-            }
-
-            var eventsToSend: [ServerEvent] = []
-
-            do {
-                // Query unread states, compare to the previous set, and persist them.
-                try eventsToSend.append(contentsOf: diffChatStates())
-                // Ditto, but for any new messages/read state changes.
-                let messageUpdateEvents = try await collectMessageUpdateEvents()
-                eventsToSend.append(contentsOf: messageUpdateEvents)
-            } catch is CancellationError {
-                Self.logger.info("event watcher task was canceled while collecting events, bailing")
-                return
-            } catch {
-                Self.logger.error("couldn't collect event watcher events: \(String(reflecting: error)), continuing")
-                try? reportErrorMessage?("imsg event watcher: couldn't collect events: \(String(reflecting: error))")
-                continue
-            }
-
-            guard !eventsToSend.isEmpty else {
-                // Nothing to send means nothing can fail, so any rows resolved
-                // this tick are done — clear them from the pending maps.
-                commitPendingSends()
-                continue
-            }
-
-            do {
+            
+            for try await _ in db.changes.subscribe() {
                 guard !Task.isCancelled else {
-                    Self.logger.info("had \(eventsToSend.count) event(s) to send but event watcher task was canceled, bailing")
+                    Self.logger.info("woke up in response to db change but event watcher task was canceled, bailing")
                     return
                 }
-                #if DEBUG
-                Self.logger.debug("sending \(eventsToSend.count) event(s) to PAS")
-                #endif
-                try await sender(eventsToSend)
-                commitPendingSends()
-            } catch {
-                Self.logger.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
-                try? reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
-                // Leave the resolved rows pending so the next tick retries them.
+                
+                if Defaults.eventWatcherTraceChangeListening {
+                    Self.logger.debug("event watcher was informed about database change")
+                }
+                
+                var eventsToSend: [ServerEvent] = []
+                
+                do {
+                    // Query unread states, compare to the previous set, and persist them.
+                    try eventsToSend.append(contentsOf: diffChatStates())
+                    // Ditto, but for any new messages/read state changes.
+                    let messageUpdateEvents = try await collectMessageUpdateEvents()
+                    eventsToSend.append(contentsOf: messageUpdateEvents)
+                } catch is CancellationError {
+                    Self.logger.info("event watcher task was canceled while collecting events, bailing")
+                    return
+                } catch {
+                    Self.logger.error("couldn't collect event watcher events: \(String(reflecting: error)), continuing")
+                    try? reportErrorMessage?("imsg event watcher: couldn't collect events: \(String(reflecting: error))")
+                    continue
+                }
+                
+                guard !eventsToSend.isEmpty else {
+                    // Nothing to send means nothing can fail, so any rows resolved
+                    // this tick are done — clear them from the pending maps.
+                    commitPendingSends()
+                    continue
+                }
+                
+                do {
+                    guard !Task.isCancelled else {
+                        Self.logger.info("had \(eventsToSend.count) event(s) to send but event watcher task was canceled, bailing")
+                        return
+                    }
+#if DEBUG
+                    Self.logger.debug("sending \(eventsToSend.count) event(s) to PAS")
+#endif
+                    try await sender(eventsToSend)
+                    commitPendingSends()
+                } catch {
+                    Self.logger.error("couldn't send events to PAS: \(String(reflecting: error)), continuing")
+                    try? reportErrorMessage?("imsg event watcher: couldn't send events to PAS: \(String(reflecting: error))")
+                    // Leave the resolved rows pending so the next tick retries them.
+                }
             }
+        } onCancel: { [db] in
+            db.stopListeningForChanges()
         }
     }
 }
