@@ -77,6 +77,8 @@ final class MessagesController {
 
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
+    // Lane-confined (like all non-Protected mutable state here): only touched
+    // from methods running on the messages-controller automation lane.
     private var lastOpenedThreadID: String?
     private var lastSentActivityObservation: ThreadActivityObservation?
     private var lastSentActivityObservationTime: Date?
@@ -525,13 +527,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // This may be called while already executing on the messages-controller
         // lane. A plain Task would inherit that task-local state, then trip the
         // re-entrancy assertion when this delayed cleanup enqueues fresh lane work.
-        cancelReplyTranscriptViewTask = Task.detached { [weak self] in
+        // Weak box: the lane closure must be @Sendable, and MessagesController is
+        // lane-confined, not Sendable. The value is only unboxed on the lane.
+        let weakSelf = WeakUncheckedSendableBox(self)
+        cancelReplyTranscriptViewTask = Task.detached {
             do {
                 try await Task.sleep(forTimeInterval: 1.5)
-                try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
+                try await PlatformAPI.runOnMessagesControllerLane {
                     try Task.checkCancellation()
-                    guard let self else { return }
-                    try await closeReplyTranscriptView()
+                    guard let self = weakSelf.value else { return }
+                    try await self.closeReplyTranscriptView()
                 }
             } catch is CancellationError {
                 return
@@ -1395,9 +1400,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // the user has since deactivated (messagesIsManuallyActivated flipped back to
         // false), this activate is stale — skip it so we don't unhide a window the user
         // already dismissed and so a queued activate/deactivate pair collapses.
+        // Weak box: see scheduleCancelReplyTranscriptView — unboxed only on the lane.
+        let weakSelf = WeakUncheckedSendableBox(self)
         do {
-            try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
-                guard let self else { return }
+            try await PlatformAPI.runOnMessagesControllerLane {
+                guard let self = weakSelf.value else { return }
                 self.lastOpenedThreadID = nil
                 guard self.messagesIsManuallyActivated else {
                     log.debug("activateMessages: skipping stale activation (user already deactivated)")
@@ -1430,9 +1437,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // Coalescing: mirror activateMessages. If the user re-activated before this
         // closure ran (messagesIsManuallyActivated flipped back to true), this deactivate
         // is stale — skip it so we don't tear down a window the user is now using.
+        // Weak box: see scheduleCancelReplyTranscriptView — unboxed only on the lane.
+        let weakSelf = WeakUncheckedSendableBox(self)
         do {
-            try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
-                guard let self else { return }
+            try await PlatformAPI.runOnMessagesControllerLane {
+                guard let self = weakSelf.value else { return }
                 guard !self.messagesIsManuallyActivated else {
                     log.debug("deactivateMessages: skipping stale deactivation (user re-activated)")
                     return

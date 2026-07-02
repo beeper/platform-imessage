@@ -4,7 +4,7 @@ public extension AsyncSequence {
     func first(
         until deadline: Date,
         where predicate: @escaping @Sendable (Element) async throws -> Bool
-    ) async throws -> Element? {
+    ) async throws -> Element? where Element: Sendable {
         guard Date() < deadline else {
             return nil
         }
@@ -79,7 +79,7 @@ public extension NSObjectProtocol where Self: NSObject {
     }
 
     @discardableResult
-    func waitForValue<Value>(
+    func waitForValue<Value: Sendable>(
         _ keyPath: KeyPath<Self, Value>,
         options: NSKeyValueObservingOptions = [.initial, .new],
         where predicate: @escaping @Sendable (Value) async throws -> Bool
@@ -95,7 +95,7 @@ public extension NSObjectProtocol where Self: NSObject {
     }
 
     @discardableResult
-    func waitForValue<Value>(
+    func waitForValue<Value: Sendable>(
         _ keyPath: KeyPath<Self, Value>,
         _ expectedValue: Value,
         options: NSKeyValueObservingOptions = [.initial, .new]
@@ -106,7 +106,7 @@ public extension NSObjectProtocol where Self: NSObject {
     }
 
     @discardableResult
-    func waitForValue<Value>(
+    func waitForValue<Value: Sendable>(
         _ keyPath: KeyPath<Self, Value>,
         timeout: TimeInterval,
         options: NSKeyValueObservingOptions = [.initial, .new],

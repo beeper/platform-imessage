@@ -1,8 +1,10 @@
 import Foundation
 
 extension PlatformSDK {
+    // @unchecked because `Any`-typed fields (sortKey/extra/forwardedFrom) can't be
+    // compiler-verified; they only ever hold immutable JSON-bridge values.
     @PlatformSDKJSONObject
-    public struct Message: JSONObjectConvertible {
+    public struct Message: JSONObjectConvertible, @unchecked Sendable {
         public let id: MessageID
         public let timestamp: Timestamp
         public let editedTimestamp: Timestamp?

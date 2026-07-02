@@ -63,7 +63,10 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
 ///
 /// `IMessageHost` owns singleton process state, so callers should create only one
 /// PlatformAPI instance per process and share it across wrapper surfaces.
-public final class PlatformAPI {
+///
+/// `Sendable` is compiler-checked: all stored state is immutable and either a
+/// value, a `@Sendable` closure, or a `Protected` box.
+public final class PlatformAPI: Sendable {
     private static let activeInstance = Protected<ObjectIdentifier?>()
 
     public typealias EventCallback = @Sendable ([ServerEvent]) async throws -> Void
@@ -117,7 +120,7 @@ public final class PlatformAPI {
     /// Runs a DB query off the caller actor with the cached current user resolved.
     /// Captures `accountID`, `database`, and `currentUserCache` before crossing
     /// into the @Sendable closure so `self` doesn't need to.
-    func runDBQuery<T>(
+    func runDBQuery<T: Sendable>(
         _ work: @escaping @Sendable (IMDatabase, PlatformSDK.CurrentUser, String /*accountID*/) throws -> T
     ) async throws -> T {
         let accountID = accountID

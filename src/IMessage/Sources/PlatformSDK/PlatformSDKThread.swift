@@ -17,8 +17,10 @@ extension PlatformSDK {
         public let attachments: [Attachment]?
     }
 
+    // @unchecked because `Any`-typed fields (mutedUntil/extra) can't be
+    // compiler-verified; they only ever hold immutable JSON-bridge values.
     @PlatformSDKJSONObject
-    public struct Thread: JSONObjectConvertible {
+    public struct Thread: JSONObjectConvertible, @unchecked Sendable {
         public let id: ThreadID
         public let folderName: String?
         public let title: String?

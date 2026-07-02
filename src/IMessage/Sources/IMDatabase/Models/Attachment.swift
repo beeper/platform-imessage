@@ -15,7 +15,7 @@ public struct Attachment: Identifiable {
 // MARK: - Attachment+IMFileTransferState
 
 public extension Attachment {
-    struct IMFileTransferState: RawRepresentable, Equatable, Hashable {
+    struct IMFileTransferState: RawRepresentable, Equatable, Hashable, Sendable {
         public var rawValue: Int
 
         public init(rawValue: Int) {

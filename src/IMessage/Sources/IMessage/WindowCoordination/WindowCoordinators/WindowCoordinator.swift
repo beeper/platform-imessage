@@ -3,8 +3,13 @@ import AccessibilityControl
 
 /**
  * An abstraction over a way to make the Messages app automatable for short periods of time.
+ *
+ * `Sendable`: coordinators are called from the automation lane and from
+ * `@MainActor` lifecycle paths, so implementations must isolate their mutable
+ * state (`@MainActor` properties or `Protected` boxes) rather than rely on
+ * callers to serialize.
  */
-protocol WindowCoordinator: AnyObject {
+protocol WindowCoordinator: AnyObject, Sendable {
     /** The application to coordinate. */
     @MainActor
     var app: NSRunningApplication? { get set }

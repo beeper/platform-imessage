@@ -16,13 +16,26 @@ extension NSPasteboard {
 
     func withRestoration(perform: () async throws -> Void) async rethrows {
         let backup = self.backup()
-        defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
-                self.prepareForNewContents()
-                if let backup { self.writeObjects(backup) }
-            }
-        }
         self.prepareForNewContents(with: .currentHostOnly) // currentHostOnly disables universal clipboard
-        try await perform()
+        do {
+            try await perform()
+        } catch {
+            await restore(backup)
+            throw error
+        }
+        await restore(backup)
+    }
+
+    /// Restores a `backup()` snapshot. Structured (awaited by `withRestoration`)
+    /// so restoration isn't silently dropped when the surrounding task is
+    /// cancelled mid-automation — the old fire-and-forget `asyncAfter` was.
+    private func restore(_ backup: [NSPasteboardItem]?) async {
+        // Keep the brief post-perform beat the asyncAfter hop used to provide,
+        // so the paste consumer sees the automation contents before we restore.
+        // If the task was cancelled the sleep returns early and we restore
+        // immediately — no paste is in flight to protect at that point.
+        try? await Task.sleep(forTimeInterval: 0.001)
+        self.prepareForNewContents()
+        if let backup { self.writeObjects(backup) }
     }
 }
