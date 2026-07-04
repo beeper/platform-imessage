@@ -86,19 +86,19 @@ final class EventWatcher {
                 Self.logger.info("event watcher task was canceled after setting up change listening, bailing")
                 return
             }
-            
+
             for try await _ in db.changes.subscribe() {
                 guard !Task.isCancelled else {
                     Self.logger.info("woke up in response to db change but event watcher task was canceled, bailing")
                     return
                 }
-                
+
                 if Defaults.eventWatcherTraceChangeListening {
                     Self.logger.debug("event watcher was informed about database change")
                 }
-                
+
                 var eventsToSend: [ServerEvent] = []
-                
+
                 do {
                     // Query unread states, compare to the previous set, and persist them.
                     try eventsToSend.append(contentsOf: diffChatStates())
@@ -113,14 +113,14 @@ final class EventWatcher {
                     try? reportErrorMessage?("imsg event watcher: couldn't collect events: \(String(reflecting: error))")
                     continue
                 }
-                
+
                 guard !eventsToSend.isEmpty else {
                     // Nothing to send means nothing can fail, so any rows resolved
                     // this tick are done — clear them from the pending maps.
                     commitPendingSends()
                     continue
                 }
-                
+
                 do {
                     guard !Task.isCancelled else {
                         Self.logger.info("had \(eventsToSend.count) event(s) to send but event watcher task was canceled, bailing")
@@ -138,6 +138,10 @@ final class EventWatcher {
                 }
             }
         } onCancel: { [db] in
+            // The loop may be parked in a non-cancellable await (e.g. the Node
+            // event callback), so release the filesystem watchers here instead
+            // of waiting for the task to unwind. Idempotent with the defer above,
+            // which covers normal exit.
             db.stopListeningForChanges()
         }
     }
