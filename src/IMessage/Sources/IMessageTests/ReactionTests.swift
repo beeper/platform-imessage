@@ -1,17 +1,34 @@
 @testable import IMessage
 import Testing
 
-@Test func emojiReactionDoesNotMapToTapback() throws {
-    guard #available(macOS 15, *) else {
-        #expect(Reaction(emoji: "😂") == nil)
-        return
-    }
+@Test func tapbackEmojisFallBackWithoutCustomEmojiReactions() {
+    let mappings: [(emoji: Character, tapbackID: String)] = [
+        ("\u{2764}", "heart"),
+        ("\u{2764}\u{fe0f}", "heart"),
+        ("👍", "thumbsUp"),
+        ("👎", "thumbsDown"),
+        ("😂", "ha"),
+        ("\u{203c}", "exclamation"),
+        ("\u{203c}\u{fe0f}", "exclamation"),
+        ("❓", "questionMark"),
+    ]
 
-    guard case let .custom(emoji) = try #require(Reaction(emoji: "😂")) else {
-        Issue.record("Expected 😂 to be sent as a custom emoji reaction")
+    for mapping in mappings {
+        let reaction = Reaction(emoji: mapping.emoji, supportsCustomEmojiReactions: false)
+        #expect(reaction?.id == mapping.tapbackID)
+    }
+}
+
+@Test func tapbackEmojiRemainsCustomWhenCustomEmojiReactionsAreSupported() throws {
+    guard case let .custom(emoji) = try #require(Reaction(emoji: "❤️", supportsCustomEmojiReactions: true)) else {
+        Issue.record("Expected ❤️ to be sent as a custom emoji reaction")
         return
     }
-    #expect(emoji == "😂")
+    #expect(emoji == "❤️")
+}
+
+@Test func unsupportedEmojiDoesNotFallBackWithoutCustomEmojiReactions() {
+    #expect(Reaction(emoji: "🎉", supportsCustomEmojiReactions: false) == nil)
 }
 
 @Test func laughTapbackKeyStillMapsToLaughTapback() throws {

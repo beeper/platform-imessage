@@ -72,10 +72,26 @@ enum Reaction {
     ///
     /// Support for arbitrary emojis was added in macOS Sequoia.
     init?(emoji: Character) {
-        guard #available(macOS 15, *) else {
-            return nil
+        self.init(emoji: emoji, supportsCustomEmojiReactions: isSequoiaOrUp)
+    }
+
+    init?(emoji: Character, supportsCustomEmojiReactions: Bool) {
+        if supportsCustomEmojiReactions {
+            self = .custom(emoji: emoji)
+            return
         }
-        self = .custom(emoji: emoji)
+
+        // Fall back to the equivalent traditional Tapback on macOS versions
+        // that cannot send custom emoji reactions.
+        switch emoji {
+        /* ❤️ */ case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
+        /* 👍 */ case "\u{1f44d}": self = .like
+        /* 👎 */ case "\u{1f44e}": self = .dislike
+        /* 😂 */ case "\u{1f602}": self = .laugh
+        /* ‼️ */ case "\u{203c}", "\u{203c}\u{fe0f}": self = .emphasize
+        /* ❓ */ case "\u{2753}": self = .question
+        default: return nil
+        }
     }
 }
 
