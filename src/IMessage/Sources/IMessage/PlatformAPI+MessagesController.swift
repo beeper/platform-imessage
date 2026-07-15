@@ -16,7 +16,7 @@ private actor MessagesControllerCoordinator {
     // Actors are reentrant across awaits, so concurrent callers share one in-flight construction.
     private var pendingController: Task<MessagesControllerEntry, Error>?
 
-    func withController<T: Sendable>(
+    func withController<T>(
         reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>,
         forceInvalidate: Bool = false,
@@ -119,14 +119,13 @@ private extension MessagesControllerCoordinator {
 
     private func startControllerCreation(reportErrorMessage: PlatformAPI.ReportErrorMessage?) -> Task<MessagesControllerEntry, Error> {
         let task = Task {
-            // Box inside the lane closure: the lane's generic result must be Sendable,
-            // and MessagesController itself is lane-confined, not Sendable.
-            let entry = try await PlatformAPI.runOnMessagesControllerLane {
-                MessagesControllerEntry(try await MessagesController(reportErrorMessage: { txt in
+            let controller = try await PlatformAPI.runOnMessagesControllerLane {
+                try await MessagesController(reportErrorMessage: { txt in
                     platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
                     try? reportErrorMessage?(txt)
-                }))
+                })
             }
+            let entry = MessagesControllerEntry(controller)
             await PlatformAPI.installMessagesControllerIdleCallback(for: entry)
             return entry
         }
@@ -190,7 +189,7 @@ extension PlatformAPI {
     private static let messagesControllerIdleCallbackOwner = Protected<ObjectIdentifier?>()
     fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
 
-    func withMessagesController<T: Sendable>(
+    func withMessagesController<T>(
         forceInvalidate: Bool = false,
         _ action: @escaping @Sendable (MessagesController) async throws -> T
     ) async throws -> T {
@@ -206,7 +205,7 @@ extension PlatformAPI {
         try await Self.messagesControllerCoordinator.disposeCachedController()
     }
 
-    static func runOnMessagesControllerLane<T: Sendable>(
+    static func runOnMessagesControllerLane<T>(
         _ action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await messagesControllerAutomationLane.run(action)

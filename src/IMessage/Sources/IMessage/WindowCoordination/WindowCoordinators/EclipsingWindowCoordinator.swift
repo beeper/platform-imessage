@@ -1,6 +1,5 @@
 import Cocoa
 import AccessibilityControl
-import IMessageCore
 import Logging
 import WindowControl
 
@@ -15,11 +14,7 @@ private let log = Logger(imessageLabel: "eclipsing-window-coordinator")
  * Despite the app being repeatedly hidden and unhidden, it seems to reliably appear behind the Beeper window,
  * even if the user briefly takes manual control of Messages.
  */
-/// `Sendable` is compiler-checked: mutable state is either `@MainActor`-isolated
-/// (`app`, the debouncer's internals) or behind a `Protected` box
-/// (`windowFramePreEclipse`, which `makeAutomatable`/`reset` touch off-main on
-/// the automation lane).
-final class EclipsingWindowCoordinator: WindowCoordinator, Sendable {
+final class EclipsingWindowCoordinator: WindowCoordinator {
     @MainActor
     var app: NSRunningApplication? {
         didSet {
@@ -34,8 +29,8 @@ final class EclipsingWindowCoordinator: WindowCoordinator, Sendable {
         }
     }
 
-    private let windowFramePreEclipse = Protected<NSRect?>()
-    private let hideDebouncer: HideDebouncer
+    private var windowFramePreEclipse: NSRect?
+    private var hideDebouncer: HideDebouncer
 
     var canReuseExtantInstance: Bool { true }
 
@@ -57,12 +52,10 @@ final class EclipsingWindowCoordinator: WindowCoordinator, Sendable {
         }
 
         let originalMessagesFrame = try messagesWindow.frame()
-        windowFramePreEclipse.withLock { frame in
-            if frame == nil {
-                frame = originalMessagesFrame
-            } else {
-                // we already have a known frame, don't overwrite it with the eclisped frame
-            }
+        if windowFramePreEclipse == nil {
+            windowFramePreEclipse = originalMessagesFrame
+        } else {
+            // we already have a known frame, don't overwrite it with the eclisped frame
         }
 
         var targetSize = Self.eclipsingSize
@@ -137,7 +130,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator, Sendable {
         }
     }
 
-    @MainActor
     func automationDidComplete() throws {
         hideDebouncer.requestHide()
     }
@@ -145,27 +137,24 @@ final class EclipsingWindowCoordinator: WindowCoordinator, Sendable {
     func reset(_ window: Accessibility.Element) async throws {
         await MainActor.run { hideDebouncer.immediatelyUnhide() }
 
-        // Take-and-clear atomically; the next frame we witness is preserved
-        // in case the user adjusts it.
-        let takenFrame = windowFramePreEclipse.withLock { frame -> NSRect? in
-            defer { frame = nil }
-            return frame
-        }
-        guard let originalFrame = takenFrame else {
+        guard let originalFrame = windowFramePreEclipse else {
             log.warning("no last known frame, not setting a frame back")
             return
+        }
+
+        defer {
+            // preserve the next frame that we witness, in case the user adjusts it
+            windowFramePreEclipse = nil
         }
 
         log.debug("resetting to original frame: \(originalFrame)")
         try window.setFrame(originalFrame)
     }
 
-    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         hideDebouncer.immediatelyUnhide()
     }
 
-    @MainActor
     func userManuallyDeactivated(_: NSRunningApplication) throws {
         hideDebouncer.requestHide()
     }

@@ -35,7 +35,7 @@ actor MessagesControllerAutomationLane {
         self.idleDelay = idleDelay
     }
 
-    func run<T: Sendable>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
+    func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
         // `precondition`, not `assert`: re-entrancy must fail loudly in release too.
         // The failure mode otherwise is a *silent* deadlock (the nested op queues
         // behind the current action while the current action awaits it) — which is
@@ -65,7 +65,7 @@ actor MessagesControllerAutomationLane {
         idleTask = nil
     }
 
-    private func enqueue<T: Sendable>(_ action: @Sendable @escaping () async throws -> T) -> Task<T, Error> {
+    private func enqueue<T>(_ action: @Sendable @escaping () async throws -> T) -> Task<T, Error> {
         let previous = tail
         let task = Task {
             await previous?.value

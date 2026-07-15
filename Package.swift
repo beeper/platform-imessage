@@ -100,8 +100,7 @@ var targets: [Target] = [
             "PlatformSDK",
             .product(name: "Collections", package: "swift-collections"),
         ],
-        path: "src/IMessage/Sources/IMessage",
-        swiftSettings: [.unsafeFlags(["-strict-concurrency=targeted"])]
+        path: "src/IMessage/Sources/IMessage"
     ),
     .target(
         name: "IMessagePrivateSPI",

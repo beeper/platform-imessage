@@ -27,6 +27,3 @@ extension PlatformSDK {
         public let newestCursor: String?
     }
 }
-
-extension PlatformSDK.Paginated: Sendable where Item: Sendable {}
-extension PlatformSDK.PaginatedWithCursors: Sendable where Item: Sendable {}

@@ -1,48 +1,38 @@
 import WindowControl
 import AccessibilityControl
 import Cocoa
-import IMessageCore
 import Logging
 
 private let log = Logger(imessageLabel: "spaces-window-coordinator")
 
-/// `Sendable` is compiler-checked: `app` is `@MainActor`-isolated and the rest of
-/// the mutable state lives in one `Protected` box. The box also serializes the
-/// Dock/NotificationCenter observer callbacks (which fire on arbitrary threads)
-/// against the automation-lane methods — previously those raced.
-final class SpacesWindowCoordinator: Sendable {
+final class SpacesWindowCoordinator {
     @MainActor
     var app: NSRunningApplication?
 
-    private struct MutableState {
-        var lastKnownWindow: Accessibility.Element?
-        var lastKnownDisplayWindowWasOn: Display?
-        var dockObserver: Dock.Observer?
-        var notificationCenterObserver: NSObjectProtocol?
-        var lastManualActivation: Date?
-    }
+    private var lastKnownWindow: Accessibility.Element?
+    private var lastKnownDisplayWindowWasOn: Display?
 
-    private let state = Protected(MutableState())
-
-    // only non-nil if canUseUnknownSpace; assigned once at init. Boxed because
-    // `Space` (WindowControl) isn't Sendable; it's only used from the lane and deinit.
-    private let unknownSpace: UncheckedSendableBox<Space>?
+    // only non-nil if canUseUnknownSpace
+    private var unknownSpace: Space?
 
     /** A space that the Messages window can be moved to in order to conceal it during automation. */
     private var hiddenSpace: Space {
         get throws {
-            if let unknownSpace { return unknownSpace.value }
+            if let unknownSpace { return unknownSpace }
             return try Self.createOrGetInvisibleUserSpace()
         }
     }
+
+    private var dockObserver: Dock.Observer?
+    private var notificationCenterObserver: NSObjectProtocol?
+    private var lastManualActivation: Date?
 
     init() throws {
         log.debug(Self.canUseUnknownSpace ? "can use unknown spaces" : "can't use unknown spaces")
 
         if Self.canUseUnknownSpace || Defaults.imessage.bool(forKey: DefaultsKeys.spacesAlwaysUseUnknownSpace) {
-            unknownSpace = UncheckedSendableBox(Space(newSpaceOfKind: .unknown))
+            unknownSpace = Space(newSpaceOfKind: .unknown)
         } else {
-            unknownSpace = nil
             // have to use a .user space, which behaves differently. observe various things on the system to improve ux
             self.beginObservationsForUserSpace()
         }
@@ -61,10 +51,9 @@ final class SpacesWindowCoordinator: Sendable {
             if Defaults.imessage.bool(forKey: DefaultsKeys.spacesDestroySpaceOnDeinit) {
                 try hiddenSpace.destroy()
             }
-            let (observer, window) = state.withLock { ($0.notificationCenterObserver, $0.lastKnownWindow) }
-            observer.map { NSWorkspace.shared.notificationCenter.removeObserver($0) }
+            notificationCenterObserver.map { NSWorkspace.shared.notificationCenter.removeObserver($0) }
             // closing window better than moving back to regular space
-            try window?.closeWindow()
+            try lastKnownWindow?.closeWindow()
         } catch {
             log.error("failed during deinit: \(String(reflecting: error))")
         }
@@ -78,15 +67,12 @@ extension SpacesWindowCoordinator: WindowCoordinator {
 
     func makeAutomatable(_ window: Accessibility.Element) async throws {
         guard await app?.isActive == false else { return }
-        state.withLock { $0.lastKnownWindow = window }
+        lastKnownWindow = window
         try moveLastKnownWindowToHiddenSpace()
     }
 
     func reset(_ window: Accessibility.Element) async throws {
-        let (lastKnownDisplay, hasLastKnownWindow) = state.withLock {
-            ($0.lastKnownDisplayWindowWasOn, $0.lastKnownWindow != nil)
-        }
-        guard let currentSpace = try? lastKnownDisplay?.currentSpace(), hasLastKnownWindow else {
+        guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), lastKnownWindow != nil else {
             log.debug("can't reset, the last known window or current space was missing")
             return
         }
@@ -94,14 +80,12 @@ extension SpacesWindowCoordinator: WindowCoordinator {
         try (window.window()).moveToSpace(currentSpace)
     }
 
-    @MainActor
     func automationDidComplete() throws {
         // after automating, keep the window on the hidden space
     }
 
-    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
-        state.withLock { $0.lastManualActivation = Date() }
+        lastManualActivation = Date()
     }
 }
 
@@ -140,7 +124,7 @@ private extension SpacesWindowCoordinator {
     }
 
     func moveLastKnownWindowToHiddenSpace() throws {
-        guard let lastKnownWindow = state.withLock({ $0.lastKnownWindow }) else { return }
+        guard let lastKnownWindow else { return }
         try moveWindowToHiddenSpace(window: lastKnownWindow)
     }
 
@@ -158,10 +142,10 @@ private extension SpacesWindowCoordinator {
         if let spaceWindowIsOn = try? windowCG.currentSpaces(.allVisibleSpaces).first,
            let displayWindowIsOn = try? Display.allOnline().first(where: { (try? $0.currentSpace()) == spaceWindowIsOn }) {
             log.debug("found messages app on display \(displayWindowIsOn.raw)")
-            state.withLock { $0.lastKnownDisplayWindowWasOn = displayWindowIsOn }
+            lastKnownDisplayWindowWasOn = displayWindowIsOn
         } else {
             log.debug("assuming messages app is on main display")
-            state.withLock { $0.lastKnownDisplayWindowWasOn = .main }
+            lastKnownDisplayWindowWasOn = .main
         }
 
         try windowCG.moveToSpace(hiddenSpace)
@@ -172,21 +156,20 @@ private extension SpacesWindowCoordinator {
     func beginObservationsForUserSpace() {
         if Defaults.imessage.bool(forKey: DefaultsKeys.spacesObserveDock) {
             // hiddenSpace will become visible when dock is restarted or display config is changed, so create another hidden space and move the window
-            let dockObserver = Dock.Observer { [weak self] in
+            dockObserver = Dock.Observer { [weak self] in
                 do {
                     try self?.moveLastKnownWindowToHiddenSpace()
                 } catch {
                     log.error("failed to hide last known window in response to dock observation: \(String(reflecting: error))")
                 }
             }
-            state.withLock { $0.dockObserver = dockObserver }
         }
 
         if Defaults.imessage.bool(forKey: DefaultsKeys.spacesObserveCurrentSpaceChanges) {
             // if we're notified that the current space has changed and the messages app was recently activated, then the user likely
             // jumped to the (no longer) "hidden" space. move the window to the hidden space to make sure ensure it's visible for the user
-            let notificationCenterObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
-                guard let self, let lastManualActivation = state.withLock({ $0.lastManualActivation }) else { return }
+            notificationCenterObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
+                guard let self, let lastManualActivation else { return }
 
                 log.debug("receive active space changed notification")
 
@@ -199,7 +182,6 @@ private extension SpacesWindowCoordinator {
                     log.error("failed to move window to hidden space in response to notification center observation: \(String(reflecting: error))")
                 }
             }
-            state.withLock { $0.notificationCenterObserver = notificationCenterObserver }
         }
     }
 }
