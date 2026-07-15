@@ -31,7 +31,7 @@ final class EventWatcherLifecycle {
         }
     }
 
-    func cancelWatchingIfNecessary(clearEventCallback: Bool) async {
+    func cancelWatchingIfNecessary(clearEventCallback: Bool) {
         let watchingTask = state.withLock { state in
             let watchingTask = state.watchingTask
             state.watchingTask = nil
@@ -44,9 +44,6 @@ final class EventWatcherLifecycle {
         if let watchingTask {
             eventWatchingLog.info("was asked to cancel event watcher task, doing so")
             watchingTask.cancel()
-            // Wait for the task to actually finish so callers (e.g. dispose())
-            // don't return while the event watcher still holds the DB.
-            await watchingTask.value
         } else {
             eventWatchingLog.warning("was asked to cancel event watcher task, but there isn't one; disregarding")
         }
@@ -115,6 +112,13 @@ final class EventWatcherLifecycle {
             }
         }
 
+        state.withLock { state in
+            state.watchingTask = watchingTask
+        }
+    }
+
+    // Internal test hook for cancellation coverage.
+    func setWatchingTaskForTesting(_ watchingTask: Task<Void, Never>?) {
         state.withLock { state in
             state.watchingTask = watchingTask
         }
