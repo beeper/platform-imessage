@@ -32,7 +32,20 @@ private actor MessagesControllerCoordinator {
         var invalidations = 0
         while true {
             try Task.checkCancellation()
-            let entry = try await currentControllerEntry(reportErrorMessage: reportErrorMessage, hasBeenDisposed: hasBeenDisposed)
+            let entry: MessagesControllerEntry
+            do {
+                entry = try await currentControllerEntry(
+                    reportErrorMessage: reportErrorMessage,
+                    hasBeenDisposed: hasBeenDisposed
+                )
+            } catch MessagesControllerCoordinatorError.pendingControllerInvalidated {
+                try Task.checkCancellation()
+                invalidations += 1
+                guard invalidations < maxInvalidations else {
+                    throw ErrorMessage("MessagesController repeatedly invalid")
+                }
+                continue
+            }
 
             do {
                 return try await PlatformAPI.runOnMessagesControllerLane {
@@ -51,13 +64,6 @@ private actor MessagesControllerCoordinator {
                 guard invalidations < maxInvalidations else {
                     throw ErrorMessage("MessagesController repeatedly invalid")
                 }
-            } catch MessagesControllerCoordinatorError.pendingControllerInvalidated {
-                try Task.checkCancellation()
-                invalidations += 1
-                guard invalidations < maxInvalidations else {
-                    throw ErrorMessage("MessagesController repeatedly invalid")
-                }
-                continue
             }
         }
     }
