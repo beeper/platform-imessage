@@ -11,69 +11,31 @@ private struct LaunchTiming {
     let elapsed: TimeInterval
 }
 
-private struct LaunchedApplicationCleanup {
-    let bundleIdentifier: String
-    let preservedPIDs: Set<pid_t>
+private func terminateLaunchedApplication(_ app: NSRunningApplication) {
+    guard !app.isTerminated else { return }
 
-    init(bundleIdentifier: String) {
-        self.bundleIdentifier = bundleIdentifier
-        self.preservedPIDs = Self.runningPIDs(bundleIdentifier: bundleIdentifier)
+    let bundleIdentifier = app.bundleIdentifier ?? "application"
+    let processIdentifier = app.processIdentifier
+    print("cleaning up launched \(bundleIdentifier) instance \(processIdentifier)")
+    app.terminate()
+
+    let deadline = Date().addingTimeInterval(5)
+    while Date() < deadline, !app.isTerminated {
+        Thread.sleep(forTimeInterval: 0.05)
     }
 
-    func terminateLaunchedApplications() {
-        var apps = Self.newApplications(bundleIdentifier: bundleIdentifier, preserving: preservedPIDs)
-        guard !apps.isEmpty else { return }
+    guard !app.isTerminated else { return }
 
-        print("cleaning up \(apps.count) launched \(bundleIdentifier) instance(s): \(apps.map(\.processIdentifier).sorted())")
-        for app in apps where !app.isTerminated {
-            app.terminate()
-        }
+    print("force terminating launched \(bundleIdentifier) instance \(processIdentifier)")
+    app.forceTerminate()
 
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            apps = Self.newApplications(bundleIdentifier: bundleIdentifier, preserving: preservedPIDs)
-            if apps.allSatisfy(\.isTerminated) || apps.isEmpty {
-                return
-            }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-
-        let remaining = Self.newApplications(bundleIdentifier: bundleIdentifier, preserving: preservedPIDs)
-            .filter { !$0.isTerminated }
-        for app in remaining {
-            print("force terminating launched \(bundleIdentifier) instance \(app.processIdentifier)")
-            app.forceTerminate()
-        }
-
-        let forceTerminateDeadline = Date().addingTimeInterval(2)
-        while Date() < forceTerminateDeadline {
-            let apps = Self.newApplications(bundleIdentifier: bundleIdentifier, preserving: preservedPIDs)
-                .filter { !$0.isTerminated }
-            if apps.isEmpty {
-                return
-            }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-
-        let stillRunning = Self.newApplications(bundleIdentifier: bundleIdentifier, preserving: preservedPIDs)
-            .filter { !$0.isTerminated }
-            .map(\.processIdentifier)
-            .sorted()
-        if !stillRunning.isEmpty {
-            print("timed out waiting to clean up \(bundleIdentifier) instance(s): \(stillRunning)")
-        }
+    let forceTerminateDeadline = Date().addingTimeInterval(2)
+    while Date() < forceTerminateDeadline, !app.isTerminated {
+        Thread.sleep(forTimeInterval: 0.05)
     }
 
-    private static func runningPIDs(bundleIdentifier: String) -> Set<pid_t> {
-        Set(NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).map(\.processIdentifier))
-    }
-
-    private static func newApplications(
-        bundleIdentifier: String,
-        preserving preservedPIDs: Set<pid_t>
-    ) -> [NSRunningApplication] {
-        NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-            .filter { !preservedPIDs.contains($0.processIdentifier) }
+    if !app.isTerminated {
+        print("timed out waiting to clean up \(bundleIdentifier) instance \(processIdentifier)")
     }
 }
 
@@ -98,10 +60,9 @@ private func waitForLaunchTiming(
     bundleIdentifier: String,
     timeout: TimeInterval = 20
 ) async throws -> LaunchTiming {
-    let cleanup = LaunchedApplicationCleanup(bundleIdentifier: bundleIdentifier)
-    defer { cleanup.terminateLaunchedApplications() }
-
     let app = try await launchApplication(bundleIdentifier: bundleIdentifier)
+    defer { terminateLaunchedApplication(app) }
+
     let startedAt = Date()
     try await app.waitForLaunch(timeout: timeout)
     let elapsed = Date().timeIntervalSince(startedAt)
@@ -141,10 +102,9 @@ struct WaitForLaunchTests {
     }
 
     @Test func waitForLaunchConcurrentWaiterStress() async throws {
-        let cleanup = LaunchedApplicationCleanup(bundleIdentifier: messagesBundleIdentifier)
-        defer { cleanup.terminateLaunchedApplications() }
-
         let app = try await launchApplication(bundleIdentifier: messagesBundleIdentifier)
+        defer { terminateLaunchedApplication(app) }
+
         let waiterCount = 8
 
         let elapsedTimes = try await withThrowingTaskGroup(of: TimeInterval.self) { group in
