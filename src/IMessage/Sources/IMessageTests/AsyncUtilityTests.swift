@@ -96,6 +96,28 @@ private final class ObservableFlag: NSObject {
     }
 }
 
+@Test func waitForValuePropagatesCallerCancellation() async {
+    let object = ObservableFlag()
+    let observedInitialValue = Protected(false)
+    let task = Task {
+        try await object.waitForValue(\.isReady) { value in
+            observedInitialValue.withLock { $0 = true }
+            return value
+        }
+    }
+
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) {
+        observedInitialValue.read()
+    })
+
+    task.cancel()
+
+    let result = await task.result
+    #expect(throws: CancellationError.self) {
+        try result.get()
+    }
+}
+
 @Test func openDeepLinkHonorsZeroTimeoutBeforeLaunchServicesOpen() async throws {
     await #expect(throws: Task<Never, Never>.TimeoutError.self) {
         _ = try await MessagesController.openDeepLink(.compose, timeout: 0)

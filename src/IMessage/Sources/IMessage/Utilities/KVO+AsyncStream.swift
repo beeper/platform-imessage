@@ -91,6 +91,9 @@ public extension NSObjectProtocol where Self: NSObject {
             }
         }
 
+        // AsyncStream ends iteration when its consuming task is cancelled.
+        // Preserve cancellation instead of reporting ordinary stream exhaustion.
+        try Task.checkCancellation()
         return nil
     }
 
