@@ -85,6 +85,7 @@ public final class PlatformAPI {
     let hasBeenDisposed = Protected(false)
 
     private struct SelectedThreadActivityState: Sendable {
+        let requestID = UUID()
         let owner: ObjectIdentifier
         let threadID: String
         let sendStatus: @Sendable (ThreadActivityObservation) async -> Void
@@ -578,14 +579,22 @@ public final class PlatformAPI {
         platformLog.debug("activity/\(publicThreadID): watching")
 
         try await withMessagesController { controller in
+            guard Self.selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
+                return
+            }
+
             let readActivity = if Defaults.watchThreadActivity {
                 try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller)
             } else {
                 false
             }
-            await Self.observeSelectedThreadActivity(using: controller, readActivity: readActivity)
+            await Self.observeSelectedThreadActivity(
+                selectedThread,
+                using: controller,
+                readActivity: readActivity
+            )
             if !readActivity {
-                self.clearSelectedThreadActivity()
+                Self.clearSelectedThreadActivity(ifCurrent: selectedThread.requestID)
             }
         }
     }
@@ -638,6 +647,13 @@ public final class PlatformAPI {
         Self.selectedThreadActivityState.withLock { $0 = nil }
     }
 
+    private static func clearSelectedThreadActivity(ifCurrent requestID: UUID) {
+        selectedThreadActivityState.withLock { state in
+            guard state?.requestID == requestID else { return }
+            state = nil
+        }
+    }
+
     private func clearSelectedThreadActivityIfOwned() {
         let owner = ObjectIdentifier(self)
         Self.selectedThreadActivityState.withLock { state in
@@ -683,14 +699,24 @@ public final class PlatformAPI {
             return
         }
 
+        await observeSelectedThreadActivity(
+            selectedThread,
+            using: controller,
+            readActivity: readActivity
+        )
+    }
+
+    private static func observeSelectedThreadActivity(
+        _ selectedThread: SelectedThreadActivityState,
+        using controller: MessagesController,
+        readActivity: Bool
+    ) async {
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
             Task {
-                guard let currentThread = selectedThreadActivityState.read(),
-                      currentThread.threadID == selectedThread.threadID
-                else {
+                guard selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
                     return
                 }
-                await currentThread.sendStatus(status)
+                await selectedThread.sendStatus(status)
             }
         }
 
