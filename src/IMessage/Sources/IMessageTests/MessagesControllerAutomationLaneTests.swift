@@ -224,9 +224,60 @@ private struct Boom: Error {}
     #expect(firstCallbackFired.read() == false)
 }
 
+@Test func laneAllowsEscapedChildToEnqueueAfterOriginatingActionFinishes() async throws {
+    let lane = MessagesControllerAutomationLane(idleDelay: 10)
+    let releaseChild = Protected<Bool>(false)
+    let childRanOnLane = Protected<Bool>(false)
+    let escapedTask = Protected<Task<Void, Error>?>(nil)
+
+    try await lane.run {
+        let task = Task {
+            while !releaseChild.read() {
+                await Task.yield()
+            }
+            try await lane.run {
+                childRanOnLane.withLock { $0 = true }
+            }
+        }
+        escapedTask.withLock { $0 = task }
+    }
+
+    releaseChild.withLock { $0 = true }
+    let task = try #require(escapedTask.read())
+    try await task.value
+
+    #expect(childRanOnLane.read())
+}
+
+@Test func laneExplicitEscapingTaskCanEnqueueIndependently() async throws {
+    let lane = MessagesControllerAutomationLane(idleDelay: 10)
+    let childStarted = Protected<Bool>(false)
+    let childRanOnLane = Protected<Bool>(false)
+    let escapedTask = Protected<Task<Void, Error>?>(nil)
+
+    try await lane.run {
+        let task = MessagesControllerAutomationLane.escapingTask {
+            childStarted.withLock { $0 = true }
+            try await lane.run {
+                childRanOnLane.withLock { $0 = true }
+            }
+        }
+        escapedTask.withLock { $0 = task }
+
+        #expect(await eventually(timeout: 2, pollInterval: 0.005) { childStarted.read() })
+        // Keep the originating action alive long enough for the child to enter
+        // `run`; the child must enqueue rather than inherit a matching lane token.
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    let task = try #require(escapedTask.read())
+    try await task.value
+    #expect(childRanOnLane.read())
+}
+
 // NOTE: lane re-entrancy (calling `run` from within a `run` action) is guarded by a
 // `precondition` in `MessagesControllerAutomationLane.run`. Asserting that it traps
 // would require a Swift Testing exit test (subprocess + signal matching), which is
 // fragile and toolchain-version-sensitive, so it is intentionally not unit-tested
-// here. The contract is enforced by the precondition and documented on
-// `isExecutingOnLane`; see plan-eng-review (Issue 3 / Codex Finding 1).
+// here. The contract is enforced by comparing `executionToken` with the actor's
+// `activeExecutionToken`.

@@ -11,21 +11,14 @@ import Foundation
 actor MessagesControllerAutomationLane {
     typealias IdleCallback = @Sendable () async -> Void
 
-    // True while an action runs on the lane. Re-entering the lane from within an
-    // action would deadlock (the nested task awaits a tail the current action is
-    // blocking); task-locals propagate across hops so the precondition in `run`
-    // catches it.
-    //
-    // WARNING: @TaskLocal values are also inherited by unstructured `Task {}`
-    // children spawned during a lane action. Such a child sees `isExecutingOnLane
-    // == true` even after the originating action returns, so this flag must NOT be
-    // used to gate an "inline fallback" — a leaked child re-entering the lane would
-    // run its action off-lane, concurrently, silently breaking serialization. The
-    // only safe response to re-entrancy is to fail (see `run`).
-    @TaskLocal private static var isExecutingOnLane = false
+    // Identifies the lane action from which the current task descends. Children
+    // inherit the token, so `run` compares it with the action currently holding the
+    // lane: an expired token is safe, while a matching token would deadlock.
+    @TaskLocal private static var executionToken: UUID?
 
     private let idleDelay: TimeInterval
     private var tail: Task<Void, Never>?
+    private var activeExecutionToken: UUID?
     private var pendingActiveWorkCount = 0
     private var idleEpoch: UInt = 0
     private var idleCallback: IdleCallback?
@@ -36,17 +29,15 @@ actor MessagesControllerAutomationLane {
     }
 
     func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
-        // `precondition`, not `assert`: re-entrancy must fail loudly in release too.
-        // The failure mode otherwise is a *silent* deadlock (the nested op queues
-        // behind the current action while the current action awaits it) — which is
-        // undiagnosable in the field. A crash with this message is strictly better.
-        // See the WARNING on `isExecutingOnLane`: an "inline fallback" is NOT a safe
-        // alternative because the task-local leaks into spawned `Task {}` children.
-        precondition(
-            !Self.isExecutingOnLane,
-            "re-entrant runOnMessagesControllerLane would deadlock the serial lane: " +
-            "a lane action must not call back into the lane."
-        )
+        if let executionToken = Self.executionToken {
+            // `precondition`, not `assert`: re-entering from the action currently
+            // holding the lane would silently deadlock in release.
+            precondition(
+                executionToken != activeExecutionToken,
+                "re-entrant runOnMessagesControllerLane would deadlock the serial lane: " +
+                "a lane action must not call back into the lane."
+            )
+        }
         activeWorkSubmitted()
         let task = enqueue(action)
         defer { activeWorkCompleted() }
@@ -55,6 +46,21 @@ actor MessagesControllerAutomationLane {
             try await task.value
         } onCancel: {
             task.cancel()
+        }
+    }
+
+    /// Creates fire-and-forget work that must be allowed to call back into the lane
+    /// independently of the action that spawned it. Only the lane token is cleared;
+    /// priority and unrelated task-local values retain normal `Task {}` inheritance.
+    @discardableResult
+    nonisolated static func escapingTask(
+        priority: TaskPriority? = nil,
+        _ operation: @escaping @Sendable () async throws -> Void
+    ) -> Task<Void, Error> {
+        Self.$executionToken.withValue(nil) {
+            Task(priority: priority) {
+                try await operation()
+            }
         }
     }
 
@@ -67,10 +73,13 @@ actor MessagesControllerAutomationLane {
 
     private func enqueue<T>(_ action: @Sendable @escaping () async throws -> T) -> Task<T, Error> {
         let previous = tail
+        let executionToken = UUID()
         let task = Task {
             await previous?.value
             try Task.checkCancellation()
-            return try await Self.$isExecutingOnLane.withValue(true) {
+            activeExecutionToken = executionToken
+            defer { activeExecutionToken = nil }
+            return try await Self.$executionToken.withValue(executionToken) {
                 try await action()
             }
         }

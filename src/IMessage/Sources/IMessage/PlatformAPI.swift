@@ -712,7 +712,7 @@ public final class PlatformAPI {
         readActivity: Bool
     ) async {
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
-            Task {
+            MessagesControllerAutomationLane.escapingTask {
                 guard selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
                     return
                 }
