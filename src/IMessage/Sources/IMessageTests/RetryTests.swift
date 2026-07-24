@@ -97,6 +97,33 @@ private struct RetryTestError: Error, Equatable { let id: Int }
     #expect(cancelledAt.timeIntervalSinceNow * -1 < 0.2)
 }
 
+@Test func retryCountRethrowsCancellationWithoutRetrying() async throws {
+    let attempts = Protected<Int>(0)
+    let onErrorCalls = Protected<Int>(0)
+    let started = Protected<Bool>(false)
+
+    let task = Task {
+        try await retry(retries: 2) { (_: Int) async throws -> Int in
+            attempts.withLock { $0 += 1 }
+            started.withLock { $0 = true }
+            try await Task.sleep(forTimeInterval: 1)
+            return 0
+        } onError: { _, _, _ in
+            onErrorCalls.withLock { $0 += 1 }
+        }
+    }
+
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { started.read() })
+    let cancelledAt = Date()
+    task.cancel()
+
+    let result = await task.result
+    #expect(throws: CancellationError.self) { try result.get() }
+    #expect(attempts.read() == 1)
+    #expect(onErrorCalls.read() == 0)
+    #expect(cancelledAt.timeIntervalSinceNow * -1 < 0.2)
+}
+
 @Test func retryCountExhaustionThrowsAfterRetries() async throws {
     let attempts = Protected<Int>(0)
     await #expect(throws: RetryTestError.self) {

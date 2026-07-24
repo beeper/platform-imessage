@@ -97,6 +97,8 @@ public func retry<T>(
     while true {
         do {
             return try await perform(attempt)
+        } catch let error as CancellationError {
+            throw error
         } catch {
             let retriesLeft = max(retries - attempt, 0)
             await onError?(attempt, retriesLeft, error)
