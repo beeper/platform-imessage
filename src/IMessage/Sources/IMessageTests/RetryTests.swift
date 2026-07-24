@@ -124,6 +124,32 @@ private struct RetryTestError: Error, Equatable { let id: Int }
     #expect(cancelledAt.timeIntervalSinceNow * -1 < 0.2)
 }
 
+@Test func retryCountChecksCancellationBeforeNextAttempt() async throws {
+    let attempts = Protected<Int>(0)
+    let onErrorEntered = Protected<Bool>(false)
+    let releaseOnError = Protected<Bool>(false)
+
+    let task = Task {
+        try await retry(retries: 2, { (_: Int) async throws -> Int in
+            attempts.withLock { $0 += 1 }
+            throw RetryTestError(id: -1)
+        }, onError: { _, _, _ in
+            onErrorEntered.withLock { $0 = true }
+            while !releaseOnError.read() {
+                await Task.yield()
+            }
+        })
+    }
+
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { onErrorEntered.read() })
+    task.cancel()
+    releaseOnError.withLock { $0 = true }
+
+    let result = await task.result
+    #expect(throws: CancellationError.self) { try result.get() }
+    #expect(attempts.read() == 1)
+}
+
 @Test func retryCountExhaustionThrowsAfterRetries() async throws {
     let attempts = Protected<Int>(0)
     await #expect(throws: RetryTestError.self) {

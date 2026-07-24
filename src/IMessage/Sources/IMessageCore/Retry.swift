@@ -95,6 +95,7 @@ public func retry<T>(
 ) async throws -> T {
     var attempt = 0
     while true {
+        try Task.checkCancellation()
         do {
             return try await perform(attempt)
         } catch let error as CancellationError {
