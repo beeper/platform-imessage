@@ -389,7 +389,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.error("unable to perform initial observation of app: \(error)")
             }
             do {
-                let window = try self.elements.currentMainWindow.orThrow(ErrorMessage("main window not found"))
+                // This initialization runs on the lifecycle run-loop thread, not the
+                // automation lane. Use the cache-free lookup to avoid racing the lane's
+                // cached main-window getter during controller initialization.
+                let window = try self.elements.getMainWindow().orThrow(ErrorMessage("main window not found"))
                 try observer.beginObserving(window: window)
             } catch {
                 log.error("unable to perform initial observation of main window: \(error)")
@@ -447,7 +450,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                             // for now, reset our window-local observations whenever we
                             // see that a window was created (even if it was just e.g.
                             // the settings window).
-                            let window = try await self.elements.mainWindow
+                            // Lifecycle events are consumed off-lane; do not touch the
+                            // lane-isolated cached main-window getter here.
+                            let window = try self.elements.getMainWindow().orThrow(ErrorMessage("main window not found"))
                             rlt.enqueue(.observeWindow(window: window))
                         } catch {
                             log.error("fetching mainWindow failed", error: error)
@@ -1006,7 +1011,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func muteThread(threadID: String, muted: Bool) async throws {
+    func muteThread(threadID: String, muted shouldMute: Bool) async throws {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
@@ -1018,15 +1023,21 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
-                if muted {
+                let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts)
+                let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
+                let hideAlertsOnAction = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
+                // Muted rows expose either "Show Alerts" or the checked "Hide Alerts, On" action.
+                let availableUnmuteAction = showAlertsAction ?? hideAlertsOnAction
+                let isMuted = availableUnmuteAction != nil
+                log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute)")
+
+                guard isMuted != shouldMute else { return }
+
+                if shouldMute {
                     try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
-                } else if let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts) {
-                    try showAlertsAction()
                 } else {
-                    let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
-                    let action = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
-                        .orThrow(ErrorMessage("ThreadAction.showAlerts and \(hideAlertsOn) not found"))
-                    try action()
+                    let unmuteAction = try availableUnmuteAction.orThrow(ErrorMessage("Unmute action not found"))
+                    try unmuteAction()
                 }
             }
         }
