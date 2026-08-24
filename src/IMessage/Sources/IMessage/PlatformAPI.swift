@@ -297,7 +297,24 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try await $0.muteThread(threadID: threadID, muted: muted) }
+        let currentMuteState = try await runDBQuery { db, _, _ -> Bool? in
+            guard let mutedThreadIDs = Self.permanentDNDThreadIDs() else { return nil }
+            guard let chat = try db.mappedThreadRow(guid: threadID),
+                  let dndIdentifier = ThreadMapper.dndIdentifier(for: chat) else {
+                return nil
+            }
+            return mutedThreadIDs.contains(dndIdentifier)
+        }
+        if currentMuteState == muted {
+            platformLog.debug("imsg: DND state already matches requested mute state")
+            return
+        }
+        if currentMuteState == nil {
+            platformLog.debug("imsg: DND state unavailable; falling back to Messages accessibility actions")
+        }
+        try await withMessagesController {
+            try await $0.muteThread(threadID: threadID, muted: muted, currentMuteState: currentMuteState)
+        }
     }
 
     public func deleteThread(threadID publicThreadID: String) async throws {
@@ -1073,7 +1090,12 @@ extension PlatformAPI {
                 accountID: accountID
             ),
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
-            dndState: permanentDNDThreadIDs(),
+            // Missing access to this protected preference domain means the
+            // state is unknown, not that every thread is unmuted. Thread
+            // mapping cannot represent that distinction yet, so retain the
+            // existing empty fallback here while mutation paths use the
+            // optional value directly.
+            dndState: permanentDNDThreadIDs() ?? [],
             currentUser: currentUser,
             accountID: accountID
         )
@@ -1102,8 +1124,13 @@ extension PlatformAPI {
         return latestMessagesByChatGUID
     }
 
-    nonisolated static func permanentDNDThreadIDs() -> Set<String> {
-        Set((Defaults.getDNDList() ?? [:]).compactMap { key, value in
+    nonisolated static func permanentDNDThreadIDs() -> Set<String>? {
+        permanentDNDThreadIDs(from: Defaults.getDNDList())
+    }
+
+    nonisolated static func permanentDNDThreadIDs(from dndList: [String: Int]?) -> Set<String>? {
+        guard let dndList else { return nil }
+        return Set(dndList.compactMap { key, value in
             value == Int(Date.distantFuture.timeIntervalSince1970) ? key : nil
         })
     }

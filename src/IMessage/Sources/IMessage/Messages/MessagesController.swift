@@ -1011,11 +1011,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func muteThread(threadID: String, muted shouldMute: Bool) async throws {
+    func muteThread(threadID: String, muted shouldMute: Bool, currentMuteState: Bool?) async throws {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
+
+        if let currentMuteState, currentMuteState == shouldMute {
+            log.debug("muteThread: DND state already matches shouldMute=\(shouldMute)")
+            return
+        }
 
         let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
@@ -1028,8 +1033,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 let hideAlertsOnAction = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
                 // Muted rows expose either "Show Alerts" or the checked "Hide Alerts, On" action.
                 let availableUnmuteAction = showAlertsAction ?? hideAlertsOnAction
-                let isMuted = availableUnmuteAction != nil
-                log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute)")
+                let labelMuteState = availableUnmuteAction != nil
+                let isMuted = currentMuteState ?? labelMuteState
+                let stateSource = currentMuteState == nil ? "accessibility action" : "DND list"
+                log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute), source=\(stateSource)")
 
                 guard isMuted != shouldMute else { return }
 
