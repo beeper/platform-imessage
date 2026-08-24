@@ -80,6 +80,7 @@ public enum MacPermissions {
     }
 
     public static func askForAutomationAccess() async throws {
+        // Automation's TCC prompt is unreliable when OSA runs off the main actor.
         try await MainActor.run {
             try OSA.promptAutomationAccess()
         }

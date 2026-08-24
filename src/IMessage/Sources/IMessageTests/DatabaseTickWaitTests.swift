@@ -348,14 +348,3 @@ private func messageWithAttachmentLoading(_ loading: Bool) -> PlatformSDK.Messag
         ]
     )
 }
-
-private func eventually(timeout: TimeInterval = 1, _ predicate: () -> Bool) async -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-        if predicate() {
-            return true
-        }
-        try? await Task.sleep(forTimeInterval: 0.01)
-    }
-    return predicate()
-}

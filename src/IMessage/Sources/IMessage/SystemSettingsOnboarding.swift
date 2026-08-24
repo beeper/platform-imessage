@@ -1,3 +1,4 @@
+@MainActor
 public enum SystemSettingsOnboarding {
     static var onboardingManager: OnboardingManager?
 

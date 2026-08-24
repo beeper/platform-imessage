@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import IMessageCore
 
 extension NSApplication {
@@ -14,20 +15,29 @@ extension NSApplication {
 }
 
 extension NSRunningApplication {
-    func waitForLaunch(interval: TimeInterval = 0.05, timeout seconds: TimeInterval = 5) throws {
-        let start = Date()
-        while !self.isFinishedLaunching {
-            Log.default.notice("sleeping \(interval)s for \(String(describing: self.localizedName)) to finish launching")
-            Thread.sleep(forTimeInterval: interval)
-            if self.isTerminated {
-                throw ErrorMessage("\(String(describing: self.localizedName)) terminated")
-            }
-            if start.timeIntervalSinceNow < -seconds {
-                Log.default.notice("assuming \(String(describing: self.localizedName)) has launched") // sometimes this gets stuck in an infinite loop
-                break
+    func waitForLaunch(timeout seconds: TimeInterval = 5) async throws {
+        if isFinishedLaunching, !isTerminated {
+            return
+        }
+
+        try await Task.withTimeout(seconds) {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                defer {
+                    group.cancelAll()
+                }
+
+                group.addTask { [self] in
+                    try await self.waitForValue(\.isFinishedLaunching, true)
+                }
+
+                group.addTask { [self] in
+                    try await self.waitForValue(\.isTerminated, true)
+                    throw ErrorMessage("Application terminated while waiting for launch")
+                }
+
+                try await group.next()
             }
         }
-        Thread.sleep(forTimeInterval: 0.01)
     }
 }
 
@@ -60,6 +70,7 @@ extension NSRect {
     /// primary display, the space used by Accessibility window positions and
     /// CGWindow bounds). The flip is about the primary display's height, so it is
     /// its own inverse and is correct regardless of which display the rect is on.
+    @MainActor
     func flippedBetweenCocoaAndScreenSpace() -> NSRect {
         guard let primaryHeight = NSScreen.screens.first?.frame.height else { return self }
         return NSRect(x: minX, y: primaryHeight - maxY, width: width, height: height)

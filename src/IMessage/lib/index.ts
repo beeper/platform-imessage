@@ -69,7 +69,7 @@ export declare class NativePlatformAPI {
 
   markAsUnread: (threadID: ThreadID) => Promise<void>
 
-  onThreadSelected: (threadID: ThreadID, onEvent: OnServerEventCallback) => Promise<void>
+  onThreadSelected: (threadID: ThreadID | null, onEvent: OnServerEventCallback) => Promise<void>
 
   subscribeToEvents: NativeVoidPlatformAPIMethod<'subscribeToEvents'>
 
