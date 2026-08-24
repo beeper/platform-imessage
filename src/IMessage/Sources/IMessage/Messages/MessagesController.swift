@@ -50,6 +50,51 @@ private enum ThreadAction {
     }
 }
 
+enum ThreadAlertsActionIntent {
+    case hide
+    case show
+}
+
+struct ThreadAlertsActionLabel {
+    let intent: ThreadAlertsActionIntent
+    let isOn: Bool
+
+    /// Accessibility normally exposes the operation that will be performed, so
+    /// an unchecked "Hide Alerts" means alerts are currently shown while an
+    /// unchecked "Show Alerts" means they are currently hidden. Some macOS
+    /// versions instead expose the setting as a checked action (", On"), which
+    /// reverses that interpretation.
+    var isMuted: Bool {
+        switch (intent, isOn) {
+        case (.hide, false), (.show, true): false
+        case (.show, false), (.hide, true): true
+        }
+    }
+}
+
+func parseThreadAlertsActionLabel(
+    _ actionName: String,
+    hideAlertsLabel: String,
+    showAlertsLabel: String
+) -> ThreadAlertsActionLabel? {
+    func parse(_ label: String, intent: ThreadAlertsActionIntent) -> ThreadAlertsActionLabel? {
+        let prefix = "Name:\(label)"
+        guard actionName.hasPrefix(prefix) else { return nil }
+
+        let suffix = actionName.dropFirst(prefix.count)
+        if suffix.isEmpty {
+            return ThreadAlertsActionLabel(intent: intent, isOn: false)
+        }
+        if suffix == ", On" {
+            return ThreadAlertsActionLabel(intent: intent, isOn: true)
+        }
+        return nil
+    }
+
+    return parse(hideAlertsLabel, intent: .hide)
+        ?? parse(showAlertsLabel, intent: .show)
+}
+
 struct MessageCell: Codable {
     let messageGUID: String
     let partIndex: Int?
@@ -594,6 +639,24 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try threadCellAction(threadCell: threadCell, namePrefix: action.localized)
     }
 
+    private struct ThreadAlertsAction {
+        let action: Accessibility.Action
+        let label: ThreadAlertsActionLabel
+    }
+
+    private func threadAlertsActions(threadCell: Accessibility.Element) throws -> [ThreadAlertsAction] {
+        try threadCell.supportedActions().compactMap { action in
+            guard let label = parseThreadAlertsActionLabel(
+                action.name.value,
+                hideAlertsLabel: ThreadAction.hideAlerts.localized,
+                showAlertsLabel: ThreadAction.showAlerts.localized
+            ) else {
+                return nil
+            }
+            return ThreadAlertsAction(action: action, label: label)
+        }
+    }
+
     private func triggerThreadCellAction(threadCell: Accessibility.Element, action: ThreadAction) throws {
         let action = try threadCellAction(threadCell: threadCell, action: action)
             .orThrow(ErrorMessage("ThreadAction.\(action) not found"))
@@ -1028,24 +1091,37 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
-                let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts)
-                let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
-                let hideAlertsOnAction = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
-                // Muted rows expose either "Show Alerts" or the checked "Hide Alerts, On" action.
-                let availableUnmuteAction = showAlertsAction ?? hideAlertsOnAction
-                let labelMuteState = availableUnmuteAction != nil
+                let actions = try threadAlertsActions(threadCell: selectedThreadCell)
+
+                let inferredStates = Set(actions.map(\.label.isMuted))
+                let labelMuteState = inferredStates.count == 1 ? inferredStates.first : nil
                 let isMuted = currentMuteState ?? labelMuteState
                 let stateSource = currentMuteState == nil ? "accessibility action" : "DND list"
+
+                guard let isMuted else {
+                    throw ErrorMessage("Could not determine whether thread alerts are hidden")
+                }
                 log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute), source=\(stateSource)")
 
                 guard isMuted != shouldMute else { return }
 
-                if shouldMute {
-                    try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
-                } else {
-                    let unmuteAction = try availableUnmuteAction.orThrow(ErrorMessage("Unmute action not found"))
-                    try unmuteAction()
+                // Prefer an action whose label agrees with the authoritative
+                // state. When the DND list and AX label disagree, the action is
+                // still a toggle, but log the mismatch and avoid choosing an
+                // action that describes a different starting state if possible.
+                let matchingAction = actions.first { $0.label.isMuted == isMuted }
+                if currentMuteState != nil, matchingAction == nil, !actions.isEmpty {
+                    log.warning("muteThread: DND state disagrees with accessibility action label")
                 }
+                let action: Accessibility.Action
+                if let matchingAction {
+                    action = matchingAction.action
+                } else {
+                    action = try actions.first
+                        .orThrow(ErrorMessage("Hide Alerts / Show Alerts action not found"))
+                        .action
+                }
+                try action()
             }
         }
     }
