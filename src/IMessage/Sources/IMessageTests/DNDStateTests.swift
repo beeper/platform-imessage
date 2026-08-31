@@ -19,3 +19,13 @@ func permanentDNDThreadIDsExcludeNonPermanentEntries() throws {
 
     #expect(result == ["permanent"])
 }
+
+@Test
+func muteStateUsesPermanentDNDEntries() {
+    let forever = Int(Date.distantFuture.timeIntervalSince1970)
+
+    #expect(PlatformAPI.muteState(forDNDIdentifier: "thread", from: nil) == nil)
+    #expect(PlatformAPI.muteState(forDNDIdentifier: "thread", from: [:]) == false)
+    #expect(PlatformAPI.muteState(forDNDIdentifier: "thread", from: ["thread": forever]) == true)
+    #expect(PlatformAPI.muteState(forDNDIdentifier: "thread", from: ["thread": forever - 1]) == false)
+}

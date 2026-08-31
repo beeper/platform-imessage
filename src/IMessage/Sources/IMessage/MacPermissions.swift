@@ -103,6 +103,14 @@ public enum MacPermissions {
 
     private static func fullDiskAccessAuthStatus() -> MacPermissionAuthStatus {
         let home = NSHomeDirectory()
+        // This is the protected preference we need FDA for. Treat an existing
+        // file as authoritative instead of letting an unrelated fallback probe
+        // mask a denial.
+        let dndStatus = fileAccessStatus("\(home)/Library/Preferences/com.apple.MobileSMS.CKDNDList.plist")
+        if dndStatus != .notDetermined {
+            return dndStatus
+        }
+
         var paths = [
             "\(home)/Library/Safari/Bookmarks.plist",
             "/Library/Application Support/com.apple.TCC/TCC.db",

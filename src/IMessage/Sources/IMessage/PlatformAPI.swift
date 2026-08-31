@@ -297,14 +297,19 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        let currentMuteState = try await runDBQuery { db, _, _ -> Bool? in
-            guard let mutedThreadIDs = Self.permanentDNDThreadIDs() else { return nil }
-            guard let chat = try db.mappedThreadRow(guid: threadID),
-                  let dndIdentifier = ThreadMapper.dndIdentifier(for: chat) else {
-                return nil
-            }
-            return mutedThreadIDs.contains(dndIdentifier)
+        let dndIdentifier = try await runDBQuery { db, _, _ in
+            try db.mappedThreadRow(guid: threadID).flatMap(ThreadMapper.dndIdentifier)
         }
+        let currentMuteState = dndIdentifier.flatMap(Self.muteState)
+
+        if currentMuteState == nil,
+           MacPermissions.getAuthStatus(.fullDiskAccess) != .authorized {
+            await MainActor.run {
+                MacPermissions.askForFullDiskAccess()
+            }
+            throw ErrorMessage("Full Disk Access is required to read and update iMessage mute state. Grant access, then try again.")
+        }
+
         if currentMuteState == muted {
             platformLog.debug("imsg: DND state already matches requested mute state")
             return
@@ -314,6 +319,22 @@ public final class PlatformAPI {
         }
         try await withMessagesController {
             try await $0.muteThread(threadID: threadID, muted: muted, currentMuteState: currentMuteState)
+        }
+
+        guard let dndIdentifier, currentMuteState != nil else { return }
+        do {
+            try await retry(withTimeout: 3, interval: 0.1) { () async throws -> Void in
+                guard let observedMuteState = Self.muteState(forDNDIdentifier: dndIdentifier) else {
+                    throw ErrorMessage("iMessage mute state became unavailable after updating the thread")
+                }
+                guard observedMuteState == muted else {
+                    throw ErrorMessage("iMessage mute state did not match the requested value after updating the thread")
+                }
+            }
+            platformLog.debug("imsg: verified DND state after thread mute update; muted=\(muted)")
+        } catch {
+            platformLog.error("imsg: failed to verify DND state after thread mute update: \(error)")
+            throw error
         }
     }
 
@@ -1126,6 +1147,14 @@ extension PlatformAPI {
 
     nonisolated static func permanentDNDThreadIDs() -> Set<String>? {
         permanentDNDThreadIDs(from: Defaults.getDNDList())
+    }
+
+    nonisolated static func muteState(forDNDIdentifier dndIdentifier: String) -> Bool? {
+        muteState(forDNDIdentifier: dndIdentifier, from: Defaults.getDNDList())
+    }
+
+    nonisolated static func muteState(forDNDIdentifier dndIdentifier: String, from dndList: [String: Int]?) -> Bool? {
+        permanentDNDThreadIDs(from: dndList)?.contains(dndIdentifier)
     }
 
     nonisolated static func permanentDNDThreadIDs(from dndList: [String: Int]?) -> Set<String>? {

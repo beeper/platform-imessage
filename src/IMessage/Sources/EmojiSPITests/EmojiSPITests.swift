@@ -28,7 +28,10 @@ let locale = Locale(identifier: "en-US")
     #expect(!(try tools.supportsSkinToneVariants))
 }
 
-@Test func characterPickerSearch() throws {
+// CharacterPicker.framework's private `initWithLocale:` SPI currently returns
+// nil on supported macOS builds. Keep this disabled until the SPI is updated.
+@Test(.disabled("Known-broken CharacterPicker.framework private SPI"))
+func characterPickerSearch() throws {
     let bear = try CharacterPickerSearch(finding: "🐻")
     #expect(bear.query == "bear face")
     #expect(bear.position == 0)
