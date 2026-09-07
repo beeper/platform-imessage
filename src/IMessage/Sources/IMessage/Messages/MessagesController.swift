@@ -1092,8 +1092,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await withAutomation {
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
-                let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
-                let actions = try threadAlertsActions(threadCell: selectedThreadCell)
+                // A new row can expose only AXScrollToVisible before its actions appear.
+                // Retry discovery before the single action invocation below.
+                let actions = try await retry(withTimeout: 3, interval: 0.1) {
+                    let selectedThreadCell = try await self.scrollAndGetSelectedThreadCell(threadID: threadID)
+                    let actions = try self.threadAlertsActions(threadCell: selectedThreadCell)
+                    guard !actions.isEmpty else {
+                        try selectedThreadCell.scrollToVisible()
+                        throw ErrorMessage("Hide Alerts / Show Alerts action not ready")
+                    }
+                    return actions
+                }
 
                 let inferredStates = Set(actions.map(\.label.isMuted))
                 let labelMuteState = inferredStates.count == 1 ? inferredStates.first : nil
