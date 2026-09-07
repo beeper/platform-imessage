@@ -77,11 +77,13 @@ func parseThreadAlertsActionLabel(
     hideAlertsLabel: String,
     showAlertsLabel: String
 ) -> ThreadAlertsActionLabel? {
+    // AX action names can contain Target and Selector metadata after the label.
+    let labelLine = actionName.prefix { !$0.isNewline }
     func parse(_ label: String, intent: ThreadAlertsActionIntent) -> ThreadAlertsActionLabel? {
         let prefix = "Name:\(label)"
-        guard actionName.hasPrefix(prefix) else { return nil }
+        guard labelLine.hasPrefix(prefix) else { return nil }
 
-        let suffix = actionName.dropFirst(prefix.count)
+        let suffix = labelLine.dropFirst(prefix.count)
         if suffix.isEmpty {
             return ThreadAlertsActionLabel(intent: intent, isOn: false)
         }
