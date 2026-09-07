@@ -67,35 +67,6 @@ const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermi
   return { refreshAuthorization, authorized, pending }
 }
 
-const RevokeFDASection: React.FC<{ callProxiedFn: CallProxiedFn }> = ({ callProxiedFn }) => {
-  const [hidden, setHidden] = useState(false)
-  const isSIPEnabled = useCallback(() => callProxiedFn<boolean>('isSIPEnabled'), [])
-  const isAuthorized = useCallback(() =>
-    callProxiedFn<NativeMacPermissionAuthStatus>('getFullDiskAccessAuthStatus').then(res => res === 'authorized'), [])
-  const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
-  const { value: sipEnabled } = useAsync(isSIPEnabled)
-  if (!authorized || pending || !(sipEnabled ?? true) || hidden) return null
-  const onClick = async () => {
-    if (!await callProxiedFn('revokeFDA')) return
-    setTimeout(() => {
-      refreshAuthorization()
-      if (texts.IS_DEV) setHidden(true)
-    }, 100)
-  }
-  return (
-    <details open>
-      <summary><h4>Revoke Full Disk Access</h4></summary>
-      <div className="imessage-auth-well">
-        <div>Beeper has Full Disk Access. It's no longer required and you're recommended to revoke it.</div>
-        <br />
-        <div>
-          <button className="primary" onClick={onClick}>Revoke Full Disk Access</button>
-        </div>
-      </div>
-    </details>
-  )
-}
-
 const SetupMessagesSection: React.FC<{}> = () => (
   <details open>
     <summary><h4>Setup Messages.app</h4></summary>
@@ -179,6 +150,7 @@ const ChecklistPage: React.FC<Props> = props => {
   const askedContacts = useRef(false)
   const { authorized: contactsAuthorized } = useMacPermission(callProxiedFn, 'contacts')
   const { authorized: axAuthorized } = useMacPermission(callProxiedFn, 'accessibility')
+  const { authorized: fullDiskAccessAuthorized } = useMacPermission(callProxiedFn, 'full-disk-access')
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -197,6 +169,8 @@ const ChecklistPage: React.FC<Props> = props => {
     await callProxiedFn<void>('askForMessagesDirAccess')
     await refreshMessageDirAuthorization()
   }
+
+  const authorizeFullDiskAccess = () => callProxiedFn<void>('askForFullDiskAccess')
 
   const authorizeAutomation = async () => {
     if (calledAutomationOnce) return openAutomationPrefs()
@@ -250,7 +224,17 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: messageDirAuthorized ?? false,
       action: authorizeMessagesDir,
       info: 'To connect with iMessage, Beeper needs to be able to read your messages.',
-      more: <div onClick={() => callProxiedFn('askForFullDiskAccess')}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
+      more: <div onClick={authorizeMessagesDir}>Try selecting your Messages folder again &rarr;</div>,
+      showMore,
+    },
+    {
+      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M4 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v7H2V8a1 1 0 0 1 1-1h1Zm2 0h4V5a2 2 0 1 0-4 0v2Z" /></svg>,
+      title: 'Full Disk Access',
+      completed: fullDiskAccessAuthorized ?? false,
+      action: authorizeFullDiskAccess,
+      info: 'Beeper needs Full Disk Access to read Messages\u2019 Hide Alerts settings and keep muted chats in sync across relaunches.',
+      subtitle: 'Used to preserve iMessage mute state.',
+      more: <div onClick={authorizeFullDiskAccess}>Try adding {appName} in {sysPrefsAppName} &gt; Privacy &amp; Security &gt; Full Disk Access &rarr;</div>,
       showMore,
     },
     {
@@ -334,7 +318,6 @@ const ChecklistPage: React.FC<Props> = props => {
 
   return (
     <div>
-      <RevokeFDASection {...{ callProxiedFn }} />
       {messageDirAuthorized && !isMessagesAppSetup && <SetupMessagesSection />}
       {allAuthorized
         ? (loggingIn ? 'Adding...' : <button className="primary" onClick={login}>Add iMessage</button>)

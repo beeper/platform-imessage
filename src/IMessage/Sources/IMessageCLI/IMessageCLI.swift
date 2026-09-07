@@ -90,12 +90,14 @@ private enum Category: String {
 private enum AuthorizationRequirement: String {
     case accessibility
     case contacts
+    case fullDiskAccess = "full-disk-access"
     case messagesData = "messages-data"
 
     var title: String {
         switch self {
         case .accessibility: return "Accessibility"
         case .contacts: return "Contacts"
+        case .fullDiskAccess: return "Full Disk Access"
         case .messagesData: return "Messages Data"
         }
     }
@@ -108,6 +110,9 @@ private enum AuthorizationRequirement: String {
         case .contacts:
             let ok = MacPermissions.getAuthStatus(.contacts) == .authorized
             return (ok, ok ? "Contacts lookups are available." : "Allow Contacts access if you want contact-name lookups from the CLI.")
+        case .fullDiskAccess:
+            let ok = MacPermissions.getAuthStatus(.fullDiskAccess) == .authorized
+            return (ok, ok ? "The CLI can read protected Messages settings." : "Enable your current Terminal app in System Settings > Privacy & Security > Full Disk Access.")
         case .messagesData:
             let ok = await canAccessMessagesDir()
             return (ok, ok ? "The CLI can read your local Messages data." : "The CLI cannot read ~/Library/Messages yet.")
@@ -126,6 +131,11 @@ private enum AuthorizationRequirement: String {
             }
         case .contacts:
             _ = try? await MacPermissions.askForContactsAccess()
+        case .fullDiskAccess:
+            MacPermissions.askForFullDiskAccess()
+            _ = await pollAuthorization(timeout: 120) {
+                MacPermissions.getAuthStatus(.fullDiskAccess) == .authorized
+            }
         case .messagesData:
             try? await MacPermissions.askForMessagesDirAccess()
             if !(await canAccessMessagesDir()) {
@@ -493,6 +503,7 @@ private final class Runner {
 
 private let readOnlyAuth: [AuthorizationRequirement] = [.messagesData]
 private let mutatingAuth: [AuthorizationRequirement] = [.messagesData, .accessibility]
+private let muteAuth: [AuthorizationRequirement] = [.messagesData, .accessibility, .fullDiskAccess]
 private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMessage", "latest"]
 private let maxLatestMessageOffset = 999_999
 private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
@@ -1277,7 +1288,7 @@ private func muteCommand(name: String, muted: Bool) -> CommandDefinition {
         usage: ["\(name) CHAT_ID"],
         examples: ["\(name) any;-;sjobs@apple.com"],
         notes: [threadIDAliasNote],
-        requiredAuthorization: mutatingAuth
+        requiredAuthorization: muteAuth
     ) { args, context in
         try requireExactArgs(context.command, args, 1)
         let mutedUntil: Any = muted ? "forever" : NSNull()
@@ -1546,7 +1557,7 @@ private func missingAuthorizationRequirements(_ requirements: [AuthorizationRequ
 private func runAuthorizationFlow(target rawTarget: String?) async throws {
     let trimmed = rawTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
     let resolved = (trimmed?.isEmpty == false ? trimmed : nil) ?? "all"
-    let names: [String] = resolved == "all" ? ["accessibility", "contacts", "messages-data", "automation"] : [resolved]
+    let names: [String] = resolved == "all" ? ["accessibility", "contacts", "full-disk-access", "messages-data", "automation"] : [resolved]
 
     func printStatus(_ requirement: AuthorizationRequirement, _ status: (authorized: Bool, detail: String)) {
         print("  \(status.authorized ? "[ok]" : "[ ]") \(requirement.title) - \(status.detail)")
@@ -1560,7 +1571,7 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
             continue
         }
         guard let req = AuthorizationRequirement(rawValue: name) else {
-            throw CLIError("unknown authorization target \"\(name)\".\nusage: authorize [all|accessibility|contacts|messages-data|automation]")
+            throw CLIError("unknown authorization target \"\(name)\".\nusage: authorize [all|accessibility|contacts|full-disk-access|messages-data|automation]")
         }
         let status = await req.currentStatus()
         printStatus(req, status)

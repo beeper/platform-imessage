@@ -296,24 +296,76 @@ public final class PlatformAPI {
     }
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
+        let operationID = UUID().uuidString
         let threadID = try originalThreadID(for: publicThreadID)
-        let currentMuteState = try await runDBQuery { db, _, _ -> Bool? in
-            guard let mutedThreadIDs = Self.permanentDNDThreadIDs() else { return nil }
-            guard let chat = try db.mappedThreadRow(guid: threadID),
-                  let dndIdentifier = ThreadMapper.dndIdentifier(for: chat) else {
-                return nil
-            }
-            return mutedThreadIDs.contains(dndIdentifier)
+        let dndIdentifier = try await runDBQuery { db, _, _ in
+            try db.mappedThreadRow(guid: threadID).flatMap(ThreadMapper.dndIdentifier)
         }
+        let currentMuteState = try await Self.runOnMessagesControllerLane {
+            try await Self.muteStateForUpdate(dndIdentifier: dndIdentifier)
+        }
+        platformLog.debug("imsg: mute update \(operationID): requested=\(muted), initial=\(currentMuteState.map { String($0) } ?? "unknown"), dndIdentifierAvailable=\(dndIdentifier != nil)")
+
         if currentMuteState == muted {
-            platformLog.debug("imsg: DND state already matches requested mute state")
+            platformLog.debug("imsg: mute update \(operationID): DND state already matches requested mute state")
             return
         }
-        if currentMuteState == nil {
-            platformLog.debug("imsg: DND state unavailable; falling back to Messages accessibility actions")
+        try await withMessagesController { controller in
+            // Refresh after the queue wait and retain the lane through verification.
+            let freshMuteState = try await Self.muteStateForUpdate(dndIdentifier: dndIdentifier)
+            platformLog.debug("imsg: mute update \(operationID): state after queue wait=\(freshMuteState.map { String($0) } ?? "unknown")")
+            if freshMuteState == muted { return }
+            if freshMuteState == nil {
+                platformLog.debug("imsg: mute update \(operationID): DND state unavailable; falling back to Messages accessibility actions")
+            }
+            try await controller.muteThread(threadID: threadID, muted: muted, currentMuteState: freshMuteState)
+            platformLog.debug("imsg: mute update \(operationID): accessibility step returned")
+
+            guard let dndIdentifier, freshMuteState != nil else { return }
+            try await Self.verifyMuteState(muted: muted, operationID: operationID) {
+                Self.muteState(forDNDIdentifier: dndIdentifier)
+            }
         }
-        try await withMessagesController {
-            try await $0.muteThread(threadID: threadID, muted: muted, currentMuteState: currentMuteState)
+    }
+
+    private static func muteStateForUpdate(dndIdentifier: String?) async throws -> Bool? {
+        let state = dndIdentifier.flatMap(Self.muteState)
+        if state == nil, MacPermissions.getAuthStatus(.fullDiskAccess) != .authorized {
+            await MainActor.run { MacPermissions.askForFullDiskAccess() }
+            throw ErrorMessage("Full Disk Access is required to read and update iMessage mute state. Grant access, then try again.")
+        }
+        return state
+    }
+
+    // A measured preference update took more than five seconds after the AX action.
+    // Poll for publication without another toggle while the caller retains the lane.
+    static func verifyMuteState(
+        muted: Bool,
+        operationID: String,
+        timeout: TimeInterval = 10,
+        readState: () -> Bool?
+    ) async throws {
+        let verificationStartedAt = ProcessInfo.processInfo.systemUptime
+        var verificationAttempts = 0
+        var lastObservedMuteState: Bool?
+        do {
+            try await retry(withTimeout: timeout, interval: 0.1) { () async throws -> Void in
+                verificationAttempts += 1
+                lastObservedMuteState = readState()
+                let elapsedMilliseconds = Int((ProcessInfo.processInfo.systemUptime - verificationStartedAt) * 1_000)
+                platformLog.debug("imsg: mute update \(operationID): verification attempt=\(verificationAttempts), elapsedMs=\(elapsedMilliseconds), requested=\(muted), observed=\(lastObservedMuteState.map { String($0) } ?? "unknown")")
+                guard let observedMuteState = lastObservedMuteState else {
+                    throw ErrorMessage("iMessage mute state became unavailable after updating the thread")
+                }
+                guard observedMuteState == muted else {
+                    throw ErrorMessage("iMessage mute state did not match the requested value after updating the thread")
+                }
+            }
+            platformLog.debug("imsg: verified DND state after thread mute update; muted=\(muted), operation=\(operationID), attempts=\(verificationAttempts)")
+        } catch {
+            let elapsedMilliseconds = Int((ProcessInfo.processInfo.systemUptime - verificationStartedAt) * 1_000)
+            platformLog.error("imsg: failed to verify DND state after thread mute update: \(error), operation=\(operationID), attempts=\(verificationAttempts), elapsedMs=\(elapsedMilliseconds), requested=\(muted), lastObserved=\(lastObservedMuteState.map { String($0) } ?? "unknown")")
+            throw error
         }
     }
 
@@ -1126,6 +1178,14 @@ extension PlatformAPI {
 
     nonisolated static func permanentDNDThreadIDs() -> Set<String>? {
         permanentDNDThreadIDs(from: Defaults.getDNDList())
+    }
+
+    nonisolated static func muteState(forDNDIdentifier dndIdentifier: String) -> Bool? {
+        muteState(forDNDIdentifier: dndIdentifier, from: Defaults.getDNDList())
+    }
+
+    nonisolated static func muteState(forDNDIdentifier dndIdentifier: String, from dndList: [String: Int]?) -> Bool? {
+        permanentDNDThreadIDs(from: dndList)?.contains(dndIdentifier)
     }
 
     nonisolated static func permanentDNDThreadIDs(from dndList: [String: Int]?) -> Set<String>? {
