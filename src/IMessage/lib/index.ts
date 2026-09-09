@@ -41,6 +41,8 @@ export declare class NativePlatformAPI {
 
   getMessage: (threadID: ThreadID, messageID: MessageID) => Promise<string>
 
+  messageSendStates: (messageIDs: MessageID[]) => Promise<string>
+
   getOriginalObject: (objName: 'thread' | 'message', objectID: ThreadID | MessageID) => Promise<string>
 
   createThread: (userIDs: UserID[], title: string | undefined, messageText: string | undefined) => Promise<string>

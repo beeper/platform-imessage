@@ -14,6 +14,8 @@ export interface ThreadArchivalState {
    * archive.
    */
   archivedAt: AppleDate
+  // Messages we sent whose final date may still land past `archivedAt`.
+  pendingSentMessageIDs?: string[]
 }
 
 export interface PersistedThreadProps {
@@ -102,6 +104,10 @@ export class Persistence {
    *
    * **Use hashed thread IDs.**
    */
+  threadIDs(): string[] {
+    return Object.keys(this.data)
+  }
+
   batchGetThreadProp<P extends keyof PersistedThreadProps>(threadIDs: string[], propName: P): PersistedBatchGetResults<P> {
     const results: PersistedBatchGetResults<P> = {}
     for (const threadID of threadIDs) {

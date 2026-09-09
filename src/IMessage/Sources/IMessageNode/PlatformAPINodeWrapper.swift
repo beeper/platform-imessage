@@ -79,6 +79,12 @@ import PlatformSDK
         return try encodeJSON(thread?.jsonObject)
     }
 
+    @NodeMethod func messageSendStates(messageIDs messageIDsValue: NodeArray) async throws -> String {
+        let messageIDs = try messageIDsValue.as([String].self).orThrow(ErrorMessage("Bad PlatformAPI call: \(#function)"))
+        let states = try await api.messageSendStates(messageIDs: messageIDs)
+        return try encodeJSON(states.map(\.jsonObject))
+    }
+
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
         let message = try await api.getMessage(threadID: threadID, messageID: messageID)
         return try encodeJSON(message?.jsonObject)

@@ -67,6 +67,28 @@ public extension IMDatabase {
         }
     }
 
+    typealias MessageSendStateRow = (guid: String, date: Int?, isSent: Bool, error: Int)
+
+    func messageSendStates(guids: [String]) throws -> [MessageSendStateRow] {
+        guard !guids.isEmpty else { return [] }
+        let uniqueGUIDs = Array(OrderedSet(guids))
+        guard uniqueGUIDs.count <= maxMappedMessageRowsBatchSize else {
+            return try uniqueGUIDs
+                .chunks(ofCount: maxMappedMessageRowsBatchSize)
+                .flatMap { try messageSendStates(guids: Array($0)) }
+        }
+        let statement = try Statement.prepare(escapedSQL: """
+        SELECT guid, date, is_sent, error
+        FROM message
+        WHERE guid IN (\(placeholders(count: uniqueGUIDs.count)))
+        """, for: database)
+        try statement.bind(uniqueGUIDs.map { $0 as any SQLiteBindable })
+        return try statement.compactMapRowsUntilDone { row in
+            guard let guid = try row[0].optionalConverting(String.self) else { return nil }
+            return (guid, try row[1].optionalConverting(Int.self), try row[2].looseBool(), try row[3].optionalConverting(Int.self) ?? 0)
+        }
+    }
+
     func threadIDForMessage(rowID: Int) throws -> String? {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT t.guid

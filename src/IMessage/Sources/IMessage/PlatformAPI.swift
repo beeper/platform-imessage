@@ -230,6 +230,25 @@ public final class PlatformAPI {
         }
     }
 
+    public struct MessageSendState: Sendable {
+        public let id: String
+        public let sentAt: Int64?
+        public let isSent: Bool
+        public let isErrored: Bool
+
+        public var jsonObject: JSONObject {
+            ["id": id, "sentAt": sentAt as Any, "isSent": isSent, "isErrored": isErrored]
+        }
+    }
+
+    public func messageSendStates(messageIDs: [String]) async throws -> [MessageSendState] {
+        try await runDBQuery { db, _, _ in
+            try db.messageSendStates(guids: messageIDs).map { row in
+                MessageSendState(id: row.guid, sentAt: appleDateMilliseconds(row.date), isSent: row.isSent, isErrored: row.error != 0)
+            }
+        }
+    }
+
     public func getMessage(threadID: String, messageID: String) async throws -> PlatformSDK.Message? {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessage(

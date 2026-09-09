@@ -9,10 +9,19 @@ import { csrStatus } from './csr'
 import { shellExec } from './util'
 import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
-import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
+import { coverPendingSentMessages, MessageSendState, nextCoverageCheckDelay, normalizeSentAt, PENDING_SENT_MESSAGES_LIMIT } from './archive-coverage'
+import { AppleDate, appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-json'
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
+
+const archiveCutoffEvent = (hashedThreadID: ThreadID, isArchivedUpToOrder: number | null): ServerEvent => ({
+  type: ServerEventType.STATE_SYNC,
+  objectName: 'thread',
+  mutationType: 'update',
+  entries: [{ id: hashedThreadID, extra: { isArchivedUpToOrder, isArchivedUpto: null } }],
+  objectIDs: {},
+})
 
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
@@ -26,6 +35,8 @@ export default class AppleiMessage implements PlatformAPI {
   private eventWatchingStarted = false
 
   private eventWatchingStartInFlight?: Promise<void>
+
+  private coverageTimers = new Map<ThreadID, ReturnType<typeof setTimeout>>()
 
   private applyPersistedThreadState(thread: Thread): Thread {
     const archive = this.persistence?.getThreadProp(thread.id, 'archive')
@@ -94,6 +105,9 @@ export default class AppleiMessage implements PlatformAPI {
     texts.log('imessage useSecondaryMessagesInstance', imessage.useSecondaryMessagesInstance)
     if (texts.IS_DEV) texts.log(`imsg: session: ${JSON.stringify(session, undefined, 2)}`)
     this.persistence = await makeJSONPersistence(path.join(userDataDirPath, 'platform-imessage.json'))
+    this.persistence.threadIDs().forEach(hashedThreadID => {
+      if (this.persistence?.getThreadProp(hashedThreadID, 'archive')?.pendingSentMessageIDs?.length) this.scheduleCoverageCheck(hashedThreadID)
+    })
     this.swiftPlatformAPI ??= new imessage.PlatformAPI(this.accountID)
   }
 
@@ -101,6 +115,8 @@ export default class AppleiMessage implements PlatformAPI {
   serializeSession = () => ({})
 
   dispose = async () => {
+    this.coverageTimers.forEach(timer => clearTimeout(timer))
+    this.coverageTimers.clear()
     await this.swiftPlatformAPI?.dispose()
   }
 
@@ -375,17 +391,51 @@ export default class AppleiMessage implements PlatformAPI {
     })
   }
 
-  archiveThread = async (hashedThreadID: string, archived: boolean) => {
-    const stateSyncThread = (patch: Partial<BeeperThread>) => {
-      texts.log(`imsg/archive/${hashedThreadID}: syncing thread ${hashedThreadID} with patch: ${JSON.stringify(patch)}`)
-      this.onEvent?.([{
-        type: ServerEventType.STATE_SYNC,
-        objectName: 'thread',
-        mutationType: 'update',
-        entries: [{ id: hashedThreadID, ...patch }],
-        objectIDs: {},
-      }])
+  private stopCoverageChecks(hashedThreadID: ThreadID) {
+    clearTimeout(this.coverageTimers.get(hashedThreadID))
+    this.coverageTimers.delete(hashedThreadID)
+  }
+
+  // Messages we sent get their final date only once Messages.app has sent them, so keep looking until then.
+  private scheduleCoverageCheck(hashedThreadID: ThreadID) {
+    this.stopCoverageChecks(hashedThreadID)
+    const archivedAt = appleDateToMillisSinceEpoch(this.persistence?.getThreadProp(hashedThreadID, 'archive')?.archivedAt ?? ('0' as AppleDate))
+    const delay = archivedAt == null ? null : nextCoverageCheckDelay(archivedAt)
+    if (delay == null) return
+    this.coverageTimers.set(hashedThreadID, setTimeout(async () => {
+      this.coverageTimers.delete(hashedThreadID)
+      await this.coverPendingSentMessages(hashedThreadID)
+      if (this.persistence?.getThreadProp(hashedThreadID, 'archive')?.pendingSentMessageIDs?.length) this.scheduleCoverageCheck(hashedThreadID)
+    }, delay))
+  }
+
+  private coverPendingSentMessages = async (hashedThreadID: ThreadID) => {
+    const archive = this.persistence?.getThreadProp(hashedThreadID, 'archive')
+    if (!archive?.pendingSentMessageIDs?.length) return
+    let states: MessageSendState[]
+    try {
+      const json = await this.swiftPlatformAPI!.messageSendStates(archive.pendingSentMessageIDs)
+      states = parseSwiftMessageAPIJSON<MessageSendState[]>(json).map(state => ({ ...state, sentAt: normalizeSentAt(state.sentAt) }))
+    } catch (error) {
+      texts.error(`imsg/archive/${hashedThreadID}: could not check the messages sent before the archive:`, error)
+      return
     }
+    // The archive may have changed while we were asking; only apply to the version we read.
+    if (this.persistence?.getThreadProp(hashedThreadID, 'archive') !== archive) return
+    const coverage = coverPendingSentMessages(archive, states)
+    if (!coverage.changed) return
+    this.persistence?.setThreadProp(hashedThreadID, 'archive', coverage.archive)
+    if (coverage.bumpedTo == null) return
+    texts.log(`imsg/archive/${hashedThreadID}: moved isArchivedUpToOrder to ${coverage.bumpedTo} to cover a message sent before the archive`)
+    this.onEvent?.([archiveCutoffEvent(hashedThreadID, coverage.bumpedTo)])
+  }
+
+  archiveThread = async (hashedThreadID: string, archived: boolean, _markAsRead?: boolean, sentMessageIDs: string[] = []) => {
+    const syncCutoff = (isArchivedUpToOrder: number | null) => {
+      texts.log(`imsg/archive/${hashedThreadID}: syncing isArchivedUpToOrder=${isArchivedUpToOrder}`)
+      this.onEvent?.([archiveCutoffEvent(hashedThreadID, isArchivedUpToOrder)])
+    }
+    this.stopCoverageChecks(hashedThreadID)
 
     if (archived) {
       const chat = await this.getThread(hashedThreadID)
@@ -411,27 +461,20 @@ export default class AppleiMessage implements PlatformAPI {
       const now = new Date()
       const newArchivalOrder = now.getTime()
       const persistedArchivedAt = makeAppleDate(now)
-      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder=${newArchivalOrder} ("${persistedArchivedAt}")`)
+      const pending = [...new Set(sentMessageIDs)].slice(0, PENDING_SENT_MESSAGES_LIMIT)
+      texts.log(`imsg/archive/${hashedThreadID}: setting isArchivedUpToOrder=${newArchivalOrder} ("${persistedArchivedAt}"), covering ${pending.length} sent messages`)
 
       this.persistence?.setThreadProp(hashedThreadID, 'archive', {
         archivedAt: persistedArchivedAt,
+        ...(pending.length ? { pendingSentMessageIDs: pending } : {}),
       })
-      stateSyncThread({
-        extra: {
-          isArchivedUpToOrder: newArchivalOrder,
-          isArchivedUpto: null,
-        },
-      })
+      syncCutoff(newArchivalOrder)
+      if (pending.length) this.scheduleCoverageCheck(hashedThreadID)
     } else {
       texts.log(`imsg/archive/${hashedThreadID}: unarchiving`)
 
       this.persistence?.deleteThreadProp(hashedThreadID, 'archive')
-      stateSyncThread({
-        extra: {
-          isArchivedUpToOrder: null,
-          isArchivedUpto: null,
-        },
-      })
+      syncCutoff(null)
     }
   }
 }
