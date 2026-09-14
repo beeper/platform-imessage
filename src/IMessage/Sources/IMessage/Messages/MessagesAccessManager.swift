@@ -1,5 +1,6 @@
 import AppKit
 import AccessibilityControl
+import IMDatabase
 import IMessageCore
 import Logging
 
@@ -10,32 +11,12 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         case userCancelled
     }
 
-    private static let messagesBookmarkKey = "TXTMessagesBookmark"
-
     private let expectedURL = MessagesPaths.messagesDirectory
 
-    var url: URL?
-
-    override init() {
-        super.init()
-        if let bookmark = UserDefaults.standard.data(forKey: Self.messagesBookmarkKey) {
-            var isStale = false
-            url = (try? URL(
-                resolvingBookmarkData: bookmark,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )) ?? (try? URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &isStale))
-            if isStale || url?.startAccessingSecurityScopedResource() == false {
-                url = nil
-            }
-        }
-
-        log.debug("do we have an initial url? \(url != nil)")
-    }
+    private var url: URL?
 
     private func isExpectedURL(_ url: URL) -> Bool {
-        url.standardized.path == expectedURL?.standardized.path
+        url.standardizedFileURL.path == expectedURL?.standardizedFileURL.path
     }
 
     func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
@@ -50,7 +31,8 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         NSApplication.shared.prepareAndActivate()
     }
 
-    @MainActor func requestAccess() async throws {
+    @MainActor
+    func requestAccess() async throws {
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
         openPanel.delegate = self
@@ -60,7 +42,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.canChooseFiles = false
         openPanel.prompt = buttonTitle
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
-        openPanel.directoryURL = MessagesPaths.messagesDirectory
+        openPanel.directoryURL = expectedURL
         activateApp()
         if Accessibility.isTrusted() {
             DispatchQueue.global(qos: .background).async {
@@ -89,12 +71,13 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         guard url.startAccessingSecurityScopedResource() else {
             throw ErrorMessage("Could not authorize access to the Messages directory")
         }
-        let bookmark = try url.bookmarkData(
-            options: [.withSecurityScope],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-        UserDefaults.standard.set(bookmark, forKey: Self.messagesBookmarkKey)
+        do {
+            let bookmark = try url.bookmarkData(options: [.withSecurityScope])
+            UserDefaults.standard.set(bookmark, forKey: MessagesDirectoryAccess.bookmarkKey)
+        } catch {
+            url.stopAccessingSecurityScopedResource()
+            throw error
+        }
         self.url?.stopAccessingSecurityScopedResource()
         self.url = url
     }
