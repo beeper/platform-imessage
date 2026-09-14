@@ -15,11 +15,6 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
 
     private var url: URL?
 
-    private func saveBookmark(for url: URL) throws {
-        let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
-        UserDefaults.standard.set(bookmark, forKey: MessagesDirectoryAccess.bookmarkKey)
-    }
-
     private func isExpectedURL(_ url: URL) -> Bool {
         url.standardizedFileURL.path == expectedURL?.standardizedFileURL.path
     }
@@ -77,21 +72,18 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
             throw ErrorMessage("Could not authorize access to the Messages directory")
         }
         do {
-            try saveBookmark(for: url)
+            let bookmark = try url.bookmarkData(options: [.withSecurityScope])
+            UserDefaults.standard.set(bookmark, forKey: MessagesDirectoryAccess.bookmarkKey)
         } catch {
             url.stopAccessingSecurityScopedResource()
             throw error
         }
-        if let previousURL = self.url {
-            previousURL.stopAccessingSecurityScopedResource()
-        }
+        self.url?.stopAccessingSecurityScopedResource()
         self.url = url
     }
 
     deinit {
         log.debug("MessagesAccessManager calling stopAccessingSecurityScopedResource")
-        if let url {
-            url.stopAccessingSecurityScopedResource()
-        }
+        url?.stopAccessingSecurityScopedResource()
     }
 }
