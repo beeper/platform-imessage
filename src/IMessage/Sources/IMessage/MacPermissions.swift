@@ -68,22 +68,15 @@ public enum MacPermissions {
 
     public static func canAccessMessagesDir() async throws -> Bool {
         try await Task.detached(priority: .userInitiated) {
-            _ = try openMessagesDatabase()
+            _ = try IMDatabase()
             return true
         }.value
     }
 
     public static func validateDatabaseAccess() async throws {
         try await Task.detached(priority: .userInitiated) {
-            _ = try openMessagesDatabase(createIndexes: true)
+            _ = try IMDatabase(createIndexes: true)
         }.value
-    }
-
-    static func openMessagesDatabase(createIndexes: Bool = false) throws -> IMDatabase {
-        // Static properties are lazy. Restore the saved folder permission before
-        // the first database read, even when no authorization UI has been opened.
-        _ = accessManager
-        return try IMDatabase(createIndexes: createIndexes)
     }
 
     public static func askForAutomationAccess() async throws {

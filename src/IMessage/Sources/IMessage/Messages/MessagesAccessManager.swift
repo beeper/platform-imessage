@@ -1,5 +1,6 @@
 import AppKit
 import AccessibilityControl
+import IMDatabase
 import IMessageCore
 import Logging
 
@@ -10,64 +11,13 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         case userCancelled
     }
 
-    private static let messagesBookmarkKey = "TXTMessagesBookmark"
-
-    private let expectedURL: URL?
-    private let userDefaults: UserDefaults
+    private let expectedURL = MessagesPaths.messagesDirectory
 
     private var url: URL?
 
-    init(
-        userDefaults: UserDefaults = .standard,
-        expectedURL: URL? = MessagesPaths.messagesDirectory
-    ) {
-        self.userDefaults = userDefaults
-        self.expectedURL = expectedURL
-        super.init()
-        restoreAccess()
-    }
-
-    private func restoreAccess() {
-        guard let bookmark = userDefaults.data(forKey: Self.messagesBookmarkKey) else { return }
-        do {
-            var isStale = false
-            var isLegacy = false
-            let resolvedURL: URL
-            do {
-                resolvedURL = try URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope, .withoutUI], bookmarkDataIsStale: &isStale)
-            } catch {
-                // Before scoped bookmarks were saved, we persisted ordinary bookmarks.
-                isLegacy = true
-                isStale = false
-                resolvedURL = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI], bookmarkDataIsStale: &isStale)
-            }
-            guard isExpectedURL(resolvedURL) else {
-                log.warning("Saved Messages bookmark resolves to an unexpected directory")
-                return
-            }
-            guard resolvedURL.startAccessingSecurityScopedResource() else {
-                log.warning("Could not restore security-scoped access to the Messages directory")
-                return
-            }
-            url = resolvedURL
-            if isStale || isLegacy {
-                // A stale bookmark can still grant access. Refresh it while that
-                // access is active instead of forcing the user to select it again.
-                do {
-                    try saveBookmark(for: resolvedURL)
-                } catch {
-                    log.warning("Could not refresh Messages bookmark; retaining current access: \(error)")
-                }
-            }
-            log.debug("Restored Messages directory access")
-        } catch {
-            log.warning("Could not resolve saved Messages bookmark: \(error)")
-        }
-    }
-
     private func saveBookmark(for url: URL) throws {
         let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
-        userDefaults.set(bookmark, forKey: Self.messagesBookmarkKey)
+        UserDefaults.standard.set(bookmark, forKey: MessagesDirectoryAccess.bookmarkKey)
     }
 
     private func isExpectedURL(_ url: URL) -> Bool {

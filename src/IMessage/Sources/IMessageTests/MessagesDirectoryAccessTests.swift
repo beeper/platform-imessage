@@ -1,5 +1,5 @@
 import Foundation
-@testable import IMessage
+import IMDatabase
 import Testing
 
 @Test
@@ -23,20 +23,20 @@ func staleMessagesBookmarkPersistsUsableReplacement() throws {
     )
     try #require(isStale, "Moving the fixture folder must produce a stale bookmark")
 
-    let suiteName = "MessagesAccessManagerTests.\(UUID().uuidString)"
+    let suiteName = "MessagesDirectoryAccessTests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     defaults.set(originalBookmark, forKey: "TXTMessagesBookmark")
 
-    let manager = MessagesAccessManager(userDefaults: defaults, expectedURL: expectedURL)
-    try withExtendedLifetime(manager) {
-        let replacement = try #require(defaults.data(forKey: "TXTMessagesBookmark"))
-        let resolvedURL = try URL(
-            resolvingBookmarkData: replacement,
-            options: [.withSecurityScope, .withoutUI],
-            bookmarkDataIsStale: &isStale
-        )
-        #expect(!isStale)
-        #expect(resolvedURL.standardizedFileURL.path == expectedURL.standardizedFileURL.path)
-    }
+    let restoredAccess = try #require(MessagesDirectoryAccess.restoreSavedBookmark(for: expectedURL, userDefaults: defaults))
+    defer { restoredAccess.stopAccessingSecurityScopedResource() }
+
+    let replacement = try #require(defaults.data(forKey: "TXTMessagesBookmark"))
+    let resolvedURL = try URL(
+        resolvingBookmarkData: replacement,
+        options: [.withSecurityScope, .withoutUI],
+        bookmarkDataIsStale: &isStale
+    )
+    #expect(!isStale)
+    #expect(resolvedURL.standardizedFileURL.path == expectedURL.standardizedFileURL.path)
 }

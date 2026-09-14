@@ -59,7 +59,7 @@ final class EventWatcher {
         db: IMDatabase? = nil,
         reportErrorMessage: PlatformAPI.ReportErrorMessage? = nil
     ) throws {
-        self.db = try db ?? MacPermissions.openMessagesDatabase()
+        self.db = try db ?? IMDatabase()
 
         if Defaults.eventWatcherTraceChangeListening {
             Self.logger.debug("tracing change listening, telling IMDatabase to be noisy")

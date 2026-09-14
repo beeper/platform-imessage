@@ -49,7 +49,7 @@ private final class PlatformAPIDatabase: @unchecked Sendable {
         if let cached = state.database {
             return cached
         }
-        let db = try MacPermissions.openMessagesDatabase(createIndexes: true)
+        let db = try IMDatabase(createIndexes: true)
         state.database = db
         return db
     }

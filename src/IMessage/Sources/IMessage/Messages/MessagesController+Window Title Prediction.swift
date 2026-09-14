@@ -26,7 +26,7 @@ extension MessagesController {
                 db = cachedDatabase
             } else {
                 do {
-                    db = try MacPermissions.openMessagesDatabase()
+                    db = try IMDatabase()
                 } catch {
                     throw ErrorMessage("messages controller couldn't open database: \(error)")
                 }
