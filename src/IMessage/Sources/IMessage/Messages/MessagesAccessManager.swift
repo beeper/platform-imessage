@@ -12,30 +12,66 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
 
     private static let messagesBookmarkKey = "TXTMessagesBookmark"
 
-    private let expectedURL = MessagesPaths.messagesDirectory
+    private let expectedURL: URL?
+    private let userDefaults: UserDefaults
 
-    var url: URL?
+    private var url: URL?
 
-    override init() {
+    init(
+        userDefaults: UserDefaults = .standard,
+        expectedURL: URL? = MessagesPaths.messagesDirectory
+    ) {
+        self.userDefaults = userDefaults
+        self.expectedURL = expectedURL
         super.init()
-        if let bookmark = UserDefaults.standard.data(forKey: Self.messagesBookmarkKey) {
-            var isStale = false
-            url = (try? URL(
-                resolvingBookmarkData: bookmark,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )) ?? (try? URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &isStale))
-            if isStale || url?.startAccessingSecurityScopedResource() == false {
-                url = nil
-            }
-        }
+        restoreAccess()
+    }
 
-        log.debug("do we have an initial url? \(url != nil)")
+    private func restoreAccess() {
+        guard let bookmark = userDefaults.data(forKey: Self.messagesBookmarkKey) else { return }
+        do {
+            var isStale = false
+            var isLegacy = false
+            let resolvedURL: URL
+            do {
+                resolvedURL = try URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope, .withoutUI], bookmarkDataIsStale: &isStale)
+            } catch {
+                // Before scoped bookmarks were saved, we persisted ordinary bookmarks.
+                isLegacy = true
+                isStale = false
+                resolvedURL = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI], bookmarkDataIsStale: &isStale)
+            }
+            guard isExpectedURL(resolvedURL) else {
+                log.warning("Saved Messages bookmark resolves to an unexpected directory")
+                return
+            }
+            guard resolvedURL.startAccessingSecurityScopedResource() else {
+                log.warning("Could not restore security-scoped access to the Messages directory")
+                return
+            }
+            url = resolvedURL
+            if isStale || isLegacy {
+                // A stale bookmark can still grant access. Refresh it while that
+                // access is active instead of forcing the user to select it again.
+                do {
+                    try saveBookmark(for: resolvedURL)
+                } catch {
+                    log.warning("Could not refresh Messages bookmark; retaining current access: \(error)")
+                }
+            }
+            log.debug("Restored Messages directory access")
+        } catch {
+            log.warning("Could not resolve saved Messages bookmark: \(error)")
+        }
+    }
+
+    private func saveBookmark(for url: URL) throws {
+        let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+        userDefaults.set(bookmark, forKey: Self.messagesBookmarkKey)
     }
 
     private func isExpectedURL(_ url: URL) -> Bool {
-        url.standardized.path == expectedURL?.standardized.path
+        url.standardizedFileURL.path == expectedURL?.standardizedFileURL.path
     }
 
     func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
@@ -50,7 +86,8 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         NSApplication.shared.prepareAndActivate()
     }
 
-    @MainActor func requestAccess() async throws {
+    @MainActor
+    func requestAccess() async throws {
         let buttonTitle = "Grant Access"
         let openPanel = NSOpenPanel()
         openPanel.delegate = self
@@ -60,7 +97,7 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         openPanel.canChooseFiles = false
         openPanel.prompt = buttonTitle
         openPanel.message = "Please grant access to the Messages folder. It should already be selected for you."
-        openPanel.directoryURL = MessagesPaths.messagesDirectory
+        openPanel.directoryURL = expectedURL
         activateApp()
         if Accessibility.isTrusted() {
             DispatchQueue.global(qos: .background).async {
@@ -89,18 +126,22 @@ final class MessagesAccessManager: NSObject, NSOpenSavePanelDelegate {
         guard url.startAccessingSecurityScopedResource() else {
             throw ErrorMessage("Could not authorize access to the Messages directory")
         }
-        let bookmark = try url.bookmarkData(
-            options: [.withSecurityScope],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-        UserDefaults.standard.set(bookmark, forKey: Self.messagesBookmarkKey)
-        self.url?.stopAccessingSecurityScopedResource()
+        do {
+            try saveBookmark(for: url)
+        } catch {
+            url.stopAccessingSecurityScopedResource()
+            throw error
+        }
+        if let previousURL = self.url {
+            previousURL.stopAccessingSecurityScopedResource()
+        }
         self.url = url
     }
 
     deinit {
         log.debug("MessagesAccessManager calling stopAccessingSecurityScopedResource")
-        url?.stopAccessingSecurityScopedResource()
+        if let url {
+            url.stopAccessingSecurityScopedResource()
+        }
     }
 }
