@@ -28,7 +28,6 @@ const openAutomationPrefs = () => { openSecuritySystemPrefs('Privacy_Automation'
 
 type CallProxiedFn = <ReturnType>(fnName: keyof PAPI['proxiedAuthFns']) => Promise<ReturnType>
 type Props = AuthProps & {
-  canAccessMessagesDir: () => Promise<boolean>
   callProxiedFn: CallProxiedFn
   open?: boolean
 }
@@ -65,35 +64,6 @@ const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermi
   }, [])
   console.log(authType, 'authorized', authorized)
   return { refreshAuthorization, authorized, pending }
-}
-
-const RevokeFDASection: React.FC<{ callProxiedFn: CallProxiedFn }> = ({ callProxiedFn }) => {
-  const [hidden, setHidden] = useState(false)
-  const isSIPEnabled = useCallback(() => callProxiedFn<boolean>('isSIPEnabled'), [])
-  const isAuthorized = useCallback(() =>
-    callProxiedFn<NativeMacPermissionAuthStatus>('getFullDiskAccessAuthStatus').then(res => res === 'authorized'), [])
-  const { execute: refreshAuthorization, value: authorized, pending } = useAsync(isAuthorized)
-  const { value: sipEnabled } = useAsync(isSIPEnabled)
-  if (!authorized || pending || !(sipEnabled ?? true) || hidden) return null
-  const onClick = async () => {
-    if (!await callProxiedFn('revokeFDA')) return
-    setTimeout(() => {
-      refreshAuthorization()
-      if (texts.IS_DEV) setHidden(true)
-    }, 100)
-  }
-  return (
-    <details open>
-      <summary><h4>Revoke Full Disk Access</h4></summary>
-      <div className="imessage-auth-well">
-        <div>Beeper has Full Disk Access. It's no longer required and you're recommended to revoke it.</div>
-        <br />
-        <div>
-          <button className="primary" onClick={onClick}>Revoke Full Disk Access</button>
-        </div>
-      </div>
-    </details>
-  )
 }
 
 const SetupMessagesSection: React.FC<{}> = () => (
@@ -172,19 +142,25 @@ const ChecklistItem = ({
 )
 
 const ChecklistPage: React.FC<Props> = props => {
-  const { callProxiedFn, canAccessMessagesDir } = props
+  const { callProxiedFn } = props
   // NOTE(skip): this prop is defined as optional in platform-sdk
   const [loggingIn, setLoggingIn] = useState(false)
-  const { execute: refreshMessageDirAuthorization, value: messageDirAuthorized } = useAsync(canAccessMessagesDir)
   const askedContacts = useRef(false)
   const { authorized: contactsAuthorized } = useMacPermission(callProxiedFn, 'contacts')
   const { authorized: axAuthorized } = useMacPermission(callProxiedFn, 'accessibility')
+  const { authorized: fullDiskAccessAuthorized } = useMacPermission(callProxiedFn, 'full-disk-access')
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
-  const isMessagesAppSetupFn = useCallback(async () => messageDirAuthorized && callProxiedFn<boolean>('isMessagesAppSetup'), [messageDirAuthorized])
-  const { value: isMessagesAppSetupValue, pending: isMessagesAppSetupValuePending } = useAsync(isMessagesAppSetupFn)
-  const isMessagesAppSetup = isMessagesAppSetupValuePending || isMessagesAppSetupValue
+  const isMessagesAppSetupFn = useCallback(async () =>
+    fullDiskAccessAuthorized === true && callProxiedFn<boolean>('isMessagesAppSetup'), [callProxiedFn, fullDiskAccessAuthorized])
+  const { execute: refreshMessagesAppSetup, value: isMessagesAppSetupValue, pending: isMessagesAppSetupPending } = useAsync(isMessagesAppSetupFn)
+  const isMessagesAppSetup = fullDiskAccessAuthorized === true && !isMessagesAppSetupPending && isMessagesAppSetupValue === true
+
+  useEffect(() => {
+    window.addEventListener('focus', refreshMessagesAppSetup)
+    return () => window.removeEventListener('focus', refreshMessagesAppSetup)
+  }, [refreshMessagesAppSetup])
 
   const authorizeContacts = async () => {
     if (askedContacts.current) return openContactsPrefs()
@@ -193,10 +169,7 @@ const ChecklistPage: React.FC<Props> = props => {
     askedContacts.current = true
   }
 
-  const authorizeMessagesDir = async () => {
-    await callProxiedFn<void>('askForMessagesDirAccess')
-    await refreshMessageDirAuthorization()
-  }
+  const authorizeFullDiskAccess = () => callProxiedFn<void>('askForFullDiskAccess')
 
   const authorizeAutomation = async () => {
     if (calledAutomationOnce) return openAutomationPrefs()
@@ -245,12 +218,13 @@ const ChecklistPage: React.FC<Props> = props => {
       showMore,
     },
     {
-      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M3.904 1.777C4.978 1.289 6.427 1 8 1s3.022.289 4.096.777C13.125 2.245 14 2.993 14 4s-.875 1.755-1.904 2.223C11.022 6.711 9.573 7 8 7s-3.022-.289-4.096-.777C2.875 5.755 2 5.007 2 4s.875-1.755 1.904-2.223Z" /><path d="M2 6.161V7c0 1.007.875 1.755 1.904 2.223C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777C13.125 8.755 14 8.007 14 7v-.839c-.457.432-1.004.751-1.49.972C11.278 7.693 9.682 8 8 8s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 9.161V10c0 1.007.875 1.755 1.904 2.223C4.978 12.711 6.427 13 8 13s3.022-.289 4.096-.777C13.125 11.755 14 11.007 14 10v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /><path d="M2 12.161V13c0 1.007.875 1.755 1.904 2.223C4.978 15.711 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13v-.839c-.457.432-1.004.751-1.49.972-1.232.56-2.828.867-4.51.867s-3.278-.307-4.51-.867c-.486-.22-1.033-.54-1.49-.972Z" /></svg>,
-      title: 'Messages Data',
-      completed: messageDirAuthorized ?? false,
-      action: authorizeMessagesDir,
-      info: 'To connect with iMessage, Beeper needs to be able to read your messages.',
-      more: <div onClick={() => callProxiedFn('askForFullDiskAccess')}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
+      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M4 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v7H2V8a1 1 0 0 1 1-1h1Zm2 0h4V5a2 2 0 1 0-4 0v2Z" /></svg>,
+      title: 'Full Disk Access',
+      completed: fullDiskAccessAuthorized ?? false,
+      action: authorizeFullDiskAccess,
+      info: 'Beeper needs Full Disk Access to read Messages\u2019 Hide Alerts settings and keep muted chats in sync across relaunches.',
+      subtitle: 'Used to preserve iMessage mute state.',
+      more: <div onClick={authorizeFullDiskAccess}>Try adding {appName} in {sysPrefsAppName} &gt; Privacy &amp; Security &gt; Full Disk Access &rarr;</div>,
       showMore,
     },
     {
@@ -334,8 +308,7 @@ const ChecklistPage: React.FC<Props> = props => {
 
   return (
     <div>
-      <RevokeFDASection {...{ callProxiedFn }} />
-      {messageDirAuthorized && !isMessagesAppSetup && <SetupMessagesSection />}
+      {fullDiskAccessAuthorized && !isMessagesAppSetupPending && isMessagesAppSetupValue === false && <SetupMessagesSection />}
       {allAuthorized
         ? (loggingIn ? 'Adding...' : <button className="primary" onClick={login}>Add iMessage</button>)
         : permissionsSection()}
@@ -348,8 +321,7 @@ const AppleiMessageAuth: React.FC<AuthProps> = props => {
   const callProxiedFn = useCallback(async (fnName: string) => {
     if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)
     return JSON.parse(await api.getAsset?.(undefined, 'proxied', fnName) as string)
-  }, [])
-  const canAccessMessagesDir = useCallback(async () => callProxiedFn('canAccessMessagesDir'), [])
+  }, [api])
   if (!IS_BIG_SUR_OR_UP) {
     return (
       <div className="auth imessage-auth styled-inputs">
@@ -363,7 +335,7 @@ const AppleiMessageAuth: React.FC<AuthProps> = props => {
   return (
     <div className="auth imessage-auth styled-inputs">
       <link rel="stylesheet" href={cssPath} />
-      <ChecklistPage {...{ ...props, canAccessMessagesDir, callProxiedFn }} />
+      <ChecklistPage {...{ ...props, callProxiedFn }} />
     </div>
   )
 }

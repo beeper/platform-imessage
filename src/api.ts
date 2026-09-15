@@ -14,6 +14,12 @@ import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-js
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
 
+const ensureFullDiskAccess = () => {
+  if (imessage.MacPermissions.getAuthStatus('full-disk-access') !== 'authorized') {
+    throw new ReAuthError('Full Disk Access is required for iMessage. Reconnect and enable Beeper in System Settings > Privacy & Security > Full Disk Access.')
+  }
+}
+
 export default class AppleiMessage implements PlatformAPI {
   constructor(public readonly accountID: string) {}
 
@@ -52,23 +58,26 @@ export default class AppleiMessage implements PlatformAPI {
       await imessage.MacPermissions.validateDatabaseAccess()
     } catch (error: unknown) {
       texts.error("imsg: couldn't validate Messages database access:", error)
-      throw new ReAuthError("Can't access iMessage data", { cause: error })
+      throw new ReAuthError('Couldn’t access your Messages data. Open Messages.app and finish setup, then restart Beeper if needed.', { cause: error })
     }
     // at this point, we can definitely read the imsg database
     texts.log('imsg: validated Messages database access')
   }
 
   getCurrentUser = async (): Promise<CurrentUser> => {
+    // Desktop calls this while restoring saved accounts, before loading threads.
+    ensureFullDiskAccess()
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<CurrentUser>(await swiftAPI.getCurrentUser())
   }
 
   login = async (): Promise<LoginResult> => {
     try {
+      ensureFullDiskAccess()
       await this.ensureDB()
       return { type: 'success' }
     } catch (error) {
-      const errorMessage = 'Couldn’t access your Messages data. Please grant access and try again. To force access, Full Disk Access may be granted to Beeper in the “Privacy & Security” section of System Settings.'
+      const errorMessage = error instanceof Error ? error.message : 'Couldn’t connect to iMessage. Please try again.'
       return { type: 'error', errorMessage }
     }
   }
@@ -86,6 +95,7 @@ export default class AppleiMessage implements PlatformAPI {
   private experiments = ''
 
   init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs?: Record<string, any>) => {
+    // Initialization must work without FDA so onboarding and reauthorization can request it.
     if (session && !IS_BIG_SUR_OR_UP) throw new Error(MIN_MACOS_VERSION_ERROR)
     const userDataDirPath = path.dirname(dataDirPath)
     this.experiments = await fs.readFile(path.join(userDataDirPath, 'imessage-enabled-experiments'), 'utf-8').catch(() => '')

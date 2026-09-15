@@ -337,6 +337,8 @@ const reactionNotes = [
 ]
 
 const UNDO_SEND_TIME_LIMIT_MINUTES = 2
+const READ_ONLY_AUTH: CliAuthorizationRequirement[] = ['full-disk-access']
+const MUTATING_AUTH: CliAuthorizationRequirement[] = ['full-disk-access', 'accessibility']
 
 function reactionCommand(
   name: 'react' | 'unreact',
@@ -368,16 +370,13 @@ function muteCommand(name: 'mute' | 'unmute', mutedUntil: 'forever' | null): Com
     summary: name === 'mute' ? 'Mute a chat indefinitely.' : 'Unmute a chat.',
     usage: [`${name} CHAT_ID`],
     examples: [`${name} any;-;sjobs@apple.com`],
-    requiredAuthorization: ['messages-data', 'accessibility'],
+    requiredAuthorization: MUTATING_AUTH,
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 1)
       await context.invokeMethod('updateThread', [args[0], { mutedUntil }])
     },
   }
 }
-
-const READ_ONLY_AUTH: CliAuthorizationRequirement[] = ['messages-data']
-const MUTATING_AUTH: CliAuthorizationRequirement[] = ['messages-data', 'accessibility']
 
 const commandDefinitions: CommandDefinition[] = [
   {
@@ -437,7 +436,7 @@ const commandDefinitions: CommandDefinition[] = [
   {
     name: 'authorize',
     category: 'General',
-    summary: 'Inspect or request CLI permissions for Accessibility, Contacts, Messages Data, and Automation.',
+    summary: 'Inspect or request CLI permissions for Accessibility, Contacts, Full Disk Access, and Automation.',
     usage: ['authorize', 'authorize TARGET'],
     examples: ['authorize', 'authorize accessibility', 'authorize all'],
     notes: [`Targets: ${AUTHORIZATION_TARGETS.join(', ')}.`],
