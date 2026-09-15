@@ -44,7 +44,7 @@ brew install beeper/tap/imessage-cli
 ```sh
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
-swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Accessibility, Contacts, Messages Data, Automation), then opens the REPL
+swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Accessibility, Contacts, Full Disk Access, Automation), then opens the REPL
 ```
 
 3. Run one-off commands:
