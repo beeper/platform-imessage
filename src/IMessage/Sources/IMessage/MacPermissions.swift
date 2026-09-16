@@ -16,6 +16,11 @@ public enum MacPermissionAuthStatus: String, Sendable {
 public enum MacPermissions {
     private static let accessManager = MessagesAccessManager()
 
+    public static var requiresFullDiskAccess: Bool {
+        if #available(macOS 27, *) { return true }
+        return false
+    }
+
     public enum AuthType: String {
         case accessibility
         case contacts

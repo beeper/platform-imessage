@@ -91,12 +91,14 @@ private enum AuthorizationRequirement: String {
     case accessibility
     case contacts
     case messagesData = "messages-data"
+    case fullDiskAccess = "full-disk-access"
 
     var title: String {
         switch self {
         case .accessibility: return "Accessibility"
         case .contacts: return "Contacts"
         case .messagesData: return "Messages Data"
+        case .fullDiskAccess: return "Full Disk Access"
         }
     }
 
@@ -111,6 +113,9 @@ private enum AuthorizationRequirement: String {
         case .messagesData:
             let ok = await canAccessMessagesDir()
             return (ok, ok ? "The CLI can read your local Messages data." : "The CLI cannot read ~/Library/Messages yet.")
+        case .fullDiskAccess:
+            let ok = MacPermissions.getAuthStatus(.fullDiskAccess) == .authorized
+            return (ok, ok ? "The CLI can read protected Messages settings." : "Enable your current Terminal app in System Settings > Privacy & Security > Full Disk Access.")
         }
     }
 
@@ -130,6 +135,11 @@ private enum AuthorizationRequirement: String {
             if !(await canAccessMessagesDir()) {
                 print("  note: Opening Full Disk Access as a fallback.")
                 MacPermissions.askForFullDiskAccess()
+            }
+        case .fullDiskAccess:
+            MacPermissions.askForFullDiskAccess()
+            _ = await pollAuthorization(timeout: 120) {
+                MacPermissions.getAuthStatus(.fullDiskAccess) == .authorized
             }
         }
     }
@@ -447,17 +457,17 @@ private final class Runner {
     }
 
     private func runShellAuthorizationFlowIfNeeded() async throws -> Bool {
-        let messagesDataStatus = await AuthorizationRequirement.messagesData.currentStatus()
-        guard !messagesDataStatus.authorized else { return options.subscribeToEvents }
+        let dataStatus = await dataAuthorizationRequirement.currentStatus()
+        if !dataStatus.authorized {
+            let missingSetup = await missingAuthorizationRequirements([.accessibility, .contacts, dataAuthorizationRequirement])
+            let authTarget = missingSetup.count > 1 ? "all" : dataAuthorizationRequirement.rawValue
+            print("imessage-cli requires certain permissions to function. Launching authorization flow...")
+            // Optional setup permissions must not prevent Messages authorization or opening the shell.
+            try await runAuthorizationFlow(target: authTarget, optionalRequirements: [.accessibility, .contacts])
+        }
 
-        let missingSetup = await missingAuthorizationRequirements([.accessibility, .contacts, .messagesData])
-        let authTarget = missingSetup.count > 1 ? "all" : AuthorizationRequirement.messagesData.rawValue
-        print("imessage-cli requires certain permissions to function. Launching authorization flow...")
-        try await runAuthorizationFlow(target: authTarget)
-
-        let updated = await AuthorizationRequirement.messagesData.currentStatus()
-        guard updated.authorized else {
-            fputs("event watching startup skipped: Messages Data was not granted. \(updated.detail)\n", stderr)
+        guard await canAccessMessagesDir() else {
+            fputs("event watching startup skipped: the Messages database is unavailable. Open Messages.app and finish setup, then restart your Terminal app if needed.\n", stderr)
             return false
         }
         return options.subscribeToEvents
@@ -490,8 +500,10 @@ private final class Runner {
     }
 }
 
-private let readOnlyAuth: [AuthorizationRequirement] = [.messagesData]
-private let mutatingAuth: [AuthorizationRequirement] = [.messagesData, .accessibility]
+private let dataAuthorizationRequirement: AuthorizationRequirement = MacPermissions.requiresFullDiskAccess ? .fullDiskAccess : .messagesData
+private let authorizationTargets = ["all", "accessibility", "contacts", dataAuthorizationRequirement.rawValue, "automation"]
+private let readOnlyAuth: [AuthorizationRequirement] = [dataAuthorizationRequirement]
+private let mutatingAuth: [AuthorizationRequirement] = [dataAuthorizationRequirement, .accessibility]
 private let latestMessageIDAliases = ["last-message", "lastMessage", "latestMessage", "latest"]
 private let maxLatestMessageOffset = 999_999
 private let messageIDAliasNote = "MESSAGE_ID may be \(latestMessageIDAliases.joined(separator: ", ")), or latest-N (N up to \(maxLatestMessageOffset)) to target a newest message in the chat, or overall when CHAT_ID is omitted."
@@ -603,12 +615,12 @@ private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
         name: "authorize",
         category: .general,
-        summary: "Inspect or request CLI permissions for Accessibility, Contacts, Messages Data, and Automation.",
+        summary: "Inspect or request CLI permissions for Accessibility, Contacts, Messages data access, and Automation.",
         usage: ["authorize", "authorize TARGET"],
         examples: ["authorize", "authorize accessibility", "authorize all"],
-        notes: ["Targets: all, accessibility, contacts, messages-data, automation."]
+        notes: ["Targets: \(authorizationTargets.joined(separator: ", "))."]
     ) { args, context in
-        if args.count > 1 { throw CLIError("usage: authorize [all|accessibility|contacts|messages-data|automation]") }
+        if args.count > 1 { throw CLIError("usage: authorize [\(authorizationTargets.joined(separator: "|"))]") }
         try await runAuthorizationFlow(target: args.first)
     },
     CommandDefinition(
@@ -1530,6 +1542,9 @@ private func runPreflightAuthCheck(commandName: String, requirements: [Authoriza
             throw CLIError("\(requirement.title) was not granted. \(updated.detail)")
         }
     }
+    if requirements.contains(.fullDiskAccess), !(await canAccessMessagesDir()) {
+        throw CLIError("Full Disk Access is enabled, but the Messages database is unavailable. Open Messages.app and finish setup, then restart your Terminal app if needed.")
+    }
 }
 
 private func missingAuthorizationRequirements(_ requirements: [AuthorizationRequirement]) async -> [AuthorizationRequirement] {
@@ -1542,10 +1557,10 @@ private func missingAuthorizationRequirements(_ requirements: [AuthorizationRequ
     return missing
 }
 
-private func runAuthorizationFlow(target rawTarget: String?) async throws {
+private func runAuthorizationFlow(target rawTarget: String?, optionalRequirements: [AuthorizationRequirement] = []) async throws {
     let trimmed = rawTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
     let resolved = (trimmed?.isEmpty == false ? trimmed : nil) ?? "all"
-    let names: [String] = resolved == "all" ? ["accessibility", "contacts", "messages-data", "automation"] : [resolved]
+    let names = resolved == "all" ? Array(authorizationTargets.dropFirst()) : [resolved]
 
     func printStatus(_ requirement: AuthorizationRequirement, _ status: (authorized: Bool, detail: String)) {
         print("  \(status.authorized ? "[ok]" : "[ ]") \(requirement.title) - \(status.detail)")
@@ -1558,8 +1573,8 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
             print("  \(ok ? "[ok]" : "[ ]") Automation - \(ok ? "Apple Events access to Messages.app is available." : "Automation access was denied or unavailable.")")
             continue
         }
-        guard let req = AuthorizationRequirement(rawValue: name) else {
-            throw CLIError("unknown authorization target \"\(name)\".\nusage: authorize [all|accessibility|contacts|messages-data|automation]")
+        guard authorizationTargets.contains(name), let req = AuthorizationRequirement(rawValue: name) else {
+            throw CLIError("unknown authorization target \"\(name)\".\nusage: authorize [\(authorizationTargets.joined(separator: "|"))]")
         }
         let status = await req.currentStatus()
         printStatus(req, status)
@@ -1569,8 +1584,15 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
                 print("  note: After granting Messages Data, macOS may terminate imessage-cli; if it exits, run it again.")
             }
             try await req.request()
-            printStatus(req, await req.currentStatus())
+            let updated = await req.currentStatus()
+            printStatus(req, updated)
+            if !updated.authorized && !optionalRequirements.contains(req) {
+                throw CLIError("\(req.title) was not granted. \(updated.detail)")
+            }
         }
+    }
+    if names.contains(AuthorizationRequirement.fullDiskAccess.rawValue), !(await canAccessMessagesDir()) {
+        throw CLIError("Full Disk Access is enabled, but the Messages database is unavailable. Open Messages.app and finish setup, then restart your Terminal app if needed.")
     }
 }
 

@@ -4,10 +4,12 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import type { PlatformAPI } from '@textshq/platform-sdk'
 
 import type { NativeMacPermissionAuthStatus, NativeMacPermissionAuthType } from '../IMessage/lib'
+import { REQUIRES_FULL_DISK_ACCESS } from '../common-constants'
 
 type AuthApi = Pick<PlatformAPI, 'getAsset'>
 
-export const AUTHORIZATION_REQUIREMENTS = ['accessibility', 'contacts', 'messages-data'] as const
+export const DATA_AUTHORIZATION_REQUIREMENT = REQUIRES_FULL_DISK_ACCESS ? 'full-disk-access' : 'messages-data'
+export const AUTHORIZATION_REQUIREMENTS = ['accessibility', 'contacts', DATA_AUTHORIZATION_REQUIREMENT] as const
 
 // `automation` is not preflight-checkable: macOS does not expose its status
 // without triggering the Apple Events prompt. It remains a valid target for
@@ -34,6 +36,7 @@ type ProxiedAuthMethod =
   | 'confirmUNCPrompt'
   | 'getAccessibilityAuthStatus'
   | 'getContactsAuthStatus'
+  | 'getFullDiskAccessAuthStatus'
   | 'isMessagesAppSetup'
   | 'startSysPrefsOnboarding'
   | 'stopSysPrefsOnboarding'
@@ -52,6 +55,7 @@ async function callProxied<T>({ api }: Deps, method: ProxiedAuthMethod): Promise
 const statusTitles: Record<CliAuthorizationStatusKey, string> = {
   accessibility: 'Accessibility',
   contacts: 'Contacts',
+  'full-disk-access': 'Full Disk Access',
   'messages-data': 'Messages Data',
   automation: 'Automation',
   'messages-app-setup': 'Messages.app Setup',
@@ -77,7 +81,7 @@ const formatStatusLine = (status: CliAuthorizationStatus) =>
 
 async function pollForAuthorization(
   deps: Deps,
-  authType: Extract<NativeMacPermissionAuthType, 'accessibility' | 'contacts'>,
+  authType: NativeMacPermissionAuthType,
   durationMs = 120_000,
   intervalMs = 250,
 ): Promise<boolean> {
@@ -99,11 +103,13 @@ const automationResultStatus = (ok: boolean) =>
     ok ? 'Apple Events access to Messages.app is available.'
        : 'Automation access was denied or unavailable.')
 
-async function getAuthStatus(deps: Deps, authType: Extract<NativeMacPermissionAuthType, 'accessibility' | 'contacts'>): Promise<NativeMacPermissionAuthStatus> {
-  return callProxied<NativeMacPermissionAuthStatus>(
-    deps,
-    authType === 'accessibility' ? 'getAccessibilityAuthStatus' : 'getContactsAuthStatus',
-  )
+async function getAuthStatus(deps: Deps, authType: NativeMacPermissionAuthType): Promise<NativeMacPermissionAuthStatus> {
+  const methods = {
+    accessibility: 'getAccessibilityAuthStatus',
+    contacts: 'getContactsAuthStatus',
+    'full-disk-access': 'getFullDiskAccessAuthStatus',
+  } as const satisfies Record<NativeMacPermissionAuthType, ProxiedAuthMethod>
+  return callProxied<NativeMacPermissionAuthStatus>(deps, methods[authType])
 }
 
 async function getAuthorizationStatuses(
@@ -111,12 +117,11 @@ async function getAuthorizationStatuses(
   only?: readonly CliAuthorizationStatusKey[],
 ): Promise<CliAuthorizationStatus[]> {
   const wants = (key: CliAuthorizationStatusKey) => !only || only.includes(key)
-  const needMessagesDir = wants('messages-data') || wants('messages-app-setup')
-
-  const [axStatus, contactsStatus, messagesDirOk] = await Promise.all([
+  const [axStatus, contactsStatus, fullDiskAccessStatus, messagesDirOk] = await Promise.all([
     wants('accessibility') ? getAuthStatus(deps, 'accessibility') : undefined,
     wants('contacts') ? getAuthStatus(deps, 'contacts') : undefined,
-    needMessagesDir ? callProxied<boolean>(deps, 'canAccessMessagesDir') : false,
+    wants('full-disk-access') || (REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? getAuthStatus(deps, 'full-disk-access') : undefined,
+    wants('messages-data') || (!REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? callProxied<boolean>(deps, 'canAccessMessagesDir') : false,
   ])
 
   const statuses: CliAuthorizationStatus[] = []
@@ -135,18 +140,25 @@ async function getAuthorizationStatuses(
          : 'Allow Contacts access if you want contact-name lookups from the CLI.'))
   }
 
+  if (wants('full-disk-access')) {
+    const ok = fullDiskAccessStatus === 'authorized'
+    statuses.push(makeStatus('full-disk-access', ok,
+      ok ? 'The CLI can read protected Messages settings.'
+         : 'Enable your current Terminal app in System Settings > Privacy & Security > Full Disk Access.'))
+  }
+
   if (wants('messages-data')) {
-    statuses.push(makeStatus('messages-data', messagesDirOk,
-      messagesDirOk ? 'The CLI can read your local Messages data.'
-                    : 'The CLI cannot read ~/Library/Messages yet.'))
+    const detail = messagesDirOk ? 'The CLI can read your local Messages data.' : 'The CLI cannot read ~/Library/Messages yet.'
+    statuses.push(makeStatus('messages-data', messagesDirOk, detail))
   }
 
   if (wants('messages-app-setup')) {
-    const setup = messagesDirOk ? await callProxied<boolean>(deps, 'isMessagesAppSetup').catch(() => false) : false
-    statuses.push(makeStatus('messages-app-setup', setup,
-      !messagesDirOk ? 'Grant Messages Data first to verify whether Messages.app is set up.'
-        : setup ? 'Messages.app appears ready to use.'
-                : 'Open Messages.app and finish account setup before connecting.'))
+    const authorized = REQUIRES_FULL_DISK_ACCESS ? fullDiskAccessStatus === 'authorized' : messagesDirOk
+    const setup = authorized && await callProxied<boolean>(deps, 'isMessagesAppSetup').catch(() => false)
+    let detail = 'Open Messages.app and finish account setup before connecting.'
+    if (!authorized) detail = `Grant ${statusTitles[DATA_AUTHORIZATION_REQUIREMENT]} first to verify whether Messages.app is set up.`
+    else if (setup) detail = 'Messages.app appears ready to use.'
+    statuses.push(makeStatus('messages-app-setup', setup, detail))
   }
 
   return statuses
@@ -165,6 +177,9 @@ export async function runPreflightAuthCheck(
     await authorizeRequirement(requirement, deps)
     const [updated] = await getAuthorizationStatuses(deps, [requirement])
     if (!updated.authorized) throw new Error(`${updated.title} was not granted. ${updated.detail}`)
+  }
+  if (requirements.includes('full-disk-access') && !await callProxied<boolean>(deps, 'canAccessMessagesDir')) {
+    throw new Error('Full Disk Access is enabled, but the Messages database is unavailable. Open Messages.app and finish setup, then restart your Terminal app if needed.')
   }
 }
 
@@ -188,6 +203,11 @@ async function authorizeAccessibility(deps: Deps) {
 async function authorizeContacts(deps: Deps) {
   await callProxied<void>(deps, 'askForContactsAccess').catch(() => undefined)
   await pollForAuthorization(deps, 'contacts', 2_000)
+}
+
+async function authorizeFullDiskAccess(deps: Deps) {
+  await callProxied<void>(deps, 'askForFullDiskAccess')
+  await pollForAuthorization(deps, 'full-disk-access')
 }
 
 async function authorizeMessagesData(deps: Deps) {
@@ -223,7 +243,8 @@ async function authorizeRequirement(requirement: CliAuthorizationRequirement, de
   switch (requirement) {
     case 'accessibility': await authorizeAccessibility(deps); return
     case 'contacts':      await authorizeContacts(deps); return
-    case 'messages-data': await authorizeMessagesData(deps)
+    case 'messages-data': await authorizeMessagesData(deps); return
+    case 'full-disk-access': await authorizeFullDiskAccess(deps)
   }
 }
 
@@ -234,14 +255,16 @@ function resolveTarget(target: CliAuthorizationTarget): {
   switch (target) {
     case 'all':        return { checkable: AUTHORIZATION_REQUIREMENTS, printKeys: [...AUTHORIZATION_REQUIREMENTS, 'automation', 'messages-app-setup'] }
     case 'automation': return { checkable: [], printKeys: ['automation'] }
+    case 'full-disk-access': return { checkable: [target], printKeys: [target, 'messages-app-setup'] }
     default:           return { checkable: [target], printKeys: [target] }
   }
 }
 
-// `messages-app-setup` reads from Messages Data, so refreshing that permission
-// must also refresh the readiness row to avoid stale display.
-const keysImpactedBy = (requirement: CliAuthorizationRequirement): readonly CliAuthorizationStatusKey[] =>
-  requirement === 'messages-data' ? ['messages-data', 'messages-app-setup'] : [requirement]
+// Refresh setup readiness after either form of data access is granted.
+const keysImpactedBy = (requirement: CliAuthorizationRequirement): readonly CliAuthorizationStatusKey[] => {
+  if (requirement === 'full-disk-access' || requirement === 'messages-data') return [requirement, 'messages-app-setup']
+  return [requirement]
+}
 
 export async function runAuthorizationFlow(
   rawTarget: string | undefined,
@@ -290,4 +313,8 @@ export async function runAuthorizationFlow(
 
   const missing = checkable.filter(r => !findStatus(statuses, r)?.authorized)
   if (missing.length) throw new Error(`Authorization incomplete. Missing: ${missing.join(', ')}`)
+  if (printKeys.includes('messages-app-setup') && !findStatus(statuses, 'messages-app-setup')?.authorized) {
+    const access = REQUIRES_FULL_DISK_ACCESS ? 'Full Disk Access is enabled' : 'Messages Data is accessible'
+    throw new Error(`${access}, but Messages.app setup could not be verified. Open Messages.app and finish setup, then restart your Terminal app if needed.`)
+  }
 }
