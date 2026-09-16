@@ -4,7 +4,7 @@ import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread,
 
 import { BeeperThread } from './desktop-types'
 import { APP_BUNDLE_ID } from './constants'
-import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR } from './common-constants'
+import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR, REQUIRES_FULL_DISK_ACCESS } from './common-constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
 import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
@@ -15,6 +15,7 @@ import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-js
 imessage.isLoggingEnabled = texts.isLoggingEnabled
 
 const ensureFullDiskAccess = () => {
+  if (!REQUIRES_FULL_DISK_ACCESS) return
   if (imessage.MacPermissions.getAuthStatus('full-disk-access') !== 'authorized') {
     throw new ReAuthError('Full Disk Access is required for iMessage. Reconnect and enable Beeper in System Settings > Privacy & Security > Full Disk Access.')
   }

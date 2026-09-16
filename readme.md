@@ -44,8 +44,10 @@ brew install beeper/tap/imessage-cli
 ```sh
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
-swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Accessibility, Contacts, Full Disk Access, Automation), then opens the REPL
+swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Accessibility, Contacts, Messages data access, Automation), then opens the REPL
 ```
+
+Messages data access requires Full Disk Access on macOS 27 and later. On macOS 26 and earlier, setup requests access to the Messages folder, with Full Disk Access available as a fallback.
 
 3. Run one-off commands:
 ```sh

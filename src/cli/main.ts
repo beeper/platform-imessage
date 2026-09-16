@@ -20,7 +20,7 @@ import type {
   ServerEvent,
 } from '@textshq/platform-sdk'
 import { supportedReactions } from '../common-constants'
-import { AUTHORIZATION_TARGETS, runAuthorizationFlow, runPreflightAuthCheck } from './auth'
+import { AUTHORIZATION_TARGETS, DATA_AUTHORIZATION_REQUIREMENT, runAuthorizationFlow, runPreflightAuthCheck } from './auth'
 import type { CliAuthorizationRequirement } from './auth'
 
 const KEEP_ALIVE_FLAG = '--stay-open'
@@ -337,8 +337,8 @@ const reactionNotes = [
 ]
 
 const UNDO_SEND_TIME_LIMIT_MINUTES = 2
-const READ_ONLY_AUTH: CliAuthorizationRequirement[] = ['full-disk-access']
-const MUTATING_AUTH: CliAuthorizationRequirement[] = ['full-disk-access', 'accessibility']
+const READ_ONLY_AUTH: CliAuthorizationRequirement[] = [DATA_AUTHORIZATION_REQUIREMENT]
+const MUTATING_AUTH: CliAuthorizationRequirement[] = [DATA_AUTHORIZATION_REQUIREMENT, 'accessibility']
 
 function reactionCommand(
   name: 'react' | 'unreact',
@@ -436,7 +436,7 @@ const commandDefinitions: CommandDefinition[] = [
   {
     name: 'authorize',
     category: 'General',
-    summary: 'Inspect or request CLI permissions for Accessibility, Contacts, Full Disk Access, and Automation.',
+    summary: 'Inspect or request CLI permissions for Accessibility, Contacts, Messages data access, and Automation.',
     usage: ['authorize', 'authorize TARGET'],
     examples: ['authorize', 'authorize accessibility', 'authorize all'],
     notes: [`Targets: ${AUTHORIZATION_TARGETS.join(', ')}.`],

@@ -28,3 +28,5 @@ export const IS_MONTEREY_OR_UP = DARWIN_MAJOR_VERSON >= 21
 export const IS_VENTURA_OR_UP = DARWIN_MAJOR_VERSON >= 22
 export const IS_SEQUOIA_OR_UP = DARWIN_MAJOR_VERSON >= 24
 export const IS_TAHOE_OR_UP = DARWIN_MAJOR_VERSON >= 25
+// macOS 26 uses Darwin 25. Newer macOS releases require Full Disk Access.
+export const REQUIRES_FULL_DISK_ACCESS = DARWIN_MAJOR_VERSON > 25

@@ -5,6 +5,8 @@ import { ReAuthError, texts } from '@textshq/platform-sdk'
 import AppleiMessage from './api'
 import imessage, { type NativePlatformAPI } from './IMessage/lib'
 
+let mockRequiresFullDiskAccess = true
+
 jest.mock('./IMessage/lib', () => ({
   __esModule: true,
   default: {
@@ -21,6 +23,7 @@ jest.mock('./persistence', () => ({ makeJSONPersistence: async () => ({}) }))
 jest.mock('./common-constants', () => ({
   ...jest.requireActual('./common-constants') as typeof import('./common-constants'),
   IS_BIG_SUR_OR_UP: true,
+  get REQUIRES_FULL_DISK_ACCESS() { return mockRequiresFullDiskAccess },
 }))
 
 const context = { accountID: 'test-account', dataDirPath: '/test/imessage/account' }
@@ -29,6 +32,7 @@ const nativeAPI = { getCurrentUser: jest.fn() }
 const permissions = jest.mocked(imessage.MacPermissions)
 
 beforeEach(() => {
+  mockRequiresFullDiskAccess = true
   jest.clearAllMocks()
   Object.assign(texts, { log: jest.fn(), error: jest.fn(), trackPlatformEvent: jest.fn() })
   jest.spyOn(fs, 'readFile').mockResolvedValue('')
@@ -100,4 +104,29 @@ test('FDA alone does not complete login when the Messages database is unavailabl
     type: 'error',
     errorMessage: expect.stringContaining('Open Messages.app and finish setup'),
   })
+})
+
+test.each(['denied', 'restricted', 'not determined'] as const)('macOS 26 and earlier allow restore and login when FDA is %s', async status => {
+  mockRequiresFullDiskAccess = false
+  permissions.getAuthStatus.mockReturnValue(status)
+  const api = new AppleiMessage(context.accountID)
+  await api.init({}, context)
+
+  await expect(api.getCurrentUser()).resolves.toEqual(currentUser)
+  await expect(api.login()).resolves.toEqual({ type: 'success' })
+  expect(permissions.getAuthStatus).not.toHaveBeenCalled()
+  expect(permissions.validateDatabaseAccess).toHaveBeenCalledTimes(1)
+})
+
+test('macOS 26 and earlier still validate the database during login', async () => {
+  mockRequiresFullDiskAccess = false
+  permissions.validateDatabaseAccess.mockRejectedValue(new Error('database unavailable'))
+  const api = new AppleiMessage(context.accountID)
+  await api.init(undefined, context)
+
+  await expect(api.login()).resolves.toEqual({
+    type: 'error',
+    errorMessage: expect.stringContaining('Open Messages.app and finish setup'),
+  })
+  expect(permissions.getAuthStatus).not.toHaveBeenCalled()
 })

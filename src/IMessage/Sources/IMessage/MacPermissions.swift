@@ -16,6 +16,11 @@ public enum MacPermissionAuthStatus: String, Sendable {
 public enum MacPermissions {
     private static let accessManager = MessagesAccessManager()
 
+    public static var requiresFullDiskAccess: Bool {
+        if #available(macOS 27, *) { return true }
+        return false
+    }
+
     public enum AuthType: String {
         case accessibility
         case contacts
@@ -102,12 +107,14 @@ public enum MacPermissions {
 
     private static func fullDiskAccessAuthStatus() -> MacPermissionAuthStatus {
         let home = NSHomeDirectory()
-        // This is the protected preference we need FDA for. Treat an existing
-        // file as authoritative instead of letting an unrelated fallback probe
-        // mask a denial.
-        let dndStatus = fileAccessStatus("\(home)/Library/Preferences/com.apple.MobileSMS.CKDNDList.plist")
-        if dndStatus != .notDetermined {
-            return dndStatus
+        if requiresFullDiskAccess {
+            // This is the protected preference we need FDA for. Treat an existing
+            // file as authoritative instead of letting an unrelated fallback probe
+            // mask a denial.
+            let dndStatus = fileAccessStatus("\(home)/Library/Preferences/com.apple.MobileSMS.CKDNDList.plist")
+            if dndStatus != .notDetermined {
+                return dndStatus
+            }
         }
 
         var paths = [
