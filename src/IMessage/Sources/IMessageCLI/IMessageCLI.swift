@@ -462,7 +462,8 @@ private final class Runner {
             let missingSetup = await missingAuthorizationRequirements([.accessibility, .contacts, dataAuthorizationRequirement])
             let authTarget = missingSetup.count > 1 ? "all" : dataAuthorizationRequirement.rawValue
             print("imessage-cli requires certain permissions to function. Launching authorization flow...")
-            try await runAuthorizationFlow(target: authTarget)
+            // Optional setup permissions must not prevent Messages authorization or opening the shell.
+            try await runAuthorizationFlow(target: authTarget, optionalRequirements: [.accessibility, .contacts])
         }
 
         guard await canAccessMessagesDir() else {
@@ -1556,7 +1557,7 @@ private func missingAuthorizationRequirements(_ requirements: [AuthorizationRequ
     return missing
 }
 
-private func runAuthorizationFlow(target rawTarget: String?) async throws {
+private func runAuthorizationFlow(target rawTarget: String?, optionalRequirements: [AuthorizationRequirement] = []) async throws {
     let trimmed = rawTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
     let resolved = (trimmed?.isEmpty == false ? trimmed : nil) ?? "all"
     let names = resolved == "all" ? Array(authorizationTargets.dropFirst()) : [resolved]
@@ -1585,7 +1586,7 @@ private func runAuthorizationFlow(target rawTarget: String?) async throws {
             try await req.request()
             let updated = await req.currentStatus()
             printStatus(req, updated)
-            guard updated.authorized else {
+            if !updated.authorized && !optionalRequirements.contains(req) {
                 throw CLIError("\(req.title) was not granted. \(updated.detail)")
             }
         }
