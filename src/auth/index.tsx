@@ -230,9 +230,8 @@ const ChecklistPage: React.FC<Props> = props => {
       completed: dataAuthorized ?? false,
       action: REQUIRES_FULL_DISK_ACCESS ? authorizeFullDiskAccess : authorizeMessagesDir,
       info: REQUIRES_FULL_DISK_ACCESS
-        ? 'Beeper needs Full Disk Access to read Messages\u2019 Hide Alerts settings and keep muted chats in sync across relaunches.'
+        ? 'Beeper needs Full Disk Access to read Messages data and attachments.'
         : 'To connect with iMessage, Beeper needs to be able to read your messages.',
-      subtitle: REQUIRES_FULL_DISK_ACCESS ? 'Used to preserve iMessage mute state.' : undefined,
       more: <div onClick={authorizeFullDiskAccess}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
