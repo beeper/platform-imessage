@@ -21,7 +21,7 @@ enum DefaultsKeys {
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
-    /** whether to respect calls to `onThreadSelected`/`watchThreadActivity` */
+    /** whether to respect calls to `onThreadSelected` for thread activity observation */
     static let watchThreadActivity = "BEEPWatchThreadActivity"
     /** whether to continuously poll "activity status" (typing indicator, dnd banner) */
     static let pollActivityStatus = "BEEPPollActivityStatus"

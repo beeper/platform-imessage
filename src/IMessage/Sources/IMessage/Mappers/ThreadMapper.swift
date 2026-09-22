@@ -13,6 +13,11 @@ enum ThreadMapper {
         var accountID: String
     }
 
+    static func dndIdentifier(for chat: MappedChatRow) -> String? {
+        let isGroup = chat.roomName?.isEmpty == false
+        return isGroup ? chat.groupID : chat.chatIdentifier
+    }
+
     static func mapThread(_ chat: MappedChatRow, context: Context) throws -> PlatformSDK.Thread {
         let guid = chat.guid
         let handleRows = context.handleRowsByChatRowID[chat.rowID] ?? []
@@ -43,7 +48,7 @@ enum ThreadMapper {
             title: chat.displayName,
             isUnread: isUnread,
             isReadOnly: isReadOnly,
-            mutedUntil: context.dndState.contains(isGroup ? (chat.groupID ?? "") : (chat.chatIdentifier ?? "")) ? "forever" : nil,
+            mutedUntil: dndIdentifier(for: chat).map(context.dndState.contains) == true ? "forever" : nil,
             type: isGroup ? .group : .single,
             timestamp: appleDateMilliseconds(chat.msgDate),
             imgURL: chatPhotoURL(props: props, accountID: context.accountID),

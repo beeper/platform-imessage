@@ -148,14 +148,7 @@ import PlatformSDK
         try await api.notifyAnyway(threadID: threadID)
     }
 
-    @NodeMethod func onThreadSelected(_ args: NodeArguments) async throws {
-        guard args.count == 2,
-              let threadID = try args[0].as(String.self),
-              let sendEventsFunction = try args[1].as(NodeFunction.self)
-        else {
-            throw ErrorMessage("Bad PlatformAPI call: \(#function)")
-        }
-
+    @NodeMethod func onThreadSelected(threadID: String?, sendEventsFunction: NodeFunction) async throws {
         let sendEvents = UncheckedSendableBox(sendEventsFunction)
         let eventQueue = threadActivityEventQueue
         try await api.onThreadSelected(threadID: threadID) { events in

@@ -65,14 +65,22 @@ enum PromptAutomation {
         }
     }
 
-    static func disableNotificationsForApp(named appName: String) throws -> Bool {
-        let app = try NSWorkspace.shared.open(
+    static func disableNotificationsForApp(named appName: String) async throws -> Bool {
+        let configuration = NSWorkspace.OpenConfiguration()
+        
+        // hides shows a gray background and doesn't render the UI
+        // configuration.hides = false
+        
+        configuration.activates = false
+        
+        let app = try await NSWorkspace.shared.open(
             URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!,
-            options: [.withoutActivation], // .andHide shows a gray background and doesn't render the UI
-            configuration: [:]
+            configuration: configuration
         )
-        try app.waitForLaunch()
-        return try retry(withTimeout: 3, interval: 0.1) {
+        
+        try await app.waitForLaunch()
+        
+        return try await retry(withTimeout: 3, interval: 0.1) {
             let appElement = Accessibility.Element(pid: app.processIdentifier)
             let windows = try appElement.appWindows()
             let window = try windows.first.orThrow(ErrorMessage("window not found"))
@@ -112,7 +120,7 @@ enum PromptAutomation {
                     log.debug("notifications are enabled, disabling")
                     try notificationsSwitch.press()
                     // Closing too soon causes the value to not change
-                    sleep(1)
+                    try await Task.sleep(forTimeInterval: 1)
                 }
             } else {
                 let tabView = try window.children().first(where: { (try? $0.role()) == Accessibility.Role.tabGroup }).orThrow(ErrorMessage("tabView not found"))

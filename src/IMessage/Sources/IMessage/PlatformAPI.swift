@@ -81,8 +81,15 @@ public final class PlatformAPI {
     private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
 
-    private let threadObserveRequestToken = Protected<UUID?>()
+    private static let selectedThreadActivityState = Protected<SelectedThreadActivityState?>()
     let hasBeenDisposed = Protected(false)
+
+    private struct SelectedThreadActivityState: Sendable {
+        let requestID = UUID()
+        let owner: ObjectIdentifier
+        let threadID: String
+        let sendStatus: @Sendable (ThreadActivityObservation) async -> Void
+    }
 
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
         self.accountID = accountID
@@ -264,7 +271,7 @@ public final class PlatformAPI {
 
             if let existingThread {
                 try await withMessagesController { controller in
-                    try controller.sendMessage(
+                    try await controller.sendMessage(
                         threadID: existingThreadID,
                         addresses: nil,
                         text: messageText,
@@ -277,7 +284,7 @@ public final class PlatformAPI {
         }
 
         try await withMessagesController { controller in
-            try controller.sendMessage(
+            try await controller.sendMessage(
                 threadID: nil,
                 addresses: userIDs,
                 text: messageText,
@@ -290,12 +297,29 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.muteThread(threadID: threadID, muted: muted) }
+        let currentMuteState = try await runDBQuery { db, _, _ -> Bool? in
+            guard let mutedThreadIDs = Self.permanentDNDThreadIDs() else { return nil }
+            guard let chat = try db.mappedThreadRow(guid: threadID),
+                  let dndIdentifier = ThreadMapper.dndIdentifier(for: chat) else {
+                return nil
+            }
+            return mutedThreadIDs.contains(dndIdentifier)
+        }
+        if currentMuteState == muted {
+            platformLog.debug("imsg: DND state already matches requested mute state")
+            return
+        }
+        if currentMuteState == nil {
+            platformLog.debug("imsg: DND state unavailable; falling back to Messages accessibility actions")
+        }
+        try await withMessagesController {
+            try await $0.muteThread(threadID: threadID, muted: muted, currentMuteState: currentMuteState)
+        }
     }
 
     public func deleteThread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.deleteThread(threadID: threadID) }
+        try await withMessagesController { try await $0.deleteThread(threadID: threadID) }
     }
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
@@ -310,7 +334,7 @@ public final class PlatformAPI {
             retries: quotedMessageID == nil ? 1 : 2,
             prepareAttempt: { try await self.lastMessageRowID() }
         ) { controller in
-            try controller.sendMessage(
+            try await controller.sendMessage(
                 threadID: threadID,
                 text: text,
                 filePath: filePath,
@@ -344,7 +368,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
+        try await withMessagesController { try await $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
     public func sendActivityIndicator(type: String, threadID publicThreadID: String?) async throws {
@@ -366,16 +390,16 @@ public final class PlatformAPI {
 
         try await withMessagesController { controller in
             if type == "typing" {
-                try controller.sendTypingStatus(threadID: threadID)
+                try await controller.sendTypingStatus(threadID: threadID)
             } else {
-                try controller.clearTypingStatus()
+                try await controller.clearTypingStatus()
             }
         }
     }
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.undoSend(threadID: threadID, messageID: messageID) }
+        try await withMessagesController { try await $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
@@ -392,7 +416,7 @@ public final class PlatformAPI {
             }
 
             try await withMessagesController(forceInvalidate: attempt > 0) {
-                try $0.toggleThreadRead(threadID: threadID, read: true)
+                try await $0.toggleThreadRead(threadID: threadID, read: true)
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
@@ -421,7 +445,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: reference.threadID)
-        try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+        try await withMessagesController { try await $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
 
         let loadedMessage = try await waitForLoadedAttachment(
             threadID: reference.threadID,
@@ -477,38 +501,42 @@ public final class PlatformAPI {
 
     public func markAsUnread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.toggleThreadRead(threadID: threadID, read: false) }
+        try await withMessagesController { try await $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
     public func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.notifyAnyway(threadID: threadID) }
+        try await withMessagesController { try await $0.notifyAnyway(threadID: threadID) }
     }
 
     public func getThreadActivityStatus(threadID publicThreadID: String) async throws -> ThreadActivityObservation {
         let threadID = try originalThreadID(for: publicThreadID)
-        return try await withMessagesController { try $0.activityStatus(threadID: threadID) }
+        return try await withMessagesController { try await $0.activityStatus(threadID: threadID) }
     }
 
     public func onThreadSelected(
-        threadID publicThreadID: String,
+        threadID publicThreadID: String?,
         sendEvents: @escaping EventCallback
     ) async throws {
-        guard !publicThreadID.isEmpty else {
+        guard let publicThreadID, !publicThreadID.isEmpty else {
+            clearSelectedThreadActivity()
             return
         }
 
-        let threadID = try originalThreadID(for: publicThreadID)
-
-        guard !Preferences.enabledExperiments.contains("no_watch_thread") else {
-            return
+        let threadID: String
+        do {
+            threadID = try originalThreadID(for: publicThreadID)
+        } catch {
+            clearSelectedThreadActivity()
+            throw error
         }
 
         let singleParticipantID = singleParticipantAddress(threadID)
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-        platformLog.debug("activity/\(publicThreadID): watching")
-
-        try await watchThreadActivity(threadID: threadID) { [dndUserIDs] status in
+        let selectedThread = SelectedThreadActivityState(
+            owner: ObjectIdentifier(self),
+            threadID: threadID
+        ) { [dndUserIDs] status in
             platformLog.debug("activity/\(publicThreadID): received \(status)")
 
             guard let singleParticipantID else {
@@ -558,7 +586,33 @@ public final class PlatformAPI {
                 }
             }
 
-            try await sendEvents(events)
+            do {
+                try await sendEvents(events)
+            } catch {
+                platformLog.error("failed to send activity status: \(String(reflecting: error))")
+            }
+        }
+        Self.selectedThreadActivityState.withLock { $0 = selectedThread }
+        platformLog.debug("activity/\(publicThreadID): watching")
+
+        try await withMessagesController { controller in
+            guard Self.selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
+                return
+            }
+
+            let readActivity = if Defaults.watchThreadActivity {
+                try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller)
+            } else {
+                false
+            }
+            await Self.observeSelectedThreadActivity(
+                selectedThread,
+                using: controller,
+                readActivity: readActivity
+            )
+            if !readActivity {
+                Self.clearSelectedThreadActivity(ifCurrent: selectedThread.requestID)
+            }
         }
     }
 
@@ -590,10 +644,11 @@ public final class PlatformAPI {
         }
 
         hasBeenDisposed.withLock { $0 = true }
+        clearSelectedThreadActivityIfOwned()
         // Clear cached state so logout/relogin in Messages.app while Beeper
         // restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
-        SystemSettingsOnboarding.stop()
+        await SystemSettingsOnboarding.stop()
         EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
         database.stopListeningAndReset()
         try await disposeCachedMessagesController()
@@ -605,77 +660,91 @@ public final class PlatformAPI {
         }
     }
 
-    private func watchThreadActivity(
-        threadID: String,
-        statusSender: @escaping @Sendable (ThreadActivityObservation) async throws -> Void
-    ) async throws {
-        guard Defaults.watchThreadActivity else {
+    private func clearSelectedThreadActivity() {
+        Self.selectedThreadActivityState.withLock { $0 = nil }
+    }
+
+    private static func clearSelectedThreadActivity(ifCurrent requestID: UUID) {
+        selectedThreadActivityState.withLock { state in
+            guard state?.requestID == requestID else { return }
+            state = nil
+        }
+    }
+
+    private func clearSelectedThreadActivityIfOwned() {
+        let owner = ObjectIdentifier(self)
+        Self.selectedThreadActivityState.withLock { state in
+            guard state?.owner == owner else { return }
+            state = nil
+        }
+    }
+
+    private static func threadSupportsActivityObservation(threadID: String, controller: MessagesController) throws -> Bool {
+        // only watch thread activity for iMessage/RCS chats
+        // TODO: implement this for groups
+        if threadID.hasPrefix("iMessage;-;") || threadID.hasPrefix("RCS;-;") {
+            return true
+        }
+
+        guard threadID.hasPrefix("any;-;") else {
+            // only bother checking the database if the GUID can't tell us what service the chat is for
+            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+            #if DEBUG
+            platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+            #endif
+            return false
+        }
+
+        let chat = try controller.db.chat(withGUID: threadID)
+        guard let chat else {
+            platformLog.error("onThreadSelected: couldn't locate the chat to watch in the database")
+            return false
+        }
+
+        guard chat.serviceName == .imessage || chat.serviceName == .rcs else {
+            #if DEBUG
+            platformLog.debug("chat definitely isn't an iMessage/RCS 1:1 DM, not watching for activity")
+            #endif
+            return false
+        }
+
+        return true
+    }
+
+    static func observeSelectedThreadActivity(using controller: MessagesController, readActivity: Bool = true) async {
+        guard let selectedThread = selectedThreadActivityState.read() else {
             return
         }
 
-        // reset the idle callback in case we fail and bail out
-        Self.messagesControllerQueue.setIdleCallback(nil)
+        await observeSelectedThreadActivity(
+            selectedThread,
+            using: controller,
+            readActivity: readActivity
+        )
+    }
 
-        let requestID = UUID()
-        let threadObserveRequestToken = threadObserveRequestToken
-        threadObserveRequestToken.withLock { $0 = requestID }
-
+    private static func observeSelectedThreadActivity(
+        _ selectedThread: SelectedThreadActivityState,
+        using controller: MessagesController,
+        readActivity: Bool
+    ) async {
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
-            Task {
-                do {
-                    try await statusSender(status)
-                } catch {
-                    platformLog.error("failed to send activity status: \(String(reflecting: error))")
+            MessagesControllerAutomationLane.escapingTask {
+                guard selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
+                    return
                 }
+                await selectedThread.sendStatus(status)
             }
         }
 
-        try await withMessagesController { controller in
-            // only watch thread activity for iMessage chats
-            // TODO: implement this for groups
-            if !threadID.hasPrefix("iMessage;-;") {
-                guard threadID.hasPrefix("any;-;") else {
-                    // only bother checking the database if the GUID can't tell us what service the chat is for
-                    // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-                    #if DEBUG
-                    platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-                    #endif
-                    return
-                }
-
-                let chat = try controller.db.chat(withGUID: threadID)
-                guard let chat else {
-                    platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                    return
-                }
-
-                guard chat.serviceName == .imessage else {
-                    #if DEBUG
-                    platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-                    #endif
-                    return
-                }
-            }
-
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
-            Self.messagesControllerQueue.setIdleCallback { quiescence in
-                guard threadObserveRequestToken.read() == requestID else { return }
-                do {
-                    try observe(quiescence)
-                } catch {
-                    platformLog.error("failed to observe activity: \(error)")
-                }
-            }
-
-            // if another watchThreadActivity request has been enqueued
-            // after our current one (but before this block began executing),
-            // then this check will fail and prevent the current block from
-            // unnecessarily running
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            try observe(.began)
+        do {
+            try await controller.observeIdleActivity(
+                threadID: selectedThread.threadID,
+                readActivity: readActivity,
+                statusSender: sendStatus
+            )
+        } catch {
+            platformLog.error("failed to observe activity: \(error)")
         }
     }
 
@@ -684,13 +753,13 @@ public final class PlatformAPI {
         name: String,
         retries: Int,
         prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
-        _ action: @escaping @Sendable (MessagesController) throws -> Void,
+        _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
         try await retry(retries: retries) { attempt in
             let context = try await prepareAttempt()
             try await withMessagesController(forceInvalidate: attempt > 0) { controller in
-                try action(controller)
+                try await action(controller)
             }
             try await afterAttempt?(context)
             return context
@@ -706,7 +775,7 @@ public final class PlatformAPI {
             retries: 2,
             prepareAttempt: { try await self.lastMessageRowID() }
         ) { controller in
-            try controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
+            try await controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
         } afterAttempt: { lastRowID in
             _ = try await self.waitForMessageSend(
                 threadID: threadID,
@@ -1021,7 +1090,12 @@ extension PlatformAPI {
                 accountID: accountID
             ),
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
-            dndState: permanentDNDThreadIDs(),
+            // Missing access to this protected preference domain means the
+            // state is unknown, not that every thread is unmuted. Thread
+            // mapping cannot represent that distinction yet, so retain the
+            // existing empty fallback here while mutation paths use the
+            // optional value directly.
+            dndState: permanentDNDThreadIDs() ?? [],
             currentUser: currentUser,
             accountID: accountID
         )
@@ -1050,8 +1124,13 @@ extension PlatformAPI {
         return latestMessagesByChatGUID
     }
 
-    nonisolated static func permanentDNDThreadIDs() -> Set<String> {
-        Set((Defaults.getDNDList() ?? [:]).compactMap { key, value in
+    nonisolated static func permanentDNDThreadIDs() -> Set<String>? {
+        permanentDNDThreadIDs(from: Defaults.getDNDList())
+    }
+
+    nonisolated static func permanentDNDThreadIDs(from dndList: [String: Int]?) -> Set<String>? {
+        guard let dndList else { return nil }
+        return Set(dndList.compactMap { key, value in
             value == Int(Date.distantFuture.timeIntervalSince1970) ? key : nil
         })
     }
