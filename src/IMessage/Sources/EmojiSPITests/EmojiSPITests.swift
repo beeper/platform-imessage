@@ -19,12 +19,13 @@ let locale = Locale(identifier: "en-US")
     #expect(!(try tools.supportsSkinToneVariants))
 }
 
+private let initializerLocale = Locale(identifier: "pt_PT")
 private let emojiInitializers: [(method: String, make: () throws -> AnyObject)] = [
     ("initWithLocale:", {
-        try EMFEmojiSearchEngine(locale: locale, objectClass: InitializerFixture.self)
+        try EMFEmojiSearchEngine(locale: initializerLocale, objectClass: InitializerFixture.self)
     }),
     ("initWithString:localeIdentifier:", {
-        try EMFEmojiToken(character: "🤌", locale: locale, objectClass: InitializerFixture.self)
+        try EMFEmojiToken(character: "🤌", locale: initializerLocale, objectClass: InitializerFixture.self)
     }),
 ]
 
@@ -70,6 +71,7 @@ private final class InitializerFixture: NSObject {
     init?(string: NSString, localeIdentifier: AnyObject) {
         super.init()
         Self.instance = self
+        #expect((localeIdentifier as? String) == initializerLocale.identifier)
         if Self.fails { return nil }
     }
 

@@ -1,7 +1,7 @@
 #import "EmojiSPIObjc.h"
 
 @interface EMFEmojiToken : NSObject
-- (instancetype _Nullable)initWithString:(NSString *)string localeIdentifier:(id)localeIdentifier;
+- (instancetype _Nullable)initWithString:(NSString *)string localeIdentifier:(NSString *)localeIdentifier;
 @end
 
 @interface EMFEmojiSearchEngine : NSObject
@@ -10,7 +10,7 @@
 
 NSObject *_Nullable EmojiSPITokenCreate(Class objectClass,
                                        NSString *string,
-                                       id localeIdentifier) {
+                                       NSString *localeIdentifier) {
     return [(EMFEmojiToken *)[objectClass alloc] initWithString:string localeIdentifier:localeIdentifier];
 }
 

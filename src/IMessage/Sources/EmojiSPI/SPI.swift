@@ -61,7 +61,7 @@ public final class EMFEmojiToken {
         guard objectClass.instancesRespond(to: Selector(initMethodName)) else {
             throw .noInstanceMethod
         }
-        guard let token = EmojiSPITokenCreate(objectClass, String(character), locale as NSLocale) else {
+        guard let token = EmojiSPITokenCreate(objectClass, String(character), locale.identifier) else {
             throw .nilResponse(method: initMethodName)
         }
 
