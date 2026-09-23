@@ -108,8 +108,13 @@ var targets: [Target] = [
         publicHeadersPath: "include"
     ),
     .target(
+        name: "EmojiSPIObjc",
+        path: "src/IMessage/Sources/EmojiSPIObjc",
+        publicHeadersPath: "include"
+    ),
+    .target(
         name: "EmojiSPI",
-        dependencies: ["IMessageCore"],
+        dependencies: ["IMessageCore", "EmojiSPIObjc"],
         path: "src/IMessage/Sources/EmojiSPI"
     ),
     .target(
