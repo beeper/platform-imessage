@@ -1,4 +1,5 @@
 import IMessageCore
+import EmojiSPIObjc
 import Darwin
 import Foundation
 
@@ -42,23 +43,26 @@ public final class CPKDefaultDataSource {
 public final class EMFEmojiToken {
     private let underlying: NSObject
 
-    public init(character: Character, locale: Locale = .current) throws(SPIError) {
+    public convenience init(character: Character, locale: Locale = .current) throws(SPIError) {
         Bundle(path: "/System/Library/PrivateFrameworks/EmojiFoundation.framework")?.load()
 
-        // uninitialized = [EMFEmojiToken init];
         let className = "EMFEmojiToken"
         guard let `class` = NSClassFromString(className) else {
             throw .noClass(name: className)
         }
-        let uninitialized = `class`.alloc()
+        try self.init(character: character, locale: locale, objectClass: `class`)
+    }
 
-        // token = [uninitialized initWithString:character localeIdentifier:locale];
-        let initMethodName = "initWithString:localeIdentifier:"
-        guard let unmanaged = uninitialized.perform(Selector(initMethodName), with: String(character) as NSString, with: locale) else {
-            throw .nilResponse(method: initMethodName)
-        }
-        guard let token = unmanaged.takeUnretainedValue() as? NSObject else {
+    init(character: Character, locale: Locale, objectClass: AnyClass) throws(SPIError) {
+        guard let objectClass = objectClass as? NSObject.Type else {
             throw .castFailure
+        }
+        let initMethodName = "initWithString:localeIdentifier:"
+        guard objectClass.instancesRespond(to: Selector(initMethodName)) else {
+            throw .noInstanceMethod
+        }
+        guard let token = EmojiSPITokenCreate(objectClass, String(character), locale.identifier) else {
+            throw .nilResponse(method: initMethodName)
         }
 
         underlying = token
@@ -97,23 +101,26 @@ public final class EMFEmojiToken {
 public final class EMFEmojiSearchEngine {
     private let underlying: NSObject
 
-    public init(locale: Locale = .current) throws(SPIError) {
+    public convenience init(locale: Locale = .current) throws(SPIError) {
         Bundle(path: "/System/Library/PrivateFrameworks/EmojiFoundation.framework")?.load()
 
-        // [EMFEmojiSearchEngine alloc]
         let className = "EMFEmojiSearchEngine"
         guard let `class` = NSClassFromString(className) else {
             throw .noClass(name: className)
         }
-        let uninitialized = `class`.alloc()
+        try self.init(locale: locale, objectClass: `class`)
+    }
 
-        // [… initWithLocale:locale]
-        let methodName = "initWithLocale:"
-        guard let unmanaged = uninitialized.perform(Selector(methodName), with: locale) else {
-            throw .nilResponse(method: methodName)
-        }
-        guard let engine = unmanaged.takeUnretainedValue() as? NSObject else {
+    init(locale: Locale, objectClass: AnyClass) throws(SPIError) {
+        guard let objectClass = objectClass as? NSObject.Type else {
             throw .castFailure
+        }
+        let methodName = "initWithLocale:"
+        guard objectClass.instancesRespond(to: Selector(methodName)) else {
+            throw .noInstanceMethod
+        }
+        guard let engine = EmojiSPISearchEngineCreate(objectClass, locale) else {
+            throw .nilResponse(method: methodName)
         }
 
         underlying = engine
