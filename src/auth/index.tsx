@@ -38,9 +38,6 @@ const proxiedAuthStatusFns = {
   'full-disk-access': 'getFullDiskAccessAuthStatus',
 } satisfies Record<NativeMacPermissionAuthType, keyof PAPI['proxiedAuthFns']>
 
-const reportCheckFailure = (authType: string, error: unknown) =>
-  texts.error(`imsg/auth: ${authType} permission check failed: ${String(error)}`)
-
 const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermissionAuthType | 'messages-data') => {
   const isAuthorized = useCallback(
     () => (authType === 'messages-data'
@@ -48,12 +45,22 @@ const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermi
       : callProxiedFn<NativeMacPermissionAuthStatus>(proxiedAuthStatusFns[authType]).then(res => res === 'authorized')),
     [callProxiedFn, authType],
   )
+  // Deduped: useAsync's immediate run and the poll below both check on mount,
+  // and a persistent failure retries every second, so reporting every one of
+  // them would bury the log it is meant to show up in.
+  const lastReported = useRef<string>()
+  const reportCheckFailure = useCallback((error: unknown) => {
+    const message = String(error)
+    if (lastReported.current === message) return
+    lastReported.current = message
+    texts.error(`imsg/auth: ${authType} permission check failed: ${message}`)
+  }, [authType])
   const { execute: refreshAuthorization, value: authorized, pending, error } = useAsync(isAuthorized)
   // Not rethrown: the host can only read a render-phase throw as a crashed
   // tree, and this fires for causes as ordinary as Messages not being open.
   useEffect(() => {
-    if (error) reportCheckFailure(authType, error)
-  }, [error, authType])
+    if (error) reportCheckFailure(error)
+  }, [error, reportCheckFailure])
   useEffect(() => {
     window.addEventListener('focus', refreshAuthorization)
     return () => window.removeEventListener('focus', refreshAuthorization)
@@ -64,7 +71,7 @@ const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermi
     async function checkIfAuthorized() {
       // a check that fails reads as not-authorized-yet, so keep polling
       const nowAuthorized = await isAuthorized().catch(err => {
-        reportCheckFailure(authType, err)
+        reportCheckFailure(err)
         return false
       })
       if (stopped) return
