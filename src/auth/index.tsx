@@ -38,6 +38,9 @@ const proxiedAuthStatusFns = {
   'full-disk-access': 'getFullDiskAccessAuthStatus',
 } satisfies Record<NativeMacPermissionAuthType, keyof PAPI['proxiedAuthFns']>
 
+const reportCheckFailure = (authType: string, error: unknown) =>
+  texts.error(`imsg/auth: ${authType} permission check failed: ${String(error)}`)
+
 const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermissionAuthType | 'messages-data') => {
   const isAuthorized = useCallback(
     () => (authType === 'messages-data'
@@ -46,23 +49,36 @@ const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermi
     [callProxiedFn, authType],
   )
   const { execute: refreshAuthorization, value: authorized, pending, error } = useAsync(isAuthorized)
-  // eslint-disable-next-line @typescript-eslint/no-throw-literal
-  if (error) throw error
+  // Not rethrown: the host can only read a render-phase throw as a crashed
+  // tree, and this fires for causes as ordinary as Messages not being open.
+  useEffect(() => {
+    if (error) reportCheckFailure(authType, error)
+  }, [error, authType])
   useEffect(() => {
     window.addEventListener('focus', refreshAuthorization)
     return () => window.removeEventListener('focus', refreshAuthorization)
   }, [refreshAuthorization])
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>
+    let stopped = false
     async function checkIfAuthorized() {
-      if (await isAuthorized()) {
+      // a check that fails reads as not-authorized-yet, so keep polling
+      const nowAuthorized = await isAuthorized().catch(err => {
+        reportCheckFailure(authType, err)
+        return false
+      })
+      if (stopped) return
+      if (nowAuthorized) {
         refreshAuthorization()
       } else {
         timeout = setTimeout(checkIfAuthorized, 1_000)
       }
     }
     checkIfAuthorized()
-    return () => clearTimeout(timeout)
+    return () => {
+      stopped = true
+      clearTimeout(timeout)
+    }
   }, [])
   console.log(authType, 'authorized', authorized)
   return { refreshAuthorization, authorized, pending }
@@ -328,7 +344,10 @@ const AppleiMessageAuth: React.FC<AuthProps> = props => {
   const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => {
     if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)
-    return JSON.parse(await api.getAsset?.(undefined, 'proxied', fnName) as string)
+    // getAsset is optional, and an account torn down mid-call resolves nothing
+    const payload = await api.getAsset?.(undefined, 'proxied', fnName)
+    if (typeof payload !== 'string') return undefined
+    return JSON.parse(payload)
   }, [api])
   if (!IS_BIG_SUR_OR_UP) {
     return (
