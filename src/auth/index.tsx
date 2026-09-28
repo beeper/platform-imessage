@@ -69,7 +69,6 @@ const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermi
     let timeout: ReturnType<typeof setTimeout>
     let stopped = false
     async function checkIfAuthorized() {
-      // a check that fails reads as not-authorized-yet, so keep polling
       const nowAuthorized = await isAuthorized().catch(err => {
         reportCheckFailure(err)
         return false
@@ -351,7 +350,6 @@ const AppleiMessageAuth: React.FC<AuthProps> = props => {
   const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => {
     if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)
-    // getAsset is optional, and an account torn down mid-call resolves nothing
     const payload = await api.getAsset?.(undefined, 'proxied', fnName)
     if (typeof payload !== 'string') return undefined
     return JSON.parse(payload)
