@@ -736,23 +736,52 @@ public final class PlatformAPI {
     ) async throws -> PlatformSDK.MessageSendResult {
         let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
-        let address = threadIDToAddress(threadID)
-        let sentThreadIsValid = try await withMessagesController { controller in
-            sentThreadIDs.allSatisfy { sentThreadID in
-                if sentThreadID == threadID { return true }
-                guard let sentThreadID else { return false }
-                return controller.isSameContact(address, threadIDToAddress(sentThreadID))
-            }
+        let validSentMessageIDs = try await withMessagesController { controller in
+            Self.validSentMessageIDs(
+                targetThreadID: threadID,
+                sentMessageIDs: sentMessageIDs,
+                sentThreadIDs: sentThreadIDs,
+                isSameContact: controller.isSameContact
+            )
         }
 
-        guard sentThreadIsValid else {
-            platformLog.error("imsg: imessage potentially sent messages to invalid thread")
+        if validSentMessageIDs.count < sentMessageIDs.count {
+            let hashedTarget = Hasher.thread.tokenizeRemembering(pii: threadID)
+            let hashedSent = sentThreadIDs
+                .map { $0.map { Hasher.thread.tokenizeRemembering(pii: $0) } ?? "<unjoined>" }
+                .joined(separator: " ")
+            platformLog.error("imsg: imessage potentially sent messages to invalid thread (target=\(hashedTarget) sent=\(hashedSent))")
+            reportErrorMessage("imessage sent message thread validation failed for \(sentMessageIDs.count - validSentMessageIDs.count)/\(sentMessageIDs.count) messages")
+        }
+
+        guard !validSentMessageIDs.isEmpty else {
             return .boolean(true)
         }
 
-        let messages = try await sentMessages(sentMessageIDs)
+        let messages = try await sentMessages(validSentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
+    }
+
+    // A sent row is claimed as ours when it joined the chat we targeted, a chat
+    // whose address is the same recipient, or (via the contacts database) a chat
+    // whose address is on the same contact card. Rows that match none of these —
+    // or never joined a chat — are dropped individually, so one foreign row
+    // (e.g. a concurrent send from another device) doesn't discard the whole batch.
+    nonisolated static func validSentMessageIDs(
+        targetThreadID: String,
+        sentMessageIDs: [(rowID: Int, guid: String)],
+        sentThreadIDs: [String?],
+        isSameContact: (String?, String?) -> Bool
+    ) -> [(rowID: Int, guid: String)] {
+        let targetAddress = threadIDToAddress(targetThreadID)
+        return zip(sentMessageIDs, sentThreadIDs).filter { _, sentThreadID in
+            guard let sentThreadID else { return false }
+            if sentThreadID == targetThreadID { return true }
+            let sentAddress = threadIDToAddress(sentThreadID)
+            return addressesReferToSameRecipient(targetAddress, sentAddress)
+                || isSameContact(targetAddress, sentAddress)
+        }.map(\.0)
     }
 
     private func waitForSentMessageIDs(
