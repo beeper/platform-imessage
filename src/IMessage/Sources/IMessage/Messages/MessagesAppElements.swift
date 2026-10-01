@@ -52,7 +52,8 @@ private struct CharacterPickerPopover {
     }
 
     private func windowCandidates() throws -> [Window.Description] {
-        try Window.listDescriptions(.all, excludeDesktopElements: true)
+        // `.onScreen` lets CG skip off-screen windows up front; `isCandidateWindow` still requires `isOnscreen == true`.
+        try Window.listDescriptions(.onScreen, excludeDesktopElements: true)
             .filter(isCandidateWindow)
             .sorted { score($0) < score($1) }
     }
