@@ -6,29 +6,36 @@ import Logging
 
 private let log = Logger(imessageLabel: "key-presser")
 
-// TODO: refactor
 class KeyPresser {
     let pid: pid_t
+    private let postKeyEvents: (CGKeyCode, CGEventFlags?) throws -> Void
+    private let keyCodeForCharacter: (Character) -> UInt16?
 
-    init(pid: pid_t) {
+    init(
+        pid: pid_t,
+        postKeyEvents: ((CGKeyCode, CGEventFlags?) throws -> Void)? = nil,
+        keyCodeForCharacter: ((Character) -> UInt16?)? = nil
+    ) {
         self.pid = pid
+        self.postKeyEvents = postKeyEvents ?? { key, flags in
+            try Self.post(key: key, flags: flags, to: pid)
+        }
+        self.keyCodeForCharacter = keyCodeForCharacter ?? { KeyMap.shared[$0] }
     }
 
     static let src = CGEventSource(stateID: .hidSystemState)
 
-    private func perform(onMainThread: Bool, _ action: () throws -> Void) rethrows {
+    private func perform<T>(onMainThread: Bool, _ action: () throws -> T) rethrows -> T {
         guard onMainThread, !Thread.isMainThread else {
-            try action()
-            return
+            return try action()
         }
         log.debug("dispatching simulated keypress to main thread (queueName=\(__dispatch_queue_get_label(nil)))")
-        try DispatchQueue.main.sync {
+        return try DispatchQueue.main.sync {
             try action()
         }
-        return
     }
 
-    private func post(key: CGKeyCode, flags: CGEventFlags? = nil) throws {
+    private static func post(key: CGKeyCode, flags: CGEventFlags? = nil, to pid: pid_t) throws {
         log.debug("sending simulated keypress (code=\(key))")
         for keyDown in [true, false] {
             log.debug("simulated keypress phase (code=\(key), down=\(keyDown))")
@@ -36,75 +43,73 @@ class KeyPresser {
             let ev = try CGEvent(keyboardEventSource: Self.src, virtualKey: key, keyDown: keyDown)
                 .orThrow(ErrorMessage("key \(key) event empty"))
             if let flags { ev.flags = flags }
-            ev.postToPid(self.pid)
+            ev.postToPid(pid)
             if isSequoiaOrUp, !keyDown { // workaround courtesy https://github.com/pmanot
                 ev.flags = []
-                ev.postToPid(self.pid)
+                ev.postToPid(pid)
             }
         }
     }
 
-    private func press(key: CGKeyCode, flags: CGEventFlags? = nil, onMainThread: Bool = true) throws {
+    private func press(key: CGKeyCode, flags: CGEventFlags? = nil, onMainThread: Bool) throws {
         try perform(onMainThread: onMainThread) {
-            try post(key: key, flags: flags)
+            try postKeyEvents(key, flags)
         }
     }
 
-    private func pressMappedKey(_ key: Character, flags: CGEventFlags? = nil, onMainThread: Bool = true) throws {
-        try perform(onMainThread: onMainThread) {
-            guard let keyCode = KeyMap.shared[key] else { return }
-            try post(key: CGKeyCode(keyCode), flags: flags)
-        }
+    private func pressMappedKey(_ key: Character, flags: CGEventFlags? = nil, onMainThread: Bool) throws {
+        guard let keyCode = perform(onMainThread: true, { keyCodeForCharacter(key) }) else { return }
+        try press(key: CGKeyCode(keyCode), flags: flags, onMainThread: onMainThread)
     }
 
-    func `return`(onMainThread: Bool = true) throws {
+    func `return`(onMainThread: Bool = false) throws {
         try press(key: CGKeyCode(kVK_Return), onMainThread: onMainThread)
     }
 
-    func downArrow(onMainThread: Bool = true) throws {
+    func downArrow(onMainThread: Bool = false) throws {
         try press(key: CGKeyCode(kVK_DownArrow), onMainThread: onMainThread)
     }
 
-    func rightArrow(onMainThread: Bool = true) throws {
+    func rightArrow(onMainThread: Bool = false) throws {
         try press(key: CGKeyCode(kVK_RightArrow), onMainThread: onMainThread)
     }
 
-    func commandV(onMainThread: Bool = true) throws {
+    func commandV(onMainThread: Bool = false) throws {
         // sending CGKeyCode(kVK_ANSI_V) won't work on non-qwerty layouts where V key is in a different place
         try pressMappedKey("v", flags: .maskCommand, onMainThread: onMainThread)
     }
 
     /// marks as read/unread on ventura
-    func commandShiftU(onMainThread: Bool = true) throws {
+    func commandShiftU(onMainThread: Bool = false) throws {
         try pressMappedKey("u", flags: [.maskCommand, .maskShift], onMainThread: onMainThread)
     }
 
     /// selects next thread, both keys aren't the same in practice
-    func commandRightBracket(onMainThread: Bool = true) throws {
+    func commandRightBracket(onMainThread: Bool = false) throws {
         try pressMappedKey("]", flags: .maskCommand, onMainThread: onMainThread)
     }
 
     #if false
     /// selects first thread
-    func command1(onMainThread: Bool = true) throws {
+    func command1(onMainThread: Bool = false) throws {
         try pressMappedKey("1", flags: .maskCommand, onMainThread: onMainThread)
     }
     /// edits selected message
-    func commandE(onMainThread: Bool = true) throws {
+    func commandE(onMainThread: Bool = false) throws {
         try pressMappedKey("e", flags: .maskCommand, onMainThread: onMainThread)
     }
     /// selects prev thread, both keys aren't the same in practice
-    func commandLeftBracket(onMainThread: Bool = true) throws {
+    func commandLeftBracket(onMainThread: Bool = false) throws {
         try pressMappedKey("[", flags: .maskCommand, onMainThread: onMainThread)
     }
     /// selects first non-pinned thread
-    func commandOption1(onMainThread: Bool = true) throws {
+    func commandOption1(onMainThread: Bool = false) throws {
         try pressMappedKey("1", flags: [.maskCommand, .maskAlternate], onMainThread: onMainThread)
     }
-    func ctrlShiftTab(onMainThread: Bool = true) throws {
+    func ctrlShiftTab(onMainThread: Bool = false) throws {
         try press(key: CGKeyCode(kVK_Tab), flags: [.maskControl, .maskShift], onMainThread: onMainThread)
     }
-    func ctrlTab(onMainThread: Bool = true) throws {
+    func ctrlTab(onMainThread: Bool = false) throws {
         try press(key: CGKeyCode(kVK_Tab), flags: .maskControl, onMainThread: onMainThread)
     }
     #endif
