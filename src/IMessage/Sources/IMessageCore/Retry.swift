@@ -57,6 +57,7 @@ public func retry<T>(
     retries: Int,
     interval: TimeInterval? = nil,
     _ perform: (_ attempt: Int) async throws -> T,
+    shouldRetry: ((_ error: Error) -> Bool)? = nil,
     onError: ((_ attempt: Int, _ retriesLeft: Int, _ err: Error) async -> Void)? = nil
 ) async throws -> T {
     var attempt = 0
@@ -64,9 +65,10 @@ public func retry<T>(
         do {
             return try await perform(attempt)
         } catch {
-            let retriesLeft = max(retries - attempt, 0)
+            let retryAllowed = shouldRetry?(error) ?? true
+            let retriesLeft = retryAllowed ? max(retries - attempt, 0) : 0
             await onError?(attempt, retriesLeft, error)
-            guard attempt < retries else {
+            guard retryAllowed, attempt < retries else {
                 throw error
             }
             attempt += 1

@@ -77,3 +77,62 @@ private final class InitializerFixture: NSObject {
 
     deinit { Self.deinitCount += 1 }
 }
+
+@Test private func pickerSearchUsesPickerLanguages() async throws {
+    let results = try await Task.detached {
+        try CPKDefaultDataSource.query("celebration", objectClass: PickerSearchFixture.self)
+    }.value
+    #expect(results == ["🎉", "🥳"])
+}
+
+@Test private func pickerSearchRejectsMissingMethods() async {
+    await Task.detached {
+        #expect(throws: SPIError.nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")) {
+            try CPKDefaultDataSource.query("celebration", objectClass: NSObject.self)
+        }
+    }.value
+}
+
+private final class PickerSearchFixture: NSObject {
+    @objc static func preferredLanguagesForSearch() -> [String] { ["pt-PT", "en-US"] }
+
+    @objc(emojiTokensForSearchString:inLanguages:maxResults:usingBlock:)
+    static func search(_ query: String, languages: [String], maximum: UInt,
+                       completion: @escaping @convention(block) (NSArray, Bool) -> Void) {
+        #expect(languages == ["pt-PT", "en-US"])
+        #expect(maximum == 500)
+        let results: [NSObject]
+        switch query {
+        case "celebration": results = [PickerTokenFixture("🎉"), PickerTokenFixture("🥳")]
+        case "missing-string": results = [NSObject(), PickerTokenFixture("🎉")]
+        case "non-string": results = [MalformedPickerTokenFixture(NSNumber(value: 1)), PickerTokenFixture("🎉")]
+        case "nil-string": results = [MalformedPickerTokenFixture(nil), PickerTokenFixture("🎉")]
+        case "empty-string": results = [MalformedPickerTokenFixture("" as NSString), PickerTokenFixture("🎉")]
+        default:
+            Issue.record("Unexpected fixture query: \(query)")
+            results = []
+        }
+        DispatchQueue.global().async {
+            completion(results as NSArray, false)
+        }
+    }
+}
+
+private final class PickerTokenFixture: NSObject {
+    @objc let string: String
+    init(_ string: String) { self.string = string }
+}
+
+private final class MalformedPickerTokenFixture: NSObject {
+    @objc let string: AnyObject?
+    init(_ string: AnyObject?) { self.string = string }
+}
+
+@Test(arguments: ["missing-string", "non-string", "nil-string", "empty-string"])
+private func pickerSearchRejectsMalformedTokens(query: String) async {
+    await Task.detached {
+        #expect(throws: SPIError.nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")) {
+            try CPKDefaultDataSource.query(query, objectClass: PickerSearchFixture.self)
+        }
+    }.value
+}

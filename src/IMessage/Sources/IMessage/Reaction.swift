@@ -1,3 +1,10 @@
+struct ReactionSearchError: Error, CustomStringConvertible {
+    let emoji: Character
+    let underlying: Error
+
+    var description: String { "Can't react with \"\(emoji)\": \(underlying)" }
+}
+
 enum Reaction {
     case heart
     case like
@@ -81,8 +88,8 @@ enum Reaction {
             return
         }
 
-        // Fall back to the equivalent traditional Tapback on macOS versions
-        // that cannot send custom emoji reactions.
+        // Fall back to traditional Tapbacks on macOS versions that cannot
+        // send custom emoji reactions.
         switch emoji {
         /* ❤️ */ case "\u{2764}", "\u{2764}\u{fe0f}": self = .heart
         /* 👍 */ case "\u{1f44d}": self = .like

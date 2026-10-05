@@ -19,12 +19,23 @@ import Testing
     }
 }
 
-@Test func tapbackEmojiRemainsCustomWhenCustomEmojiReactionsAreSupported() throws {
-    guard case let .custom(emoji) = try #require(Reaction(emoji: "❤️", supportsCustomEmojiReactions: true)) else {
-        Issue.record("Expected ❤️ to be sent as a custom emoji reaction")
+@Test(arguments: ["❤", "❤️", "👍", "👎", "‼", "‼️", "❓", "😂"] as [Character])
+func tapbackEmojiPreservesCustomIdentity(emoji: Character) throws {
+    let reaction = try #require(Reaction(emoji: emoji, supportsCustomEmojiReactions: true))
+    guard case let .custom(character) = reaction else {
+        Issue.record("Expected custom emoji identity to be preserved for add and remove")
         return
     }
-    #expect(emoji == "❤️")
+    #expect(character == emoji)
+    #expect(reaction.idOrEmoji == String(emoji))
+}
+
+@Test func distinctEmojiRemainsCustomWhenCustomEmojiReactionsAreSupported() throws {
+    guard case let .custom(emoji) = try #require(Reaction(emoji: "😂", supportsCustomEmojiReactions: true)) else {
+        Issue.record("Expected 😂 to be sent as a custom emoji reaction rather than HAHA")
+        return
+    }
+    #expect(emoji == "😂")
 }
 
 @Test func unsupportedEmojiDoesNotFallBackWithoutCustomEmojiReactions() {

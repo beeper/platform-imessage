@@ -16,6 +16,21 @@ public enum SPIError: Error, Hashable {
 }
 
 public final class CPKDefaultDataSource {
+    public static func query(_ query: String) throws(SPIError) -> [String] {
+        Bundle(path: "/System/Library/PrivateFrameworks/CharacterPicker.framework")?.load()
+        guard let objectClass = NSClassFromString("CPKDefaultDataSource") else {
+            throw .noClass(name: "CPKDefaultDataSource")
+        }
+        return try self.query(query, objectClass: objectClass)
+    }
+
+    static func query(_ query: String, objectClass: AnyClass) throws(SPIError) -> [String] {
+        guard let results = EmojiSPIPickerSearch(objectClass, query) else {
+            throw .nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")
+        }
+        return results
+    }
+
     public static func localizedName(for character: String) throws(SPIError) -> String? {
         Bundle(path: "/System/Library/PrivateFrameworks/CharacterPicker.framework")?.load()
 
