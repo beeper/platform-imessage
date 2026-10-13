@@ -51,11 +51,17 @@ public extension IMDatabase {
         }.first ?? .empty
     }
 
-    func sentMessageIDs(since rowID: Int) throws -> [(rowID: Int, guid: String)] {
+    func sentMessageIDs(since rowID: Int, reactionsOnly: Bool = false) throws -> [(rowID: Int, guid: String)] {
+        let messageTypeClause = reactionsOnly ? """
+        AND associated_message_type BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)
+        """ : """
+        AND (associated_message_type IS NULL OR associated_message_type = 0)
+        """
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT ROWID, guid
         FROM message
         WHERE is_from_me = 1 AND ROWID > ?
+        \(messageTypeClause)
         """).reset()
         try statement.bind(rowID)
         return try statement.compactMapRowsUntilDone { row in

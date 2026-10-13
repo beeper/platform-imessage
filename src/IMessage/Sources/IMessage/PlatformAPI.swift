@@ -715,7 +715,8 @@ public final class PlatformAPI {
                 expectedLinkedMessageID: messageID,
                 text: nil,
                 lastRowID: lastRowID,
-                timeout: reactionSendTimeout
+                timeout: reactionSendTimeout,
+                reactionsOnly: true
             )
         }
     }
@@ -734,9 +735,10 @@ public final class PlatformAPI {
         expectedLinkedMessageID: String?,
         text: String?,
         lastRowID: Int,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        reactionsOnly: Bool = false
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
+        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout, reactionsOnly: reactionsOnly)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
         let address = threadIDToAddress(threadID)
         let sentThreadIsValid = try await withMessagesController { controller in
@@ -760,7 +762,8 @@ public final class PlatformAPI {
     private func waitForSentMessageIDs(
         since lastRowID: Int,
         text: String?,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        reactionsOnly: Bool = false
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
         let changes = try database.changeTopic()
@@ -772,7 +775,7 @@ public final class PlatformAPI {
             changes: changes
         ) {
             try database.withDatabase { db in
-                try db.sentMessageIDs(since: lastRowID)
+                try db.sentMessageIDs(since: lastRowID, reactionsOnly: reactionsOnly)
             }
         }
     }
