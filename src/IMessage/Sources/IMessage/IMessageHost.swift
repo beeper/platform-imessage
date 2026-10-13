@@ -127,7 +127,7 @@ public enum IMessageHost {
 
     public static func disableMessagesNotifications() async throws {
         try await Task.detached(priority: .background) {
-            _ = try PromptAutomation.disableNotificationsForApp(named: "Messages")
+            _ = try await PromptAutomation.disableNotificationsForApp(named: "Messages")
             Defaults.playSoundEffects = false
         }.value
     }

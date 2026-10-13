@@ -4,8 +4,9 @@ import AccessibilityControl
 /**
  * An abstraction over a way to make the Messages app automatable for short periods of time.
  */
-protocol WindowCoordinator {
+protocol WindowCoordinator: AnyObject {
     /** The application to coordinate. */
+    @MainActor
     var app: NSRunningApplication? { get set }
 
     /** Specifies whether the coordinator is okay with reusing an instance of Messages that was already open. */
@@ -15,32 +16,50 @@ protocol WindowCoordinator {
      * Manipulates the Messages window in such a way that it becomes controllable via Accessibility APIs.
      *
      * This is called right before the app needs to be automated.
+     *
+     * Intentionally NOT `@MainActor`: implementations perform blocking Accessibility/
+     * window-server IPC that must stay off the main thread (an unresponsive Messages.app
+     * would otherwise freeze the UI). Implementations hop to `@MainActor` only for the
+     * AppKit reads they actually need.
      */
-    func makeAutomatable(_ window: Accessibility.Element) throws
+    func makeAutomatable(_ window: Accessibility.Element) async throws
 
-    /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
-    func automationDidComplete(_ window: Accessibility.Element) throws
+    /**
+     * Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window.
+     *
+     * Takes no window argument: implementations don't need one, and passing the
+     * non-`Sendable` `Accessibility.Element` across the actor boundary into this
+     * `@MainActor` method would be a concurrency violation.
+     */
+    @MainActor
+    func automationDidComplete() throws
 
     /**
      * Reverts the manipulations performed in `makeAutomatable`.
      *
      * For example, this is called when the user manually activates the app. Coordination should quiesce until the user
      * resigns manual control.
+     *
+     * Not `@MainActor`, for the same reason as `makeAutomatable`.
      */
-    func reset(_ window: Accessibility.Element) throws
+    func reset(_ window: Accessibility.Element) async throws
 
     /** Called when the user manually activates the app. `reset` is also called in this case. */
+    @MainActor
     func userManuallyActivated(_ app: NSRunningApplication) throws
 
     /** Called when the user finishes manual control over the app. */
+    @MainActor
     func userManuallyDeactivated(_ app: NSRunningApplication) throws
 }
 
 extension WindowCoordinator {
+    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         // make this method optional
     }
 
+    @MainActor
     func userManuallyDeactivated(_: NSRunningApplication) throws {
         // make this method optional
     }

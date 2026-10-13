@@ -135,7 +135,7 @@ final class MessagesAppElements {
     }
 
     private let runningApp: NSRunningApplication
-    private let openDeepLink: (URL) throws -> Void
+    private let openDeepLink: (MessagesDeepLink) async throws -> Void
 
     let app: Accessibility.Element
 
@@ -145,7 +145,7 @@ final class MessagesAppElements {
 
     private var cachedMainWindow: Accessibility.Element?
 
-    init(runningApp: NSRunningApplication, openDeepLink: @escaping (URL) throws -> Void = { try MessagesController.openDeepLink($0) }) {
+    init(runningApp: NSRunningApplication, openDeepLink: @escaping (MessagesDeepLink) async throws -> Void) {
         self.runningApp = runningApp
         self.openDeepLink = openDeepLink
         app = Accessibility.Element(pid: runningApp.processIdentifier)
@@ -162,8 +162,8 @@ final class MessagesAppElements {
         logTime: Bool = false,
         dumpOnError: Bool = false,
         in root: Accessibility.Element? = nil,
-        _ search: () throws -> Accessibility.Element?
-    ) throws -> Accessibility.Element {
+        _ search: () async throws -> Accessibility.Element?
+    ) async throws -> Accessibility.Element {
         let startTime = logTime ? Date() : nil
 
         defer {
@@ -174,7 +174,7 @@ final class MessagesAppElements {
 
         var errors: [Error] = []
         do {
-            if let result = try search() {
+            if let result = try await search() {
                 return result
             }
         } catch {
@@ -232,6 +232,13 @@ final class MessagesAppElements {
         return allWindows.first(where: isMainWindow)
     }
 
+    var currentMainWindow: Accessibility.Element? {
+        if let cached = cachedMainWindow, cached.isFrameValid {
+            return cached
+        }
+        return getMainWindow()
+    }
+
     private func isPromptVisibleInMessagesApp() -> Bool {
         allWindows.contains(where: { (try? $0.windowCloseButton().isEnabled()) == false })
     }
@@ -264,16 +271,18 @@ final class MessagesAppElements {
     }
 
     var _mainWindowReally: Accessibility.Element {
-        get throws {
+        get async throws {
             if let cached = cachedMainWindow, cached.isFrameValid {
                 return cached
             }
-            let mainWindow = try retry(withTimeout: 5, interval: 0.2) { () throws -> Accessibility.Element in
+            let mainWindow = try await retry(withTimeout: 5, interval: 0.2) { () async throws -> Accessibility.Element in
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
             } onError: { attempt, _ in
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    try self.openDeepLink(MessagesDeepLink.compose.url())
+                    // await the open so the retry waits for it to complete (rather than
+                    // racing a fire-and-forget open against the next getMainWindow attempt).
+                    try await self.openDeepLink(MessagesDeepLink.compose)
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
@@ -323,9 +332,9 @@ final class MessagesAppElements {
     }
 
     var mainWindow: Accessibility.Element {
-        get throws {
+        get async throws {
             do {
-                return try _mainWindowReally
+                return try await _mainWindowReally
             } catch {
                 do {
                     try dumpAndLogApplicationTreeIfNeeded()
@@ -338,17 +347,18 @@ final class MessagesAppElements {
     }
 
     var conversationsList: Accessibility.Element { // takes ~34ms
-        get throws {
+        get async throws {
             // if let cached = cachedConversationsList {
             //     return cached
             // }
             let startTime = Date()
             defer { log.debug("conversationsList took \(startTime.timeIntervalSinceNow * -1000)ms") }
             // cachedConversationsList = cl
-            return try retry(withTimeout: 1, interval: 0.1) {
-                try Self.getConversationList(window: mainWindow, useFastPath: true).orThrow(ErrorMessage("ConversationList not found"))
+            return try await retry(withTimeout: 1, interval: 0.1) {
+                let window = try await mainWindow
+                return try Self.getConversationList(window: window, useFastPath: true).orThrow(ErrorMessage("ConversationList not found"))
             } onError: { _, _ in
-                let searchField = try self.searchField
+                let searchField = try await self.searchField
                 log.error("fetching ConversationList errored, calling searchField.cancel")
                 // this will close the search results if active
                 try searchField.cancel()
@@ -358,18 +368,19 @@ final class MessagesAppElements {
 
     // this return type was copied from compiler error
     var mainWindowSections: LazyMapCollection<LazyFilterSequence<LazyMapSequence<LazySequence<[[String: CFTypeRef]]>.Elements, Accessibility.Element?>>, Accessibility.Element> {
-        get throws {
-            try Self.getSectionObjects(window: mainWindow)
+        get async throws {
+            let window = try await mainWindow
+            return try Self.getSectionObjects(window: window)
         }
     }
 
     var selectedThreadCell: Accessibility.Element? {
-        get {
-            try? conversationsList.selectedChildren[0]
+        get async {
+            try? await conversationsList.selectedChildren[0]
         }
     }
 
-    private func getTranscriptView(replyTranscript: Bool) throws -> Accessibility.Element {
+    private func getTranscriptView(replyTranscript: Bool) async throws -> Accessibility.Element {
         let startTime = Date()
         defer { log.debug("getTranscriptView(replyTranscript: \(replyTranscript)) took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
@@ -385,38 +396,41 @@ final class MessagesAppElements {
         let predicate = { (el: Accessibility.Element) -> Bool in
             (try? el.identifier()) == "TranscriptCollectionView" && isReplyTranscriptView(el) == replyTranscript
         }
-        // takes ~8ms
-        if let transcriptView = try? mainWindowSections.first(where: predicate) { return transcriptView }
         // takes ~19ms
-        if let transcriptView = try? mainWindow.recursiveChildren().lazy.first(where: predicate) { return transcriptView }
+        let window = try await mainWindow
+        // takes ~8ms
+        if let transcriptView = try? Self.getSectionObjects(window: window).first(where: predicate) { return transcriptView }
+        if let transcriptView = window.recursiveChildren().lazy.first(where: predicate) { return transcriptView }
         throw ErrorMessage("TranscriptCollectionView(replyTranscript: \(replyTranscript)) not found")
     }
 
     var transcriptView: Accessibility.Element {
-        get throws {
-            try getTranscriptView(replyTranscript: false)
+        get async throws {
+            try await getTranscriptView(replyTranscript: false)
         }
     }
 
     var replyTranscriptView: Accessibility.Element {
-        get throws {
+        get async throws {
             // if let cached = cachedReplyTranscriptView, cached.isInViewport {
             //     return cached
             // }
             // cachedReplyTranscriptView = tcv
-            return try getTranscriptView(replyTranscript: true)
+            return try await getTranscriptView(replyTranscript: true)
         }
     }
 
     var messageBodyField: Accessibility.Element {
-        get throws {
+        get async throws {
             let startTime = Date()
             defer { log.debug("messageBodyField took \(startTime.timeIntervalSinceNow * -1000)ms") }
             var alternate = false
-            return try retry(withTimeout: 1.5, interval: 0.1) {
-                alternate
-                    ? try mainWindow.recursivelyFindChild(withID: "messageBodyField").orThrow(ErrorMessage("messageBodyField not found"))
-                    : try mainWindowSections.first { (try? $0.identifier()) == "messageBodyField" }.orThrow(ErrorMessage("messageBodyField not found")) // not present when compose cell is selected
+            return try await retry(withTimeout: 1.5, interval: 0.1) {
+                if alternate {
+                    let window = try await mainWindow
+                    return try window.recursivelyFindChild(withID: "messageBodyField").orThrow(ErrorMessage("messageBodyField not found"))
+                }
+                return try await mainWindowSections.first { (try? $0.identifier()) == "messageBodyField" }.orThrow(ErrorMessage("messageBodyField not found")) // not present when compose cell is selected
             } onError: { attempt, _ in
                 alternate = attempt % 2 == 0
             }
@@ -424,11 +438,12 @@ final class MessagesAppElements {
     }
 
     var searchField: Accessibility.Element {
-        get throws {
+        get async throws {
             let startTime = Date()
             defer { log.debug("searchField took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            return try retry(withTimeout: 1, interval: 0.1) {
-                let CKConversationListCollectionView = try Self.getCKConversationListCollectionView(window: mainWindow)
+            return try await retry(withTimeout: 1, interval: 0.1) {
+                let window = try await mainWindow
+                let CKConversationListCollectionView = try Self.getCKConversationListCollectionView(window: window)
                     .orThrow(ErrorMessage("CKConversationListCollectionView not found"))
                 return try CKConversationListCollectionView.children().first { (try? $0.subrole()) == Accessibility.Subrole.searchField }
                     .orThrow(ErrorMessage("searchField not found"))
@@ -437,24 +452,26 @@ final class MessagesAppElements {
     }
 
     var iOSContentGroup: Accessibility.Element { // className=UINSSceneView
-        get throws {
-            try find("iOSContentGroup") {
-                try mainWindow.children()
+        get async throws {
+            try await find("iOSContentGroup") {
+                let window = try await mainWindow
+                return try window.children()
                     .first(where: { (try? $0.subrole()) == "iOSContentGroup" && (try? $0.role()) == NSAccessibility.Role.group.rawValue })
             }
         }
     }
 
     var iOSContentGroupFirstChild: Accessibility.Element { // className= CKUIWindow_60754894 or CKPresentationControllerWindow (when reactions are open)
-        get throws {
-            try find("iOSContentGroupFirstChild", logTime: true) {
-                try iOSContentGroup.children[0]
+        get async throws {
+            try await find("iOSContentGroupFirstChild", logTime: true) {
+                let group = try await iOSContentGroup
+                return try group.children[0]
             }
         }
     }
 
     var addCustomEmojiReactionButton: Accessibility.Element {
-        get throws {
+        get async throws {
             // identifiers of the _children of_ iOSContentGroupFirstChild as of 15.3:
             // ([String?]) 5 values {
             //   [0] = "TapbackPickerCollectionView"
@@ -466,7 +483,7 @@ final class MessagesAppElements {
 
             // find element with class name `ChatKit.TapbackPickerEmojiTailView`
             // its localizedDescription is "Add custom emoji reaction", but it's likely different for non-en_US locales
-            let elem = try (try? iOSContentGroupFirstChild)?.children().first {
+            let elem = try (try? await iOSContentGroupFirstChild)?.children().first {
                 (try? $0.identifier()) == nil && (try? $0.role()) == "AXButton"
             }
             return try elem.orThrow(ErrorMessage("couldn't find button to add custom emoji reaction"))
@@ -487,9 +504,10 @@ final class MessagesAppElements {
 
     /// CharacterPalette's popover is detached from Messages' AX tree on macOS Tahoe+.
     var characterPickerPopover: Accessibility.Element {
-        get throws {
-            try find("characterPickerPopover") {
-                if let attachedPopover = try? mainWindow.recursiveChildren().lazy.first(where: CharacterPickerPopover.isPopover) {
+        get async throws {
+            try await find("characterPickerPopover") {
+                let window = try await mainWindow
+                if let attachedPopover = window.recursiveChildren().lazy.first(where: CharacterPickerPopover.isPopover) {
                     return attachedPopover
                 }
 
@@ -500,27 +518,29 @@ final class MessagesAppElements {
 
     /// The search field within the emoji picker popover.
     var characterPickerSearchField: Accessibility.Element {
-        get throws {
-            try find("characterPickerSearchField") {
-                try characterPickerPopoverLocator.searchField(in: characterPickerPopover)
+        get async throws {
+            try await find("characterPickerSearchField") {
+                let popover = try await characterPickerPopover
+                return characterPickerPopoverLocator.searchField(in: popover)
             }
         }
     }
 
     var splitter: Accessibility.Element {
-        get throws {
-            try find("splitter", logTime: true) {
-                try iOSContentGroupFirstChild.children().first(where: { (try? $0.role()) == Accessibility.Role.splitter })
+        get async throws {
+            try await find("splitter", logTime: true) {
+                let content = try await iOSContentGroupFirstChild
+                return try content.children().first(where: { (try? $0.role()) == Accessibility.Role.splitter })
             }
         }
     }
 
     var reactionsView: Accessibility.Element {
-        get throws {
+        get async throws {
             let startTime = Date()
             defer { log.debug("reactionsView took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            return try retry(withTimeout: 1.5, interval: 0.1) {
-                let view = try iOSContentGroupFirstChild
+            return try await retry(withTimeout: 1.5, interval: 0.1) {
+                let view = try await iOSContentGroupFirstChild
                 guard (try? view.children.count()) ?? 0 > 0 else {
                     throw ErrorMessage("reactionsView not found")
                 }
@@ -530,7 +550,7 @@ final class MessagesAppElements {
     }
 
     var reactButtons: [Accessibility.Element] {
-        get throws {
+        get async throws {
             let startTime = Date()
             defer { log.debug("reactButtons took \(startTime.timeIntervalSinceNow * -1000)ms") }
             /*
@@ -544,7 +564,7 @@ final class MessagesAppElements {
              Reply -- only shows up when not in overlay mode
              Pin -- only shows up for links/tweets in Monterey or above
              */
-            guard let buttons = try? reactionsView.children().filter({ (try? $0.role()) == Accessibility.Role.button }) else {
+            guard let buttons = try? await reactionsView.children().filter({ (try? $0.role()) == Accessibility.Role.button }) else {
                 throw ErrorMessage("reactButtons not found")
             }
             return buttons
@@ -552,10 +572,10 @@ final class MessagesAppElements {
     }
 
     var tapbackPickerCollectionView: Accessibility.Element {
-        get throws {
+        get async throws {
             let startTime = Date()
             defer { log.debug("tapbackPickerCollectionView took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            guard let element = try? reactionsView.children().first(where: { (try? $0.identifier()) == "TapbackPickerCollectionView" }) else {
+            guard let element = try? await reactionsView.children().first(where: { (try? $0.identifier()) == "TapbackPickerCollectionView" }) else {
                 throw ErrorMessage("tapbackPickerCollectionView not found")
             }
             return element
@@ -563,26 +583,28 @@ final class MessagesAppElements {
     }
 
     var alertSheet: Accessibility.Element {
-        get throws {
-            try find("alertSheet") {
-                try mainWindow.children().first(where: { try $0.role() == Accessibility.Role.sheet })
+        get async throws {
+            try await find("alertSheet") {
+                let window = try await mainWindow
+                return try window.children().first(where: { try $0.role() == Accessibility.Role.sheet })
             }
         }
     }
 
     var alertSheetDeleteButton: Accessibility.Element {
-        get throws {
-            try find("alertSheetDeleteButton") {
-                try alertSheet.children().first(where: { try $0.role() == Accessibility.Role.button })
+        get async throws {
+            try await find("alertSheetDeleteButton") {
+                let sheet = try await alertSheet
+                return try sheet.children().first(where: { try $0.role() == Accessibility.Role.button })
             }
         }
     }
 
     var notifyAnywayButton: Accessibility.Element {
-        get throws {
+        get async throws {
             let startTime = Date()
             defer { log.debug("notifyAnywayButton took \(startTime.timeIntervalSinceNow * -1000)ms") }
-            let transcriptView = try self.transcriptView
+            let transcriptView = try await self.transcriptView
             let cells = try Self.threadActivityCells(in: transcriptView)
             return try cells.lazy.reversed().compactMap {
                 guard let child = try? $0.children[0],
@@ -596,8 +618,9 @@ final class MessagesAppElements {
     }
 
     var editableMessageField: Accessibility.Element {
-        get throws {
-            let editingConfirmButton = try iOSContentGroup.recursiveChildren().lazy.first(where: {
+        get async throws {
+            let group = try await iOSContentGroup
+            let editingConfirmButton = try group.recursiveChildren().lazy.first(where: {
                 (try? $0.localizedDescription()) == LocalizedStrings.editingConfirm
             }).orThrow(ErrorMessage("editingConfirmButton not found"))
             return try editingConfirmButton.parent().recursiveChildren().lazy.first(where: {
@@ -607,27 +630,30 @@ final class MessagesAppElements {
     }
 
     var menu: Accessibility.Element {
-        get throws {
-            try retry(withTimeout: 2, interval: 0.1) {
-                try iOSContentGroup.children().first { try $0.role() == Accessibility.Role.menu }
+        get async throws {
+            try await retry(withTimeout: 2, interval: 0.1) {
+                let group = try await iOSContentGroup
+                return try group.children().first { try $0.role() == Accessibility.Role.menu }
                     .orThrow(ErrorMessage("menu not found"))
             }
         }
     }
 
     var menuEditItem: Accessibility.Element {
-        get throws {
-            try retry(withTimeout: 1, interval: 0.05) {
-                try menu.children().first { (try? $0.identifier()) == "edit" }
+        get async throws {
+            try await retry(withTimeout: 1, interval: 0.05) {
+                let contextMenu = try await self.menu
+                return try contextMenu.children().first { (try? $0.identifier()) == "edit" }
                     .orThrow(ErrorMessage("Couldn't find \"Edit\" menu item; messages are only editable for 15 minutes after sending"))
             }
         }
     }
 
     var cancelEditButton: Accessibility.Element {
-        get throws {
-            try find("cancelEditButton") {
-                try iOSContentGroupFirstChild.recursiveChildren()
+        get async throws {
+            try await find("cancelEditButton") {
+                let content = try await iOSContentGroupFirstChild
+                return content.recursiveChildren()
                     .first(where: {
                         (try? $0.localizedDescription()) == LocalizedStrings.editingReject
                     })
@@ -637,9 +663,10 @@ final class MessagesAppElements {
 
     // only works when there's an address in the field, not for empty compose threads
     var toFieldPopupButton: Accessibility.Element {
-        get throws {
-            try find("toFieldPopupButton") {
-                try iOSContentGroup.children[0].children().first { try $0.role() == Accessibility.Role.popUpButton }
+        get async throws {
+            try await find("toFieldPopupButton") {
+                let group = try await iOSContentGroup
+                return try group.children[0].children().first { try $0.role() == Accessibility.Role.popUpButton }
             }
         }
     }
