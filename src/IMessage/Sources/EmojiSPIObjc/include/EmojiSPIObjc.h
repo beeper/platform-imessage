@@ -7,9 +7,6 @@ NSObject *_Nullable EmojiSPITokenCreate(Class objectClass,
                                        NSString *string,
                                        NSString *localeIdentifier);
 
-NSObject *_Nullable EmojiSPISearchEngineCreate(Class objectClass,
-                                              NSLocale *locale);
-
 NS_ASSUME_NONNULL_END
 
 // Returns nil when search is unavailable or its callback times out.
