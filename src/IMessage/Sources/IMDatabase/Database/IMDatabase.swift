@@ -22,6 +22,7 @@ private let messageIndexes = [
 public final class IMDatabase {
     // `~/Library/Messages/`
     let messagesDataDirectory: URL
+    private let messagesDirectoryAccess: URL?
     // coalesce multiple filesystem changes if they happen in a short period
     public var debounceInterval: DispatchTimeInterval = .milliseconds(25)
 
@@ -55,11 +56,19 @@ public final class IMDatabase {
         defer { log.debug("database created") }
         #endif
 
-        if createIndexes {
-            try Self.createIndexesIfNecessary(in: messagesDataDirectory)
+        let restoredAccess = messagesDataBaseURL == nil
+            ? MessagesDirectoryAccess.restoreSavedBookmark(for: messagesDataDirectory)
+            : nil
+        do {
+            if createIndexes {
+                try Self.createIndexesIfNecessary(in: messagesDataDirectory)
+            }
+            self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
+        } catch {
+            restoredAccess?.stopAccessingSecurityScopedResource()
+            throw error
         }
-
-        self.database = try Database(connecting: chatDatabaseFile(in: messagesDataDirectory).path, flags: .readOnly)
+        self.messagesDirectoryAccess = restoredAccess
     }
 
     func cachedStatement(forEscapedSQL sql: String) throws -> Statement {
@@ -77,6 +86,7 @@ public final class IMDatabase {
         listenerLock.withLock { _ in
             stopListeningForChangesLocked()
         }
+        messagesDirectoryAccess?.stopAccessingSecurityScopedResource()
     }
 }
 

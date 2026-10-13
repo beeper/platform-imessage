@@ -11,8 +11,6 @@ public struct CharacterPickerSearch {
             throw Error.noLocalizedName
         }
 
-        let searchEngine = try EMFEmojiSearchEngine()
-
         let queriesToAttempt = [
             localizedName,
 
@@ -25,7 +23,7 @@ public struct CharacterPickerSearch {
         let firstSuceedingQuery = try queriesToAttempt
             .lazy
             .compactMap { query -> (String, Int)? in
-                let results = try searchEngine.query(query)
+                let results = try CPKDefaultDataSource.query(query)
                 guard !results.isEmpty,
                       let position = results.firstIndex(where: { $0.first?.withoutVariantSelectors == emoji.withoutVariantSelectors })
                 else { return nil }

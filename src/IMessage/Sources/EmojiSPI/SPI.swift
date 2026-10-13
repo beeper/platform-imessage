@@ -1,4 +1,5 @@
 import IMessageCore
+import EmojiSPIObjc
 import Darwin
 import Foundation
 
@@ -15,6 +16,21 @@ public enum SPIError: Error, Hashable {
 }
 
 public final class CPKDefaultDataSource {
+    public static func query(_ query: String) throws(SPIError) -> [String] {
+        Bundle(path: "/System/Library/PrivateFrameworks/CharacterPicker.framework")?.load()
+        guard let objectClass = NSClassFromString("CPKDefaultDataSource") else {
+            throw .noClass(name: "CPKDefaultDataSource")
+        }
+        return try self.query(query, objectClass: objectClass)
+    }
+
+    static func query(_ query: String, objectClass: AnyClass) throws(SPIError) -> [String] {
+        guard let results = EmojiSPIPickerSearch(objectClass, query) else {
+            throw .nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")
+        }
+        return results
+    }
+
     public static func localizedName(for character: String) throws(SPIError) -> String? {
         Bundle(path: "/System/Library/PrivateFrameworks/CharacterPicker.framework")?.load()
 
@@ -42,23 +58,26 @@ public final class CPKDefaultDataSource {
 public final class EMFEmojiToken {
     private let underlying: NSObject
 
-    public init(character: Character, locale: Locale = .current) throws(SPIError) {
+    public convenience init(character: Character, locale: Locale = .current) throws(SPIError) {
         Bundle(path: "/System/Library/PrivateFrameworks/EmojiFoundation.framework")?.load()
 
-        // uninitialized = [EMFEmojiToken init];
         let className = "EMFEmojiToken"
         guard let `class` = NSClassFromString(className) else {
             throw .noClass(name: className)
         }
-        let uninitialized = `class`.alloc()
+        try self.init(character: character, locale: locale, objectClass: `class`)
+    }
 
-        // token = [uninitialized initWithString:character localeIdentifier:locale];
-        let initMethodName = "initWithString:localeIdentifier:"
-        guard let unmanaged = uninitialized.perform(Selector(initMethodName), with: String(character) as NSString, with: locale) else {
-            throw .nilResponse(method: initMethodName)
-        }
-        guard let token = unmanaged.takeUnretainedValue() as? NSObject else {
+    init(character: Character, locale: Locale, objectClass: AnyClass) throws(SPIError) {
+        guard let objectClass = objectClass as? NSObject.Type else {
             throw .castFailure
+        }
+        let initMethodName = "initWithString:localeIdentifier:"
+        guard objectClass.instancesRespond(to: Selector(initMethodName)) else {
+            throw .noInstanceMethod
+        }
+        guard let token = EmojiSPITokenCreate(objectClass, String(character), locale.identifier) else {
+            throw .nilResponse(method: initMethodName)
         }
 
         underlying = token
@@ -91,39 +110,5 @@ public final class EMFEmojiToken {
             typealias GetterIMP = @convention(c) (Any, Selector) -> Bool
             return unsafeBitCast(method_getImplementation(method), to: GetterIMP.self)(underlying, supportsSkinToneVariantsSelector)
         }
-    }
-}
-
-public final class EMFEmojiSearchEngine {
-    private let underlying: NSObject
-
-    public init(locale: Locale = .current) throws(SPIError) {
-        Bundle(path: "/System/Library/PrivateFrameworks/EmojiFoundation.framework")?.load()
-
-        // [EMFEmojiSearchEngine alloc]
-        let className = "EMFEmojiSearchEngine"
-        guard let `class` = NSClassFromString(className) else {
-            throw .noClass(name: className)
-        }
-        let uninitialized = `class`.alloc()
-
-        // [… initWithLocale:locale]
-        let methodName = "initWithLocale:"
-        guard let unmanaged = uninitialized.perform(Selector(methodName), with: locale) else {
-            throw .nilResponse(method: methodName)
-        }
-        guard let engine = unmanaged.takeUnretainedValue() as? NSObject else {
-            throw .castFailure
-        }
-
-        underlying = engine
-    }
-
-    public func query(_ query: String) throws(SPIError) -> [String] {
-        let methodName = "performStringQuery:"
-        guard let results = underlying.perform(Selector(methodName), with: query) else {
-            throw .nilResponse(method: methodName)
-        }
-        return results.takeUnretainedValue() as? [String] ?? []
     }
 }

@@ -1,22 +1,3 @@
-func printOverrides() {
-    let searchEngine = EMFEmojiSearchEngine(locale: .current)!
-    let map = searchEngine.overrideList.value(forKey: "_overrideMap") as! [String: [String: Any]]
-    for (name, metadata) in map.sorted(by: { $0.key < $1.key }) {
-        // there's a real `init` for this but i can't be bothered
-        let override = EMFQueryResultOverride(
-            overridesArray: metadata["results"] as? [Any],
-            // 0 = raw string exact match, 1 = raw string prefix match, 2 = exact match, 3 = prefix match
-            // (these constants could be `overrideBehaviorType` instead of `searchType`, didn't check very hard)
-            searchType: metadata["searchType"],
-            behavior: metadata["overrideBehaviorType"]
-        )
-        let stringRepresentation = if let results = override?.results {
-            String(reflecting: results)
-        } else { "…" }
-        print("\(name) \(stringRepresentation)")
-    }
-}
-
 func calculateMappings() async throws {
     let mapping = AppleEmojiNames.mapping.flatMap { $0 as? [String: String] }
     let langs = CPKDefaultDataSource.preferredLanguagesForSearch()

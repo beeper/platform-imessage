@@ -753,6 +753,7 @@ public final class PlatformAPI {
         name: String,
         retries: Int,
         prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
+        shouldRetry: ((Error) -> Bool)? = nil,
         _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
@@ -763,7 +764,7 @@ public final class PlatformAPI {
             }
             try await afterAttempt?(context)
             return context
-        } onError: { _, retriesLeft, error in
+        } shouldRetry: { shouldRetry?($0) ?? true } onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
             self.reportErrorMessage("imessage \(name) failed: \(error)")
         }
@@ -773,7 +774,8 @@ public final class PlatformAPI {
         try await performControllerOperation(
             name: on ? "addReaction" : "removeReaction",
             retries: 2,
-            prepareAttempt: { try await self.lastMessageRowID() }
+            prepareAttempt: { try await self.lastMessageRowID() },
+            shouldRetry: { !($0 is ReactionSearchError) }
         ) { controller in
             try await controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
         } afterAttempt: { lastRowID in
