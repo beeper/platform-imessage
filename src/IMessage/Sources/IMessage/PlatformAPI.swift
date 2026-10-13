@@ -263,27 +263,31 @@ public final class PlatformAPI {
             }
 
             if let existingThread {
-                try await withMessagesController { controller in
-                    try controller.sendMessage(
-                        threadID: existingThreadID,
-                        addresses: nil,
-                        text: messageText,
-                        filePath: nil,
-                        quotedMessage: nil
-                    )
+                try await withMessageSendLock {
+                    try await withMessagesController { controller in
+                        try controller.sendMessage(
+                            threadID: existingThreadID,
+                            addresses: nil,
+                            text: messageText,
+                            filePath: nil,
+                            quotedMessage: nil
+                        )
+                    }
                 }
                 return .thread(existingThread)
             }
         }
 
-        try await withMessagesController { controller in
-            try controller.sendMessage(
-                threadID: nil,
-                addresses: userIDs,
-                text: messageText,
-                filePath: nil,
-                quotedMessage: nil
-            )
+        try await withMessageSendLock {
+            try await withMessagesController { controller in
+                try controller.sendMessage(
+                    threadID: nil,
+                    addresses: userIDs,
+                    text: messageText,
+                    filePath: nil,
+                    quotedMessage: nil
+                )
+            }
         }
         return .boolean(true)
     }
