@@ -443,6 +443,14 @@ private func digitalTouchMessageDropsWhitespacePlaceholderText() throws {
 }
 
 @Test
+private func stickerDisplaySizeConvertsAt3xPixelsToPoints() {
+    let size = stickerDisplaySize(pixelSize: PlatformSDK.Size(width: 618, height: 408))
+
+    #expect(size.width == 206)
+    #expect(size.height == 136)
+}
+
+@Test
 private func platformSDKJSONObjectMacroSerializesWireShape() throws {
     let attachment = PlatformSDK.Attachment(
         id: "attachment-id",
