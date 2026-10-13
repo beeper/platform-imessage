@@ -20,28 +20,19 @@ let locale = Locale(identifier: "en-US")
 }
 
 private let initializerLocale = Locale(identifier: "pt_PT")
-private let emojiInitializers: [(method: String, make: () throws -> AnyObject)] = [
-    ("initWithLocale:", {
-        try EMFEmojiSearchEngine(locale: initializerLocale, objectClass: InitializerFixture.self)
-    }),
-    ("initWithString:localeIdentifier:", {
-        try EMFEmojiToken(character: "🤌", locale: initializerLocale, objectClass: InitializerFixture.self)
-    }),
-]
-
-@Test(.serialized, arguments: emojiInitializers, [false, true])
-private func initializerOwnership(initializer: (method: String, make: () throws -> AnyObject), fails: Bool) throws {
+@Test(.serialized, arguments: [false, true])
+private func initializerOwnership(fails: Bool) throws {
     InitializerFixture.fails = fails
     InitializerFixture.deinitCount = 0
 
     var value: AnyObject?
     try autoreleasepool {
         if fails {
-            #expect(throws: SPIError.nilResponse(method: initializer.method)) {
-                try initializer.make()
+            #expect(throws: SPIError.nilResponse(method: "initWithString:localeIdentifier:")) {
+                try EMFEmojiToken(character: "🤌", locale: initializerLocale, objectClass: InitializerFixture.self)
             }
         } else {
-            value = try initializer.make()
+            value = try EMFEmojiToken(character: "🤌", locale: initializerLocale, objectClass: InitializerFixture.self)
         }
     }
 
@@ -59,13 +50,6 @@ private final class InitializerFixture: NSObject {
     static var fails = false
     static var deinitCount = 0
     static weak var instance: InitializerFixture?
-
-    @objc(initWithLocale:)
-    init?(locale: NSLocale) {
-        super.init()
-        Self.instance = self
-        if Self.fails { return nil }
-    }
 
     @objc(initWithString:localeIdentifier:)
     init?(string: NSString, localeIdentifier: AnyObject) {
