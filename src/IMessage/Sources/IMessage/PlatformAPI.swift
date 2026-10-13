@@ -796,7 +796,7 @@ public final class PlatformAPI {
             if !matchingRows.isEmpty {
                 candidateRows = matchingRows
             } else if Date().timeIntervalSince(startedAt) >= sentContentMatchGracePeriod {
-                candidateRows = conversationRows
+                candidateRows = conversationRows.filter { content?.isSameKind($0) ?? true }
             } else {
                 candidateRows = []
             }
@@ -1281,13 +1281,27 @@ private enum SentContent: Sendable {
             guard let rowText = row.text else { return false }
             return normalizedSentText(rowText) == normalizedSentText(text)
         case let .file(fileName):
-            return row.attachmentNames.contains(fileName)
+            let fileExtension = (fileName as NSString).pathExtension.lowercased()
+            return row.attachmentNames.contains { name in
+                name == fileName || (!fileExtension.isEmpty && (name as NSString).pathExtension.lowercased() == fileExtension)
+            }
         case let .reaction(messageGUID, on):
             guard let associatedMessageGUID = row.associatedMessageGUID,
                   let associatedMessageType = row.associatedMessageType else {
                 return false
             }
             return associatedMessageGUID.hasSuffix(messageGUID) && (associatedMessageType < 3000) == on
+        }
+    }
+
+    func isSameKind(_ row: SentMessageRow) -> Bool {
+        switch self {
+        case .text:
+            return row.attachmentNames.isEmpty
+        case .file:
+            return !row.attachmentNames.isEmpty
+        case .reaction:
+            return true
         }
     }
 }
