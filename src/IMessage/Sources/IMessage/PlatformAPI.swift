@@ -8,7 +8,7 @@ private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
-private let waitForSentThreadTimeout: TimeInterval = 10
+private let sentContentMatchGracePeriod: TimeInterval = 1.5
 private let loadAttachmentTimeout: TimeInterval = 60
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
@@ -327,6 +327,7 @@ public final class PlatformAPI {
                 threadID: threadID,
                 expectedLinkedMessageID: quotedMessageID,
                 text: text,
+                content: text.map(SentContent.text) ?? filePath.map { .file(URL(fileURLWithPath: $0).lastPathComponent) },
                 lastRowID: lastRowID,
                 timeout: messageSendTimeout
             )
@@ -721,6 +722,7 @@ public final class PlatformAPI {
                     threadID: threadID,
                     expectedLinkedMessageID: messageID,
                     text: nil,
+                    content: .reaction(messageGUID: messageIDParts(fromID: messageID).messageGUID, on: on),
                     lastRowID: lastRowID,
                     timeout: reactionSendTimeout,
                     reactionsOnly: true
@@ -742,39 +744,36 @@ public final class PlatformAPI {
         threadID: String,
         expectedLinkedMessageID: String?,
         text: String?,
+        content: SentContent?,
         lastRowID: Int,
         timeout: TimeInterval,
         reactionsOnly: Bool = false
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout, reactionsOnly: reactionsOnly)
-        let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
-        let address = threadIDToAddress(threadID)
-        let sentThreadIsValid = try await withMessagesController { controller in
-            sentThreadIDs.allSatisfy { sentThreadID in
-                if sentThreadID == threadID { return true }
-                guard let sentThreadID else { return false }
-                return controller.isSameContact(address, threadIDToAddress(sentThreadID))
-            }
-        }
-
-        guard sentThreadIsValid else {
-            platformLog.error("imsg: imessage potentially sent messages to invalid thread")
-            return .boolean(true)
-        }
-
+        let sentMessageIDs = try await waitForSentMessageIDs(
+            threadID: threadID,
+            since: lastRowID,
+            text: text,
+            content: content,
+            timeout: timeout,
+            reactionsOnly: reactionsOnly
+        )
         let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
     }
 
     private func waitForSentMessageIDs(
+        threadID: String,
         since lastRowID: Int,
         text: String?,
+        content: SentContent?,
         timeout: TimeInterval,
         reactionsOnly: Bool = false
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
         let changes = try database.changeTopic()
+        let startedAt = Date()
+        let conversationMatches = Protected<[String: Bool]>([:])
         // Not via Task.detached, so caller cancellation propagates and the wait
         // stops promptly instead of running to its own timeout.
         return try await DatabaseTickWaits.sentMessageIDs(
@@ -782,26 +781,47 @@ public final class PlatformAPI {
             timeout: timeout,
             changes: changes
         ) {
-            try database.withDatabase { db in
-                try db.sentMessageIDs(since: lastRowID, reactionsOnly: reactionsOnly)
+            let rows = try database.withDatabase { db in
+                try db.sentMessageRows(since: lastRowID, reactionsOnly: reactionsOnly)
             }
+            var conversationRows = [SentMessageRow]()
+            for row in rows {
+                guard let chatGUID = row.chatGUID else { continue }
+                if try await self.isSameConversation(threadID, chatGUID, cache: conversationMatches) {
+                    conversationRows.append(row)
+                }
+            }
+            let matchingRows = conversationRows.filter { content?.matches($0) ?? true }
+            let candidateRows: [SentMessageRow]
+            if !matchingRows.isEmpty {
+                candidateRows = matchingRows
+            } else if Date().timeIntervalSince(startedAt) >= sentContentMatchGracePeriod {
+                candidateRows = conversationRows.filter { content?.isSameKind($0) ?? true }
+            } else {
+                candidateRows = []
+            }
+            return (text == nil ? Array(candidateRows.prefix(1)) : candidateRows).map { ($0.rowID, $0.guid) }
         }
     }
 
-    private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
-        let database = database
-        let changes = try database.changeTopic()
-        // Not via Task.detached, so caller cancellation propagates.
-        return try await DatabaseTickWaits.sentThreadIDs(
-            timeout: waitForSentThreadTimeout,
-            changes: changes
-        ) {
-            try messageRowIDs.map { rowID in
-                try database.withDatabase { db in
-                    try db.threadIDForMessage(rowID: rowID)
-                }
-            }
+    private func isSameConversation(_ targetThreadID: String, _ sentThreadID: String, cache: Protected<[String: Bool]>) async throws -> Bool {
+        if sentThreadID == targetThreadID {
+            return true
         }
+        if let cached = cache.read()[sentThreadID] {
+            return cached
+        }
+        let (targetAddresses, sentAddresses) = try database.withDatabase { db in
+            (
+                try db.handles(inChatWithGUID: targetThreadID).map(\.id),
+                try db.handles(inChatWithGUID: sentThreadID).map(\.id)
+            )
+        }
+        let isSame = try await withMessagesController { controller in
+            controller.haveSameRecipients(targetAddresses, sentAddresses)
+        }
+        cache.withLock { $0[sentThreadID] = isSame }
+        return isSame
     }
 
     private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [PlatformSDK.Message] {
@@ -1248,4 +1268,49 @@ extension PlatformAPI {
             return .data(pngData)
         }
     }
+}
+
+private enum SentContent: Sendable {
+    case text(String)
+    case file(String)
+    case reaction(messageGUID: String, on: Bool)
+
+    func matches(_ row: SentMessageRow) -> Bool {
+        switch self {
+        case let .text(text):
+            guard let rowText = row.text else { return false }
+            return normalizedSentText(rowText) == normalizedSentText(text)
+        case let .file(fileName):
+            let fileExtension = (fileName as NSString).pathExtension.lowercased()
+            return row.attachmentNames.contains { name in
+                name == fileName || (!fileExtension.isEmpty && (name as NSString).pathExtension.lowercased() == fileExtension)
+            }
+        case let .reaction(messageGUID, on):
+            guard let associatedMessageGUID = row.associatedMessageGUID,
+                  let associatedMessageType = row.associatedMessageType else {
+                return false
+            }
+            return associatedMessageGUID.hasSuffix(messageGUID) && (associatedMessageType < 3000) == on
+        }
+    }
+
+    func isSameKind(_ row: SentMessageRow) -> Bool {
+        switch self {
+        case .text:
+            return row.attachmentNames.isEmpty
+        case .file:
+            return !row.attachmentNames.isEmpty
+        case .reaction:
+            return true
+        }
+    }
+}
+
+private func normalizedSentText(_ text: String) -> String {
+    text
+        .replacingOccurrences(of: "\u{FFFC}", with: "")
+        .replacingOccurrences(of: "[\u{2018}\u{2019}]", with: "'", options: .regularExpression)
+        .replacingOccurrences(of: "[\u{201C}\u{201D}]", with: "\"", options: .regularExpression)
+        .split(whereSeparator: \.isWhitespace)
+        .joined(separator: " ")
 }
