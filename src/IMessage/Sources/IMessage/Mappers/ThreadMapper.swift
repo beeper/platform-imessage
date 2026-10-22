@@ -54,8 +54,26 @@ enum ThreadMapper {
                 : nil,
             unreadCount: unreadCount,
             isMarkedUnread: isUnread,
-            lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp)
+            lastReadMessageSortKey: lastReadMessageSortKey(
+                lastReadMessageTimestamp: chat.lastReadMessageTimestamp,
+                latestMessageDate: chat.msgDate,
+                unreadCount: unreadCount
+            )
         )
+    }
+
+    // Messages can leave `last_read_message_timestamp` behind rows it already
+    // treats as read, such as handle-less system rows or messages read on
+    // another device. Desktop counts every message newer than this key as
+    // unread, so a chat Messages considers read would come back unread on
+    // every launch. When Messages has no unread messages, the newest message
+    // is the read position.
+    static func lastReadMessageSortKey(lastReadMessageTimestamp: Int?, latestMessageDate: Int?, unreadCount: Int) -> PlatformSDK.Timestamp? {
+        let lastRead = appleDateMilliseconds(lastReadMessageTimestamp)
+        guard unreadCount == 0, let latest = appleDateMilliseconds(latestMessageDate) else {
+            return lastRead
+        }
+        return max(lastRead ?? latest, latest)
     }
 
     private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> PlatformSDK.Participant? {
