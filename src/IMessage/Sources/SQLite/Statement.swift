@@ -100,6 +100,7 @@ public extension Statement {
         }
     }
 
+    @inline(never)
     func stepUntilStopped(handlingRows rowHandler: (_ selected: borrowing Row) throws -> Bool) throws {
         do {
             while try SQLiteError.check(sqlite3_step(handle), permitting: [SQLITE_ROW, SQLITE_DONE]) == SQLITE_ROW {
