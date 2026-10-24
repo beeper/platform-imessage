@@ -270,27 +270,31 @@ public final class PlatformAPI {
             }
 
             if let existingThread {
-                try await withMessagesController { controller in
-                    try await controller.sendMessage(
-                        threadID: existingThreadID,
-                        addresses: nil,
-                        text: messageText,
-                        filePath: nil,
-                        quotedMessage: nil
-                    )
+                try await withMessageSendLock {
+                    try await withMessagesController { controller in
+                        try await controller.sendMessage(
+                            threadID: existingThreadID,
+                            addresses: nil,
+                            text: messageText,
+                            filePath: nil,
+                            quotedMessage: nil
+                        )
+                    }
                 }
                 return .thread(existingThread)
             }
         }
 
-        try await withMessagesController { controller in
-            try await controller.sendMessage(
-                threadID: nil,
-                addresses: userIDs,
-                text: messageText,
-                filePath: nil,
-                quotedMessage: nil
-            )
+        try await withMessageSendLock {
+            try await withMessagesController { controller in
+                try await controller.sendMessage(
+                    threadID: nil,
+                    addresses: userIDs,
+                    text: messageText,
+                    filePath: nil,
+                    quotedMessage: nil
+                )
+            }
         }
         return .boolean(true)
     }
@@ -329,26 +333,28 @@ public final class PlatformAPI {
             throw ErrorMessage("Cannot send message to email address over SMS")
         }
 
-        let lastRowID = try await performControllerOperation(
-            name: "sendMessage",
-            retries: quotedMessageID == nil ? 1 : 2,
-            prepareAttempt: { try await self.lastMessageRowID() }
-        ) { controller in
-            try await controller.sendMessage(
+        return try await withMessageSendLock {
+            let lastRowID = try await performControllerOperation(
+                name: "sendMessage",
+                retries: quotedMessageID == nil ? 1 : 2,
+                prepareAttempt: { try await self.lastMessageRowID() }
+            ) { controller in
+                try await controller.sendMessage(
+                    threadID: threadID,
+                    text: text,
+                    filePath: filePath,
+                    quotedMessageID: quotedMessageID
+                )
+            }
+
+            return try await waitForMessageSend(
                 threadID: threadID,
+                expectedLinkedMessageID: quotedMessageID,
                 text: text,
-                filePath: filePath,
-                quotedMessageID: quotedMessageID
+                lastRowID: lastRowID,
+                timeout: messageSendTimeout
             )
         }
-
-        return try await waitForMessageSend(
-            threadID: threadID,
-            expectedLinkedMessageID: quotedMessageID,
-            text: text,
-            lastRowID: lastRowID,
-            timeout: messageSendTimeout
-        )
     }
 
     public func sendFileFromBuffer(threadID publicThreadID: String, fileBuffer: Data, fileName: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
@@ -771,21 +777,24 @@ public final class PlatformAPI {
     }
 
     private func retryReactionOperation(threadID: String, messageID: String, reaction: String, on: Bool) async throws {
-        try await performControllerOperation(
-            name: on ? "addReaction" : "removeReaction",
-            retries: 2,
-            prepareAttempt: { try await self.lastMessageRowID() },
-            shouldRetry: { !($0 is ReactionSearchError) }
-        ) { controller in
-            try await controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
-        } afterAttempt: { lastRowID in
-            _ = try await self.waitForMessageSend(
-                threadID: threadID,
-                expectedLinkedMessageID: messageID,
-                text: nil,
-                lastRowID: lastRowID,
-                timeout: reactionSendTimeout
-            )
+        try await withMessageSendLock {
+            try await performControllerOperation(
+                name: on ? "addReaction" : "removeReaction",
+                retries: 2,
+                prepareAttempt: { try await self.lastMessageRowID() },
+                shouldRetry: { !($0 is ReactionSearchError) }
+            ) { controller in
+                try await controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
+            } afterAttempt: { lastRowID in
+                _ = try await self.waitForMessageSend(
+                    threadID: threadID,
+                    expectedLinkedMessageID: messageID,
+                    text: nil,
+                    lastRowID: lastRowID,
+                    timeout: reactionSendTimeout,
+                    reactionsOnly: true
+                )
+            }
         }
     }
 
@@ -803,9 +812,10 @@ public final class PlatformAPI {
         expectedLinkedMessageID: String?,
         text: String?,
         lastRowID: Int,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        reactionsOnly: Bool = false
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout)
+        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout, reactionsOnly: reactionsOnly)
         let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
         let address = threadIDToAddress(threadID)
         let sentThreadIsValid = try await withMessagesController { controller in
@@ -829,7 +839,8 @@ public final class PlatformAPI {
     private func waitForSentMessageIDs(
         since lastRowID: Int,
         text: String?,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        reactionsOnly: Bool = false
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
         let changes = try database.changeTopic()
@@ -841,7 +852,7 @@ public final class PlatformAPI {
             changes: changes
         ) {
             try database.withDatabase { db in
-                try db.sentMessageIDs(since: lastRowID)
+                try db.sentMessageIDs(since: lastRowID, reactionsOnly: reactionsOnly)
             }
         }
     }
