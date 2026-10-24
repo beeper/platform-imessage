@@ -48,8 +48,7 @@ func dockSuppressionPropagatesWriteFailure() {
             writes += 1
             throw ErrorMessage("LaunchServices rejected the write")
         }, read: {
-            Issue.record("Must not read after a failed write")
-            return nil
+            "Foreground"
         }, settle: {
             Issue.record("Must not settle after a failed write")
         })
@@ -63,7 +62,7 @@ func dockRestorationUsesMatchingForegroundPair() throws {
     var writes: [String] = []
     var settlements = 0
     try MessagesDockSuppression.apply(
-        types: ["Foreground"],
+        target: .foreground,
         write: { key, value in
             writes.append("\(key)=\(value)")
             if key == "ApplicationType" { current = value }
@@ -83,10 +82,44 @@ func dockRestorationUsesMatchingForegroundPair() throws {
 @Test
 func dockRestorationRejectsSilentNoOp() {
     #expect(throws: (any Error).self) {
-        try MessagesDockSuppression.apply(types: ["Foreground"], write: { _, _ in }, read: { "invalid" }, settle: {
+        try MessagesDockSuppression.apply(target: .foreground, write: { _, _ in }, read: { "invalid" }, settle: {
             Issue.record("Must not settle after a rejected restoration")
         })
     }
+}
+
+@Test
+func dockSuppressionRestoresForegroundAfterPartialFailure() {
+    var current = "Foreground"
+    var restored = false
+    #expect(throws: (any Error).self) {
+        try MessagesDockSuppression.apply(write: { key, value in
+            guard key == "ApplicationType" else { return }
+            if value == "invalid" { throw ErrorMessage("Rejected final type") }
+            current = value
+            if value == "Foreground" { restored = true }
+        }, read: {
+            current
+        }, settle: {})
+    }
+    #expect(restored)
+    #expect(current == "Foreground")
+}
+
+@Test(arguments: [MessagesDockSuppression.Presentation.suppressed, .foreground])
+func dockPresentationSkipsAlreadyAppliedType(target: MessagesDockSuppression.Presentation) throws {
+    try MessagesDockSuppression.apply(
+        target: target,
+        write: { _, _ in
+            Issue.record("Must not write an already-applied presentation")
+        },
+        read: {
+            target.types.last
+        },
+        settle: {
+            Issue.record("Must not delay an already-applied presentation")
+        }
+    )
 }
 
 // Explicit opt-in: this launches and closes a real secondary Messages process.

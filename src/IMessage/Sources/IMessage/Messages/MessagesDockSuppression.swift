@@ -6,30 +6,46 @@ import IMessageCore
 enum MessagesDockSuppression {
     private static let currentSession: Int32 = -2
     private static let transitionDelay: TimeInterval = 0.5
+    // Automation and lifecycle callbacks run on different threads. The restoration
+    // and current-type writes must remain one transaction across both callers.
+    private static let transitionLock = NSLock()
     private static let api = Result { try LaunchServices() }
 
+    enum Presentation {
+        case suppressed
+        case foreground
+
+        var types: [String] {
+            switch self {
+            case .suppressed: return ["UIElement", "invalid"]
+            case .foreground: return ["Foreground"]
+            }
+        }
+    }
+
     static func suppress(_ app: NSRunningApplication) throws {
-        try setPresentation(of: app, types: ["UIElement", "invalid"])
+        try setPresentation(of: app, target: .suppressed)
     }
 
     static func restore(_ app: NSRunningApplication) throws {
-        try setPresentation(of: app, types: ["Foreground"])
+        try setPresentation(of: app, target: .foreground)
     }
 
-    private static func setPresentation(of app: NSRunningApplication, types: [String]) throws {
+    private static func setPresentation(of app: NSRunningApplication, target: Presentation) throws {
+        transitionLock.lock()
+        defer { transitionLock.unlock() }
         guard app.bundleIdentifier == messagesBundleID, !app.isTerminated else {
             throw ErrorMessage("Cannot change Dock presence of an invalid Messages instance")
         }
+        // Never take Dock presence away while the user is controlling Messages.
+        if target == .suppressed, app.isActive { return }
         let services = try api.get()
         guard let asn = services.createASN(nil, app.processIdentifier)?.takeRetainedValue() else {
             throw ErrorMessage("Could not obtain Messages LaunchServices identity")
         }
 
-        // Automation preparation is frequent; avoid repeating the transitions
-        // and their settling delays while the desired type is still in effect.
-        if try applicationType(for: app.processIdentifier) == types.last { return }
         try apply(
-            types: types,
+            target: target,
             write: { key, value in
                 guard !app.isTerminated else {
                     throw ErrorMessage("Messages terminated while changing Dock presence")
@@ -59,20 +75,38 @@ enum MessagesDockSuppression {
     }
 
     static func apply(
-        types: [String] = ["UIElement", "invalid"],
+        target: Presentation = .suppressed,
         write: (_ key: String, _ value: String) throws -> Void,
         read: () -> String?,
         settle: () -> Void
     ) throws {
-        for type in types {
-            // launchservicesd permits a foreign process to restore this matching
-            // type without root. A direct ApplicationType write can silently no-op.
-            try write("LSApplicationTypeToRestore", type)
-            try write("ApplicationType", type)
-            guard read() == type else {
-                throw ErrorMessage("Messages Dock presentation did not take effect (\(type))")
+        let types = target.types
+        // Avoid repeating transitions and settling delays on every preparation.
+        let originalType = read()
+        if originalType == types.last { return }
+        do {
+            for type in types {
+                // launchservicesd permits a foreign process to restore this matching
+                // type without root. A direct ApplicationType write can silently no-op.
+                try write("LSApplicationTypeToRestore", type)
+                try write("ApplicationType", type)
+                guard read() == type else {
+                    throw ErrorMessage("Messages Dock presentation did not take effect (\(type))")
+                }
+                settle()
             }
-            settle()
+        } catch {
+            // A failed second transition must not strand the user's primary app
+            // as a UIElement after removing its Dock tile.
+            if target == .suppressed, originalType == "Foreground" {
+                let suppressionError = error
+                do {
+                    try apply(target: .foreground, write: write, read: read, settle: settle)
+                } catch {
+                    throw ErrorMessage("Dock suppression failed (\(suppressionError)); restoration also failed (\(error))")
+                }
+            }
+            throw error
         }
     }
 
@@ -97,9 +131,14 @@ enum MessagesDockSuppression {
                 }
                 return unsafeBitCast(pointer, to: type)
             }
-            createASN = try symbol("_LSASNCreateWithPid", as: CreateASN.self)
-            copyInformation = try symbol("_LSCopyApplicationInformationItem", as: CopyInformation.self)
-            setInformation = try symbol("_LSSetApplicationInformationItem", as: SetInformation.self)
+            do {
+                createASN = try symbol("_LSASNCreateWithPid", as: CreateASN.self)
+                copyInformation = try symbol("_LSCopyApplicationInformationItem", as: CopyInformation.self)
+                setInformation = try symbol("_LSSetApplicationInformationItem", as: SetInformation.self)
+            } catch {
+                dlclose(handle)
+                throw error
+            }
         }
     }
 }
