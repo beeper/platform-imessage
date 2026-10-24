@@ -23,6 +23,7 @@ extension Mapper {
             srcURL = filePath
         }
         let size = attachmentRow.size.flatMap(PlatformSDK.Size.init(size:))
+        let isSticker = attachmentRow.isSticker == 1
         let loading = transferState != Attachment.IMFileTransferState.finished.rawValue
 
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
@@ -33,11 +34,11 @@ extension Mapper {
             return PlatformSDK.Attachment(
                 id: id,
                 type: .img,
-                size: size,
+                size: isSticker ? size.map(stickerDisplaySize(pixelSize:)) : size,
                 fileName: fileName,
                 fileSize: attachmentRow.totalBytes.map(Int64.init),
                 loading: loading,
-                isSticker: attachmentRow.isSticker == 1,
+                isSticker: isSticker,
                 srcURL: imageSrcURL
             )
         }
@@ -129,6 +130,14 @@ extension Mapper {
         }
         return message
     }
+}
+
+// Messages stores sticker images at @3x and draws them in points (a 618px sticker shows at 206pt),
+// so the pixel size would render stickers three times too large.
+private let stickerImageScale = 3.0
+
+func stickerDisplaySize(pixelSize: PlatformSDK.Size) -> PlatformSDK.Size {
+    PlatformSDK.Size(width: pixelSize.width / stickerImageScale, height: pixelSize.height / stickerImageScale)
 }
 
 private func isBrandLogoImageAttachment(_ attachmentRow: MappedAttachmentRow) -> Bool {

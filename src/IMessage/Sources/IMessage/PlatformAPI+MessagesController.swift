@@ -106,6 +106,25 @@ private actor MessagesControllerCoordinator {
     }
 }
 
+private final class MessageSendGate: Sendable {
+    private let tail = Protected<Task<Void, Never>?>()
+
+    func run<T>(_ operation: () async throws -> T) async throws -> T {
+        let (released, release) = AsyncStream<Void>.makeStream()
+        let previous = tail.withLock { tail in
+            let previous = tail
+            tail = Task {
+                for await _ in released {}
+            }
+            return previous
+        }
+        defer { release.finish() }
+        await previous?.value
+        try Task.checkCancellation()
+        return try await operation()
+    }
+}
+
 private extension MessagesControllerCoordinator {
     func currentControllerEntry(
         reportErrorMessage: PlatformAPI.ReportErrorMessage?,
@@ -194,6 +213,11 @@ extension PlatformAPI {
     private static let messagesControllerAutomationLane = MessagesControllerAutomationLane(idleDelay: 1)
     private static let messagesControllerIdleCallbackOwner = Protected<ObjectIdentifier?>()
     fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
+    fileprivate static let messageSendGate = MessageSendGate()
+
+    func withMessageSendLock<T>(_ operation: () async throws -> T) async throws -> T {
+        try await Self.messageSendGate.run(operation)
+    }
 
     func withMessagesController<T>(
         forceInvalidate: Bool = false,

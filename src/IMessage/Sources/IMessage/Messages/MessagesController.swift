@@ -834,14 +834,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
                 if case let .custom(emoji) = reaction, on {
                     guard isSequoiaOrUp else { throw ErrorMessage("Custom emoji reactions are only supported on macOS 15 or later") }
-                    try await openCustomEmojiReactionPicker(messageCell: $0)
                     // TODO: support being able to pick a skin tone
                     let search: CharacterPickerSearch
+                    let supportsSkinToneVariants: Bool
                     do {
                         search = try CharacterPickerSearch(finding: emoji)
+                        supportsSkinToneVariants = try EMFEmojiToken(character: emoji).supportsSkinToneVariants
                     } catch {
-                        throw ErrorMessage("Can't react with \"\(emoji)\": \(String(describing: error))")
+                        throw ReactionSearchError(emoji: emoji, underlying: error)
                     }
+                    try await openCustomEmojiReactionPicker(messageCell: $0)
                     let searchField = try await retry(withTimeout: 1.0, interval: 0.05) { () async throws in
                         try await elements.characterPickerSearchField
                     }
@@ -856,7 +858,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     for _ in 0..<rightArrows { try keyPresser.rightArrow(); try await Task.sleep(forTimeInterval: 0.05) }
                     try await Task.sleep(forTimeInterval: 0.1) // wait for selection
                     try keyPresser.return() // select
-                    if try EMFEmojiToken(character: emoji).supportsSkinToneVariants == true {
+                    if supportsSkinToneVariants {
                         try await Task.sleep(forTimeInterval: 0.2) // wait for skin tone picker to appear
                         try keyPresser.return() // always select default skin tone
                     }
@@ -1177,6 +1179,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 // this doesn't ever focus in compose thread for some reason
                 try messageField.isFocused(assign: true)
                 if await isComposeThreadSelected() { return }
+                if try !messageField.isFocused() {
+                    try messageField.press()
+                }
                 guard try messageField.isFocused() else {
                     throw ErrorMessage("Could not focus message field")
                 }
