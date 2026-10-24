@@ -100,8 +100,13 @@ public extension Statement {
         }
     }
 
+    // Swift 6.3.3 -O crashes (EarlyPerfInliner) inlining this into stepUntilDone; remove once fixed
     @inline(never)
     func stepUntilStopped(handlingRows rowHandler: (_ selected: borrowing Row) throws -> Bool) throws {
+        // sqlite3_reset repeats the error of a failed step, and can also report a new one after a
+        // successful step (e.g. a write that can't commit):
+        // https://www.sqlite.org/c3ref/reset.html#:~:text=If%20the%20most%20recent%20call,indicated%20a%20problem
+        // So when the loop throws, keep its error; otherwise, throw whatever reset reports.
         do {
             while try SQLiteError.check(sqlite3_step(handle), permitting: [SQLITE_ROW, SQLITE_DONE]) == SQLITE_ROW {
                 guard try rowHandler(Row(accessingColumnsOf: self)) else {
@@ -109,7 +114,7 @@ public extension Statement {
                 }
             }
         } catch {
-            sqlite3_reset(handle)
+            _ = sqlite3_reset(handle)
             throw error
         }
         try SQLiteError.check(sqlite3_reset(handle))
