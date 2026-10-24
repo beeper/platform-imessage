@@ -40,9 +40,7 @@ enum MessagesDockSuppression {
         // Never take Dock presence away while the user is controlling Messages.
         if target == .suppressed, app.isActive { return }
         let services = try api.get()
-        guard let asn = services.createASN(nil, app.processIdentifier)?.takeRetainedValue() else {
-            throw ErrorMessage("Could not obtain Messages LaunchServices identity")
-        }
+        let asn = try services.identity(for: app.processIdentifier)
 
         try apply(
             target: target,
@@ -56,7 +54,7 @@ enum MessagesDockSuppression {
                 }
             },
             read: {
-                services.copyInformation(currentSession, asn, "ApplicationType" as CFString)?.takeRetainedValue() as? String
+                services.applicationType(for: asn)
             },
             settle: {
                 // Allow the UIElement transition to remove an existing Dock tile
@@ -68,10 +66,7 @@ enum MessagesDockSuppression {
 
     static func applicationType(for pid: pid_t) throws -> String? {
         let services = try api.get()
-        guard let asn = services.createASN(nil, pid)?.takeRetainedValue() else {
-            return nil
-        }
-        return services.copyInformation(currentSession, asn, "ApplicationType" as CFString)?.takeRetainedValue() as? String
+        return services.applicationType(for: try services.identity(for: pid))
     }
 
     static func apply(
@@ -118,6 +113,17 @@ enum MessagesDockSuppression {
         let createASN: CreateASN
         let copyInformation: CopyInformation
         let setInformation: SetInformation
+
+        func identity(for pid: pid_t) throws -> CFTypeRef {
+            guard let asn = createASN(nil, pid)?.takeRetainedValue() else {
+                throw ErrorMessage("Could not obtain Messages LaunchServices identity")
+            }
+            return asn
+        }
+
+        func applicationType(for asn: CFTypeRef) -> String? {
+            copyInformation(currentSession, asn, "ApplicationType" as CFString)?.takeRetainedValue() as? String
+        }
 
         init() throws {
             let path = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/LaunchServices"
