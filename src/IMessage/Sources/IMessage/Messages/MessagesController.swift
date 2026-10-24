@@ -126,9 +126,8 @@ final class MessagesController {
             if activating {
                 app.activate()
             }
-            if shouldHide {
-                app.hide()
-            }
+            // The window coordinator owns visibility during automation. Hiding
+            // here undoes makeAutomatable immediately before the AX actions.
             return app
         }
 

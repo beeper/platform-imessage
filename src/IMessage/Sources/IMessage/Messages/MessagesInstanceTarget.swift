@@ -50,7 +50,9 @@ enum MessagesInstanceTarget {
         configuration.createsNewApplicationInstance = true
         configuration.allowsRunningApplicationSubstitution = false
         configuration.addsToRecentItems = false
-        configuration.launchesInBackground = !activating
+        // A background-only launch leaves Messages unable to perform some AX actions even after its LaunchServices type changes.
+        // Launch hidden as a normal UI process, then suppress its Dock presence before URLs.
+        // configuration.launchesInBackground = !activating
         configuration.launchIsUserAction = activating
         configuration.preferRunningInstance = false
         configuration.launchWithoutRestoringState = true
