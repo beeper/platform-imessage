@@ -42,14 +42,16 @@ enum MessagesInstanceTarget {
         guard let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID) else {
             throw ErrorMessage("Could not find Messages.app via LaunchServices")
         }
+        let existingPIDs = Set(NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).map(\.processIdentifier))
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activating
-        configuration.hides = hiding
+        configuration.hides = hiding || !activating
         configuration.createsNewApplicationInstance = true
         configuration.allowsRunningApplicationSubstitution = false
         configuration.addsToRecentItems = false
-        configuration.launchIsUserAction = true
+        configuration.launchesInBackground = !activating
+        configuration.launchIsUserAction = activating
         configuration.preferRunningInstance = false
         configuration.launchWithoutRestoringState = true
         configuration.waitForApplicationToCheckIn = true
@@ -73,7 +75,21 @@ enum MessagesInstanceTarget {
         }
 
         let app = try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
+        guard !existingPIDs.contains(app.processIdentifier) else {
+            throw ErrorMessage("LaunchServices reused an existing Messages instance; refusing to suppress it")
+        }
+        var launchSucceeded = false
+        defer {
+            if !launchSucceeded {
+                // Only this newly created process belongs to us.
+                app.terminate()
+            }
+        }
         try app.waitForLaunch(timeout: timeout)
+
+        if !activating {
+            try MessagesDockSuppression.suppress(app)
+        }
 
         if let initialDeepLink {
             try sendDeepLink(initialDeepLink, to: app)
@@ -83,6 +99,7 @@ enum MessagesInstanceTarget {
             app.hide()
         }
 
+        launchSucceeded = true
         return app
     }
 }

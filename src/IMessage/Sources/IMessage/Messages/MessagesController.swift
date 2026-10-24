@@ -447,8 +447,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             activityLock.lock()
         }
 
-        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-            try windowCoordinator.makeAutomatable(mainWindow)
+        if Defaults.shouldCoordinateWindow {
+            do {
+                try windowCoordinator.suppressDockPresence()
+            } catch {
+                // Dock suppression is best effort; window coordination can still work.
+                log.error("failed to hide Messages from Dock: \(error)")
+            }
+            if let mainWindow = elements.getMainWindow() {
+                try windowCoordinator.makeAutomatable(mainWindow)
+            }
         }
     }
 
@@ -1390,10 +1398,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
     private func activateMessages() {
+        lastActivate = Date()
+        messagesIsManuallyActivated = true
+        log.debug("activateMessages")
         do {
-            lastActivate = Date()
-            messagesIsManuallyActivated = true
-            log.debug("activateMessages")
+            // Restore independently of coordination defaults and main-window availability.
+            try windowCoordinator.restoreDockPresence()
+        } catch {
+            log.error("failed to restore Messages to Dock: \(error)")
+        }
+        do {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
                 try windowCoordinator.reset(window)

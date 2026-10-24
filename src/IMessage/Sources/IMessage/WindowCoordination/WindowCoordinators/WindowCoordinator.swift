@@ -37,6 +37,16 @@ protocol WindowCoordinator {
 }
 
 extension WindowCoordinator {
+    /// Independent of window availability: a deep link may not have created one yet.
+    func suppressDockPresence() throws {
+        if let app { try MessagesDockSuppression.suppress(app) }
+    }
+
+    /// Restore before handing control back to the user, even without a main window.
+    func restoreDockPresence() throws {
+        if let app { try MessagesDockSuppression.restore(app) }
+    }
+
     func userManuallyActivated(_: NSRunningApplication) throws {
         // make this method optional
     }
