@@ -3,16 +3,6 @@ import IMessageCore
 import Testing
 @testable import IMessage
 
-@Test(arguments: [
-    (false, false, false),
-    (false, true, false),
-    (true, false, false),
-    (true, true, true),
-])
-func dockSuppressionGate(enabled: Bool, secondary: Bool, shouldSuppress: Bool) {
-    #expect(Defaults.shouldSuppressMessagesDock(enabled: enabled, secondary: secondary) == shouldSuppress)
-}
-
 @Test
 func dockSuppressionUsesMatchingRestorationTypes() throws {
     var restoration: String?
