@@ -38,7 +38,7 @@ enum MessagesDockSuppression {
             throw ErrorMessage("Cannot change Dock presence of an invalid Messages instance")
         }
         // Never take Dock presence away while the user is controlling Messages.
-        if target == .suppressed, app.isActive { return }
+        if target == .suppressed, NSRunningApplication(processIdentifier: app.processIdentifier)?.isActive == true { return }
         let services = try api.get()
         let asn = try services.identity(for: app.processIdentifier)
 

@@ -346,6 +346,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
         }
         resetWindow()
+        if Defaults.shouldCoordinateWindow {
+            do { try windowCoordinator.prepareAfterLaunch(elements.mainWindow) }
+            catch { dispose(); throw error }
+        }
     }
 
     func setUpLifecycleConveyor(with observer: LifecycleObserver) {
@@ -1612,6 +1616,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         isDisposed = true
         lifecycleConveyor?.cancel()
         lifecycleEventsTask?.cancel()
+
+        do { try windowCoordinator.dispose() }
+        catch { log.error("Failed to clean up window coordination: \(error)") }
 
         app.terminate()
     }

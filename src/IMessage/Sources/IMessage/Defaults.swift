@@ -20,7 +20,7 @@ enum DefaultsKeys {
     static let windowCoordination = "BEEPWindowCoordination"
     /** whether to suppress Dock presence for secondary Messages instances */
     static let dockSuppression = "BEEPDockSuppression"
-    /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
+    /** forces `bridged-spaces` or legacy `spaces`, only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
     /** whether to respect calls to `onThreadSelected`/`watchThreadActivity` */
