@@ -67,9 +67,14 @@ final class BridgedSpaceSession {
         originalSpaces.removeValue(forKey: window)
     }
 
+    /// Restore live windows without resolving a display for closed CG IDs.
+    func restoreAll() throws {
+        for window in Array(originalSpaces.keys) { try restore(window) }
+    }
+
     func dispose() throws {
         // Retain the Space if any restoration fails; destroying it could strand a window.
-        for window in Array(originalSpaces.keys) { try restore(window) }
+        try restoreAll()
         if let hiddenSpace {
             if try backend.spaceExists(hiddenSpace) { try backend.destroy(hiddenSpace) }
             self.hiddenSpace = nil
@@ -289,8 +294,35 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         }
     }
 
+    func prepareForAutomation() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let app = currentApp, !app.isActive else { return }
+        // AX may not expose the window while the idle app is hidden. Park its
+        // CG window before unhiding, so discovering it never flashes onscreen.
+        let candidates = try Window.listDescriptions(.all).filter {
+            $0.owner == app.processIdentifier && $0.layer == 0 && $0.bounds.width > 300
+        }
+        if let window = candidates.max(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
+            try parkWindow(trackWindow(window.window.raw))
+        }
+    }
+
     func automationDidComplete(_ window: Accessibility.Element) throws {
-        try makeAutomatable(window)
+        lock.lock()
+        defer { lock.unlock() }
+        guard let app = currentApp, !app.isActive else { return }
+        // An idle window on the parking Space makes Dock activation switch to
+        // that Space. Hide first, then restore membership without exposing it.
+        app.hide()
+        let appElement = Accessibility.Element(pid: app.processIdentifier)
+        try Self.waitFor("hidden Messages before restoring desktop") {
+            // NSRunningApplication.isHidden can lag on a worker thread. AX
+            // queries the target process directly instead of that cached state.
+            try appElement.isHidden() || self.currentApp?.isActive == true
+        }
+        guard currentApp?.isActive == false else { return }
+        try session.restoreAll()
     }
 
     func reset(_ window: Accessibility.Element) throws {
@@ -305,12 +337,18 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         // subsequent app switch and steal focus or change Spaces a second time.
     }
 
-    func userManuallyDeactivated(_ app: NSRunningApplication) throws {
-        // Re-park on the next automation. Moving here can race the activation
-        // restoration and bounce the app between active and inactive states.
-        let current = NSRunningApplication(processIdentifier: app.processIdentifier)
-        if current?.isActive != true { current?.hide() }
+    func userManuallyActivated(_ app: NSRunningApplication) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard currentApp?.isActive == true else { return }
+        // Usually empty because completion restores the idle window. This also
+        // handles a user activation that interrupts an automation operation.
+        try session.restoreAll()
+        currentApp?.unhide()
     }
+
+    // Deactivation itself needs no window manipulation. Completion hides and
+    // restores after automation; hiding here can race Dock activation events.
 
     func dispose() throws {
         lock.lock()

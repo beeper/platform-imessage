@@ -350,6 +350,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
         }
         resetWindow()
+        if Defaults.shouldCoordinateWindow {
+            do { try windowCoordinator.automationDidComplete(elements.mainWindow) }
+            catch { dispose(); throw error }
+        }
     }
 
     func setUpLifecycleConveyor(with observer: LifecycleObserver) {
@@ -451,6 +455,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         if Defaults.shouldCoordinateWindow {
+            try windowCoordinator.prepareForAutomation()
             if Defaults.shouldSuppressMessagesDock {
                 do {
                     try windowCoordinator.suppressDockPresence()
@@ -1414,9 +1419,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
         do {
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
-                try windowCoordinator.reset(window)
+            if Defaults.shouldCoordinateWindow {
+                // Restore tracked windows before AX discovery: a hidden window
+                // may not be exposed through Accessibility on first activation.
                 try windowCoordinator.userManuallyActivated(app)
+                if let window = elements.getMainWindow() {
+                    try windowCoordinator.reset(window)
+                }
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")

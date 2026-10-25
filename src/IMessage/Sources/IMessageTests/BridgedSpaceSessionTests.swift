@@ -187,3 +187,31 @@ func bridgedSpaceSessionRecoversWhenOriginalDisplaySpacesDisappear() throws {
     #expect(session.hiddenSpace == nil)
     #expect(session.originalSpaces.isEmpty)
 }
+
+@Test
+func bridgedSpaceSessionRestoresIdleWindowsWithoutDestroyingSpace() throws {
+    var membership: [UInt32: [UInt64]] = [10: [1], 11: [2]]
+    var closed = false
+    var destroyed = false
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { membership[$0] = [$1] },
+        spaces: { membership[$0] ?? [] },
+        destroy: { _ in destroyed = true },
+        exists: { !closed || $0 != 10 }
+    ))
+    try session.park(10)
+    try session.park(11)
+    closed = true
+    try session.restoreAll()
+    #expect(membership[11] == [2])
+    #expect(session.originalSpaces.isEmpty)
+    #expect(!destroyed)
+    #expect(session.hiddenSpace == 99)
+    // The next automation can reuse the parking Space, preserving the normal
+    // desktop as the restoration destination.
+    try session.park(11)
+    #expect(membership[11] == [99])
+    try session.restoreAll()
+    #expect(membership[11] == [2])
+}
