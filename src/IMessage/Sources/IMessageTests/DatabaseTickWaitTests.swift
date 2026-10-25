@@ -256,28 +256,17 @@ import Testing
     #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
-@Test func loadedAttachmentWaitThrowsWhenMessageHasNoAttachments() async throws {
+@Test(arguments: [false, true])
+func loadedAttachmentWaitThrowsWhenAttachmentsAreMissing(messageExists: Bool) async throws {
     let changes = Topic<Void>()
     await #expect(throws: (any Error).self) {
         try await DatabaseTickWaits.loadedAttachment(
             messageID: "message-1",
             timeout: 1,
             changes: changes,
-            loadMessage: { messageWithNoAttachments() },
-            terminalAttachmentFailureState: { nil }
-        )
-    }
-    #expect(await eventually { changes.testingSubscriptionCount == 0 })
-}
-
-@Test func loadedAttachmentWaitThrowsWhenMessageNotFound() async throws {
-    let changes = Topic<Void>()
-    await #expect(throws: (any Error).self) {
-        try await DatabaseTickWaits.loadedAttachment(
-            messageID: "message-1",
-            timeout: 1,
-            changes: changes,
-            loadMessage: { nil },
+            loadMessage: {
+                messageExists ? PlatformSDK.Message(id: "message-1", timestamp: 1, senderID: "sender-1", attachments: []) : nil
+            },
             terminalAttachmentFailureState: { nil }
         )
     }
@@ -323,15 +312,6 @@ import Testing
 
     #expect(topic.testingSubscriptionCount == 0)
     withExtendedLifetime(streams) {}
-}
-
-private func messageWithNoAttachments() -> PlatformSDK.Message {
-    PlatformSDK.Message(
-        id: "message-1",
-        timestamp: 1,
-        senderID: "sender-1",
-        attachments: []
-    )
 }
 
 private func messageWithAttachmentLoading(_ loading: Bool) -> PlatformSDK.Message {
