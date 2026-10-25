@@ -753,14 +753,25 @@ public final class PlatformAPI {
         timeout: TimeInterval,
         reactionsOnly: Bool = false
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(
-            threadID: threadID,
-            since: lastRowID,
-            text: text,
-            content: content,
-            timeout: timeout,
-            reactionsOnly: reactionsOnly
-        )
+        let sentMessageIDs: [(rowID: Int, guid: String)]
+        do {
+            sentMessageIDs = try await waitForSentMessageIDs(
+                threadID: threadID,
+                since: lastRowID,
+                text: text,
+                content: content,
+                timeout: timeout,
+                reactionsOnly: reactionsOnly
+            )
+        } catch let error as ErrorMessage {
+            let database = database
+            let hasUnclaimedSentRows = try database.withDatabase { db in
+                try !db.sentMessageRows(since: lastRowID, reactionsOnly: reactionsOnly).isEmpty
+            }
+            guard hasUnclaimedSentRows else { throw error }
+            platformLog.error("imsg: no sent row matched this send, it may have been modified in flight")
+            return .boolean(true)
+        }
         let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
