@@ -9,6 +9,7 @@ BOOL IMPrivateSPISpaceBridgeMoveWindow(NSObject *bridge, uint32_t windowID, uint
 BOOL IMPrivateSPISpaceBridgeDestroySpace(NSObject *bridge, uint64_t spaceID);
 NSArray<NSNumber *> *_Nullable IMPrivateSPISpacesForWindow(uint32_t windowID);
 uint64_t IMPrivateSPIActiveSpace(void);
+NSArray<NSDictionary *> *_Nullable IMPrivateSPICopyManagedDisplaySpaces(void);
 
 NSObject *_Nullable IMPrivateSPIPluginPayloadCreate(NSData *payloadData,
                                                     NSString *bundleID,

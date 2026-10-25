@@ -17,7 +17,7 @@ protocol WindowCoordinator {
      * This is called right before the app needs to be automated.
      */
     func makeAutomatable(_ window: Accessibility.Element) throws
-    func prepareAfterLaunch(_ window: Accessibility.Element) throws
+    func prepareAfterLaunch() throws
     func dispose() throws
 
     /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
@@ -39,7 +39,7 @@ protocol WindowCoordinator {
 }
 
 extension WindowCoordinator {
-    func prepareAfterLaunch(_: Accessibility.Element) throws {}
+    func prepareAfterLaunch() throws {}
     func dispose() throws {}
     /// Independent of window availability: a deep link may not have created one yet.
     func suppressDockPresence() throws {

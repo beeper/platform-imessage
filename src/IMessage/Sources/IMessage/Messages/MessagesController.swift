@@ -334,6 +334,10 @@ final class MessagesController {
         // }
         let observer = LifecycleObserver()
         lifecycleObserver = observer
+        if Defaults.shouldCoordinateWindow {
+            do { try windowCoordinator.prepareAfterLaunch() }
+            catch { dispose(); throw error }
+        }
         setUpLifecycleConveyor(with: lifecycleObserver)
 
         guard isValid else {
@@ -346,10 +350,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
         }
         resetWindow()
-        if Defaults.shouldCoordinateWindow {
-            do { try windowCoordinator.prepareAfterLaunch(elements.mainWindow) }
-            catch { dispose(); throw error }
-        }
     }
 
     func setUpLifecycleConveyor(with observer: LifecycleObserver) {

@@ -15,6 +15,13 @@ uint64_t IMPrivateSPIActiveSpace(void) {
     return connection && active ? active(connection()) : 0;
 }
 
+NSArray<NSDictionary *> *IMPrivateSPICopyManagedDisplaySpaces(void) {
+    int (*connection)(void) = dlsym(RTLD_DEFAULT, "SLSMainConnectionID");
+    CFArrayRef (*copy)(int) = dlsym(RTLD_DEFAULT, "SLSCopyManagedDisplaySpaces");
+    if (!connection || !copy) return nil;
+    return CFBridgingRelease(copy(connection()));
+}
+
 static id SpaceBridgeOperation(NSString *name, SEL initializer) {
     Class cls = NSClassFromString(name);
     if (!cls || ![cls instancesRespondToSelector:initializer]) return nil;

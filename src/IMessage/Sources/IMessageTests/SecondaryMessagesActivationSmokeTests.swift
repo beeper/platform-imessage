@@ -5,6 +5,16 @@ import Testing
 import WindowControl
 @testable import IMessage
 
+private func isWindowOnVisibleDesktop(_ window: UInt32) -> Bool {
+    guard let membership = IMPrivateSPISpacesForWindow(window), !membership.isEmpty,
+          let topology = IMPrivateSPICopyManagedDisplaySpaces() else { return false }
+    let visibleSpaces = topology.compactMap { record -> UInt64? in
+        guard let current = record["Current Space"] as? [String: Any] else { return nil }
+        return (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value
+    }
+    return membership.allSatisfy { visibleSpaces.contains($0.uint64Value) }
+}
+
 // Opt-in only: drives activation and automation of a real secondary Messages.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_SECONDARY_ACTIVATION_SMOKE"] == "1"))
 @MainActor
@@ -27,13 +37,12 @@ func secondaryMessagesActivationDockSmoke() throws {
         !existingPIDs.contains($0.processIdentifier)
     })
     let usesBridge = try getBestWindowCoordinator() is BridgedSpacesWindowCoordinator
-    let launchSpace = IMPrivateSPIActiveSpace()
     let window = try #require(try Window.listDescriptions(.all).first {
         $0.owner == app.processIdentifier && $0.layer == 0 && $0.bounds.width > 300
     }).window.raw
     let hiddenSpace = IMPrivateSPISpacesForWindow(window)?.first?.uint64Value
     if usesBridge {
-        #expect(hiddenSpace != nil && hiddenSpace != launchSpace)
+        #expect(hiddenSpace != nil && !isWindowOnVisibleDesktop(window))
         #expect(try !Window.listDescriptions(.onScreen).contains { $0.owner == app.processIdentifier })
     }
     // Launch-returned NSRunningApplication objects can retain stale isActive values.
@@ -52,12 +61,12 @@ func secondaryMessagesActivationDockSmoke() throws {
         if isTargetActive(),
            try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
            try messagesDockSnapshot().running == baseline.running + 1,
-           !usesBridge || IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [launchSpace] { break }
+           !usesBridge || isWindowOnVisibleDesktop(window) { break }
         pumpSmokeRunLoop(for: 0.05)
     }
     try #require(isTargetActive())
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
-    if usesBridge { #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [launchSpace]) }
+    if usesBridge { #expect(isWindowOnVisibleDesktop(window)) }
     let activatedDock = try messagesDockSnapshot()
     #expect(activatedDock.running == baseline.running + 1)
     #expect(activatedDock.tiles >= max(1, baseline.tiles))

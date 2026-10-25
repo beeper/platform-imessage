@@ -138,3 +138,52 @@ func bridgedSpaceSessionRejectsInvalidRevealDestination(destination: UInt64) thr
     try session.dispose()
     #expect(membership == [1])
 }
+
+@Test
+func bridgedSpaceSessionRecreatesDeletedTemporarySpace() throws {
+    var membership: [UInt64] = [1]
+    var liveSpaces: Set<UInt64> = [1, 2]
+    var creations: UInt64 = 98
+    let session = BridgedSpaceSession(backend: .init(
+        create: { creations += 1; liveSpaces.insert(creations); return creations },
+        move: { _, space in
+            guard liveSpaces.contains(space) else { throw ErrorMessage("Missing Space") }
+            membership = [space]
+        },
+        spaces: { _ in membership },
+        destroy: { liveSpaces.remove($0) },
+        spaceExists: { liveSpaces.contains($0) }
+    ))
+    try session.park(10)
+    #expect(membership == [99])
+    liveSpaces.remove(99)
+    membership = [2] // WindowServer relocates the window when its Space disappears.
+    try session.park(10)
+    #expect(membership == [100])
+    #expect(session.hiddenSpace == 100)
+    try session.dispose()
+    #expect(membership == [1])
+    #expect(liveSpaces == [1, 2])
+}
+
+@Test
+func bridgedSpaceSessionRecoversWhenOriginalDisplaySpacesDisappear() throws {
+    var membership: [UInt64] = [1]
+    var liveSpaces: Set<UInt64> = [1, 2, 99]
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { _, space in membership = [space] },
+        spaces: { _ in membership },
+        destroy: { liveSpaces.remove($0) },
+        spaceExists: { liveSpaces.contains($0) },
+        fallbackSpace: { _ in 2 }
+    ))
+    try session.park(10)
+    liveSpaces.remove(1)
+    liveSpaces.remove(99)
+    membership = [2]
+    try session.dispose()
+    #expect(membership == [2])
+    #expect(session.hiddenSpace == nil)
+    #expect(session.originalSpaces.isEmpty)
+}
