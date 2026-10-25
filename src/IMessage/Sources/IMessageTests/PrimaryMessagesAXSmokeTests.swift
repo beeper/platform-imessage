@@ -44,21 +44,15 @@ func primaryMessagesAXSmoke() throws {
     let chatURLs = try primarySmokeReadChatURLs()
     let repeatedChat = try #require(chatURLs.last)
     let compose = try #require(URL(string: "imessage:open?address=&body"))
-    for stage in ["foreground", "suppressed", "restored"] {
-        if stage == "suppressed" {
-            try coordinator.suppressDockPresence()
-            try coordinator.makeAutomatable(window)
-        } else {
-            try coordinator.restoreDockPresence()
-            app.unhide()
-        }
+    for stage in ["foreground", "restored"] {
+        try coordinator.restoreDockPresence()
+        app.unhide()
         for (trial, url) in ([compose] + chatURLs + [repeatedChat]).enumerated() {
-            if stage == "suppressed" { try coordinator.makeAutomatable(window) }
             let before = Date()
             let waitStarted = try primarySmokeOpenDeepLink(url, app: app)
             pumpSmokeRunLoop(for: 1.2)
             let actualType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
-            #expect(actualType == (stage == "suppressed" ? "invalid" : "Foreground"))
+            #expect(actualType == "Foreground")
             let focus = observer.lastFocusedUIElementChange.read()
             let layout = observer.lastLayoutChange.read()
             print("PRIMARY_AX stage=\(stage) trial=\(trial) focusAfterLink=\(focus.map { $0 > before } ?? false) focusWaiter=\(focus.map { $0 > waitStarted } ?? false) layoutWaiter=\(layout.map { $0 > waitStarted } ?? false)")
@@ -71,10 +65,6 @@ func primaryMessagesAXSmoke() throws {
                 let pressFocused = try field.isFocused()
                 print("PRIMARY_BODY stage=\(stage) trial=\(trial) setFocused=\(setFocused) pressFocused=\(pressFocused)")
                 #expect(setFocused || pressFocused, "Body focus failed at \(stage) trial \(trial)")
-            }
-            if stage == "suppressed" {
-                try coordinator.automationDidComplete(window)
-                pumpSmokeRunLoop(for: 0.5)
             }
         }
     }

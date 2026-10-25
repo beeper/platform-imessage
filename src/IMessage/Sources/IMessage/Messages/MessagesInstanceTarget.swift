@@ -2,6 +2,9 @@ import AppKit
 import Carbon.HIToolbox
 import Foundation
 import IMessageCore
+import Logging
+
+private let log = Logger(imessageLabel: "messages-instance-target")
 
 @available(macOS 11, *)
 enum MessagesInstanceTarget {
@@ -89,8 +92,12 @@ enum MessagesInstanceTarget {
         }
         try app.waitForLaunch(timeout: timeout)
 
-        if !activating {
-            try MessagesDockSuppression.suppress(app)
+        if !activating, Defaults.shouldSuppressMessagesDock {
+            do {
+                try MessagesDockSuppression.suppress(app)
+            } catch {
+                log.error("failed to hide secondary Messages from Dock: \(error)")
+            }
         }
 
         if let initialDeepLink {

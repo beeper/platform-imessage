@@ -88,10 +88,10 @@ enum MessagesDockSuppression {
                 guard read() == type else {
                     throw ErrorMessage("Messages Dock presentation did not take effect (\(type))")
                 }
-                settle()
+                if target == .suppressed { settle() }
             }
         } catch {
-            // A failed second transition must not strand the user's primary app
+            // A failed second transition must not strand the Messages instance
             // as a UIElement after removing its Dock tile.
             if target == .suppressed, originalType == "Foreground" {
                 let suppressionError = error

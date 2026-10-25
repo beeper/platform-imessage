@@ -8,6 +8,11 @@ import Testing
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_SECONDARY_LAUNCH_SMOKE"] == "1"))
 @MainActor
 func secondaryMessagesLaunchSmoke() throws {
+    Defaults.registerDefaults()
+    try #require(Defaults.dockSuppression, "Requires Dock suppression")
+    let originalSecondary = Preferences.useSecondaryMessagesInstance
+    Preferences.useSecondaryMessagesInstance = true
+    defer { Preferences.useSecondaryMessagesInstance = originalSecondary }
     let existing = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     let baselineDock = try messagesDockSnapshot()
     let compose = try #require(URL(string: "imessage:open?address=&body"))

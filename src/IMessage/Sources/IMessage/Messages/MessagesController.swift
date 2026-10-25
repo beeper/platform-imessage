@@ -447,11 +447,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         if Defaults.shouldCoordinateWindow {
-            do {
-                try windowCoordinator.suppressDockPresence()
-            } catch {
-                // Dock suppression is best effort; window coordination can still work.
-                log.error("failed to hide Messages from Dock: \(error)")
+            if Defaults.shouldSuppressMessagesDock {
+                do {
+                    try windowCoordinator.suppressDockPresence()
+                } catch {
+                    // Dock suppression is best effort; window coordination can still work.
+                    log.error("failed to hide Messages from Dock: \(error)")
+                }
             }
             if let mainWindow = elements.getMainWindow() {
                 try windowCoordinator.makeAutomatable(mainWindow)

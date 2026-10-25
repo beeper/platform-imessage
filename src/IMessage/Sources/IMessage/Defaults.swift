@@ -18,6 +18,8 @@ private func randomCase(_ input: String) -> String {
 enum DefaultsKeys {
     /** controls whether window coordination happens at all, respected on the fly */
     static let windowCoordination = "BEEPWindowCoordination"
+    /** whether to suppress Dock presence for secondary Messages instances */
+    static let dockSuppression = "BEEPDockSuppression"
     /** forces a specific coordinator (`eclipsing` or `spaces`), only checked once */
     static let coordinator = "BEEPWindowCoordinator"
 
@@ -105,6 +107,7 @@ enum Defaults {
     static func registerDefaults() {
         var defaults: [String: Any] = [
             DefaultsKeys.windowCoordination: true,
+            DefaultsKeys.dockSuppression: true,
 
             DefaultsKeys.watchThreadActivity: true,
             DefaultsKeys.pollActivityStatus: true,
@@ -160,6 +163,14 @@ enum Defaults {
     }
 
     static var shouldCoordinateWindow: Bool { Self.imessage.bool(forKey: DefaultsKeys.windowCoordination) }
+
+    static var shouldSuppressMessagesDock: Bool {
+        shouldSuppressMessagesDock(enabled: Self.dockSuppression, secondary: Preferences.useSecondaryMessagesInstance)
+    }
+
+    static func shouldSuppressMessagesDock(enabled: Bool, secondary: Bool) -> Bool {
+        enabled && secondary
+    }
 
     static func resetPrompts() {
         // getUserDefaults(bundleID: messagesBundleID)?.set(true, forKey: "kHasSetupHashtagImages") // unknown
