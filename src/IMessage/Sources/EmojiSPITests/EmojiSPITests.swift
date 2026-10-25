@@ -63,18 +63,30 @@ private final class InitializerFixture: NSObject {
 }
 
 @Test private func pickerSearchUsesPickerLanguages() async throws {
-    let results = try await Task.detached {
-        try CPKDefaultDataSource.query("celebration", objectClass: PickerSearchFixture.self)
-    }.value
+    let results = try await pickerSearch("celebration", objectClass: PickerSearchFixture.self).get()
     #expect(results == ["🎉", "🥳"])
 }
 
 @Test private func pickerSearchRejectsMissingMethods() async {
-    await Task.detached {
-        #expect(throws: SPIError.nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")) {
-            try CPKDefaultDataSource.query("celebration", objectClass: NSObject.self)
+    let result = await pickerSearch("celebration", objectClass: NSObject.self)
+    #expect(throws: SPIError.nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")) {
+        try result.get()
+    }
+}
+
+private let pickerSearchQueue = DispatchQueue(label: "EmojiSPITests.pickerSearch")
+
+private func pickerSearch(_ query: String, objectClass: AnyClass) async -> Result<[String], Error> {
+    // The wrapper blocks on a semaphore while its callback runs on Dispatch.
+    // Keep that wait off Swift's cooperative pool, which shares workers with
+    // Dispatch and can starve the callback when tests run concurrently.
+    await withCheckedContinuation { continuation in
+        pickerSearchQueue.async {
+            continuation.resume(returning: Result {
+                try CPKDefaultDataSource.query(query, objectClass: objectClass)
+            })
         }
-    }.value
+    }
 }
 
 private final class PickerSearchFixture: NSObject {
@@ -114,9 +126,8 @@ private final class MalformedPickerTokenFixture: NSObject {
 
 @Test(arguments: ["missing-string", "non-string", "nil-string", "empty-string"])
 private func pickerSearchRejectsMalformedTokens(query: String) async {
-    await Task.detached {
-        #expect(throws: SPIError.nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")) {
-            try CPKDefaultDataSource.query(query, objectClass: PickerSearchFixture.self)
-        }
-    }.value
+    let result = await pickerSearch(query, objectClass: PickerSearchFixture.self)
+    #expect(throws: SPIError.nilResponse(method: "emojiTokensForSearchString:inLanguages:maxResults:usingBlock:")) {
+        try result.get()
+    }
 }

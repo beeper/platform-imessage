@@ -1120,6 +1120,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // this doesn't ever focus in compose thread for some reason
             try messageField.isFocused(assign: true)
             if isComposeThreadSelected() { return }
+            if try !messageField.isFocused() {
+                try messageField.press()
+            }
             guard try messageField.isFocused() else {
                 throw ErrorMessage("Could not focus message field")
             }
