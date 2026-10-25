@@ -63,13 +63,38 @@ final class BridgedSpaceSession {
         guard target != 0, target != hiddenSpace, try backend.spaceExists(target) else {
             throw ErrorMessage("Cannot reveal Messages without a visible destination Space")
         }
-        try backend.move(window, target)
+        if try backend.spaces(window) != [target] { try backend.move(window, target) }
         originalSpaces.removeValue(forKey: window)
     }
 
     /// Restore live windows without resolving a display for closed CG IDs.
     func restoreAll() throws {
         for window in Array(originalSpaces.keys) { try restore(window) }
+    }
+
+    /// Resolve the activation destination before clearing recovery records.
+    @discardableResult
+    func revealAll(to destination: (UInt32) throws -> UInt64) throws -> Bool {
+        var movedWindows = false
+        for window in Array(originalSpaces.keys) {
+            guard try backend.exists(window) else {
+                originalSpaces.removeValue(forKey: window)
+                continue
+            }
+            let target = try destination(window)
+            guard target != 0, try backend.spaceExists(target) else {
+                throw ErrorMessage("Cannot reveal Messages without a visible destination Space")
+            }
+            if try backend.spaces(window) != [target] {
+                try backend.move(window, target)
+                movedWindows = true
+            }
+            // Keep recovery records through the asynchronous Dock handoff.
+            // A normal destination becomes the new restoration desktop; the
+            // parking Space must never become the background destination.
+            if target != hiddenSpace { originalSpaces[window] = target }
+        }
+        return movedWindows
     }
 
     func dispose() throws {
@@ -113,11 +138,19 @@ private final class BridgedWindowOwners {
 final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     var app: NSRunningApplication? {
         didSet {
-            if let currentApp, !currentApp.isActive { currentApp.hide() }
+            if let currentApp, !isCurrentAppActive { currentApp.hide() }
         }
     }
     private var currentApp: NSRunningApplication? {
         app.flatMap { NSRunningApplication(processIdentifier: $0.processIdentifier) }
+    }
+
+    private var isCurrentAppActive: Bool {
+        guard let app = currentApp else { return false }
+        let frontmost = Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute)
+        // Completion can run immediately after activation, before AppKit's
+        // cached isActive changes. Ask Messages directly before hiding it.
+        return (try? Accessibility.Element(pid: app.processIdentifier).attribute(frontmost)()) ?? app.isActive
     }
 
     var canReuseExtantInstance: Bool { true }
@@ -125,6 +158,10 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     private let session: BridgedSpaceSession
     private var dockPID: pid_t?
     private let owners: BridgedWindowOwners
+    private var mainWindowID: UInt32?
+    private var automationInProgress = false
+    private var activationDeadline = Date.distantPast
+    private var activationTimer: DispatchSourceTimer?
 
     init() throws {
         guard let bridge = IMPrivateSPISpaceBridgeCreate() else {
@@ -176,6 +213,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             }
         ))
         dockPID = Dock.pid
+
     }
 
     private static func spaces(_ window: UInt32) throws -> [UInt64] {
@@ -244,34 +282,51 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         return window
     }
 
+    private func windowIDsToPark() throws -> [UInt32] {
+        guard let app = currentApp else { return [] }
+        let windows = try Window.listDescriptions(.all).filter {
+            $0.owner == app.processIdentifier && $0.layer == 0
+        }
+        // Prefer the AX-confirmed main window, but conceal every normal window
+        // before unhiding the app. A larger Settings window must not expose the
+        // main window while AX discovery catches up. Exclude menu-bar surfaces.
+        let axWindows = (try? Accessibility.Element(pid: app.processIdentifier).appWindows()) ?? []
+        let axIDs = Set(axWindows.compactMap { try? $0.window().raw })
+        let main = windows.first { $0.window.raw == mainWindowID }?.window.raw
+        return ([main].compactMap { $0 } + windows.filter {
+            $0.window.raw != main && $0.bounds.width > 300 && $0.bounds.height > 100 &&
+                (axIDs.contains($0.window.raw) || $0.name?.isEmpty != true)
+        }.map { $0.window.raw })
+    }
+
     func prepareAfterLaunch() throws {
         lock.lock()
         defer { lock.unlock() }
-        guard let app = currentApp, !app.isActive else { return }
-        // Hiding before AX discovery can make Messages' AX windows unavailable.
-        // Find its CG window while hidden, park it, and only then unhide for AX.
-        var window: UInt32?
-        let minimumWidth: CGFloat = 300
+        guard currentApp != nil, !isCurrentAppActive else { return }
+        var windows: [UInt32] = []
         try Self.waitFor("initial Messages window") {
-            let candidates = try Window.listDescriptions(.all).filter {
-                $0.owner == app.processIdentifier && $0.layer == 0 && $0.bounds.width > minimumWidth
-            }
-            let largest = candidates.max { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }
-            window = largest?.window.raw
-            return window != nil
+            windows = try self.windowIDsToPark()
+            return !windows.isEmpty
         }
-        guard let window else { throw ErrorMessage("No initial Messages window") }
-        try parkWindow(trackWindow(window))
+        try parkWindows(windows)
     }
 
     func makeAutomatable(_ window: Accessibility.Element) throws {
         lock.lock()
         defer { lock.unlock() }
-        guard currentApp?.isActive == false else { return }
-        try parkWindow(trackWindow(window.window().raw))
+        do {
+            mainWindowID = try trackWindow(window.window().raw)
+            guard currentApp != nil, !isCurrentAppActive else { return }
+            try parkWindows(windowIDsToPark())
+        } catch {
+            automationInProgress = false
+            try? restoreIdleWindows()
+            throw error
+        }
     }
 
-    private func parkWindow(_ id: UInt32) throws {
+    private func parkWindows(_ ids: [UInt32]) throws {
+        guard !ids.isEmpty else { return }
         if dockPID != Dock.pid {
             // Dock can expose previously hidden user Spaces. Restore before replacing one.
             currentApp?.hide()
@@ -279,14 +334,22 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             dockPID = Dock.pid
         }
         do {
-            // A newly launched hidden window may not have joined a Space yet.
-            // Its normal presentation belongs on the desktop where it was launched.
-            try session.park(id, originalSpaceIfUnassigned: Self.displayDestination(for: id, owners: owners))
-            // Moving first avoids the old unhide-before-positioning exposure.
+            for id in ids {
+                let destination = try Self.displayDestination(for: trackWindow(id), owners: owners)
+                guard destination != session.hiddenSpace, IMPrivateSPIActiveSpace() != session.hiddenSpace else {
+                    throw ErrorMessage("Cannot park Messages on the user's current desktop")
+                }
+                // Newly launched hidden windows may not have joined a Space yet.
+                try session.park(id, originalSpaceIfUnassigned: destination)
+            }
+            // Unhide only after every normal window has been concealed.
             currentApp?.unhide()
-            try Self.waitFor("concealed Messages window") {
-                try Self.spaces(id) == [self.session.hiddenSpace] &&
-                    !Window.listDescriptions(.onScreen).contains { $0.window.raw == id }
+            try Self.waitFor("concealed Messages windows") {
+                let onScreen = try Window.listDescriptions(.onScreen)
+                return try ids.allSatisfy { id in
+                    try Self.spaces(id) == [self.session.hiddenSpace] &&
+                        !onScreen.contains { $0.window.raw == id }
+                }
             }
         } catch {
             currentApp?.hide()
@@ -297,21 +360,29 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     func prepareForAutomation() throws {
         lock.lock()
         defer { lock.unlock() }
-        guard let app = currentApp, !app.isActive else { return }
-        // AX may not expose the window while the idle app is hidden. Park its
-        // CG window before unhiding, so discovering it never flashes onscreen.
-        let candidates = try Window.listDescriptions(.all).filter {
-            $0.owner == app.processIdentifier && $0.layer == 0 && $0.bounds.width > 300
-        }
-        if let window = candidates.max(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
-            try parkWindow(trackWindow(window.window.raw))
+        automationInProgress = true
+        do {
+            guard currentApp != nil, !isCurrentAppActive else { return }
+            // CG discovery works while the idle app is hidden, before AX discovery.
+            try parkWindows(windowIDsToPark())
+        } catch {
+            automationInProgress = false
+            try? restoreIdleWindows()
+            throw error
         }
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
         lock.lock()
         defer { lock.unlock() }
-        guard let app = currentApp, !app.isActive else { return }
+        automationInProgress = false
+        mainWindowID = try trackWindow(window.window().raw)
+        try restoreIdleWindows()
+    }
+
+    private func restoreIdleWindows() throws {
+        guard !automationInProgress, let app = currentApp, !app.isTerminated,
+              !isCurrentAppActive, Date() >= activationDeadline else { return }
         // An idle window on the parking Space makes Dock activation switch to
         // that Space. Hide first, then restore membership without exposing it.
         app.hide()
@@ -319,32 +390,77 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         try Self.waitFor("hidden Messages before restoring desktop") {
             // NSRunningApplication.isHidden can lag on a worker thread. AX
             // queries the target process directly instead of that cached state.
-            try appElement.isHidden() || self.currentApp?.isActive == true
+            try appElement.isHidden() || self.isCurrentAppActive
         }
-        guard currentApp?.isActive == false else { return }
+        guard currentApp != nil, !isCurrentAppActive else { return }
         try session.restoreAll()
     }
 
     func reset(_ window: Accessibility.Element) throws {
         lock.lock()
         defer { lock.unlock() }
-        let id = try trackWindow(window.window().raw)
-        // Bring the window to the user's current desktop, never pull the user
-        // back to the desktop captured when automation originally started.
-        try session.restore(id, to: Self.displayDestination(for: id, owners: owners))
-        currentApp?.unhide()
-        // The user already requested activation. Re-activating here can race a
-        // subsequent app switch and steal focus or change Spaces a second time.
+        mainWindowID = try trackWindow(window.window().raw)
+        try revealForManualControl()
     }
 
-    func userManuallyActivated(_ app: NSRunningApplication) throws {
+    private func revealForManualControl() throws {
+        let moved = try session.revealAll {
+            // Managed-display topology can still report the normal desktop
+            // while SkyLight has selected our otherwise hidden Space.
+            if let hidden = self.session.hiddenSpace, IMPrivateSPIActiveSpace() == hidden { return hidden }
+            return try Self.displayDestination(for: $0, owners: owners)
+        }
+        currentApp?.unhide()
+        // Moving a focused window between Spaces can drop activation. Complete
+        // this handoff once; already-restored windows do not activate again.
+        if moved { currentApp?.activate(options: [.activateAllWindows]) }
+    }
+
+    func userManuallyActivated(_: NSRunningApplication) throws {
         lock.lock()
         defer { lock.unlock() }
-        guard currentApp?.isActive == true else { return }
-        // Usually empty because completion restores the idle window. This also
-        // handles a user activation that interrupts an automation operation.
-        try session.restoreAll()
-        currentApp?.unhide()
+        if !session.originalSpaces.isEmpty {
+            if activationTimer == nil {
+                activationDeadline = Date().addingTimeInterval(1.5)
+                // Hidden-Space switches are not reliably reported by NSWorkspace.
+                // Poll only for this bounded activation handoff, then stop.
+                let timer = DispatchSource.makeTimerSource(queue: .global())
+                timer.schedule(deadline: .now(), repeating: 0.05)
+                timer.setEventHandler { [weak self] in
+                    guard let self else { return }
+                    self.lock.lock()
+                    defer { self.lock.unlock() }
+                    do {
+                        if Date() >= self.activationDeadline {
+                            self.activationTimer?.cancel()
+                            self.activationTimer = nil
+                            try self.restoreIdleWindows()
+                        } else {
+                            try self.finishPendingSpaceActivation()
+                        }
+                    } catch { log.error("Failed to finish Messages activation: \(error)") }
+                }
+                activationTimer = timer
+                timer.resume()
+            }
+        }
+        if isCurrentAppActive {
+            try revealForManualControl()
+        } else {
+            try finishPendingSpaceActivation()
+        }
+    }
+
+    private func finishPendingSpaceActivation() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard Date() < activationDeadline, let hidden = session.hiddenSpace,
+              let app = currentApp, !app.isTerminated else { return }
+        // React only to the late arrival on our parking Space, never an
+        // unrelated desktop switch or a later manual app switch.
+        guard IMPrivateSPIActiveSpace() == hidden else { return }
+        try revealForManualControl()
+        if !isCurrentAppActive { currentApp?.activate(options: [.activateAllWindows]) }
     }
 
     // Deactivation itself needs no window manipulation. Completion hides and
@@ -353,11 +469,23 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     func dispose() throws {
         lock.lock()
         defer { lock.unlock() }
-        if !session.originalSpaces.isEmpty { currentApp?.hide() }
+        if !session.originalSpaces.isEmpty, !isCurrentAppActive { currentApp?.hide() }
+        if let hidden = session.hiddenSpace,
+           IMPrivateSPIActiveSpace() == hidden || (IMPrivateSPICopyManagedDisplaySpaces()?.contains(where: { record in
+               guard let current = record["Current Space"] as? [String: Any] else { return false }
+               let id = (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value
+               return id == hidden
+           }) == true) {
+            if !isCurrentAppActive { try session.restoreAll() }
+            // Dock cannot safely destroy a Space during its activation transition.
+            // Keep it alive rather than corrupt the user's desktop session.
+            return
+        }
         try session.dispose()
     }
 
     deinit {
+        activationTimer?.cancel()
         do { try dispose() } catch { log.error("Failed to restore bridged Spaces: \(error)") }
     }
 }

@@ -215,3 +215,65 @@ func bridgedSpaceSessionRestoresIdleWindowsWithoutDestroyingSpace() throws {
     try session.restoreAll()
     #expect(membership[11] == [2])
 }
+
+@Test
+func bridgedSpaceSessionInterruptedAutomationRevealsOnCurrentDesktop() throws {
+    var membership: [UInt64] = [1]
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { _, space in membership = [space] },
+        spaces: { _ in membership },
+        destroy: { _ in Issue.record("Activation must not destroy a Space") }
+    ))
+    try session.park(10)
+    let moved = try session.revealAll { _ in 2 }
+    #expect(moved)
+    #expect(membership == [2])
+    #expect(session.originalSpaces[10] == 2)
+    // Completion must not undo the user's choice of desktop.
+    // Dock may complete its original switch after the initial reveal.
+    try session.revealAll { _ in 99 }
+    #expect(membership == [99])
+    #expect(session.originalSpaces[10] == 2)
+    try session.restoreAll()
+    #expect(membership == [2])
+}
+
+@Test
+func bridgedSpaceSessionInterruptedActivationAlreadyOnParkingSpace() throws {
+    var membership: [UInt64] = [1]
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { _, space in membership = [space] },
+        spaces: { _ in membership },
+        destroy: { _ in Issue.record("Activation must not destroy a Space") }
+    ))
+    try session.park(10)
+    let moved = try session.revealAll { _ in 99 }
+    #expect(!moved) // Already visible here; do not initiate another activation.
+    // The window remains where the user is looking. Retain the recovery record
+    // until the user leaves and background completion can safely restore it.
+    #expect(membership == [99])
+    #expect(session.originalSpaces[10] == 1)
+    try session.restoreAll()
+    #expect(membership == [1])
+}
+
+@Test
+func bridgedSpaceSessionRevealSkipsClosedWindowDestinationLookup() throws {
+    var exists = true
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { _, _ in },
+        spaces: { _ in [1] },
+        destroy: { _ in },
+        exists: { _ in exists }
+    ))
+    try session.park(10)
+    exists = false
+    try session.revealAll { _ in
+        Issue.record("Closed windows must be pruned before destination lookup")
+        return 2
+    }
+    #expect(session.originalSpaces.isEmpty)
+}

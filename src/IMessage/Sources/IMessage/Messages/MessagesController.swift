@@ -263,13 +263,13 @@ final class MessagesController {
         try assertSelectedThread(threadID: threadID)
     }
 
-    init(reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
+    init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
 
-        windowCoordinator = try getBestWindowCoordinator()
+        windowCoordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
 
         let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
             // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
@@ -450,12 +450,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
 
-        defer {
-            activityLock.lock()
-        }
-
         if Defaults.shouldCoordinateWindow {
-            try windowCoordinator.prepareForAutomation()
             if Defaults.shouldSuppressMessagesDock {
                 do {
                     try windowCoordinator.suppressDockPresence()
@@ -464,10 +459,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     log.error("failed to hide Messages from Dock: \(error)")
                 }
             }
+            try windowCoordinator.prepareForAutomation()
             if let mainWindow = elements.getMainWindow() {
                 try windowCoordinator.makeAutomatable(mainWindow)
             }
         }
+        // Callers install finishedAutomation only after preparation succeeds.
+        // A failed preparation must never acquire a lock they cannot release.
+        activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
@@ -1411,9 +1410,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         lastActivate = Date()
         messagesIsManuallyActivated = true
         log.debug("activateMessages")
+        var restoredDock = false
         do {
             // Restore independently of coordination defaults and main-window availability.
+            let oldType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
             try windowCoordinator.restoreDockPresence()
+            restoredDock = oldType == "invalid" || oldType == "UIElement"
         } catch {
             log.error("failed to restore Messages to Dock: \(error)")
         }
@@ -1429,6 +1431,12 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
+        }
+        // Changing the LaunchServices process type can drop the activation that
+        // caused this callback. Complete it after restoring the windows. This
+        // runs once per suppression cycle; a Foreground callback cannot repeat it.
+        if restoredDock {
+            NSRunningApplication(processIdentifier: app.processIdentifier)?.activate(options: [.activateAllWindows])
         }
     }
 

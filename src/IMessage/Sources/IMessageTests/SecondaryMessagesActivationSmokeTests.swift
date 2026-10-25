@@ -13,7 +13,9 @@ private func isWindowOnVisibleDesktop(_ window: UInt32) -> Bool {
         guard let current = record["Current Space"] as? [String: Any] else { return nil }
         return (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value
     }
-    return membership.allSatisfy { visibleSpaces.contains($0.uint64Value) }
+    return membership.allSatisfy {
+        visibleSpaces.contains($0.uint64Value) || $0.uint64Value == IMPrivateSPIActiveSpace()
+    }
 }
 
 // Opt-in only: drives activation and automation of a real secondary Messages.
@@ -27,7 +29,11 @@ func secondaryMessagesActivationDockSmoke() throws {
     Preferences.useSecondaryMessagesInstance = true
     defer { Preferences.useSecondaryMessagesInstance = originalSecondary }
     let previousFrontmost = NSWorkspace.shared.frontmostApplication
-    defer { previousFrontmost?.activate(options: []) }
+    defer {
+        if let previousFrontmost {
+            NSRunningApplication(processIdentifier: previousFrontmost.processIdentifier)?.activate(options: [.activateAllWindows])
+        }
+    }
     let existingPIDs = Set(NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).map(\.processIdentifier))
     let baseline = try messagesDockSnapshot()
     let controller = try runSmokeWorker {
@@ -38,9 +44,9 @@ func secondaryMessagesActivationDockSmoke() throws {
         !existingPIDs.contains($0.processIdentifier)
     })
     let usesBridge = try getBestWindowCoordinator() is BridgedSpacesWindowCoordinator
-    let window = try #require(try Window.listDescriptions(.all).first {
-        $0.owner == app.processIdentifier && $0.layer == 0 && $0.bounds.width > 300
-    }).window.raw
+    // Follow the AX-confirmed main window, not the first wide CG surface:
+    // Messages also owns wide menu-bar and unnamed internal windows.
+    let window = try controller.elements.mainWindow.window().raw
     let idleSpace = IMPrivateSPISpacesForWindow(window)?.first?.uint64Value
     if usesBridge {
         #expect(idleSpace != nil && isWindowOnVisibleDesktop(window))
@@ -134,5 +140,33 @@ func secondaryMessagesActivationDockSmoke() throws {
     pumpSmokeRunLoop(for: 1)
     #expect(isTargetActive())
     #expect(IMPrivateSPIActiveSpace() == activationDesktop)
+    #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+
+    // Activate while the window is parked, before completion restores its idle
+    // membership. The lifecycle observer must reveal it on the current desktop.
+    try #require(otherApp.activate(options: []))
+    let interruptedDeadline = Date().addingTimeInterval(5)
+    while isTargetActive() && Date() < interruptedDeadline { pumpSmokeRunLoop(for: 0.05) }
+    try #require(!isTargetActive())
+    pumpSmokeRunLoop(for: 0.5)
+    try runSmokeWorker {
+        try controller.prepareForAutomation()
+        defer { controller.finishedAutomation() }
+        try #require(app.activate(options: []))
+        let deadline = Date().addingTimeInterval(5)
+        let frontmost = Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute)
+        let target = Accessibility.Element(pid: app.processIdentifier)
+        while Date() < deadline {
+            if try target.attribute(frontmost)(),
+               try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
+               try Window.listDescriptions(.onScreen).contains(where: { $0.window.raw == window }) { break }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        try #require(try target.attribute(frontmost)())
+        #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+    }
+    pumpSmokeRunLoop(for: 1)
+    #expect(isTargetActive())
+    #expect(isWindowOnVisibleDesktop(window))
     #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
 }
