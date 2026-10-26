@@ -57,6 +57,42 @@ private final class FailingPreparationCoordinator: WindowCoordinator {
 @MainActor
 struct MessagesPreparationValidationSmokeTests {
     @Test
+    func preparationReopensClosedWindowInExistingProcess() throws {
+        try #require(AXIsProcessTrusted())
+        Defaults.registerDefaults()
+        let previous = NSWorkspace.shared.frontmostApplication
+        defer { restoreFrontmost(previous) }
+        let app = try runSmokeWorker {
+            try MessagesInstanceTarget.launchSecondaryInstance(
+                initialDeepLink: MessagesDeepLink.compose.url(), activating: false
+            )
+        }
+        let coordinator = try BridgedSpacesWindowCoordinator()
+        defer {
+            app.terminate()
+            try? coordinator.dispose()
+        }
+        let elements = MessagesAppElements(runningApp: app)
+        let main = try runSmokeWorker { try elements.mainWindow }
+        try main.closeWindow()
+        try waitForSmoke("closed Messages window") { elements.getMainWindow() == nil }
+        try #require(!app.isTerminated)
+        let pid = app.processIdentifier
+        coordinator.app = app
+
+        try runSmokeWorker { try coordinator.prepareAfterLaunch() }
+
+        #expect(!app.isTerminated && app.processIdentifier == pid)
+        let reopened = try #require(elements.getMainWindow())
+        let id = try reopened.window().raw
+        let spaces = try smokeWindowSpaces(id)
+        let space = try #require(spaces.count == 1 ? spaces.first.flatMap { Space(raw: .init($0)) } : nil)
+        #expect(try space.kind() == .unknown)
+        #expect(try !smokeOnscreen(id))
+        #expect(try !elements.app.isHidden())
+    }
+
+    @Test
     func preparationFailureDoesNotPoisonActivityLock() throws {
         try #require(AXIsProcessTrusted())
         Defaults.registerDefaults()

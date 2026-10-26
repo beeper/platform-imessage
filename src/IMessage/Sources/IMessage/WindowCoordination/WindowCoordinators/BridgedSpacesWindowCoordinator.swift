@@ -337,6 +337,11 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         defer { lock.unlock() }
         guard !disposed, currentApp != nil else { return }
         try ensureTargetLease()
+        if try windowIDsToPark().isEmpty, let app = currentApp {
+            // A reused process can outlive its last window. Ask that exact
+            // process to reopen one before waiting for discovery and parking.
+            try MessagesInstanceTarget.sendDeepLink(MessagesDeepLink.compose.url(), to: app)
+        }
         if isCurrentAppActive {
             // Adopt a reused process left parked by a previous host, without
             // altering an already-visible Messages window under manual control.
