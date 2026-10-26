@@ -3,6 +3,7 @@ import AppKit
 import Carbon.HIToolbox.Events
 import Combine
 import Contacts
+import Darwin
 import EmojiSPI
 import IMDatabase
 import Logging
@@ -101,18 +102,6 @@ final class MessagesController {
         try? closeReplyTranscriptView(wait: false)
     }
 
-    private static func terminateApp(_ app: NSRunningApplication) throws {
-        app.terminate()
-        try retry(withTimeout: 2, interval: 0.1) {
-            guard app.isTerminated else { throw ErrorMessage("App couldn't be terminated") }
-        } onError: { attempt, _ in
-            if attempt == 19 {
-                log.debug("Force terminating app")
-                app.forceTerminate()
-            }
-        }
-    }
-
     @discardableResult
     static func openDeepLink(
         _ url: URL,
@@ -126,9 +115,8 @@ final class MessagesController {
             if activating {
                 app.activate()
             }
-            if shouldHide {
-                app.hide()
-            }
+            // The window coordinator owns visibility during automation. Hiding
+            // here undoes makeAutomatable immediately before the AX actions.
             return app
         }
 
@@ -264,22 +252,13 @@ final class MessagesController {
         try assertSelectedThread(threadID: threadID)
     }
 
-    init(reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
+    init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
             throw ErrorMessage("Beeper does not have Accessibility permissions")
         }
 
-        windowCoordinator = try getBestWindowCoordinator()
-
-        let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
-            // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
-            log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
-        }
+        windowCoordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
 
         if Preferences.useSecondaryMessagesInstance {
             log.info("launching secondary messages instance...")
@@ -289,26 +268,13 @@ final class MessagesController {
                 hiding: false
             )
         } else {
-            var messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-            if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-                log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-                messagesApps.forEach { try? Self.terminateApp($0) }
-                messagesApps.removeAll()
-            }
-            if let existingApp = messagesApps.first {
-                // if coordination is disabled, avoid unnecessarily terminating the app
-                if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
-                    log.info("reusing existing messages...")
-                    app = existingApp
-                } else {
-                    log.info("terminating messages...")
-                    try Self.terminateApp(existingApp)
-                    // this is for markAsReadWithPressHack (monterey or lower)
-                    // launch with activation because the hack doesn't work until the app is activated at least once
-                    app = try launchMessages(!isVenturaOrUp)
-                }
+            let messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
+            if let existingApp = try MessagesInstanceTarget.primaryInstance(in: messagesApps) {
+                log.info("reusing existing messages...")
+                app = existingApp
             } else {
-                app = try launchMessages(false)
+                log.info("launching messages...")
+                app = try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: true)
             }
         }
 
@@ -324,51 +290,60 @@ final class MessagesController {
 
         keyPresser = KeyPresser(pid: app.processIdentifier)
 
-        // if app.isHidden {
-        //     debugLog("Unhiding Messages...")
-        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
-        //         app.unhide()
-        //         if app.isHidden {
-        //             throw ErrorMessage("Could not launch Messages")
-        //         }
-        //     }
-        // }
         let observer = LifecycleObserver()
         lifecycleObserver = observer
-        setUpLifecycleConveyor(with: lifecycleObserver)
+        do {
+            if Defaults.shouldCoordinateWindow { try windowCoordinator.prepareAfterLaunch() }
+            setUpLifecycleConveyor(with: lifecycleObserver)
 
-        guard isValid else {
-            dispose() // since deinit isn't called when init throws
-            throw ErrorMessage("""
+            guard isValid else {
+                // Diagnostics must remain passive; mainWindow can reopen the app.
+                let frameValid = elements.getMainWindow()?.isFrameValid ?? false
+                throw ErrorMessage("""
 Initialized MessagesController in an invalid state:
 appTerminated=\(app.isTerminated)
-mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+mwFrameValid=\(frameValid)
 isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
+            }
+            resetWindow()
+            if Defaults.shouldCoordinateWindow {
+                try windowCoordinator.automationDidComplete(elements.mainWindow)
+            }
+        } catch WindowCoordinatorError.instanceInUse {
+            dispose(terminateApp: Preferences.useSecondaryMessagesInstance)
+            throw WindowCoordinatorError.instanceInUse
+        } catch {
+            dispose()
+            throw error
         }
-        resetWindow()
     }
 
     func setUpLifecycleConveyor(with observer: LifecycleObserver) {
         let thread = RunLoopConveyor<ConveyorEvent>(name: "IMessage Lifecycle RunLoop", oneTimeInitialization: { rlt in
+            guard !self.isDisposed.read(), !rlt.isCancelled, !self.app.isTerminated else { return }
             do {
                 try observer.beginObserving(app: self.elements.app)
             } catch {
                 log.error("unable to perform initial observation of app: \(error)")
             }
             do {
-                try observer.beginObserving(window: try self.elements.mainWindow)
+                if let window = self.elements.getMainWindow() {
+                    try observer.beginObserving(window: window)
+                }
             } catch {
                 log.error("unable to perform initial observation of main window: \(error)")
             }
 
             // this task doesn't run on the thread with the run loop
-            self.lifecycleEventsTask = Task.detached {
+            let eventsTask = Task.detached {
+                guard !Task.isCancelled, !self.isDisposed.read(), !self.app.isTerminated else { return }
                 func debuggingStatus() -> String {
+                    guard !self.isDisposed.read(), !self.app.isTerminated else { return "<disposed or terminated>" }
                     let app = self.app
 
                     do {
-                        let window = try self.elements.mainWindow
+                        guard let window = self.elements.getMainWindow() else { return "<no main window>" }
                         let frame = try window.frame()
                         let position = try window.position()
                         return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
@@ -378,6 +353,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
 
                 for await event in observer.events.subscribe() {
+                    // Cancellation can leave already-buffered lifecycle events.
+                    // Never let those events reopen a disposed Messages process.
+                    guard !Task.isCancelled, !self.isDisposed.read(), !self.app.isTerminated else { break }
                     func printLifecycle(event: String) {
                         lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
                     }
@@ -401,19 +379,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         printLifecycle(event: "FOCUSED: \(focusedDescription)")
                         #endif
                     case .windowCreated:
-                        do {
-                            printLifecycle(event: "WINDOW created")
-                            // for now, reset our window-local observations whenever we
-                            // see that a window was created (even if it was just e.g.
-                            // the settings window).
-                            try rlt.enqueue(.observeWindow(window: self.elements.mainWindow))
-                        } catch {
-                            log.error("fetching mainWindow failed", error: error)
+                        printLifecycle(event: "WINDOW created")
+                        // Reset observations when any window appears, but never
+                        // reopen a missing main window merely to observe it.
+                        if !self.isDisposed.read(), let window = self.elements.getMainWindow() {
+                            rlt.enqueue(.observeWindow(window: window))
                         }
                     }
                 }
             }
+            self.isDisposed.withLock { disposed in
+                // Initialization can finish after disposal already canceled the
+                // conveyor. Do not leave a newly registered task waiting forever.
+                if disposed { eventsTask.cancel() }
+                else { self.lifecycleEventsTask = eventsTask }
+            }
         }, handlingWorkItemsWithinRunLoop: { event in
+            guard !self.isDisposed.read(), !self.app.isTerminated else { return }
             guard case let .observeWindow(window) = event else { return }
             do {
                 // swift gives a concurrency warning for capturing `observer` here but it
@@ -443,13 +425,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         afterAutomationTask?.cancel()
         log.debug("prepareForAutomation: making the app automatable")
 
-        defer {
-            activityLock.lock()
+        if Defaults.shouldCoordinateWindow {
+            if Defaults.shouldSuppressMessagesDock {
+                do {
+                    try windowCoordinator.suppressDockPresence()
+                } catch {
+                    // Dock suppression is best effort; window coordination can still work.
+                    log.error("failed to hide Messages from Dock: \(error)")
+                }
+            }
+            try windowCoordinator.prepareForAutomation()
+            if let mainWindow = elements.getMainWindow() {
+                try windowCoordinator.makeAutomatable(mainWindow)
+            }
         }
-
-        if Defaults.shouldCoordinateWindow, let mainWindow = elements.getMainWindow() {
-            try windowCoordinator.makeAutomatable(mainWindow)
-        }
+        // Callers install finishedAutomation only after preparation succeeds.
+        // A failed preparation must never acquire a lock they cannot release.
+        activityLock.lock()
     }
 
     @inlinable func finishedAutomation() {
@@ -473,8 +465,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func scheduleCancelReplyTranscriptView() {
         afterAutomationTask = DispatchWorkItem { [self] in
+            guard !isDisposed.read(), !app.isTerminated else { return }
             activityLock.lock()
             defer { activityLock.unlock() }
+            guard !isDisposed.read(), !app.isTerminated else { return }
             try? closeReplyTranscriptView(wait: false)
         }
         afterAutomationTask.map { Self.queue.asyncAfter(deadline: .now() + 1.5, execute: $0) }
@@ -1390,21 +1384,43 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
     private func activateMessages() {
+        guard !isDisposed.read(), !app.isTerminated else { return }
+        lastActivate = Date()
+        messagesIsManuallyActivated = true
+        log.debug("activateMessages")
+        var restoredDock = false
         do {
-            lastActivate = Date()
-            messagesIsManuallyActivated = true
-            log.debug("activateMessages")
+            // Restore independently of coordination defaults and main-window availability.
+            let oldType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
+            try windowCoordinator.restoreDockPresence()
+            restoredDock = oldType == "invalid" || oldType == "UIElement"
+        } catch {
+            log.error("failed to restore Messages to Dock: \(error)")
+        }
+        do {
+            guard !isDisposed.read(), !app.isTerminated else { return }
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-            if Defaults.shouldCoordinateWindow, let window = elements.getMainWindow() {
-                try windowCoordinator.reset(window)
+            if Defaults.shouldCoordinateWindow {
+                // Restore tracked windows before AX discovery: a hidden window
+                // may not be exposed through Accessibility on first activation.
                 try windowCoordinator.userManuallyActivated(app)
+                if let window = elements.getMainWindow() {
+                    try windowCoordinator.reset(window)
+                }
             }
         } catch {
             log.error("couldn't unhide messages window caused by user activation: \(error)")
         }
+        // Changing the LaunchServices process type can drop the activation that
+        // caused this callback. Complete it after restoring the windows. This
+        // runs once per suppression cycle; a Foreground callback cannot repeat it.
+        if restoredDock, !isDisposed.read(), !app.isTerminated {
+            NSRunningApplication(processIdentifier: app.processIdentifier)?.activate(options: [.activateAllWindows])
+        }
     }
 
     private func deactivateMessages() {
+        guard !isDisposed.read(), !app.isTerminated else { return }
         do {
             lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
             messagesIsManuallyActivated = false
@@ -1414,8 +1430,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if Defaults.shouldCoordinateWindow {
                 try windowCoordinator.userManuallyDeactivated(app)
             }
+            guard !isDisposed.read(), !app.isTerminated else { return }
             try? closeAllNonMainWindows()
-            if window != nil {
+            if window != nil, !isDisposed.read(), !app.isTerminated {
                 resetWindow()
             }
         } catch {
@@ -1588,17 +1605,44 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private var isDisposed = false
+    private let isDisposed = Protected(false)
 
-    func dispose() {
+    func dispose(terminateApp: Bool = true) {
         log.info("disposing MessagesController")
-        guard !isDisposed else { return }
+        guard isDisposed.withLock({ disposed in
+            guard !disposed else { return false }
+            disposed = true
+            return true
+        }) else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
-        isDisposed = true
         lifecycleConveyor?.cancel()
         lifecycleEventsTask?.cancel()
+        afterAutomationTask?.cancel()
 
-        app.terminate()
+        if terminateApp {
+            // Restoring a parked window can order it onscreen even while AX
+            // reports the app hidden. Let Messages close its windows in the
+            // unknown Space before releasing coordination ownership.
+            app.terminate()
+            let deadline = Date().addingTimeInterval(2)
+            let pid = app.processIdentifier
+            while kill(pid, 0) == 0 || errno != ESRCH {
+                guard Date() < deadline else {
+                    // Preserve the existing recovery path if Messages refuses
+                    // to quit: restore its windows instead of stranding them.
+                    log.warning("Messages did not exit before window restoration")
+                    break
+                }
+                if Thread.isMainThread {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+                } else {
+                    Thread.sleep(forTimeInterval: 0.02)
+                }
+            }
+        }
+
+        do { try windowCoordinator.dispose() }
+        catch { log.error("Failed to clean up window coordination: \(error)") }
     }
 
     deinit {

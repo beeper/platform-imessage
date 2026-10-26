@@ -8,15 +8,15 @@ protocol WindowCoordinator {
     /** The application to coordinate. */
     var app: NSRunningApplication? { get set }
 
-    /** Specifies whether the coordinator is okay with reusing an instance of Messages that was already open. */
-    var canReuseExtantInstance: Bool { get }
-
     /**
      * Manipulates the Messages window in such a way that it becomes controllable via Accessibility APIs.
      *
      * This is called right before the app needs to be automated.
      */
     func makeAutomatable(_ window: Accessibility.Element) throws
+    func prepareForAutomation() throws
+    func prepareAfterLaunch() throws
+    func dispose() throws
 
     /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
     func automationDidComplete(_ window: Accessibility.Element) throws
@@ -37,6 +37,19 @@ protocol WindowCoordinator {
 }
 
 extension WindowCoordinator {
+    func prepareForAutomation() throws {}
+    func prepareAfterLaunch() throws {}
+    func dispose() throws {}
+    /// Independent of window availability: a deep link may not have created one yet.
+    func suppressDockPresence() throws {
+        if let app { try MessagesDockSuppression.suppress(app) }
+    }
+
+    /// Restore before handing control back to the user, even without a main window.
+    func restoreDockPresence() throws {
+        if let app { try MessagesDockSuppression.restore(app) }
+    }
+
     func userManuallyActivated(_: NSRunningApplication) throws {
         // make this method optional
     }
@@ -48,4 +61,5 @@ extension WindowCoordinator {
 
 enum WindowCoordinatorError: Error {
     case generic(message: String)
+    case instanceInUse
 }

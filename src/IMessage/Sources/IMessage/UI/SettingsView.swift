@@ -8,15 +8,11 @@ struct SettingsView: View {
     @AppStorage(DefaultsKeys.misfirePreventionTracingPII, store: Defaults.imessage) var misfirePreventionTracingPII = false
 
     @AppStorage(DefaultsKeys.windowCoordination, store: Defaults.imessage) var windowCoordination = true
-    @AppStorage(DefaultsKeys.hidingCoordinatorDebounce, store: Defaults.imessage) var hidingCoordinatorDebounce = 0.75
 
     @AppStorage(DefaultsKeys.misfirePrevention, store: Defaults.imessage) var misfirePrevention = true
     @AppStorage(DefaultsKeys.imCoreSPI, store: Defaults.imessage) var imCoreSPI = true
     @AppStorage(DefaultsKeys.contactsAttemptFormattingWithShortStyle, store: Defaults.imessage) var contactsAttemptFormattingWithShortStyle = true
     @AppStorage(DefaultsKeys.predictionPredictsGroupChats, store: Defaults.imessage) var predictionPredictsGroupChats = true
-
-    @AppStorage(DefaultsKeys.eclipsingUsesLargestWindow, store: Defaults.imessage) var eclipsingUsesLargestWindow = true
-    @AppStorage(DefaultsKeys.eclipsingDebug, store: Defaults.imessage) var eclipsingDebug = false
 
     @AppStorage(DefaultsKeys.spacesObserveDock, store: Defaults.imessage) var spacesObserveDock = true
     @AppStorage(DefaultsKeys.disableOSAFastPath, store: Defaults.imessage) var disableOSAFastPath = false
@@ -136,26 +132,6 @@ struct SettingsView: View {
             Toggle(isOn: $windowCoordination) {
                 Text("Coordinate the Messages window")
                 Text("Allow Beeper to manage the Messages window when needed.")
-            }
-
-            HStack {
-                Stepper("Debounce before hiding the Messages window", onIncrement: {
-                    hidingCoordinatorDebounce += 0.05
-                }, onDecrement: {
-                    hidingCoordinatorDebounce -= 0.05
-                })
-                Spacer()
-                TextField("", value: $hidingCoordinatorDebounce, format: .number.precision(.fractionLength(2)))
-                    .frame(width: 80)
-                Text("s")
-            }
-
-            Toggle(isOn: $eclipsingUsesLargestWindow) {
-                Text("Use the largest window for eclipsing")
-            }
-
-            Toggle(isOn: $eclipsingDebug) {
-                Text("Show eclipsing debug visualization")
             }
         } header: {
             Text("Window Coordination")

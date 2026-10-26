@@ -62,7 +62,6 @@ final class SpacesWindowCoordinator {
 // MARK: - SpacesWindowCoordinator+WindowCoordinator
 
 extension SpacesWindowCoordinator: WindowCoordinator {
-    var canReuseExtantInstance: Bool { true }
 
     func makeAutomatable(_ window: Accessibility.Element) throws {
         guard app?.isActive == false else { return }
