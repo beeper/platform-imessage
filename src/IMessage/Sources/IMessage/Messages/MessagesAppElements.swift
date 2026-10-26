@@ -143,6 +143,8 @@ final class MessagesAppElements {
         CharacterPickerPopover(app: app, ownerPID: runningApp.processIdentifier)
     }
 
+    // Automation-lane isolated. Lifecycle/run-loop work must use getMainWindow(),
+    // which performs a fresh lookup without reading or writing this cache.
     private var cachedMainWindow: Accessibility.Element?
 
     init(runningApp: NSRunningApplication, openDeepLink: @escaping (MessagesDeepLink) async throws -> Void) {
@@ -232,6 +234,7 @@ final class MessagesAppElements {
         return allWindows.first(where: isMainWindow)
     }
 
+    /// Returns the valid cached window when possible. Automation-lane only.
     var currentMainWindow: Accessibility.Element? {
         if let cached = cachedMainWindow, cached.isFrameValid {
             return cached

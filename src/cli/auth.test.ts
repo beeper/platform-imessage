@@ -142,14 +142,18 @@ describe('macOS 26 and earlier', () => {
       .rejects.toThrow('Messages Data was not granted')
   })
 
-  test.each(['all', 'messages-data'])('authorize %s accepts folder access without FDA', async target => {
+  test.each(['all', 'messages-data'])('authorize %s requests the appropriate data permissions', async target => {
     const { api, calls } = makeAPI({ folderAccess: false })
 
     await auth.runAuthorizationFlow(target, api)
 
     expect(calls).toContain('askForMessagesDirAccess')
-    expect(calls).not.toContain('getFullDiskAccessAuthStatus')
-    expect(calls).not.toContain('askForFullDiskAccess')
+    if (target === 'all') {
+      expect(calls).toContain('askForFullDiskAccess')
+    } else {
+      expect(calls).not.toContain('getFullDiskAccessAuthStatus')
+      expect(calls).not.toContain('askForFullDiskAccess')
+    }
     if (target === 'all') {
       expect(calls.lastIndexOf('isMessagesAppSetup')).toBeGreaterThan(calls.indexOf('askForMessagesDirAccess'))
       expect(console.log).toHaveBeenCalledWith('  [ok] Messages.app Setup - Messages.app appears ready to use.')

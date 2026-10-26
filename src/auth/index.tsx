@@ -173,6 +173,7 @@ const ChecklistPage: React.FC<Props> = props => {
   const { authorized: contactsAuthorized } = useMacPermission(callProxiedFn, 'contacts')
   const { authorized: axAuthorized } = useMacPermission(callProxiedFn, 'accessibility')
   const { authorized: dataAuthorized, refreshAuthorization: refreshDataAuthorization } = useMacPermission(callProxiedFn, REQUIRES_FULL_DISK_ACCESS ? 'full-disk-access' : 'messages-data')
+  const { authorized: fullDiskAccessAuthorized } = useMacPermission(callProxiedFn, 'full-disk-access')
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -193,12 +194,13 @@ const ChecklistPage: React.FC<Props> = props => {
     askedContacts.current = true
   }
 
-  const authorizeFullDiskAccess = () => callProxiedFn<void>('askForFullDiskAccess')
 
   const authorizeMessagesDir = async () => {
     await callProxiedFn<void>('askForMessagesDirAccess')
     await refreshDataAuthorization()
   }
+
+  const authorizeFullDiskAccess = () => callProxiedFn<void>('askForFullDiskAccess')
 
   const authorizeAutomation = async () => {
     if (calledAutomationOnce) return openAutomationPrefs()
@@ -257,6 +259,15 @@ const ChecklistPage: React.FC<Props> = props => {
       more: <div onClick={authorizeFullDiskAccess}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
       showMore,
     },
+    ...(!REQUIRES_FULL_DISK_ACCESS ? [{
+      icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M4 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v7H2V8a1 1 0 0 1 1-1h1Zm2 0h4V5a2 2 0 1 0-4 0v2Z" /></svg>,
+      title: 'Full Disk Access',
+      completed: fullDiskAccessAuthorized ?? false,
+      action: authorizeFullDiskAccess,
+      info: 'Beeper needs Full Disk Access to read Messages’ Hide Alerts settings and keep muted chats in sync across relaunches.',
+      more: <div onClick={authorizeFullDiskAccess}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
+      showMore,
+    }] : []),
     {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" /></svg>,
       title: 'Automation',

@@ -9,7 +9,7 @@ import { REQUIRES_FULL_DISK_ACCESS } from '../common-constants'
 type AuthApi = Pick<PlatformAPI, 'getAsset'>
 
 export const DATA_AUTHORIZATION_REQUIREMENT = REQUIRES_FULL_DISK_ACCESS ? 'full-disk-access' : 'messages-data'
-export const AUTHORIZATION_REQUIREMENTS = ['accessibility', 'contacts', DATA_AUTHORIZATION_REQUIREMENT] as const
+export const AUTHORIZATION_REQUIREMENTS = ['accessibility', 'contacts', 'full-disk-access', ...(!REQUIRES_FULL_DISK_ACCESS ? ['messages-data'] as const : [])] as const
 
 // `automation` is not preflight-checkable: macOS does not expose its status
 // without triggering the Apple Events prompt. It remains a valid target for

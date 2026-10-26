@@ -370,7 +370,7 @@ function muteCommand(name: 'mute' | 'unmute', mutedUntil: 'forever' | null): Com
     summary: name === 'mute' ? 'Mute a chat indefinitely.' : 'Unmute a chat.',
     usage: [`${name} CHAT_ID`],
     examples: [`${name} any;-;sjobs@apple.com`],
-    requiredAuthorization: MUTATING_AUTH,
+    requiredAuthorization: [...MUTATING_AUTH, ...(DATA_AUTHORIZATION_REQUIREMENT === 'full-disk-access' ? [] : ['full-disk-access'] as const)],
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 1)
       await context.invokeMethod('updateThread', [args[0], { mutedUntil }])

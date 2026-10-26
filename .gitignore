@@ -44,6 +44,9 @@ DerivedData/
 .*.history.json
 .claude
 
+# Local review notes
+/thoughts-modern-concurrency.md
+
 vendor/bundle/
 
 .build
