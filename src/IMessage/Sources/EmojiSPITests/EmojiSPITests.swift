@@ -108,7 +108,10 @@ private final class PickerSearchFixture: NSObject {
             Issue.record("Unexpected fixture query: \(query)")
             results = []
         }
-        DispatchQueue.global().async {
+        // A Dispatch queue still shares workers with the other tests. Deliver
+        // the callback on its own thread so the wrapper's two-second deadline
+        // cannot be consumed waiting for a shared worker under CI load.
+        Thread.detachNewThread {
             completion(results as NSArray, false)
         }
     }
