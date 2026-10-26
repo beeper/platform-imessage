@@ -58,6 +58,9 @@ func secondaryMessagesLostOriginalSpaceSmoke() throws {
     try #require(IMPrivateSPISpaceBridgeDestroySpace(bridge, source))
     try waitForRecoverySmoke { try !Space.list(.allOSSpaces).contains { UInt64($0.raw) == source } }
     source = 0
+    // Restoration must not flash the secondary window on the visible desktop.
+    app.hide()
+    try waitForRecoverySmoke { try elements.app.isHidden() }
     try runSmokeWorker { try coordinator.dispose() }
     let restored = try #require(IMPrivateSPISpacesForWindow(windowID)?.first?.uint64Value)
     let visible = try #require(IMPrivateSPICopyManagedDisplaySpaces()).compactMap { record -> UInt64? in
@@ -66,7 +69,9 @@ func secondaryMessagesLostOriginalSpaceSmoke() throws {
     }
     #expect(visible.contains(restored))
     #expect(IMPrivateSPIActiveSpace() == desktop)
-    #expect(try !Space.list(.allOSSpaces).contains { UInt64($0.raw) == hidden })
-    #expect(try Set(Space.list(.allOSSpaces).map { UInt64($0.raw) }) == Set(baseline))
+    // Individual hosts restore their windows but retain the shared parking
+    // pool. It may have existed at baseline or have been created by this test.
+    #expect(try PersistentUnknownSpace.isReusable(hidden))
+    #expect(try Set(Space.list(.allOSSpaces).map { UInt64($0.raw) }) == Set(baseline).union([hidden]))
     #expect(existing.allSatisfy { !$0.isTerminated })
 }

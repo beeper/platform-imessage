@@ -3,6 +3,7 @@ import AppKit
 import Carbon.HIToolbox.Events
 import Combine
 import Contacts
+import Darwin
 import EmojiSPI
 import IMDatabase
 import Logging
@@ -336,6 +337,10 @@ final class MessagesController {
         lifecycleObserver = observer
         if Defaults.shouldCoordinateWindow {
             do { try windowCoordinator.prepareAfterLaunch() }
+            catch WindowCoordinatorError.instanceInUse {
+                dispose(terminateApp: Preferences.useSecondaryMessagesInstance)
+                throw WindowCoordinatorError.instanceInUse
+            }
             catch { dispose(); throw error }
         }
         setUpLifecycleConveyor(with: lifecycleObserver)
@@ -352,30 +357,39 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         resetWindow()
         if Defaults.shouldCoordinateWindow {
             do { try windowCoordinator.automationDidComplete(elements.mainWindow) }
+            catch WindowCoordinatorError.instanceInUse {
+                dispose(terminateApp: Preferences.useSecondaryMessagesInstance)
+                throw WindowCoordinatorError.instanceInUse
+            }
             catch { dispose(); throw error }
         }
     }
 
     func setUpLifecycleConveyor(with observer: LifecycleObserver) {
         let thread = RunLoopConveyor<ConveyorEvent>(name: "IMessage Lifecycle RunLoop", oneTimeInitialization: { rlt in
+            guard !self.isDisposed.read(), !rlt.isCancelled, !self.app.isTerminated else { return }
             do {
                 try observer.beginObserving(app: self.elements.app)
             } catch {
                 log.error("unable to perform initial observation of app: \(error)")
             }
             do {
-                try observer.beginObserving(window: try self.elements.mainWindow)
+                if let window = self.elements.getMainWindow() {
+                    try observer.beginObserving(window: window)
+                }
             } catch {
                 log.error("unable to perform initial observation of main window: \(error)")
             }
 
             // this task doesn't run on the thread with the run loop
-            self.lifecycleEventsTask = Task.detached {
+            let eventsTask = Task.detached {
+                guard !Task.isCancelled, !self.isDisposed.read(), !self.app.isTerminated else { return }
                 func debuggingStatus() -> String {
+                    guard !self.isDisposed.read(), !self.app.isTerminated else { return "<disposed or terminated>" }
                     let app = self.app
 
                     do {
-                        let window = try self.elements.mainWindow
+                        guard let window = self.elements.getMainWindow() else { return "<no main window>" }
                         let frame = try window.frame()
                         let position = try window.position()
                         return "finishedLaunching=\(app.isFinishedLaunching), active=\(app.isActive), hidden=\(app.isHidden), terminated=\(app.isTerminated), AXframe=\(frame), AXpos=\(position)"
@@ -385,6 +399,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
 
                 for await event in observer.events.subscribe() {
+                    // Cancellation can leave already-buffered lifecycle events.
+                    // Never let those events reopen a disposed Messages process.
+                    guard !Task.isCancelled, !self.isDisposed.read(), !self.app.isTerminated else { break }
                     func printLifecycle(event: String) {
                         lifecycleLog.info("@@ AX: \(event) [\(debuggingStatus())]")
                     }
@@ -408,19 +425,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         printLifecycle(event: "FOCUSED: \(focusedDescription)")
                         #endif
                     case .windowCreated:
-                        do {
-                            printLifecycle(event: "WINDOW created")
-                            // for now, reset our window-local observations whenever we
-                            // see that a window was created (even if it was just e.g.
-                            // the settings window).
-                            try rlt.enqueue(.observeWindow(window: self.elements.mainWindow))
-                        } catch {
-                            log.error("fetching mainWindow failed", error: error)
+                        printLifecycle(event: "WINDOW created")
+                        // Reset observations when any window appears, but never
+                        // reopen a missing main window merely to observe it.
+                        if !self.isDisposed.read(), let window = self.elements.getMainWindow() {
+                            rlt.enqueue(.observeWindow(window: window))
                         }
                     }
                 }
             }
+            self.isDisposed.withLock { disposed in
+                // Initialization can finish after disposal already canceled the
+                // conveyor. Do not leave a newly registered task waiting forever.
+                if disposed { eventsTask.cancel() }
+                else { self.lifecycleEventsTask = eventsTask }
+            }
         }, handlingWorkItemsWithinRunLoop: { event in
+            guard !self.isDisposed.read(), !self.app.isTerminated else { return }
             guard case let .observeWindow(window) = event else { return }
             do {
                 // swift gives a concurrency warning for capturing `observer` here but it
@@ -490,8 +511,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func scheduleCancelReplyTranscriptView() {
         afterAutomationTask = DispatchWorkItem { [self] in
+            guard !isDisposed.read(), !app.isTerminated else { return }
             activityLock.lock()
             defer { activityLock.unlock() }
+            guard !isDisposed.read(), !app.isTerminated else { return }
             try? closeReplyTranscriptView(wait: false)
         }
         afterAutomationTask.map { Self.queue.asyncAfter(deadline: .now() + 1.5, execute: $0) }
@@ -1407,6 +1430,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
     private func activateMessages() {
+        guard !isDisposed.read(), !app.isTerminated else { return }
         lastActivate = Date()
         messagesIsManuallyActivated = true
         log.debug("activateMessages")
@@ -1420,6 +1444,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             log.error("failed to restore Messages to Dock: \(error)")
         }
         do {
+            guard !isDisposed.read(), !app.isTerminated else { return }
             // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
             if Defaults.shouldCoordinateWindow {
                 // Restore tracked windows before AX discovery: a hidden window
@@ -1435,12 +1460,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // Changing the LaunchServices process type can drop the activation that
         // caused this callback. Complete it after restoring the windows. This
         // runs once per suppression cycle; a Foreground callback cannot repeat it.
-        if restoredDock {
+        if restoredDock, !isDisposed.read(), !app.isTerminated {
             NSRunningApplication(processIdentifier: app.processIdentifier)?.activate(options: [.activateAllWindows])
         }
     }
 
     private func deactivateMessages() {
+        guard !isDisposed.read(), !app.isTerminated else { return }
         do {
             lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
             messagesIsManuallyActivated = false
@@ -1450,8 +1476,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if Defaults.shouldCoordinateWindow {
                 try windowCoordinator.userManuallyDeactivated(app)
             }
+            guard !isDisposed.read(), !app.isTerminated else { return }
             try? closeAllNonMainWindows()
-            if window != nil {
+            if window != nil, !isDisposed.read(), !app.isTerminated {
                 resetWindow()
             }
         } catch {
@@ -1624,20 +1651,44 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    private var isDisposed = false
+    private let isDisposed = Protected(false)
 
-    func dispose() {
+    func dispose(terminateApp: Bool = true) {
         log.info("disposing MessagesController")
-        guard !isDisposed else { return }
+        guard isDisposed.withLock({ disposed in
+            guard !disposed else { return false }
+            disposed = true
+            return true
+        }) else { return }
         NotificationCenter.default.removeObserver(self, name: .CNContactStoreDidChange, object: nil)
-        isDisposed = true
         lifecycleConveyor?.cancel()
         lifecycleEventsTask?.cancel()
+        afterAutomationTask?.cancel()
+
+        if terminateApp {
+            // Restoring a parked window can order it onscreen even while AX
+            // reports the app hidden. Let Messages close its windows in the
+            // unknown Space before releasing coordination ownership.
+            app.terminate()
+            let deadline = Date().addingTimeInterval(2)
+            let pid = app.processIdentifier
+            while kill(pid, 0) == 0 || errno != ESRCH {
+                guard Date() < deadline else {
+                    // Preserve the existing recovery path if Messages refuses
+                    // to quit: restore its windows instead of stranding them.
+                    log.warning("Messages did not exit before window restoration")
+                    break
+                }
+                if Thread.isMainThread {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+                } else {
+                    Thread.sleep(forTimeInterval: 0.02)
+                }
+            }
+        }
 
         do { try windowCoordinator.dispose() }
         catch { log.error("Failed to clean up window coordination: \(error)") }
-
-        app.terminate()
     }
 
     deinit {

@@ -229,18 +229,14 @@ func bridgedSpaceSessionInterruptedAutomationRevealsOnCurrentDesktop() throws {
     let moved = try session.revealAll { _ in 2 }
     #expect(moved)
     #expect(membership == [2])
-    #expect(session.originalSpaces[10] == 2)
+    #expect(session.originalSpaces.isEmpty)
     // Completion must not undo the user's choice of desktop.
-    // Dock may complete its original switch after the initial reveal.
-    try session.revealAll { _ in 99 }
-    #expect(membership == [99])
-    #expect(session.originalSpaces[10] == 2)
     try session.restoreAll()
     #expect(membership == [2])
 }
 
 @Test
-func bridgedSpaceSessionInterruptedActivationAlreadyOnParkingSpace() throws {
+func bridgedSpaceSessionRejectsRevealingOnParkingSpace() throws {
     var membership: [UInt64] = [1]
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
@@ -249,10 +245,8 @@ func bridgedSpaceSessionInterruptedActivationAlreadyOnParkingSpace() throws {
         destroy: { _ in Issue.record("Activation must not destroy a Space") }
     ))
     try session.park(10)
-    let moved = try session.revealAll { _ in 99 }
-    #expect(!moved) // Already visible here; do not initiate another activation.
-    // The window remains where the user is looking. Retain the recovery record
-    // until the user leaves and background completion can safely restore it.
+    #expect(throws: (any Error).self) { try session.revealAll { _ in 99 } }
+    // The parking Space is never a valid foreground restoration destination.
     #expect(membership == [99])
     #expect(session.originalSpaces[10] == 1)
     try session.restoreAll()
@@ -276,4 +270,67 @@ func bridgedSpaceSessionRevealSkipsClosedWindowDestinationLookup() throws {
         return 2
     }
     #expect(session.originalSpaces.isEmpty)
+}
+
+@Test
+func bridgedSpaceSessionRetainsSharedSpaceOnDispose() throws {
+    var membership: [UInt64] = [1]
+    var destroyed = false
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { _, space in membership = [space] },
+        spaces: { _ in membership },
+        destroy: { _ in destroyed = true }
+    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+    try session.park(10)
+    try session.dispose()
+    #expect(membership == [1])
+    #expect(session.originalSpaces.isEmpty)
+    #expect(session.hiddenSpace == nil)
+    #expect(!destroyed)
+    try session.dispose()
+    #expect(!destroyed)
+}
+
+@Test
+func bridgedSpaceSessionAdoptsWindowParkedByPreviousHost() throws {
+    var membership: [UInt64] = [99]
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 },
+        move: { _, space in membership = [space] },
+        spaces: { _ in membership },
+        destroy: { _ in Issue.record("Shared parking Space must survive host exit") }
+    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+    try session.park(10, originalSpaceIfUnassigned: 2)
+    #expect(session.originalSpaces[10] == 2)
+    #expect(membership == [99])
+    try session.revealAll { _ in 3 }
+    #expect(membership == [3])
+    #expect(session.originalSpaces.isEmpty)
+    try session.dispose()
+    #expect(membership == [3])
+}
+
+@Test
+func bridgedSpaceSessionDoesNotGuessRecoveryDesktopForAdoptedWindow() throws {
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 }, move: { _, _ in }, spaces: { _ in [99] }, destroy: { _ in }
+    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+    #expect(throws: (any Error).self) { try session.park(10) }
+    #expect(session.originalSpaces.isEmpty)
+}
+
+@Test
+func bridgedSpaceSessionAdoptsDuplicatePoolMembership() throws {
+    var membership: [UInt64] = [100]
+    let session = BridgedSpaceSession(backend: .init(
+        create: { 99 }, move: { _, space in membership = [space] },
+        spaces: { _ in membership }, destroy: { _ in },
+        isOwnedParkingSpace: { $0 == 100 }
+    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+    try session.park(10, originalSpaceIfUnassigned: 2)
+    #expect(membership == [99])
+    #expect(session.originalSpaces[10] == 2)
+    try session.dispose()
+    #expect(membership == [2])
 }

@@ -40,17 +40,19 @@ func secondaryMessagesActivationDockSmoke() throws {
         try MessagesController(reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
     }
     defer { controller.dispose() }
-    let app = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).first {
-        !existingPIDs.contains($0.processIdentifier)
-    })
+    let app = try #require(NSRunningApplication(processIdentifier: try controller.elements.app.pid()))
+    try #require(!existingPIDs.contains(app.processIdentifier))
     let usesBridge = try getBestWindowCoordinator() is BridgedSpacesWindowCoordinator
     // Follow the AX-confirmed main window, not the first wide CG surface:
     // Messages also owns wide menu-bar and unnamed internal windows.
     let window = try controller.elements.mainWindow.window().raw
     let idleSpace = IMPrivateSPISpacesForWindow(window)?.first?.uint64Value
     if usesBridge {
-        #expect(idleSpace != nil && isWindowOnVisibleDesktop(window))
-        #expect(try Accessibility.Element(pid: app.processIdentifier).isHidden())
+        #expect(idleSpace != nil && !isWindowOnVisibleDesktop(window))
+        #expect(try !Accessibility.Element(pid: app.processIdentifier).isHidden())
+        let parked = try #require(idleSpace.flatMap { Space(raw: .init($0)) })
+        #expect(try parked.kind() == .unknown)
+        #expect((try parked.values() as NSDictionary)["ManagedSpaceID"] == nil)
         #expect(try !Window.listDescriptions(.onScreen).contains { $0.owner == app.processIdentifier })
     }
     // Launch-returned NSRunningApplication objects can retain stale isActive values.
@@ -89,8 +91,8 @@ func secondaryMessagesActivationDockSmoke() throws {
     #expect(activatedDock.tiles >= max(1, baseline.tiles))
 
     try runSmokeWorker {
-        defer { controller.finishedAutomation() }
         try controller.prepareForAutomation()
+        defer { controller.finishedAutomation() }
     }
     #expect(isTargetActive())
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
@@ -103,8 +105,8 @@ func secondaryMessagesActivationDockSmoke() throws {
     try #require(!isTargetActive())
     pumpSmokeRunLoop(for: 0.5)
     try runSmokeWorker {
-        defer { controller.finishedAutomation() }
         try controller.prepareForAutomation()
+        defer { controller.finishedAutomation() }
         if usesBridge {
             #expect(!isWindowOnVisibleDesktop(window))
             #expect(try !Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
@@ -113,8 +115,9 @@ func secondaryMessagesActivationDockSmoke() throws {
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
     if usesBridge {
         let restored = IMPrivateSPISpacesForWindow(window)?.first?.uint64Value
-        #expect(restored == idleSpace && isWindowOnVisibleDesktop(window))
-        #expect(try Accessibility.Element(pid: app.processIdentifier).isHidden())
+        #expect(restored == idleSpace && !isWindowOnVisibleDesktop(window))
+        #expect(try !Accessibility.Element(pid: app.processIdentifier).isHidden())
+        #expect(try controller.elements.mainWindow.window().raw == window)
         #expect(try !Window.listDescriptions(.onScreen).contains { $0.owner == app.processIdentifier })
     }
     let dockDeadline = Date().addingTimeInterval(5)
@@ -142,8 +145,8 @@ func secondaryMessagesActivationDockSmoke() throws {
     #expect(IMPrivateSPIActiveSpace() == activationDesktop)
     #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
 
-    // Activate while the window is parked, before completion restores its idle
-    // membership. The lifecycle observer must reveal it on the current desktop.
+    // Activate during automation while the window is parked. Completion keeps
+    // idle windows in the unknown Space; activation must reveal on the desktop.
     try #require(otherApp.activate(options: []))
     let interruptedDeadline = Date().addingTimeInterval(5)
     while isTargetActive() && Date() < interruptedDeadline { pumpSmokeRunLoop(for: 0.05) }

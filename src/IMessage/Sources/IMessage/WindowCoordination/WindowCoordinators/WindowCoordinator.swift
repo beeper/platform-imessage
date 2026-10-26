@@ -64,4 +64,5 @@ extension WindowCoordinator {
 
 enum WindowCoordinatorError: Error {
     case generic(message: String)
+    case instanceInUse
 }

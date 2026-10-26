@@ -92,7 +92,12 @@ struct MessagesPreparationValidationSmokeTests {
                 controller.finishedAutomation()
             }
         }
-        #expect(try controller.elements.app.isHidden())
+        #expect(try !controller.elements.app.isHidden())
+        let recoveredWindow = try controller.elements.mainWindow.window().raw
+        #expect(try !isOnscreen(recoveredWindow))
+        let recoveredSpaceID = try #require(IMPrivateSPISpacesForWindow(recoveredWindow)?.first?.uint64Value)
+        let recoveredSpace = try #require(Space(raw: .init(recoveredSpaceID)))
+        #expect(try recoveredSpace.kind() == .unknown)
     }
 
     @Test
@@ -188,8 +193,23 @@ struct MessagesPreparationValidationSmokeTests {
         let parkedSettings = try #require(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value))
         #expect(parkedMain.count == 1 && parkedMain == parkedSettings)
         #expect(parkedMain != originalMainSpaces && parkedSettings != originalSettingsSpaces)
+        let parkedSpace = try #require(parkedMain.first.flatMap { Space(raw: .init($0)) })
+        #expect(try parkedSpace.kind() == .unknown)
+        #expect((try parkedSpace.values() as NSDictionary)["ManagedSpaceID"] == nil)
         try runSmokeWorker { try coordinator.automationDidComplete(main) }
-        #expect(try axApp.isHidden())
+        #expect(try !axApp.isHidden())
+        #expect(try elements.mainWindow.window().raw == mainID)
+        #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == parkedMain)
+        #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == parkedSettings)
+        #expect(try !isOnscreen(mainID) && !isOnscreen(settingsID))
+
+        // Manual activation must reveal both windows on their ordinary
+        // desktop, rather than merely hiding them forever in the shared pool.
+        try coordinator.restoreDockPresence()
+        try #require(app.activate(options: [.activateAllWindows]))
+        try waitFor { try isFrontmost(axApp) }
+        try runSmokeWorker { try coordinator.userManuallyActivated(app) }
+        try waitFor { try isOnscreen(mainID) && isOnscreen(settingsID) }
         #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == originalMainSpaces)
         #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == originalSettingsSpaces)
     }
