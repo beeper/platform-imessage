@@ -1,5 +1,4 @@
 import AppKit
-import AccessibilityControl
 import Darwin
 import IMessageCore
 
@@ -39,12 +38,7 @@ enum MessagesDockSuppression {
             throw ErrorMessage("Cannot change Dock presence of an invalid Messages instance")
         }
         // Never take Dock presence away while the user is controlling Messages.
-        if target == .suppressed {
-            let frontmost = Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute)
-            let active = (try? Accessibility.Element(pid: app.processIdentifier).attribute(frontmost)()) ??
-                (NSRunningApplication(processIdentifier: app.processIdentifier)?.isActive == true)
-            if active { return }
-        }
+        if target == .suppressed, MessagesInstanceTarget.isActive(app) { return }
         let services = try api.get()
         let asn = try services.identity(for: app.processIdentifier)
 

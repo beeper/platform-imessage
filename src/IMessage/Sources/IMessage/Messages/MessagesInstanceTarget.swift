@@ -1,4 +1,5 @@
 import AppKit
+import AccessibilityControl
 import Carbon.HIToolbox
 import Foundation
 import IMessageCore
@@ -8,6 +9,15 @@ private let log = Logger(imessageLabel: "messages-instance-target")
 
 @available(macOS 11, *)
 enum MessagesInstanceTarget {
+    /// AppKit's cached isActive can lag activation during automation completion.
+    /// Query the target through AX first so manual control prevents re-parking
+    /// or Dock suppression; refresh AppKit state only as a fallback.
+    static func isActive(_ app: NSRunningApplication) -> Bool {
+        let frontmost = Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute)
+        return (try? Accessibility.Element(pid: app.processIdentifier).attribute(frontmost)()) ??
+            (NSRunningApplication(processIdentifier: app.processIdentifier)?.isActive == true)
+    }
+
     static func primaryInstance(in applications: [NSRunningApplication]) throws -> NSRunningApplication? {
         guard applications.count <= 1 else {
             throw ErrorMessage("Multiple Messages instances are running; use secondary-instance mode to avoid selecting another host's process")

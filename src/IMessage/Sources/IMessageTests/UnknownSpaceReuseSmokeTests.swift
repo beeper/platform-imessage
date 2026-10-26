@@ -73,7 +73,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(try smokeManagedSpaceIDs() == baselineManaged)
     #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
     #expect(IMPrivateSPIActiveSpace() != parking)
-    try reuseAssertParkedAX(controller: controller, window: window, parking: parking)
+    try smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
     // A second host must not move windows owned by this live coordinator.
     let competing = try BridgedSpacesWindowCoordinator()
     competing.app = app
@@ -128,7 +128,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
         #expect(try !smokeOnscreen(window))
     }
     // Completion retains the unknown membership and leaves AX available.
-    try reuseAssertParkedAX(controller: controller, window: window, parking: parking)
+    try smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
     var exitSamples = 0
     var exitSamplingErrors = 0
     var exitExposures = 0
@@ -155,20 +155,4 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     print("UNKNOWN_SPACE_REUSE cycle=\(cycle) space=\(parking) secondaryPID=\(app.processIdentifier) managedCount=\(baselineManaged.count)")
     fflush(nil)
     return (parking, app.processIdentifier)
-}
-
-@MainActor
-private func reuseAssertParkedAX(controller: MessagesController, window: UInt32, parking: UInt64) throws {
-    #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
-    #expect(try !smokeOnscreen(window))
-    #expect(try !controller.elements.app.isHidden())
-    #expect(try controller.elements.mainWindow.window().raw == window)
-    let search = try controller.elements.searchField
-    let original = try #require(try search.value() as? String)
-    defer { try? search.value(assign: original) }
-    let query = "Beeper unknown Space reuse \(UUID().uuidString)"
-    try search.value(assign: query)
-    try waitForSmoke("AX search write/read while parked") { try search.value() as? String == query }
-    try search.value(assign: original)
-    #expect(try search.value() as? String == original)
 }
