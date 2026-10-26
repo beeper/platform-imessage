@@ -1065,8 +1065,7 @@ extension PlatformAPI {
                 accountID: accountID
             ),
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
-            // Thread mapping cannot represent an unknown mute state.
-            dndState: permanentDNDThreadIDs() ?? [],
+            dndState: permanentDNDThreadIDs(),
             currentUser: currentUser,
             accountID: accountID
         )
@@ -1095,13 +1094,8 @@ extension PlatformAPI {
         return latestMessagesByChatGUID
     }
 
-    nonisolated static func permanentDNDThreadIDs() -> Set<String>? {
-        permanentDNDThreadIDs(from: Defaults.getDNDList())
-    }
-
-    nonisolated static func permanentDNDThreadIDs(from dndList: [String: Int]?) -> Set<String>? {
-        guard let dndList else { return nil }
-        return Set(dndList.compactMap { key, value in
+    nonisolated static func permanentDNDThreadIDs() -> Set<String> {
+        Set((Defaults.getDNDList() ?? [:]).compactMap { key, value in
             value == Int(Date.distantFuture.timeIntervalSince1970) ? key : nil
         })
     }
