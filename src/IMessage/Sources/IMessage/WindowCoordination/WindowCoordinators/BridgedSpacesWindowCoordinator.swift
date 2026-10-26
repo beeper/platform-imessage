@@ -14,7 +14,6 @@ final class BridgedSpaceSession {
         var create: () throws -> UInt64
         var move: (UInt32, UInt64) throws -> Void
         var spaces: (UInt32) throws -> [UInt64]
-        var destroy: (UInt64) throws -> Void
         var exists: (UInt32) throws -> Bool = { _ in true }
         var spaceExists: (UInt64) throws -> Bool = { _ in true }
         var fallbackSpace: (UInt32) throws -> UInt64? = { _ in nil }
@@ -22,15 +21,11 @@ final class BridgedSpaceSession {
     }
 
     private let backend: Backend
-    private let retainSpaceOnDispose: Bool
-    private let adoptParkedWindows: Bool
     private(set) var hiddenSpace: UInt64?
     private(set) var originalSpaces: [UInt32: UInt64] = [:]
 
-    init(backend: Backend, retainSpaceOnDispose: Bool = false, adoptParkedWindows: Bool = false) {
+    init(backend: Backend) {
         self.backend = backend
-        self.retainSpaceOnDispose = retainSpaceOnDispose
-        self.adoptParkedWindows = adoptParkedWindows
     }
 
     func park(_ window: UInt32, originalSpaceIfUnassigned: UInt64? = nil) throws {
@@ -43,7 +38,7 @@ final class BridgedSpaceSession {
         if originalSpaces[window] == nil {
             // A sticky/multi-Space window needs a different restoration operation.
             let original: UInt64?
-            let alreadyParked = try adoptParkedWindows && current.count == 1 &&
+            let alreadyParked = try current.count == 1 &&
                 (current.first == hiddenSpace || backend.isOwnedParkingSpace(current[0]))
             if current.isEmpty || alreadyParked {
                 // A reused Messages process may already be parked by a host
@@ -107,12 +102,9 @@ final class BridgedSpaceSession {
     }
 
     func dispose() throws {
-        // Retain the Space if any restoration fails; destroying it could strand a window.
         try restoreAll()
-        if let hiddenSpace {
-            if !retainSpaceOnDispose, try backend.spaceExists(hiddenSpace) { try backend.destroy(hiddenSpace) }
-            self.hiddenSpace = nil
-        }
+        // Release this session's reference; the shared Space survives host exits.
+        hiddenSpace = nil
     }
 }
 
@@ -234,7 +226,6 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 }
             },
             spaces: Self.spaces,
-            destroy: { _ in throw ErrorMessage("The shared unknown Space must not be destroyed by an individual host") },
             exists: { window in
                 guard let owner = owners.pids[window], Self.isProcessAlive(owner),
                       NSRunningApplication(processIdentifier: owner)?.isTerminated == false else { return false }
@@ -243,7 +234,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             spaceExists: { id in try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id } },
             fallbackSpace: { try Self.displayDestination(for: $0, owners: owners) },
             isOwnedParkingSpace: PersistentUnknownSpace.isReusable
-        ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+        ))
     }
 
     private static func isProcessAlive(_ pid: pid_t) -> Bool {

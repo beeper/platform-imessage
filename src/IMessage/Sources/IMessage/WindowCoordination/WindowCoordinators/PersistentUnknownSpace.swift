@@ -8,7 +8,6 @@ import WindowControl
 /// Discover by metadata, never by a numeric ID persisted across login sessions.
 enum PersistentUnknownSpace {
     static let uuid = "Beeper-Unknown-Parking-v1-\(getuid())"
-    private static let processLock = NSLock()
     private static let readTimeout: TimeInterval = 1
     private static let pollInterval: TimeInterval = 0.02
 
@@ -31,8 +30,6 @@ enum PersistentUnknownSpace {
     }
 
     static func acquire(bridge: NSObject) throws -> UInt64 {
-        processLock.lock()
-        defer { processLock.unlock() }
         // The shared lock never unlinks its stable per-UID path. Keep its
         // descriptor alive through discovery, creation, and verified cleanup.
         let creationLock = try WindowCoordinationFileLock(name: "unknown-space-v1")

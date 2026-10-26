@@ -5,15 +5,13 @@ import IMessageCore
 @Test
 func bridgedSpaceSessionRestoresOriginalMembership() throws {
     var membership: [UInt32: [UInt64]] = [10: [1], 11: [2]]
-    var destroyed: [UInt64] = []
     var creates = 0
     let session = BridgedSpaceSession(backend: .init(
         create: { creates += 1; return 99 },
         move: {
             membership[$0] = [$1]
         },
-        spaces: { membership[$0] ?? [] },
-        destroy: { destroyed.append($0) }
+        spaces: { membership[$0] ?? [] }
     ))
     try session.park(10)
     try session.park(10)
@@ -24,33 +22,31 @@ func bridgedSpaceSessionRestoresOriginalMembership() throws {
     #expect(membership[10] == [1])
     try session.dispose()
     #expect(membership[11] == [2])
-    #expect(destroyed == [99])
+    #expect(session.hiddenSpace == nil)
+    #expect(session.originalSpaces.isEmpty)
     try session.dispose()
-    #expect(destroyed == [99])
 }
 
 @Test
 func bridgedSpaceSessionPreservesRecoveryAfterUnverifiedMove() throws {
     var membership: [UInt64] = [1]
     var fail = true
-    var destroyed = false
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in
             membership = [space]
             if fail { throw ErrorMessage("Readback failed after applying move") }
         },
-        spaces: { _ in membership },
-        destroy: { _ in destroyed = true }
+        spaces: { _ in membership }
     ))
     #expect(throws: (any Error).self) { try session.park(10) }
     #expect(session.originalSpaces[10] == 1)
     #expect(throws: (any Error).self) { try session.dispose() }
-    #expect(!destroyed)
+    #expect(session.originalSpaces[10] == 1)
+    #expect(session.hiddenSpace == 99)
     fail = false
     try session.dispose()
     #expect(membership == [1])
-    #expect(destroyed)
 }
 
 @Test
@@ -59,8 +55,7 @@ func bridgedSpaceSessionRejectsAmbiguousOriginalSpaces() throws {
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, _ in moved = true },
-        spaces: { _ in [1, 2] },
-        destroy: { _ in }
+        spaces: { _ in [1, 2] }
     ))
     #expect(throws: (any Error).self) { try session.park(10) }
     #expect(!moved)
@@ -74,8 +69,7 @@ func bridgedSpaceSessionRestoresInitiallyUnassignedWindowToLaunchDesktop() throw
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in }
+        spaces: { _ in membership }
     ))
     try session.park(10, originalSpaceIfUnassigned: 1)
     #expect(membership == [99])
@@ -87,19 +81,16 @@ func bridgedSpaceSessionRestoresInitiallyUnassignedWindowToLaunchDesktop() throw
 func bridgedSpaceSessionCleansUpAfterWindowCloses() throws {
     var exists = true
     var moves = 0
-    var destroyed = false
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, _ in moves += 1 },
         spaces: { _ in [1] },
-        destroy: { _ in destroyed = true },
         exists: { _ in exists }
     ))
     try session.park(10)
     exists = false
     try session.dispose()
     #expect(moves == 1)
-    #expect(destroyed)
     #expect(session.originalSpaces.isEmpty)
 }
 
@@ -109,8 +100,7 @@ func bridgedSpaceSessionRevealsOnCurrentDesktopAndReparksFromThere() throws {
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in }
+        spaces: { _ in membership }
     ))
     try session.park(10)
     // The user has moved to desktop 2 since automation began on desktop 1.
@@ -128,8 +118,7 @@ func bridgedSpaceSessionRejectsInvalidRevealDestination(destination: UInt64) thr
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in }
+        spaces: { _ in membership }
     ))
     try session.park(10)
     #expect(throws: (any Error).self) { try session.restore(10, to: destination) }
@@ -140,7 +129,7 @@ func bridgedSpaceSessionRejectsInvalidRevealDestination(destination: UInt64) thr
 }
 
 @Test
-func bridgedSpaceSessionRecreatesDeletedTemporarySpace() throws {
+func bridgedSpaceSessionReacquiresDeletedParkingSpace() throws {
     var membership: [UInt64] = [1]
     var liveSpaces: Set<UInt64> = [1, 2]
     var creations: UInt64 = 98
@@ -151,7 +140,6 @@ func bridgedSpaceSessionRecreatesDeletedTemporarySpace() throws {
             membership = [space]
         },
         spaces: { _ in membership },
-        destroy: { liveSpaces.remove($0) },
         spaceExists: { liveSpaces.contains($0) }
     ))
     try session.park(10)
@@ -163,7 +151,7 @@ func bridgedSpaceSessionRecreatesDeletedTemporarySpace() throws {
     #expect(session.hiddenSpace == 100)
     try session.dispose()
     #expect(membership == [1])
-    #expect(liveSpaces == [1, 2])
+    #expect(liveSpaces == [1, 2, 100])
 }
 
 @Test
@@ -174,7 +162,6 @@ func bridgedSpaceSessionRecoversWhenOriginalDisplaySpacesDisappear() throws {
         create: { 99 },
         move: { _, space in membership = [space] },
         spaces: { _ in membership },
-        destroy: { liveSpaces.remove($0) },
         spaceExists: { liveSpaces.contains($0) },
         fallbackSpace: { _ in 2 }
     ))
@@ -192,12 +179,10 @@ func bridgedSpaceSessionRecoversWhenOriginalDisplaySpacesDisappear() throws {
 func bridgedSpaceSessionRestoresIdleWindowsWithoutDestroyingSpace() throws {
     var membership: [UInt32: [UInt64]] = [10: [1], 11: [2]]
     var closed = false
-    var destroyed = false
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { membership[$0] = [$1] },
         spaces: { membership[$0] ?? [] },
-        destroy: { _ in destroyed = true },
         exists: { !closed || $0 != 10 }
     ))
     try session.park(10)
@@ -206,7 +191,6 @@ func bridgedSpaceSessionRestoresIdleWindowsWithoutDestroyingSpace() throws {
     try session.restoreAll()
     #expect(membership[11] == [2])
     #expect(session.originalSpaces.isEmpty)
-    #expect(!destroyed)
     #expect(session.hiddenSpace == 99)
     // The next automation can reuse the parking Space, preserving the normal
     // desktop as the restoration destination.
@@ -222,8 +206,7 @@ func bridgedSpaceSessionInterruptedAutomationRevealsOnCurrentDesktop() throws {
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in Issue.record("Activation must not destroy a Space") }
+        spaces: { _ in membership }
     ))
     try session.park(10)
     let moved = try session.revealAll { _ in 2 }
@@ -241,8 +224,7 @@ func bridgedSpaceSessionRejectsRevealingOnParkingSpace() throws {
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in Issue.record("Activation must not destroy a Space") }
+        spaces: { _ in membership }
     ))
     try session.park(10)
     #expect(throws: (any Error).self) { try session.revealAll { _ in 99 } }
@@ -260,7 +242,6 @@ func bridgedSpaceSessionRevealSkipsClosedWindowDestinationLookup() throws {
         create: { 99 },
         move: { _, _ in },
         spaces: { _ in [1] },
-        destroy: { _ in },
         exists: { _ in exists }
     ))
     try session.park(10)
@@ -273,34 +254,13 @@ func bridgedSpaceSessionRevealSkipsClosedWindowDestinationLookup() throws {
 }
 
 @Test
-func bridgedSpaceSessionRetainsSharedSpaceOnDispose() throws {
-    var membership: [UInt64] = [1]
-    var destroyed = false
-    let session = BridgedSpaceSession(backend: .init(
-        create: { 99 },
-        move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in destroyed = true }
-    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
-    try session.park(10)
-    try session.dispose()
-    #expect(membership == [1])
-    #expect(session.originalSpaces.isEmpty)
-    #expect(session.hiddenSpace == nil)
-    #expect(!destroyed)
-    try session.dispose()
-    #expect(!destroyed)
-}
-
-@Test
 func bridgedSpaceSessionAdoptsWindowParkedByPreviousHost() throws {
     var membership: [UInt64] = [99]
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 },
         move: { _, space in membership = [space] },
-        spaces: { _ in membership },
-        destroy: { _ in Issue.record("Shared parking Space must survive host exit") }
-    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+        spaces: { _ in membership }
+    ))
     try session.park(10, originalSpaceIfUnassigned: 2)
     #expect(session.originalSpaces[10] == 2)
     #expect(membership == [99])
@@ -314,8 +274,8 @@ func bridgedSpaceSessionAdoptsWindowParkedByPreviousHost() throws {
 @Test
 func bridgedSpaceSessionDoesNotGuessRecoveryDesktopForAdoptedWindow() throws {
     let session = BridgedSpaceSession(backend: .init(
-        create: { 99 }, move: { _, _ in }, spaces: { _ in [99] }, destroy: { _ in }
-    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+        create: { 99 }, move: { _, _ in }, spaces: { _ in [99] }
+    ))
     #expect(throws: (any Error).self) { try session.park(10) }
     #expect(session.originalSpaces.isEmpty)
 }
@@ -325,9 +285,9 @@ func bridgedSpaceSessionAdoptsDuplicatePoolMembership() throws {
     var membership: [UInt64] = [100]
     let session = BridgedSpaceSession(backend: .init(
         create: { 99 }, move: { _, space in membership = [space] },
-        spaces: { _ in membership }, destroy: { _ in },
+        spaces: { _ in membership },
         isOwnedParkingSpace: { $0 == 100 }
-    ), retainSpaceOnDispose: true, adoptParkedWindows: true)
+    ))
     try session.park(10, originalSpaceIfUnassigned: 2)
     #expect(membership == [99])
     #expect(session.originalSpaces[10] == 2)
