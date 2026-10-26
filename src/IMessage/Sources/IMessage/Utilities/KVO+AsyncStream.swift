@@ -1,62 +1,5 @@
 import Foundation
 
-public extension AsyncSequence {
-    func first(
-        until deadline: Date,
-        where predicate: @escaping @Sendable (Element) async throws -> Bool
-    ) async throws -> Element? {
-        guard Date() < deadline else {
-            return nil
-        }
-
-        let timeoutTask: @Sendable () async throws -> Element? = {
-            let remaining = deadline.timeIntervalSinceNow
-            guard remaining > 0 else {
-                return nil
-            }
-
-            do {
-                if #available(macOS 13.0, *) {
-                    let clock = ContinuousClock()
-                    let clockDeadline = clock.now.advanced(by: .seconds(remaining))
-                    try await Task<Never, Never>.sleep(until: clockDeadline, tolerance: nil, clock: clock)
-                } else {
-                    try await Task.sleep(forTimeInterval: remaining)
-                }
-            } catch is CancellationError {
-                return nil
-            }
-
-            return nil
-        }
-
-        return try await withThrowingTaskGroup(of: Element?.self) { group in
-            if #available(macOS 26.0, *) {
-                group.addImmediateTask(operation: timeoutTask)
-            } else {
-                group.addTask(operation: timeoutTask)
-            }
-
-            group.addTask {
-                for try await value in self {
-                    try Task.checkCancellation()
-                    if try await predicate(value) {
-                        return value
-                    }
-                }
-
-                return nil
-            }
-
-            defer {
-                group.cancelAll()
-            }
-
-            return try await group.next() ?? nil
-        }
-    }
-}
-
 public extension NSObjectProtocol where Self: NSObject {
     func asyncValues<Value>(
         for keyPath: KeyPath<Self, Value>,
@@ -91,8 +34,7 @@ public extension NSObjectProtocol where Self: NSObject {
             }
         }
 
-        // AsyncStream ends iteration when its consuming task is cancelled.
-        // Preserve cancellation instead of reporting ordinary stream exhaustion.
+        // AsyncStream ends iteration on cancellation without throwing.
         try Task.checkCancellation()
         return nil
     }
@@ -103,9 +45,7 @@ public extension NSObjectProtocol where Self: NSObject {
         _ expectedValue: Value,
         options: NSKeyValueObservingOptions = [.initial, .new]
     ) async throws -> Value? where Value: Equatable {
-        try await self.waitForValue(keyPath, options: options) { value in
-            return value == expectedValue
-        }
+        try await waitForValue(keyPath, options: options) { $0 == expectedValue }
     }
 
     @discardableResult

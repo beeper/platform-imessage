@@ -1,19 +1,10 @@
 import Foundation
 
-// A single serial async "lane" for Messages.app automation, plus passive idle
-// detection. All MessagesController automation funnels through one shared instance
-// (see `PlatformAPI.runOnMessagesControllerLane`) so only one operation touches
-// Messages.app at a time — this replaced the old DispatchQueue + UnfairLock model.
-//
-// `run` enqueues an action behind a tail of previously-submitted work; when the
-// queue drains, an idle callback fires after `idleDelay` and keeps firing while the
-// lane stays quiet (epoch-guarded so new active work cancels a stale idle cycle).
+// Serializes Messages automation and polls activity while idle.
 actor MessagesControllerAutomationLane {
     typealias IdleCallback = @Sendable () async -> Void
 
-    // Identifies the lane action from which the current task descends. Children
-    // inherit the token, so `run` compares it with the action currently holding the
-    // lane: an expired token is safe, while a matching token would deadlock.
+    // Child tasks inherit this token; only re-entry from the active action deadlocks.
     @TaskLocal private static var executionToken: UUID?
 
     private let idleDelay: TimeInterval
@@ -30,8 +21,6 @@ actor MessagesControllerAutomationLane {
 
     func run<T>(_ action: @Sendable @escaping () async throws -> T) async throws -> T {
         if let executionToken = Self.executionToken {
-            // `precondition`, not `assert`: re-entering from the action currently
-            // holding the lane would silently deadlock in release.
             precondition(
                 executionToken != activeExecutionToken,
                 "re-entrant runOnMessagesControllerLane would deadlock the serial lane: " +
@@ -49,9 +38,7 @@ actor MessagesControllerAutomationLane {
         }
     }
 
-    /// Creates fire-and-forget work that must be allowed to call back into the lane
-    /// independently of the action that spawned it. Only the lane token is cleared;
-    /// priority and unrelated task-local values retain normal `Task {}` inheritance.
+    /// Starts independent work that may enqueue on this lane, preserving other task locals.
     @discardableResult
     nonisolated static func escapingTask(
         priority: TaskPriority? = nil,
@@ -98,10 +85,8 @@ actor MessagesControllerAutomationLane {
     }
 
     private func activeWorkCompleted() {
-        // Every activeWorkCompleted must pair with a prior activeWorkSubmitted.
-        // The assert surfaces an imbalance in debug; the max(0,…) keeps release safe.
         assert(pendingActiveWorkCount > 0, "activeWorkCompleted without a matching activeWorkSubmitted")
-        pendingActiveWorkCount = max(0, pendingActiveWorkCount - 1)
+        pendingActiveWorkCount -= 1
         guard pendingActiveWorkCount == 0 else { return }
         scheduleIdleCallback()
     }
@@ -119,8 +104,6 @@ actor MessagesControllerAutomationLane {
             }
 
             guard let self else { return }
-            // `await` the hop back onto the actor: with `[weak self]` the closure is no
-            // longer statically actor-isolated, so the actor-isolated enqueue must be awaited.
             let task = await self.enqueuePassiveIdleCallback(expectedEpoch: expectedEpoch)
             _ = try? await task.value
         }

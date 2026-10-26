@@ -280,8 +280,6 @@ final class MessagesAppElements {
             } onError: { attempt, _ in
                 if attempt == 0 {
                     log.notice("mainWindow: using compose deep link to try to get main window")
-                    // await the open so the retry waits for it to complete (rather than
-                    // racing a fire-and-forget open against the next getMainWindow attempt).
                     try await self.openDeepLink(MessagesDeepLink.compose)
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {

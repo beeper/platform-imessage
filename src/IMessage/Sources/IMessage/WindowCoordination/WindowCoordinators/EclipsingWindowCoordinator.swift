@@ -42,9 +42,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         guard let messagesPID = await app?.processIdentifier else {
             throw WindowCoordinatorError.generic(message: "no app to coordinate")
         }
-        // AppKit-affined reads (NSApp/NSScreen) happen on the main actor; the blocking
-        // Accessibility IPC below runs off the main thread so a slow Messages.app can't
-        // freeze the UI.
+        // Read AppKit state on main; keep blocking AX calls off it.
         let (anchorWindow, mainScreenDebug) = try await MainActor.run { () -> (AnchorWindow, String?) in
             let anchor = try Self.eclipsingAnchorWindow(messagesPID: messagesPID)
             let mainScreen = NSScreen.main.map { "\($0.frame.formatted) [visible: \($0.visibleFrame.formatted)]" }
@@ -116,7 +114,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         try messagesWindow.position(assign: targetOrigin)
 
         if #available(macOS 14, *), Defaults.imessage.bool(forKey: DefaultsKeys.eclipsingDebug) {
-            // read the frame off-main, then hand only plain values to the main-actor debugger
             let finalFrame = try? messagesWindow.frame()
             await MainActor.run {
                 let debugger = EclipsingDebugger.shared
@@ -162,17 +159,13 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
 }
 
 private extension EclipsingWindowCoordinator {
-    /// A fully-resolved eclipse anchor. All AppKit-derived geometry is captured
-    /// eagerly at construction (on the main actor, see `eclipsingAnchorWindow`),
-    /// so consumers only read plain values. `Sendable` so it can cross back out
-    /// of `makeAutomatable`'s `MainActor.run`.
+    /// AppKit geometry captured on the main actor for use during automation.
     struct AnchorWindow: Sendable {
         /// Frame in screen/AX space (origin at the top-left of the primary display).
         let screenFrame: NSRect
         /// The original Cocoa frame; only the Electron window has one.
         let originalFrame: NSRect?
-        /// Diagnostics only. Captured eagerly on the main actor so consumers
-        /// don't have to touch `NSScreen`.
+        /// Screen geometry for diagnostics.
         let containingScreenFrame: NSRect?
         let containingScreenVisibleFrame: NSRect?
         let debugLabel: String

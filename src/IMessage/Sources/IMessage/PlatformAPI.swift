@@ -1075,11 +1075,7 @@ extension PlatformAPI {
                 accountID: accountID
             ),
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
-            // Missing access to this protected preference domain means the
-            // state is unknown, not that every thread is unmuted. Thread
-            // mapping cannot represent that distinction yet, so retain the
-            // existing empty fallback here while mutation paths use the
-            // optional value directly.
+            // Thread mapping cannot represent an unknown mute state.
             dndState: permanentDNDThreadIDs() ?? [],
             currentUser: currentUser,
             accountID: accountID

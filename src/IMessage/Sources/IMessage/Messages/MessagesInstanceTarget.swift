@@ -69,8 +69,7 @@ enum MessagesInstanceTarget {
         configuration.waitForApplicationToCheckIn = true
 
         let application = try await Task.withTimeout(timeout, onLateSuccess: { application in
-            // LaunchServices cannot cancel an in-flight launch. If it completes
-            // after timeout/cancellation, release only the process created for us.
+            // LaunchServices may finish after cancellation; terminate only our new process.
             if !existingPIDs.contains(application.processIdentifier) {
                 application.terminate()
             }

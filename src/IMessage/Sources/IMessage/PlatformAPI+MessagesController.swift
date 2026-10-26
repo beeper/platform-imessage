@@ -18,7 +18,7 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
     private let controllerIsValid: @Sendable (Controller) -> Bool
     private let disposeController: @Sendable (MessagesControllerEntry) async throws -> Void
     private var current: MessagesControllerEntry?
-    // Actors are reentrant across awaits, so concurrent callers share one in-flight construction.
+    // Concurrent callers share one in-flight construction.
     private var pendingController: Task<MessagesControllerEntry, Error>?
     private var pendingDisposal: Task<Void, Error>?
 
@@ -46,11 +46,7 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
             try await disposeCachedController()
         }
 
-        // Bound the loop so a controller that keeps coming up invalid can't spin forever;
-        // each iteration either succeeds, throws, or retries after an invalidation.
-        let maxInvalidations = 30
-        var invalidations = 0
-        while true {
+        for _ in 0..<30 {
             try Task.checkCancellation()
             let entry: MessagesControllerEntry
             do {
@@ -60,10 +56,6 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
                 )
             } catch MessagesControllerCoordinatorError.pendingControllerInvalidated {
                 try Task.checkCancellation()
-                invalidations += 1
-                guard invalidations < maxInvalidations else {
-                    throw ErrorMessage("MessagesController repeatedly invalid")
-                }
                 continue
             }
 
@@ -81,54 +73,31 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
             } catch MessagesControllerCoordinatorError.cachedControllerInvalid {
                 platformMessagesControllerLog.debug("disposing cached MessagesController because it became invalid")
                 try await disposeIfCurrent(entry)
-                invalidations += 1
-                guard invalidations < maxInvalidations else {
-                    throw ErrorMessage("MessagesController repeatedly invalid")
-                }
             }
         }
+        throw ErrorMessage("MessagesController repeatedly invalid")
     }
 
     func disposeCachedController() async throws {
-        // Publish the cleanup task before suspending, so no replacement can be
-        // constructed while the old controller still owns Messages and its windows.
         if current == nil, pendingController == nil {
             try await waitForPendingDisposal()
             return
         }
         let entry = current
         let pendingController = pendingController
-        let previousDisposal = pendingDisposal
         current = nil
         self.pendingController = nil
 
-        // Run the await-construction-then-dispose inside an unstructured Task so it is
-        // immune to cancellation of *this* call. Unstructured tasks don't inherit the
-        // caller's cancellation, and `await disposal.value` completes regardless of it.
-        // Otherwise, if the caller is cancelled while we await `pendingController.value`,
-        // this method would throw, the detached construction Task would keep running,
-        // and the MessagesController it creates (having launched Messages.app) would
-        // never be disposed — a leak. We deliberately do NOT cancel `pendingController`
-        // itself: cancelling construction mid app-launch could leave a half-launched
-        // Messages.app.
+        // Finish construction and disposal even if the caller is cancelled.
+        // Publish this task before suspending so replacements wait for cleanup.
         let disposal = Task {
-            _ = try? await previousDisposal?.value
-            var pendingError: Error?
             if let pendingController {
-                do {
-                    let created = try await pendingController.value
-                    try await self.dispose(created)
-                } catch {
-                    pendingError = error
-                }
+                let created = try await pendingController.value
+                try await disposeController(created)
             }
 
             if let entry {
-                try await self.dispose(entry)
-            }
-
-            if let pendingError {
-                throw pendingError
+                try await disposeController(entry)
             }
         }
         pendingDisposal = disposal
@@ -140,8 +109,6 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
 
     private func waitForPendingDisposal() async throws {
         while let disposal = pendingDisposal {
-            // Cleanup failure must reach its caller, but must not permanently
-            // prevent a later request from attempting a fresh controller.
             defer {
                 if pendingDisposal == disposal { pendingDisposal = nil }
             }
@@ -233,15 +200,10 @@ private extension MessagesControllerCoordinator {
         }
         try await disposeCachedController()
     }
-
-    func dispose(_ entry: MessagesControllerEntry) async throws {
-        try await disposeController(entry)
-    }
 }
 
 extension PlatformAPI {
-    // IMessageHost is singleton-only within a process; PlatformAPI wrappers share
-    // one MessagesController and one async lane for Messages.app automation.
+    // PlatformAPI wrappers share the process-wide controller and automation lane.
     private static let messagesControllerAutomationLane = MessagesControllerAutomationLane(idleDelay: 1)
     private static let messagesControllerIdleCallbackOwner = Protected<ObjectIdentifier?>()
     private static let messagesControllerCoordinator = MessagesControllerCoordinator<MessagesController>(
@@ -265,7 +227,7 @@ extension PlatformAPI {
             }
         }
     )
-    fileprivate static let messageSendGate = MessageSendGate()
+    private static let messageSendGate = MessageSendGate()
 
     func withMessageSendLock<T>(_ operation: () async throws -> T) async throws -> T {
         try await Self.messageSendGate.run(operation)
@@ -299,7 +261,7 @@ extension PlatformAPI {
         await messagesControllerAutomationLane.setIdleCallback(callback)
     }
 
-    fileprivate static func installMessagesControllerIdleCallback(for entry: MessagesControllerEntry) async {
+    private static func installMessagesControllerIdleCallback(for entry: MessagesControllerEntry) async {
         let owner = ObjectIdentifier(entry.value)
         messagesControllerIdleCallbackOwner.withLock { $0 = owner }
         await setMessagesControllerIdleCallback { [entry] in
@@ -308,7 +270,7 @@ extension PlatformAPI {
         }
     }
 
-    fileprivate static func clearMessagesControllerIdleCallback(ifOwnedBy entry: MessagesControllerEntry) async {
+    private static func clearMessagesControllerIdleCallback(ifOwnedBy entry: MessagesControllerEntry) async {
         let owner = ObjectIdentifier(entry.value)
         let shouldClear = messagesControllerIdleCallbackOwner.withLock { currentOwner in
             guard currentOwner == owner else { return false }
@@ -318,5 +280,4 @@ extension PlatformAPI {
         guard shouldClear else { return }
         await setMessagesControllerIdleCallback(nil)
     }
-
 }

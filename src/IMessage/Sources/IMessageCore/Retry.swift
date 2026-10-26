@@ -60,7 +60,7 @@ public func retry<T>(
     onError: ((_ attempt: Int, _ err: Error?) async throws -> Void)? = nil
 ) async throws -> T {
     let start = Date()
-    var res: Result<T, Error>!
+    var res: Result<T, Error>
     var attempt = 0
     repeat {
         await Task.yield()

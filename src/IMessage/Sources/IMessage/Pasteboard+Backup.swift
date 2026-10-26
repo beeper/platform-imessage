@@ -32,9 +32,7 @@ extension NSPasteboard {
             await restore()
             throw error
         }
-        // Complete restoration before releasing the automation lane. Deferring
-        // it lets the next attachment send back up our temporary file URL, or
-        // lets this restore overwrite the next send's clipboard contents.
+        // Restore before the next attachment send can use the pasteboard.
         await restore()
     }
 }

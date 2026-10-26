@@ -62,8 +62,7 @@ final class OnboardingManager {
     }
 
     func createWindow() {
-        // The timer is scheduled on (and fires on) the main run loop, so we're already
-        // main-actor-isolated — assume it rather than hopping through a fresh Task each tick.
+        // Timer callbacks run on the main run loop.
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }

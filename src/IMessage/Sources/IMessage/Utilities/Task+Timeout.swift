@@ -13,17 +13,6 @@ extension Task where Failure == any Error {
     ) async throws -> Success {
         try await Task<Never, Never>._withTimeout(timeout, onLateSuccess: onLateSuccess, operation: operation)
     }
-
-    public init(
-        name: String? = nil,
-        timeout: TimeInterval,
-        priority: TaskPriority? = nil,
-        operation: sending @escaping @isolated(any) () async throws -> Success
-    ) {
-        self.init(name: name, priority: priority) {
-            try await Self.withTimeout(timeout, operation: operation)
-        }
-    }
 }
 
 private extension Task where Success == Never, Failure == Never {
@@ -40,7 +29,7 @@ private extension Task where Success == Never, Failure == Never {
         operation: sending @escaping @isolated(any) () async throws -> Output
     ) async throws -> Output {
         try Task<Never, Never>.checkCancellation()
-        let deadline: Date = Date().addingTimeInterval(timeout)
+        let deadline = Date().addingTimeInterval(timeout)
 
         guard timeout > 0 else {
             throw Task<Never, Never>.TimeoutError()
@@ -72,19 +61,9 @@ private extension Task where Success == Never, Failure == Never {
                     }
                 }
 
-                let completion = state.withLock { state -> (
-                    continuation: CheckedContinuation<Output, Error>?,
-                    result: Result<Output, Error>,
-                    operationTask: Task<Void, Never>?,
-                    timeoutTask: Task<Void, Never>?
-                )? in
+                let result = state.withLock { state -> Result<Output, Error>? in
                     if let result = state.result {
-                        return (
-                            continuation: continuation,
-                            result: result,
-                            operationTask: operationTask,
-                            timeoutTask: timeoutTask
-                        )
+                        return result
                     }
 
                     state.continuation = continuation
@@ -94,13 +73,10 @@ private extension Task where Success == Never, Failure == Never {
                     return nil
                 }
 
-                if let completion {
-                    completeTimeout(
-                        continuation: completion.continuation,
-                        result: completion.result,
-                        operationTask: completion.operationTask,
-                        timeoutTask: completion.timeoutTask
-                    )
+                if let result {
+                    operationTask.cancel()
+                    timeoutTask.cancel()
+                    continuation.resume(with: result)
                 }
 
                 if Task<Never, Never>.isCancelled {
@@ -119,7 +95,6 @@ private extension Task where Success == Never, Failure == Never {
     ) -> Bool {
         let completion = state.withLock { state -> (
             continuation: CheckedContinuation<Output, Error>?,
-            result: Result<Output, Error>,
             operationTask: Task<Void, Never>?,
             timeoutTask: Task<Void, Never>?
         )? in
@@ -129,49 +104,19 @@ private extension Task where Success == Never, Failure == Never {
 
             state.result = result
 
-            let completion = (
-                continuation: state.continuation,
-                result: result,
-                operationTask: state.operationTask,
-                timeoutTask: state.timeoutTask
-            )
-
-            state.continuation = nil
-            state.operationTask = nil
-            state.timeoutTask = nil
-
-            return completion
+            defer {
+                state.continuation = nil
+                state.operationTask = nil
+                state.timeoutTask = nil
+            }
+            return (state.continuation, state.operationTask, state.timeoutTask)
         }
 
-        if let completion {
-            completeTimeout(
-                continuation: completion.continuation,
-                result: completion.result,
-                operationTask: completion.operationTask,
-                timeoutTask: completion.timeoutTask
-            )
-            return true
-        }
-        return false
-    }
-
-    static func completeTimeout<Output>(
-        continuation: CheckedContinuation<Output, Error>?,
-        result: Result<Output, Error>,
-        operationTask: Task<Void, Never>?,
-        timeoutTask: Task<Void, Never>?
-    ) {
-        operationTask?.cancel()
-        timeoutTask?.cancel()
-
-        switch (continuation, result) {
-        case let (.some(continuation), .success(value)):
-            continuation.resume(returning: value)
-        case let (.some(continuation), .failure(error)):
-            continuation.resume(throwing: error)
-        case (.none, _):
-            break
-        }
+        guard let completion else { return false }
+        completion.operationTask?.cancel()
+        completion.timeoutTask?.cancel()
+        completion.continuation?.resume(with: result)
+        return true
     }
 
     static func sleepUntilTimeoutDeadline(_ deadline: Date) async throws {

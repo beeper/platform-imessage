@@ -60,11 +60,7 @@ struct ThreadAlertsActionLabel {
     let intent: ThreadAlertsActionIntent
     let isOn: Bool
 
-    /// Accessibility normally exposes the operation that will be performed, so
-    /// an unchecked "Hide Alerts" means alerts are currently shown while an
-    /// unchecked "Show Alerts" means they are currently hidden. Some macOS
-    /// versions instead expose the setting as a checked action (", On"), which
-    /// reverses that interpretation.
+    /// "Hide Alerts" means unmuted; a checked (", On") action reverses the state.
     var isMuted: Bool {
         switch (intent, isOn) {
         case (.hide, false), (.show, true): false
@@ -148,36 +144,6 @@ final class MessagesController {
         _ = try? await closeReplyTranscriptView()
     }
 
-    private enum DeepLinkOpenPlan {
-        /// The request was already satisfied by routing to a secondary Messages instance.
-        case handledBySecondaryInstance(NSRunningApplication)
-        /// The request still needs to be opened via NSWorkspace with these options.
-        case open(NSWorkspace.OpenConfiguration)
-    }
-
-    private static func planDeepLinkOpen(
-        _ url: URL,
-        activating: Bool,
-        hiding: Bool,
-        targeting app: NSRunningApplication?
-    ) throws -> DeepLinkOpenPlan {
-        let shouldHide = hiding && Defaults.shouldCoordinateWindow
-        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
-        if Preferences.useSecondaryMessagesInstance, let app {
-            try MessagesInstanceTarget.sendDeepLink(url, to: app)
-            if activating {
-                app.activate()
-            }
-            // The coordinator owns visibility during automation.
-            return .handledBySecondaryInstance(app)
-        }
-
-        let openOptions = NSWorkspace.OpenConfiguration()
-        openOptions.activates = activating
-        openOptions.hides = shouldHide
-        return .open(openOptions)
-    }
-
     @discardableResult
     static func openDeepLink(
         _ deepLink: MessagesDeepLink,
@@ -188,13 +154,22 @@ final class MessagesController {
     ) async throws -> NSRunningApplication {
         try Task.checkCancellation()
         let url = try deepLink.url()
-        switch try planDeepLinkOpen(url, activating: activating, hiding: hiding, targeting: app) {
-        case .handledBySecondaryInstance(let app):
-            return app
-        case .open(let openOptions):
-            return try await Task.withTimeout(timeout) {
-                try await NSWorkspace.shared.open(url, configuration: openOptions)
+        let shouldHide = hiding && Defaults.shouldCoordinateWindow
+        logDeepLinkOpen(url, activating: activating, hiding: shouldHide)
+        if Preferences.useSecondaryMessagesInstance, let app {
+            try MessagesInstanceTarget.sendDeepLink(url, to: app)
+            if activating {
+                app.activate()
             }
+            // The window coordinator owns visibility during automation.
+            return app
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = activating
+        configuration.hides = shouldHide
+        return try await Task.withTimeout(timeout) {
+            try await NSWorkspace.shared.open(url, configuration: configuration)
         }
     }
 
@@ -358,12 +333,10 @@ final class MessagesController {
             coordinator.app = selectedApp
         }
 
-        // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
         do {
             try await selectedApp.waitForLaunch()
         } catch {
-            // Stored properties below are not initialized yet, so a failed init
-            // cannot rely on deinit/dispose to release a newly launched process.
+            // A partially initialized controller cannot clean up in deinit.
             if launchedNewApplication { selectedApp.terminate() }
             try? coordinator.dispose()
             throw error
@@ -413,9 +386,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 log.error("unable to perform initial observation of app: \(error)")
             }
             do {
-                // This initialization runs on the lifecycle run-loop thread, not the
-                // automation lane. Use the cache-free lookup to avoid racing the lane's
-                // cached main-window getter during controller initialization.
+                // Avoid the lane's window cache on the lifecycle thread.
                 let window = try self.elements.getMainWindow().orThrow(ErrorMessage("main window not found"))
                 try observer.beginObserving(window: window)
             } catch {
@@ -466,11 +437,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     case .windowCreated:
                         do {
                             printLifecycle(event: "WINDOW created")
-                            // for now, reset our window-local observations whenever we
-                            // see that a window was created (even if it was just e.g.
-                            // the settings window).
-                            // Lifecycle events are consumed off-lane; do not touch the
-                            // lane-isolated cached main-window getter here.
+                            // Refresh window observations without touching the lane's cache.
                             let window = try self.elements.getMainWindow().orThrow(ErrorMessage("main window not found"))
                             rlt.enqueue(.observeWindow(window: window))
                         } catch {
@@ -480,8 +447,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 }
             }
             self.isDisposed.withLock { disposed in
-                // Initialization can finish after disposal already canceled the
-                // conveyor. Do not leave a newly registered task waiting forever.
+                // Disposal may have raced with observer setup.
                 if disposed { eventsTask.cancel() }
                 else { self.lifecycleEventsTask = eventsTask }
             }
@@ -516,11 +482,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         cancelReplyTranscriptViewTask?.cancel()
         log.debug("withAutomation: making the app automatable")
 
-        // If makeAutomatable partially succeeds then throws, run the window-restore
-        // cleanup on the throw path before rethrowing so the app isn't left eclipsed.
-        // (Can't use `defer`: the cleanup is `async`.)
-        if Defaults.shouldCoordinateWindow {
-            do {
+        let result = await Result {
+            if Defaults.shouldCoordinateWindow {
                 if Defaults.shouldSuppressMessagesDock {
                     do { try await windowCoordinator.suppressDockPresence() }
                     catch { log.error("failed to hide Messages from Dock: \(error)") }
@@ -529,14 +492,9 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 if let mainWindow = elements.getMainWindow() {
                     try await windowCoordinator.makeAutomatable(mainWindow)
                 }
-            } catch {
-                await automationDidComplete()
-                scheduleCancelReplyTranscriptView()
-                throw error
             }
+            return try await operation()
         }
-
-        let result = await Result(catching: operation)
 
         log.info("withAutomation: finished")
         await automationDidComplete()
@@ -546,9 +504,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         return try result.get()
     }
 
-    /// Window-restore step, shared by the success and makeAutomatable-failed paths.
     private func automationDidComplete() async {
-        // No AX element is passed across the actor boundary — the coordinators don't use it.
         guard Defaults.shouldCoordinateWindow else { return }
         do {
             try await windowCoordinator.automationDidComplete()
@@ -560,9 +516,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     private var cancelReplyTranscriptViewTask: Task<Void, Never>?
 
     private func scheduleCancelReplyTranscriptView() {
-        // This may be called while already executing on the messages-controller
-        // lane. A plain Task would inherit that task-local state, then trip the
-        // re-entrancy assertion when this delayed cleanup enqueues fresh lane work.
+        // Clear the inherited lane token before enqueueing delayed cleanup.
         cancelReplyTranscriptViewTask = Task.detached { [weak self] in
             do {
                 try await Task.sleep(forTimeInterval: 1.5)
@@ -1087,31 +1041,19 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
                 let inferredStates = Set(actions.map(\.label.isMuted))
                 let labelMuteState = inferredStates.count == 1 ? inferredStates.first : nil
-                // Preference reads can stay stale even after Messages updates its
-                // live action label. Resolve the state on the lane, preferring an
-                // unambiguous AX label so repeated requests cannot toggle twice.
-                let isMuted = try labelMuteState ?? dndMuteState()
-
-                guard let isMuted else {
+                // Live AX labels update before the DND preferences do.
+                guard let isMuted = try labelMuteState ?? dndMuteState() else {
                     throw ErrorMessage("Could not determine whether thread alerts are hidden")
                 }
                 log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute)")
 
                 guard isMuted != shouldMute else { return }
 
-                // Prefer the action describing the resolved starting state.
-                let matchingAction = actions.first { $0.label.isMuted == isMuted }
-                let action: Accessibility.Action
-                if let matchingAction {
-                    action = matchingAction.action
-                } else {
-                    action = try actions.first
-                        .orThrow(ErrorMessage("Hide Alerts / Show Alerts action not found"))
-                        .action
-                }
+                let action = try (actions.first { $0.label.isMuted == isMuted } ?? actions.first)
+                    .orThrow(ErrorMessage("Hide Alerts / Show Alerts action not found"))
+                    .action
                 try action()
-                // Keep the lane until the live state reflects this toggle, so
-                // the next queued request sees the updated starting state.
+                // Wait for the toggle before accepting another mute request.
                 try await retry(withTimeout: 2, interval: 0.05) {
                     let labels = try threadAlertsActions(threadCell: selectedThreadCell)
                     let states = Set(labels.map(\.label.isMuted))
@@ -1474,26 +1416,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // we want to actually show the app
     private func activateMessages() {
         guard !isDisposed.read(), !app.isTerminated else { return }
-        // Set the activation flag immediately (off-lane): the idle observer reads
-        // `messagesIsManuallyActivated` to back off, and it should do so right away
-        // rather than waiting behind any in-flight automation queued on the lane.
+        // Let idle observation back off before waiting for the lane.
         manualActivationState.withLock {
             $0.lastActivate = Date()
             $0.messagesIsManuallyActivated = true
         }
         log.debug("activateMessages")
-        // `windowCoordinator` state (e.g. `EclipsingWindowCoordinator.windowFramePreEclipse`)
-        // is also mutated by `makeAutomatable` while running on the automation lane. Run the
-        // coordinator manipulation on the lane too so this user-activation path is serialized
-        // with automation instead of racing it off-main.
-        //
-        // Coalescing: the closure can run well behind in-flight automation (~seconds). If
-        // the user has since deactivated (messagesIsManuallyActivated flipped back to
-        // false), this activate is stale — skip it so we don't unhide a window the user
-        // already dismissed and so a queued activate/deactivate pair collapses.
-        // Keep consuming lifecycle events while this waits behind automation.
-        // Otherwise a queued deactivation cannot update the flag that makes an
-        // already-stale activation back off.
+        // Keep consuming lifecycle events while window work waits for the lane.
         MessagesControllerAutomationLane.escapingTask { [weak self] in
             do {
                 try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
@@ -1524,7 +1453,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func deactivateMessages() {
         guard !isDisposed.read(), !app.isTerminated else { return }
-        // Clear the activation flag immediately (off-lane), mirroring activateMessages.
         let lastActivate = manualActivationState.withLock { state in
             let lastActivate = state.lastActivate
             state.messagesIsManuallyActivated = false
@@ -1532,13 +1460,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
         lastActivate.map { log.debug("used messages.app for \($0.timeIntervalSinceNow * -1)s") }
         log.debug("deactivateMessages")
-        // Serialize the window teardown with automation on the lane (same rationale as
-        // activateMessages): the coordinator, closeAllNonMainWindows, and resetWindow all
-        // touch window state that `makeAutomatable` mutates while running on the lane.
-        //
-        // Coalescing: mirror activateMessages. If the user re-activated before this
-        // closure ran (messagesIsManuallyActivated flipped back to true), this deactivate
-        // is stale — skip it so we don't tear down a window the user is now using.
         MessagesControllerAutomationLane.escapingTask { [weak self] in
             do {
                 try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
@@ -1648,8 +1569,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.error("didn't observe a layout change within \(timeout)s, continuing anyways")
     }
 
-    /// Checks one thread while controller work is idle.
-    /// The platform-level idle observer calls it repeatedly after active automation drains.
+    /// Polls the selected thread while automation is idle.
     func observeIdleActivity(
         requestID: UUID,
         threadID: String,

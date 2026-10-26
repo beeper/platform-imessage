@@ -1,8 +1,7 @@
 import Foundation
 import PlatformSDK
 
-// Mutated under PlatformAPI's selection lock. Reserve a request before resolving
-// its database identity, so a slow earlier lookup cannot replace a newer choice.
+// Reserve requests under the selection lock before resolving their database identity.
 struct SelectedThreadActivitySelection {
     struct Thread: Sendable {
         let requestID: UUID
