@@ -14,6 +14,7 @@ private let log = Logger(imessageLabel: "eclipsing-window-coordinator")
  * Despite the app being repeatedly hidden and unhidden, it seems to reliably appear behind the Beeper window,
  * even if the user briefly takes manual control of Messages.
  */
+@available(*, deprecated, message: "Use BridgedSpacesWindowCoordinator; retained for legacy diagnostics")
 final class EclipsingWindowCoordinator: WindowCoordinator {
     @MainActor
     var app: NSRunningApplication? {
@@ -32,7 +33,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     private var windowFramePreEclipse: NSRect?
     private var hideDebouncer: HideDebouncer
 
-    var canReuseExtantInstance: Bool { true }
 
     init() {
         hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
@@ -130,6 +130,7 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         }
     }
 
+    @MainActor
     func automationDidComplete() throws {
         hideDebouncer.requestHide()
     }

@@ -327,6 +327,10 @@ public final class PlatformAPI {
     }
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
+        if let filePath, !FileManager.default.fileExists(atPath: filePath) {
+            throw ErrorMessage("File does not exist: \(filePath)")
+        }
+
         let threadID = try originalThreadID(for: publicThreadID)
 
         if threadID.hasPrefix("SMS;-;"), threadID.contains("@") {

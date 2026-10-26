@@ -9,9 +9,6 @@ protocol WindowCoordinator: AnyObject {
     @MainActor
     var app: NSRunningApplication? { get set }
 
-    /** Specifies whether the coordinator is okay with reusing an instance of Messages that was already open. */
-    var canReuseExtantInstance: Bool { get }
-
     /**
      * Manipulates the Messages window in such a way that it becomes controllable via Accessibility APIs.
      *
@@ -23,16 +20,18 @@ protocol WindowCoordinator: AnyObject {
      * AppKit reads they actually need.
      */
     func makeAutomatable(_ window: Accessibility.Element) async throws
+    func prepareForAutomation() throws
+    func prepareAfterLaunch() throws
+    func dispose() throws
 
     /**
      * Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window.
      *
      * Takes no window argument: implementations don't need one, and passing the
-     * non-`Sendable` `Accessibility.Element` across the actor boundary into this
-     * `@MainActor` method would be a concurrency violation.
+     * non-`Sendable` `Accessibility.Element` to implementations that use the
+     * main actor would be a concurrency violation.
      */
-    @MainActor
-    func automationDidComplete() throws
+    func automationDidComplete() async throws
 
     /**
      * Reverts the manipulations performed in `makeAutomatable`.
@@ -54,6 +53,18 @@ protocol WindowCoordinator: AnyObject {
 }
 
 extension WindowCoordinator {
+    func prepareForAutomation() throws {}
+    func prepareAfterLaunch() throws {}
+    func dispose() throws {}
+    @MainActor
+    func suppressDockPresence() throws {
+        if let app { try MessagesDockSuppression.suppress(app) }
+    }
+    @MainActor
+    func restoreDockPresence() throws {
+        if let app { try MessagesDockSuppression.restore(app) }
+    }
+
     @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         // make this method optional
@@ -67,4 +78,5 @@ extension WindowCoordinator {
 
 enum WindowCoordinatorError: Error {
     case generic(message: String)
+    case instanceInUse
 }

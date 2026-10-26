@@ -4,23 +4,16 @@ import Logging
 private let log = Logger(imessageLabel: "best-window-coordinator")
 
 func getBestWindowCoordinator() throws -> any WindowCoordinator {
-    let specifiedCoordinator = Defaults.imessage.string(forKey: DefaultsKeys.coordinator)
-
-    if let specifiedCoordinator {
-        log.notice("coordinator overridden to \"\(specifiedCoordinator)\"")
-        switch specifiedCoordinator {
-        case "eclipsing": return EclipsingWindowCoordinator()
+    if let specified = Defaults.imessage.string(forKey: DefaultsKeys.coordinator) {
+        switch specified {
+        case "bridged-spaces": return try BridgedSpacesWindowCoordinator()
         case "spaces": return try SpacesWindowCoordinator()
-        default: log.warning("unknown forced coordinator, determining as usual")
+        default: log.warning("unknown forced coordinator, using OS default")
         }
     }
 
-    let sequoiaOrLater = ProcessInfo.processInfo.isOperatingSystemAtLeast(.init(majorVersion: 15, minorVersion: 0, patchVersion: 0))
-
-    if sequoiaOrLater {
-        log.debug("detected macOS 15 or later, using eclipsing window coordinator")
-        return EclipsingWindowCoordinator()
+    if #available(macOS 15, *) {
+        return try BridgedSpacesWindowCoordinator()
     }
-    log.debug("using spaces window coordinator")
     return try SpacesWindowCoordinator()
 }
