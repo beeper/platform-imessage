@@ -8,9 +8,6 @@ protocol WindowCoordinator {
     /** The application to coordinate. */
     var app: NSRunningApplication? { get set }
 
-    /** Specifies whether the coordinator is okay with reusing an instance of Messages that was already open. */
-    var canReuseExtantInstance: Bool { get }
-
     /**
      * Manipulates the Messages window in such a way that it becomes controllable via Accessibility APIs.
      *

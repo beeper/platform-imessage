@@ -8,6 +8,13 @@ private let log = Logger(imessageLabel: "messages-instance-target")
 
 @available(macOS 11, *)
 enum MessagesInstanceTarget {
+    static func primaryInstance(in applications: [NSRunningApplication]) throws -> NSRunningApplication? {
+        guard applications.count <= 1 else {
+            throw ErrorMessage("Multiple Messages instances are running; use secondary-instance mode to avoid selecting another host's process")
+        }
+        return applications.first
+    }
+
     private static func getURLAppleEvent(for url: URL, target: NSRunningApplication?) -> NSAppleEventDescriptor {
         let targetDescriptor: NSAppleEventDescriptor? = target.map { NSAppleEventDescriptor(processIdentifier: $0.processIdentifier) }
 

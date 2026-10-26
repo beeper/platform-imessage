@@ -26,9 +26,9 @@ func secondaryMessagesUnknownSpaceReuseSmoke() throws {
             NSRunningApplication(processIdentifier: previousFrontmost.processIdentifier)?.activate(options: [.activateAllWindows])
         }
     }
-    let baselineManaged = try reuseManagedSpaceIDs()
-    let baselineCurrent = try reuseManagedSpaceIDs(currentOnly: true)
-    let initialPool = try reusePoolSpaceIDs()
+    let baselineManaged = try smokeManagedSpaceIDs()
+    let baselineCurrent = try smokeManagedSpaceIDs(currentOnly: true)
+    let initialPool = try smokePoolSpaceIDs()
     try #require(initialPool.count <= 1, "The reusable pool must not already contain duplicate matching unknown Spaces")
     var expectedSpace = initialPool.first
     var launchedPIDs = Set<pid_t>()
@@ -40,9 +40,9 @@ func secondaryMessagesUnknownSpaceReuseSmoke() throws {
             expectedSpace = result.space
         }
         #expect(launchedPIDs.insert(result.pid).inserted, "Each cycle must launch a new secondary Messages process")
-        #expect(try reusePoolSpaceIDs() == Set([result.space]))
-        #expect(try reuseManagedSpaceIDs() == baselineManaged)
-        #expect(try reuseManagedSpaceIDs(currentOnly: true) == baselineCurrent)
+        #expect(try smokePoolSpaceIDs() == Set([result.space]))
+        #expect(try smokeManagedSpaceIDs() == baselineManaged)
+        #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
     }
     let space = try #require(expectedSpace)
     print("UNKNOWN_SPACE_REUSE_SUMMARY launcherPID=\(getpid()) space=\(space) cycles=3")
@@ -51,7 +51,7 @@ func secondaryMessagesUnknownSpaceReuseSmoke() throws {
 
 @MainActor
 private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, baselineCurrent: Set<UInt64>) throws -> (space: UInt64, pid: pid_t) {
-    let existingPIDs = Set(NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).map(\.processIdentifier))
+    let existingPIDs = smokeMessagesPIDs()
     let controller = try runSmokeWorker {
         try MessagesController(reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
     }
@@ -69,9 +69,9 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(values["ManagedSpaceID"] == nil)
     #expect(values["uuid"] as? String == "Beeper-Unknown-Parking-v1-\(getuid())")
     #expect(!baselineManaged.contains(parking))
-    #expect(try reusePoolSpaceIDs() == Set([parking]))
-    #expect(try reuseManagedSpaceIDs() == baselineManaged)
-    #expect(try reuseManagedSpaceIDs(currentOnly: true) == baselineCurrent)
+    #expect(try smokePoolSpaceIDs() == Set([parking]))
+    #expect(try smokeManagedSpaceIDs() == baselineManaged)
+    #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
     #expect(IMPrivateSPIActiveSpace() != parking)
     try reuseAssertParkedAX(controller: controller, window: window, parking: parking)
     // A second host must not move windows owned by this live coordinator.
@@ -86,8 +86,8 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     pumpSmokeRunLoop(for: 0.5)
     try #require(app.activate(options: [.activateAllWindows]))
     var stableSince: Date?
-    try reuseWait("stable Messages activation and ordinary-desktop reveal") {
-        let ready = try reuseIsFrontmost(controller.elements.app) && reuseOnscreen(window) &&
+    try waitForSmoke("stable Messages activation and ordinary-desktop reveal") {
+        let ready = try smokeFrontmost(controller.elements.app) && smokeOnscreen(window) &&
             !(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value).contains(parking) ?? true) &&
             MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground"
         guard ready else {
@@ -111,21 +111,21 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     pumpSmokeRunLoop(for: 0.5)
     let actualFrontmost = NSWorkspace.shared.frontmostApplication
     let presentation = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
-    #expect(try reuseIsFrontmost(controller.elements.app), Comment(rawValue:
+    #expect(try smokeFrontmost(controller.elements.app), Comment(rawValue:
         "Expected Messages PID \(app.processIdentifier); frontmost=\(actualFrontmost?.bundleIdentifier ?? "nil") PID=\(actualFrontmost?.processIdentifier ?? 0); presentation=\(presentation ?? "nil")"))
-    #expect(try reuseOnscreen(window))
+    #expect(try smokeOnscreen(window))
     #expect(IMPrivateSPIActiveSpace() != parking)
-    #expect(try reuseManagedSpaceIDs(currentOnly: true) == baselineCurrent)
+    #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
 
     let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
     try #require(finder.activate(options: []))
-    try reuseWait("Messages deactivation") { try !reuseIsFrontmost(controller.elements.app) }
+    try waitForSmoke("Messages deactivation") { try !smokeFrontmost(controller.elements.app) }
     pumpSmokeRunLoop(for: 0.25)
     try runSmokeWorker {
         try controller.prepareForAutomation()
         defer { controller.finishedAutomation() }
         #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
-        #expect(try !reuseOnscreen(window))
+        #expect(try !smokeOnscreen(window))
     }
     // Completion retains the unknown membership and leaves AX available.
     try reuseAssertParkedAX(controller: controller, window: window, parking: parking)
@@ -134,7 +134,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     var exitExposures = 0
     let exitSampler = Timer(timeInterval: 0.005, repeats: true) { _ in
         do {
-            let visible = try reuseOnscreen(window)
+            let visible = try smokeOnscreen(window)
             exitSamples += 1
             if visible { exitExposures += 1 }
         } catch { exitSamplingErrors += 1 }
@@ -146,12 +146,12 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(exitSamples > 0 && exitSamplingErrors == 0, "Exit visibility sampling must run without read failures")
     #expect(exitExposures == 0, "Quitting Messages must not expose its parked window")
     print("UNKNOWN_SPACE_EXIT_CONCEALMENT cycle=\(cycle) samples=\(exitSamples) exposures=\(exitExposures)")
-    try reuseWait("secondary Messages process exit") {
-        kill(app.processIdentifier, 0) == -1 && errno == ESRCH
+    try waitForSmoke("secondary Messages process exit") {
+        smokeProcessExited(app.processIdentifier)
     }
-    #expect(try reusePoolSpaceIDs() == Set([parking]), "Disposal must retain the pool for a new controller")
-    #expect(try reuseManagedSpaceIDs() == baselineManaged)
-    #expect(try reuseManagedSpaceIDs(currentOnly: true) == baselineCurrent)
+    #expect(try smokePoolSpaceIDs() == Set([parking]), "Disposal must retain the pool for a new controller")
+    #expect(try smokeManagedSpaceIDs() == baselineManaged)
+    #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
     print("UNKNOWN_SPACE_REUSE cycle=\(cycle) space=\(parking) secondaryPID=\(app.processIdentifier) managedCount=\(baselineManaged.count)")
     fflush(nil)
     return (parking, app.processIdentifier)
@@ -160,7 +160,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
 @MainActor
 private func reuseAssertParkedAX(controller: MessagesController, window: UInt32, parking: UInt64) throws {
     #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
-    #expect(try !reuseOnscreen(window))
+    #expect(try !smokeOnscreen(window))
     #expect(try !controller.elements.app.isHidden())
     #expect(try controller.elements.mainWindow.window().raw == window)
     let search = try controller.elements.searchField
@@ -168,50 +168,7 @@ private func reuseAssertParkedAX(controller: MessagesController, window: UInt32,
     defer { try? search.value(assign: original) }
     let query = "Beeper unknown Space reuse \(UUID().uuidString)"
     try search.value(assign: query)
-    try reuseWait("AX search write/read while parked") { try search.value() as? String == query }
+    try waitForSmoke("AX search write/read while parked") { try search.value() as? String == query }
     try search.value(assign: original)
     #expect(try search.value() as? String == original)
-}
-
-private func reusePoolSpaceIDs() throws -> Set<UInt64> {
-    let uuid = "Beeper-Unknown-Parking-v1-\(getuid())"
-    var result = Set<UInt64>()
-    for space in try Space.list(.allOSSpaces) {
-        guard try space.kind() == .unknown else { continue }
-        let values = try space.values() as NSDictionary
-        guard values["uuid"] as? String == uuid else { continue }
-        #expect(values["ManagedSpaceID"] == nil)
-        result.insert(UInt64(space.raw))
-    }
-    return result
-}
-
-private func reuseManagedSpaceIDs(currentOnly: Bool = false) throws -> Set<UInt64> {
-    let displays = try #require(IMPrivateSPICopyManagedDisplaySpaces())
-    try #require(!displays.isEmpty)
-    return Set(displays.flatMap { display -> [UInt64] in
-        let current = (display["Current Space"] as? [String: Any]).map { [$0] } ?? []
-        let spaces = currentOnly ? current : (display["Spaces"] as? [[String: Any]] ?? []) + current
-        return spaces.compactMap {
-            ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? ($0["id64"] as? NSNumber)?.uint64Value
-        }
-    })
-}
-
-@MainActor
-private func reuseWait(_ description: String, _ condition: () throws -> Bool) throws {
-    let deadline = Date().addingTimeInterval(5)
-    while Date() < deadline {
-        if try condition() { return }
-        pumpSmokeRunLoop(for: 0.02)
-    }
-    try #require(try condition(), Comment(rawValue: "Timed out waiting for \(description)"))
-}
-
-private func reuseOnscreen(_ window: UInt32) throws -> Bool {
-    try Window.listDescriptions(.onScreen).contains { $0.window.raw == window }
-}
-
-private func reuseIsFrontmost(_ app: Accessibility.Element) throws -> Bool {
-    try app.attribute(Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute))()
 }

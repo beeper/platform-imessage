@@ -155,11 +155,8 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     private var targetLease: WindowCoordinationFileLock?
     private var leasedPID: pid_t?
     private var currentApp: NSRunningApplication? {
-        guard let original = app, !original.isTerminated,
-              Self.isProcessAlive(original.processIdentifier),
-              let live = NSRunningApplication(processIdentifier: original.processIdentifier),
-              live.bundleIdentifier == "com.apple.MobileSMS" else { return nil }
-        return live
+        guard let original = app, !original.isTerminated else { return nil }
+        return Self.liveMessagesApp(original.processIdentifier)
     }
 
     private func ensureTargetLease() throws {
@@ -177,7 +174,6 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         return (try? Accessibility.Element(pid: app.processIdentifier).attribute(frontmost)()) ?? app.isActive
     }
 
-    var canReuseExtantInstance: Bool { true }
     private let lock = NSRecursiveLock()
     private let session: BridgedSpaceSession
     private let owners: BridgedWindowOwners
@@ -227,9 +223,8 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             },
             spaces: Self.spaces,
             exists: { window in
-                guard let owner = owners.pids[window], Self.isProcessAlive(owner),
-                      NSRunningApplication(processIdentifier: owner)?.isTerminated == false else { return false }
-                return try Window.listDescriptions(.all).contains { $0.window.raw == window && $0.owner == owner }
+                guard let owner = owners.pids[window] else { return false }
+                return try Self.ownedWindow(window, pid: owner) != nil
             },
             spaceExists: { id in try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id } },
             fallbackSpace: { try Self.displayDestination(for: $0, owners: owners) },
@@ -237,15 +232,20 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         ))
     }
 
-    private static func isProcessAlive(_ pid: pid_t) -> Bool {
-        kill(pid, 0) == 0 || errno != ESRCH
+    private static func liveMessagesApp(_ pid: pid_t) -> NSRunningApplication? {
+        guard kill(pid, 0) == 0 || errno != ESRCH,
+              let app = NSRunningApplication(processIdentifier: pid),
+              !app.isTerminated, app.bundleIdentifier == messagesBundleID else { return nil }
+        return app
+    }
+
+    private static func ownedWindow(_ window: UInt32, pid: pid_t) throws -> Window.Description? {
+        guard liveMessagesApp(pid) != nil else { return nil }
+        return try Window.listDescriptions(.all).first { $0.window.raw == window && $0.owner == pid }
     }
 
     private static func verifyOwner(_ window: UInt32, owners: BridgedWindowOwners) throws {
-        guard let owner = owners.pids[window], isProcessAlive(owner),
-              NSRunningApplication(processIdentifier: owner)?.isTerminated == false,
-              NSRunningApplication(processIdentifier: owner)?.bundleIdentifier == "com.apple.MobileSMS",
-              try Window.listDescriptions(.all).contains(where: { $0.window.raw == window && $0.owner == owner }) else {
+        guard let owner = owners.pids[window], try ownedWindow(window, pid: owner) != nil else {
             throw ErrorMessage("Refusing to move a window whose owner changed")
         }
     }
@@ -257,7 +257,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
 
     private static func displayDestination(for window: UInt32, owners: BridgedWindowOwners) throws -> UInt64 {
         guard let owner = owners.pids[window],
-              let description = try Window.listDescriptions(.all).first(where: { $0.window.raw == window && $0.owner == owner }),
+              let description = try ownedWindow(window, pid: owner),
               let topology = IMPrivateSPICopyManagedDisplaySpaces() else {
             throw ErrorMessage("Could not resolve the Messages window's display")
         }
@@ -304,10 +304,10 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private func trackWindow(_ window: UInt32) throws -> UInt32 {
-        guard let app = currentApp, !app.isTerminated else { throw ErrorMessage("No live Messages instance to coordinate") }
-        guard try Window.listDescriptions(.all).contains(where: {
-            $0.window.raw == window && $0.owner == app.processIdentifier
-        }) else { throw ErrorMessage("Refusing to move a window from another process") }
+        guard let app = currentApp else { throw ErrorMessage("No live Messages instance to coordinate") }
+        guard try Self.ownedWindow(window, pid: app.processIdentifier) != nil else {
+            throw ErrorMessage("Refusing to move a window from another process")
+        }
         owners.pids[window] = app.processIdentifier
         if session.originalSpaces[window] == nil {
             owners.displays.removeValue(forKey: window)
@@ -372,10 +372,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         lock.lock()
         defer { lock.unlock() }
         guard !disposed else { throw ErrorMessage("Messages coordinator was disposed") }
-        try ensureTargetLease()
-        mainWindowID = try trackWindow(window.window().raw)
-        guard !isCurrentAppActive else { return }
-        try parkWindows(windowIDsToPark())
+        try parkForAutomation(mainWindow: window)
     }
 
     private func unhideIfNeeded() {
@@ -424,25 +421,26 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         }
     }
 
+    private func parkForAutomation(mainWindow: Accessibility.Element? = nil) throws {
+        try ensureTargetLease()
+        if let mainWindow { mainWindowID = try trackWindow(mainWindow.window().raw) }
+        guard currentApp != nil, !isCurrentAppActive else { return }
+        // Keep every normal window parked and AX-accessible between operations.
+        try parkWindows(windowIDsToPark())
+    }
+
     func prepareForAutomation() throws {
         lock.lock()
         defer { lock.unlock() }
         guard !disposed else { throw ErrorMessage("Messages coordinator was disposed") }
-        try ensureTargetLease()
-        guard currentApp != nil, !isCurrentAppActive else { return }
-        try parkWindows(windowIDsToPark())
+        try parkForAutomation()
     }
 
     func automationDidComplete(_ window: Accessibility.Element) throws {
         lock.lock()
         defer { lock.unlock() }
         guard !disposed else { return }
-        try ensureTargetLease()
-        mainWindowID = try trackWindow(window.window().raw)
-        guard !isCurrentAppActive else { return }
-        // Unknown Spaces stay parked and AX-accessible while idle. They cannot
-        // become a desktop selected by Dock or Mission Control.
-        try parkWindows(windowIDsToPark())
+        try parkForAutomation(mainWindow: window)
     }
 
     func reset(_ window: Accessibility.Element) throws {

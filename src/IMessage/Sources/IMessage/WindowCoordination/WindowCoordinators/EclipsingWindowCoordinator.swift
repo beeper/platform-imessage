@@ -32,7 +32,6 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
     private var windowFramePreEclipse: NSRect?
     private var hideDebouncer: HideDebouncer
 
-    var canReuseExtantInstance: Bool { true }
 
     init() {
         hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)

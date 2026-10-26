@@ -5,18 +5,6 @@ import Testing
 import WindowControl
 @testable import IMessage
 
-@MainActor
-private func waitForRecoverySmoke(_ condition: () throws -> Bool) throws {
-    let timeout: TimeInterval = 3
-    let pollInterval: TimeInterval = 0.02
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-        if try condition() { return }
-        pumpSmokeRunLoop(for: pollInterval)
-    }
-    try #require(try condition(), "Timed out waiting for secondary Space recovery")
-}
-
 // Deletes only a sacrificial Space created by this test, never a user's desktop.
 // No activation, Space switching, message sends, or conversation deletion.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_SECONDARY_BRIDGED_RECOVERY_SMOKE"] == "1"))
@@ -50,17 +38,17 @@ func secondaryMessagesLostOriginalSpaceSmoke() throws {
     try #require(created != 0 && !baseline.contains(created))
     source = created
     try #require(IMPrivateSPISpaceBridgeMoveWindow(bridge, windowID, source))
-    try waitForRecoverySmoke { IMPrivateSPISpacesForWindow(windowID)?.map(\.uint64Value) == [source] }
+    try waitForSmoke("secondary Space recovery", timeout: 3) { IMPrivateSPISpacesForWindow(windowID)?.map(\.uint64Value) == [source] }
     try runSmokeWorker { try coordinator.makeAutomatable(window) }
     let hidden = try #require(IMPrivateSPISpacesForWindow(windowID)?.first?.uint64Value)
     try #require(hidden != source && hidden != desktop)
     try #require(IMPrivateSPIActiveSpace() == desktop)
     try #require(IMPrivateSPISpaceBridgeDestroySpace(bridge, source))
-    try waitForRecoverySmoke { try !Space.list(.allOSSpaces).contains { UInt64($0.raw) == source } }
+    try waitForSmoke("secondary Space recovery", timeout: 3) { try !Space.list(.allOSSpaces).contains { UInt64($0.raw) == source } }
     source = 0
     // Restoration must not flash the secondary window on the visible desktop.
     app.hide()
-    try waitForRecoverySmoke { try elements.app.isHidden() }
+    try waitForSmoke("secondary Space recovery", timeout: 3) { try elements.app.isHidden() }
     try runSmokeWorker { try coordinator.dispose() }
     let restored = try #require(IMPrivateSPISpacesForWindow(windowID)?.first?.uint64Value)
     let visible = try #require(IMPrivateSPICopyManagedDisplaySpaces()).compactMap { record -> UInt64? in

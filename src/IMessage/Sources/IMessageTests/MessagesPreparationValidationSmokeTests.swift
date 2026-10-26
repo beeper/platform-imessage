@@ -25,7 +25,6 @@ private final class FailingPreparationCoordinator: WindowCoordinator {
         get { wrapped.app }
         set { wrapped.app = newValue }
     }
-    var canReuseExtantInstance: Bool { wrapped.canReuseExtantInstance }
 
     init() throws { wrapped = try BridgedSpacesWindowCoordinator() }
 
@@ -94,7 +93,7 @@ struct MessagesPreparationValidationSmokeTests {
         }
         #expect(try !controller.elements.app.isHidden())
         let recoveredWindow = try controller.elements.mainWindow.window().raw
-        #expect(try !isOnscreen(recoveredWindow))
+        #expect(try !smokeOnscreen(recoveredWindow))
         let recoveredSpaceID = try #require(IMPrivateSPISpacesForWindow(recoveredWindow)?.first?.uint64Value)
         let recoveredSpace = try #require(Space(raw: .init(recoveredSpaceID)))
         #expect(try recoveredSpace.kind() == .unknown)
@@ -117,7 +116,7 @@ struct MessagesPreparationValidationSmokeTests {
             app.terminate()
         }
         let axApp = Accessibility.Element(pid: app.processIdentifier)
-        try waitFor { try isFrontmost(axApp) }
+        try waitForSmoke { try smokeFrontmost(axApp) }
         coordinator.app = app
         let elements = MessagesAppElements(runningApp: app)
         let main = try elements.mainWindow
@@ -133,7 +132,7 @@ struct MessagesPreparationValidationSmokeTests {
             event.postToPid(app.processIdentifier)
         }
         var settings: Accessibility.Element?
-        try waitFor {
+        try waitForSmoke {
             settings = try axApp.appWindows().first {
                 guard let id = try? $0.window().raw else { return false }
                 return !existing.contains(id)
@@ -159,13 +158,13 @@ struct MessagesPreparationValidationSmokeTests {
         print("LARGER_SETTINGS main=\(mainFrame.size) settings=\(settingsFrame.size)")
         let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
         try #require(finder.activate(options: []))
-        try waitFor { try !isFrontmost(axApp) }
+        try waitForSmoke { try !smokeFrontmost(axApp) }
         try MessagesDockSuppression.suppress(app)
         app.hide()
-        try waitFor { try axApp.isHidden() }
+        try waitForSmoke { try axApp.isHidden() }
         let originalMainSpaces = IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value)
         let originalSettingsSpaces = IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value)
-        try #require(try !isOnscreen(mainID) && !isOnscreen(settingsID))
+        try #require(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
 
         var exposures = Set<UInt32>()
         var samples = 0
@@ -187,7 +186,7 @@ struct MessagesPreparationValidationSmokeTests {
         // repair an exposed main window and mask its incorrect Settings choice.
         try #require(samples > 0 && samplingErrors == 0, "The visibility sampler must actually run without read failures")
         #expect(exposures.isEmpty, "Neither window may flash onscreen during preparation")
-        #expect(try !isOnscreen(mainID) && !isOnscreen(settingsID))
+        #expect(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
         print("SETTINGS_CONCEALMENT samples=\(samples) exposures=\(exposures.count)")
         let parkedMain = try #require(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value))
         let parkedSettings = try #require(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value))
@@ -201,37 +200,20 @@ struct MessagesPreparationValidationSmokeTests {
         #expect(try elements.mainWindow.window().raw == mainID)
         #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == parkedMain)
         #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == parkedSettings)
-        #expect(try !isOnscreen(mainID) && !isOnscreen(settingsID))
+        #expect(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
 
         // Manual activation must reveal both windows on their ordinary
         // desktop, rather than merely hiding them forever in the shared pool.
         try coordinator.restoreDockPresence()
         try #require(app.activate(options: [.activateAllWindows]))
-        try waitFor { try isFrontmost(axApp) }
+        try waitForSmoke { try smokeFrontmost(axApp) }
         try runSmokeWorker { try coordinator.userManuallyActivated(app) }
-        try waitFor { try isOnscreen(mainID) && isOnscreen(settingsID) }
+        try waitForSmoke { try smokeOnscreen(mainID) && smokeOnscreen(settingsID) }
         #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == originalMainSpaces)
         #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == originalSettingsSpaces)
-    }
-
-    private func waitFor(_ condition: () throws -> Bool) throws {
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            if try condition() { return }
-            pumpSmokeRunLoop(for: 0.02)
-        }
-        try #require(try condition(), "Timed out waiting for live Messages state")
     }
 
     private func restoreFrontmost(_ app: NSRunningApplication?) {
         if let app { NSRunningApplication(processIdentifier: app.processIdentifier)?.activate(options: [.activateAllWindows]) }
     }
-}
-
-private func isFrontmost(_ app: Accessibility.Element) throws -> Bool {
-    try app.attribute(Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute))()
-}
-
-private func isOnscreen(_ id: UInt32) throws -> Bool {
-    try Window.listDescriptions(.onScreen).contains { $0.window.raw == id }
 }

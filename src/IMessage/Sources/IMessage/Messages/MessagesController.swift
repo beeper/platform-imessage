@@ -102,18 +102,6 @@ final class MessagesController {
         try? closeReplyTranscriptView(wait: false)
     }
 
-    private static func terminateApp(_ app: NSRunningApplication) throws {
-        app.terminate()
-        try retry(withTimeout: 2, interval: 0.1) {
-            guard app.isTerminated else { throw ErrorMessage("App couldn't be terminated") }
-        } onError: { attempt, _ in
-            if attempt == 19 {
-                log.debug("Force terminating app")
-                app.forceTerminate()
-            }
-        }
-    }
-
     @discardableResult
     static func openDeepLink(
         _ url: URL,
@@ -272,15 +260,6 @@ final class MessagesController {
 
         windowCoordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
 
-        let launchMessages = { [windowCoordinator] (withoutActivation: Bool) throws -> NSRunningApplication in
-            // waiting reduces the likelihood that messages.app shows up visible (requiring us to restart it)
-            if !windowCoordinator.canReuseExtantInstance && Defaults.shouldCoordinateWindow {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
-            log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
-        }
-
         if Preferences.useSecondaryMessagesInstance {
             log.info("launching secondary messages instance...")
             app = try MessagesInstanceTarget.launchSecondaryInstance(
@@ -289,26 +268,13 @@ final class MessagesController {
                 hiding: false
             )
         } else {
-            var messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-            if messagesApps.count > 1 { // if there's more than one instance of messages app something weird happened, terminate all to be safe
-                log.info("found \(messagesApps.count) instances of messages.app, terminating all to be safe")
-                messagesApps.forEach { try? Self.terminateApp($0) }
-                messagesApps.removeAll()
-            }
-            if let existingApp = messagesApps.first {
-                // if coordination is disabled, avoid unnecessarily terminating the app
-                if windowCoordinator.canReuseExtantInstance || !Defaults.shouldCoordinateWindow {
-                    log.info("reusing existing messages...")
-                    app = existingApp
-                } else {
-                    log.info("terminating messages...")
-                    try Self.terminateApp(existingApp)
-                    // this is for markAsReadWithPressHack (monterey or lower)
-                    // launch with activation because the hack doesn't work until the app is activated at least once
-                    app = try launchMessages(!isVenturaOrUp)
-                }
+            let messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
+            if let existingApp = try MessagesInstanceTarget.primaryInstance(in: messagesApps) {
+                log.info("reusing existing messages...")
+                app = existingApp
             } else {
-                app = try launchMessages(false)
+                log.info("launching messages...")
+                app = try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: true)
             }
         }
 
@@ -324,44 +290,32 @@ final class MessagesController {
 
         keyPresser = KeyPresser(pid: app.processIdentifier)
 
-        // if app.isHidden {
-        //     debugLog("Unhiding Messages...")
-        //     try retry(withTimeout: 1, interval: 0.1) { [app] in
-        //         app.unhide()
-        //         if app.isHidden {
-        //             throw ErrorMessage("Could not launch Messages")
-        //         }
-        //     }
-        // }
         let observer = LifecycleObserver()
         lifecycleObserver = observer
-        if Defaults.shouldCoordinateWindow {
-            do { try windowCoordinator.prepareAfterLaunch() }
-            catch WindowCoordinatorError.instanceInUse {
-                dispose(terminateApp: Preferences.useSecondaryMessagesInstance)
-                throw WindowCoordinatorError.instanceInUse
-            }
-            catch { dispose(); throw error }
-        }
-        setUpLifecycleConveyor(with: lifecycleObserver)
+        do {
+            if Defaults.shouldCoordinateWindow { try windowCoordinator.prepareAfterLaunch() }
+            setUpLifecycleConveyor(with: lifecycleObserver)
 
-        guard isValid else {
-            dispose() // since deinit isn't called when init throws
-            throw ErrorMessage("""
+            guard isValid else {
+                // Diagnostics must remain passive; mainWindow can reopen the app.
+                let frameValid = elements.getMainWindow()?.isFrameValid ?? false
+                throw ErrorMessage("""
 Initialized MessagesController in an invalid state:
 appTerminated=\(app.isTerminated)
-mwFrameValid=\(Result { try elements.mainWindow.isFrameValid })
+mwFrameValid=\(frameValid)
 isMessagesAppResponsive=\(isMessagesAppResponsive)
 """)
-        }
-        resetWindow()
-        if Defaults.shouldCoordinateWindow {
-            do { try windowCoordinator.automationDidComplete(elements.mainWindow) }
-            catch WindowCoordinatorError.instanceInUse {
-                dispose(terminateApp: Preferences.useSecondaryMessagesInstance)
-                throw WindowCoordinatorError.instanceInUse
             }
-            catch { dispose(); throw error }
+            resetWindow()
+            if Defaults.shouldCoordinateWindow {
+                try windowCoordinator.automationDidComplete(elements.mainWindow)
+            }
+        } catch WindowCoordinatorError.instanceInUse {
+            dispose(terminateApp: Preferences.useSecondaryMessagesInstance)
+            throw WindowCoordinatorError.instanceInUse
+        } catch {
+            dispose()
+            throw error
         }
     }
 
