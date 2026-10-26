@@ -27,7 +27,10 @@ const openAXPrefs = () => { openSecuritySystemPrefs('Privacy_Accessibility') }
 const openAutomationPrefs = () => { openSecuritySystemPrefs('Privacy_Automation') }
 
 type CallProxiedFn = <ReturnType>(fnName: keyof PAPI['proxiedAuthFns']) => Promise<ReturnType>
-type Props = AuthProps & {
+type HostAuthProps = AuthProps & {
+  relaunchApp?: (reason: string) => void
+}
+type Props = HostAuthProps & {
   callProxiedFn: CallProxiedFn
   open?: boolean
 }
@@ -129,6 +132,7 @@ type ChecklistItemProps = {
   icon: React.ReactNode
   more: React.ReactNode
   showMore?: boolean
+  footer?: React.ReactNode
 }
 
 const ChecklistItem = ({
@@ -140,6 +144,7 @@ const ChecklistItem = ({
   action,
   more,
   showMore,
+  footer,
   Tooltip,
   children,
 }: ChecklistItemProps & { Tooltip: React.FC<any>, children: React.ReactNode }) => (
@@ -162,11 +167,12 @@ const ChecklistItem = ({
     </div>
     {showMore && <div className="more">{more}</div>}
     {children}
+    {footer}
   </article>
 )
 
 const ChecklistPage: React.FC<Props> = props => {
-  const { callProxiedFn } = props
+  const { callProxiedFn, relaunchApp } = props
   // NOTE(skip): this prop is defined as optional in platform-sdk
   const [loggingIn, setLoggingIn] = useState(false)
   const askedContacts = useRef(false)
@@ -176,6 +182,8 @@ const ChecklistPage: React.FC<Props> = props => {
   const [automationAuthorized, setAutomationAuthorized] = useState(false)
   const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  const askedFullDiskAccess = useRef(false)
+  const [returnedFromFullDiskAccess, setReturnedFromFullDiskAccess] = useState(false)
   const isMessagesAppSetupFn = useCallback(async () =>
     dataAuthorized === true && callProxiedFn<boolean>('isMessagesAppSetup'), [callProxiedFn, dataAuthorized])
   const { execute: refreshMessagesAppSetup, value: isMessagesAppSetupValue, pending: isMessagesAppSetupPending } = useAsync(isMessagesAppSetupFn)
@@ -186,6 +194,14 @@ const ChecklistPage: React.FC<Props> = props => {
     return () => window.removeEventListener('focus', refreshMessagesAppSetup)
   }, [refreshMessagesAppSetup])
 
+  useEffect(() => {
+    const onFocus = () => {
+      if (askedFullDiskAccess.current) setReturnedFromFullDiskAccess(true)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
   const authorizeContacts = async () => {
     if (askedContacts.current) return openContactsPrefs()
     if (axAuthorized) setTimeout(() => callProxiedFn<void>('confirmUNCPrompt'), 1)
@@ -193,7 +209,10 @@ const ChecklistPage: React.FC<Props> = props => {
     askedContacts.current = true
   }
 
-  const authorizeFullDiskAccess = () => callProxiedFn<void>('askForFullDiskAccess')
+  const authorizeFullDiskAccess = () => {
+    askedFullDiskAccess.current = true
+    return callProxiedFn<void>('askForFullDiskAccess')
+  }
 
   const authorizeMessagesDir = async () => {
     await callProxiedFn<void>('askForMessagesDirAccess')
@@ -254,8 +273,14 @@ const ChecklistPage: React.FC<Props> = props => {
       info: REQUIRES_FULL_DISK_ACCESS
         ? 'Beeper needs Full Disk Access to read Messages data and attachments.'
         : 'To connect with iMessage, Beeper needs to be able to read your messages.',
-      more: <div onClick={authorizeFullDiskAccess}>Try granting Full Disk Access to {appName} in {sysPrefsAppName} &rarr;</div>,
+      more: <div onClick={authorizeFullDiskAccess}>Try granting Full Disk Access to {appName} in {sysPrefsAppName}. If it isn't listed, click the + button and select it from your Applications folder &rarr;</div>,
       showMore,
+      footer: REQUIRES_FULL_DISK_ACCESS && returnedFromFullDiskAccess && dataAuthorized === false && relaunchApp && (
+        <div className="authorize">
+          <div className="more">Already turned on {appName}? macOS only applies Full Disk Access after it quits and reopens.</div>
+          <button onClick={() => relaunchApp('imessage full disk access')}>Quit & Reopen</button>
+        </div>
+      ),
     },
     {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" /></svg>,
@@ -346,7 +371,7 @@ const ChecklistPage: React.FC<Props> = props => {
   )
 }
 
-const AppleiMessageAuth: React.FC<AuthProps> = props => {
+const AppleiMessageAuth: React.FC<HostAuthProps> = props => {
   const { api } = props
   const callProxiedFn = useCallback(async (fnName: string) => {
     if (!api) throw new Error(`Couldn't call proxied function "${fnName}", API is falsy`)
