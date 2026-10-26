@@ -163,6 +163,41 @@ final class MessagesController {
     }
 
     @discardableResult
+    static func reopenMessages(
+        activating: Bool = false,
+        hiding: Bool = true,
+        targeting app: NSRunningApplication? = nil
+    ) throws -> NSRunningApplication {
+        if Preferences.useSecondaryMessagesInstance, let app {
+            return try openDeepLink(MessagesDeepLink.compose.url(), activating: activating, hiding: hiding, targeting: app)
+        }
+
+        let applicationURL = try NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID)
+            .orThrow(ErrorMessage("Could not find Messages.app via LaunchServices"))
+
+        let openOptions = NSWorkspace.OpenConfiguration()
+        openOptions.activates = activating
+        openOptions.hides = hiding && Defaults.shouldCoordinateWindow
+
+        let waiter = DispatchSemaphore(value: 0)
+        var result: Result<NSRunningApplication, Error>?
+        NSWorkspace.shared.openApplication(at: applicationURL, configuration: openOptions) { running, error in
+            log.debug("🚀 OPENING MESSAGES (activating? \(activating), hiding? \(openOptions.hides))")
+            if let error {
+                result = .failure(error)
+            } else if let running {
+                result = .success(running)
+            } else {
+                result = .failure(ErrorMessage("LaunchServices completed without returning Messages.app"))
+            }
+            waiter.signal()
+        }
+        waiter.wait()
+
+        return try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
+    }
+
+    @discardableResult
     private func openDeepLink(_ url: URL, activating: Bool = false, hiding: Bool = true) throws -> NSRunningApplication {
         try Self.openDeepLink(url, activating: activating, hiding: hiding, targeting: app)
     }
@@ -278,7 +313,7 @@ final class MessagesController {
                 Thread.sleep(forTimeInterval: 0.1)
             }
             log.info("launching messages... (without activation? \(withoutActivation))")
-            return try Self.openDeepLink(MessagesDeepLink.compose.url(), activating: !withoutActivation)
+            return try Self.reopenMessages(activating: !withoutActivation)
         }
 
         if Preferences.useSecondaryMessagesInstance {
@@ -320,6 +355,8 @@ final class MessagesController {
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { url in
             try Self.openDeepLink(url, targeting: selectedApp)
+        }, reopenApp: {
+            try Self.reopenMessages(targeting: selectedApp)
         })
 
         keyPresser = KeyPresser(pid: app.processIdentifier)
