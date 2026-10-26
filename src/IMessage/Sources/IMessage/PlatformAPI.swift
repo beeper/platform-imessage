@@ -516,6 +516,9 @@ public final class PlatformAPI {
             return
         }
 
+        guard Defaults.watchThreadActivity,
+              !Preferences.enabledExperiments.contains("no_watch_thread") else { return }
+
         let threadID = try originalThreadID(for: publicThreadID)
 
         let singleParticipantID = singleParticipantAddress(threadID)
@@ -579,27 +582,16 @@ public final class PlatformAPI {
                 platformLog.error("failed to send activity status: \(String(reflecting: error))")
             }
         }
-        guard Self.selectedThreadActivityState.withLock({ $0.install(selectedThread) }) else { return }
-        platformLog.debug("activity/\(publicThreadID): watching")
-
         try await withMessagesController { controller in
-            guard Self.selectedThreadActivityState.read().thread?.requestID == selectedThread.requestID else {
-                return
-            }
-
-            let readActivity = if Defaults.watchThreadActivity {
-                try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller)
-            } else {
-                false
-            }
+            let readActivity = try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller)
+            guard readActivity else { return }
+            guard Self.selectedThreadActivityState.withLock({ $0.install(selectedThread) }) else { return }
+            platformLog.debug("activity/\(publicThreadID): watching")
             await Self.observeSelectedThreadActivity(
                 selectedThread,
                 using: controller,
                 readActivity: readActivity
             )
-            if !readActivity {
-                Self.clearSelectedThreadActivity(ifCurrent: selectedThread.requestID)
-            }
         }
     }
 
@@ -735,17 +727,15 @@ public final class PlatformAPI {
         _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
-        try await retry(retries: retries) { attempt in
+        try await retry(retries: retries, { attempt in
             let context = try await prepareAttempt()
-            try await withMessagesController(forceInvalidate: attempt > 0) { controller in
-                try await action(controller)
-            }
+            try await withMessagesController(forceInvalidate: attempt > 0, action)
             try await afterAttempt?(context)
             return context
-        } shouldRetry: { shouldRetry?($0) ?? true } onError: { _, retriesLeft, error in
+        }, shouldRetry: shouldRetry, onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
             self.reportErrorMessage("imessage \(name) failed: \(error)")
-        }
+        })
     }
 
     private func retryReactionOperation(threadID: String, messageID: String, reaction: String, on: Bool) async throws {

@@ -102,26 +102,6 @@ private actor TimeoutOperationGate {
     #expect(throws: CancellationError.self) { try result.get() }
 }
 
-@Test func waitForValueReturnsWhenObservedValueMatches() async throws {
-    let object = ObservableFlag()
-    let task = Task {
-        try await object.waitForValue(\.isReady, timeout: 2) { $0 }
-    }
-
-    object.isReady = true
-
-    let value = try await task.value
-    #expect(value)
-}
-
-@Test func waitForValueUsesTimeoutWhenObservedValueNeverMatches() async throws {
-    let object = ObservableFlag()
-
-    await #expect(throws: Task<Never, Never>.TimeoutError.self) {
-        _ = try await object.waitForValue(\.isReady, timeout: 0.05) { $0 }
-    }
-}
-
 @Test func waitForExpectedValueHonorsObservationOptions() async {
     let object = ObservableFlag()
     object.isReady = true
@@ -151,12 +131,6 @@ private actor TimeoutOperationGate {
     let result = await task.result
     #expect(throws: CancellationError.self) {
         try result.get()
-    }
-}
-
-@Test func openDeepLinkHonorsZeroTimeoutBeforeLaunchServicesOpen() async throws {
-    await #expect(throws: Task<Never, Never>.TimeoutError.self) {
-        _ = try await MessagesController.openDeepLink(.compose, timeout: 0)
     }
 }
 

@@ -18,11 +18,9 @@ protocol WindowCoordinator: AnyObject {
     /// Reverts window changes before handing control to the user.
     func reset(_ window: Accessibility.Element) async throws
 
-    @MainActor
-    func userManuallyActivated(_ app: NSRunningApplication) throws
+    func userManuallyActivated(_ app: NSRunningApplication) async throws
 
-    @MainActor
-    func userManuallyDeactivated(_ app: NSRunningApplication) throws
+    func userManuallyDeactivated(_ app: NSRunningApplication) async throws
 }
 
 extension WindowCoordinator {
@@ -40,10 +38,8 @@ extension WindowCoordinator {
         if let app { try MessagesDockSuppression.restore(app) }
     }
 
-    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {}
 
-    @MainActor
     func userManuallyDeactivated(_: NSRunningApplication) throws {}
 }
 

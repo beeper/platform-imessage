@@ -149,8 +149,7 @@ final class MessagesController {
         _ deepLink: MessagesDeepLink,
         activating: Bool = false,
         hiding: Bool = true,
-        targeting app: NSRunningApplication? = nil,
-        timeout: TimeInterval = 5
+        targeting app: NSRunningApplication? = nil
     ) async throws -> NSRunningApplication {
         try Task.checkCancellation()
         let url = try deepLink.url()
@@ -168,9 +167,8 @@ final class MessagesController {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activating
         configuration.hides = shouldHide
-        return try await Task.withTimeout(timeout) {
-            try await NSWorkspace.shared.open(url, configuration: configuration)
-        }
+        // Wait for delivery before allowing another automation to select a thread.
+        return try await NSWorkspace.shared.open(url, configuration: configuration)
     }
 
     private static func logDeepLinkOpen(_ url: URL, activating: Bool, hiding: Bool) {
@@ -323,7 +321,7 @@ final class MessagesController {
                 launchedNewApplication = false
             } else {
                 log.info("launching messages...")
-                app = try await Self.openDeepLink(MessagesDeepLink.compose, activating: true, timeout: 30)
+                app = try await Self.openDeepLink(MessagesDeepLink.compose, activating: true)
                 launchedNewApplication = true
             }
         }
@@ -354,7 +352,7 @@ final class MessagesController {
             if Defaults.shouldCoordinateWindow { try windowCoordinator.prepareAfterLaunch() }
             setUpLifecycleConveyor(with: lifecycleObserver)
 
-            guard isValid else {
+            guard await isValid else {
                 // Diagnostics must remain passive; mainWindow can reopen the app.
                 let frameValid = elements.getMainWindow()?.isFrameValid ?? false
                 throw ErrorMessage("""
@@ -474,7 +472,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
 
     var isValid: Bool {
-        !isDisposed.read() && !app.isTerminated && (elements.currentMainWindow?.isFrameValid) != nil && isMessagesAppResponsive
+        get async {
+            guard !isDisposed.read(), !app.isTerminated else { return false }
+            return (try? await elements.mainWindow.isFrameValid) != nil && isMessagesAppResponsive
+        }
     }
 
     func withAutomation<T>(_ operation: () async throws -> T) async throws -> T {
@@ -482,6 +483,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         cancelReplyTranscriptViewTask?.cancel()
         log.debug("withAutomation: making the app automatable")
 
+        var prepared = false
         let result = await Result {
             if Defaults.shouldCoordinateWindow {
                 if Defaults.shouldSuppressMessagesDock {
@@ -493,13 +495,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     try await windowCoordinator.makeAutomatable(mainWindow)
                 }
             }
+            prepared = true
             return try await operation()
         }
 
         log.info("withAutomation: finished")
-        await automationDidComplete()
-        // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
-        scheduleCancelReplyTranscriptView()
+        if prepared {
+            await automationDidComplete()
+            // todo: this can be optimized by scheduling only after we trigger open the rtv instead of after each automation
+            scheduleCancelReplyTranscriptView()
+        }
 
         return try result.get()
     }
@@ -1433,8 +1438,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         return
                     }
                     // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-                    let oldType = try MessagesDockSuppression.applicationType(for: self.app.processIdentifier)
-                    try await self.windowCoordinator.restoreDockPresence()
+                    var oldType: String?
+                    do {
+                        oldType = try MessagesDockSuppression.applicationType(for: self.app.processIdentifier)
+                        try await self.windowCoordinator.restoreDockPresence()
+                    } catch {
+                        log.error("failed to restore Messages Dock presence: \(error)")
+                    }
                     if Defaults.shouldCoordinateWindow {
                         try await self.windowCoordinator.userManuallyActivated(self.app)
                         if let window = self.elements.getMainWindow() {
@@ -1576,29 +1586,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         readActivity: Bool,
         statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void
     ) async throws {
-        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
-
-        guard isValid else {
-            #if DEBUG
-            log.debug("not observing activity, controller is invalid")
-            #endif
-            return
-        }
-
-        guard !messagesIsManuallyActivated else {
-            log.debug("not observing activity, Messages is manually activated")
-            return
-        }
-
-        if lastOpenedThreadID != threadID {
-            log.debug("activity: entered idle state or thread id changed, opening deep link")
-            try await withAutomation {
-                _ = try await self.openDeepLink(deepLink)
-                log.debug("activity: opened deep link, waiting for layout change")
-                try await self.waitForLayoutChange(timeout: 0.5)
-            }
-        }
-
         guard readActivity else {
             #if DEBUG
             log.debug("not observing activity, thread doesn't support activity observation")
@@ -1609,6 +1596,29 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard !Defaults.shouldCoordinateWindow else {
             log.debug("not observing activity, Messages window is being coordinated")
             return
+        }
+
+        guard !messagesIsManuallyActivated else {
+            log.debug("not observing activity, Messages is manually activated")
+            return
+        }
+
+        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
+
+        guard await isValid else {
+            #if DEBUG
+            log.debug("not observing activity, controller is invalid")
+            #endif
+            return
+        }
+
+        if lastOpenedThreadID != threadID {
+            log.debug("activity: entered idle state or thread id changed, opening deep link")
+            try await withAutomation {
+                _ = try await self.openDeepLink(deepLink)
+                log.debug("activity: opened deep link, waiting for layout change")
+                try await self.waitForLayoutChange(timeout: 0.5)
+            }
         }
 
         guard occlusionMonitor.visible else {

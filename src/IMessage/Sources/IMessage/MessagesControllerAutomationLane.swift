@@ -56,6 +56,7 @@ actor MessagesControllerAutomationLane {
         idleEpoch += 1
         idleTask?.cancel()
         idleTask = nil
+        if pendingActiveWorkCount == 0 { scheduleIdleCallback() }
     }
 
     private func enqueue<T>(_ action: @Sendable @escaping () async throws -> T) -> Task<T, Error> {

@@ -83,6 +83,7 @@ extension SpacesWindowCoordinator: WindowCoordinator {
         // after automating, keep the window on the hidden space
     }
 
+    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         lastManualActivation = Date()
     }

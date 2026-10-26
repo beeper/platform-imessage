@@ -15,7 +15,7 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
     typealias MessagesControllerEntry = UncheckedSendableBox<Controller>
 
     private let createController: @Sendable (PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry
-    private let controllerIsValid: @Sendable (Controller) -> Bool
+    private let controllerIsValid: @Sendable (Controller) async -> Bool
     private let disposeController: @Sendable (MessagesControllerEntry) async throws -> Void
     private var current: MessagesControllerEntry?
     // Concurrent callers share one in-flight construction.
@@ -24,7 +24,7 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
 
     init(
         create: @escaping @Sendable (PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry,
-        isValid: @escaping @Sendable (Controller) -> Bool,
+        isValid: @escaping @Sendable (Controller) async -> Bool,
         dispose: @escaping @Sendable (MessagesControllerEntry) async throws -> Void
     ) {
         createController = create
@@ -65,7 +65,7 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
                     guard !hasBeenDisposed.read() else {
                         throw ErrorMessage("PlatformAPI has been disposed")
                     }
-                    guard controllerIsValid(entry.value) else {
+                    guard await controllerIsValid(entry.value) else {
                         throw MessagesControllerCoordinatorError.cachedControllerInvalid
                     }
                     return try await action(entry.value)
@@ -218,7 +218,7 @@ extension PlatformAPI {
             await installMessagesControllerIdleCallback(for: entry)
             return entry
         },
-        isValid: { $0.isValid },
+        isValid: { await $0.isValid },
         dispose: { entry in
             Log.default.notice("[PlatformAPI] disposing MessagesController")
             try await runOnMessagesControllerLane {

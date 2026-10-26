@@ -23,26 +23,34 @@ extension NSRunningApplication {
             return
         }
 
-        try await Task.withTimeout(seconds) {
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                defer {
-                    group.cancelAll()
-                }
+        do {
+            try await Task.withTimeout(seconds) {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    defer {
+                        group.cancelAll()
+                    }
 
-                group.addTask { [self] in
-                    try await self.waitForValue(\.isFinishedLaunching, true)
-                }
+                    group.addTask { [self] in
+                        try await self.waitForValue(\.isFinishedLaunching, true)
+                    }
 
-                group.addTask { [self] in
-                    try await self.waitForValue(\.isTerminated, true)
-                    throw ErrorMessage("Application terminated while waiting for launch")
-                }
+                    group.addTask { [self] in
+                        try await self.waitForValue(\.isTerminated, true)
+                        throw ErrorMessage("Application terminated while waiting for launch")
+                    }
 
-                try await group.next()
-                guard !self.isTerminated else {
-                    throw ErrorMessage("Application terminated while waiting for launch")
+                    try await group.next()
+                    guard !self.isTerminated else {
+                        throw ErrorMessage("Application terminated while waiting for launch")
+                    }
                 }
             }
+        } catch is Task<Never, Never>.TimeoutError {
+            try Task.checkCancellation()
+            guard !isTerminated else {
+                throw ErrorMessage("Application terminated while waiting for launch")
+            }
+            Log.default.notice("assuming \(String(describing: localizedName)) has launched")
         }
     }
 }

@@ -149,10 +149,12 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         try window.setFrame(originalFrame)
     }
 
+    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         hideDebouncer.immediatelyUnhide()
     }
 
+    @MainActor
     func userManuallyDeactivated(_: NSRunningApplication) throws {
         hideDebouncer.requestHide()
     }

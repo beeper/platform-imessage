@@ -281,3 +281,15 @@ private struct Boom: Error {}
 // fragile and toolchain-version-sensitive, so it is intentionally not unit-tested
 // here. The contract is enforced by comparing `executionToken` with the actor's
 // `activeExecutionToken`.
+
+@Test func laneReplacingIdleCallbackResumesPolling() async throws {
+    let lane = MessagesControllerAutomationLane(idleDelay: 0.01)
+    let firstCount = Protected(0)
+    let replacementCount = Protected(0)
+    await lane.setIdleCallback { firstCount.withLock { $0 += 1 } }
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { firstCount.read() > 0 })
+
+    await lane.setIdleCallback { replacementCount.withLock { $0 += 1 } }
+    #expect(await eventually(timeout: 2, pollInterval: 0.005) { replacementCount.read() >= 2 })
+    await lane.setIdleCallback(nil)
+}

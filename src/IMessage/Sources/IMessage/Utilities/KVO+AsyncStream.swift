@@ -48,19 +48,4 @@ public extension NSObjectProtocol where Self: NSObject {
         try await waitForValue(keyPath, options: options) { $0 == expectedValue }
     }
 
-    @discardableResult
-    func waitForValue<Value>(
-        _ keyPath: KeyPath<Self, Value>,
-        timeout: TimeInterval,
-        options: NSKeyValueObservingOptions = [.initial, .new],
-        where predicate: @escaping @Sendable (Value) async throws -> Bool
-    ) async throws -> Value {
-        try await Task.withTimeout(timeout) { [self] in
-            guard let value = try await self.waitForValue(keyPath, options: options, where: predicate) else {
-                throw Swift.CancellationError()
-            }
-
-            return value
-        }
-    }
 }

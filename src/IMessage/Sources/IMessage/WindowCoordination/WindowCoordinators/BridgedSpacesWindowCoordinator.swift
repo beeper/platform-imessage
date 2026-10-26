@@ -145,16 +145,6 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         get { targetApp.read() }
         set {
             targetApp.withLock { $0 = newValue }
-            // Conceal the process as soon as ownership is acquired, before
-            // controller initialization starts discovering its windows.
-            do {
-                try ensureTargetLease()
-                if !isCurrentAppActive { currentApp?.hide() }
-            } catch {
-                // prepareAfterLaunch retries and reports lease failures before
-                // any window operations. A competing owner is left untouched.
-                log.debug("Could not acquire Messages window ownership: \(error)")
-            }
         }
     }
     private var targetLease: WindowCoordinationFileLock?
@@ -342,6 +332,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         defer { lock.unlock() }
         guard !disposed, currentApp != nil else { return }
         try ensureTargetLease()
+        if !isCurrentAppActive { currentApp?.hide() }
         if try windowIDsToPark().isEmpty, let app = currentApp {
             // A reused process can outlive its last window. Ask that exact
             // process to reopen one before waiting for discovery and parking.
