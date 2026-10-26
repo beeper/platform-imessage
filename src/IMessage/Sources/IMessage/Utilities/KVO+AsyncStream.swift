@@ -103,7 +103,7 @@ public extension NSObjectProtocol where Self: NSObject {
         _ expectedValue: Value,
         options: NSKeyValueObservingOptions = [.initial, .new]
     ) async throws -> Value? where Value: Equatable {
-        try await self.waitForValue(keyPath) { value in
+        try await self.waitForValue(keyPath, options: options) { value in
             return value == expectedValue
         }
     }

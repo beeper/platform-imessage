@@ -68,7 +68,13 @@ enum MessagesInstanceTarget {
         configuration.launchWithoutRestoringState = true
         configuration.waitForApplicationToCheckIn = true
 
-        let application = try await Task.withTimeout(timeout) {
+        let application = try await Task.withTimeout(timeout, onLateSuccess: { application in
+            // LaunchServices cannot cancel an in-flight launch. If it completes
+            // after timeout/cancellation, release only the process created for us.
+            if !existingPIDs.contains(application.processIdentifier) {
+                application.terminate()
+            }
+        }) {
             try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
         }
 

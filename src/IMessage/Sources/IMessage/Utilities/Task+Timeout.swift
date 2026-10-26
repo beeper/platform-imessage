@@ -8,9 +8,10 @@ extension Task where Success == Never, Failure == Never {
 extension Task where Failure == any Error {
     static func withTimeout(
         _ timeout: TimeInterval,
+        onLateSuccess: @escaping @Sendable (Success) -> Void = { _ in },
         operation: sending @escaping @isolated(any) () async throws -> Success
     ) async throws -> Success {
-        try await Task<Never, Never>._withTimeout(timeout, operation: operation)
+        try await Task<Never, Never>._withTimeout(timeout, onLateSuccess: onLateSuccess, operation: operation)
     }
 
     public init(
@@ -35,8 +36,10 @@ private extension Task where Success == Never, Failure == Never {
 
     static func _withTimeout<Output>(
         _ timeout: TimeInterval,
+        onLateSuccess: @escaping @Sendable (Output) -> Void,
         operation: sending @escaping @isolated(any) () async throws -> Output
     ) async throws -> Output {
+        try Task<Never, Never>.checkCancellation()
         let deadline: Date = Date().addingTimeInterval(timeout)
 
         guard timeout > 0 else {
@@ -49,10 +52,11 @@ private extension Task where Success == Never, Failure == Never {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Output, Error>) in
                 let operationTask = Task<Void, Never> {
                     do {
-                        finishTimeout(
-                            .success(try await operation()),
-                            state: state
-                        )
+                        try Task<Never, Never>.checkCancellation()
+                        let output = try await operation()
+                        if !finishTimeout(.success(output), state: state) {
+                            onLateSuccess(output)
+                        }
                     } catch {
                         finishTimeout(.failure(error), state: state)
                     }
@@ -108,10 +112,11 @@ private extension Task where Success == Never, Failure == Never {
         }
     }
 
+    @discardableResult
     static func finishTimeout<Output>(
         _ result: Result<Output, Error>,
         state: Protected<TimeoutState<Output>>
-    ) {
+    ) -> Bool {
         let completion = state.withLock { state -> (
             continuation: CheckedContinuation<Output, Error>?,
             result: Result<Output, Error>,
@@ -145,7 +150,9 @@ private extension Task where Success == Never, Failure == Never {
                 operationTask: completion.operationTask,
                 timeoutTask: completion.timeoutTask
             )
+            return true
         }
+        return false
     }
 
     static func completeTimeout<Output>(

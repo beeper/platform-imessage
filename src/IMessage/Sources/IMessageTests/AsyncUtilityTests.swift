@@ -9,6 +9,22 @@ private final class ObservableFlag: NSObject {
     @objc dynamic var isReady = false
 }
 
+private actor TimeoutOperationGate {
+    private var continuation: CheckedContinuation<Int, Never>?
+    private var released = false
+
+    func wait() async -> Int {
+        if released { return 123 }
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+        released = true
+        continuation?.resume(returning: 123)
+        continuation = nil
+    }
+}
+
 @Test func withTimeoutReturnsOperationValue() async throws {
     let value = try await Task.withTimeout(5) {
         42
@@ -27,7 +43,6 @@ private final class ObservableFlag: NSObject {
 
 @Test func withTimeoutThrowsWhenOperationDoesNotFinishBeforeDeadline() async throws {
     let started = Protected(false)
-    let startedAt = Date()
 
     await #expect(throws: Task<Never, Never>.TimeoutError.self) {
         _ = try await Task.withTimeout(0.05) {
@@ -38,23 +53,36 @@ private final class ObservableFlag: NSObject {
     }
 
     #expect(started.read())
-    #expect(Date().timeIntervalSince(startedAt) < 1)
 }
 
 @Test func withTimeoutAbandonsCancellationIgnoringOperation() async throws {
-    let startedAt = Date()
+    // Hold the operation open until the caller has actually observed the timeout.
+    // This proves abandonment without depending on a sub-200ms scheduling budget.
+    let gate = TimeoutOperationGate()
+    let timedOut = Protected(false)
+    let task = Task {
+        defer { timedOut.withLock { $0 = true } }
+        return try await Task.withTimeout(0.05) { await gate.wait() }
+    }
+    let returnedBeforeOperation = await eventually(timeout: 2) { timedOut.read() }
+    await gate.release()
+    #expect(returnedBeforeOperation)
+    let result = await task.result
+    #expect(throws: Task<Never, Never>.TimeoutError.self) { try result.get() }
+}
 
-    await #expect(throws: Task<Never, Never>.TimeoutError.self) {
-        _ = try await Task.withTimeout(0.05) {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                    continuation.resume(returning: 123)
-                }
-            }
+@Test func withTimeoutDoesNotStartAnAlreadyCancelledOperation() async {
+    let started = Protected(false)
+    let task = Task {
+        withUnsafeCurrentTask { $0?.cancel() }
+        return try await Task.withTimeout(5) {
+            started.withLock { $0 = true }
+            return 42
         }
     }
-
-    #expect(Date().timeIntervalSince(startedAt) < 0.2)
+    let result = await task.result
+    #expect(throws: CancellationError.self) { try result.get() }
+    #expect(!started.read())
 }
 
 @Test func withTimeoutPropagatesCallerCancellation() async throws {
@@ -68,12 +96,10 @@ private final class ObservableFlag: NSObject {
     }
 
     #expect(await eventually(timeout: 2, pollInterval: 0.005) { started.read() })
-    let cancelledAt = Date()
     task.cancel()
 
     let result = await task.result
     #expect(throws: CancellationError.self) { try result.get() }
-    #expect(Date().timeIntervalSince(cancelledAt) < 1)
 }
 
 @Test func waitForValueReturnsWhenObservedValueMatches() async throws {
@@ -93,6 +119,16 @@ private final class ObservableFlag: NSObject {
 
     await #expect(throws: Task<Never, Never>.TimeoutError.self) {
         _ = try await object.waitForValue(\.isReady, timeout: 0.05) { $0 }
+    }
+}
+
+@Test func waitForExpectedValueHonorsObservationOptions() async {
+    let object = ObservableFlag()
+    object.isReady = true
+    await #expect(throws: Task<Never, Never>.TimeoutError.self) {
+        try await Task.withTimeout(0.05) {
+            try await object.waitForValue(\.isReady, true, options: [.new])
+        }
     }
 }
 
@@ -122,4 +158,37 @@ private final class ObservableFlag: NSObject {
     await #expect(throws: Task<Never, Never>.TimeoutError.self) {
         _ = try await MessagesController.openDeepLink(.compose, timeout: 0)
     }
+}
+
+@Test(arguments: [false, true])
+func withTimeoutCleansUpLateResultsAfterTimeoutOrCancellation(cancelCaller: Bool) async {
+    let gate = TimeoutOperationGate()
+    let started = Protected(false)
+    let cleanedUp = Protected<[Int]>([])
+    let task = Task {
+        try await Task.withTimeout(cancelCaller ? 10 : 0.05, onLateSuccess: { value in
+            cleanedUp.withLock { $0.append(value) }
+        }) {
+            started.withLock { $0 = true }
+            return await gate.wait()
+        }
+    }
+    #expect(await eventually { started.read() })
+    if cancelCaller { task.cancel() }
+    let result = await task.result
+    if cancelCaller {
+        #expect(throws: CancellationError.self) { try result.get() }
+    } else {
+        #expect(throws: Task<Never, Never>.TimeoutError.self) { try result.get() }
+    }
+    #expect(cleanedUp.read().isEmpty)
+    await gate.release()
+    #expect(await eventually { cleanedUp.read() == [123] })
+}
+
+@Test @MainActor func asyncSmokeWorkerAllowsMainActorHops() async throws {
+    let value = try await runSmokeWorker {
+        await MainActor.run { 42 }
+    }
+    #expect(value == 42)
 }

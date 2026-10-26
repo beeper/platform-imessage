@@ -16,13 +16,25 @@ extension NSPasteboard {
 
     func withRestoration(perform: () async throws -> Void) async rethrows {
         let backup = self.backup()
-        defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
-                self.prepareForNewContents()
-                if let backup { self.writeObjects(backup) }
+        func restore() async {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
+                    self.prepareForNewContents()
+                    if let backup { self.writeObjects(backup) }
+                    continuation.resume()
+                }
             }
         }
         self.prepareForNewContents(with: .currentHostOnly) // currentHostOnly disables universal clipboard
-        try await perform()
+        do {
+            try await perform()
+        } catch {
+            await restore()
+            throw error
+        }
+        // Complete restoration before releasing the automation lane. Deferring
+        // it lets the next attachment send back up our temporary file URL, or
+        // lets this restore overwrite the next send's clipboard contents.
+        await restore()
     }
 }

@@ -6,6 +6,10 @@ import Testing
     ("Name:Show Alerts", true),
     ("Name:Hide Alerts, On", true),
     ("Name:Show Alerts, On", false),
+    ("Name:Hide Alerts\nTarget:0x0\nSelector:(null)", false),
+    ("Name:Show Alerts\nTarget:0x0\nSelector:(null)", true),
+    ("Name:Hide Alerts, On\nTarget:0x0\nSelector:(null)", true),
+    ("Name:Show Alerts, On\nTarget:0x0\nSelector:(null)", false),
 ])
 func threadAlertsActionLabelInfersMuteState(actionName: String, expectedMuted: Bool) throws {
     let label = try #require(parseThreadAlertsActionLabel(

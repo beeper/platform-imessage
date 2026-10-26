@@ -57,12 +57,12 @@ private final class FailingPreparationCoordinator: WindowCoordinator {
 @MainActor
 struct MessagesPreparationValidationSmokeTests {
     @Test
-    func preparationReopensClosedWindowInExistingProcess() throws {
+    func preparationReopensClosedWindowInExistingProcess() async throws {
         try #require(AXIsProcessTrusted())
         Defaults.registerDefaults()
         let previous = NSWorkspace.shared.frontmostApplication
         defer { restoreFrontmost(previous) }
-        let app = try runSmokeWorker {
+        let app = try await runSmokeWorker {
             try await MessagesInstanceTarget.launchSecondaryInstance(
                 initialDeepLink: MessagesDeepLink.compose.url(), activating: false
             )
@@ -73,9 +73,9 @@ struct MessagesPreparationValidationSmokeTests {
             try? coordinator.dispose()
         }
         let elements = smokeElements(runningApp: app)
-        let main = try runSmokeWorker { try await elements.mainWindow }
+        let main = try await runSmokeWorker { try await elements.mainWindow }
         try main.closeWindow()
-        try waitForSmoke("closed Messages window") { elements.getMainWindow() == nil }
+        try await waitForSmoke("closed Messages window") { elements.getMainWindow() == nil }
         try #require(!app.isTerminated)
         let pid = app.processIdentifier
         coordinator.app = app
@@ -93,7 +93,7 @@ struct MessagesPreparationValidationSmokeTests {
     }
 
     @Test
-    func preparationFailureDoesNotPoisonActivityLock() throws {
+    func preparationFailureDoesNotPoisonActivityLock() async throws {
         try #require(AXIsProcessTrusted())
         Defaults.registerDefaults()
         try #require(Defaults.shouldCoordinateWindow)
@@ -103,12 +103,12 @@ struct MessagesPreparationValidationSmokeTests {
         let previous = NSWorkspace.shared.frontmostApplication
         defer { restoreFrontmost(previous) }
         let coordinator = try FailingPreparationCoordinator()
-        let controller = try runSmokeWorker {
+        let controller = try await runSmokeWorker {
             try await MessagesController(windowCoordinator: coordinator, reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
         }
         defer { controller.dispose() }
 
-        try runSmokeWorker {
+        try await runSmokeWorker {
             for stage in PreparationStage.allCases {
                 coordinator.failAt = stage
                 var caughtInjectedFailure = false
@@ -125,7 +125,7 @@ struct MessagesPreparationValidationSmokeTests {
             }
         }
         #expect(try !controller.elements.app.isHidden())
-        let recoveredWindow = try runSmokeWorker { try await controller.elements.mainWindow.window().raw }
+        let recoveredWindow = try await runSmokeWorker { try await controller.elements.mainWindow.window().raw }
         #expect(try !smokeOnscreen(recoveredWindow))
         let recoveredSpaceID = try #require(IMPrivateSPISpacesForWindow(recoveredWindow)?.first?.uint64Value)
         let recoveredSpace = try #require(Space(raw: .init(recoveredSpaceID)))
@@ -133,13 +133,13 @@ struct MessagesPreparationValidationSmokeTests {
     }
 
     @Test
-    func largerSettingsWindowDoesNotExposeMainWindow() throws {
+    func largerSettingsWindowDoesNotExposeMainWindow() async throws {
         try #require(AXIsProcessTrusted())
         Defaults.registerDefaults()
         let previous = NSWorkspace.shared.frontmostApplication
         defer { restoreFrontmost(previous) }
         let coordinator = try BridgedSpacesWindowCoordinator()
-        let app = try runSmokeWorker {
+        let app = try await runSmokeWorker {
             try await MessagesInstanceTarget.launchSecondaryInstance(
                 initialDeepLink: MessagesDeepLink.compose.url(), activating: true
             )
@@ -149,10 +149,10 @@ struct MessagesPreparationValidationSmokeTests {
             app.terminate()
         }
         let axApp = Accessibility.Element(pid: app.processIdentifier)
-        try waitForSmoke { try smokeFrontmost(axApp) }
+        try await waitForSmoke { try smokeFrontmost(axApp) }
         coordinator.app = app
         let elements = smokeElements(runningApp: app)
-        let main = try runSmokeWorker { try await elements.mainWindow }
+        let main = try await runSmokeWorker { try await elements.mainWindow }
         let mainID = try main.window().raw
         let originalMainFrame = try main.frame()
         defer { try? main.setFrame(originalMainFrame) }
@@ -165,7 +165,7 @@ struct MessagesPreparationValidationSmokeTests {
             event.postToPid(app.processIdentifier)
         }
         var settings: Accessibility.Element?
-        try waitForSmoke {
+        try await waitForSmoke {
             settings = try axApp.appWindows().first {
                 guard let id = try? $0.window().raw else { return false }
                 return !existing.contains(id)
@@ -191,10 +191,10 @@ struct MessagesPreparationValidationSmokeTests {
         print("LARGER_SETTINGS main=\(mainFrame.size) settings=\(settingsFrame.size)")
         let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
         try #require(finder.activate(options: []))
-        try waitForSmoke { try !smokeFrontmost(axApp) }
+        try await waitForSmoke { try !smokeFrontmost(axApp) }
         try MessagesDockSuppression.suppress(app)
         app.hide()
-        try waitForSmoke { try axApp.isHidden() }
+        try await waitForSmoke { try axApp.isHidden() }
         let originalMainSpaces = IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value)
         let originalSettingsSpaces = IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value)
         try #require(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
@@ -230,7 +230,7 @@ struct MessagesPreparationValidationSmokeTests {
         #expect((try parkedSpace.values() as NSDictionary)["ManagedSpaceID"] == nil)
         try runSmokeWorker { try coordinator.automationDidComplete() }
         #expect(try !axApp.isHidden())
-        #expect(try runSmokeWorker { try await elements.mainWindow.window().raw } == mainID)
+        #expect(try await runSmokeWorker { try await elements.mainWindow.window().raw } == mainID)
         #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == parkedMain)
         #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == parkedSettings)
         #expect(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
@@ -239,9 +239,9 @@ struct MessagesPreparationValidationSmokeTests {
         // desktop, rather than merely hiding them forever in the shared pool.
         try coordinator.restoreDockPresence()
         try #require(app.activate(options: [.activateAllWindows]))
-        try waitForSmoke { try smokeFrontmost(axApp) }
-        try runSmokeWorker { try coordinator.userManuallyActivated(app) }
-        try waitForSmoke { try smokeOnscreen(mainID) && smokeOnscreen(settingsID) }
+        try await waitForSmoke { try smokeFrontmost(axApp) }
+        try coordinator.userManuallyActivated(app)
+        try await waitForSmoke { try smokeOnscreen(mainID) && smokeOnscreen(settingsID) }
         #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == originalMainSpaces)
         #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == originalSettingsSpaces)
     }

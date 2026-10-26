@@ -24,22 +24,11 @@ func runSmokeWorker<Value>(_ operation: @escaping () throws -> Value) throws -> 
     return try #require(result.read()).get()
 }
 
-// Bridge async automation into these run-loop-driven desktop smoke tests.
+// Suspend the main actor while async automation runs. Pumping a nested run loop
+// cannot service Swift main-actor jobs while the calling job still owns the executor.
 @MainActor
-func runSmokeWorker<Value>(_ operation: @escaping () async throws -> Value) throws -> Value {
-    let result = Protected<Result<Value, Error>?>()
-    let done = DispatchSemaphore(value: 0)
-    Task.detached {
-        let completed: Result<Value, Error>
-        do { completed = .success(try await operation()) }
-        catch { completed = .failure(error) }
-        result.withLock { $0 = completed }
-        done.signal()
-    }
-    while done.wait(timeout: .now()) != .success {
-        pumpSmokeRunLoop(for: 0.01)
-    }
-    return try #require(result.read()).get()
+func runSmokeWorker<Value>(_ operation: @escaping @Sendable () async throws -> Value) async throws -> Value {
+    try await Task.detached { try await operation() }.value
 }
 
 @MainActor
@@ -51,11 +40,11 @@ func pumpSmokeRunLoop(for interval: TimeInterval) {
 }
 
 @MainActor
-func waitForSmoke(_ description: String = "live Messages state", timeout: TimeInterval = 5, _ condition: () throws -> Bool) throws {
+func waitForSmoke(_ description: String = "live Messages state", timeout: TimeInterval = 5, _ condition: () throws -> Bool) async throws {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
         if try condition() { return }
-        pumpSmokeRunLoop(for: 0.02)
+        try await Task.sleep(forTimeInterval: 0.02)
     }
     try #require(try condition(), Comment(rawValue: "Timed out waiting for \(description)"))
 }

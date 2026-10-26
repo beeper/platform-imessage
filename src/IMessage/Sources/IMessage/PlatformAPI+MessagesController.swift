@@ -11,17 +11,37 @@ private enum MessagesControllerCoordinatorError: Error {
     case pendingControllerInvalidated
 }
 
-private actor MessagesControllerCoordinator {
+actor MessagesControllerCoordinator<Controller: AnyObject> {
+    typealias MessagesControllerEntry = UncheckedSendableBox<Controller>
+
+    private let createController: @Sendable (PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry
+    private let controllerIsValid: @Sendable (Controller) -> Bool
+    private let disposeController: @Sendable (MessagesControllerEntry) async throws -> Void
     private var current: MessagesControllerEntry?
     // Actors are reentrant across awaits, so concurrent callers share one in-flight construction.
     private var pendingController: Task<MessagesControllerEntry, Error>?
+    private var pendingDisposal: Task<Void, Error>?
+
+    init(
+        create: @escaping @Sendable (PlatformAPI.ReportErrorMessage?) async throws -> MessagesControllerEntry,
+        isValid: @escaping @Sendable (Controller) -> Bool,
+        dispose: @escaping @Sendable (MessagesControllerEntry) async throws -> Void
+    ) {
+        createController = create
+        controllerIsValid = isValid
+        disposeController = dispose
+    }
 
     func withController<T>(
         reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>,
         forceInvalidate: Bool = false,
-        _ action: @escaping @Sendable (MessagesController) async throws -> T
+        _ action: @escaping @Sendable (Controller) async throws -> T
     ) async throws -> T {
+        try Task.checkCancellation()
+        guard !hasBeenDisposed.read() else {
+            throw ErrorMessage("PlatformAPI has been disposed")
+        }
         if forceInvalidate {
             try await disposeCachedController()
         }
@@ -48,11 +68,12 @@ private actor MessagesControllerCoordinator {
             }
 
             do {
+                let controllerIsValid = controllerIsValid
                 return try await PlatformAPI.runOnMessagesControllerLane {
                     guard !hasBeenDisposed.read() else {
                         throw ErrorMessage("PlatformAPI has been disposed")
                     }
-                    guard entry.value.isValid else {
+                    guard controllerIsValid(entry.value) else {
                         throw MessagesControllerCoordinatorError.cachedControllerInvalid
                     }
                     return try await action(entry.value)
@@ -69,8 +90,15 @@ private actor MessagesControllerCoordinator {
     }
 
     func disposeCachedController() async throws {
+        // Publish the cleanup task before suspending, so no replacement can be
+        // constructed while the old controller still owns Messages and its windows.
+        if current == nil, pendingController == nil {
+            try await waitForPendingDisposal()
+            return
+        }
         let entry = current
         let pendingController = pendingController
+        let previousDisposal = pendingDisposal
         current = nil
         self.pendingController = nil
 
@@ -84,6 +112,7 @@ private actor MessagesControllerCoordinator {
         // itself: cancelling construction mid app-launch could leave a half-launched
         // Messages.app.
         let disposal = Task {
+            _ = try? await previousDisposal?.value
             var pendingError: Error?
             if let pendingController {
                 do {
@@ -102,7 +131,22 @@ private actor MessagesControllerCoordinator {
                 throw pendingError
             }
         }
+        pendingDisposal = disposal
+        defer {
+            if pendingDisposal == disposal { pendingDisposal = nil }
+        }
         try await disposal.value
+    }
+
+    private func waitForPendingDisposal() async throws {
+        while let disposal = pendingDisposal {
+            // Cleanup failure must reach its caller, but must not permanently
+            // prevent a later request from attempting a fresh controller.
+            defer {
+                if pendingDisposal == disposal { pendingDisposal = nil }
+            }
+            try await disposal.value
+        }
     }
 }
 
@@ -130,6 +174,8 @@ private extension MessagesControllerCoordinator {
         reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>
     ) async throws -> MessagesControllerEntry {
+        try await waitForPendingDisposal()
+        try Task.checkCancellation()
         guard !hasBeenDisposed.read() else {
             throw ErrorMessage("PlatformAPI has been disposed")
         }
@@ -144,15 +190,7 @@ private extension MessagesControllerCoordinator {
 
     private func startControllerCreation(reportErrorMessage: PlatformAPI.ReportErrorMessage?) -> Task<MessagesControllerEntry, Error> {
         let task = Task {
-            let controller = try await PlatformAPI.runOnMessagesControllerLane {
-                try await MessagesController(reportErrorMessage: { txt in
-                    platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
-                    try? reportErrorMessage?(txt)
-                })
-            }
-            let entry = MessagesControllerEntry(controller)
-            await PlatformAPI.installMessagesControllerIdleCallback(for: entry)
-            return entry
+            try await createController(reportErrorMessage)
         }
         pendingController = task
         return task
@@ -173,13 +211,12 @@ private extension MessagesControllerCoordinator {
                 throw MessagesControllerCoordinatorError.pendingControllerInvalidated
             }
 
-            pendingController = nil
-
             guard !hasBeenDisposed.read() else {
-                try await dispose(entry)
+                try await disposeCachedController()
                 throw ErrorMessage("PlatformAPI has been disposed")
             }
 
+            pendingController = nil
             current = entry
             return entry
         } catch {
@@ -194,16 +231,11 @@ private extension MessagesControllerCoordinator {
         guard current?.value === entry.value else {
             return
         }
-        current = nil
-        try await dispose(entry)
+        try await disposeCachedController()
     }
 
     func dispose(_ entry: MessagesControllerEntry) async throws {
-        Log.default.notice("[PlatformAPI] disposing MessagesController")
-        try await PlatformAPI.runOnMessagesControllerLane {
-            await PlatformAPI.clearMessagesControllerIdleCallback(ifOwnedBy: entry)
-            entry.value.dispose()
-        }
+        try await disposeController(entry)
     }
 }
 
@@ -212,7 +244,27 @@ extension PlatformAPI {
     // one MessagesController and one async lane for Messages.app automation.
     private static let messagesControllerAutomationLane = MessagesControllerAutomationLane(idleDelay: 1)
     private static let messagesControllerIdleCallbackOwner = Protected<ObjectIdentifier?>()
-    fileprivate static let messagesControllerCoordinator = MessagesControllerCoordinator()
+    private static let messagesControllerCoordinator = MessagesControllerCoordinator<MessagesController>(
+        create: { reportErrorMessage in
+            let controller = try await runOnMessagesControllerLane {
+                try await MessagesController(reportErrorMessage: { txt in
+                    platformMessagesControllerLog.error("<!> report to sentry: \(txt)")
+                    try? reportErrorMessage?(txt)
+                })
+            }
+            let entry = MessagesControllerEntry(controller)
+            await installMessagesControllerIdleCallback(for: entry)
+            return entry
+        },
+        isValid: { $0.isValid },
+        dispose: { entry in
+            Log.default.notice("[PlatformAPI] disposing MessagesController")
+            try await runOnMessagesControllerLane {
+                await clearMessagesControllerIdleCallback(ifOwnedBy: entry)
+                entry.value.dispose()
+            }
+        }
+    )
     fileprivate static let messageSendGate = MessageSendGate()
 
     func withMessageSendLock<T>(_ operation: () async throws -> T) async throws -> T {

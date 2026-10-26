@@ -12,7 +12,7 @@ import WindowControl
 /// native activation through their lifecycle observers.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_UNKNOWN_SPACE_CONCURRENT_SMOKE"] == "1"))
 @MainActor
-func unknownSpaceConcurrentHostsSmoke() throws {
+func unknownSpaceConcurrentHostsSmoke() async throws {
     try #require(AXIsProcessTrusted())
     Defaults.registerDefaults()
     try #require(Defaults.shouldCoordinateWindow)
@@ -28,9 +28,9 @@ func unknownSpaceConcurrentHostsSmoke() throws {
     let managedBefore = try smokeManagedSpaceIDs()
     let currentBefore = try smokeManagedSpaceIDs(currentOnly: true)
     let existingPIDs = smokeMessagesPIDs()
-    let first = try concurrentLaunchParkedFixture()
+    let first = try await concurrentLaunchParkedFixture()
     defer { concurrentCleanUp(first) }
-    let second = try concurrentLaunchParkedFixture()
+    let second = try await concurrentLaunchParkedFixture()
     defer { concurrentCleanUp(second) }
     try #require(first.app.processIdentifier != second.app.processIdentifier)
     let parking = try #require(try smokeWindowSpaces(first.window).first)
@@ -43,16 +43,16 @@ func unknownSpaceConcurrentHostsSmoke() throws {
     #expect(values["uuid"] as? String == PersistentUnknownSpace.uuid)
     #expect(try smokePoolSpaceIDs() == Set([parking]))
     #expect(try smokeManagedSpaceIDs() == managedBefore)
-    try concurrentAssertParkedAX(first, parking: parking)
-    try concurrentAssertParkedAX(second, parking: parking)
+    try await concurrentAssertParkedAX(first, parking: parking)
+    try await concurrentAssertParkedAX(second, parking: parking)
 
     // Primary selection must reject ambiguity without touching either host.
     #expect(throws: ErrorMessage.self) {
         try MessagesInstanceTarget.primaryInstance(in: [first.app, second.app])
     }
     #expect(smokeMessagesPIDs() == existingPIDs.union([first.app.processIdentifier, second.app.processIdentifier]))
-    try concurrentAssertParkedAX(first, parking: parking)
-    try concurrentAssertParkedAX(second, parking: parking)
+    try await concurrentAssertParkedAX(first, parking: parking)
+    try await concurrentAssertParkedAX(second, parking: parking)
 
     // A competing host must fail before hiding or moving the borrowed process.
     let competitor = try BridgedSpacesWindowCoordinator()
@@ -66,13 +66,13 @@ func unknownSpaceConcurrentHostsSmoke() throws {
             // Require the dedicated contention error, rather than any failure.
         }
     }
-    try concurrentAssertParkedAX(first, parking: parking)
-    try concurrentAssertParkedAX(second, parking: parking)
+    try await concurrentAssertParkedAX(first, parking: parking)
+    try await concurrentAssertParkedAX(second, parking: parking)
 
     // Actual host exit terminates its owned app before coordinator restoration.
     // It must leave the other host's process and parked windows untouched.
     try runSmokeWorker { first.controller.dispose() }
-    try waitForSmoke("first Messages process and window exit") {
+    try await waitForSmoke("first Messages process and window exit") {
         guard smokeProcessExited(first.app.processIdentifier) else { return false }
         return try !Window.listDescriptions(.all).contains {
             $0.owner == first.app.processIdentifier || $0.window.raw == first.window
@@ -83,21 +83,21 @@ func unknownSpaceConcurrentHostsSmoke() throws {
     #expect(smokeMessagesPIDs() == existingPIDs.union([second.app.processIdentifier]))
     #expect(try smokePoolSpaceIDs() == Set([parking]))
     #expect(try smokeManagedSpaceIDs() == managedBefore)
-    try concurrentAssertParkedAX(second, parking: parking)
+    try await concurrentAssertParkedAX(second, parking: parking)
 
     // Let observer startup finish, then use native activation only. The
     // production lifecycle callback must restore Dock presence and reveal.
-    pumpSmokeRunLoop(for: 1)
+    try await Task.sleep(forTimeInterval: 1)
     let activationDesktop = IMPrivateSPIActiveSpace()
     try #require(second.app.activate(options: [.activateAllWindows]))
-    try waitForSmoke("second Messages activation and reveal") {
+    try await waitForSmoke("second Messages activation and reveal") {
         try smokeFrontmost(second.elements.app) && smokeOnscreen(second.window) &&
             !smokeWindowSpaces(second.window).contains(parking)
     }
     let revealed = try smokeWindowSpaces(second.window)
     #expect(revealed.count == 1 && revealed.allSatisfy { currentBefore.contains($0) })
     #expect(!revealed.contains(parking))
-    pumpSmokeRunLoop(for: 1)
+    try await Task.sleep(forTimeInterval: 1)
     #expect(try smokeFrontmost(second.elements.app))
     #expect(try smokeOnscreen(second.window))
     #expect(IMPrivateSPIActiveSpace() == activationDesktop)
@@ -120,10 +120,10 @@ private struct ConcurrentParkedFixture {
 }
 
 @MainActor
-private func concurrentLaunchParkedFixture() throws -> ConcurrentParkedFixture {
+private func concurrentLaunchParkedFixture() async throws -> ConcurrentParkedFixture {
     let existing = smokeMessagesPIDs()
     let coordinator = try BridgedSpacesWindowCoordinator()
-    let controller = try runSmokeWorker {
+    let controller = try await runSmokeWorker {
         try await MessagesController(windowCoordinator: coordinator, reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
     }
     var ready = false
@@ -146,18 +146,18 @@ private func concurrentCleanUp(_ fixture: ConcurrentParkedFixture) {
 }
 
 @MainActor
-private func concurrentAssertParkedAX(_ fixture: ConcurrentParkedFixture, parking: UInt64) throws {
+private func concurrentAssertParkedAX(_ fixture: ConcurrentParkedFixture, parking: UInt64) async throws {
     #expect(try smokeWindowSpaces(fixture.window) == [parking])
     #expect(try !fixture.elements.app.isHidden())
     #expect(try !smokeOnscreen(fixture.window))
     let main = try #require(fixture.elements.getMainWindow())
     #expect(try main.window().raw == fixture.window)
-    let search = try runSmokeWorker { try await fixture.elements.searchField }
+    let search = try await runSmokeWorker { try await fixture.elements.searchField }
     let original = try #require(try search.value() as? String)
     defer { try? search.value(assign: original) }
     let query = "Beeper concurrent parking \(UUID().uuidString)"
     try search.value(assign: query)
-    try waitForSmoke("parked AX write/read") { try search.value() as? String == query }
+    try await waitForSmoke("parked AX write/read") { try search.value() as? String == query }
     try search.value(assign: original)
     #expect(try search.value() as? String == original)
 }

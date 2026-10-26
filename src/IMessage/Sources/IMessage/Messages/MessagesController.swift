@@ -78,6 +78,8 @@ func parseThreadAlertsActionLabel(
     hideAlertsLabel: String,
     showAlertsLabel: String
 ) -> ThreadAlertsActionLabel? {
+    // AX custom action names may append Target/Selector metadata on later lines.
+    let actionName = actionName.prefix { !$0.isNewline }
     func parse(_ label: String, intent: ThreadAlertsActionIntent) -> ThreadAlertsActionLabel? {
         let prefix = "Name:\(label)"
         guard actionName.hasPrefix(prefix) else { return nil }
@@ -124,8 +126,7 @@ final class MessagesController {
     var cachedDatabase: IMDatabase?
     private var lifecycleObserver: LifecycleObserver
     private var lastOpenedThreadID: String?
-    private var lastSentActivityObservation: ThreadActivityObservation?
-    private var lastSentActivityObservationTime: Date?
+    private var activityObservationCache = ThreadActivityObservationCache()
 
     private var windowCoordinator: WindowCoordinator
     private let keyPresser: KeyPresser
@@ -329,6 +330,7 @@ final class MessagesController {
 
         let coordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
         windowCoordinator = coordinator
+        let launchedNewApplication: Bool
 
         if Preferences.useSecondaryMessagesInstance {
             log.info("launching secondary messages instance...")
@@ -337,14 +339,17 @@ final class MessagesController {
                 activating: false,
                 hiding: false
             )
+            launchedNewApplication = true
         } else {
             let messagesApps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
             if let existingApp = try MessagesInstanceTarget.primaryInstance(in: messagesApps) {
                 log.info("reusing existing messages...")
                 app = existingApp
+                launchedNewApplication = false
             } else {
                 log.info("launching messages...")
                 app = try await Self.openDeepLink(MessagesDeepLink.compose, activating: true, timeout: 30)
+                launchedNewApplication = true
             }
         }
 
@@ -354,7 +359,15 @@ final class MessagesController {
         }
 
         // without sleeping, appElement.observe applicationActivated/applicationDeactivated doesn't fire
-        try await selectedApp.waitForLaunch()
+        do {
+            try await selectedApp.waitForLaunch()
+        } catch {
+            // Stored properties below are not initialized yet, so a failed init
+            // cannot rely on deinit/dispose to release a newly launched process.
+            if launchedNewApplication { selectedApp.terminate() }
+            try? coordinator.dispose()
+            throw error
+        }
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { deepLink in
             try await Self.openDeepLink(deepLink, targeting: selectedApp)
@@ -435,10 +448,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     switch event {
                     case .appActivated:
                         printLifecycle(event: "APP activated")
-                        await self.activateMessages()
+                        self.activateMessages()
                     case .appDeactivated:
                         printLifecycle(event: "APP deactivated")
-                        await self.deactivateMessages()
+                        self.deactivateMessages()
                     case .appHidden: printLifecycle(event: "APP hidden")
                     case .appShown: printLifecycle(event: "APP shown")
                     case .anyObservedWindowMoved: printLifecycle(event: "WINDOW moved")
@@ -1051,18 +1064,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func muteThread(threadID: String, muted shouldMute: Bool, currentMuteState: Bool?) async throws {
+    func muteThread(threadID: String, muted shouldMute: Bool) async throws {
         #if DEBUG
         let startTime = Date()
         defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        if let currentMuteState, currentMuteState == shouldMute {
-            log.debug("muteThread: DND state already matches shouldMute=\(shouldMute)")
-            return
-        }
-
         let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
+
+        func dndMuteState() throws -> Bool? {
+            guard let mutedThreadIDs = PlatformAPI.permanentDNDThreadIDs(),
+                  let chat = try db.mappedThreadRow(guid: threadID),
+                  let dndIdentifier = ThreadMapper.dndIdentifier(for: chat) else { return nil }
+            return mutedThreadIDs.contains(dndIdentifier)
+        }
 
         try await withAutomation {
             try await withActivation(openBefore: deepLink) {
@@ -1072,24 +1087,20 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
                 let inferredStates = Set(actions.map(\.label.isMuted))
                 let labelMuteState = inferredStates.count == 1 ? inferredStates.first : nil
-                let isMuted = currentMuteState ?? labelMuteState
-                let stateSource = currentMuteState == nil ? "accessibility action" : "DND list"
+                // Preference reads can stay stale even after Messages updates its
+                // live action label. Resolve the state on the lane, preferring an
+                // unambiguous AX label so repeated requests cannot toggle twice.
+                let isMuted = try labelMuteState ?? dndMuteState()
 
                 guard let isMuted else {
                     throw ErrorMessage("Could not determine whether thread alerts are hidden")
                 }
-                log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute), source=\(stateSource)")
+                log.debug("muteThread: isMuted=\(isMuted), shouldMute=\(shouldMute)")
 
                 guard isMuted != shouldMute else { return }
 
-                // Prefer an action whose label agrees with the authoritative
-                // state. When the DND list and AX label disagree, the action is
-                // still a toggle, but log the mismatch and avoid choosing an
-                // action that describes a different starting state if possible.
+                // Prefer the action describing the resolved starting state.
                 let matchingAction = actions.first { $0.label.isMuted == isMuted }
-                if currentMuteState != nil, matchingAction == nil, !actions.isEmpty {
-                    log.warning("muteThread: DND state disagrees with accessibility action label")
-                }
                 let action: Accessibility.Action
                 if let matchingAction {
                     action = matchingAction.action
@@ -1099,6 +1110,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         .action
                 }
                 try action()
+                // Keep the lane until the live state reflects this toggle, so
+                // the next queued request sees the updated starting state.
+                try await retry(withTimeout: 2, interval: 0.05) {
+                    let labels = try threadAlertsActions(threadCell: selectedThreadCell)
+                    let states = Set(labels.map(\.label.isMuted))
+                    let observedState = try (states.count == 1 ? states.first : nil) ?? dndMuteState()
+                    guard observedState == shouldMute else {
+                        throw ErrorMessage("Waiting for thread alerts to reflect requested mute state")
+                    }
+                }
             }
         }
     }
@@ -1451,7 +1472,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     }
     // when the user manually cmd+tab's or clicks the Messages dock icon,
     // we want to actually show the app
-    private func activateMessages() async {
+    private func activateMessages() {
         guard !isDisposed.read(), !app.isTerminated else { return }
         // Set the activation flag immediately (off-lane): the idle observer reads
         // `messagesIsManuallyActivated` to back off, and it should do so right away
@@ -1470,33 +1491,38 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // the user has since deactivated (messagesIsManuallyActivated flipped back to
         // false), this activate is stale — skip it so we don't unhide a window the user
         // already dismissed and so a queued activate/deactivate pair collapses.
-        do {
-            try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
-                guard let self, !self.isDisposed.read(), !self.app.isTerminated else { return }
-                self.lastOpenedThreadID = nil
-                guard self.messagesIsManuallyActivated else {
-                    log.debug("activateMessages: skipping stale activation (user already deactivated)")
-                    return
-                }
-                // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-                let oldType = try MessagesDockSuppression.applicationType(for: self.app.processIdentifier)
-                try await self.windowCoordinator.restoreDockPresence()
-                if Defaults.shouldCoordinateWindow {
-                    try await self.windowCoordinator.userManuallyActivated(self.app)
-                    if let window = self.elements.getMainWindow() {
-                        try await self.windowCoordinator.reset(window)
+        // Keep consuming lifecycle events while this waits behind automation.
+        // Otherwise a queued deactivation cannot update the flag that makes an
+        // already-stale activation back off.
+        MessagesControllerAutomationLane.escapingTask { [weak self] in
+            do {
+                try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
+                    guard let self, !self.isDisposed.read(), !self.app.isTerminated else { return }
+                    self.lastOpenedThreadID = nil
+                    guard self.messagesIsManuallyActivated else {
+                        log.debug("activateMessages: skipping stale activation (user already deactivated)")
+                        return
+                    }
+                    // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+                    let oldType = try MessagesDockSuppression.applicationType(for: self.app.processIdentifier)
+                    try await self.windowCoordinator.restoreDockPresence()
+                    if Defaults.shouldCoordinateWindow {
+                        try await self.windowCoordinator.userManuallyActivated(self.app)
+                        if let window = self.elements.getMainWindow() {
+                            try await self.windowCoordinator.reset(window)
+                        }
+                    }
+                    if oldType == "invalid" || oldType == "UIElement" {
+                        await MainActor.run { self.app.activate(options: [.activateAllWindows]) }
                     }
                 }
-                if oldType == "invalid" || oldType == "UIElement" {
-                    await MainActor.run { self.app.activate(options: [.activateAllWindows]) }
-                }
+            } catch {
+                log.error("couldn't unhide messages window caused by user activation: \(error)")
             }
-        } catch {
-            log.error("couldn't unhide messages window caused by user activation: \(error)")
         }
     }
 
-    private func deactivateMessages() async {
+    private func deactivateMessages() {
         guard !isDisposed.read(), !app.isTerminated else { return }
         // Clear the activation flag immediately (off-lane), mirroring activateMessages.
         let lastActivate = manualActivationState.withLock { state in
@@ -1513,25 +1539,27 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // Coalescing: mirror activateMessages. If the user re-activated before this
         // closure ran (messagesIsManuallyActivated flipped back to true), this deactivate
         // is stale — skip it so we don't tear down a window the user is now using.
-        do {
-            try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
-                guard let self, !self.isDisposed.read(), !self.app.isTerminated else { return }
-                guard !self.messagesIsManuallyActivated else {
-                    log.debug("deactivateMessages: skipping stale deactivation (user re-activated)")
-                    return
+        MessagesControllerAutomationLane.escapingTask { [weak self] in
+            do {
+                try await PlatformAPI.runOnMessagesControllerLane { [weak self] in
+                    guard let self, !self.isDisposed.read(), !self.app.isTerminated else { return }
+                    guard !self.messagesIsManuallyActivated else {
+                        log.debug("deactivateMessages: skipping stale deactivation (user re-activated)")
+                        return
+                    }
+                    // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
+                    let window = self.elements.getMainWindow()
+                    if Defaults.shouldCoordinateWindow {
+                        try await self.windowCoordinator.userManuallyDeactivated(self.app)
+                    }
+                    try? self.closeAllNonMainWindows()
+                    if window != nil {
+                        await self.resetWindow()
+                    }
                 }
-                // we use getMainWindow() instead of mainWindow to not reopen the window if it's not present
-                let window = self.elements.getMainWindow()
-                if Defaults.shouldCoordinateWindow {
-                    try await self.windowCoordinator.userManuallyDeactivated(self.app)
-                }
-                try? self.closeAllNonMainWindows()
-                if window != nil {
-                    await self.resetWindow()
-                }
+            } catch {
+                log.error("couldn't hide messages window caused by user activation: \(error)")
             }
-        } catch {
-            log.error("couldn't hide messages window caused by user activation: \(error)")
         }
     }
 
@@ -1623,6 +1651,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     /// Checks one thread while controller work is idle.
     /// The platform-level idle observer calls it repeatedly after active automation drains.
     func observeIdleActivity(
+        requestID: UUID,
         threadID: String,
         readActivity: Bool,
         statusSender: @escaping @Sendable (ThreadActivityObservation) -> Void
@@ -1670,15 +1699,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
 
         let observationToSend = await activityObservation()
-        guard lastSentActivityObservation != observationToSend || (observationToSend.activityType == .typing && lastSentActivityObservationTime.map { $0.timeIntervalSinceNow * -1 > 30 } == true) else {
+        guard activityObservationCache.shouldSend(observationToSend, requestID: requestID) else {
             #if DEBUG
             log.debug("activity: same activity or too recent, skipping activity update")
             #endif
             return
-        }
-        defer {
-            lastSentActivityObservation = observationToSend
-            lastSentActivityObservationTime = Date()
         }
         #if DEBUG
         log.debug("activity: sending: \(observationToSend)")

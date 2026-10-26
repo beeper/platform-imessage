@@ -7,7 +7,7 @@ import Testing
 // Explicit opt-in: this launches and closes a real secondary Messages process.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_SECONDARY_LAUNCH_SMOKE"] == "1"))
 @MainActor
-func secondaryMessagesLaunchSmoke() throws {
+func secondaryMessagesLaunchSmoke() async throws {
     Defaults.registerDefaults()
     try #require(Defaults.dockSuppression, "Requires Dock suppression")
     let originalSecondary = Preferences.useSecondaryMessagesInstance
@@ -16,7 +16,7 @@ func secondaryMessagesLaunchSmoke() throws {
     let existing = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     let baselineDock = try messagesDockSnapshot()
     let compose = try #require(URL(string: "imessage:open?address=&body"))
-    let app = try runSmokeWorker {
+    let app = try await runSmokeWorker {
         try await MessagesInstanceTarget.launchSecondaryInstance(initialDeepLink: compose)
     }
     defer { if !app.isTerminated { app.terminate() } }
@@ -24,7 +24,7 @@ func secondaryMessagesLaunchSmoke() throws {
 
     for _ in 0..<3 {
         try MessagesInstanceTarget.sendDeepLink(compose, to: app)
-        pumpSmokeRunLoop(for: 0.5)
+        try await Task.sleep(forTimeInterval: 0.5)
         #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
         #expect(!app.isActive)
         try expectSecondaryDock(phase: "deep-link", baseline: baselineDock, additionalTiles: 0)
@@ -47,7 +47,7 @@ func secondaryMessagesLaunchSmoke() throws {
     #expect(app.terminate())
     let deadline = Date().addingTimeInterval(5)
     while kill(app.processIdentifier, 0) == 0 && Date() < deadline {
-        pumpSmokeRunLoop(for: 0.05)
+        try await Task.sleep(forTimeInterval: 0.05)
     }
     #expect(kill(app.processIdentifier, 0) == -1 && errno == ESRCH)
 }

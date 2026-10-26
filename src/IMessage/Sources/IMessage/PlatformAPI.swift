@@ -81,15 +81,10 @@ public final class PlatformAPI {
     private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
 
-    private static let selectedThreadActivityState = Protected<SelectedThreadActivityState?>()
+    private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
 
-    private struct SelectedThreadActivityState: Sendable {
-        let requestID = UUID()
-        let owner: ObjectIdentifier
-        let threadID: String
-        let sendStatus: @Sendable (ThreadActivityObservation) async -> Void
-    }
+    private typealias SelectedThreadActivityState = SelectedThreadActivitySelection.Thread
 
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
         self.accountID = accountID
@@ -301,23 +296,8 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        let currentMuteState = try await runDBQuery { db, _, _ -> Bool? in
-            guard let mutedThreadIDs = Self.permanentDNDThreadIDs() else { return nil }
-            guard let chat = try db.mappedThreadRow(guid: threadID),
-                  let dndIdentifier = ThreadMapper.dndIdentifier(for: chat) else {
-                return nil
-            }
-            return mutedThreadIDs.contains(dndIdentifier)
-        }
-        if currentMuteState == muted {
-            platformLog.debug("imsg: DND state already matches requested mute state")
-            return
-        }
-        if currentMuteState == nil {
-            platformLog.debug("imsg: DND state unavailable; falling back to Messages accessibility actions")
-        }
         try await withMessagesController {
-            try await $0.muteThread(threadID: threadID, muted: muted, currentMuteState: currentMuteState)
+            try await $0.muteThread(threadID: threadID, muted: muted)
         }
     }
 
@@ -528,23 +508,20 @@ public final class PlatformAPI {
         threadID publicThreadID: String?,
         sendEvents: @escaping EventCallback
     ) async throws {
+        let requestID = try hasBeenDisposed.withLock { disposed in
+            guard !disposed else { throw ErrorMessage("PlatformAPI has been disposed") }
+            return Self.selectedThreadActivityState.withLock { $0.begin(owner: ObjectIdentifier(self)) }
+        }
         guard let publicThreadID, !publicThreadID.isEmpty else {
-            clearSelectedThreadActivity()
             return
         }
 
-        let threadID: String
-        do {
-            threadID = try originalThreadID(for: publicThreadID)
-        } catch {
-            clearSelectedThreadActivity()
-            throw error
-        }
+        let threadID = try originalThreadID(for: publicThreadID)
 
         let singleParticipantID = singleParticipantAddress(threadID)
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         let selectedThread = SelectedThreadActivityState(
-            owner: ObjectIdentifier(self),
+            requestID: requestID,
             threadID: threadID
         ) { [dndUserIDs] status in
             platformLog.debug("activity/\(publicThreadID): received \(status)")
@@ -602,11 +579,11 @@ public final class PlatformAPI {
                 platformLog.error("failed to send activity status: \(String(reflecting: error))")
             }
         }
-        Self.selectedThreadActivityState.withLock { $0 = selectedThread }
+        guard Self.selectedThreadActivityState.withLock({ $0.install(selectedThread) }) else { return }
         platformLog.debug("activity/\(publicThreadID): watching")
 
         try await withMessagesController { controller in
-            guard Self.selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
+            guard Self.selectedThreadActivityState.read().thread?.requestID == selectedThread.requestID else {
                 return
             }
 
@@ -670,23 +647,13 @@ public final class PlatformAPI {
         }
     }
 
-    private func clearSelectedThreadActivity() {
-        Self.selectedThreadActivityState.withLock { $0 = nil }
-    }
-
     private static func clearSelectedThreadActivity(ifCurrent requestID: UUID) {
-        selectedThreadActivityState.withLock { state in
-            guard state?.requestID == requestID else { return }
-            state = nil
-        }
+        selectedThreadActivityState.withLock { $0.clear(ifCurrent: requestID) }
     }
 
     private func clearSelectedThreadActivityIfOwned() {
         let owner = ObjectIdentifier(self)
-        Self.selectedThreadActivityState.withLock { state in
-            guard state?.owner == owner else { return }
-            state = nil
-        }
+        Self.selectedThreadActivityState.withLock { $0.clear(ifOwnedBy: owner) }
     }
 
     private static func threadSupportsActivityObservation(threadID: String, controller: MessagesController) throws -> Bool {
@@ -722,7 +689,7 @@ public final class PlatformAPI {
     }
 
     static func observeSelectedThreadActivity(using controller: MessagesController, readActivity: Bool = true) async {
-        guard let selectedThread = selectedThreadActivityState.read() else {
+        guard let selectedThread = selectedThreadActivityState.read().thread else {
             return
         }
 
@@ -740,7 +707,7 @@ public final class PlatformAPI {
     ) async {
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
             MessagesControllerAutomationLane.escapingTask {
-                guard selectedThreadActivityState.read()?.requestID == selectedThread.requestID else {
+                guard selectedThreadActivityState.read().thread?.requestID == selectedThread.requestID else {
                     return
                 }
                 await selectedThread.sendStatus(status)
@@ -749,6 +716,7 @@ public final class PlatformAPI {
 
         do {
             try await controller.observeIdleActivity(
+                requestID: selectedThread.requestID,
                 threadID: selectedThread.threadID,
                 readActivity: readActivity,
                 statusSender: sendStatus

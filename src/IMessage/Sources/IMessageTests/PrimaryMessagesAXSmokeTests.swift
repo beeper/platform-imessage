@@ -8,7 +8,7 @@ import IMessageCore
 // Opt-in only: temporarily coordinates the real primary, without sending messages.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_PRIMARY_AX_SMOKE"] == "1"))
 @MainActor
-func primaryMessagesAXSmoke() throws {
+func primaryMessagesAXSmoke() async throws {
     try #require(AXIsProcessTrusted(), "Primary AX smoke requires Accessibility permission")
     let apps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     let app = try #require(apps.count == 1 ? apps.first : nil, "Requires exactly one primary Messages instance")
@@ -16,7 +16,7 @@ func primaryMessagesAXSmoke() throws {
     Defaults.registerDefaults()
     let wasHidden = app.isHidden
     let elements = smokeElements(runningApp: app)
-    let window = try runSmokeWorker { try await elements.mainWindow }
+    let window = try await runSmokeWorker { try await elements.mainWindow }
     let originalFrame = try window.frame()
     let coordinator = EclipsingWindowCoordinator()
     coordinator.app = app
@@ -49,8 +49,8 @@ func primaryMessagesAXSmoke() throws {
         app.unhide()
         for (trial, url) in ([compose] + chatURLs + [repeatedChat]).enumerated() {
             let before = Date()
-            let waitStarted = try primarySmokeOpenDeepLink(url, app: app)
-            pumpSmokeRunLoop(for: 1.2)
+            let waitStarted = try await primarySmokeOpenDeepLink(url, app: app)
+            try await Task.sleep(forTimeInterval: 1.2)
             let actualType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
             #expect(actualType == "Foreground")
             let focus = observer.lastFocusedUIElementChange.read()
@@ -58,7 +58,7 @@ func primaryMessagesAXSmoke() throws {
             print("PRIMARY_AX stage=\(stage) trial=\(trial) focusAfterLink=\(focus.map { $0 > before } ?? false) focusWaiter=\(focus.map { $0 > waitStarted } ?? false) layoutWaiter=\(layout.map { $0 > waitStarted } ?? false)")
             #expect(focus.map { $0 > waitStarted } ?? false, "Focus waiter failed at \(stage) trial \(trial)")
             if trial > 0 {
-                let field = try runSmokeWorker { try await elements.messageBodyField }
+                let field = try await runSmokeWorker { try await elements.messageBodyField }
                 try field.isFocused(assign: true)
                 let setFocused = try field.isFocused()
                 try field.press()
@@ -93,8 +93,8 @@ private func primarySmokeReadChatURLs() throws -> [MessagesDeepLink] {
 }
 
 @MainActor
-private func primarySmokeOpenDeepLink(_ url: MessagesDeepLink, app: NSRunningApplication) throws -> Date {
-    let (target, started) = try runSmokeWorker {
+private func primarySmokeOpenDeepLink(_ url: MessagesDeepLink, app: NSRunningApplication) async throws -> Date {
+    let (target, started) = try await runSmokeWorker {
         let target = try await MessagesController.openDeepLink(url, targeting: app)
         return (target, Date())
     }

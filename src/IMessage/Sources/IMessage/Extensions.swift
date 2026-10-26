@@ -16,6 +16,10 @@ extension NSApplication {
 
 extension NSRunningApplication {
     func waitForLaunch(timeout seconds: TimeInterval = 5) async throws {
+        try Task.checkCancellation()
+        guard !isTerminated else {
+            throw ErrorMessage("Application terminated while waiting for launch")
+        }
         if isFinishedLaunching, !isTerminated {
             return
         }
@@ -36,6 +40,9 @@ extension NSRunningApplication {
                 }
 
                 try await group.next()
+                guard !self.isTerminated else {
+                    throw ErrorMessage("Application terminated while waiting for launch")
+                }
             }
         }
     }
