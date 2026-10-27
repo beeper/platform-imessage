@@ -1,62 +1,46 @@
 import Cocoa
 import AccessibilityControl
 
-/**
- * An abstraction over a way to make the Messages app automatable for short periods of time.
- */
-protocol WindowCoordinator {
-    /** The application to coordinate. */
+/// Coordinates Messages windows during automation and manual use.
+protocol WindowCoordinator: AnyObject {
+    @MainActor
     var app: NSRunningApplication? { get set }
 
-    /**
-     * Manipulates the Messages window in such a way that it becomes controllable via Accessibility APIs.
-     *
-     * This is called right before the app needs to be automated.
-     */
-    func makeAutomatable(_ window: Accessibility.Element) throws
+    /// Keep blocking AX/window-server calls off the main actor; hop to it for AppKit state.
+    func makeAutomatable(_ window: Accessibility.Element) async throws
     func prepareForAutomation() throws
     func prepareAfterLaunch() throws
     func dispose() throws
 
-    /** Signals to the coordinator that automation has completed; if desired, it may now e.g. hide the window. */
-    func automationDidComplete(_ window: Accessibility.Element) throws
+    /// Parks or hides windows after automation.
+    func automationDidComplete() async throws
 
-    /**
-     * Reverts the manipulations performed in `makeAutomatable`.
-     *
-     * For example, this is called when the user manually activates the app. Coordination should quiesce until the user
-     * resigns manual control.
-     */
-    func reset(_ window: Accessibility.Element) throws
+    /// Reverts window changes before handing control to the user.
+    func reset(_ window: Accessibility.Element) async throws
 
-    /** Called when the user manually activates the app. `reset` is also called in this case. */
-    func userManuallyActivated(_ app: NSRunningApplication) throws
+    func userManuallyActivated(_ app: NSRunningApplication) async throws
 
-    /** Called when the user finishes manual control over the app. */
-    func userManuallyDeactivated(_ app: NSRunningApplication) throws
+    func userManuallyDeactivated(_ app: NSRunningApplication) async throws
 }
 
 extension WindowCoordinator {
     func prepareForAutomation() throws {}
     func prepareAfterLaunch() throws {}
     func dispose() throws {}
-    /// Independent of window availability: a deep link may not have created one yet.
+
+    @MainActor
     func suppressDockPresence() throws {
         if let app { try MessagesDockSuppression.suppress(app) }
     }
 
-    /// Restore before handing control back to the user, even without a main window.
+    @MainActor
     func restoreDockPresence() throws {
         if let app { try MessagesDockSuppression.restore(app) }
     }
 
-    func userManuallyActivated(_: NSRunningApplication) throws {
-        // make this method optional
-    }
+    func userManuallyActivated(_: NSRunningApplication) throws {}
 
-    func userManuallyDeactivated(_: NSRunningApplication) throws {
-        // make this method optional
-    }
+    func userManuallyDeactivated(_: NSRunningApplication) throws {}
 }
 
 enum WindowCoordinatorError: Error {

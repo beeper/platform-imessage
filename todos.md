@@ -22,7 +22,7 @@
 
 - concurrency
   - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
-  - [ ] kill `PassivelyAwareDispatchQueue`
+  - [ ] adopt strict-concurrency checking (compiler-verify the actor-isolation model the automation lane relies on). Add `swiftSettings: [.unsafeFlags(["-strict-concurrency=targeted"])]` to the `IMessage` target in Package.swift, then clear the ~20 concurrency warnings it surfaces (26 unique total): non-Sendable captures in `@Sendable` closures and generic `T` not Sendable across `PlatformAPI.swift`, `PlatformAPI+MessagesController.swift` (lane generics), `MessagesController.swift`, `EclipsingWindowCoordinator.swift`, `PromptAutomation.swift`, `Pasteboard+Backup.swift`. Fix with real `Sendable` conformances / isolation annotations — NOT blanket `@unchecked Sendable`, which would defeat the point. Warnings only in Swift 5 mode (build still succeeds), so this can land incrementally; do it as a focused pass with its own QA since it touches fragile AX code. Surfaced by /plan-eng-review on kb/modern-concurrency (Issue 2 / T5); deferred after measuring the warning volume.
 
 - [ ] improve misfire prevention and robustness
 - [ ] DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that. [wip](https://github.com/beeper/platform-imessage/tree/purav/fix-imessage-send-upsert)

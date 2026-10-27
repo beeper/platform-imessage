@@ -24,6 +24,13 @@ func runSmokeWorker<Value>(_ operation: @escaping () throws -> Value) throws -> 
     return try #require(result.read()).get()
 }
 
+// Suspend the main actor while async automation runs. Pumping a nested run loop
+// cannot service Swift main-actor jobs while the calling job still owns the executor.
+@MainActor
+func runSmokeWorker<Value>(_ operation: @escaping @Sendable () async throws -> Value) async throws -> Value {
+    try await Task.detached { try await operation() }.value
+}
+
 @MainActor
 func pumpSmokeRunLoop(for interval: TimeInterval) {
     let deadline = Date().addingTimeInterval(interval)
@@ -33,11 +40,11 @@ func pumpSmokeRunLoop(for interval: TimeInterval) {
 }
 
 @MainActor
-func waitForSmoke(_ description: String = "live Messages state", timeout: TimeInterval = 5, _ condition: () throws -> Bool) throws {
+func waitForSmoke(_ description: String = "live Messages state", timeout: TimeInterval = 5, _ condition: () throws -> Bool) async throws {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
         if try condition() { return }
-        pumpSmokeRunLoop(for: 0.02)
+        try await Task.sleep(forTimeInterval: 0.02)
     }
     try #require(try condition(), Comment(rawValue: "Timed out waiting for \(description)"))
 }
@@ -87,19 +94,25 @@ func smokeProcessExited(_ pid: pid_t) -> Bool {
     kill(pid, 0) == -1 && errno == ESRCH
 }
 
+func smokeElements(runningApp app: NSRunningApplication) -> MessagesAppElements {
+    MessagesAppElements(runningApp: app, openDeepLink: { deepLink in
+        try await MessagesController.openDeepLink(deepLink, targeting: app)
+    })
+}
+
 @MainActor
-func smokeAssertParkedAX(elements: MessagesAppElements, window: UInt32, parking: UInt64) throws {
+func smokeAssertParkedAX(elements: MessagesAppElements, window: UInt32, parking: UInt64) async throws {
     #expect(try smokeWindowSpaces(window) == [parking])
     #expect(try !elements.app.isHidden())
     #expect(try !smokeOnscreen(window))
     let main = try #require(elements.getMainWindow(), "Parking must expose the existing main window through AX")
     #expect(try main.window().raw == window)
-    let search = try elements.searchField
+    let search = try await runSmokeWorker { try await elements.searchField }
     let original = try #require(try search.value() as? String)
     defer { try? search.value(assign: original) }
     let query = "Beeper parked AX \(UUID().uuidString)"
     try search.value(assign: query)
-    try waitForSmoke("parked AX write/read") { try search.value() as? String == query }
+    try await waitForSmoke("parked AX write/read") { try search.value() as? String == query }
     try search.value(assign: original)
     #expect(try search.value() as? String == original)
 }

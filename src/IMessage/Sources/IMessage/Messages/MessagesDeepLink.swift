@@ -1,30 +1,53 @@
 import Foundation
 import IMessageCore
 
-enum MessagesDeepLink {
-    case addresses([String], body: String?)
-    case group(chatID: String, body: String?)
-    case message(guid: String, partIndex: Int?, overlay: Bool?)
+struct MessagesDeepLink {
+    private enum Destination {
+        case addresses([String], body: String?)
+        case group(chatID: String, body: String?)
+        case message(guid: String, partIndex: Int?, overlay: Bool?)
+    }
 
-    static let compose: MessagesDeepLink = .addresses([], body: nil)
+    private let destination: Destination
+    let targetThreadID: String?
+
+    static let compose = MessagesDeepLink.addresses([], body: nil)
 
     init(threadID: String, body: String?) throws {
         let (_, type, id) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID: \(threadID)"))
         switch type {
-        case MessagesDeepLink.singleThreadType:
-            self = .addresses([String(id)], body: body)
-        case MessagesDeepLink.groupThreadType:
-            self = .group(chatID: String(id), body: body)
+        case Self.singleThreadType:
+            self.init(destination: .addresses([String(id)], body: body), targetThreadID: threadID)
+        case Self.groupThreadType:
+            self.init(destination: .group(chatID: String(id), body: body), targetThreadID: threadID)
         default:
             throw ErrorMessage("invalid threadID: \(threadID)")
         }
+    }
+
+    static func addresses(_ addresses: [String], body: String?) -> Self {
+        Self(destination: .addresses(addresses, body: body), targetThreadID: nil)
+    }
+
+    static func group(chatID: String, body: String?) -> Self {
+        Self(destination: .group(chatID: chatID, body: body), targetThreadID: nil)
+    }
+
+    static func message(guid: String, partIndex: Int?, overlay: Bool?, threadID: String? = nil) -> Self {
+        Self(destination: .message(guid: guid, partIndex: partIndex, overlay: overlay), targetThreadID: threadID)
+    }
+
+    private init(destination: Destination, targetThreadID: String?) {
+        self.destination = destination
+        self.targetThreadID = targetThreadID
     }
 
     func url() throws -> URL {
         var components = URLComponents()
         components.scheme = "imessage"
         components.path = "open"
-        switch self {
+
+        switch destination {
         case let .addresses(addrs, body):
             components.queryItems = [
                 URLQueryItem(

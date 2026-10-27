@@ -17,24 +17,19 @@ private final class BridgedWindowOwners {
 /// Unlike user Spaces this Space is never a Mission Control desktop, even after
 /// Dock restarts. Window ownership and complete membership are verified on moves.
 final class BridgedSpacesWindowCoordinator: WindowCoordinator {
+    private let targetApp = Protected<NSRunningApplication?>(nil)
+
+    @MainActor
     var app: NSRunningApplication? {
-        didSet {
-            // Conceal the process as soon as ownership is acquired, before
-            // controller initialization starts discovering its windows.
-            do {
-                try ensureTargetLease()
-                if !isCurrentAppActive { currentApp?.hide() }
-            } catch {
-                // prepareAfterLaunch retries and reports lease failures before
-                // any window operations. A competing owner is left untouched.
-                log.debug("Could not acquire Messages window ownership: \(error)")
-            }
+        get { targetApp.read() }
+        set {
+            targetApp.withLock { $0 = newValue }
         }
     }
     private var targetLease: WindowCoordinationFileLock?
     private var leasedPID: pid_t?
     private var currentApp: NSRunningApplication? {
-        guard let original = app, !original.isTerminated else { return nil }
+        guard let original = targetApp.read(), !original.isTerminated else { return nil }
         return Self.liveMessagesApp(original.processIdentifier)
     }
 
@@ -215,6 +210,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         defer { lock.unlock() }
         guard !disposed, currentApp != nil else { return }
         try ensureTargetLease()
+        if !isCurrentAppActive { currentApp?.hide() }
         if try windowIDsToPark().isEmpty, let app = currentApp {
             // A reused process can outlive its last window. Ask that exact
             // process to reopen one before waiting for discovery and parking.
@@ -242,7 +238,9 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         // Do not let the controller's recovery getter send another compose URL
         // while the newly unhidden scene is still publishing its AX hierarchy.
         guard let app = currentApp else { throw ErrorMessage("Messages exited during startup") }
-        let elements = MessagesAppElements(runningApp: app)
+        let elements = MessagesAppElements(runningApp: app, openDeepLink: { deepLink in
+            try await MessagesController.openDeepLink(deepLink, targeting: app)
+        })
         try Self.waitFor("parked Messages AX main window", timeout: 5) {
             guard let main = elements.getMainWindow(), let id = try? main.window().raw else { return false }
             guard try Self.spaces(id) == [self.session.hiddenSpace] else { return false }
@@ -319,11 +317,11 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         try parkForAutomation()
     }
 
-    func automationDidComplete(_ window: Accessibility.Element) throws {
+    func automationDidComplete() throws {
         lock.lock()
         defer { lock.unlock() }
         guard !disposed else { return }
-        try parkForAutomation(mainWindow: window)
+        try parkForAutomation()
     }
 
     func reset(_ window: Accessibility.Element) throws {

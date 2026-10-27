@@ -16,6 +16,7 @@ private let log = Logger(imessageLabel: "eclipsing-window-coordinator")
  */
 @available(*, deprecated, message: "Use BridgedSpacesWindowCoordinator; retained for legacy diagnostics")
 final class EclipsingWindowCoordinator: WindowCoordinator {
+    @MainActor
     var app: NSRunningApplication? {
         didSet {
             if let app {
@@ -37,13 +38,16 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         hideDebouncer = HideDebouncer(debouncingFor: Self.debouncingPeriod)
     }
 
-    func makeAutomatable(_ messagesWindow: Accessibility.Element) throws {
-        // Required so we can exclude the Messages window itself from external anchor candidates;
-        // without it the eclipse would no-op (positioning Messages on top of itself).
-        guard let messagesPID = app?.processIdentifier else {
+    func makeAutomatable(_ messagesWindow: Accessibility.Element) async throws {
+        guard let messagesPID = await app?.processIdentifier else {
             throw WindowCoordinatorError.generic(message: "no app to coordinate")
         }
-        let anchorWindow = try Self.eclipsingAnchorWindow(messagesPID: messagesPID)
+        // Read AppKit state on main; keep blocking AX calls off it.
+        let (anchorWindow, mainScreenDebug) = try await MainActor.run { () -> (AnchorWindow, String?) in
+            let anchor = try Self.eclipsingAnchorWindow(messagesPID: messagesPID)
+            let mainScreen = NSScreen.main.map { "\($0.frame.formatted) [visible: \($0.visibleFrame.formatted)]" }
+            return (anchor, mainScreen)
+        }
 
         let originalMessagesFrame = try messagesWindow.frame()
         if windowFramePreEclipse == nil {
@@ -75,8 +79,8 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
            let visibleFrame = anchorWindow.containingScreenVisibleFrame {
             log.debug("screen with anchor frame: \(screenFrame.formatted) [visible: \(visibleFrame.formatted)]")
         }
-        if let main = NSScreen.main {
-            log.debug("main screen: \(main.frame.formatted) [visible: \(main.visibleFrame.formatted)]")
+        if let mainScreenDebug {
+            log.debug("main screen: \(mainScreenDebug)")
         }
         guard anchorWindow.screenFrame.size.encompasses(targetSize) || !Self.shouldOnlyEclipseIfEncompasses else {
             log.warning("the eclipsing anchor's frame \(anchorWindow.screenFrame.formatted) isn't big enough to encompass the target size \(targetSize), _not_ eclipsing!")
@@ -105,30 +109,31 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         let targetRect = NSRect(origin: targetOrigin, size: targetSize)
         log.notice("eclipsing (\(originalMessagesFrame.formatted) -> \(targetRect.formatted))")
 
-        hideDebouncer.immediatelyUnhide()
+        await MainActor.run { hideDebouncer.immediatelyUnhide() }
         try messagesWindow.size(assign: targetSize)
         try messagesWindow.position(assign: targetOrigin)
 
         if #available(macOS 14, *), Defaults.imessage.bool(forKey: DefaultsKeys.eclipsingDebug) {
-            Task { @MainActor in
+            let finalFrame = try? messagesWindow.frame()
+            await MainActor.run {
                 let debugger = EclipsingDebugger.shared
                 debugger.note(EclipsingRect(at: originalMessagesFrame, label: "Original", color: NSColor.systemRed.cgColor))
                 debugger.note(EclipsingRect(at: anchorWindow.screenFrame, label: anchorWindow.debugLabel, color: NSColor.systemGray.cgColor))
                 debugger.note(EclipsingRect(at: targetRect, label: "Target", color: NSColor.systemGreen.cgColor))
-                // i think this is up-to-date by now? might need to wait for a next
-                // runloop turn?
-                guard let frame = try? messagesWindow.frame() else { return }
-                EclipsingDebugger.shared.note(EclipsingRect(at: frame, label: "Final", color: NSColor.systemBlue.cgColor))
+                if let finalFrame {
+                    EclipsingDebugger.shared.note(EclipsingRect(at: finalFrame, label: "Final", color: NSColor.systemBlue.cgColor))
+                }
             }
         }
     }
 
-    func automationDidComplete(_: Accessibility.Element) throws {
+    @MainActor
+    func automationDidComplete() throws {
         hideDebouncer.requestHide()
     }
 
-    func reset(_ window: Accessibility.Element) throws {
-        hideDebouncer.immediatelyUnhide()
+    func reset(_ window: Accessibility.Element) async throws {
+        await MainActor.run { hideDebouncer.immediatelyUnhide() }
 
         guard let originalFrame = windowFramePreEclipse else {
             log.warning("no last known frame, not setting a frame back")
@@ -144,57 +149,29 @@ final class EclipsingWindowCoordinator: WindowCoordinator {
         try window.setFrame(originalFrame)
     }
 
+    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         hideDebouncer.immediatelyUnhide()
     }
 
+    @MainActor
     func userManuallyDeactivated(_: NSRunningApplication) throws {
         hideDebouncer.requestHide()
     }
 }
 
 private extension EclipsingWindowCoordinator {
-    /// A fully-resolved eclipse anchor. All AppKit-derived geometry is captured
-    /// eagerly at construction (on the main thread, see `eclipsingAnchorWindow`),
-    /// so consumers on the background automation queue only read plain values.
-    struct AnchorWindow {
+    /// AppKit geometry captured on the main actor for use during automation.
+    struct AnchorWindow: Sendable {
         /// Frame in screen/AX space (origin at the top-left of the primary display).
         let screenFrame: NSRect
         /// The original Cocoa frame; only the Electron window has one.
         let originalFrame: NSRect?
-        /// Diagnostics only. Captured eagerly on the main thread so consumers
-        /// don't have to touch `NSScreen` from the automation queue.
+        /// Screen geometry for diagnostics.
         let containingScreenFrame: NSRect?
         let containingScreenVisibleFrame: NSRect?
         let debugLabel: String
         let description: String
-
-        static func electron(_ window: NSWindow) -> AnchorWindow {
-            let frame = EclipsingWindowCoordinator.screenFrame(for: window)
-            let screen = EclipsingWindowCoordinator.screen(containing: frame)
-            return AnchorWindow(
-                screenFrame: frame,
-                originalFrame: window.frame,
-                containingScreenFrame: screen?.frame,
-                containingScreenVisibleFrame: screen?.visibleFrame,
-                debugLabel: "Electron",
-                description: "Electron window"
-            )
-        }
-
-        static func external(_ description: Window.Description) -> AnchorWindow {
-            let frame = NSRectFromCGRect(description.bounds) // CGWindow bounds are already in screen/AX space
-            let name = description.ownerName ?? "unknown"
-            let screen = EclipsingWindowCoordinator.screen(containing: frame)
-            return AnchorWindow(
-                screenFrame: frame,
-                originalFrame: nil,
-                containingScreenFrame: screen?.frame,
-                containingScreenVisibleFrame: screen?.visibleFrame,
-                debugLabel: name,
-                description: "\(name) window (pid \(description.owner))"
-            )
-        }
     }
 
     private static var debouncingPeriod: RunLoop.SchedulerTimeType.Stride { .init(Defaults.imessage.double(forKey: DefaultsKeys.hidingCoordinatorDebounce)) }
@@ -212,32 +189,52 @@ private extension EclipsingWindowCoordinator {
 
     // Accurate as of macOS 15.3.2.
     static let messagesAppMinimumSize = NSSize(width: 660.0, height: 320.0)
+}
 
-    static func eclipsingAnchorWindow(messagesPID: pid_t) throws -> AnchorWindow {
-        // These reads touch main-thread-affined AppKit state (NSApp.windows,
-        // NSWorkspace, NSScreen), but makeAutomatable runs on a background queue.
-        try onMain {
-            if let window = NSApplication.shared.largestElectronWindow {
-                return AnchorWindow.electron(window)
-            }
-
-            if let description = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
-                let anchor = AnchorWindow.external(description)
-                log.notice("falling back to external frontmost window for eclipsing: \(anchor.description)")
-                return anchor
-            }
-
-            throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
-        }
+@MainActor
+private extension EclipsingWindowCoordinator.AnchorWindow {
+    static func electron(_ window: NSWindow) -> EclipsingWindowCoordinator.AnchorWindow {
+        let frame = EclipsingWindowCoordinator.screenFrame(for: window)
+        let screen = EclipsingWindowCoordinator.screen(containing: frame)
+        return EclipsingWindowCoordinator.AnchorWindow(
+            screenFrame: frame,
+            originalFrame: window.frame,
+            containingScreenFrame: screen?.frame,
+            containingScreenVisibleFrame: screen?.visibleFrame,
+            debugLabel: "Electron",
+            description: "Electron window"
+        )
     }
 
-    /// Runs `work` on the main thread synchronously, without deadlocking if the
-    /// caller is already on it.
-    private static func onMain<T>(_ work: () throws -> T) rethrows -> T {
-        if Thread.isMainThread {
-            return try work()
+    static func external(_ description: Window.Description) -> EclipsingWindowCoordinator.AnchorWindow {
+        let frame = NSRectFromCGRect(description.bounds) // CGWindow bounds are already in screen/AX space
+        let name = description.ownerName ?? "unknown"
+        let screen = EclipsingWindowCoordinator.screen(containing: frame)
+        return EclipsingWindowCoordinator.AnchorWindow(
+            screenFrame: frame,
+            originalFrame: nil,
+            containingScreenFrame: screen?.frame,
+            containingScreenVisibleFrame: screen?.visibleFrame,
+            debugLabel: name,
+            description: "\(name) window (pid \(description.owner))"
+        )
+    }
+}
+
+@MainActor
+private extension EclipsingWindowCoordinator {
+    static func eclipsingAnchorWindow(messagesPID: pid_t) throws -> AnchorWindow {
+        if let window = NSApplication.shared.largestElectronWindow {
+            return AnchorWindow.electron(window)
         }
-        return try DispatchQueue.main.sync(execute: work)
+
+        if let description = externalEclipsingAnchorWindow(messagesPID: messagesPID) {
+            let anchor = AnchorWindow.external(description)
+            log.notice("falling back to external frontmost window for eclipsing: \(anchor.description)")
+            return anchor
+        }
+
+        throw WindowCoordinatorError.generic(message: "Couldn't find an eclipsing anchor window")
     }
 
     static func screenFrame(for window: NSWindow) -> NSRect {
@@ -311,6 +308,7 @@ private extension NSSize {
 }
 
 extension NSApplication {
+    @MainActor
     var largestElectronWindow: NSWindow? {
         let prefix = Defaults.imessage.string(forKey: DefaultsKeys.eclipsingWindowClassNamePrefix) ?? "Electron"
         // XXX: It's likely possible for this read to race with Electron's main thread, or whatever actually owns the window.
