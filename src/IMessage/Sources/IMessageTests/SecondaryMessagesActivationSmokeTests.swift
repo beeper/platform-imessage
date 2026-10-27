@@ -80,11 +80,11 @@ func secondaryMessagesActivationDockSmoke() async throws {
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
     if usesBridge {
         #expect(isWindowOnVisibleDesktop(window))
-        #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+        #expect(try smokeOnscreen(window))
         // Wait beyond the initial activation for a queued Dock Space switch.
         try await Task.sleep(forTimeInterval: 1)
         #expect(IMPrivateSPIActiveSpace() == activationDesktop)
-        #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+        #expect(try smokeOnscreen(window))
     }
     let activatedDock = try messagesDockSnapshot()
     #expect(activatedDock.running == baseline.running + 1)
@@ -100,15 +100,13 @@ func secondaryMessagesActivationDockSmoke() async throws {
 
     let otherApp = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
     try #require(otherApp.activate(options: []))
-    let deactivationDeadline = Date().addingTimeInterval(5)
-    while isTargetActive() && Date() < deactivationDeadline { try await Task.sleep(forTimeInterval: 0.05) }
-    try #require(!isTargetActive())
+    try await waitForSmoke("Messages deactivation") { !isTargetActive() }
     try await Task.sleep(forTimeInterval: 0.5)
     try await runSmokeWorker {
         try await controller.withAutomation { () async throws -> Void in
             if usesBridge {
                 #expect(!isWindowOnVisibleDesktop(window))
-                #expect(try !Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+                #expect(try !smokeOnscreen(window))
             }
         }
     }
@@ -137,20 +135,18 @@ func secondaryMessagesActivationDockSmoke() async throws {
     while Date() < reopenDeadline {
         if isTargetActive(),
            try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
-           try Window.listDescriptions(.onScreen).contains(where: { $0.window.raw == window }) { break }
+           try smokeOnscreen(window) { break }
         try await Task.sleep(forTimeInterval: 0.05)
     }
     try await Task.sleep(forTimeInterval: 1)
     #expect(isTargetActive())
     #expect(IMPrivateSPIActiveSpace() == activationDesktop)
-    #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+    #expect(try smokeOnscreen(window))
 
     // Activate during automation while the window is parked. Completion keeps
     // idle windows in the unknown Space; activation must reveal on the desktop.
     try #require(otherApp.activate(options: []))
-    let interruptedDeadline = Date().addingTimeInterval(5)
-    while isTargetActive() && Date() < interruptedDeadline { try await Task.sleep(forTimeInterval: 0.05) }
-    try #require(!isTargetActive())
+    try await waitForSmoke("Messages deactivation") { !isTargetActive() }
     try await Task.sleep(forTimeInterval: 0.5)
     try await runSmokeWorker {
         try await controller.withAutomation { () async throws -> Void in
@@ -161,15 +157,15 @@ func secondaryMessagesActivationDockSmoke() async throws {
             while Date() < deadline {
                 if try target.attribute(frontmost)(),
                    try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
-                   try Window.listDescriptions(.onScreen).contains(where: { $0.window.raw == window }) { break }
+                   try smokeOnscreen(window) { break }
                 try await Task.sleep(forTimeInterval: 0.05)
             }
             try #require(try target.attribute(frontmost)())
-            #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+            #expect(try smokeOnscreen(window))
         }
     }
     try await Task.sleep(forTimeInterval: 1)
     #expect(isTargetActive())
     #expect(isWindowOnVisibleDesktop(window))
-    #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+    #expect(try smokeOnscreen(window))
 }

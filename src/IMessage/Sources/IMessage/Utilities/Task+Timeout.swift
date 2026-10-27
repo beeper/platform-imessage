@@ -29,7 +29,6 @@ private extension Task where Success == Never, Failure == Never {
         operation: sending @escaping @isolated(any) () async throws -> Output
     ) async throws -> Output {
         try Task<Never, Never>.checkCancellation()
-        let deadline = Date().addingTimeInterval(timeout)
 
         guard timeout > 0 else {
             throw Task<Never, Never>.TimeoutError()
@@ -53,7 +52,7 @@ private extension Task where Success == Never, Failure == Never {
 
                 let timeoutTask = Task<Void, Never> {
                     do {
-                        try await sleepUntilTimeoutDeadline(deadline)
+                        try await sleepForTimeout(timeout)
                         try Task<Never, Never>.checkCancellation()
                         finishTimeout(.failure(Task<Never, Never>.TimeoutError()), state: state)
                     } catch {
@@ -119,20 +118,11 @@ private extension Task where Success == Never, Failure == Never {
         return true
     }
 
-    static func sleepUntilTimeoutDeadline(_ deadline: Date) async throws {
-        let remainingTime = deadline.timeIntervalSinceNow
-
-        guard remainingTime > 0 else {
-            return
-        }
-
+    static func sleepForTimeout(_ timeout: TimeInterval) async throws {
         if #available(macOS 13.0, *) {
-            let clock = ContinuousClock()
-            let deadlineInstant = clock.now.advanced(by: .seconds(remainingTime))
-
-            try await Task<Never, Never>.sleep(until: deadlineInstant, tolerance: nil, clock: clock)
+            try await Task<Never, Never>.sleep(for: .seconds(timeout), clock: .continuous)
         } else {
-            try await Task<Never, Never>.sleep(forTimeInterval: remainingTime)
+            try await Task<Never, Never>.sleep(forTimeInterval: timeout)
         }
     }
 }

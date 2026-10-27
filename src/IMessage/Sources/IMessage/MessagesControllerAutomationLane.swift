@@ -41,11 +41,10 @@ actor MessagesControllerAutomationLane {
     /// Starts independent work that may enqueue on this lane, preserving other task locals.
     @discardableResult
     nonisolated static func escapingTask(
-        priority: TaskPriority? = nil,
         _ operation: @escaping @Sendable () async throws -> Void
     ) -> Task<Void, Error> {
         Self.$executionToken.withValue(nil) {
-            Task(priority: priority) {
+            Task {
                 try await operation()
             }
         }
@@ -118,21 +117,16 @@ actor MessagesControllerAutomationLane {
 
             await callback()
 
-            guard await self.shouldContinueIdleCallbacks(expectedEpoch: expectedEpoch) else {
+            guard await self.idleCallbackIfStillCurrent(expectedEpoch: expectedEpoch) != nil else {
                 return
             }
             await self.scheduleIdleCallback()
         }
     }
 
+    /// Every active-work submission, idle-task cancellation, and callback change bumps `idleEpoch`,
+    /// so a matching epoch implies the lane is still idle with the same callback installed.
     private func idleCallbackIfStillCurrent(expectedEpoch: UInt) -> IdleCallback? {
-        guard pendingActiveWorkCount == 0, idleEpoch == expectedEpoch, idleTask?.isCancelled == false else {
-            return nil
-        }
-        return idleCallback
-    }
-
-    private func shouldContinueIdleCallbacks(expectedEpoch: UInt) -> Bool {
-        pendingActiveWorkCount == 0 && idleEpoch == expectedEpoch && idleCallback != nil
+        idleEpoch == expectedEpoch ? idleCallback : nil
     }
 }

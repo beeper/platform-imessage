@@ -45,14 +45,3 @@ private actor ContinuationGate {
         continuation = nil
     }
 }
-
-private func eventually(timeout: TimeInterval = 1, _ predicate: () async -> Bool) async -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-        if await predicate() {
-            return true
-        }
-        try? await Task.sleep(nanoseconds: 10_000_000)
-    }
-    return await predicate()
-}

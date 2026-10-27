@@ -26,7 +26,7 @@ private struct Boom: Error {}
                     }
                     // a window during which a second action would overlap if the
                     // lane weren't serial
-                    try await Task.sleep(nanoseconds: 1_000_000) // 1ms
+                    try await Task.sleep(forTimeInterval: 0.001)
                     state.withLock { $0.active -= 1 }
                 }
             }
@@ -84,7 +84,7 @@ private struct Boom: Error {}
 
     // (2) Submit + (3) drain new work well before idleDelay elapses. This bumps the
     // epoch and cancels the stale epoch-E idle before it can fire.
-    try await Task.sleep(nanoseconds: UInt64(idleDelay * 0.3 * 1_000_000_000))
+    try await Task.sleep(forTimeInterval: idleDelay * 0.3)
     try await lane.run {}
     let afterSecondDrain = Date()
 
@@ -120,7 +120,7 @@ private struct Boom: Error {}
     let countAtClear = idleCount.read()
 
     // Several more idle periods elapse; with the callback cleared, nothing more fires.
-    try? await Task.sleep(nanoseconds: UInt64(idleDelay * 4 * 1_000_000_000))
+    try? await Task.sleep(forTimeInterval: idleDelay * 4)
     #expect(idleCount.read() == countAtClear)
 }
 
@@ -132,7 +132,7 @@ private struct Boom: Error {}
     let first = Task {
         try await lane.run {
             firstStarted.withLock { $0 = true }
-            try await Task.sleep(nanoseconds: 5_000_000_000) // 5s; should be cancelled
+            try await Task.sleep(forTimeInterval: 5) // should be cancelled
         }
     }
 
@@ -181,7 +181,7 @@ private struct Boom: Error {}
         try await lane.run {
             firstStarted.withLock { $0 = true }
             while !releaseFirst.read() {
-                try await Task.sleep(nanoseconds: 2_000_000) // 2ms
+                try await Task.sleep(forTimeInterval: 0.002)
             }
         }
     }
@@ -191,7 +191,7 @@ private struct Boom: Error {}
     let second = Task {
         try await lane.run { secondRan.withLock { $0 = true } }
     }
-    try await Task.sleep(nanoseconds: 20_000_000) // let it enqueue behind `first`
+    try await Task.sleep(forTimeInterval: 0.02) // let it enqueue behind `first`
     second.cancel()
 
     // Drain the lane.
@@ -202,7 +202,7 @@ private struct Boom: Error {}
     #expect(throws: (any Error).self) { try secondResult.get() }
 
     // Give the lane a beat; the cancelled-while-queued body must not have run.
-    try await Task.sleep(nanoseconds: 50_000_000)
+    try await Task.sleep(forTimeInterval: 0.05)
     #expect(secondRan.read() == false)
 }
 
@@ -217,7 +217,7 @@ private struct Boom: Error {}
 
     try await lane.run {
         await lane.setIdleCallback { secondCallbackFired.withLock { $0 = true } }
-        try await Task.sleep(nanoseconds: 10_000_000) // 10ms, still in flight
+        try await Task.sleep(forTimeInterval: 0.01) // still in flight
     }
 
     #expect(await eventually(timeout: 2, pollInterval: 0.005) { secondCallbackFired.read() })
@@ -267,7 +267,7 @@ private struct Boom: Error {}
         #expect(await eventually(timeout: 2, pollInterval: 0.005) { childStarted.read() })
         // Keep the originating action alive long enough for the child to enter
         // `run`; the child must enqueue rather than inherit a matching lane token.
-        try await Task.sleep(nanoseconds: 20_000_000)
+        try await Task.sleep(forTimeInterval: 0.02)
     }
 
     let task = try #require(escapedTask.read())

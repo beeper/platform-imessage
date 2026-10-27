@@ -16,10 +16,8 @@ extension NSApplication {
 extension NSRunningApplication {
     func waitForLaunch(timeout seconds: TimeInterval = 5) async throws {
         try Task.checkCancellation()
-        guard !isTerminated else {
-            throw ErrorMessage("Application terminated while waiting for launch")
-        }
-        if isFinishedLaunching, !isTerminated {
+        guard !isTerminated else { throw launchTerminatedError() }
+        if isFinishedLaunching {
             return
         }
 
@@ -36,23 +34,23 @@ extension NSRunningApplication {
 
                     group.addTask { [self] in
                         try await self.waitForValue(\.isTerminated, true)
-                        throw ErrorMessage("Application terminated while waiting for launch")
+                        throw launchTerminatedError()
                     }
 
                     try await group.next()
-                    guard !self.isTerminated else {
-                        throw ErrorMessage("Application terminated while waiting for launch")
-                    }
+                    guard !self.isTerminated else { throw launchTerminatedError() }
                 }
             }
         } catch is Task<Never, Never>.TimeoutError {
             try Task.checkCancellation()
-            guard !isTerminated else {
-                throw ErrorMessage("Application terminated while waiting for launch")
-            }
+            guard !isTerminated else { throw launchTerminatedError() }
             Log.default.notice("assuming \(String(describing: localizedName)) has launched")
         }
     }
+}
+
+private func launchTerminatedError() -> ErrorMessage {
+    ErrorMessage("Application terminated while waiting for launch")
 }
 
 private extension NSDataDetector {

@@ -84,8 +84,6 @@ public final class PlatformAPI {
     private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
 
-    private typealias SelectedThreadActivityState = SelectedThreadActivitySelection.Thread
-
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
         self.accountID = accountID
         self.errorMessageReporter = reportErrorMessage
@@ -523,7 +521,7 @@ public final class PlatformAPI {
 
         let singleParticipantID = singleParticipantAddress(threadID)
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-        let selectedThread = SelectedThreadActivityState(
+        let selectedThread = SelectedThreadActivitySelection.Thread(
             requestID: requestID,
             threadID: threadID
         ) { [dndUserIDs] status in
@@ -639,10 +637,6 @@ public final class PlatformAPI {
         }
     }
 
-    private static func clearSelectedThreadActivity(ifCurrent requestID: UUID) {
-        selectedThreadActivityState.withLock { $0.clear(ifCurrent: requestID) }
-    }
-
     private func clearSelectedThreadActivityIfOwned() {
         let owner = ObjectIdentifier(self)
         Self.selectedThreadActivityState.withLock { $0.clear(ifOwnedBy: owner) }
@@ -693,7 +687,7 @@ public final class PlatformAPI {
     }
 
     private static func observeSelectedThreadActivity(
-        _ selectedThread: SelectedThreadActivityState,
+        _ selectedThread: SelectedThreadActivitySelection.Thread,
         using controller: MessagesController,
         readActivity: Bool
     ) async {

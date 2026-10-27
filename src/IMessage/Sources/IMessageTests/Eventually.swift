@@ -1,18 +1,18 @@
 import Foundation
+@testable import IMessage
 
 func eventually(
     timeout: TimeInterval = 1,
     pollInterval: TimeInterval = 0.01,
-    _ predicate: @Sendable () -> Bool
+    _ predicate: () async -> Bool
 ) async -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
-    let pollNanoseconds = UInt64(max(0, pollInterval) * 1_000_000_000)
 
     while Date() < deadline {
-        if predicate() {
+        if await predicate() {
             return true
         }
-        try? await Task.sleep(nanoseconds: pollNanoseconds)
+        try? await Task.sleep(forTimeInterval: max(0, pollInterval))
     }
-    return predicate()
+    return await predicate()
 }

@@ -4,8 +4,6 @@ import Foundation
 import IMessageCore
 import Testing
 
-private let messagesBundleIdentifier = "com.apple.MobileSMS"
-
 private struct LaunchTiming {
     let appName: String
     let processIdentifier: pid_t
@@ -21,20 +19,14 @@ private func terminateLaunchedApplication(_ app: NSRunningApplication) async {
     print("cleaning up launched \(bundleIdentifier) instance \(processIdentifier)")
     app.terminate()
 
-    let deadline = Date().addingTimeInterval(5)
-    while Date() < deadline, !app.isTerminated {
-        try? await Task.sleep(forTimeInterval: 0.05)
-    }
+    try? await Task.withTimeout(5) { try await app.waitForValue(\.isTerminated, true) }
 
     guard !app.isTerminated else { return }
 
     print("force terminating launched \(bundleIdentifier) instance \(processIdentifier)")
     app.forceTerminate()
 
-    let forceTerminateDeadline = Date().addingTimeInterval(2)
-    while Date() < forceTerminateDeadline, !app.isTerminated {
-        try? await Task.sleep(forTimeInterval: 0.05)
-    }
+    try? await Task.withTimeout(2) { try await app.waitForValue(\.isTerminated, true) }
 
     if !app.isTerminated {
         print("timed out waiting to clean up \(bundleIdentifier) instance \(processIdentifier)")
@@ -67,7 +59,7 @@ private func launchApplication(bundleIdentifier: String) async throws -> NSRunni
 
 @MainActor
 private func withLaunchedApplication<Value>(_ action: (NSRunningApplication) async throws -> Value) async throws -> Value {
-    let app = try await launchApplication(bundleIdentifier: messagesBundleIdentifier)
+    let app = try await launchApplication(bundleIdentifier: messagesBundleID)
     let result = await Result(catching: { try await action(app) })
     await terminateLaunchedApplication(app)
     return try result.get()
@@ -82,7 +74,7 @@ private func waitForLaunchTiming(
         let startedAt = Date()
         try await app.waitForLaunch(timeout: timeout)
         let elapsed = Date().timeIntervalSince(startedAt)
-        let appName = app.localizedName ?? messagesBundleIdentifier
+        let appName = app.localizedName ?? messagesBundleID
 
         print("waitForLaunch for \(appName) pid \(app.processIdentifier) took \(String(format: "%.3f", elapsed))s")
 
