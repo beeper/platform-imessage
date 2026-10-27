@@ -189,8 +189,8 @@ import Testing
 
 @Test func loadedAttachmentWaitCoalescesNoisyTicksUntilMinimumRequeryInterval() async throws {
     let changes = Topic<Void>()
-    let currentMessage = Protected(messageWithAttachmentLoading(true))
-    let queryCount = Protected(0)
+    let queryTimes = Protected<[Date]>([])
+    let minimumRequeryInterval: TimeInterval = 2
 
     let task = Task {
         try await DatabaseTickWaits.loadedAttachment(
@@ -198,10 +198,13 @@ import Testing
             timeout: 5,
             changes: changes,
             backstopInterval: 5,
-            minimumRequeryInterval: 2,
+            minimumRequeryInterval: minimumRequeryInterval,
             loadMessage: {
-                queryCount.withLock { $0 += 1 }
-                return currentMessage.read()
+                let isFirstQuery = queryTimes.withLock {
+                    $0.append(Date())
+                    return $0.count == 1
+                }
+                return messageWithAttachmentLoading(isFirstQuery)
             },
             terminalAttachmentFailureState: {
                 nil
@@ -209,23 +212,19 @@ import Testing
         )
     }
 
-    #expect(await eventually { queryCount.read() == 1 && changes.testingSubscriptionCount == 1 })
+    #expect(await eventually { queryTimes.read().count == 1 && changes.testingSubscriptionCount == 1 })
 
     for _ in 0 ..< 5 {
         changes.broadcast(())
-        try await Task.sleep(forTimeInterval: 0.01)
     }
-    try await Task.sleep(forTimeInterval: 0.1)
-    #expect(queryCount.read() == 1)
-
-    currentMessage.withLock {
-        $0 = messageWithAttachmentLoading(false)
-    }
-    changes.broadcast(())
 
     let result = try await task.value
     #expect(result.attachments?.first?.loading == false)
-    #expect(queryCount.read() == 2)
+    // Measure the queries themselves: a sleeping test task may resume after the
+    // throttle interval on a busy runner, when a second query is already valid.
+    let times = queryTimes.read()
+    try #require(times.count == 2)
+    #expect(times[1].timeIntervalSince(times[0]) >= minimumRequeryInterval)
     #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 

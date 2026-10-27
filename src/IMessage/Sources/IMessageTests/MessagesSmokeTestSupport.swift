@@ -99,3 +99,20 @@ func smokeElements(runningApp app: NSRunningApplication) -> MessagesAppElements 
         try await MessagesController.openDeepLink(deepLink, targeting: app)
     })
 }
+
+@MainActor
+func smokeAssertParkedAX(elements: MessagesAppElements, window: UInt32, parking: UInt64) async throws {
+    #expect(try smokeWindowSpaces(window) == [parking])
+    #expect(try !elements.app.isHidden())
+    #expect(try !smokeOnscreen(window))
+    let main = try #require(elements.getMainWindow(), "Parking must expose the existing main window through AX")
+    #expect(try main.window().raw == window)
+    let search = try await runSmokeWorker { try await elements.searchField }
+    let original = try #require(try search.value() as? String)
+    defer { try? search.value(assign: original) }
+    let query = "Beeper parked AX \(UUID().uuidString)"
+    try search.value(assign: query)
+    try await waitForSmoke("parked AX write/read") { try search.value() as? String == query }
+    try search.value(assign: original)
+    #expect(try search.value() as? String == original)
+}

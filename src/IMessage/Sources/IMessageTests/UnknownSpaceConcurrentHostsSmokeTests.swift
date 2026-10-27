@@ -43,16 +43,16 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     #expect(values["uuid"] as? String == PersistentUnknownSpace.uuid)
     #expect(try smokePoolSpaceIDs() == Set([parking]))
     #expect(try smokeManagedSpaceIDs() == managedBefore)
-    try await concurrentAssertParkedAX(first, parking: parking)
-    try await concurrentAssertParkedAX(second, parking: parking)
+    try await smokeAssertParkedAX(elements: first.elements, window: first.window, parking: parking)
+    try await smokeAssertParkedAX(elements: second.elements, window: second.window, parking: parking)
 
     // Primary selection must reject ambiguity without touching either host.
     #expect(throws: ErrorMessage.self) {
         try MessagesInstanceTarget.primaryInstance(in: [first.app, second.app])
     }
     #expect(smokeMessagesPIDs() == existingPIDs.union([first.app.processIdentifier, second.app.processIdentifier]))
-    try await concurrentAssertParkedAX(first, parking: parking)
-    try await concurrentAssertParkedAX(second, parking: parking)
+    try await smokeAssertParkedAX(elements: first.elements, window: first.window, parking: parking)
+    try await smokeAssertParkedAX(elements: second.elements, window: second.window, parking: parking)
 
     // A competing host must fail before hiding or moving the borrowed process.
     let competitor = try BridgedSpacesWindowCoordinator()
@@ -66,8 +66,8 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
             // Require the dedicated contention error, rather than any failure.
         }
     }
-    try await concurrentAssertParkedAX(first, parking: parking)
-    try await concurrentAssertParkedAX(second, parking: parking)
+    try await smokeAssertParkedAX(elements: first.elements, window: first.window, parking: parking)
+    try await smokeAssertParkedAX(elements: second.elements, window: second.window, parking: parking)
 
     // Actual host exit terminates its owned app before coordinator restoration.
     // It must leave the other host's process and parked windows untouched.
@@ -83,7 +83,7 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     #expect(smokeMessagesPIDs() == existingPIDs.union([second.app.processIdentifier]))
     #expect(try smokePoolSpaceIDs() == Set([parking]))
     #expect(try smokeManagedSpaceIDs() == managedBefore)
-    try await concurrentAssertParkedAX(second, parking: parking)
+    try await smokeAssertParkedAX(elements: second.elements, window: second.window, parking: parking)
 
     // Let observer startup finish, then use native activation only. The
     // production lifecycle callback must restore Dock presence and reveal.
@@ -143,21 +143,4 @@ private func concurrentLaunchParkedFixture() async throws -> ConcurrentParkedFix
 @MainActor
 private func concurrentCleanUp(_ fixture: ConcurrentParkedFixture) {
     try? runSmokeWorker { fixture.controller.dispose() }
-}
-
-@MainActor
-private func concurrentAssertParkedAX(_ fixture: ConcurrentParkedFixture, parking: UInt64) async throws {
-    #expect(try smokeWindowSpaces(fixture.window) == [parking])
-    #expect(try !fixture.elements.app.isHidden())
-    #expect(try !smokeOnscreen(fixture.window))
-    let main = try #require(fixture.elements.getMainWindow())
-    #expect(try main.window().raw == fixture.window)
-    let search = try await runSmokeWorker { try await fixture.elements.searchField }
-    let original = try #require(try search.value() as? String)
-    defer { try? search.value(assign: original) }
-    let query = "Beeper concurrent parking \(UUID().uuidString)"
-    try search.value(assign: query)
-    try await waitForSmoke("parked AX write/read") { try search.value() as? String == query }
-    try search.value(assign: original)
-    #expect(try search.value() as? String == original)
 }
