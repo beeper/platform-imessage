@@ -19,9 +19,7 @@ enum MessagesInstanceTarget {
     }
 
     static func primaryInstance(in applications: [NSRunningApplication]) throws -> NSRunningApplication? {
-        let live = applications.filter { app in
-            !app.isTerminated && (kill(app.processIdentifier, 0) == 0 || errno != ESRCH)
-        }
+        let live = applications.filter { kill($0.processIdentifier, 0) == 0 || errno != ESRCH }
         guard live.count <= 1 else {
             throw ErrorMessage("Multiple Messages instances are running; use secondary-instance mode to avoid selecting another host's process")
         }
