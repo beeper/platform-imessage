@@ -2,7 +2,7 @@
 
 A standalone Swift library and CLI that lets you and your agents send/receive messages and fully automate iMessage locally on your Mac.
 
-Reads `chat.db` and works with automation and accessibility APIs – similar to [Codex Computer Use](https://developers.openai.com/codex/app/computer-use) but surgical and faster. Designed to run with the normal macOS security model ([System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled) since it does not hook into low-level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~95% feature parity on macOS Tahoe.
+Reads `chat.db` and works with automation and accessibility APIs – similar to [Codex Computer Use](https://learn.chatgpt.com/docs/computer-use) but surgical and faster. Designed to run with the normal macOS security model ([System Integrity Protection (SIP)](https://en.wikipedia.org/wiki/System_Integrity_Protection) enabled) since it does not hook into low-level private APIs or make any network calls. Uses your Apple ID logged in to Messages.app. ~95% feature parity on macOS Tahoe.
 
 This library powers the iMessage integration on [Beeper](https://www.beeper.com/download) for macOS. N-API bindings for Node/Electron are powered by [node-swift](https://github.com/kabiroberai/node-swift).
 
@@ -147,6 +147,5 @@ yarn build:cli:js
 
 - [beeper/imessage](https://github.com/beeper/imessage) – Matrix bridge that connects to Apple servers directly by identifying as an iMessage-capable Apple device
 - [mautrix/imessage](https://github.com/mautrix/imessage) – Matrix bridge that has a few different backends (SIP-disabled private APIs, BlueBubbles server, etc.)
-- [lrhodin/imessage](https://github.com/lrhodin/imessage) – Matrix bridge using rustpush & bridgev2
 - [pypush](https://github.com/JJTech0130/pypush) – Original tech behind beeper/imessage
 - [rustpush](https://github.com/OpenBubbles/rustpush) – Rust port of pypush
