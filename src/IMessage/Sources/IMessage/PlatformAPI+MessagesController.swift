@@ -21,8 +21,8 @@ private actor MessagesControllerCoordinator {
         forceInvalidate: Bool = false,
         _ action: @escaping @Sendable (MessagesController) throws -> T
     ) async throws -> T {
-        if forceInvalidate {
-            try await disposeCachedController()
+        if forceInvalidate, let current {
+            try await disposeIfCurrent(current)
         }
 
         while true {
