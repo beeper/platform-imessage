@@ -58,6 +58,13 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     private var mainWindowID: UInt32?
     private var disposed = false
 
+    /// Supply a session and its ownership lease for cleanup tests without UI automation.
+    init(session: BridgedSpaceSession, targetLease: WindowCoordinationFileLock) {
+        self.session = session
+        self.targetLease = targetLease
+        owners = BridgedWindowOwners()
+    }
+
     init() throws {
         guard let bridge = IMPrivateSPISpaceBridgeCreate() else {
             throw ErrorMessage("SkyLight window-management bridge is unavailable")
@@ -363,6 +370,8 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         }
         try session.dispose()
         disposed = true
+        targetLease = nil
+        leasedPID = nil
     }
 
     deinit {

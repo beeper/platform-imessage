@@ -1559,7 +1559,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         return { [weak self] _ in
             guard let self else { return }
 
-            guard !Defaults.shouldCoordinateWindow && !messagesIsManuallyActivated else {
+            guard !messagesIsManuallyActivated else {
                 log.debug("not observing activity, Messages is manually activated")
                 return
             }
