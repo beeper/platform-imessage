@@ -51,17 +51,24 @@ public extension IMDatabase {
         }.first ?? .empty
     }
 
-    func sentMessageIDs(since rowID: Int, reactionsOnly: Bool = false) throws -> [(rowID: Int, guid: String)] {
+    func sentMessageRows(since rowID: Int, reactionsOnly: Bool = false) throws -> [SentMessageRow] {
         let messageTypeClause = reactionsOnly ? """
-        AND associated_message_type BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)
+        AND m.associated_message_type BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)
         """ : """
-        AND (associated_message_type IS NULL OR associated_message_type = 0)
+        AND (m.associated_message_type IS NULL OR m.associated_message_type = 0)
         """
         let statement = try cachedStatement(forEscapedSQL: """
-        SELECT ROWID, guid
-        FROM message
-        WHERE is_from_me = 1 AND ROWID > ?
+        SELECT m.ROWID, m.guid, t.guid, m.text, m.attributedBody, m.associated_message_guid, m.associated_message_type,
+            (SELECT group_concat(a.transfer_name, char(31))
+             FROM message_attachment_join AS maj
+             INNER JOIN attachment AS a ON a.ROWID = maj.attachment_id
+             WHERE maj.message_id = m.ROWID)
+        FROM message AS m
+        LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+        LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+        WHERE m.is_from_me = 1 AND m.ROWID > ?
         \(messageTypeClause)
+        ORDER BY m.ROWID
         """).reset()
         try statement.bind(rowID)
         return try statement.compactMapRowsUntilDone { row in
@@ -69,7 +76,19 @@ public extension IMDatabase {
                   let guid = try row[1].optionalConverting(String.self) else {
                 return nil
             }
-            return (rowID, guid)
+            var text = try row[4].optional(Data.self).flatMap { try? AttributedBodyDecoder.plainText(from: $0) }
+            if text?.isEmpty ?? true {
+                text = try row[3].optional(String.self)
+            }
+            return SentMessageRow(
+                rowID: rowID,
+                guid: guid,
+                chatGUID: try row[2].optional(String.self),
+                text: text,
+                associatedMessageGUID: try row[5].optional(String.self),
+                associatedMessageType: try row[6].optionalConverting(Int.self),
+                attachmentNames: try row[7].optional(String.self)?.split(separator: "\u{1F}").map(String.init) ?? []
+            )
         }
     }
 
@@ -394,4 +413,14 @@ private func placeholders(count: Int) -> String {
 
 private func rowValuePlaceholders(count: Int) -> String {
     Array(repeating: "(?)", count: count).joined(separator: ", ")
+}
+
+public struct SentMessageRow: Sendable {
+    public let rowID: Int
+    public let guid: String
+    public let chatGUID: String?
+    public let text: String?
+    public let associatedMessageGUID: String?
+    public let associatedMessageType: Int?
+    public let attachmentNames: [String]
 }

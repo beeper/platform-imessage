@@ -25,7 +25,7 @@ enum DatabaseTickWaits {
         changes: Topic<Void>,
         linkTimeout: TimeInterval = sentMessageLinkWaitTimeout,
         backstopInterval: TimeInterval = databaseTickBackstopInterval,
-        querySentMessageIDs: @escaping @Sendable () throws -> [SentMessageID]
+        querySentMessageIDs: @escaping @Sendable () async throws -> [SentMessageID]
     ) async throws -> [SentMessageID] {
         let startedAt = Date()
         let timeoutDeadline = startedAt.addingTimeInterval(timeout)
@@ -36,7 +36,7 @@ enum DatabaseTickWaits {
             changes: changes,
             backstopInterval: backstopInterval,
             query: {
-                try querySentMessageIDs()
+                try await querySentMessageIDs()
             },
             evaluate: { sentMessageIDs in
                 let now = Date()
