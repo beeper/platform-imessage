@@ -9,26 +9,39 @@ public enum AttributedBodyDecoder {
         public let attributes: [String: Any]
     }
 
+    // Callers decode many rows in one Swift concurrency job (search scans up to
+    // limit * 200), and those jobs don't drain the autorelease pool between rows,
+    // so every decode's autoreleased objects stay alive until the whole job ends.
     public static func attributedString(from data: Data) throws -> NSAttributedString {
-        guard let unarchiver = NSUnarchiver(forReadingWith: data) else {
-            throw ErrorMessage("couldn't create NSUnarchiver")
+        try autoreleasepool {
+            guard let unarchiver = NSUnarchiver(forReadingWith: data) else {
+                throw ErrorMessage("couldn't create NSUnarchiver")
+            }
+
+            // this is technically unsafe (https://iosdevelopers.slack.com/archives/C031X84F6/p1658329958824499?thread_ts=1658147279.256379&cid=C031X84F6)
+            let decodedObject = try ExceptionCatcher.catch { unarchiver.decodeObject() }
+
+            guard let decodedAttributedString: NSAttributedString = decodedObject as? NSAttributedString else {
+                throw ErrorMessage("couldn't cast to attributed string (was actually \(type(of: decodedObject)))")
+            }
+
+            return decodedAttributedString
         }
-
-        // this is technically unsafe (https://iosdevelopers.slack.com/archives/C031X84F6/p1658329958824499?thread_ts=1658147279.256379&cid=C031X84F6)
-        let decodedObject = try ExceptionCatcher.catch { unarchiver.decodeObject() }
-
-        guard let decodedAttributedString: NSAttributedString = decodedObject as? NSAttributedString else {
-            throw ErrorMessage("couldn't cast to attributed string (was actually \(type(of: decodedObject)))")
-        }
-
-        return decodedAttributedString
     }
 
     public static func plainText(from data: Data) throws -> String {
-        try attributedString(from: data).string
+        try autoreleasepool {
+            try attributedString(from: data).string
+        }
     }
 
     public static func fragments(from data: Data) throws -> [Fragment] {
+        try autoreleasepool {
+            try decodeFragments(from: data)
+        }
+    }
+
+    private static func decodeFragments(from data: Data) throws -> [Fragment] {
         let attributedString = try attributedString(from: data)
         let string = attributedString.string
 

@@ -19,10 +19,11 @@ enum MessagesInstanceTarget {
     }
 
     static func primaryInstance(in applications: [NSRunningApplication]) throws -> NSRunningApplication? {
-        guard applications.count <= 1 else {
+        let live = applications.filter { kill($0.processIdentifier, 0) == 0 || errno != ESRCH }
+        guard live.count <= 1 else {
             throw ErrorMessage("Multiple Messages instances are running; use secondary-instance mode to avoid selecting another host's process")
         }
-        return applications.first
+        return live.first
     }
 
     private static func getURLAppleEvent(for url: URL, target: NSRunningApplication?) -> NSAppleEventDescriptor {

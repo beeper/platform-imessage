@@ -591,9 +591,15 @@ final class MessagesAppElements {
 
     var alertSheetDeleteButton: Accessibility.Element {
         get async throws {
-            try await find("alertSheetDeleteButton") {
-                let sheet = try await alertSheet
-                return try sheet.children().first(where: { try $0.role() == Accessibility.Role.button })
+            try await retry(withTimeout: 1.5, interval: 0.1) {
+                try await self.find("alertSheetDeleteButton") {
+                    let sheet = try await self.alertSheet
+                    return try sheet.children().first {
+                        guard (try? $0.role()) == Accessibility.Role.button else { return false }
+                        let label = (try? $0.title())?.nonEmpty ?? (try? $0.localizedDescription())
+                        return label == LocalizedStrings.delete
+                    }
+                }
             }
         }
     }

@@ -97,6 +97,7 @@ export const roomFeatures = {
     [CapabilityMsgType.Video]: {
       mime_types: {
         'video/mp4': CapabilitySupportLevel.FullySupported,
+        'video/quicktime': CapabilitySupportLevel.FullySupported,
         'video/webm': CapabilitySupportLevel.FullySupported,
         'video/ogg': CapabilitySupportLevel.FullySupported,
       },

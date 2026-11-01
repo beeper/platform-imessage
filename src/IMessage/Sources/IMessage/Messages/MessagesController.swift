@@ -1510,11 +1510,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             return
         }
 
-        guard !Defaults.shouldCoordinateWindow else {
-            log.debug("not observing activity, Messages window is being coordinated")
-            return
-        }
-
         guard !messagesIsManuallyActivated else {
             log.debug("not observing activity, Messages is manually activated")
             return

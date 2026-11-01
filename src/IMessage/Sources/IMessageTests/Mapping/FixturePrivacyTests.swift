@@ -5,6 +5,7 @@ import Testing
 private func jsonFixturesDoNotContainPrivateIdentifiers() throws {
     let fixtureDirectory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
+        .deletingLastPathComponent()
         .appendingPathComponent("Fixtures")
     let fixtureURLs = try FileManager.default
         .contentsOfDirectory(at: fixtureDirectory, includingPropertiesForKeys: nil)
