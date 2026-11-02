@@ -250,6 +250,15 @@ final class MessagesController {
         try? await self.clearTypingStatus()
         try await openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil))
         try await assertSelectedThread(threadID: threadID)
+        try await selectExistingThreadIfComposing(threadID)
+    }
+
+    private func selectExistingThreadIfComposing(_ threadID: String) async throws {
+        guard let selectedCell = await elements.selectedThreadCell, selectedCell.isInViewport,
+              try threadCellAction(threadCell: selectedCell, action: .delete) == nil
+        else { return }
+        try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
+        try await assertSelectedThread(threadID: threadID)
     }
 
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
@@ -921,6 +930,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await withAutomation {
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
+                try await selectExistingThreadIfComposing(threadID)
                 if isVenturaOrUp {
                     return try keyPresser.commandShiftU()
                 }
@@ -973,6 +983,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await withAutomation {
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
+                try await selectExistingThreadIfComposing(threadID)
                 let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
                 if muted {
                     try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
@@ -999,6 +1010,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await withAutomation {
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
+                try await selectExistingThreadIfComposing(threadID)
                 try await triggerThreadCellAction(threadID: threadID, action: .delete)
                 try await elements.alertSheetDeleteButton.press()
             }

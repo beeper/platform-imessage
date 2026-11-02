@@ -25,6 +25,14 @@ struct MessagesDeepLink {
         }
     }
 
+    init(existingThreadID threadID: String) throws {
+        let (_, type, id) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID: \(threadID)"))
+        guard type == Self.singleThreadType || type == Self.groupThreadType else {
+            throw ErrorMessage("invalid threadID: \(threadID)")
+        }
+        self.init(destination: .group(chatID: String(id), body: nil), targetThreadID: threadID)
+    }
+
     static func addresses(_ addresses: [String], body: String?) -> Self {
         Self(destination: .addresses(addresses, body: body), targetThreadID: nil)
     }
