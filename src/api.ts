@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { setTimeout as sleep } from 'timers/promises'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 
 import { BeeperThread } from './desktop-types'
@@ -13,6 +14,8 @@ import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-json'
 
 imessage.isLoggingEnabled = texts.isLoggingEnabled
+
+const SENT_ROW_COMMIT_GRACE_MS = 50
 
 const ensureFullDiskAccess = () => {
   if (!REQUIRES_FULL_DISK_ACCESS) return
@@ -29,6 +32,8 @@ export default class AppleiMessage implements PlatformAPI {
   private swiftPlatformAPI?: NativePlatformAPI
 
   private onEvent: OnServerEventCallback | undefined
+
+  private pendingThreadWrites = new Map<ThreadID, Set<Promise<unknown>>>()
 
   private eventWatchingStarted = false
 
@@ -237,7 +242,22 @@ export default class AppleiMessage implements PlatformAPI {
 
   private sendingMessagesCount = 0
 
-  sendMessage = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
+  private trackPendingWrite<T>(hashedThreadID: ThreadID, write: Promise<T>): Promise<T> {
+    const writes = this.pendingThreadWrites.get(hashedThreadID) ?? new Set<Promise<unknown>>()
+    this.pendingThreadWrites.set(hashedThreadID, writes)
+    writes.add(write)
+    const settle = () => {
+      writes.delete(write)
+      if (writes.size === 0 && this.pendingThreadWrites.get(hashedThreadID) === writes) this.pendingThreadWrites.delete(hashedThreadID)
+    }
+    write.then(settle, settle)
+    return write
+  }
+
+  sendMessage = (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> =>
+    this.trackPendingWrite(hashedThreadID, this.sendMessageNow(hashedThreadID, content, options))
+
+  private sendMessageNow = async (hashedThreadID: ThreadID, content: MessageContent, options: MessageSendOptions = {}): Promise<boolean | Message[]> => {
     // if (IS_TAHOE_OR_UP && options.quotedMessageID) throw Error('replies are not supported on macOS Tahoe')
     try {
       this.sendingMessagesCount++
@@ -280,10 +300,10 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   addReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
-    this.swiftPlatformAPI!.addReaction(hashedThreadID, messageID, reactionKey)
+    this.trackPendingWrite(hashedThreadID, this.swiftPlatformAPI!.addReaction(hashedThreadID, messageID, reactionKey))
 
   removeReaction = async (hashedThreadID: ThreadID, messageID: MessageID, reactionKey: string) =>
-    this.swiftPlatformAPI!.removeReaction(hashedThreadID, messageID, reactionKey)
+    this.trackPendingWrite(hashedThreadID, this.swiftPlatformAPI!.removeReaction(hashedThreadID, messageID, reactionKey))
 
   loadAttachment = async (messageID: MessageID) =>
     this.swiftPlatformAPI!.loadAttachment(messageID)
@@ -399,6 +419,13 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     if (archived) {
+      const pendingWrites = this.pendingThreadWrites.get(hashedThreadID)
+      if (pendingWrites?.size) {
+        texts.log(`imsg/archive/${hashedThreadID}: waiting for ${pendingWrites.size} pending send(s) or reaction(s)`)
+        await Promise.allSettled([...pendingWrites])
+        await sleep(SENT_ROW_COMMIT_GRACE_MS)
+      }
+
       const chat = await this.getThread(hashedThreadID)
       if (!chat) {
         texts.log(`imsg/archive/${hashedThreadID}: chat not found in iMessage, deleting from Beeper`)
