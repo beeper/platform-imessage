@@ -20,6 +20,14 @@ enum MessagesDeepLink {
         }
     }
 
+    init(existingThreadID threadID: String) throws {
+        let (_, type, id) = try splitThreadID(threadID).orThrow(ErrorMessage("invalid threadID: \(threadID)"))
+        guard type == Self.singleThreadType || type == Self.groupThreadType else {
+            throw ErrorMessage("invalid threadID: \(threadID)")
+        }
+        self = .group(chatID: id, body: nil)
+    }
+
     func url() throws -> URL {
         var components = URLComponents()
         components.scheme = "imessage"

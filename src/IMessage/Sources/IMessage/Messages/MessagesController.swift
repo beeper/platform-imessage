@@ -250,6 +250,15 @@ final class MessagesController {
         try? self.clearTypingStatus()
         try openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil).url())
         try assertSelectedThread(threadID: threadID)
+        try selectExistingThreadIfComposing(threadID)
+    }
+
+    private func selectExistingThreadIfComposing(_ threadID: String) throws {
+        guard let selectedCell = elements.selectedThreadCell, selectedCell.isInViewport,
+              try threadCellAction(threadCell: selectedCell, action: .delete) == nil
+        else { return }
+        try openDeepLink(try MessagesDeepLink(existingThreadID: threadID).url())
+        try assertSelectedThread(threadID: threadID)
     }
 
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) throws {
@@ -999,6 +1008,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
+            try selectExistingThreadIfComposing(threadID)
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }
@@ -1043,6 +1053,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
+            try selectExistingThreadIfComposing(threadID)
             let selectedThreadCell = try scrollAndGetSelectedThreadCell(threadID: threadID)
             if muted {
                 try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
@@ -1070,6 +1081,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         try withActivation(openBefore: url) {
             try assertSelectedThread(threadID: threadID)
+            try selectExistingThreadIfComposing(threadID)
             try triggerThreadCellAction(threadID: threadID, action: .delete)
             try elements.alertSheetDeleteButton.press()
         }
