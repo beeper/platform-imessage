@@ -81,7 +81,7 @@ public final class PlatformAPI {
     private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
 
-    private let threadObserveRequestToken = Protected<UUID?>()
+    private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
 
     public init(accountID: String, reportErrorMessage: ReportErrorMessage? = nil, enforceSingleton: Bool = true) throws {
@@ -265,7 +265,7 @@ public final class PlatformAPI {
             if let existingThread {
                 try await withMessageSendLock {
                     try await withMessagesController { controller in
-                        try controller.sendMessage(
+                        try await controller.sendMessage(
                             threadID: existingThreadID,
                             addresses: nil,
                             text: messageText,
@@ -280,7 +280,7 @@ public final class PlatformAPI {
 
         try await withMessageSendLock {
             try await withMessagesController { controller in
-                try controller.sendMessage(
+                try await controller.sendMessage(
                     threadID: nil,
                     addresses: userIDs,
                     text: messageText,
@@ -294,12 +294,14 @@ public final class PlatformAPI {
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.muteThread(threadID: threadID, muted: muted) }
+        try await withMessagesController {
+            try await $0.muteThread(threadID: threadID, muted: muted)
+        }
     }
 
     public func deleteThread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.deleteThread(threadID: threadID) }
+        try await withMessagesController { try await $0.deleteThread(threadID: threadID) }
     }
 
     public func sendMessage(threadID publicThreadID: String, text: String?, filePath: String?, quotedMessageID: String?) async throws -> PlatformSDK.MessageSendResult {
@@ -319,7 +321,7 @@ public final class PlatformAPI {
                 retries: quotedMessageID == nil ? 1 : 2,
                 prepareAttempt: { try await self.lastMessageRowID() }
             ) { controller in
-                try controller.sendMessage(
+                try await controller.sendMessage(
                     threadID: threadID,
                     text: text,
                     filePath: filePath,
@@ -354,7 +356,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
+        try await withMessagesController { try await $0.editMessage(threadID: threadID, messageID: messageID, newText: text) }
     }
 
     public func sendActivityIndicator(type: String, threadID publicThreadID: String?) async throws {
@@ -376,16 +378,16 @@ public final class PlatformAPI {
 
         try await withMessagesController { controller in
             if type == "typing" {
-                try controller.sendTypingStatus(threadID: threadID)
+                try await controller.sendTypingStatus(threadID: threadID)
             } else {
-                try controller.clearTypingStatus()
+                try await controller.clearTypingStatus()
             }
         }
     }
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.undoSend(threadID: threadID, messageID: messageID) }
+        try await withMessagesController { try await $0.undoSend(threadID: threadID, messageID: messageID) }
     }
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
@@ -402,7 +404,7 @@ public final class PlatformAPI {
             }
 
             try await withMessagesController(forceInvalidate: attempt > 0) {
-                try $0.toggleThreadRead(threadID: threadID, read: true)
+                try await $0.toggleThreadRead(threadID: threadID, read: true)
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
@@ -431,7 +433,7 @@ public final class PlatformAPI {
         }
 
         let threadID = try originalThreadID(for: reference.threadID)
-        try await withMessagesController { try $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
+        try await withMessagesController { try await $0.loadAttachment(threadID: threadID, messageID: reference.messageID) }
 
         let loadedMessage = try await waitForLoadedAttachment(
             threadID: reference.threadID,
@@ -487,38 +489,42 @@ public final class PlatformAPI {
 
     public func markAsUnread(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.toggleThreadRead(threadID: threadID, read: false) }
+        try await withMessagesController { try await $0.toggleThreadRead(threadID: threadID, read: false) }
     }
 
     public func notifyAnyway(threadID publicThreadID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try $0.notifyAnyway(threadID: threadID) }
+        try await withMessagesController { try await $0.notifyAnyway(threadID: threadID) }
     }
 
     public func getThreadActivityStatus(threadID publicThreadID: String) async throws -> ThreadActivityObservation {
         let threadID = try originalThreadID(for: publicThreadID)
-        return try await withMessagesController { try $0.activityStatus(threadID: threadID) }
+        return try await withMessagesController { try await $0.activityStatus(threadID: threadID) }
     }
 
     public func onThreadSelected(
-        threadID publicThreadID: String,
+        threadID publicThreadID: String?,
         sendEvents: @escaping EventCallback
     ) async throws {
-        guard !publicThreadID.isEmpty else {
+        let requestID = try hasBeenDisposed.withLock { disposed in
+            guard !disposed else { throw ErrorMessage("PlatformAPI has been disposed") }
+            return Self.selectedThreadActivityState.withLock { $0.begin(owner: ObjectIdentifier(self)) }
+        }
+        guard let publicThreadID, !publicThreadID.isEmpty else {
             return
         }
+
+        guard Defaults.watchThreadActivity,
+              !Preferences.enabledExperiments.contains("no_watch_thread") else { return }
 
         let threadID = try originalThreadID(for: publicThreadID)
 
-        guard !Preferences.enabledExperiments.contains("no_watch_thread") else {
-            return
-        }
-
         let singleParticipantID = singleParticipantAddress(threadID)
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
-        platformLog.debug("activity/\(publicThreadID): watching")
-
-        try await watchThreadActivity(threadID: threadID) { [dndUserIDs] status in
+        let selectedThread = SelectedThreadActivitySelection.Thread(
+            requestID: requestID,
+            threadID: threadID
+        ) { [dndUserIDs] status in
             platformLog.debug("activity/\(publicThreadID): received \(status)")
 
             guard let singleParticipantID else {
@@ -568,7 +574,22 @@ public final class PlatformAPI {
                 }
             }
 
-            try await sendEvents(events)
+            do {
+                try await sendEvents(events)
+            } catch {
+                platformLog.error("failed to send activity status: \(String(reflecting: error))")
+            }
+        }
+        try await withMessagesController { controller in
+            let readActivity = try Self.threadSupportsActivityObservation(threadID: threadID, controller: controller)
+            guard readActivity else { return }
+            guard Self.selectedThreadActivityState.withLock({ $0.install(selectedThread) }) else { return }
+            platformLog.debug("activity/\(publicThreadID): watching")
+            await Self.observeSelectedThreadActivity(
+                selectedThread,
+                using: controller,
+                readActivity: readActivity
+            )
         }
     }
 
@@ -600,10 +621,11 @@ public final class PlatformAPI {
         }
 
         hasBeenDisposed.withLock { $0 = true }
+        clearSelectedThreadActivityIfOwned()
         // Clear cached state so logout/relogin in Messages.app while Beeper
         // restarts the account doesn't reuse stale state.
         currentUserCache.withLock { $0 = nil }
-        SystemSettingsOnboarding.stop()
+        await SystemSettingsOnboarding.stop()
         EventWatcherLifecycle.shared.cancelWatchingIfNecessary(clearEventCallback: true)
         database.stopListeningAndReset()
         try await disposeCachedMessagesController()
@@ -615,77 +637,78 @@ public final class PlatformAPI {
         }
     }
 
-    private func watchThreadActivity(
-        threadID: String,
-        statusSender: @escaping @Sendable (ThreadActivityObservation) async throws -> Void
-    ) async throws {
-        guard Defaults.watchThreadActivity else {
+    private func clearSelectedThreadActivityIfOwned() {
+        let owner = ObjectIdentifier(self)
+        Self.selectedThreadActivityState.withLock { $0.clear(ifOwnedBy: owner) }
+    }
+
+    private static func threadSupportsActivityObservation(threadID: String, controller: MessagesController) throws -> Bool {
+        // only watch thread activity for iMessage/RCS chats
+        // TODO: implement this for groups
+        if threadID.hasPrefix("iMessage;-;") || threadID.hasPrefix("RCS;-;") {
+            return true
+        }
+
+        guard threadID.hasPrefix("any;-;") else {
+            // only bother checking the database if the GUID can't tell us what service the chat is for
+            // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
+            #if DEBUG
+            platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
+            #endif
+            return false
+        }
+
+        let chat = try controller.db.chat(withGUID: threadID)
+        guard let chat else {
+            platformLog.error("onThreadSelected: couldn't locate the chat to watch in the database")
+            return false
+        }
+
+        guard chat.serviceName == .imessage || chat.serviceName == .rcs else {
+            #if DEBUG
+            platformLog.debug("chat definitely isn't an iMessage/RCS 1:1 DM, not watching for activity")
+            #endif
+            return false
+        }
+
+        return true
+    }
+
+    static func observeSelectedThreadActivity(using controller: MessagesController, readActivity: Bool = true) async {
+        guard let selectedThread = selectedThreadActivityState.read().thread else {
             return
         }
 
-        // reset the idle callback in case we fail and bail out
-        Self.messagesControllerQueue.setIdleCallback(nil)
+        await observeSelectedThreadActivity(
+            selectedThread,
+            using: controller,
+            readActivity: readActivity
+        )
+    }
 
-        let requestID = UUID()
-        let threadObserveRequestToken = threadObserveRequestToken
-        threadObserveRequestToken.withLock { $0 = requestID }
-
+    private static func observeSelectedThreadActivity(
+        _ selectedThread: SelectedThreadActivitySelection.Thread,
+        using controller: MessagesController,
+        readActivity: Bool
+    ) async {
         @Sendable func sendStatus(_ status: ThreadActivityObservation) {
-            Task {
-                do {
-                    try await statusSender(status)
-                } catch {
-                    platformLog.error("failed to send activity status: \(String(reflecting: error))")
+            MessagesControllerAutomationLane.escapingTask {
+                guard selectedThreadActivityState.read().thread?.requestID == selectedThread.requestID else {
+                    return
                 }
+                await selectedThread.sendStatus(status)
             }
         }
 
-        try await withMessagesController { controller in
-            // only watch thread activity for iMessage chats
-            // TODO: implement this for groups
-            if !threadID.hasPrefix("iMessage;-;") {
-                guard threadID.hasPrefix("any;-;") else {
-                    // only bother checking the database if the GUID can't tell us what service the chat is for
-                    // (can happen seemingly since macOS 26, which can use "any" as a universal GUID prefix)
-                    #if DEBUG
-                    platformLog.debug("chat isn't an iMessage 1:1 DM, not watching for activity")
-                    #endif
-                    return
-                }
-
-                let chat = try controller.db.chat(withGUID: threadID)
-                guard let chat else {
-                    platformLog.error("watchThreadActivity: couldn't locate the chat to watch in the database")
-                    return
-                }
-
-                guard chat.serviceName == .imessage else {
-                    #if DEBUG
-                    platformLog.debug("chat definitely isn't an iMessage 1:1 DM, not watching for activity")
-                    #endif
-                    return
-                }
-            }
-
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            let observe = try controller.idleCallback(observingThreadID: threadID, statusSender: sendStatus)
-            Self.messagesControllerQueue.setIdleCallback { quiescence in
-                guard threadObserveRequestToken.read() == requestID else { return }
-                do {
-                    try observe(quiescence)
-                } catch {
-                    platformLog.error("failed to observe activity: \(error)")
-                }
-            }
-
-            // if another watchThreadActivity request has been enqueued
-            // after our current one (but before this block began executing),
-            // then this check will fail and prevent the current block from
-            // unnecessarily running
-            guard threadObserveRequestToken.read() == requestID else { return }
-
-            try observe(.began)
+        do {
+            try await controller.observeIdleActivity(
+                requestID: selectedThread.requestID,
+                threadID: selectedThread.threadID,
+                readActivity: readActivity,
+                statusSender: sendStatus
+            )
+        } catch {
+            platformLog.error("failed to observe activity: \(error)")
         }
     }
 
@@ -695,20 +718,18 @@ public final class PlatformAPI {
         retries: Int,
         prepareAttempt: @escaping @Sendable () async throws -> AttemptContext,
         shouldRetry: ((Error) -> Bool)? = nil,
-        _ action: @escaping @Sendable (MessagesController) throws -> Void,
+        _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
-        try await retry(retries: retries) { attempt in
+        try await retry(retries: retries, { attempt in
             let context = try await prepareAttempt()
-            try await withMessagesController(forceInvalidate: attempt > 0) { controller in
-                try action(controller)
-            }
+            try await withMessagesController(forceInvalidate: attempt > 0, action)
             try await afterAttempt?(context)
             return context
-        } shouldRetry: { shouldRetry?($0) ?? true } onError: { _, retriesLeft, error in
+        }, shouldRetry: shouldRetry, onError: { _, retriesLeft, error in
             platformLog.error("\(name) failed, retries left: \(retriesLeft): \(error)")
             self.reportErrorMessage("imessage \(name) failed: \(error)")
-        }
+        })
     }
 
     private func retryReactionOperation(threadID: String, messageID: String, reaction: String, on: Bool) async throws {
@@ -719,7 +740,7 @@ public final class PlatformAPI {
                 prepareAttempt: { try await self.lastMessageRowID() },
                 shouldRetry: { !($0 is ReactionSearchError) }
             ) { controller in
-                try controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
+                try await controller.setReaction(threadID: threadID, messageID: messageID, reactionName: reaction, on: on)
             } afterAttempt: { lastRowID in
                 _ = try await self.waitForMessageSend(
                     threadID: threadID,

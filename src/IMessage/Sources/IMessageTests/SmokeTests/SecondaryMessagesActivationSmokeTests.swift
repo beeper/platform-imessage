@@ -21,7 +21,7 @@ private func isWindowOnVisibleDesktop(_ window: UInt32) -> Bool {
 // Opt-in only: drives activation and automation of a real secondary Messages.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_SECONDARY_ACTIVATION_SMOKE"] == "1"))
 @MainActor
-func secondaryMessagesActivationDockSmoke() throws {
+func secondaryMessagesActivationDockSmoke() async throws {
     try #require(AXIsProcessTrusted(), "Secondary activation smoke requires Accessibility permission")
     Defaults.registerDefaults()
     try #require(Defaults.dockSuppression && Defaults.shouldCoordinateWindow, "Requires Dock suppression and window coordination")
@@ -36,8 +36,8 @@ func secondaryMessagesActivationDockSmoke() throws {
     }
     let existingPIDs = Set(NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID).map(\.processIdentifier))
     let baseline = try messagesDockSnapshot()
-    let controller = try runSmokeWorker {
-        try MessagesController(reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
+    let controller = try await runSmokeWorker {
+        try await MessagesController(reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
     }
     defer { controller.dispose() }
     let app = try #require(NSRunningApplication(processIdentifier: try controller.elements.app.pid()))
@@ -45,7 +45,7 @@ func secondaryMessagesActivationDockSmoke() throws {
     let usesBridge = try getBestWindowCoordinator() is BridgedSpacesWindowCoordinator
     // Follow the AX-confirmed main window, not the first wide CG surface:
     // Messages also owns wide menu-bar and unnamed internal windows.
-    let window = try controller.elements.mainWindow.window().raw
+    let window = try await runSmokeWorker { try await controller.elements.mainWindow.window().raw }
     let idleSpace = IMPrivateSPISpacesForWindow(window)?.first?.uint64Value
     if usesBridge {
         #expect(idleSpace != nil && !isWindowOnVisibleDesktop(window))
@@ -65,7 +65,7 @@ func secondaryMessagesActivationDockSmoke() throws {
     try #require(!isTargetActive())
     try #require(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
     // Let lifecycle observation finish starting before testing user activation.
-    pumpSmokeRunLoop(for: 1)
+    try await Task.sleep(forTimeInterval: 1)
     let activationDesktop = IMPrivateSPIActiveSpace()
     try #require(app.activate(options: []))
     let activationDeadline = Date().addingTimeInterval(5)
@@ -74,25 +74,25 @@ func secondaryMessagesActivationDockSmoke() throws {
            try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
            try messagesDockSnapshot().running == baseline.running + 1,
            !usesBridge || isWindowOnVisibleDesktop(window) { break }
-        pumpSmokeRunLoop(for: 0.05)
+        try await Task.sleep(forTimeInterval: 0.05)
     }
     try #require(isTargetActive())
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
     if usesBridge {
         #expect(isWindowOnVisibleDesktop(window))
-        #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+        #expect(try smokeOnscreen(window))
         // Wait beyond the initial activation for a queued Dock Space switch.
-        pumpSmokeRunLoop(for: 1)
+        try await Task.sleep(forTimeInterval: 1)
         #expect(IMPrivateSPIActiveSpace() == activationDesktop)
-        #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+        #expect(try smokeOnscreen(window))
     }
     let activatedDock = try messagesDockSnapshot()
     #expect(activatedDock.running == baseline.running + 1)
     #expect(activatedDock.tiles >= max(1, baseline.tiles))
 
-    try runSmokeWorker {
-        try controller.prepareForAutomation()
-        defer { controller.finishedAutomation() }
+    try await runSmokeWorker {
+        try await controller.withAutomation { () async throws -> Void in
+        }
     }
     #expect(isTargetActive())
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
@@ -100,16 +100,14 @@ func secondaryMessagesActivationDockSmoke() throws {
 
     let otherApp = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
     try #require(otherApp.activate(options: []))
-    let deactivationDeadline = Date().addingTimeInterval(5)
-    while isTargetActive() && Date() < deactivationDeadline { pumpSmokeRunLoop(for: 0.05) }
-    try #require(!isTargetActive())
-    pumpSmokeRunLoop(for: 0.5)
-    try runSmokeWorker {
-        try controller.prepareForAutomation()
-        defer { controller.finishedAutomation() }
-        if usesBridge {
-            #expect(!isWindowOnVisibleDesktop(window))
-            #expect(try !Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+    try await waitForSmoke("Messages deactivation") { !isTargetActive() }
+    try await Task.sleep(forTimeInterval: 0.5)
+    try await runSmokeWorker {
+        try await controller.withAutomation { () async throws -> Void in
+            if usesBridge {
+                #expect(!isWindowOnVisibleDesktop(window))
+                #expect(try !smokeOnscreen(window))
+            }
         }
     }
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
@@ -117,14 +115,14 @@ func secondaryMessagesActivationDockSmoke() throws {
         let restored = IMPrivateSPISpacesForWindow(window)?.first?.uint64Value
         #expect(restored == idleSpace && !isWindowOnVisibleDesktop(window))
         #expect(try !Accessibility.Element(pid: app.processIdentifier).isHidden())
-        #expect(try controller.elements.mainWindow.window().raw == window)
+        #expect(try await runSmokeWorker { try await controller.elements.mainWindow.window().raw } == window)
         #expect(try !Window.listDescriptions(.onScreen).contains { $0.owner == app.processIdentifier })
     }
     let dockDeadline = Date().addingTimeInterval(5)
     while Date() < dockDeadline {
         let snapshot = try messagesDockSnapshot()
         if snapshot.tiles == baseline.tiles, snapshot.running == baseline.running { break }
-        pumpSmokeRunLoop(for: 0.05)
+        try await Task.sleep(forTimeInterval: 0.05)
     }
     let suppressedDock = try messagesDockSnapshot()
     #expect(suppressedDock.tiles == baseline.tiles)
@@ -137,39 +135,37 @@ func secondaryMessagesActivationDockSmoke() throws {
     while Date() < reopenDeadline {
         if isTargetActive(),
            try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
-           try Window.listDescriptions(.onScreen).contains(where: { $0.window.raw == window }) { break }
-        pumpSmokeRunLoop(for: 0.05)
+           try smokeOnscreen(window) { break }
+        try await Task.sleep(forTimeInterval: 0.05)
     }
-    pumpSmokeRunLoop(for: 1)
+    try await Task.sleep(forTimeInterval: 1)
     #expect(isTargetActive())
     #expect(IMPrivateSPIActiveSpace() == activationDesktop)
-    #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+    #expect(try smokeOnscreen(window))
 
     // Activate during automation while the window is parked. Completion keeps
     // idle windows in the unknown Space; activation must reveal on the desktop.
     try #require(otherApp.activate(options: []))
-    let interruptedDeadline = Date().addingTimeInterval(5)
-    while isTargetActive() && Date() < interruptedDeadline { pumpSmokeRunLoop(for: 0.05) }
-    try #require(!isTargetActive())
-    pumpSmokeRunLoop(for: 0.5)
-    try runSmokeWorker {
-        try controller.prepareForAutomation()
-        defer { controller.finishedAutomation() }
-        try #require(app.activate(options: []))
-        let deadline = Date().addingTimeInterval(5)
-        let frontmost = Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute)
-        let target = Accessibility.Element(pid: app.processIdentifier)
-        while Date() < deadline {
-            if try target.attribute(frontmost)(),
-               try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
-               try Window.listDescriptions(.onScreen).contains(where: { $0.window.raw == window }) { break }
-            Thread.sleep(forTimeInterval: 0.05)
+    try await waitForSmoke("Messages deactivation") { !isTargetActive() }
+    try await Task.sleep(forTimeInterval: 0.5)
+    try await runSmokeWorker {
+        try await controller.withAutomation { () async throws -> Void in
+            try #require(app.activate(options: []))
+            let deadline = Date().addingTimeInterval(5)
+            let frontmost = Accessibility.Attribute<Bool>.Name(kAXFrontmostAttribute)
+            let target = Accessibility.Element(pid: app.processIdentifier)
+            while Date() < deadline {
+                if try target.attribute(frontmost)(),
+                   try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground",
+                   try smokeOnscreen(window) { break }
+                try await Task.sleep(forTimeInterval: 0.05)
+            }
+            try #require(try target.attribute(frontmost)())
+            #expect(try smokeOnscreen(window))
         }
-        try #require(try target.attribute(frontmost)())
-        #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
     }
-    pumpSmokeRunLoop(for: 1)
+    try await Task.sleep(forTimeInterval: 1)
     #expect(isTargetActive())
     #expect(isWindowOnVisibleDesktop(window))
-    #expect(try Window.listDescriptions(.onScreen).contains { $0.window.raw == window })
+    #expect(try smokeOnscreen(window))
 }

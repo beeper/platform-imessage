@@ -119,6 +119,7 @@ private enum AuthorizationRequirement: String {
         }
     }
 
+    @MainActor
     func request() async throws {
         switch self {
         case .accessibility:
