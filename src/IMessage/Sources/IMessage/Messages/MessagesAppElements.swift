@@ -119,6 +119,20 @@ final class MessagesAppElements {
         // try messageContainerCells(in: transcriptView).first?.children[0]
     }
 
+    static func customActionNames(in transcriptView: Accessibility.Element, cellLimit: Int = 3) -> [[String]] {
+        let cells = ((try? transcriptView.children()) ?? []).filter {
+            !((try? $0.localizedDescription())?.isEmpty ?? true)
+        }
+        return cells.prefix(cellLimit).map { cell -> [String] in
+            let actions = (try? cell.children[0].supportedActions()) ?? []
+            return actions.compactMap { action -> String? in
+                let name = action.name.value
+                guard name.hasPrefix("Name:") else { return nil }
+                return String(name.dropFirst(5).prefix { $0 != "\n" }.prefix(32))
+            }
+        }
+    }
+
     static func firstSelectedMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
         // selectedChildren wont work here
         // transcriptView.children().first { (try? $0.selectedChildren[0]) != nil }?.children[0]
