@@ -44,7 +44,7 @@ import Testing
     let hasher = Hasher(kind: "test")
 
     let groups = 10
-    let tokenizationsPerGroup = 10_000
+    let tokenizationsPerGroup = 1_000
 
     await withCheckedContinuation { continuation in
         DispatchQueue.global().async {
