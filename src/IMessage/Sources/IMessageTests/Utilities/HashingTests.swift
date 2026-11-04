@@ -46,16 +46,15 @@ import Testing
     let groups = 10
     let tokenizationsPerGroup = 10_000
 
-    await withTaskGroup { group in
-        for _ in 0 ..< groups {
-            group.addTask {
+    await withCheckedContinuation { continuation in
+        DispatchQueue.global().async {
+            DispatchQueue.concurrentPerform(iterations: groups) { _ in
                 for _ in 0 ..< tokenizationsPerGroup {
                     _ = hasher.tokenizeRemembering(pii: UUID().uuidString)
                 }
             }
+            continuation.resume()
         }
-
-        await group.waitForAll()
     }
 
     #expect(hasher.originals.count == groups * tokenizationsPerGroup)
