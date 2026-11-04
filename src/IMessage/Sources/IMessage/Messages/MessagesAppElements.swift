@@ -100,14 +100,13 @@ struct ElementSearchError: Error, CustomStringConvertible {
 /// aim to reduce side effects (like calling actions) here
 final class MessagesAppElements {
     static func isMessageContainerCell(_ element: Accessibility.Element) throws -> Bool {
-        let containsReactPrefix: ([Accessibility.Action]) -> Bool = { actions in
-            actions.contains {
-                $0.name.value.hasPrefix("Name:\(LocalizedStrings.react)")
-            }
-        }
         let hasDescription = try !(element.localizedDescription().isEmpty)
         guard hasDescription else { return false }
-        return try containsReactPrefix(element.children[0].supportedActions())
+        return try element.children[0].supportedActions().contains(where: isReactAction)
+    }
+
+    static func isReactAction(_ action: Accessibility.Action) -> Bool {
+        LocalizedStrings.reactActionTitles.contains { action.name.value.hasPrefix("Name:\($0)") }
     }
 
     static func messageContainerCells(in transcriptView: Accessibility.Element) throws -> [Accessibility.Element] {
@@ -696,8 +695,6 @@ extension MessagesAppElements {
             return AnySequence([])
         }
 
-        let reactPrefix = "Name:\(LocalizedStrings.react)"
-
         return AnySequence(cells.lazy.filter { cell in
             guard let snapshot = hierarchy.snapshot(for: cell),
                   let descEntry = snapshot.entry(for: kAXDescriptionAttribute),
@@ -713,7 +710,7 @@ extension MessagesAppElements {
             }
 
             let actions = (try? firstChild.supportedActions()) ?? []
-            return actions.contains { $0.name.value.hasPrefix(reactPrefix) }
+            return actions.contains(where: isReactAction)
         })
     }
 }
