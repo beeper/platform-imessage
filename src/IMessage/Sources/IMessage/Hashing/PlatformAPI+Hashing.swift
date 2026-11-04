@@ -26,6 +26,13 @@ extension PlatformAPI {
         }
     }
 
+    nonisolated static func originalParticipantID(_ userID: String) throws -> String {
+        guard userID.hasPrefix("imsg##participant:") else {
+            return userID
+        }
+        return try Hasher.participant.recoverOriginal(fromToken: userID)
+    }
+
     nonisolated static func mapAndHashMessages(
         messageRows: [MappedMessageRow],
         attachmentRows: [MappedAttachmentRow],
