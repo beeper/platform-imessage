@@ -26,12 +26,12 @@ private enum MessageAction {
     /// might've been added around macOS 15; unknown
     case edit
 
-    var localized: String {
+    var localizedTitles: [String] {
         switch self {
-        case .react: return LocalizedStrings.react
-        case .reply: return LocalizedStrings.reply
-        case .undoSend: return LocalizedStrings.undoSend
-        case .edit: return LocalizedStrings.editButton
+        case .react: return LocalizedStrings.reactActionTitles
+        case .reply: return [LocalizedStrings.reply]
+        case .undoSend: return [LocalizedStrings.undoSend]
+        case .edit: return [LocalizedStrings.editButton]
         }
     }
 }
@@ -510,7 +510,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         // non-AX actions are [React, Reply, Copy, Pin]
         // Pin is missing for non-links / Big Sur
         let allActions = try messageCell.supportedActions()
-        return try allActions.first(where: { $0.name.value.hasPrefix("Name:\(action.localized)") })
+        return try allActions.first(where: { candidate in action.localizedTitles.contains { candidate.name.value.hasPrefix("Name:\($0)") } })
             .orThrow(ErrorMessage("MessageAction.\(action) not found"))
     }
 
