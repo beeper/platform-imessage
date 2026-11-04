@@ -242,10 +242,11 @@ public final class PlatformAPI {
         }
     }
 
-    public func createThread(userIDs: [String], title: String?, messageText: String?) async throws -> PlatformSDK.CreateThreadResult {
-        guard !userIDs.isEmpty else {
+    public func createThread(userIDs publicUserIDs: [String], title: String?, messageText: String?) async throws -> PlatformSDK.CreateThreadResult {
+        guard !publicUserIDs.isEmpty else {
             return .boolean(false)
         }
+        let userIDs = try publicUserIDs.map(Self.originalParticipantID)
 
         guard let messageText, !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ErrorMessage("no message")
