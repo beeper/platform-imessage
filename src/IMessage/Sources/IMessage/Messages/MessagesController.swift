@@ -657,22 +657,35 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if messageCell.overlay {
                 try await waitUntilReplyTranscriptVisible()
             }
-            guard let (selected, transcript) = (try await retry(withTimeout: 1, interval: 0.2) { () async throws -> (cell: Accessibility.Element, transcript: Accessibility.Element)? in
-                let transcript: Accessibility.Element
-                let cell: Accessibility.Element?
-                if messageCell.overlay {
-                    transcript = try await elements.replyTranscriptView
-                    cell = try MessagesAppElements.firstMessageCell(in: transcript)
-                } else {
-                    transcript = try await elements.transcriptView
-                    cell = try MessagesAppElements.firstSelectedMessageCell(in: transcript)
+            var noMessageCell = false
+            let found: (cell: Accessibility.Element, transcript: Accessibility.Element)?
+            do {
+                found = try await retry(withTimeout: 1, interval: 0.2) { () async throws -> (cell: Accessibility.Element, transcript: Accessibility.Element)? in
+                    noMessageCell = false
+                    let transcript: Accessibility.Element
+                    let cell: Accessibility.Element?
+                    if messageCell.overlay {
+                        transcript = try await elements.replyTranscriptView
+                        cell = try MessagesAppElements.firstMessageCell(in: transcript)
+                    } else {
+                        transcript = try await elements.transcriptView
+                        cell = try MessagesAppElements.firstSelectedMessageCell(in: transcript)
+                    }
+                    guard let cell else {
+                        noMessageCell = true
+                        throw ErrorMessage("message cell nil")
+                    }
+                    guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
+                    return (cell, transcript)
                 }
-                guard let cell else {
-                    throw ErrorMessage("message cell nil")
+            } catch {
+                if messageCell.overlay, noMessageCell, let transcript = try? await elements.replyTranscriptView {
+                    let names = MessagesAppElements.customActionNames(in: transcript)
+                    log.error("no reply transcript cell has an action starting with \"\(LocalizedStrings.react)\", first cells' actions: \(String(describing: names))")
                 }
-                guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
-                return (cell, transcript)
-            }) else {
+                throw error
+            }
+            guard let (selected, transcript) = found else {
                 throw ErrorMessage("Could not find message cell")
             }
             let targetCell: Accessibility.Element
