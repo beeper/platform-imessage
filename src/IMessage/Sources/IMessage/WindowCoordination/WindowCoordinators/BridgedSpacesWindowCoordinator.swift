@@ -272,12 +272,44 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         let elements = MessagesAppElements(runningApp: app, openDeepLink: { deepLink in
             try await MessagesController.openDeepLink(deepLink, targeting: app)
         })
-        try Self.waitFor("parked Messages AX main window", timeout: 5) {
-            guard let main = elements.getMainWindow(), let id = try? main.window().raw else { return false }
-            guard try Self.spaces(id) == [self.session.hiddenSpace] else { return false }
-            self.mainWindowID = try self.trackWindow(id)
-            return true
+        var lastState = "no window with a conversation list"
+        do {
+            try Self.waitFor("parked Messages AX main window", timeout: 5) {
+                guard let main = elements.getMainWindow() else {
+                    lastState = "no window with a conversation list"
+                    return false
+                }
+                guard let id = try? main.window().raw else {
+                    lastState = "main window has no window number"
+                    return false
+                }
+                let spaces = try Self.spaces(id)
+                guard spaces == [self.session.hiddenSpace] else {
+                    lastState = "main window \(id) is in Spaces \(spaces)"
+                    return false
+                }
+                self.mainWindowID = try self.trackWindow(id)
+                return true
+            }
+        } catch {
+            let parkedSpace = session.hiddenSpace.map { "\($0)" } ?? "none"
+            log.error("Parked main window not confirmed: \(lastState), parked Space \(parkedSpace), \(Self.describeWindows(of: app, elements: elements))")
+            throw error
         }
+    }
+
+    private static func describeWindows(of app: NSRunningApplication, elements: MessagesAppElements) -> String {
+        let describe = { (window: Accessibility.Element) -> String in
+            let id = (try? window.window().raw).map { "\($0)" } ?? "?"
+            return "\(id) \((try? window.role()) ?? "?")/\((try? window.subrole()) ?? "?") list=\(elements.isMainWindow(window: window))"
+        }
+        let windows = ((try? elements.app.appWindows()) ?? []).map(describe)
+        let main = (try? elements.app.appMainWindow()).map(describe) ?? "none"
+        let focused = (try? elements.app.appFocusedWindow()).map(describe) ?? "none"
+        let cg = ((try? Window.listDescriptions(.all)) ?? [])
+            .filter { $0.owner == app.processIdentifier && $0.layer == 0 }
+            .map { "\($0.window.raw) \(Int($0.bounds.width))x\(Int($0.bounds.height)) spaces=\((try? spaces($0.window.raw)) ?? [])" }
+        return "terminated=\(app.isTerminated) hidden=\(app.isHidden) AX windows=[\(windows.joined(separator: ", "))] main=\(main) focused=\(focused) CG=[\(cg.joined(separator: ", "))]"
     }
 
     func makeAutomatable(_ window: Accessibility.Element) throws {
