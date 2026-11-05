@@ -107,7 +107,16 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 return try Self.ownedWindow(window, pid: owner) != nil
             },
             spaceExists: { id in try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id } },
-            fallbackSpace: { try Self.displayDestination(for: $0, owners: owners) },
+            fallbackSpace: { window in
+                do {
+                    return try Self.displayDestination(for: window, owners: owners)
+                } catch {
+                    let active = IMPrivateSPIActiveSpace()
+                    guard active != 0, IMPrivateSPISpaceType(active) == 0 else { throw error }
+                    log.warning("Using the active desktop \(active) for window \(window): \(error)")
+                    return active
+                }
+            },
             isOwnedParkingSpace: PersistentUnknownSpace.isReusable
         ))
     }
