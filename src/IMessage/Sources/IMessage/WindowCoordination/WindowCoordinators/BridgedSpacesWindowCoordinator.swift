@@ -107,7 +107,16 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 return try Self.ownedWindow(window, pid: owner) != nil
             },
             spaceExists: { id in try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id } },
-            fallbackSpace: { try Self.displayDestination(for: $0, owners: owners) },
+            fallbackSpace: { window in
+                do {
+                    return try Self.displayDestination(for: window, owners: owners)
+                } catch {
+                    let active = IMPrivateSPIActiveSpace()
+                    guard active != 0, IMPrivateSPISpaceType(active) == 0 else { throw error }
+                    log.warning("Using the active desktop \(active) for window \(window): \(error)")
+                    return active
+                }
+            },
             isOwnedParkingSpace: PersistentUnknownSpace.isReusable
         ))
     }
@@ -164,7 +173,22 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             preferredDisplay: owners.displays[window],
             windowFrame: description.bounds,
             displays: displays
-        ) else { throw ErrorMessage("No desktop is available for the Messages window") }
+        ) else {
+            let records = topology.map { record -> String in
+                let identifier = record["Display Identifier"] as? String ?? "nil"
+                guard let current = record["Current Space"] as? [String: Any] else { return "\(identifier) current=nil" }
+                let managed = (current["ManagedSpaceID"] as? NSNumber).map { "\($0)" } ?? "nil"
+                let id64 = (current["id64"] as? NSNumber).map { "\($0)" } ?? "nil"
+                let type = (current["type"] as? NSNumber).map { "\($0)" } ?? "nil"
+                return "\(identifier) managed=\(managed) id64=\(id64) type=\(type)"
+            }
+            let onlineUUIDs = online.map { display -> String in
+                guard let uuid = CGDisplayCreateUUIDFromDisplayID(display.raw)?.takeRetainedValue() else { return "\(display.raw)=nil" }
+                return "\(display.raw)=\(UUID(cfUUID: uuid).uuidString)"
+            }
+            log.error("No display destination: records=[\(records.joined(separator: ", "))] online=[\(onlineUUIDs.joined(separator: ", "))] window=\(description.bounds) active=\(IMPrivateSPIActiveSpace())")
+            throw ErrorMessage("No desktop is available for the Messages window")
+        }
         owners.displays[window] = destination.identifier
         return destination.space
     }
@@ -308,7 +332,10 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             let deadline = Date().addingTimeInterval(3)
             while !pending.isEmpty {
                 for id in pending {
-                    let destination = try Self.displayDestination(for: trackWindow(id), owners: owners)
+                    _ = try trackWindow(id)
+                    if session.originalSpaces[id] == nil {
+                        _ = try? Self.displayDestination(for: id, owners: owners)
+                    }
                     if let hidden = session.hiddenSpace {
                         guard IMPrivateSPIActiveSpace() != hidden else {
                             throw ErrorMessage("Cannot park Messages on the user's current Space")
@@ -319,7 +346,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                        IMPrivateSPISpaceType(source) == 3, !(try PersistentUnknownSpace.isReusable(source)) {
                         throw ErrorMessage("Refusing to adopt a window in an unrecognized unknown Space")
                     }
-                    try session.park(id, originalSpaceIfUnassigned: destination)
+                    try session.park(id)
                     parked.insert(id)
                 }
                 pending = try windowIDsToPark().filter { !parked.contains($0) }
@@ -373,7 +400,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private func revealForManualControl() throws {
-        let moved = try session.revealAll { try Self.displayDestination(for: $0, owners: owners) }
+        let moved = try session.revealAll { try? Self.displayDestination(for: $0, owners: owners) }
         unhideIfNeeded()
         // Restoring a focused foreign window can drop activation. Complete this
         // handoff once; subsequent callbacks have no parked records to move.
