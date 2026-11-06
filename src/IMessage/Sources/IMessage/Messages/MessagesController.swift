@@ -36,7 +36,7 @@ private enum MessageAction {
     }
 }
 private enum ThreadAction {
-    case markAsRead, markAsUnread, delete, pin, unpin, showAlerts, hideAlerts
+    case markAsRead, markAsUnread, delete, pin, unpin
 
     var localized: String {
         switch self {
@@ -45,8 +45,6 @@ private enum ThreadAction {
         case .delete: return LocalizedStrings.delete
         case .pin: return LocalizedStrings.pin
         case .unpin: return LocalizedStrings.unpin
-        case .showAlerts: return LocalizedStrings.showAlerts
-        case .hideAlerts: return LocalizedStrings.hideAlerts
         }
     }
 }
@@ -611,15 +609,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let selectedCellAfterScroll = try await elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
         if selectedCellAfterScroll.isInViewport { return selectedCellAfterScroll }
 
-        try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
-        try await assertSelectedThread(threadID: threadID)
-        let selectedCellByID = try await elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
-        if selectedCellByID.isInViewport { return selectedCellByID }
-
         let rows = (try? await elements.conversationsList.children()) ?? []
-        let selectedRowIndex = rows.firstIndex(of: selectedCellByID).map(String.init) ?? "not in list"
+        let selectedRowIndex = rows.firstIndex(of: selectedCellAfterScroll).map(String.init) ?? "not in list"
         let laidOutRows = rows.filter(\.isInViewport).count
-        log.error("selected conversation row has no frame after reopening by chat id: row \(selectedRowIndex) of \(rows.count), \(laidOutRows) rows laid out")
+        log.error("selected conversation row has no frame: row \(selectedRowIndex) of \(rows.count), \(laidOutRows) rows laid out")
         throw ErrorMessage("threadCell not found")
     }
 
@@ -995,10 +988,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func muteThread(threadID: String, muted: Bool) async throws {
+    func toggleHideAlerts(threadID: String) async throws {
         #if DEBUG
         let startTime = Date()
-        defer { log.debug("muteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer { log.debug("toggleHideAlerts took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
         let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
@@ -1007,17 +1000,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await withActivation(openBefore: deepLink) {
                 try await assertSelectedThread(threadID: threadID)
                 try await selectExistingThreadIfComposing(threadID)
-                let selectedThreadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
-                if muted {
-                    try triggerThreadCellAction(threadCell: selectedThreadCell, action: .hideAlerts)
-                } else if let showAlertsAction = try threadCellAction(threadCell: selectedThreadCell, action: .showAlerts) {
-                    try showAlertsAction()
-                } else {
-                    let hideAlertsOn = "\(ThreadAction.hideAlerts.localized), On"
-                    let action = try threadCellAction(threadCell: selectedThreadCell, namePrefix: hideAlertsOn)
-                        .orThrow(ErrorMessage("ThreadAction.showAlerts and \(hideAlertsOn) not found"))
-                    try action()
-                }
+                let item = try await elements.conversationMenuItem("toggleHideAlerts:")
+                try keyPresser.pressKeyEquivalent(of: item)
             }
         }
     }

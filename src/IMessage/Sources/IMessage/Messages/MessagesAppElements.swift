@@ -600,6 +600,20 @@ final class MessagesAppElements {
         }
     }
 
+    func conversationMenuItem(_ identifier: String) async throws -> Accessibility.Element {
+        try await find("menu item \(identifier)") {
+            let menuBar = try app.attribute(Accessibility.Names.AttributeName<Accessibility.Element>(kAXMenuBarAttribute))()
+            for barItem in try menuBar.children() {
+                for menu in try barItem.children() {
+                    if let item = try menu.children().first(where: { (try? $0.identifier()) == identifier }) {
+                        return item
+                    }
+                }
+            }
+            return nil
+        }
+    }
+
     var alertSheet: Accessibility.Element {
         get async throws {
             try await find("alertSheet") {

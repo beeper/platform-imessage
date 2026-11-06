@@ -232,10 +232,8 @@ enum Defaults {
          }
          }
          */
-        guard let dict = getUserDefaults(bundleID: dndBundleID)?.dictionary(forKey: "CKDNDListKey") else {
-            return nil
-        }
-        return dict as? [String: Int]
+        CFPreferencesAppSynchronize(dndBundleID as CFString)
+        return CFPreferencesCopyAppValue("CKDNDListKey" as CFString, dndBundleID as CFString) as? [String: Int]
     }
 }
 
