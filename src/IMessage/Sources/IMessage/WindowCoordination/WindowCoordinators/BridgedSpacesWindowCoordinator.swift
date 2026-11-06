@@ -39,8 +39,32 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             guard leasedPID == app.processIdentifier else { throw ErrorMessage("Messages coordinator cannot change processes") }
             return
         }
-        targetLease = try WindowCoordinationFileLock(name: "messages-\(app.processIdentifier)", wait: false)
-        leasedPID = app.processIdentifier
+        let pid = app.processIdentifier
+        do {
+            targetLease = try WindowCoordinationFileLock(name: "messages-\(pid)", wait: false)
+        } catch WindowCoordinatorError.instanceInUse {
+            guard let stale = Self.failedOwners.withLock({ $0.removeValue(forKey: pid)?.coordinator }) else {
+                throw WindowCoordinatorError.instanceInUse
+            }
+            log.warning("Taking over Messages \(pid) from a coordinator whose cleanup failed")
+            stale.abandon()
+            targetLease = try WindowCoordinationFileLock(name: "messages-\(pid)", wait: false)
+        }
+        leasedPID = pid
+    }
+
+    private struct FailedOwner {
+        weak var coordinator: BridgedSpacesWindowCoordinator?
+    }
+
+    private static let failedOwners = Protected<[pid_t: FailedOwner]>([:])
+
+    private func abandon() {
+        lock.lock()
+        defer { lock.unlock() }
+        disposed = true
+        targetLease = nil
+        leasedPID = nil
     }
     private var isCurrentAppActive: Bool {
         guard let app = currentApp else { return false }
@@ -389,6 +413,19 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     func dispose() throws {
+        do {
+            try restoreAndRelease()
+        } catch {
+            lock.lock()
+            defer { lock.unlock() }
+            if let leasedPID {
+                Self.failedOwners.withLock { $0[leasedPID] = FailedOwner(coordinator: self) }
+            }
+            throw error
+        }
+    }
+
+    private func restoreAndRelease() throws {
         lock.lock()
         defer { lock.unlock() }
         guard !disposed else { return }
@@ -405,6 +442,6 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     deinit {
-        do { try dispose() } catch { log.error("Failed to restore unknown Space windows: \(error)") }
+        do { try restoreAndRelease() } catch { log.error("Failed to restore unknown Space windows: \(error)") }
     }
 }
