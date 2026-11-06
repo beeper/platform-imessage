@@ -8,15 +8,15 @@ import IMessageCore
 // Opt-in only: temporarily coordinates the real primary, without sending messages.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_PRIMARY_AX_SMOKE"] == "1"))
 @MainActor
-func primaryMessagesAXSmoke() throws {
+func primaryMessagesAXSmoke() async throws {
     try #require(AXIsProcessTrusted(), "Primary AX smoke requires Accessibility permission")
     let apps = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     let app = try #require(apps.count == 1 ? apps.first : nil, "Requires exactly one primary Messages instance")
     try #require(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
     Defaults.registerDefaults()
     let wasHidden = app.isHidden
-    let elements = MessagesAppElements(runningApp: app)
-    let window = try elements.mainWindow
+    let elements = smokeElements(runningApp: app)
+    let window = try await runSmokeWorker { try await elements.mainWindow }
     let originalFrame = try window.frame()
     let coordinator = EclipsingWindowCoordinator()
     coordinator.app = app
@@ -43,14 +43,14 @@ func primaryMessagesAXSmoke() throws {
     if let error = observationError.read() { throw error }
     let chatURLs = try primarySmokeReadChatURLs()
     let repeatedChat = try #require(chatURLs.last)
-    let compose = try #require(URL(string: "imessage:open?address=&body"))
+    let compose = MessagesDeepLink.compose
     for stage in ["foreground", "restored"] {
         try coordinator.restoreDockPresence()
         app.unhide()
         for (trial, url) in ([compose] + chatURLs + [repeatedChat]).enumerated() {
             let before = Date()
-            let waitStarted = try primarySmokeOpenDeepLink(url, app: app)
-            pumpSmokeRunLoop(for: 1.2)
+            let waitStarted = try await primarySmokeOpenDeepLink(url, app: app)
+            try await Task.sleep(forTimeInterval: 1.2)
             let actualType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
             #expect(actualType == "Foreground")
             let focus = observer.lastFocusedUIElementChange.read()
@@ -58,7 +58,7 @@ func primaryMessagesAXSmoke() throws {
             print("PRIMARY_AX stage=\(stage) trial=\(trial) focusAfterLink=\(focus.map { $0 > before } ?? false) focusWaiter=\(focus.map { $0 > waitStarted } ?? false) layoutWaiter=\(layout.map { $0 > waitStarted } ?? false)")
             #expect(focus.map { $0 > waitStarted } ?? false, "Focus waiter failed at \(stage) trial \(trial)")
             if trial > 0 {
-                let field = try elements.messageBodyField
+                let field = try await runSmokeWorker { try await elements.messageBodyField }
                 try field.isFocused(assign: true)
                 let setFocused = try field.isFocused()
                 try field.press()
@@ -72,7 +72,7 @@ func primaryMessagesAXSmoke() throws {
 }
 
 // Select only conversations with no unread incoming messages. Never log identifiers.
-private func primarySmokeReadChatURLs() throws -> [URL] {
+private func primarySmokeReadChatURLs() throws -> [MessagesDeepLink] {
     let process = Process()
     let output = Pipe()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -89,13 +89,13 @@ private func primarySmokeReadChatURLs() throws -> [URL] {
     let ids = try #require(String(data: data, encoding: .utf8)).split(separator: "\n")
     let requiredChats = 2
     try #require(ids.count == requiredChats, "Requires two existing conversations with no unread incoming messages")
-    return try ids.map { try MessagesDeepLink(threadID: String($0), body: nil).url() }
+    return try ids.map { try MessagesDeepLink(threadID: String($0), body: nil) }
 }
 
 @MainActor
-private func primarySmokeOpenDeepLink(_ url: URL, app: NSRunningApplication) throws -> Date {
-    let (target, started) = try runSmokeWorker {
-        let target = try MessagesController.openDeepLink(url, targeting: app)
+private func primarySmokeOpenDeepLink(_ url: MessagesDeepLink, app: NSRunningApplication) async throws -> Date {
+    let (target, started) = try await runSmokeWorker {
+        let target = try await MessagesController.openDeepLink(url, targeting: app)
         return (target, Date())
     }
     try #require(target.processIdentifier == app.processIdentifier, "Deep link targeted a different Messages instance")

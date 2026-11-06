@@ -12,7 +12,7 @@ import WindowControl
 /// the launcher process exits as well as after individual controllers dispose.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_UNKNOWN_SPACE_REUSE_SMOKE"] == "1"))
 @MainActor
-func secondaryMessagesUnknownSpaceReuseSmoke() throws {
+func secondaryMessagesUnknownSpaceReuseSmoke() async throws {
     try #require(AXIsProcessTrusted(), "Unknown-Space reuse smoke requires Accessibility permission")
     try #require(NSWorkspace.shared.frontmostApplication?.bundleIdentifier != "com.apple.loginwindow", "Unlock the Mac before running live Messages tests")
     Defaults.registerDefaults()
@@ -33,7 +33,7 @@ func secondaryMessagesUnknownSpaceReuseSmoke() throws {
     var expectedSpace = initialPool.first
     var launchedPIDs = Set<pid_t>()
     for cycle in 1...3 {
-        let result = try reuseControllerCycle(cycle: cycle, baselineManaged: baselineManaged, baselineCurrent: baselineCurrent)
+        let result = try await reuseControllerCycle(cycle: cycle, baselineManaged: baselineManaged, baselineCurrent: baselineCurrent)
         if let expectedSpace {
             #expect(result.space == expectedSpace, "Every controller must use the same retained unknown Space")
         } else {
@@ -50,15 +50,15 @@ func secondaryMessagesUnknownSpaceReuseSmoke() throws {
 }
 
 @MainActor
-private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, baselineCurrent: Set<UInt64>) throws -> (space: UInt64, pid: pid_t) {
+private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, baselineCurrent: Set<UInt64>) async throws -> (space: UInt64, pid: pid_t) {
     let existingPIDs = smokeMessagesPIDs()
-    let controller = try runSmokeWorker {
-        try MessagesController(reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
+    let controller = try await runSmokeWorker {
+        try await MessagesController(reportErrorMessage: { Issue.record(Comment(rawValue: $0)) })
     }
     defer { controller.dispose() }
     let app = try #require(NSRunningApplication(processIdentifier: try controller.elements.app.pid()))
     try #require(!existingPIDs.contains(app.processIdentifier), "Only the new secondary process may be controlled")
-    let main = try controller.elements.mainWindow
+    let main = try await runSmokeWorker { try await controller.elements.mainWindow }
     let window = try main.window().raw
     let membership = try #require(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value))
     try #require(membership.count == 1, "Idle Messages must belong exclusively to its parking Space")
@@ -73,7 +73,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(try smokeManagedSpaceIDs() == baselineManaged)
     #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
     #expect(IMPrivateSPIActiveSpace() != parking)
-    try smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
+    try await smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
     // A second host must not move windows owned by this live coordinator.
     let competing = try BridgedSpacesWindowCoordinator()
     competing.app = app
@@ -83,10 +83,10 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
 
     // Activate through the production lifecycle observer. Unknown Spaces must
     // never become the selected desktop, and reveal must remove unknown membership.
-    pumpSmokeRunLoop(for: 0.5)
+    try await Task.sleep(forTimeInterval: 0.5)
     try #require(app.activate(options: [.activateAllWindows]))
     var stableSince: Date?
-    try waitForSmoke("stable Messages activation and ordinary-desktop reveal") {
+    try await waitForSmoke("stable Messages activation and ordinary-desktop reveal") {
         let ready = try smokeFrontmost(controller.elements.app) && smokeOnscreen(window) &&
             !(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value).contains(parking) ?? true) &&
             MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground"
@@ -108,7 +108,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     }
     let revealed = try #require(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value))
     #expect(revealed.count == 1 && revealed.allSatisfy { baselineCurrent.contains($0) })
-    pumpSmokeRunLoop(for: 0.5)
+    try await Task.sleep(forTimeInterval: 0.5)
     let actualFrontmost = NSWorkspace.shared.frontmostApplication
     let presentation = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
     #expect(try smokeFrontmost(controller.elements.app), Comment(rawValue:
@@ -119,16 +119,16 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
 
     let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
     try #require(finder.activate(options: []))
-    try waitForSmoke("Messages deactivation") { try !smokeFrontmost(controller.elements.app) }
-    pumpSmokeRunLoop(for: 0.25)
-    try runSmokeWorker {
-        try controller.prepareForAutomation()
-        defer { controller.finishedAutomation() }
-        #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
-        #expect(try !smokeOnscreen(window))
+    try await waitForSmoke("Messages deactivation") { try !smokeFrontmost(controller.elements.app) }
+    try await Task.sleep(forTimeInterval: 0.25)
+    try await runSmokeWorker {
+        try await controller.withAutomation { () async throws -> Void in
+            #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
+            #expect(try !smokeOnscreen(window))
+        }
     }
     // Completion retains the unknown membership and leaves AX available.
-    try smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
+    try await smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
     var exitSamples = 0
     var exitSamplingErrors = 0
     var exitExposures = 0
@@ -146,7 +146,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(exitSamples > 0 && exitSamplingErrors == 0, "Exit visibility sampling must run without read failures")
     #expect(exitExposures == 0, "Quitting Messages must not expose its parked window")
     print("UNKNOWN_SPACE_EXIT_CONCEALMENT cycle=\(cycle) samples=\(exitSamples) exposures=\(exitExposures)")
-    try waitForSmoke("secondary Messages process exit") {
+    try await waitForSmoke("secondary Messages process exit") {
         smokeProcessExited(app.processIdentifier)
     }
     #expect(try smokePoolSpaceIDs() == Set([parking]), "Disposal must retain the pool for a new controller")

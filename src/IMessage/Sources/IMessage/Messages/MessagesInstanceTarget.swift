@@ -59,7 +59,7 @@ enum MessagesInstanceTarget {
         activating: Bool = false,
         hiding: Bool = false,
         timeout: TimeInterval = 8
-    ) throws -> NSRunningApplication {
+    ) async throws -> NSRunningApplication {
         guard let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID) else {
             throw ErrorMessage("Could not find Messages.app via LaunchServices")
         }
@@ -79,54 +79,39 @@ enum MessagesInstanceTarget {
         configuration.launchWithoutRestoringState = true
         configuration.waitForApplicationToCheckIn = true
 
-        let waiter = DispatchSemaphore(value: 0)
-        var result: Result<NSRunningApplication, Error>?
-
-        NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { app, error in
-            if let error {
-                result = .failure(error)
-            } else if let app {
-                result = .success(app)
-            } else {
-                result = .failure(ErrorMessage("LaunchServices completed without returning Messages.app"))
+        let application = try await Task.withTimeout(timeout, onLateSuccess: { application in
+            // LaunchServices may finish after cancellation; terminate only our new process.
+            if !existingPIDs.contains(application.processIdentifier) {
+                application.terminate()
             }
-            waiter.signal()
+        }) {
+            try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
         }
 
-        guard waiter.wait(timeout: .now() + timeout) == .success else {
-            throw ErrorMessage("Timed out waiting for secondary Messages.app launch after \(timeout)s")
-        }
-
-        let app = try result.orThrow(ErrorMessage("Messages.app launch did not complete")).get()
-        guard !existingPIDs.contains(app.processIdentifier) else {
+        guard !existingPIDs.contains(application.processIdentifier) else {
             throw ErrorMessage("LaunchServices reused an existing Messages instance; refusing to suppress it")
         }
         var launchSucceeded = false
-        defer {
-            if !launchSucceeded {
-                // Only this newly created process belongs to us.
-                app.terminate()
-            }
-        }
-        try app.waitForLaunch(timeout: timeout)
+        defer { if !launchSucceeded { application.terminate() } }
+        try await application.waitForLaunch(timeout: timeout)
 
         if !activating, Defaults.shouldSuppressMessagesDock {
             do {
-                try MessagesDockSuppression.suppress(app)
+                try MessagesDockSuppression.suppress(application)
             } catch {
                 log.error("failed to hide secondary Messages from Dock: \(error)")
             }
         }
 
         if let initialDeepLink {
-            try sendDeepLink(initialDeepLink, to: app)
+            try sendDeepLink(initialDeepLink, to: application)
         }
 
         if hiding {
-            app.hide()
+            application.hide()
         }
 
         launchSucceeded = true
-        return app
+        return application
     }
 }
