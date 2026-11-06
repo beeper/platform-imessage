@@ -173,7 +173,9 @@ final class TahoeChatDatabaseFixture {
     }
 
     private static var schemaURL: URL {
-        let testDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let testDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let repositoryRoot = testDirectory
             .deletingLastPathComponent()
             .deletingLastPathComponent()

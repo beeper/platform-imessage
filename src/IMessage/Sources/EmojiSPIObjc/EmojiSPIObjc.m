@@ -26,23 +26,25 @@ NSArray<NSString *> *_Nullable EmojiSPIPickerSearch(Class objectClass, NSString 
     }
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
     __block NSArray<NSString *> *strings = nil;
-    [objectClass emojiTokensForSearchString:query
-                               inLanguages:[objectClass preferredLanguagesForSearch]
-                                maxResults:500
-                                usingBlock:^(NSArray *results, BOOL stopped) {
-        if (![results isKindOfClass:NSArray.class]) { dispatch_semaphore_signal(semaphore); return; }
-        NSMutableArray<NSString *> *values = [NSMutableArray array];
-        for (id token in results) {
-            // The caller navigates by result index. Dropping a token would
-            // shift subsequent positions and could select a different emoji.
-            if (![token respondsToSelector:@selector(string)]) { values = nil; break; }
-            NSString *value = [token string];
-            if (![value isKindOfClass:NSString.class] || value.length == 0) { values = nil; break; }
-            [values addObject:value];
-        }
-        @synchronized (semaphore) { strings = [values copy]; }
-        dispatch_semaphore_signal(semaphore);
-    }];
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        [objectClass emojiTokensForSearchString:query
+                                   inLanguages:[objectClass preferredLanguagesForSearch]
+                                    maxResults:500
+                                    usingBlock:^(NSArray *results, BOOL stopped) {
+            if (![results isKindOfClass:NSArray.class]) { dispatch_semaphore_signal(semaphore); return; }
+            NSMutableArray<NSString *> *values = [NSMutableArray array];
+            for (id token in results) {
+                // The caller navigates by result index. Dropping a token would
+                // shift subsequent positions and could select a different emoji.
+                if (![token respondsToSelector:@selector(string)]) { values = nil; break; }
+                NSString *value = [token string];
+                if (![value isKindOfClass:NSString.class] || value.length == 0) { values = nil; break; }
+                [values addObject:value];
+            }
+            @synchronized (semaphore) { strings = [values copy]; }
+            dispatch_semaphore_signal(semaphore);
+        }];
+    });
     if (dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0) {
         return nil;
     }

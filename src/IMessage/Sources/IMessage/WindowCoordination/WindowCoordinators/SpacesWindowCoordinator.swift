@@ -6,6 +6,7 @@ import Logging
 private let log = Logger(imessageLabel: "spaces-window-coordinator")
 
 final class SpacesWindowCoordinator {
+    @MainActor
     var app: NSRunningApplication?
 
     private var lastKnownWindow: Accessibility.Element?
@@ -62,15 +63,14 @@ final class SpacesWindowCoordinator {
 // MARK: - SpacesWindowCoordinator+WindowCoordinator
 
 extension SpacesWindowCoordinator: WindowCoordinator {
-    var canReuseExtantInstance: Bool { true }
 
-    func makeAutomatable(_ window: Accessibility.Element) throws {
-        guard app?.isActive == false else { return }
+    func makeAutomatable(_ window: Accessibility.Element) async throws {
+        guard await app?.isActive == false else { return }
         lastKnownWindow = window
         try moveLastKnownWindowToHiddenSpace()
     }
 
-    func reset(_ window: Accessibility.Element) throws {
+    func reset(_ window: Accessibility.Element) async throws {
         guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), lastKnownWindow != nil else {
             log.debug("can't reset, the last known window or current space was missing")
             return
@@ -79,10 +79,11 @@ extension SpacesWindowCoordinator: WindowCoordinator {
         try (window.window()).moveToSpace(currentSpace)
     }
 
-    func automationDidComplete(_: Accessibility.Element) throws {
+    func automationDidComplete() throws {
         // after automating, keep the window on the hidden space
     }
 
+    @MainActor
     func userManuallyActivated(_: NSRunningApplication) throws {
         lastManualActivation = Date()
     }
