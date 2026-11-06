@@ -149,6 +149,7 @@ final class MessagesAppElements {
 
     private let runningApp: NSRunningApplication
     private let openDeepLink: (MessagesDeepLink) async throws -> Void
+    private let reopenApp: () async throws -> Void
 
     let app: Accessibility.Element
 
@@ -158,9 +159,14 @@ final class MessagesAppElements {
 
     private var cachedMainWindow: Accessibility.Element?
 
-    init(runningApp: NSRunningApplication, openDeepLink: @escaping (MessagesDeepLink) async throws -> Void) {
+    init(
+        runningApp: NSRunningApplication,
+        openDeepLink: @escaping (MessagesDeepLink) async throws -> Void,
+        reopenApp: @escaping () async throws -> Void = { try await MessagesController.reopenMessages() }
+    ) {
         self.runningApp = runningApp
         self.openDeepLink = openDeepLink
+        self.reopenApp = reopenApp
         app = Accessibility.Element(pid: runningApp.processIdentifier)
     }
 
@@ -299,8 +305,8 @@ final class MessagesAppElements {
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
             } onError: { attempt, _ in
                 if attempt == 0 {
-                    log.notice("mainWindow: using compose deep link to try to get main window")
-                    try await self.openDeepLink(MessagesDeepLink.compose)
+                    log.notice("mainWindow: reopening Messages to try to get main window")
+                    try await self.reopenApp()
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
@@ -313,6 +319,9 @@ final class MessagesAppElements {
                         self.runningApp.forceTerminate()
                         // this should invalidate the MessagesController
                     }
+                } else if attempt == 3 {
+                    log.notice("mainWindow: using compose deep link to try to get main window")
+                    try await self.openDeepLink(MessagesDeepLink.compose)
                 } else if attempt > 3 {
                     do {
                         try self.dismissAnyPresentedSheet()

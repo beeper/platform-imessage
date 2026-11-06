@@ -142,6 +142,27 @@ final class MessagesController {
     }
 
     @discardableResult
+    static func reopenMessages(
+        activating: Bool = false,
+        hiding: Bool = true,
+        targeting app: NSRunningApplication? = nil
+    ) async throws -> NSRunningApplication {
+        if Preferences.useSecondaryMessagesInstance, let app {
+            return try await openDeepLink(MessagesDeepLink.compose, activating: activating, hiding: hiding, targeting: app)
+        }
+
+        try Task.checkCancellation()
+        let applicationURL = try NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID)
+            .orThrow(ErrorMessage("Could not find Messages.app via LaunchServices"))
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = activating
+        configuration.hides = hiding && Defaults.shouldCoordinateWindow
+        log.debug("🚀 OPENING MESSAGES (activating? \(activating), hiding? \(configuration.hides))")
+        return try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
+    }
+
+    @discardableResult
     private func openDeepLink(
         _ deepLink: MessagesDeepLink,
         activating: Bool = false,
@@ -287,7 +308,7 @@ final class MessagesController {
                 launchedNewApplication = false
             } else {
                 log.info("launching messages...")
-                app = try await Self.openDeepLink(MessagesDeepLink.compose, activating: true)
+                app = try await Self.reopenMessages(activating: true)
                 launchedNewApplication = true
             }
         }
@@ -308,6 +329,8 @@ final class MessagesController {
 
         elements = MessagesAppElements(runningApp: selectedApp, openDeepLink: { deepLink in
             try await Self.openDeepLink(deepLink, targeting: selectedApp)
+        }, reopenApp: {
+            try await Self.reopenMessages(targeting: selectedApp)
         })
 
         keyPresser = KeyPresser(pid: selectedApp.processIdentifier)
