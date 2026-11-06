@@ -241,7 +241,14 @@ final class MessagesAppElements {
 
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
         let startTime = Date()
-        defer { log.debug("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer {
+            let elapsed = startTime.timeIntervalSinceNow * -1000
+            if elapsed >= 2000 {
+                log.error("getMainWindow took \(Int(elapsed))ms")
+            } else {
+                log.debug("getMainWindow took \(elapsed)ms")
+            }
+        }
         return allWindows.first(where: isMainWindow)
     }
 
