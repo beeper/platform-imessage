@@ -9,22 +9,16 @@ private let fixtureMessageGUID = "08E8CAE0-FA6F-408D-8E22-FB0712D116D9"
     #expect(messageGUID(fromID: "\(fixtureMessageGUID)_1") == fixtureMessageGUID)
 }
 
-@Test func messageIDPartsExtractsGUIDAndPartIndex() {
-    let bare = messageIDParts(fromID: fixtureMessageGUID)
-    #expect(bare.messageGUID == fixtureMessageGUID)
-    #expect(bare.partIndex == nil)
-
-    let part = messageIDParts(fromID: "\(fixtureMessageGUID)_2")
-    #expect(part.messageGUID == fixtureMessageGUID)
-    #expect(part.partIndex == 2)
-
-    let nonNumeric = messageIDParts(fromID: "\(fixtureMessageGUID)_x")
-    #expect(nonNumeric.messageGUID == fixtureMessageGUID)
-    #expect(nonNumeric.partIndex == nil)
-
-    let trailing = messageIDParts(fromID: "\(fixtureMessageGUID)_")
-    #expect(trailing.messageGUID == fixtureMessageGUID)
-    #expect(trailing.partIndex == nil)
+@Test(arguments: [
+    ("", nil as Int?),
+    ("_2", 2),
+    ("_x", nil),
+    ("_", nil),
+])
+func messageIDPartsExtractsGUIDAndPartIndex(suffix: String, expectedPart: Int?) {
+    let parts = messageIDParts(fromID: fixtureMessageGUID + suffix)
+    #expect(parts.messageGUID == fixtureMessageGUID)
+    #expect(parts.partIndex == expectedPart)
 }
 
 @Test func messagesDeepLinkAllowsPartAddressedMessageGUID() throws {
@@ -49,16 +43,13 @@ private let fixtureMessageGUID = "08E8CAE0-FA6F-408D-8E22-FB0712D116D9"
     let items = try queryItems(for: MessagesDeepLink.message(guid: fixtureMessageGUID, partIndex: nil, overlay: nil).url())
 
     #expect(items["message-guid"] == fixtureMessageGUID)
-    #expect(items["message-guid"]?.hasPrefix("p:") == false)
     #expect(items["overlay"] == nil)
 }
 
-@Test func messagesDeepLinkRejectsGUIDContainingUnderscore() {
+@Test(arguments: [nil, 1] as [Int?])
+func messagesDeepLinkRejectsGUIDContainingUnderscore(partIndex: Int?) {
     #expect(throws: (any Error).self) {
-        try MessagesDeepLink.message(guid: "\(fixtureMessageGUID)_1", partIndex: nil, overlay: nil).url()
-    }
-    #expect(throws: (any Error).self) {
-        try MessagesDeepLink.message(guid: "\(fixtureMessageGUID)_1", partIndex: 1, overlay: nil).url()
+        try MessagesDeepLink.message(guid: "\(fixtureMessageGUID)_1", partIndex: partIndex, overlay: nil).url()
     }
 }
 
