@@ -42,8 +42,8 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
         guard !hasBeenDisposed.read() else {
             throw ErrorMessage("PlatformAPI has been disposed")
         }
-        if forceInvalidate {
-            try await disposeCachedController()
+        if forceInvalidate, let current {
+            try await disposeIfCurrent(current)
         }
 
         for _ in 0..<30 {
