@@ -610,6 +610,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         let selectedCellAfterScroll = try await elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
         if selectedCellAfterScroll.isInViewport { return selectedCellAfterScroll }
+
+        try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
+        try await assertSelectedThread(threadID: threadID)
+        let selectedCellByID = try await elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
+        if selectedCellByID.isInViewport { return selectedCellByID }
+
+        let rows = (try? await elements.conversationsList.children()) ?? []
+        let selectedRowIndex = rows.firstIndex(of: selectedCellByID).map(String.init) ?? "not in list"
+        let laidOutRows = rows.filter(\.isInViewport).count
+        log.error("selected conversation row has no frame after reopening by chat id: row \(selectedRowIndex) of \(rows.count), \(laidOutRows) rows laid out")
         throw ErrorMessage("threadCell not found")
     }
 
