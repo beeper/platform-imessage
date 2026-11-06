@@ -169,7 +169,7 @@ final class MessagesController {
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
-    private func assertSelectedThread(threadID: String) async throws {
+    private func assertSelectedThread(threadID: String, since beganEnsuringThreadSelection: Date = Date()) async throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.imessage.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
@@ -196,7 +196,6 @@ final class MessagesController {
         }
 
         var attempt = 0
-        let beganEnsuringThreadSelection = Date()
         var hasLoggedAboutStrategy = false
 
         try await retry(withTimeout: 1.2, interval: 0.05) {
@@ -246,8 +245,11 @@ final class MessagesController {
 
     private func openThread(_ threadID: String) async throws {
         try? await self.clearTypingStatus()
-        try await openDeepLink(try MessagesDeepLink(threadID: threadID, body: nil))
-        try await assertSelectedThread(threadID: threadID)
+        try await selectThread(threadID)
+    }
+
+    private func selectThread(_ threadID: String) async throws {
+        try await openAndWaitForSelection(try MessagesDeepLink(threadID: threadID, body: nil), threadID: threadID)
         try await selectExistingThreadIfComposing(threadID)
     }
 
@@ -255,8 +257,101 @@ final class MessagesController {
         guard let selectedCell = await elements.selectedThreadCell, selectedCell.isInViewport,
               try threadCellAction(threadCell: selectedCell, action: .delete) == nil
         else { return }
+        try await openAndWaitForSelection(try MessagesDeepLink(existingThreadID: threadID), threadID: threadID)
+    }
+
+    private static let messagesAppName = FileManager.default.displayName(atPath: "/System/Applications/Messages.app")
+        .replacingOccurrences(of: ".app", with: "")
+
+    private struct ConversationSelection: Equatable {
+        var rowLabel: String?
+        var windowTitle: String?
+        var isComposing = false
+    }
+
+    private func currentSelection() async -> ConversationSelection {
+        let windowTitle = try? await elements.mainWindow.title()
+        guard let row = await elements.selectedThreadCell else {
+            return ConversationSelection(windowTitle: windowTitle)
+        }
+        let rowLabel = (try? row.attribute(Accessibility.Names.AttributeName<[String]>("AXUserInputLabels"))().first)
+            ?? (try? row.localizedDescription())
+        let isComposing = row.isInViewport && (try? threadCellAction(threadCell: row, action: .delete)) == nil
+        return ConversationSelection(rowLabel: rowLabel, windowTitle: windowTitle, isComposing: isComposing)
+    }
+
+    private func selection(_ selection: ConversationSelection, matches labels: Set<String>) -> Bool {
+        guard let windowTitle = selection.windowTitle, let rowLabel = selection.rowLabel else { return false }
+        func phoneDigits(_ string: String) -> String? {
+            let digits = string.filter(\.isNumber)
+            return digits.count >= 7 ? digits : nil
+        }
+        let labelDigits = Set(labels.compactMap(phoneDigits))
+        func namesThread(_ name: String) -> Bool {
+            [name, name.components(separatedBy: ": ").last ?? name].contains { candidate in
+                labels.contains(candidate) || phoneDigits(candidate).map(labelDigits.contains) == true
+            }
+        }
+        let rowParts = rowLabel.components(separatedBy: ", ")
+        let rowNamesThread = rowLabel == windowTitle
+            || namesThread(rowLabel)
+            || (rowParts.count == 2 && !rowParts[1].contains("&") && namesThread(rowParts[0]))
+        return namesThread(windowTitle) && rowNamesThread
+    }
+
+    private func waitForSelection(
+        of threadLabels: Set<String>?,
+        awayFrom before: ConversationSelection,
+        timeout: TimeInterval = 1.5
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let now = await currentSelection()
+            if let threadLabels {
+                if selection(now, matches: threadLabels) { return true }
+                if now.rowLabel == nil, let windowTitle = now.windowTitle,
+                   selection(ConversationSelection(rowLabel: windowTitle, windowTitle: windowTitle), matches: threadLabels) {
+                    return true
+                }
+            } else if now.rowLabel != before.rowLabel, let windowTitle = now.windowTitle,
+                      !windowTitle.isEmpty, windowTitle != Self.messagesAppName,
+                      now.rowLabel == nil || now.rowLabel == windowTitle || windowTitle != before.windowTitle {
+                return true
+            }
+            if now.isComposing, now != before { return true }
+            try? await Task.sleep(forTimeInterval: 0.02)
+        } while Date() < deadline
+        return false
+    }
+
+    private func openAndWaitForSelection(_ deepLink: MessagesDeepLink, threadID: String) async throws {
+        let threadLabels = try? predictWindowTitles(forChatGUID: threadID)
+        let before = await currentSelection()
+        var openedAt = Date()
+        try await openDeepLink(deepLink)
+        if await waitForSelection(of: threadLabels, awayFrom: before) {
+            return try await assertSelectedThread(threadID: threadID, since: openedAt)
+        }
+
+        if threadLabels != nil {
+            log.warning("Messages didn't select the chat, reopening it by chat id")
+            openedAt = Date()
+            try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
+            guard await waitForSelection(of: threadLabels, awayFrom: before) else {
+                throw ErrorMessage("Messages didn't switch to the chat")
+            }
+            return try await assertSelectedThread(threadID: threadID, since: openedAt)
+        }
+
+        log.warning("Messages didn't visibly switch chats, moving the selection and reopening the chat by id")
+        try await selectNextThreadAndScroll()
+        let moved = await currentSelection()
+        openedAt = Date()
         try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
-        try await assertSelectedThread(threadID: threadID)
+        guard await waitForSelection(of: nil, awayFrom: moved) else {
+            throw ErrorMessage("Messages didn't switch to the chat")
+        }
+        try await assertSelectedThread(threadID: threadID, since: openedAt)
     }
 
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
@@ -600,17 +695,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         // we assume thread is already selected
 
-        let selectedCell = try await elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
-        if selectedCell.isInViewport { return selectedCell }
+        if let selectedCell = await elements.selectedThreadCell, selectedCell.isInViewport { return selectedCell }
 
         try await selectNextThreadAndScroll()
         try await openThread(threadID)
 
-        let selectedCellAfterScroll = try await elements.selectedThreadCell.orThrow(ErrorMessage("selectedThreadCell nil"))
-        if selectedCellAfterScroll.isInViewport { return selectedCellAfterScroll }
+        let selectedCellAfterScroll = await elements.selectedThreadCell
+        if let selectedCellAfterScroll, selectedCellAfterScroll.isInViewport { return selectedCellAfterScroll }
 
         let rows = (try? await elements.conversationsList.children()) ?? []
-        let selectedRowIndex = rows.firstIndex(of: selectedCellAfterScroll).map(String.init) ?? "not in list"
+        let selectedRowIndex = selectedCellAfterScroll.flatMap(rows.firstIndex(of:)).map(String.init) ?? "not in list"
         let laidOutRows = rows.filter(\.isInViewport).count
         log.error("selected conversation row has no frame: row \(selectedRowIndex) of \(rows.count), \(laidOutRows) rows laid out")
         throw ErrorMessage("threadCell not found")
@@ -941,49 +1035,44 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
-        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
-
         try await withAutomation {
-            try await withActivation(openBefore: deepLink) {
-                try await assertSelectedThread(threadID: threadID)
-                try await selectExistingThreadIfComposing(threadID)
-                if isVenturaOrUp {
-                    return try keyPresser.commandShiftU()
-                }
-                let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
-                if Defaults.isSelectedThreadCellPinned() {
-                    try await triggerThreadCellAction(threadID: threadID, action: action)
-                } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
-                    func restorePinsIfNecessary() async {
-                        guard Defaults.pinnedThreadsCount() != pinnedCount else { return }
-                        let deadline = Date().addingTimeInterval(0.3)
-                        repeat {
-                            log.debug("retrying unpin")
-                            if (try? await triggerThreadCellAction(threadID: threadID, action: .unpin)) != nil {
-                                break
-                            }
-                            try? await Task.sleep(forTimeInterval: 0.05)
-                        } while Date() < deadline
-                        if Defaults.pinnedThreadsCount() != pinnedCount {
-                            reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
+            try await selectThread(threadID)
+            if isVenturaOrUp {
+                return try keyPresser.commandShiftU()
+            }
+            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
+            if Defaults.isSelectedThreadCellPinned() {
+                try await triggerThreadCellAction(threadID: threadID, action: action)
+            } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
+                func restorePinsIfNecessary() async {
+                    guard Defaults.pinnedThreadsCount() != pinnedCount else { return }
+                    let deadline = Date().addingTimeInterval(0.3)
+                    repeat {
+                        log.debug("retrying unpin")
+                        if (try? await triggerThreadCellAction(threadID: threadID, action: .unpin)) != nil {
+                            break
                         }
+                        try? await Task.sleep(forTimeInterval: 0.05)
+                    } while Date() < deadline
+                    if Defaults.pinnedThreadsCount() != pinnedCount {
+                        reportErrorMessage?("couldn't restore pins \(Defaults.pinnedThreadsCount() ?? -1) != \(pinnedCount)")
                     }
-                    do {
-                        try await triggerThreadCellAction(threadID: threadID, action: .pin)
-                        // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
-                        // openThread ensures scroll logic isn't executed
-                        try await openThread(threadID)
-                        let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
-                        defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
-                        try triggerThreadCellAction(threadCell: threadCell, action: action)
-                    } catch {
-                        await restorePinsIfNecessary()
-                        throw error
-                    }
-                    await restorePinsIfNecessary()
-                } else {
-                    try await markAsReadWithPressHack(threadID: threadID)
                 }
+                do {
+                    try await triggerThreadCellAction(threadID: threadID, action: .pin)
+                    // after pin/unpin elements.selectedThreadCell is nil because no cells are selected
+                    // openThread ensures scroll logic isn't executed
+                    try await openThread(threadID)
+                    let threadCell = try await scrollAndGetSelectedThreadCell(threadID: threadID)
+                    defer { try? triggerThreadCellAction(threadCell: threadCell, action: .unpin) }
+                    try triggerThreadCellAction(threadCell: threadCell, action: action)
+                } catch {
+                    await restorePinsIfNecessary()
+                    throw error
+                }
+                await restorePinsIfNecessary()
+            } else {
+                try await markAsReadWithPressHack(threadID: threadID)
             }
         }
     }
@@ -994,15 +1083,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("toggleHideAlerts took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
-
         try await withAutomation {
-            try await withActivation(openBefore: deepLink) {
-                try await assertSelectedThread(threadID: threadID)
-                try await selectExistingThreadIfComposing(threadID)
-                let item = try await elements.conversationMenuItem("toggleHideAlerts:")
-                try keyPresser.pressKeyEquivalent(of: item)
-            }
+            try await selectThread(threadID)
+            let item = try await elements.conversationMenuItem("toggleHideAlerts:")
+            try keyPresser.pressKeyEquivalent(of: item)
         }
     }
 
@@ -1012,15 +1096,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         defer { log.debug("deleteThread took \(startTime.timeIntervalSinceNow * -1000)ms") }
         #endif
 
-        let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
-
         try await withAutomation {
-            try await withActivation(openBefore: deepLink) {
-                try await assertSelectedThread(threadID: threadID)
-                try await selectExistingThreadIfComposing(threadID)
-                try await triggerThreadCellAction(threadID: threadID, action: .delete)
-                try await elements.alertSheetDeleteButton.press()
-            }
+            try await selectThread(threadID)
+            try await triggerThreadCellAction(threadID: threadID, action: .delete)
+            try await elements.alertSheetDeleteButton.press()
         }
     }
 
