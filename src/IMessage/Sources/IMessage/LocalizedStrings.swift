@@ -23,9 +23,6 @@ enum LocalizedStrings {
 
     static let replyTranscript = chatKitFrameworkAxBundle.localizedString(forKey: "group.reply.collection", value: nil, table: "Accessibility")
 
-    static let showAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "show.alerts.collection.view.cell", value: nil, table: "Accessibility")
-    static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
-
     static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
     static let tapbackDetails = chatKitFramework.localizedString(forKey: "TAPBACK_DETAILS_ELLIPSIS", value: nil, table: "ChatKit")
     static let reactActionTitles = [react, tapbackDetails]

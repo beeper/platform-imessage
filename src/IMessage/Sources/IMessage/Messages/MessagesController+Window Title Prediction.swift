@@ -97,7 +97,7 @@ extension MessagesController {
         return predictions
     }
 
-    private func predictWindowTitles(forChatGUID guid: String) throws -> Set<String> {
+    func predictWindowTitles(forChatGUID guid: String) throws -> Set<String> {
         guard let contacts else {
             throw ErrorMessage("misfire prevention: contacts access not authorized")
         }

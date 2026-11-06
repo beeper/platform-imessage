@@ -294,9 +294,23 @@ public final class PlatformAPI {
     }
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
-        let threadID = try originalThreadID(for: publicThreadID)
+        let database = database
+        let (threadID, dndKey) = try await Task.detached(priority: .userInitiated) {
+            try database.withDatabase { db -> (String, String?) in
+                let threadID = try Self.originalThreadID(db: db, publicThreadID)
+                let chat = try db.mappedThreadRow(guid: threadID)
+                return (threadID, chat?.roomName?.isEmpty == false ? chat?.groupID : chat?.chatIdentifier)
+            }
+        }.value
+        let key = try dndKey.orThrow(ErrorMessage("chat not found"))
+        guard Self.permanentDNDThreadIDs().contains(key) != muted else { return }
         try await withMessagesController {
-            try await $0.muteThread(threadID: threadID, muted: muted)
+            try await $0.toggleHideAlerts(threadID: threadID)
+        }
+        try await retry(withTimeout: 5, interval: 0.1) {
+            guard Self.permanentDNDThreadIDs().contains(key) == muted else {
+                throw ErrorMessage("Hide Alerts didn't change this chat")
+            }
         }
     }
 
