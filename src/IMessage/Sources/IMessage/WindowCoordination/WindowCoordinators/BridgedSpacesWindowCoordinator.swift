@@ -207,6 +207,17 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         throw ErrorMessage("Timed out verifying \(description)")
     }
 
+    private static func step<T>(_ name: String, _ body: () throws -> T) rethrows -> T {
+        let start = Date()
+        defer {
+            let elapsed = Date().timeIntervalSince(start)
+            if elapsed >= 2 {
+                log.error("Window coordination step \(name) took \(Int(elapsed * 1000))ms")
+            }
+        }
+        return try body()
+    }
+
     private func trackWindow(_ window: UInt32) throws -> UInt32 {
         guard let app = currentApp else { throw ErrorMessage("No live Messages instance to coordinate") }
         guard try Self.ownedWindow(window, pid: app.processIdentifier) != nil else {
@@ -313,7 +324,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     func makeAutomatable(_ window: Accessibility.Element) throws {
-        lock.lock()
+        Self.step("lock (makeAutomatable)") { lock.lock() }
         defer { lock.unlock() }
         guard !disposed else { throw ErrorMessage("Messages coordinator was disposed") }
         try parkForAutomation(mainWindow: window)
@@ -334,32 +345,34 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 for id in pending {
                     _ = try trackWindow(id)
                     if session.originalSpaces[id] == nil {
-                        _ = try? Self.displayDestination(for: id, owners: owners)
+                        _ = Self.step("display destination \(id)") { try? Self.displayDestination(for: id, owners: owners) }
                     }
                     if let hidden = session.hiddenSpace {
                         guard IMPrivateSPIActiveSpace() != hidden else {
                             throw ErrorMessage("Cannot park Messages on the user's current Space")
                         }
                     }
-                    let current = try Self.spaces(id)
+                    let current = try Self.step("spaces \(id)") { try Self.spaces(id) }
                     if current.count == 1, let source = current.first,
                        IMPrivateSPISpaceType(source) == 3, !(try PersistentUnknownSpace.isReusable(source)) {
                         throw ErrorMessage("Refusing to adopt a window in an unrecognized unknown Space")
                     }
-                    try session.park(id)
+                    try Self.step("park \(id)") { try session.park(id) }
                     parked.insert(id)
                 }
-                pending = try windowIDsToPark().filter { !parked.contains($0) }
+                pending = try Self.step("list windows after parking") { try windowIDsToPark() }.filter { !parked.contains($0) }
                 if !pending.isEmpty, Date() >= deadline { throw ErrorMessage("Messages keeps creating unparked windows") }
             }
             // All normal windows, including Settings, are parked before unhide.
-            unhideIfNeeded()
-            try Self.waitFor("concealed Messages windows") {
-                let visible = try Window.listDescriptions(.onScreen)
-                let currentIDs = try self.windowIDsToPark()
-                return try currentIDs.allSatisfy { id in
-                    try Self.spaces(id) == [self.session.hiddenSpace] &&
-                        !visible.contains { $0.window.raw == id }
+            Self.step("unhide") { unhideIfNeeded() }
+            try Self.step("wait for concealed windows") {
+                try Self.waitFor("concealed Messages windows") {
+                    let visible = try Window.listDescriptions(.onScreen)
+                    let currentIDs = try self.windowIDsToPark()
+                    return try currentIDs.allSatisfy { id in
+                        try Self.spaces(id) == [self.session.hiddenSpace] &&
+                            !visible.contains { $0.window.raw == id }
+                    }
                 }
             }
         } catch {
@@ -369,22 +382,22 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private func parkForAutomation(mainWindow: Accessibility.Element? = nil) throws {
-        try ensureTargetLease()
-        if let mainWindow { mainWindowID = try trackWindow(mainWindow.window().raw) }
-        guard currentApp != nil, !isCurrentAppActive else { return }
+        try Self.step("target lease") { try ensureTargetLease() }
+        if let mainWindow { mainWindowID = try Self.step("track main window") { try trackWindow(mainWindow.window().raw) } }
+        guard currentApp != nil, !Self.step("active check", { isCurrentAppActive }) else { return }
         // Keep every normal window parked and AX-accessible between operations.
-        try parkWindows(windowIDsToPark())
+        try parkWindows(Self.step("list windows") { try windowIDsToPark() })
     }
 
     func prepareForAutomation() throws {
-        lock.lock()
+        Self.step("lock (prepareForAutomation)") { lock.lock() }
         defer { lock.unlock() }
         guard !disposed else { throw ErrorMessage("Messages coordinator was disposed") }
         try parkForAutomation()
     }
 
     func automationDidComplete() throws {
-        lock.lock()
+        Self.step("lock (automationDidComplete)") { lock.lock() }
         defer { lock.unlock() }
         guard !disposed else { return }
         try parkForAutomation()
