@@ -27,6 +27,8 @@ enum LocalizedStrings {
     static let hideAlerts = chatKitFrameworkAxBundle.localizedString(forKey: "hide.alerts.collection.view.cell", value: nil, table: "Accessibility")
 
     static let react = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgments.action.title", value: nil, table: "Accessibility")
+    static let tapbackDetails = chatKitFramework.localizedString(forKey: "TAPBACK_DETAILS_ELLIPSIS", value: nil, table: "ChatKit")
+    static let reactActionTitles = [react, tapbackDetails]
     static let reactionHeart = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.heart", value: nil, table: "Accessibility")
     static let reactionThumbsUp = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.thumbs.up", value: nil, table: "Accessibility")
     static let reactionThumbsDown = chatKitFrameworkAxBundle.localizedString(forKey: "acknowledgment.type.thumbs.down", value: nil, table: "Accessibility")

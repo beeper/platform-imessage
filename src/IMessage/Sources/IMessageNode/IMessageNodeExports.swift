@@ -56,11 +56,11 @@ enum IMessageNodeExports {
     ]
 
     dict["SystemSettingsOnboarding"] = try [
-        "start": NodeFunction {
-            SystemSettingsOnboarding.start()
+        "start": NodeFunction { () async in
+            await SystemSettingsOnboarding.start()
         },
-        "stop": NodeFunction {
-            SystemSettingsOnboarding.stop()
+        "stop": NodeFunction { () async in
+            await SystemSettingsOnboarding.stop()
         },
     ]
     dict["MacPermissions"] = try [

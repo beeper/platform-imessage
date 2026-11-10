@@ -14,15 +14,25 @@ extension NSPasteboard {
         }
     }
 
-    func withRestoration(perform: () throws -> Void) rethrows {
+    func withRestoration(perform: () async throws -> Void) async rethrows {
         let backup = self.backup()
-        defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
-                self.prepareForNewContents()
-                if let backup { self.writeObjects(backup) }
+        func restore() async {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
+                    self.prepareForNewContents()
+                    if let backup { self.writeObjects(backup) }
+                    continuation.resume()
+                }
             }
         }
         self.prepareForNewContents(with: .currentHostOnly) // currentHostOnly disables universal clipboard
-        try perform()
+        do {
+            try await perform()
+        } catch {
+            await restore()
+            throw error
+        }
+        // Restore before the next attachment send can use the pasteboard.
+        await restore()
     }
 }
