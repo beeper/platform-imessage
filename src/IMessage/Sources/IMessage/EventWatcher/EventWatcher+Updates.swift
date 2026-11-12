@@ -518,8 +518,7 @@ extension EventWatcher {
         var changes: [UpdatedMessageChange] = []
         var finishedRowIDs: [Int] = []
         for (rowID, candidate) in pendingSendStatusCandidates {
-            guard let row = messageRowsByRowID[rowID],
-                  now.timeIntervalSince(candidate.firstSeen) < pendingSendStatusTimeout else {
+            guard let row = messageRowsByRowID[rowID] else {
                 finishedRowIDs.append(rowID)
                 continue
             }
@@ -535,7 +534,8 @@ extension EventWatcher {
                     isHydrationUpdate: true
                 ))
                 sendStatusRowIDsAwaitingSendCommit.append(rowID)
-            } else if row.isSent == 1, !isErrored {
+            } else if (row.isSent == 1 && !isErrored)
+                        || now.timeIntervalSince(candidate.firstSeen) >= pendingSendStatusTimeout {
                 finishedRowIDs.append(rowID)
             }
         }
@@ -636,6 +636,7 @@ extension EventWatcher {
                   row.isFromMe == 1,
                   row.isSent == 0 || row.error != 0,
                   row.itemType == 0,
+                  row.scheduleType == 0,
                   row.associatedMessageGUID?.nonEmpty == nil else {
                 continue
             }

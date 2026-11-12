@@ -26,8 +26,9 @@ package struct UpdatedMessageChange {
     package let wasRead: Bool
     package let wasEdited: Bool
     /// A late-hydration update (link preview, attachment load or send status
-    /// change surfacing after the row was first emitted). Consumers treat it identically to an edit:
-    /// it forces a full repatch rather than a read-receipt patch.
+    /// change surfacing after the row was first emitted). Consumers treat it
+    /// identically to an edit: it forces a full repatch rather than a
+    /// read-receipt patch.
     package let isHydrationUpdate: Bool
 
     package init(
