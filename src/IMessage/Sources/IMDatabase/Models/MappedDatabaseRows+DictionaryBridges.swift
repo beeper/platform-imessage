@@ -13,6 +13,7 @@ public extension MappedMessageRow {
         dateRead = object.int("date_read")
         dateDelivered = object.int("date_delivered")
         isDelivered = object.int("is_delivered") ?? 0
+        isSent = object.int("is_sent") ?? 0
         isFromMe = object.int("is_from_me") ?? 0
         isRead = object.int("is_read") ?? 0
         isAudioMessage = object.int("is_audio_message") ?? 0
@@ -55,6 +56,7 @@ public extension MappedMessageRow {
             "date_read": dateRead,
             "date_delivered": dateDelivered,
             "is_delivered": isDelivered,
+            "is_sent": isSent,
             "is_from_me": isFromMe,
             "is_read": isRead,
             "is_audio_message": isAudioMessage,

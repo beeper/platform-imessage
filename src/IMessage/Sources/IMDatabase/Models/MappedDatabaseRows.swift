@@ -102,6 +102,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
     /// needs to cross into JavaScript.
     public let dateDelivered: Int?
     public let isDelivered: Int
+    public let isSent: Int
     /// Slightly different from `is_sent`.
     public let isFromMe: Int
     public let isRead: Int
@@ -154,6 +155,7 @@ public struct MappedMessageRow: MappedDatabaseRow {
         dateRead = try row.int("date_read", columns: columns)
         dateDelivered = try row.int("date_delivered", columns: columns)
         isDelivered = try row.int("is_delivered", columns: columns) ?? 0
+        isSent = try row.int("is_sent", columns: columns) ?? 0
         isFromMe = try row.int("is_from_me", columns: columns) ?? 0
         isRead = try row.int("is_read", columns: columns) ?? 0
         isAudioMessage = try row.int("is_audio_message", columns: columns) ?? 0
