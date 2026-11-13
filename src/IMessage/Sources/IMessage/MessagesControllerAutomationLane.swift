@@ -61,13 +61,13 @@ actor MessagesControllerAutomationLane {
     private func enqueue<T>(_ action: @Sendable @escaping () async throws -> T) -> Task<T, Error> {
         let previous = tail
         let executionToken = UUID()
-        let task = Task {
-            await previous?.value
-            try Task.checkCancellation()
-            activeExecutionToken = executionToken
-            defer { activeExecutionToken = nil }
-            return try await Self.$executionToken.withValue(executionToken) {
-                try await action()
+        let task = Self.$executionToken.withValue(executionToken) {
+            Task {
+                await previous?.value
+                try Task.checkCancellation()
+                activeExecutionToken = executionToken
+                defer { activeExecutionToken = nil }
+                return try await action()
             }
         }
 

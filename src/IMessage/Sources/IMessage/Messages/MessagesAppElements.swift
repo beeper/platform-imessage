@@ -16,10 +16,41 @@ private struct CharacterPickerPopover {
     let ownerPID: pid_t
 
     func detachedPopover() throws -> Accessibility.Element? {
-        try windowCandidates()
-            .lazy
-            .compactMap(popover(forWindow:))
-            .first
+        if let popover = try windowCandidates().lazy.compactMap(popover(forWindow:)).first {
+            return popover
+        }
+        guard let popover = focusedPopover() else { return nil }
+        log.notice("characterPickerPopover matched through the focused search field")
+        return popover
+    }
+
+    private func focusedPopover() -> Accessibility.Element? {
+        guard let focused = try? app.focusedElement(),
+              Self.isSearchTextField(focused),
+              let popover = try? focused.parent(),
+              Self.isPopover(popover)
+        else { return nil }
+        return popover
+    }
+
+    func describeForFailure() -> String {
+        let windows = (try? Window.listDescriptions(.all, excludeDesktopElements: true)) ?? []
+        let describe = { (window: Window.Description) -> String in
+            let b = window.bounds
+            return "\(window.window.raw) \(window.ownerName ?? "?") layer=\(window.layer) \(Int(b.width))x\(Int(b.height))@\(Int(b.minX)),\(Int(b.minY)) onscreen=\(window.isOnscreen.map { "\($0)" } ?? "?") alpha=\(window.alpha)"
+        }
+        let owned = windows.filter { $0.owner == ownerPID }.map(describe)
+        let pickerSized = windows.filter {
+            $0.owner != ownerPID && (250...500).contains($0.bounds.width) && (250...650).contains($0.bounds.height)
+        }.map(describe)
+        let focused: String
+        if let element = try? app.focusedElement() {
+            let parentRole = (try? element.parent()).flatMap { try? $0.role() } ?? "?"
+            focused = "\((try? element.role()) ?? "?")/\((try? element.subrole()) ?? "?") \"\((try? element.roleDescription()) ?? "?")\" parent=\(parentRole) frame=\((try? element.frame()).map { "\($0)" } ?? "?")"
+        } else {
+            focused = "none"
+        }
+        return "Messages windows=[\(owned.joined(separator: ", "))] other picker-sized windows=[\(pickerSized.joined(separator: ", "))] focused=\(focused)"
     }
 
     func searchField(in popover: Accessibility.Element) -> Accessibility.Element? {
@@ -116,6 +147,20 @@ final class MessagesAppElements {
     static func firstMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
         try transcriptView.children().first { (try? Self.isMessageContainerCell($0)) ?? false }?.children[0]
         // try messageContainerCells(in: transcriptView).first?.children[0]
+    }
+
+    static func customActionNames(in transcriptView: Accessibility.Element, cellLimit: Int = 3) -> [[String]] {
+        let cells = ((try? transcriptView.children()) ?? []).filter {
+            !((try? $0.localizedDescription())?.isEmpty ?? true)
+        }
+        return cells.prefix(cellLimit).map { cell -> [String] in
+            let actions = (try? cell.children[0].supportedActions()) ?? []
+            return actions.compactMap { action -> String? in
+                let name = action.name.value
+                guard name.hasPrefix("Name:") else { return nil }
+                return String(name.dropFirst(5).prefix { $0 != "\n" }.prefix(32))
+            }
+        }
     }
 
     static func firstSelectedMessageCell(in transcriptView: Accessibility.Element) throws -> Accessibility.Element? {
@@ -227,7 +272,14 @@ final class MessagesAppElements {
 
     func getMainWindow() -> Accessibility.Element? { // takes ~24ms
         let startTime = Date()
-        defer { log.debug("getMainWindow took \(startTime.timeIntervalSinceNow * -1000)ms") }
+        defer {
+            let elapsed = startTime.timeIntervalSinceNow * -1000
+            if elapsed >= 2000 {
+                log.error("getMainWindow took \(Int(elapsed))ms")
+            } else {
+                log.debug("getMainWindow took \(elapsed)ms")
+            }
+        }
         return allWindows.first(where: isMainWindow)
     }
 
@@ -521,6 +573,10 @@ final class MessagesAppElements {
                 return characterPickerPopoverLocator.searchField(in: popover)
             }
         }
+    }
+
+    func describeCharacterPickerFailure() -> String {
+        characterPickerPopoverLocator.describeForFailure()
     }
 
     var splitter: Accessibility.Element {
