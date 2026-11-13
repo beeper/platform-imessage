@@ -303,13 +303,13 @@ public final class PlatformAPI {
             }
         }.value
         let key = try dndKey.orThrow(ErrorMessage("chat not found"))
-        guard Self.permanentDNDThreadIDs().contains(key) != muted else { return }
         try await withMessagesController {
+            guard Self.permanentDNDThreadIDs().contains(key) != muted else { return }
             try await $0.toggleHideAlerts(threadID: threadID)
-        }
-        try await retry(withTimeout: 5, interval: 0.1) {
-            guard Self.permanentDNDThreadIDs().contains(key) == muted else {
-                throw ErrorMessage("Hide Alerts didn't change this chat")
+            try await retry(withTimeout: 5, interval: 0.1) {
+                guard Self.permanentDNDThreadIDs().contains(key) == muted else {
+                    throw ErrorMessage("Hide Alerts didn't change this chat")
+                }
             }
         }
     }
