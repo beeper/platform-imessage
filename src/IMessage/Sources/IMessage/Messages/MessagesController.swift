@@ -750,8 +750,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                         throw ReactionSearchError(emoji: emoji, underlying: error)
                     }
                     try await openCustomEmojiReactionPicker(messageCell: $0)
-                    let searchField = try await retry(withTimeout: 1.0, interval: 0.05) { () async throws in
-                        try await elements.characterPickerSearchField
+                    let searchField: Accessibility.Element
+                    do {
+                        searchField = try await retry(withTimeout: 1.0, interval: 0.05) { () async throws in
+                            try await elements.characterPickerSearchField
+                        }
+                    } catch {
+                        log.error("Emoji picker not found: \(elements.describeCharacterPickerFailure())")
+                        throw error
                     }
                     try searchField.value(assign: search.query)
                     try await Task.sleep(forTimeInterval: 0.75) // wait for search
