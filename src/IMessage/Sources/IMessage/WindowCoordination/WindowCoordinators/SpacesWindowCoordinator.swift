@@ -71,7 +71,8 @@ extension SpacesWindowCoordinator: WindowCoordinator {
     }
 
     func reset(_ window: Accessibility.Element) async throws {
-        guard let currentSpace = try? lastKnownDisplayWindowWasOn?.currentSpace(), lastKnownWindow != nil else {
+        guard lastKnownWindow != nil, let lastKnownDisplayWindowWasOn,
+              let currentSpace = (try? lastKnownDisplayWindowWasOn.currentSpace()) ?? (try? Display.main.currentSpace()) else {
             log.debug("can't reset, the last known window or current space was missing")
             return
         }
