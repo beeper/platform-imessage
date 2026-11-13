@@ -393,6 +393,7 @@ public final class PlatformAPI {
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
+        let usedController = Protected<ObjectIdentifier?>(nil)
         try await retry(retries: 1, interval: 1) { attempt in
             let (threadID, isRead) = try await Task.detached(priority: .userInitiated) {
                 try database.withDatabase { db in
@@ -404,8 +405,9 @@ public final class PlatformAPI {
                 return
             }
 
-            try await withMessagesController(forceInvalidate: attempt > 0) {
-                try await $0.toggleThreadRead(threadID: threadID, read: true)
+            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
+                usedController.withLock { $0 = ObjectIdentifier(controller) }
+                try await controller.toggleThreadRead(threadID: threadID, read: true)
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
@@ -722,9 +724,13 @@ public final class PlatformAPI {
         _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
-        try await retry(retries: retries, { attempt in
+        let usedController = Protected<ObjectIdentifier?>(nil)
+        return try await retry(retries: retries, { attempt in
             let context = try await prepareAttempt()
-            try await withMessagesController(forceInvalidate: attempt > 0, action)
+            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
+                usedController.withLock { $0 = ObjectIdentifier(controller) }
+                try await action(controller)
+            }
             try await afterAttempt?(context)
             return context
         }, shouldRetry: shouldRetry, onError: { _, retriesLeft, error in
