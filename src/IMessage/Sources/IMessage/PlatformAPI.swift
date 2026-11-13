@@ -10,6 +10,7 @@ private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let loadAttachmentTimeout: TimeInterval = 60
+private let readReceiptLandTimeout: TimeInterval = 3
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let state = Protected(State())
@@ -406,6 +407,14 @@ public final class PlatformAPI {
 
             try await withMessagesController(forceInvalidate: attempt > 0) {
                 try await $0.toggleThreadRead(threadID: threadID, read: true)
+            }
+            try await retry(withTimeout: readReceiptLandTimeout, interval: 0.1) {
+                let isRead = try await Task.detached(priority: .userInitiated) {
+                    try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
+                }.value
+                guard isRead else {
+                    throw ErrorMessage("Messages didn't mark \(publicThreadID) read")
+                }
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
