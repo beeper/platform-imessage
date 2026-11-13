@@ -325,6 +325,10 @@ final class MessagesController {
     }
 
     private func openAndWaitForSelection(_ deepLink: MessagesDeepLink, threadID: String) async throws {
+        guard Defaults.imessage.bool(forKey: DefaultsKeys.misfirePrevention) else {
+            try await openDeepLink(deepLink)
+            return
+        }
         let threadLabels = try? predictWindowTitles(forChatGUID: threadID)
         let before = await currentSelection()
         var openedAt = Date()
@@ -343,12 +347,15 @@ final class MessagesController {
             return try await assertSelectedThread(threadID: threadID, since: openedAt)
         }
 
-        log.warning("Messages didn't visibly switch chats, moving the selection and reopening the chat by id")
-        try await selectNextThreadAndScroll()
-        let moved = await currentSelection()
+        let now = await currentSelection()
+        if Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true,
+           now.rowLabel == nil || now.rowLabel == now.windowTitle {
+            return
+        }
+        log.warning("Messages didn't visibly switch chats, reopening the chat by id")
         openedAt = Date()
         try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
-        guard await waitForSelection(of: nil, awayFrom: moved) else {
+        guard await waitForSelection(of: nil, awayFrom: before) else {
             throw ErrorMessage("Messages didn't switch to the chat")
         }
         try await assertSelectedThread(threadID: threadID, since: openedAt)

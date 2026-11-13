@@ -188,6 +188,11 @@ enum Defaults {
         return UserDefaults(suiteName: bundleID)
     }
 
+    static func lastSelectedItemIdentifier() -> String? {
+        CFPreferencesAppSynchronize(messagesBundleID as CFString)
+        return CFPreferencesCopyAppValue("CKLastSelectedItemIdentifier" as CFString, messagesBundleID as CFString) as? String
+    }
+
     static func isSelectedThreadCellPinned() -> Bool {
         getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
     }
