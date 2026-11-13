@@ -107,16 +107,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 return try Self.ownedWindow(window, pid: owner) != nil
             },
             spaceExists: { id in try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id } },
-            fallbackSpace: { window in
-                do {
-                    return try Self.displayDestination(for: window, owners: owners)
-                } catch {
-                    let active = IMPrivateSPIActiveSpace()
-                    guard active != 0, IMPrivateSPISpaceType(active) == 0 else { throw error }
-                    log.warning("Using the active desktop \(active) for window \(window): \(error)")
-                    return active
-                }
-            },
+            fallbackSpace: { try Self.desktopDestination(for: $0, owners: owners) },
             isOwnedParkingSpace: PersistentUnknownSpace.isReusable
         ))
     }
@@ -193,6 +184,17 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         return destination.space
     }
 
+    private static func desktopDestination(for window: UInt32, owners: BridgedWindowOwners) throws -> UInt64 {
+        do {
+            return try displayDestination(for: window, owners: owners)
+        } catch {
+            let active = IMPrivateSPIActiveSpace()
+            guard active != 0, IMPrivateSPISpaceType(active) == 0 else { throw error }
+            log.warning("Using the active desktop \(active) for window \(window): \(error)")
+            return active
+        }
+    }
+
     private static func waitFor(_ description: String, timeout: TimeInterval = 3, condition: () throws -> Bool) throws {
         let pollInterval: TimeInterval = 0.02
         let deadline = Date().addingTimeInterval(timeout)
@@ -265,7 +267,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 let current = try Self.spaces(id)
                 if current.count == 1, let space = current.first,
                    try PersistentUnknownSpace.isReusable(space) {
-                    try session.park(trackWindow(id), originalSpaceIfUnassigned: Self.displayDestination(for: id, owners: owners))
+                    try session.park(trackWindow(id))
                 }
             }
             try revealForManualControl()
@@ -413,7 +415,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private func revealForManualControl() throws {
-        let moved = try session.revealAll { try? Self.displayDestination(for: $0, owners: owners) }
+        let moved = try session.revealAll { try? Self.desktopDestination(for: $0, owners: owners) }
         unhideIfNeeded()
         // Restoring a focused foreign window can drop activation. Complete this
         // handoff once; subsequent callbacks have no parked records to move.
