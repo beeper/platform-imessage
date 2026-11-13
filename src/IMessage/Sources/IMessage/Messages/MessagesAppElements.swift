@@ -180,7 +180,6 @@ final class MessagesAppElements {
 
     private let runningApp: NSRunningApplication
     private let openDeepLink: (MessagesDeepLink) async throws -> Void
-    private let reopenApp: () async throws -> Void
 
     let app: Accessibility.Element
 
@@ -190,14 +189,9 @@ final class MessagesAppElements {
 
     private var cachedMainWindow: Accessibility.Element?
 
-    init(
-        runningApp: NSRunningApplication,
-        openDeepLink: @escaping (MessagesDeepLink) async throws -> Void,
-        reopenApp: @escaping () async throws -> Void = { try await MessagesController.reopenMessages() }
-    ) {
+    init(runningApp: NSRunningApplication, openDeepLink: @escaping (MessagesDeepLink) async throws -> Void) {
         self.runningApp = runningApp
         self.openDeepLink = openDeepLink
-        self.reopenApp = reopenApp
         app = Accessibility.Element(pid: runningApp.processIdentifier)
     }
 
@@ -336,8 +330,14 @@ final class MessagesAppElements {
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
             } onError: { attempt, _ in
                 if attempt == 0 {
-                    log.notice("mainWindow: reopening Messages to try to get main window")
-                    try await self.reopenApp()
+                    if Preferences.useSecondaryMessagesInstance {
+                        log.notice("mainWindow: using compose deep link to try to get main window")
+                        try await self.openDeepLink(MessagesDeepLink.compose)
+                    } else {
+                        log.notice("mainWindow: reopening Messages to try to get main window")
+                        do { try MessagesInstanceTarget.sendReopen(to: self.runningApp) }
+                        catch { log.error("mainWindow: reopening Messages failed: \(error)") }
+                    }
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
