@@ -415,8 +415,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 if disposed { eventsTask.cancel() }
                 else { self.lifecycleEventsTask = eventsTask }
             }
-        }, handlingWorkItemsWithinRunLoop: { event in
-            guard !self.isDisposed.read(), !self.app.isTerminated else { return }
+        }, handlingWorkItemsWithinRunLoop: { [weak self] event in
+            guard let self, !self.isDisposed.read(), !self.app.isTerminated else { return }
             guard case let .observeWindow(window) = event else { return }
             do {
                 // swift gives a concurrency warning for capturing `observer` here but it
