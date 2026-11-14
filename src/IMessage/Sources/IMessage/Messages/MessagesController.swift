@@ -141,6 +141,18 @@ final class MessagesController {
         }
     }
 
+    private static func launchMessages(activating: Bool) async throws -> NSRunningApplication {
+        try Task.checkCancellation()
+        let applicationURL = try NSWorkspace.shared.urlForApplication(withBundleIdentifier: messagesBundleID)
+            .orThrow(ErrorMessage("Could not find Messages.app via LaunchServices"))
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = activating
+        configuration.hides = Defaults.shouldCoordinateWindow
+        log.debug("🚀 OPENING MESSAGES (activating? \(activating), hiding? \(configuration.hides))")
+        return try await NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
+    }
+
     @discardableResult
     private func openDeepLink(
         _ deepLink: MessagesDeepLink,
@@ -287,7 +299,7 @@ final class MessagesController {
                 launchedNewApplication = false
             } else {
                 log.info("launching messages...")
-                app = try await Self.openDeepLink(MessagesDeepLink.compose, activating: true)
+                app = try await Self.launchMessages(activating: true)
                 launchedNewApplication = true
             }
         }
