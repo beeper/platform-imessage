@@ -8,7 +8,6 @@
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
 - [ ] replace SQLite w https://github.com/pointfreeco/sqlite-data and benchmark
 
-- [ ] remove `.parity` when no longer needed
 - [ ] consider folding callback from `PlatformAPI.onThreadSelected` into `subscribeToEvents`
 
 - [ ] [bridgev2](https://github.com/mautrix/go) version for self hosting support
