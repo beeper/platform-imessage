@@ -23,7 +23,7 @@ func rejectedCallerCannotInvalidateACachedController(cancelCaller: Bool) async t
     let task = Task {
         if cancelCaller { withUnsafeCurrentTask { $0?.cancel() } }
         return try await coordinator.withController(
-            reportErrorMessage: nil, hasBeenDisposed: Protected(!cancelCaller), forceInvalidate: true
+            reportErrorMessage: nil, hasBeenDisposed: Protected(!cancelCaller), invalidating: ObjectIdentifier(controller.value)
         ) { $0.id }
     }
     let result = await task.result
