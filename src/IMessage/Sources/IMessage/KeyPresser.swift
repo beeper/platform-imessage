@@ -1,4 +1,6 @@
+import AccessibilityControl
 import Carbon.HIToolbox.Events
+import Carbon.HIToolbox.Menus
 import Dispatch
 import Foundation
 import IMessageCore
@@ -82,6 +84,18 @@ class KeyPresser {
     /// marks as read/unread on ventura
     func commandShiftU(onMainThread: Bool = false) throws {
         try pressMappedKey("u", flags: [.maskCommand, .maskShift], onMainThread: onMainThread)
+    }
+
+    func pressKeyEquivalent(of menuItem: Accessibility.Element) throws {
+        let character = try menuItem.attribute(Accessibility.Names.AttributeName<String>(kAXMenuItemCmdCharAttribute))()
+        let modifiers = try menuItem.attribute(Accessibility.Names.AttributeName<Int>(kAXMenuItemCmdModifiersAttribute))()
+        guard let key = character.lowercased().first else { throw ErrorMessage("menu item has no key equivalent") }
+        var flags: CGEventFlags = []
+        if modifiers & kMenuNoCommandModifier == 0 { flags.insert(.maskCommand) }
+        if modifiers & kMenuShiftModifier != 0 { flags.insert(.maskShift) }
+        if modifiers & kMenuOptionModifier != 0 { flags.insert(.maskAlternate) }
+        if modifiers & kMenuControlModifier != 0 { flags.insert(.maskControl) }
+        try pressMappedKey(key, flags: flags, onMainThread: false)
     }
 
     /// selects next thread, both keys aren't the same in practice

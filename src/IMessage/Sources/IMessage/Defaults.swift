@@ -188,6 +188,11 @@ enum Defaults {
         return UserDefaults(suiteName: bundleID)
     }
 
+    static func lastSelectedItemIdentifier() -> String? {
+        CFPreferencesAppSynchronize(messagesBundleID as CFString)
+        return CFPreferencesCopyAppValue("CKLastSelectedItemIdentifier" as CFString, messagesBundleID as CFString) as? String
+    }
+
     static func isSelectedThreadCellPinned() -> Bool {
         getUserDefaults(bundleID: messagesBundleID)?.string(forKey: "CKLastSelectedItemIdentifier")?.hasPrefix("pinned-") == true
     }
@@ -232,10 +237,8 @@ enum Defaults {
          }
          }
          */
-        guard let dict = getUserDefaults(bundleID: dndBundleID)?.dictionary(forKey: "CKDNDListKey") else {
-            return nil
-        }
-        return dict as? [String: Int]
+        CFPreferencesAppSynchronize(dndBundleID as CFString)
+        return CFPreferencesCopyAppValue("CKDNDListKey" as CFString, dndBundleID as CFString) as? [String: Int]
     }
 }
 
