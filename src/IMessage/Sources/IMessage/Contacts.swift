@@ -107,17 +107,21 @@ final class Contacts {
 
 extension Contacts {
     func firstMatching(emailOrPhoneNumber: String) -> CNContact? {
+        let contacts = allMatching(emailOrPhoneNumber: emailOrPhoneNumber)
+        if contacts.count > 1 {
+            log.warning("firstMatching: more than one contact matched the desired criteria")
+        }
+        return contacts.first
+    }
+
+    func allMatching(emailOrPhoneNumber: String) -> [CNContact] {
         let isEmail = emailOrPhoneNumber.contains("@")
         let predicate = isEmail
             ? CNContact.predicateForContacts(matchingEmailAddress: emailOrPhoneNumber)
             // this might be slightly unreliable bc of the numerous ways a phone number is stored (w and w/o country code)
             : CNContact.predicateForContacts(matching: CNPhoneNumber(stringValue: emailOrPhoneNumber))
 
-        let contacts = try? store.unifiedContacts(matching: predicate, keysToFetch: contactKeysToFetch(isEmail: isEmail))
-        if let contacts, contacts.count > 1 {
-            log.warning("firstMatching: more than one contact matched the desired criteria")
-        }
-        return contacts?.first
+        return (try? store.unifiedContacts(matching: predicate, keysToFetch: contactKeysToFetch(isEmail: isEmail))) ?? []
     }
 
     func format(contact: CNContact, style: FormatStyle = .standard) -> String? {

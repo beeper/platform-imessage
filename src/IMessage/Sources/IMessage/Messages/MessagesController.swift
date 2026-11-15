@@ -336,6 +336,10 @@ final class MessagesController {
         return false
     }
 
+    private func isLastSelected(_ threadID: String) -> Bool {
+        Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true
+    }
+
     private func openAndWaitForSelection(_ deepLink: MessagesDeepLink, threadID: String) async throws {
         guard Defaults.imessage.bool(forKey: DefaultsKeys.misfirePrevention) else {
             try await openDeepLink(deepLink)
@@ -349,19 +353,26 @@ final class MessagesController {
             return try await assertSelectedThread(threadID: threadID, since: openedAt)
         }
 
-        if threadLabels != nil {
+        if let threadLabels {
             log.warning("Messages didn't select the chat, reopening it by chat id")
             openedAt = Date()
             try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
-            guard await waitForSelection(of: threadLabels, awayFrom: before) else {
-                throw ErrorMessage("Messages didn't switch to the chat")
+            if await waitForSelection(of: threadLabels, awayFrom: before) {
+                return try await assertSelectedThread(threadID: threadID, since: openedAt)
             }
-            return try await assertSelectedThread(threadID: threadID, since: openedAt)
+            let now = await currentSelection()
+            let lastSelected = isLastSelected(threadID)
+            let rowMatchesTitle = now.windowTitle.map { !$0.isEmpty && $0 != Self.messagesAppName && $0 == now.rowLabel } ?? false
+            if lastSelected, rowMatchesTitle {
+                log.warning("Messages selected the chat under an unpredicted title, accepting its last selected chat")
+                return
+            }
+            log.error("Messages didn't switch to the chat: title predicted=\(now.windowTitle.map(threadLabels.contains) ?? false) row matches title=\(rowMatchesTitle) last selected=\(lastSelected)")
+            throw ErrorMessage("Messages didn't switch to the chat")
         }
 
         let now = await currentSelection()
-        if Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true,
-           now.rowLabel == nil || now.rowLabel == now.windowTitle {
+        if isLastSelected(threadID), now.rowLabel == nil || now.rowLabel == now.windowTitle {
             return
         }
         log.warning("Messages didn't visibly switch chats, reopening the chat by id")
