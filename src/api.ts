@@ -3,7 +3,7 @@ import path from 'path'
 import { setTimeout as sleep } from 'timers/promises'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
 
-import { BeeperThread } from './desktop-types'
+import { BeeperAttachment, BeeperThread, TranscriptionResult } from './desktop-types'
 import { APP_BUNDLE_ID } from './constants'
 import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR, REQUIRES_FULL_DISK_ACCESS } from './common-constants'
 import { csrStatus } from './csr'
@@ -52,11 +52,36 @@ export default class AppleiMessage implements PlatformAPI {
 
     return {
       ...thread,
+      messages: thread.messages && { ...thread.messages, items: this.applyPersistedTranscriptions(thread.id, thread.messages.items) },
       extra,
       reminder,
       isPinned: this.persistence?.getThreadProp(thread.id, 'pin') === true,
       isLowPriority: this.persistence?.getThreadProp(thread.id, 'lowPriority') === true,
     }
+  }
+
+  private applyPersistedTranscription<M extends Message>(threadID: ThreadID, message: M): M {
+    const [attachment, ...otherAttachments] = message.attachments ?? []
+    if (!attachment) return message
+    const transcription = this.persistence?.getTranscription(threadID, message.id)
+    if (!transcription) return message
+    const transcribedAttachment: BeeperAttachment = { ...attachment, transcription }
+    return { ...message, attachments: [transcribedAttachment, ...otherAttachments] }
+  }
+
+  private applyPersistedTranscriptions<M extends Message>(threadID: ThreadID, messages: M[]): M[] {
+    return messages.map(message => this.applyPersistedTranscription(threadID, message))
+  }
+
+  private applyPersistedTranscriptionsToEvent(event: ServerEvent): ServerEvent {
+    if (event.type !== ServerEventType.STATE_SYNC || event.objectName !== 'message') return event
+    if (event.mutationType !== 'upsert' && event.mutationType !== 'update') return event
+    const { threadID } = event.objectIDs
+    if (!threadID) return event
+    return {
+      ...event,
+      entries: event.entries.map(entry => (typeof entry === 'object' && 'attachments' in entry ? this.applyPersistedTranscription(threadID, entry as Message) : entry)),
+    } as ServerEvent
   }
 
   private async ensureDB() {
@@ -127,7 +152,7 @@ export default class AppleiMessage implements PlatformAPI {
         if (event.type === ServerEventType.TOAST) {
           texts.Sentry.captureMessage(`iMessage: ${event.toast.text}`)
         } else {
-          evs.push(reviveSwiftMessageAPIValue(event))
+          evs.push(this.applyPersistedTranscriptionsToEvent(reviveSwiftMessageAPIValue(event)))
         }
       })
       onEvent(evs)
@@ -204,10 +229,11 @@ export default class AppleiMessage implements PlatformAPI {
 
   getMessages = async (hashedThreadID: ThreadID, pagination?: PaginationArg): Promise<Paginated<Message>> => {
     const swiftAPI = this.swiftPlatformAPI!
-    return parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftAPI.getMessages(
+    const response = parseSwiftMessageAPIJSON<Paginated<Message>>(await swiftAPI.getMessages(
       hashedThreadID,
       pagination,
     ))
+    return { ...response, items: this.applyPersistedTranscriptions(hashedThreadID, response.items) }
   }
 
   getMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
@@ -216,7 +242,7 @@ export default class AppleiMessage implements PlatformAPI {
       hashedThreadID,
       messageID,
     ))
-    return parsed ?? undefined
+    return parsed ? this.applyPersistedTranscription(hashedThreadID, parsed) : undefined
   }
 
   getOriginalObject = async (objName: 'thread' | 'message', objectID: ThreadID | MessageID): Promise<string> =>
@@ -224,7 +250,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   searchMessages = async (typed: string, pagination?: PaginationArg, options?: SearchMessageOptions): Promise<PaginatedWithCursors<Message>> => {
     const swiftAPI = this.swiftPlatformAPI!
-    return parseSwiftMessageAPIJSON<PaginatedWithCursors<Message>>(await swiftAPI.searchMessages(
+    const response = parseSwiftMessageAPIJSON<PaginatedWithCursors<Message>>(await swiftAPI.searchMessages(
       typed,
       options?.threadID,
       Boolean(options?.mediaType),
@@ -232,6 +258,10 @@ export default class AppleiMessage implements PlatformAPI {
       pagination,
       undefined,
     ))
+    return {
+      ...response,
+      items: response.items.map(message => (message.threadID ? this.applyPersistedTranscription(message.threadID, message) : message)),
+    }
   }
 
   private sendFileFromFilePath = async (threadID: ThreadID, filePath: string, quotedMessageID?: MessageID): Promise<boolean | Message[]> =>
@@ -311,6 +341,7 @@ export default class AppleiMessage implements PlatformAPI {
   deleteMessage = async (hashedThreadID: ThreadID, messageID: MessageID) => {
     const swiftAPI = this.swiftPlatformAPI!
     await swiftAPI.deleteMessage(hashedThreadID, messageID)
+    this.persistence?.deleteTranscription(hashedThreadID, messageID)
   }
 
   markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
@@ -366,6 +397,10 @@ export default class AppleiMessage implements PlatformAPI {
     }
 
     return this.swiftPlatformAPI!.getAsset(pathHex, methodName)
+  }
+
+  setTranscription = async (hashedThreadID: ThreadID, messageID: MessageID, transcription: TranscriptionResult) => {
+    this.persistence?.setTranscription(hashedThreadID, messageID, transcription)
   }
 
   setThreadReminder = async (threadID: string, reminder: ThreadReminder) => {
