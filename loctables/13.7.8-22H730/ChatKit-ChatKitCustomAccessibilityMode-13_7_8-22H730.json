@@ -1,0 +1,200 @@
+{
+  "he": {
+    "ENTRY_VIEW_PLACEHOLDER": "כתיבת ההודעה…",
+    "SEND_MESSAGE": "שלח הודעה"
+  },
+  "ko": {
+    "ENTRY_VIEW_PLACEHOLDER": "메시지 작성…",
+    "SEND_MESSAGE": "메시지 보내기"
+  },
+  "id": {
+    "ENTRY_VIEW_PLACEHOLDER": "Tulis pesan…",
+    "SEND_MESSAGE": "Kirim Pesan"
+  },
+  "fi": {
+    "ENTRY_VIEW_PLACEHOLDER": "Kirjoita viesti…",
+    "SEND_MESSAGE": "Lähetä viesti"
+  },
+  "tr": {
+    "ENTRY_VIEW_PLACEHOLDER": "Bir mesaj yazın…",
+    "SEND_MESSAGE": "Mesaj Gönder"
+  },
+  "nl": {
+    "ENTRY_VIEW_PLACEHOLDER": "Schrijf een bericht…",
+    "SEND_MESSAGE": "Verstuur bericht"
+  },
+  "hu": {
+    "ENTRY_VIEW_PLACEHOLDER": "Írjon üzenetet…",
+    "SEND_MESSAGE": "Üzenet küldése"
+  },
+  "ru": {
+    "ENTRY_VIEW_PLACEHOLDER": "Текст сообщения…",
+    "SEND_MESSAGE": "Отправить сообщение"
+  },
+  "it": {
+    "ENTRY_VIEW_PLACEHOLDER": "Scrivi un messaggio…",
+    "SEND_MESSAGE": "Invia messaggio"
+  },
+  "el": {
+    "ENTRY_VIEW_PLACEHOLDER": "Γράψτε ένα μήνυμα…",
+    "SEND_MESSAGE": "Αποστολή μηνύματος"
+  },
+  "es_419": {
+    "ENTRY_VIEW_PLACEHOLDER": "Escribir un mensaje…",
+    "SEND_MESSAGE": "Enviar mensaje"
+  },
+  "ca": {
+    "ENTRY_VIEW_PLACEHOLDER": "Escriu un missatge…",
+    "SEND_MESSAGE": "Enviar un missatge"
+  },
+  "ar": {
+    "ENTRY_VIEW_PLACEHOLDER": "كتابة رسالة…",
+    "SEND_MESSAGE": "إرسال رسالة"
+  },
+  "fr_CA": {
+    "ENTRY_VIEW_PLACEHOLDER": "Rédiger un message…",
+    "SEND_MESSAGE": "Envoyer un message"
+  },
+  "zh_HK": {
+    "ENTRY_VIEW_PLACEHOLDER": "編寫訊息⋯",
+    "SEND_MESSAGE": "傳送訊息"
+  },
+  "sv": {
+    "ENTRY_VIEW_PLACEHOLDER": "Skriv ett meddelande…",
+    "SEND_MESSAGE": "Skicka meddelande"
+  },
+  "no": {
+    "ENTRY_VIEW_PLACEHOLDER": "Skriv en melding…",
+    "SEND_MESSAGE": "Send melding"
+  },
+  "hi": {
+    "ENTRY_VIEW_PLACEHOLDER": "संदेश लिखें…",
+    "SEND_MESSAGE": "संदेश भेजें"
+  },
+  "da": {
+    "ENTRY_VIEW_PLACEHOLDER": "Skriv en besked…",
+    "SEND_MESSAGE": "Send besked"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "el": 1,
+    "es_419": 1,
+    "ca": 1,
+    "ar": 1,
+    "fr_CA": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "no": 1,
+    "hi": 1,
+    "da": 1,
+    "en": 1,
+    "pl": 1,
+    "zh_TW": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "ms": 1,
+    "cs": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "ro": 1,
+    "pt": 1,
+    "ja": 1,
+    "hr": 1,
+    "pt_PT": 1
+  },
+  "en": {
+    "ENTRY_VIEW_PLACEHOLDER": "Write a message…",
+    "SEND_MESSAGE": "Send Message"
+  },
+  "pl": {
+    "ENTRY_VIEW_PLACEHOLDER": "Napisz wiadomość…",
+    "SEND_MESSAGE": "Wyślij wiadomość"
+  },
+  "zh_TW": {
+    "ENTRY_VIEW_PLACEHOLDER": "撰寫訊息⋯",
+    "SEND_MESSAGE": "傳送訊息"
+  },
+  "th": {
+    "ENTRY_VIEW_PLACEHOLDER": "เขียนข้อความ…",
+    "SEND_MESSAGE": "ส่งข้อความ"
+  },
+  "zh_CN": {
+    "ENTRY_VIEW_PLACEHOLDER": "编写信息…",
+    "SEND_MESSAGE": "发送信息"
+  },
+  "en_GB": {
+    "ENTRY_VIEW_PLACEHOLDER": "Write a message…",
+    "SEND_MESSAGE": "Send Message"
+  },
+  "ms": {
+    "ENTRY_VIEW_PLACEHOLDER": "Tulis mesej…",
+    "SEND_MESSAGE": "Hantar Mesej"
+  },
+  "cs": {
+    "ENTRY_VIEW_PLACEHOLDER": "Napište zprávu…",
+    "SEND_MESSAGE": "Odeslat zprávu"
+  },
+  "sk": {
+    "ENTRY_VIEW_PLACEHOLDER": "Napíšte správu…",
+    "SEND_MESSAGE": "Odoslať správu"
+  },
+  "en_AU": {
+    "ENTRY_VIEW_PLACEHOLDER": "Write a message…",
+    "SEND_MESSAGE": "Send Message"
+  },
+  "de": {
+    "ENTRY_VIEW_PLACEHOLDER": "Nachricht schreiben …",
+    "SEND_MESSAGE": "Nachricht senden"
+  },
+  "vi": {
+    "ENTRY_VIEW_PLACEHOLDER": "Viết tin nhắn…",
+    "SEND_MESSAGE": "Gửi tin nhắn"
+  },
+  "es": {
+    "ENTRY_VIEW_PLACEHOLDER": "Escribe un mensaje…",
+    "SEND_MESSAGE": "Enviar mensaje"
+  },
+  "uk": {
+    "ENTRY_VIEW_PLACEHOLDER": "Написати повідомлення…",
+    "SEND_MESSAGE": "Надіслати повідомлення"
+  },
+  "fr": {
+    "ENTRY_VIEW_PLACEHOLDER": "Écrire un message…",
+    "SEND_MESSAGE": "Envoyer un message"
+  },
+  "ro": {
+    "ENTRY_VIEW_PLACEHOLDER": "Redactare mesaj…",
+    "SEND_MESSAGE": "Trimiteți mesaj"
+  },
+  "pt": {
+    "ENTRY_VIEW_PLACEHOLDER": "Escrever uma mensagem…",
+    "SEND_MESSAGE": "Enviar Mensagem"
+  },
+  "ja": {
+    "ENTRY_VIEW_PLACEHOLDER": "メッセージを書く…",
+    "SEND_MESSAGE": "メッセージを送信"
+  },
+  "hr": {
+    "ENTRY_VIEW_PLACEHOLDER": "Napišite poruku…",
+    "SEND_MESSAGE": "Pošalji poruku"
+  },
+  "pt_PT": {
+    "ENTRY_VIEW_PLACEHOLDER": "Escrever uma mensagem…",
+    "SEND_MESSAGE": "Enviar mensagem"
+  }
+}
