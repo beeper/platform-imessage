@@ -28,15 +28,19 @@ extension Mapper {
 
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             var imageSrcURL = srcURL
+            var imageFileSize = attachmentRow.totalBytes.map(Int64.init)
             if ext == "png" {
                 imageSrcURL = fileAttachmentAssetURL(filePath: filePath ?? "")
+                if let filePath, (try? CgBIPNG.isCgBI(at: URL(fileURLWithPath: filePath))) == true {
+                    imageFileSize = nil
+                }
             }
             return PlatformSDK.Attachment(
                 id: id,
                 type: .img,
                 size: isSticker ? size.map(stickerDisplaySize(pixelSize:)) : size,
                 fileName: fileName,
-                fileSize: attachmentRow.totalBytes.map(Int64.init),
+                fileSize: imageFileSize,
                 loading: loading,
                 isSticker: isSticker,
                 srcURL: imageSrcURL
