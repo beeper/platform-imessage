@@ -1257,7 +1257,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard try await closeReplyTranscriptView() else { return }
         try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
             guard let pValue = try? await elements.messageBodyField.placeholderValue(),
-                  pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                  LocalizedStrings.composePlaceholders.contains(pValue) else {
                 throw ErrorMessage("replyTranscriptView visible")
             }
         }
@@ -1268,7 +1268,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.debug("waitUntilReplyTranscriptVisible")
         try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
             guard let pValue = try? await elements.messageBodyField.placeholderValue(),
-                  pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
+                  !LocalizedStrings.composePlaceholders.contains(pValue) else {
                 throw ErrorMessage("replyTranscriptView not visible")
             }
         }

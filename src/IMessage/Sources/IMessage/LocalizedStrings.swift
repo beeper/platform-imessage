@@ -7,6 +7,11 @@ enum LocalizedStrings {
 
     static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
     static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")
+    // "Text Message • SMS" / "Text Message • RCS", macOS 15+; resolve to the raw key on older versions
+    static let textMessageSMS = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE_SMS", value: nil, table: "ChatKit")
+    static let textMessageRCS = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE_RCS", value: nil, table: "ChatKit")
+    /// Placeholders of the message body field when the reply transcript isn't visible.
+    static let composePlaceholders = [imessage, textMessage, textMessageSMS, textMessageRCS]
 
     static let markAsRead = chatKitFramework.localizedString(forKey: "MARK_AS_READ", value: nil, table: "ChatKit")
     static let markAsUnread = chatKitFramework.localizedString(forKey: "MARK_AS_UNREAD", value: nil, table: "ChatKit")
