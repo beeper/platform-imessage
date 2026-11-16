@@ -322,7 +322,10 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
-  deleteThread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.deleteThread(hashedThreadID)
+  deleteThread = async (hashedThreadID: ThreadID) => {
+    await this.swiftPlatformAPI!.deleteThread(hashedThreadID)
+    this.persistence?.deleteThreadProp(hashedThreadID, 'transcriptions')
+  }
 
   sendActivityIndicator = async (type: ActivityType, hashedThreadID?: ThreadID) => {
     if (this.sendingMessagesCount > 0) return
@@ -400,7 +403,8 @@ export default class AppleiMessage implements PlatformAPI {
   }
 
   setTranscription = async (hashedThreadID: ThreadID, messageID: MessageID, transcription: TranscriptionResult) => {
-    this.persistence?.setTranscription(hashedThreadID, messageID, transcription)
+    const { transcription: text, engine, language } = transcription
+    this.persistence?.setTranscription(hashedThreadID, messageID, { transcription: text, engine, language })
   }
 
   setThreadReminder = async (threadID: string, reminder: ThreadReminder) => {
