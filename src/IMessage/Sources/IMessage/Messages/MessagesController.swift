@@ -1557,7 +1557,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     return .dndCanNotify
                 }
                 if childRole == Accessibility.Role.staticText,
-                   childDescription?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
+                   let childDescription,
+                   LocalizedStrings.notificationsSilencedFormat?.matches(childDescription, allowingAttachmentPrefix: true) == true {
                     return .dnd
                 }
             }
@@ -1569,8 +1570,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if childCount != 0 { return false }
             let description = try? elt.localizedDescription()
             if description == LocalizedStrings.contactTyping { return true }
-            if !LocalizedStrings.contactWithNameTypingSuffix.isEmpty,
-               description?.hasSuffix(LocalizedStrings.contactWithNameTypingSuffix) == true { return true }
+            if let description,
+               LocalizedStrings.contactWithNameTypingFormat?.matches(description) == true { return true }
             // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
             return (try? elt.roleDescription().isEmpty) != false
         }
