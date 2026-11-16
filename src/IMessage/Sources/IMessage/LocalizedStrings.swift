@@ -45,10 +45,10 @@ enum LocalizedStrings {
 
     static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
 
+    // "Dismiss"
+    static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: "Accessibility")
     // "OK"
-    static let dismissButtonLabel = chatKitFrameworkAxBundle.localizedString(forKey: "dismiss.button.label", value: nil, table: nil)
-    // "OK"
-    static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: nil)
+    static let ok = chatKitFramework.localizedString(forKey: "OK", value: nil, table: "ChatKit")
 
     // "Reply…"
     static let inlineReplyMenu = chatKitFramework.localizedString(forKey: "INLINE_REPLY_MENU", value: nil, table: "ChatKit")
