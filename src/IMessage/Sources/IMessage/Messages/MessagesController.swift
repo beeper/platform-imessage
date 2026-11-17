@@ -1056,12 +1056,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
      4. threadCell.press() action hack                                       (unreliable)
      */
-    func toggleThreadRead(threadID: String, read: Bool) async throws {
+    func toggleThreadRead(threadID: String, read: Bool, isAlreadyDone: (@Sendable () async throws -> Bool)? = nil) async throws {
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         try await withAutomation {
             try await selectThread(threadID)
+            if let isAlreadyDone, try await isAlreadyDone() { return }
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }

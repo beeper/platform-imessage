@@ -420,15 +420,17 @@ public final class PlatformAPI {
                 return
             }
 
-            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
-                usedController.withLock { $0 = ObjectIdentifier(controller) }
-                try await controller.toggleThreadRead(threadID: threadID, read: true)
-            }
-            try await retry(withTimeout: readReceiptLandTimeout, interval: 0.1) {
-                let isRead = try await Task.detached(priority: .userInitiated) {
+            let readNow: @Sendable () async throws -> Bool = {
+                try await Task.detached(priority: .userInitiated) {
                     try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
                 }.value
-                guard isRead else {
+            }
+            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
+                usedController.withLock { $0 = ObjectIdentifier(controller) }
+                try await controller.toggleThreadRead(threadID: threadID, read: true, isAlreadyDone: readNow)
+            }
+            try await retry(withTimeout: readReceiptLandTimeout, interval: 0.1) {
+                guard try await readNow() else {
                     throw ErrorMessage("Messages didn't mark \(publicThreadID) read")
                 }
             }
