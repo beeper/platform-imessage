@@ -22,8 +22,14 @@ echo "--- :key: install Developer ID cert into the agent keychain"
 install_gems
 bundle exec fastlane set_up_signing
 
+echo "--- :swift: restore SwiftPM cache"
+restore_swiftpm_cache --package-resolved Package.resolved
+
 echo "--- :hammer_and_wrench: build, sign, notarize"
 ./scripts/sign-and-notarize-cli
+
+echo "--- :swift: save SwiftPM cache"
+save_swiftpm_cache --package-resolved Package.resolved
 
 binary=".build/universal/release/imessage-cli"
 if [ ! -f "$binary" ]; then
