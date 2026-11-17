@@ -2,11 +2,10 @@
 
 set -euo pipefail
 
-team_id="PZYM8XX95Q"
 arch="universal"
 
 usage() {
-  printf "usage: %s [--arch arm64|x86_64|universal] [--team-id TEAM_ID]\n" "${0##*/}"
+  printf "usage: %s [--arch arm64|x86_64|universal]\n" "${0##*/}"
 }
 
 while [ $# -gt 0 ]; do
@@ -18,15 +17,6 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       arch="$2"
-      shift 2
-      ;;
-    --team-id)
-      if [ $# -lt 2 ]; then
-        printf >&2 "missing value for --team-id\n"
-        usage >&2
-        exit 1
-      fi
-      team_id="$2"
       shift 2
       ;;
     -h|--help)
@@ -49,16 +39,9 @@ case "$arch" in
     ;;
 esac
 
-# This comes from CI toolkit
-if ! command -v sign_and_notarize >/dev/null 2>&1; then
-  printf >&2 "sign_and_notarize not on PATH (provided by the a8c-ci-toolkit plugin)\n"
-  exit 1
-fi
-
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-entitlements="$repo_root/scripts/imessage-cli.entitlements"
 cli_swift_flags=(-Xswiftc -DIMESSAGE_DISABLE_PRIVATE_SPI_ASSETS)
 
 build_arch() {
@@ -91,6 +74,6 @@ printf "==> stripping debug symbols\n"
 # signature, and the release asset shrinks meaningfully without it
 strip "$binary"
 
-sign_and_notarize --team-id "$team_id" --entitlements "$entitlements" "$binary"
+bundle exec fastlane sign_and_notarize "binary:$binary"
 
 printf "==> signed binary at: %s\n" "$binary"
