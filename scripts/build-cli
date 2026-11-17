@@ -74,6 +74,4 @@ printf "==> stripping debug symbols\n"
 # signature, and the release asset shrinks meaningfully without it
 strip "$binary"
 
-bundle exec fastlane sign_and_notarize "binary:$binary"
-
-printf "==> signed binary at: %s\n" "$binary"
+printf "==> binary at: %s\n" "$binary"

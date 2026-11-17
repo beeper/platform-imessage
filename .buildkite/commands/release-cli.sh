@@ -25,17 +25,20 @@ bundle exec fastlane set_up_signing
 echo "--- :swift: restore SwiftPM cache"
 restore_swiftpm_cache --package-resolved Package.resolved
 
-echo "--- :hammer_and_wrench: build, sign, notarize"
-./scripts/sign-and-notarize-cli
+echo "--- :hammer_and_wrench: build"
+./scripts/build-cli
 
 echo "--- :swift: save SwiftPM cache"
 save_swiftpm_cache --package-resolved Package.resolved
 
 binary=".build/universal/release/imessage-cli"
 if [ ! -f "$binary" ]; then
-  printf >&2 "expected signed binary at %s\n" "$binary"
+  printf >&2 "expected binary at %s\n" "$binary"
   exit 1
 fi
+
+echo "--- :lock: sign, notarize"
+bundle exec fastlane sign_and_notarize "binary:$binary"
 
 echo "--- :package: tarball + sha256"
 # Write to dist/ (gitignored) so the pipeline's `artifact_paths` glob can pick
