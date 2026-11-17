@@ -78,7 +78,7 @@ final class BridgedSpaceSession {
 
     /// Resolve each live window's destination before discarding its recovery record.
     @discardableResult
-    func revealAll(to destination: (UInt32) throws -> UInt64) throws -> Bool {
+    func revealAll(to destination: (UInt32) throws -> UInt64?) throws -> Bool {
         var movedWindows = false
         for window in Array(originalSpaces.keys) {
             guard try backend.exists(window) else {
@@ -88,7 +88,7 @@ final class BridgedSpaceSession {
             let target = try destination(window)
             let current = try backend.spaces(window)
             try restore(window, to: target)
-            movedWindows = movedWindows || current != [target]
+            movedWindows = try movedWindows || current != backend.spaces(window)
         }
         return movedWindows
     }

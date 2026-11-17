@@ -54,6 +54,16 @@ enum MessagesInstanceTarget {
             .sendEvent(options: [.neverInteract, .noReply], timeout: timeout)
     }
 
+    static func sendReopen(to app: NSRunningApplication, timeout: TimeInterval = 5) throws {
+        try NSAppleEventDescriptor(
+            eventClass: AEEventClass(kCoreEventClass),
+            eventID: AEEventID(kAEReopenApplication),
+            targetDescriptor: NSAppleEventDescriptor(processIdentifier: app.processIdentifier),
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        ).sendEvent(options: [.neverInteract, .noReply], timeout: timeout)
+    }
+
     static func launchSecondaryInstance(
         initialDeepLink: URL? = nil,
         activating: Bool = false,

@@ -11,6 +11,8 @@ private let log = Logger(imessageLabel: "event-watcher.updates")
 // on a new message whose chat_message_join row never becomes visible.
 private let pendingChatJoinTimeout: TimeInterval = 10
 private let pendingMessageHydrationTimeout: TimeInterval = 2 * 60
+private let pendingSendStatusTimeout: TimeInterval = 24 * 60 * 60
+private let maxPendingSendStatusCandidates = 500
 // How soon to re-tick when resolution work is outstanding and the database is
 // otherwise idle. New-message chat joins normally settle within a second, so we
 // poll them tightly; previews and attachments can take longer, so we reuse the
@@ -187,6 +189,7 @@ extension EventWatcher {
 
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         messageHydrationRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        sendStatusRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
 
         let queryResult = try db.messages(since: updatesCursor)
         traceMessageUpdates(
@@ -195,10 +198,12 @@ extension EventWatcher {
 
         var changes = try resolvePendingNewMessageChanges()
         let hydrationChanges = try resolvePendingMessageHydrationChanges()
+        let sendStatusChanges = try resolvePendingSendStatusChanges()
         rememberPendingNewMessages(rowIDs: queryResult.unresolvedNewMessageRowIDs)
 
         changes.append(contentsOf: queryResult.updatedMessages)
         changes.append(contentsOf: hydrationChanges)
+        changes.append(contentsOf: sendStatusChanges)
 
         let events = try messageUpdateEvents(for: changes)
         traceMessageUpdates("done computing message state syncs, updating the messages updates cursor to: \(queryResult.nextCursor)")
@@ -217,8 +222,12 @@ extension EventWatcher {
         for rowID in messageHydrationRowIDsAwaitingSendCommit {
             pendingMessageHydrationCandidates.removeValue(forKey: rowID)
         }
+        for rowID in sendStatusRowIDsAwaitingSendCommit {
+            pendingSendStatusCandidates[rowID]?.isErrored.toggle()
+        }
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         messageHydrationRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        sendStatusRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         schedulePendingWakeIfNeeded()
     }
 
@@ -291,6 +300,7 @@ extension EventWatcher {
             messageRowsByRowID: messageRowsByRowID,
             mappedMessagesByRowID: context.mappedMessagesByRowID
         )
+        trackPendingSendStatusCandidates(changes: changes, messageRowsByRowID: messageRowsByRowID)
         return context.events
     }
 
@@ -496,6 +506,46 @@ extension EventWatcher {
         return changes
     }
 
+    private func resolvePendingSendStatusChanges() throws -> [UpdatedMessageChange] {
+        guard !pendingSendStatusCandidates.isEmpty else {
+            return []
+        }
+
+        let now = Date()
+        let messageRows = try db.mappedMessageRows(rowIDs: Array(pendingSendStatusCandidates.keys))
+        let messageRowsByRowID = Dictionary(messageRows.map { ($0.rowID, $0) }, uniquingKeysWith: { first, _ in first })
+
+        var changes: [UpdatedMessageChange] = []
+        var finishedRowIDs: [Int] = []
+        for (rowID, candidate) in pendingSendStatusCandidates {
+            guard let row = messageRowsByRowID[rowID] else {
+                finishedRowIDs.append(rowID)
+                continue
+            }
+
+            let isErrored = row.error != 0
+            if isErrored != candidate.isErrored {
+                changes.append(UpdatedMessageChange(
+                    rowID: rowID,
+                    chatGUID: row.threadID ?? candidate.chatGUID,
+                    isNew: false,
+                    wasRead: false,
+                    wasEdited: false,
+                    isHydrationUpdate: true
+                ))
+                sendStatusRowIDsAwaitingSendCommit.append(rowID)
+            } else if (row.isSent == 1 && !isErrored)
+                        || now.timeIntervalSince(candidate.firstSeen) >= pendingSendStatusTimeout {
+                finishedRowIDs.append(rowID)
+            }
+        }
+
+        for rowID in finishedRowIDs {
+            pendingSendStatusCandidates.removeValue(forKey: rowID)
+        }
+        return changes
+    }
+
     private func attachmentTransferStates(forMessageRowIDs messageRowIDs: [Int]) throws -> [Int: [Attachment.IMFileTransferState]] {
         guard !messageRowIDs.isEmpty else { return [:] }
         let attachmentRows = try db.mappedAttachmentRows(messageRowIDs: messageRowIDs)
@@ -573,6 +623,31 @@ extension EventWatcher {
             } else if pendingMessageHydrationCandidates[row.rowID]?.kind == .attachmentLoad {
                 pendingMessageHydrationCandidates.removeValue(forKey: row.rowID)
             }
+        }
+    }
+
+    private func trackPendingSendStatusCandidates(
+        changes: [UpdatedMessageChange],
+        messageRowsByRowID: [Int: MappedMessageRow]
+    ) {
+        let now = Date()
+        for change in changes where change.isNew && pendingSendStatusCandidates[change.rowID] == nil {
+            guard let row = messageRowsByRowID[change.rowID],
+                  row.isFromMe == 1,
+                  row.isSent == 0 || row.error != 0,
+                  row.itemType == 0,
+                  row.scheduleType == 0,
+                  row.associatedMessageGUID?.nonEmpty == nil else {
+                continue
+            }
+            if pendingSendStatusCandidates.count >= maxPendingSendStatusCandidates {
+                pendingSendStatusCandidates.removeFirst()
+            }
+            pendingSendStatusCandidates[row.rowID] = PendingSendStatusCandidate(
+                firstSeen: now,
+                chatGUID: row.threadID ?? change.chatGUID,
+                isErrored: row.error != 0
+            )
         }
     }
 
