@@ -61,7 +61,7 @@ lane :set_up_signing do |readonly: true|
   )
 end
 
-desc 'Sign the CLI binary with the Developer ID certificate, verify it, and notarize it. Run `set_up_signing` first'
+desc 'Sign the CLI binary with the Developer ID certificate, verify it, and notarize it. You are expected to have run `set_up_signing` first'
 lane :sign_and_notarize do |binary:|
   ASC_API_KEY_ENV_VARS.each { |k| EnvManager.get_required_env!(k) }
 
