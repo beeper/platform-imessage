@@ -1698,7 +1698,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             app.terminate()
             let deadline = Date().addingTimeInterval(2)
             let pid = app.processIdentifier
-            while kill(pid, 0) == 0 || errno != ESRCH {
+            while MessagesInstanceTarget.isRunning(pid: pid) {
                 guard Date() < deadline else {
                     // Preserve the existing recovery path if Messages refuses
                     // to quit: restore its windows instead of stranding them.
