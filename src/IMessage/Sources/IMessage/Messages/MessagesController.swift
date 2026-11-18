@@ -1056,12 +1056,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
      4. threadCell.press() action hack                                       (unreliable)
      */
-    func toggleThreadRead(threadID: String, read: Bool) async throws {
+    func toggleThreadRead(threadID: String, read: Bool, isAlreadyDone: (@Sendable () async throws -> Bool)? = nil) async throws {
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         try await withAutomation {
             try await selectThread(threadID)
+            if let isAlreadyDone, try await isAlreadyDone() { return }
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }
@@ -1695,10 +1696,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // Restoring a parked window can order it onscreen even while AX
             // reports the app hidden. Let Messages close its windows in the
             // unknown Space before releasing coordination ownership.
+            let pid = app.processIdentifier
             app.terminate()
             let deadline = Date().addingTimeInterval(2)
-            let pid = app.processIdentifier
-            while kill(pid, 0) == 0 || errno != ESRCH {
+            while MessagesInstanceTarget.isRunning(pid: pid) {
                 guard Date() < deadline else {
                     // Preserve the existing recovery path if Messages refuses
                     // to quit: restore its windows instead of stranding them.
