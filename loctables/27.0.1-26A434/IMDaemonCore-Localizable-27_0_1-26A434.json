@@ -1,0 +1,435 @@
+{
+  "en_IN": {
+    "File transfer operation was unsuccessful.": "File transfer operation was unsuccessful.",
+    "The given GUIDs was empty.": "The given GUIDs were empty.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful.",
+    "Unable to find a matching message item.": "Unable to find a matching message item.",
+    "File transfer preview generation failed.": "File transfer preview generation failed.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "File transfer local file URLs retrieval operation was unsuccessful.",
+    "File transfer local file url retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful."
+  },
+  "ko": {
+    "File transfer operation was unsuccessful.": "파일 전송 작업이 실패했습니다.",
+    "The given GUIDs was empty.": "제공된 GUID가 비어 있습니다.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "파일 전송 로컬 파일 URL 가져오기 작업에 실패했습니다.",
+    "Unable to find a matching message item.": "일치하는 메시지 항목을 찾을 수 없습니다.",
+    "File transfer preview generation failed.": "파일 전송 미리보기 생성에 실패했습니다.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "파일 전송 로컬 파일 url 가져오기 작업에 실패했습니다.",
+    "File transfer local file url retrieval operation was unsuccessful.": "파일 전송 로컬 파일 url 가져오기 작업에 실패했습니다."
+  },
+  "he": {
+    "File transfer operation was unsuccessful.": "פעולת העברת הקובץ לא צלחה.",
+    "The given GUIDs was empty.": "ה-GUID הנתון היה ריק.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "פעולת אחזור כתובת האינטרנט של הקובץ המקומי במסגרת העברת הקבצים נכשלה.",
+    "Unable to find a matching message item.": "לא ניתן למצוא פריט הודעה תואם.",
+    "File transfer preview generation failed.": "יצירת התצוגה המקדימה של העברת הקבצים נכשלה.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "פעולת אחזור כתובות האינטרנט של הקובץ המקומי במסגרת העברת הקבצים נכשלה.",
+    "File transfer local file url retrieval operation was unsuccessful.": "פעולת אחזור כתובת האינטרנט של הקובץ המקומי במסגרת העברת הקבצים נכשלה."
+  },
+  "id": {
+    "File transfer operation was unsuccessful.": "Operasi transfer file tidak berhasil.",
+    "The given GUIDs was empty.": "GUID yang diberikan kosong.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operasi pengambilan URL file lokal transfer file tidak berhasil.",
+    "Unable to find a matching message item.": "Tidak dapat menemukan item pesan yang cocok.",
+    "File transfer preview generation failed.": "Pembuatan pratinjau transfer file gagal.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operasi pengambilan url file lokal transfer file tidak berhasil.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operasi pengambilan url file lokal transfer file tidak berhasil."
+  },
+  "fi": {
+    "File transfer operation was unsuccessful.": "Tiedostonsiirto epäonnistui.",
+    "The given GUIDs was empty.": "Annettu GUIDs oli tyhjä.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Tiedostojen siirron paikallisen tiedoston URLin nouto epäonnistui.",
+    "Unable to find a matching message item.": "Vastaavaa viestikohdetta ei löydy.",
+    "File transfer preview generation failed.": "Tiedostonsiirron esikatselun luominen epäonnistui.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Tiedostojen siirron paikallisen tiedoston URLien nouto epäonnistui.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Tiedostojen siirron paikallisen tiedoston URLin nouto epäonnistui."
+  },
+  "tr": {
+    "File transfer operation was unsuccessful.": "Dosya aktarımı işlemi başarısız oldu.",
+    "The given GUIDs was empty.": "Verilen GUID’ler boştu.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Dosya aktarımı yerel dosya URL’sini alma işlemi başarısız oldu.",
+    "Unable to find a matching message item.": "Eşleşen bir mesaj öğesi bulunamıyor.",
+    "File transfer preview generation failed.": "Dosya aktarımı önizleme oluşturma başarısız oldu.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Dosya aktarımı yerel dosya url’lerini alma işlemi başarısız oldu.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Dosya aktarımı yerel dosya url’sini alma işlemi başarısız oldu."
+  },
+  "nl": {
+    "File transfer operation was unsuccessful.": "Bestandsoverdracht is mislukt.",
+    "The given GUIDs was empty.": "De opgegeven GUID's waren leeg.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Ophalen van lokale bestands-URL voor bestandsoverdracht is mislukt.",
+    "Unable to find a matching message item.": "Er is geen overeenkomend berichtenonderdeel gevonden.",
+    "File transfer preview generation failed.": "Het genereren van de voorvertoning voor de bestandsoverdracht is mislukt.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Ophalen van lokale bestands-URL voor bestandsoverdracht is mislukt.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Ophalen van lokale bestands-URL voor bestandsoverdracht is mislukt."
+  },
+  "hu": {
+    "File transfer operation was unsuccessful.": "A fájlátviteli művelet sikertelen volt.",
+    "The given GUIDs was empty.": "A megadott GUID-k üresek voltak.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "A fájlátvitel helyi fájljához tartozó URL lekérésének művelete sikertelen volt.",
+    "Unable to find a matching message item.": "Nem található egyező üzenetelem.",
+    "File transfer preview generation failed.": "A fájlátvitel előnézetének létrehozása nem sikerült.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "A fájlátvitel helyi fájljaihoz tartozó URL-ek lekérésének művelete sikertelen volt.",
+    "File transfer local file url retrieval operation was unsuccessful.": "A fájlátvitel helyi fájljához tartozó URL lekérésének művelete sikertelen volt."
+  },
+  "ru": {
+    "File transfer operation was unsuccessful.": "Не удалось перенести файлы.",
+    "The given GUIDs was empty.": "Указан пустой GUID.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Не удалось извлечь URL‑адрес локального файла при переносе файлов.",
+    "Unable to find a matching message item.": "Не удается найти соответствующее сообщение.",
+    "File transfer preview generation failed.": "Не удалось сгенерировать предпросмотр при переносе файлов.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Не удалось извлечь URL‑адреса локальных файлов при переносе файлов.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Не удалось извлечь URL‑адрес локального файла при переносе файлов."
+  },
+  "it": {
+    "File transfer operation was unsuccessful.": "L’operazione di trasferimento del file non è riuscita.",
+    "The given GUIDs was empty.": "I GUID forniti erano vuoti.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "L’operazione di recupero dell’URL del file locale per il trasferimento del file non è riuscita.",
+    "Unable to find a matching message item.": "Elemento messaggio corrispondente non trovato.",
+    "File transfer preview generation failed.": "Impossibile generare l’anteprima del trasferimento del file.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "L’operazione di recupero degli URL dei file locali per il trasferimento non è riuscita.",
+    "File transfer local file url retrieval operation was unsuccessful.": "L’operazione di recupero dell’URL del file locale per il trasferimento del file non è riuscita."
+  },
+  "en_CA": {
+    "File transfer operation was unsuccessful.": "File transfer operation was unsuccessful.",
+    "The given GUIDs was empty.": "The given GUIDs was empty.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful.",
+    "Unable to find a matching message item.": "Unable to find a matching message item.",
+    "File transfer preview generation failed.": "File transfer preview generation failed.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "File transfer local file urls retrieval operation was unsuccessful.",
+    "File transfer local file url retrieval operation was unsuccessful.": "File transfer local file url retrieval operation was unsuccessful."
+  },
+  "es_419": {
+    "File transfer operation was unsuccessful.": "No se pudo completar la transferencia de archivos.",
+    "The given GUIDs was empty.": "Los GUID proporcionados estaban vacíos.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "No se pudo recuperar la URL del archivo local para la transferencia de archivos.",
+    "Unable to find a matching message item.": "No se encontró ningún elemento de mensaje coincidente.",
+    "File transfer preview generation failed.": "No se pudo generar una vista previa de la transferencia de archivos.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "No se pudo recuperar las URL de los archivos locales para la transferencia de archivos.",
+    "File transfer local file url retrieval operation was unsuccessful.": "No se pudo recuperar la URL del archivo local para la transferencia de archivos."
+  },
+  "el": {
+    "File transfer operation was unsuccessful.": "Η λειτουργία μεταφοράς αρχείου απέτυχε.",
+    "The given GUIDs was empty.": "Τα παρεχόμενα GUID ήταν κενά.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Η λειτουργία ανάκτησης της διεύθυνσης URL τοπικού αρχείου μεταφοράς αρχείου απέτυχε.",
+    "Unable to find a matching message item.": "Δεν βρέθηκε αντίστοιχο στοιχείο μηνύματος.",
+    "File transfer preview generation failed.": "Η δημιουργία προεπισκόπησης μεταφοράς αρχείου απέτυχε.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Η λειτουργία ανάκτησης των διευθύνσεων URL τοπικών αρχείων μεταφοράς αρχείων απέτυχε.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Η λειτουργία ανάκτησης της διεύθυνσης URL τοπικού αρχείου μεταφοράς αρχείου απέτυχε."
+  },
+  "fr_CA": {
+    "File transfer operation was unsuccessful.": "L’opération de transfert de fichier a échoué.",
+    "The given GUIDs was empty.": "Les GUID fournis étaient vides.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "L’opération de récupération de l’URL du fichier local à transférer a échoué.",
+    "Unable to find a matching message item.": "Impossible de trouver un élément de message correspondant.",
+    "File transfer preview generation failed.": "La génération de l’aperçu du transfert de fichier a échoué.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "L’opération de récupération des URL des fichiers locaux à transférer a échoué.",
+    "File transfer local file url retrieval operation was unsuccessful.": "L’opération de récupération de l’URL du fichier local à transférer a échoué."
+  },
+  "ar": {
+    "File transfer operation was unsuccessful.": "لم تنجح عملية نقل الملف.",
+    "The given GUIDs was empty.": "معرِّفات GUID المذكورة كانت فارغة.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "لم تنجح عملية استرجاع رابط الملف المحلي لنقل الملف.",
+    "Unable to find a matching message item.": "تعذر العثور على عنصر رسالة مطابق.",
+    "File transfer preview generation failed.": "لم تنجح عملية توليد معاينة نقل الملف.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "لم تنجح عملية استرجاع رابط الملف المحلي لنقل الملف.",
+    "File transfer local file url retrieval operation was unsuccessful.": "لم تنجح عملية استرجاع رابط الملف المحلي لنقل الملف."
+  },
+  "zh_TW": {
+    "File transfer operation was unsuccessful.": "檔案傳送作業失敗。",
+    "The given GUIDs was empty.": "指定的GUID為空。",
+    "File transfer local file URL retrieval operation was unsuccessful.": "檔案傳輸本機檔案URL擷取的作業失敗。",
+    "Unable to find a matching message item.": "找不到符合的訊息項目。",
+    "File transfer preview generation failed.": "無法產生檔案傳送預覽。",
+    "File transfer local file urls retrieval operation was unsuccessful.": "檔案傳輸本機檔案URL擷取的作業失敗。",
+    "File transfer local file url retrieval operation was unsuccessful.": "檔案傳輸本機檔案URL擷取的作業失敗。"
+  },
+  "zh_HK": {
+    "File transfer operation was unsuccessful.": "檔案傳送操作失敗。",
+    "The given GUIDs was empty.": "提供的GUID為空白。",
+    "File transfer local file URL retrieval operation was unsuccessful.": "檔案傳送本機檔案URL取回操作失敗。",
+    "Unable to find a matching message item.": "找不到相符的訊息項目。",
+    "File transfer preview generation failed.": "檔案傳送預覽生成失敗。",
+    "File transfer local file urls retrieval operation was unsuccessful.": "檔案傳送本機檔案url取回操作失敗。",
+    "File transfer local file url retrieval operation was unsuccessful.": "檔案傳送本機檔案url取回操作失敗。"
+  },
+  "sv": {
+    "File transfer operation was unsuccessful.": "Åtgärden för filöverföring misslyckades.",
+    "The given GUIDs was empty.": "De angivna GUID:erna var tomma.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Åtgärden för att hämta lokal fil-URL för filöverföring misslyckades.",
+    "Unable to find a matching message item.": "Kunde inte hitta ett matchande meddelandeobjekt.",
+    "File transfer preview generation failed.": "Generering av förhandsvisning av filöverföring misslyckades.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Åtgärden för att hämta lokala fil-URL:er för filöverföring misslyckades.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Åtgärden för att hämta lokal fil-URL för filöverföring misslyckades."
+  },
+  "no": {
+    "File transfer operation was unsuccessful.": "Filoverføringshandlingen mislyktes.",
+    "The given GUIDs was empty.": "De oppgitte GUID-ene var tomme.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operasjonen for å hente lokal fil-URL fra filoverføring mislyktes.",
+    "Unable to find a matching message item.": "Finner ikke et meldingsobjekt som passer.",
+    "File transfer preview generation failed.": "Generering av forhåndsvisning av filoverføring mislyktes.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operasjonen for å hente lokale fil-URL-er fra filoverføring mislyktes.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operasjonen for å hente lokal fil-URL fra filoverføring mislyktes."
+  },
+  "hi": {
+    "File transfer operation was unsuccessful.": "फ़ाइल ट्रांसफ़र ऑपरेशन असफल रहा।",
+    "The given GUIDs was empty.": "दिए गए GUID ख़ाली थे।",
+    "File transfer local file URL retrieval operation was unsuccessful.": "फ़ाइल ट्रांसफ़र स्थानीय फ़ाइल URL पुनर्प्राप्ति ऑपरेशन असफल रहा।",
+    "Unable to find a matching message item.": "मिलता-जुलता संदेश आइटम ढूँढने में असमर्थ।",
+    "File transfer preview generation failed.": "फ़ाइल ट्रांसफ़र प्रीव्यू जनरेशन विफल रहा।",
+    "File transfer local file urls retrieval operation was unsuccessful.": "फ़ाइल ट्रांसफ़र स्थानीय फ़ाइल URL पुनर्प्राप्ति ऑपरेशन असफल रहा।",
+    "File transfer local file url retrieval operation was unsuccessful.": "फ़ाइल ट्रांसफ़र स्थानीय फ़ाइल URL पुनर्प्राप्ति ऑपरेशन असफल रहा।"
+  },
+  "da": {
+    "File transfer operation was unsuccessful.": "Handlingen til at overføre arkiv mislykkedes.",
+    "The given GUIDs was empty.": "De angivne GUID’er var tomme.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Handlingen til at hente URL til lokalt arkiv til arkivoverførsel mislykkedes.",
+    "Unable to find a matching message item.": "Kan ikke finde et tilsvarende beskedemne.",
+    "File transfer preview generation failed.": "Generering af eksempel til arkivoverførsel mislykkedes.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Handlingen til at hente URL’er til lokalt arkiv til arkivoverførsel mislykkedes.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Handlingen til at hente URL til lokalt arkiv til arkivoverførsel mislykkedes."
+  },
+  "LocProvenance": {
+    "en_IN": 1,
+    "ko": 1,
+    "he": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "en_CA": 1,
+    "es_419": 1,
+    "el": 1,
+    "fr_CA": 1,
+    "ar": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "no": 1,
+    "hi": 1,
+    "da": 1,
+    "en_PH": 1,
+    "pl": 1,
+    "ca": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "ms": 1,
+    "sk": 1,
+    "cs": 1,
+    "sl": 1,
+    "en_AU": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "none": 2,
+    "fr": 1,
+    "uk": 1,
+    "ro": 1,
+    "pt_BR": 1,
+    "ja": 1,
+    "hr": 1,
+    "pt_PT": 1
+  },
+  "en_PH": {
+    "File transfer operation was unsuccessful.": "File transfer operation was unsuccessful.",
+    "The given GUIDs was empty.": "The given GUIDs was empty.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful.",
+    "Unable to find a matching message item.": "Unable to find a matching message item.",
+    "File transfer preview generation failed.": "File transfer preview generation failed.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "File transfer local file urls retrieval operation was unsuccessful.",
+    "File transfer local file url retrieval operation was unsuccessful.": "File transfer local file url retrieval operation was unsuccessful."
+  },
+  "pl": {
+    "File transfer operation was unsuccessful.": "Operacja przesyłania plików nie powiodła się.",
+    "The given GUIDs was empty.": "Podane identyfikatory GUID są puste.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Nie udało się uzyskać lokalnego adresu URL pliku na potrzeby przesyłania plików.",
+    "Unable to find a matching message item.": "Nie można znaleźć pasującej rzeczy wiadomości.",
+    "File transfer preview generation failed.": "Nie udało się wygenerować podglądu na potrzeby przesyłania plików.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Nie udało się uzyskać lokalnych adresów URL plików na potrzeby przesyłania plików.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Nie udało się uzyskać lokalnego adresu URL pliku na potrzeby przesyłania plików."
+  },
+  "ca": {
+    "File transfer operation was unsuccessful.": "No s’han pogut transferir els arxius.",
+    "The given GUIDs was empty.": "Els GUID proporcionats eren buits.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "No s’ha pogut recuperar l’URL de l’arxiu local de la transferència.",
+    "Unable to find a matching message item.": "No s’ha trobat cap ítem coincident al missatge.",
+    "File transfer preview generation failed.": "No s’ha pogut generar la previsualització de la transferència d’arxius.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "No s’han pogut recuperar els URL dels arxius locals de la transferència.",
+    "File transfer local file url retrieval operation was unsuccessful.": "No s’ha pogut recuperar l’URL de l’arxiu local de la transferència."
+  },
+  "th": {
+    "File transfer operation was unsuccessful.": "การดำเนินการถ่ายโอนไฟล์ไม่สำเร็จ",
+    "The given GUIDs was empty.": "GUID ที่ให้มาว่างเปล่า",
+    "File transfer local file URL retrieval operation was unsuccessful.": "การดำเนินการดึงข้อมูล URL ของไฟล์ในเครื่องสำหรับการถ่ายโอนไฟล์ไม่สำเร็จ",
+    "Unable to find a matching message item.": "ไม่สามารถค้นหารายการข้อความที่ตรงกันได้",
+    "File transfer preview generation failed.": "สร้างการแสดงตัวอย่างการถ่ายโอนไฟล์ไม่สำเร็จ",
+    "File transfer local file urls retrieval operation was unsuccessful.": "การดำเนินการดึงข้อมูล url ของไฟล์ในเครื่องสำหรับการถ่ายโอนไฟล์ไม่สำเร็จ",
+    "File transfer local file url retrieval operation was unsuccessful.": "การดำเนินการดึงข้อมูล url ของไฟล์ในเครื่องสำหรับการถ่ายโอนไฟล์ไม่สำเร็จ"
+  },
+  "zh_CN": {
+    "File transfer operation was unsuccessful.": "文件传输操作不成功。",
+    "The given GUIDs was empty.": "给定的GUID为空。",
+    "File transfer local file URL retrieval operation was unsuccessful.": "文件传输本地文件URL取回操作不成功。",
+    "Unable to find a matching message item.": "找不到匹配的信息项目。",
+    "File transfer preview generation failed.": "生成文件传输预览失败。",
+    "File transfer local file urls retrieval operation was unsuccessful.": "文件传输本地文件URL取回操作不成功。",
+    "File transfer local file url retrieval operation was unsuccessful.": "文件传输本地文件URL取回操作不成功。"
+  },
+  "en_GB": {
+    "File transfer operation was unsuccessful.": "File transfer operation was unsuccessful.",
+    "The given GUIDs was empty.": "The given GUIDs were empty.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful.",
+    "Unable to find a matching message item.": "Unable to find a matching message item.",
+    "File transfer preview generation failed.": "File transfer preview generation failed.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "File transfer local file URLs retrieval operation was unsuccessful.",
+    "File transfer local file url retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful."
+  },
+  "es_US": {
+    "File transfer operation was unsuccessful.": "No se pudo completar la transferencia de archivos.",
+    "The given GUIDs was empty.": "Los GUID proporcionados estaban vacíos.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "No se pudo recuperar la URL del archivo local para la transferencia de archivos.",
+    "Unable to find a matching message item.": "No se encontró ningún elemento de mensaje coincidente.",
+    "File transfer preview generation failed.": "No se pudo generar una vista previa de la transferencia de archivos.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "No se pudo recuperar las URL de los archivos locales para la transferencia de archivos.",
+    "File transfer local file url retrieval operation was unsuccessful.": "No se pudo recuperar la URL del archivo local para la transferencia de archivos."
+  },
+  "ms": {
+    "File transfer operation was unsuccessful.": "Operasi pemindahan fail tidak berjaya.",
+    "The given GUIDs was empty.": "GUID yang diberikan kosong.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operasi pengambilan URL fail setempat pemindahan fail tidak berjaya.",
+    "Unable to find a matching message item.": "Gagal mencari item mesej sepadan.",
+    "File transfer preview generation failed.": "Penjanaan pratonton pemindahan fail gagal.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operasi pengambilan url fail setempat pemindahan fail tidak berjaya.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operasi pengambilan url fail setempat pemindahan fail tidak berjaya."
+  },
+  "sk": {
+    "File transfer operation was unsuccessful.": "Operácia prenosu súborov bola neúspešná.",
+    "The given GUIDs was empty.": "Dané identifikátory GUID boli prázdne.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operácia získania URL adresy lokálneho súboru na prenos súboru bola neúspešná.",
+    "Unable to find a matching message item.": "Nenašla sa vyhovujúca položka správy.",
+    "File transfer preview generation failed.": "Generovanie náhľadu prenosu súborov zlyhalo.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operácia získania URL adries lokálnych súborov na prenos súborov bola neúspešná.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operácia získania URL adresy lokálneho súboru na prenos súboru bola neúspešná."
+  },
+  "cs": {
+    "File transfer operation was unsuccessful.": "Operace přenosu souborů byla neúspěšná.",
+    "The given GUIDs was empty.": "Zadané identifikátory GUID neobsahovaly žádný text.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operace získání URL místního souboru pro přenos souborů se nezdařila.",
+    "Unable to find a matching message item.": "Nelze najít odpovídající položku zprávy.",
+    "File transfer preview generation failed.": "Generování náhledu přenosu souborů se nezdařilo.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operace získání adresy URL místního souboru pro přenos souborů byla neúspěšná.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operace získání adresy URL místního souboru pro přenos souborů byla neúspěšná."
+  },
+  "sl": {
+    "File transfer operation was unsuccessful.": "Operacija prenosa datoteke ni bila uspešna.",
+    "The given GUIDs was empty.": "Navedeni GUID-ji so bili prazni.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operacija pridobivanja URL-ja lokalne datoteke za prenos datoteke ni bila uspešna.",
+    "Unable to find a matching message item.": "Ustreznega elementa sporočila ni mogoče najti.",
+    "File transfer preview generation failed.": "Ustvarjanje predogleda prenosa datoteke ni uspelo.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operacija pridobivanja URL-jev lokalnih datotek za prenos datotek ni bila uspešna.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operacija pridobivanja URL-ja lokalne datoteke za prenos datoteke ni bila uspešna."
+  },
+  "en_AU": {
+    "File transfer operation was unsuccessful.": "File transfer operation was unsuccessful.",
+    "The given GUIDs was empty.": "The given GUIDs were empty.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful.",
+    "Unable to find a matching message item.": "Unable to find a matching message item.",
+    "File transfer preview generation failed.": "File transfer preview generation failed.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "File transfer local file URLs retrieval operation was unsuccessful.",
+    "File transfer local file url retrieval operation was unsuccessful.": "File transfer local file URL retrieval operation was unsuccessful."
+  },
+  "de": {
+    "File transfer operation was unsuccessful.": "Die Dateiübertragung war nicht erfolgreich.",
+    "The given GUIDs was empty.": "Die angegebenen GUIDs waren leer.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Das Abrufen einer lokalen Datei-URL für die Dateiübertragung war nicht erfolgreich.",
+    "Unable to find a matching message item.": "Passendes Nachrichtenobjekt kann nicht gefunden werden.",
+    "File transfer preview generation failed.": "Erstellen der Vorschau für die Dateiübertragung ist fehlgeschlagen.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Das Abrufen lokaler Datei-URLs für die Dateiübertragung war nicht erfolgreich.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Das Abrufen einer lokalen Datei-URL für die Dateiübertragung war nicht erfolgreich."
+  },
+  "vi": {
+    "File transfer operation was unsuccessful.": "Thao tác chuyển tệp không thành công.",
+    "The given GUIDs was empty.": "GUID đã cho bị trống.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Thao tác truy xuất URL tệp cục bộ của tác vụ chuyển tệp không thành công.",
+    "Unable to find a matching message item.": "Không thể tìm thấy mục tin nhắn phù hợp.",
+    "File transfer preview generation failed.": "Không thể tạo bản xem trước chuyển tệp.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Thao tác truy xuất các URL tệp cục bộ của tác vụ chuyển tệp không thành công.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Thao tác truy xuất URL tệp cục bộ của tác vụ chuyển tệp không thành công."
+  },
+  "es": {
+    "File transfer operation was unsuccessful.": "No se ha podido realizar la operación de transferencia de archivos.",
+    "The given GUIDs was empty.": "Los GUID proporcionados están vacíos.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "No se ha podido realizar la operación de recuperación de la URL del archivo local de la transferencia de archivos.",
+    "Unable to find a matching message item.": "No se ha podido encontrar un elemento de mensaje que coincida.",
+    "File transfer preview generation failed.": "No se ha podido generar la previsualización de la transferencia de archivos.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "No se ha podido realizar la operación de recuperación de las URL del archivo local de la transferencia de archivos.",
+    "File transfer local file url retrieval operation was unsuccessful.": "No se ha podido realizar la operación de recuperación de la URL del archivo local de la transferencia de archivos."
+  },
+  "uk": {
+    "File transfer operation was unsuccessful.": "Не вдалося перенести файли.",
+    "The given GUIDs was empty.": "Ідентифікатори GUID були порожніми.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Не вдалося отримати URL‑адресу локального файлу під час перенесення файлів.",
+    "Unable to find a matching message item.": "Не вдалося знайти відповідне повідомлення.",
+    "File transfer preview generation failed.": "Не вдалося згенерувати попередній перегляд під час перенесення файлів.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Не вдалося отримати URL‑адреси локальних файлів під час перенесення файлів.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Не вдалося отримати URL‑адресу локального файлу під час перенесення файлів."
+  },
+  "fr": {
+    "File transfer operation was unsuccessful.": "L’opération de transfert de fichier a échoué.",
+    "The given GUIDs was empty.": "Les GUID fournis étaient vides.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "L’opération de récupération de l’URL du fichier local à transférer a échoué.",
+    "Unable to find a matching message item.": "Aucun élément de message correspondant n’a été trouvé.",
+    "File transfer preview generation failed.": "La génération de l’aperçu du transfert de fichier a échoué.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "L’opération de récupération des URL des fichiers locaux à transférer a échoué.",
+    "File transfer local file url retrieval operation was unsuccessful.": "L’opération de récupération de l’URL du fichier local à transférer a échoué."
+  },
+  "ro": {
+    "File transfer operation was unsuccessful.": "Operațiunea de transfer de fișiere nu a reușit.",
+    "The given GUIDs was empty.": "GUID‑urile specificate erau goale.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Operațiunea de accesare a URL‑ului fișierului local pentru transferul fișierelor nu a reușit.",
+    "Unable to find a matching message item.": "Nu a putut fi găsit un articol de mesaj corespunzător.",
+    "File transfer preview generation failed.": "Generarea previzualizării transferului de fișiere a eșuat.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Operațiunea de accesare a URL‑urilor fișierului local pentru transferul fișierelor nu a reușit.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Operațiunea de accesare a URL‑ului fișierului local pentru transferul fișierelor nu a reușit."
+  },
+  "pt_BR": {
+    "File transfer operation was unsuccessful.": "Falha na operação de transferência do arquivo.",
+    "The given GUIDs was empty.": "As GUIDs fornecidas estavam vazias.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Falha na operação de recuperação da URL do arquivo local para a transferência.",
+    "Unable to find a matching message item.": "Não foi possível encontrar um item de mensagem correspondente.",
+    "File transfer preview generation failed.": "Falha na geração da pré‑visualização da transferência de arquivos.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Falha na operação de recuperação das urls do arquivo local para a transferência.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Falha na operação de recuperação da url do arquivo local para a transferência."
+  },
+  "ja": {
+    "File transfer operation was unsuccessful.": "ファイル転送の操作がうまくいきませんでした。",
+    "The given GUIDs was empty.": "指定されたGUIDは空でした。",
+    "File transfer local file URL retrieval operation was unsuccessful.": "ファイル転送のローカルファイルURL取得操作がうまくいきませんでした。",
+    "Unable to find a matching message item.": "一致するメッセージ項目が見つかりません。",
+    "File transfer preview generation failed.": "ファイル転送のプレビューを生成できませんでした。",
+    "File transfer local file urls retrieval operation was unsuccessful.": "ファイル転送のローカルファイルURL取得操作がうまくいきませんでした。",
+    "File transfer local file url retrieval operation was unsuccessful.": "ファイル転送のローカルファイルURL取得操作がうまくいきませんでした。"
+  },
+  "hr": {
+    "File transfer operation was unsuccessful.": "Postupak prijenosa datoteke nije uspio.",
+    "The given GUIDs was empty.": "Navedeni GUID-ovi bili su prazni.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "Postupak dohvaćanja URL-a lokalne datoteke prijenosa datoteke nije uspio.",
+    "Unable to find a matching message item.": "Nije moguće pronaći odgovarajuću stavku poruke.",
+    "File transfer preview generation failed.": "Generiranje pregleda prijenosa datoteke nije uspjelo.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "Postupak dohvaćanja URL-a lokalne datoteke prijenosa datoteke nije uspio.",
+    "File transfer local file url retrieval operation was unsuccessful.": "Postupak dohvaćanja URL-a lokalne datoteke prijenosa datoteke nije uspio."
+  },
+  "pt_PT": {
+    "File transfer operation was unsuccessful.": "A operação de transferência de ficheiros não foi bem‑sucedida.",
+    "The given GUIDs was empty.": "Os GUID fornecidos estavam vazios.",
+    "File transfer local file URL retrieval operation was unsuccessful.": "A operação de obtenção do URL do ficheiro local de transferência de ficheiros não foi bem‑sucedida.",
+    "Unable to find a matching message item.": "Não foi possível encontrar um elemento de mensagem correspondente.",
+    "File transfer preview generation failed.": "Não foi possível gerar a pré‑visualização da transferência de ficheiros.",
+    "File transfer local file urls retrieval operation was unsuccessful.": "A operação de obtenção dos URL do ficheiro local de transferência de ficheiros não foi bem‑sucedida.",
+    "File transfer local file url retrieval operation was unsuccessful.": "A operação de obtenção do URL do ficheiro local de transferência de ficheiros não foi bem‑sucedida."
+  }
+}

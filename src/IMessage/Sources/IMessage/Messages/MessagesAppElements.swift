@@ -16,10 +16,41 @@ private struct CharacterPickerPopover {
     let ownerPID: pid_t
 
     func detachedPopover() throws -> Accessibility.Element? {
-        try windowCandidates()
-            .lazy
-            .compactMap(popover(forWindow:))
-            .first
+        if let popover = try windowCandidates().lazy.compactMap(popover(forWindow:)).first {
+            return popover
+        }
+        guard let popover = focusedPopover() else { return nil }
+        log.notice("characterPickerPopover matched through the focused search field")
+        return popover
+    }
+
+    private func focusedPopover() -> Accessibility.Element? {
+        guard let focused = try? app.focusedElement(),
+              Self.isSearchTextField(focused),
+              let popover = try? focused.parent(),
+              Self.isPopover(popover)
+        else { return nil }
+        return popover
+    }
+
+    func describeForFailure() -> String {
+        let windows = (try? Window.listDescriptions(.all, excludeDesktopElements: true)) ?? []
+        let describe = { (window: Window.Description) -> String in
+            let b = window.bounds
+            return "\(window.window.raw) \(window.ownerName ?? "?") layer=\(window.layer) \(Int(b.width))x\(Int(b.height))@\(Int(b.minX)),\(Int(b.minY)) onscreen=\(window.isOnscreen.map { "\($0)" } ?? "?") alpha=\(window.alpha)"
+        }
+        let owned = windows.filter { $0.owner == ownerPID }.map(describe)
+        let pickerSized = windows.filter {
+            $0.owner != ownerPID && (250...500).contains($0.bounds.width) && (250...650).contains($0.bounds.height)
+        }.map(describe)
+        let focused: String
+        if let element = try? app.focusedElement() {
+            let parentRole = (try? element.parent()).flatMap { try? $0.role() } ?? "?"
+            focused = "\((try? element.role()) ?? "?")/\((try? element.subrole()) ?? "?") \"\((try? element.roleDescription()) ?? "?")\" parent=\(parentRole) frame=\((try? element.frame()).map { "\($0)" } ?? "?")"
+        } else {
+            focused = "none"
+        }
+        return "Messages windows=[\(owned.joined(separator: ", "))] other picker-sized windows=[\(pickerSized.joined(separator: ", "))] focused=\(focused)"
     }
 
     func searchField(in popover: Accessibility.Element) -> Accessibility.Element? {
@@ -299,8 +330,14 @@ final class MessagesAppElements {
                 try getMainWindow().orThrow(ErrorMessage("Could not get main Messages window"))
             } onError: { attempt, _ in
                 if attempt == 0 {
-                    log.notice("mainWindow: using compose deep link to try to get main window")
-                    try await self.openDeepLink(MessagesDeepLink.compose)
+                    if Preferences.useSecondaryMessagesInstance {
+                        log.notice("mainWindow: using compose deep link to try to get main window")
+                        try await self.openDeepLink(MessagesDeepLink.compose)
+                    } else {
+                        log.notice("mainWindow: reopening Messages to try to get main window")
+                        do { try MessagesInstanceTarget.sendReopen(to: self.runningApp) }
+                        catch { log.error("mainWindow: reopening Messages failed: \(error)") }
+                    }
                 } else if attempt == 1 {
                     if self.isPromptVisibleInMessagesApp() {
                         log.notice("mainWindow: some prompts are visible, attempting to reset")
@@ -313,6 +350,9 @@ final class MessagesAppElements {
                         self.runningApp.forceTerminate()
                         // this should invalidate the MessagesController
                     }
+                } else if attempt == 3 {
+                    log.notice("mainWindow: using compose deep link to try to get main window")
+                    try await self.openDeepLink(MessagesDeepLink.compose)
                 } else if attempt > 3 {
                     do {
                         try self.dismissAnyPresentedSheet()
@@ -544,6 +584,10 @@ final class MessagesAppElements {
         }
     }
 
+    func describeCharacterPickerFailure() -> String {
+        characterPickerPopoverLocator.describeForFailure()
+    }
+
     var splitter: Accessibility.Element {
         get async throws {
             try await find("splitter", logTime: true) {
@@ -597,6 +641,20 @@ final class MessagesAppElements {
                 throw ErrorMessage("tapbackPickerCollectionView not found")
             }
             return element
+        }
+    }
+
+    func conversationMenuItem(_ identifier: String) async throws -> Accessibility.Element {
+        try await find("menu item \(identifier)") {
+            let menuBar = try app.attribute(Accessibility.Names.AttributeName<Accessibility.Element>(kAXMenuBarAttribute))()
+            for barItem in try menuBar.children() {
+                for menu in try barItem.children() {
+                    if let item = try menu.children().first(where: { (try? $0.identifier()) == identifier }) {
+                        return item
+                    }
+                }
+            }
+            return nil
         }
     }
 

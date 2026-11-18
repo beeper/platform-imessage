@@ -18,8 +18,12 @@ enum MessagesInstanceTarget {
             (NSRunningApplication(processIdentifier: app.processIdentifier)?.isActive == true)
     }
 
+    static func isRunning(pid: pid_t) -> Bool {
+        pid > 0 && (kill(pid, 0) == 0 || errno != ESRCH)
+    }
+
     static func primaryInstance(in applications: [NSRunningApplication]) throws -> NSRunningApplication? {
-        let live = applications.filter { kill($0.processIdentifier, 0) == 0 || errno != ESRCH }
+        let live = applications.filter { isRunning(pid: $0.processIdentifier) }
         guard live.count <= 1 else {
             throw ErrorMessage("Multiple Messages instances are running; use secondary-instance mode to avoid selecting another host's process")
         }
@@ -52,6 +56,16 @@ enum MessagesInstanceTarget {
     ) throws {
         try getURLAppleEvent(for: url, target: app)
             .sendEvent(options: [.neverInteract, .noReply], timeout: timeout)
+    }
+
+    static func sendReopen(to app: NSRunningApplication, timeout: TimeInterval = 5) throws {
+        try NSAppleEventDescriptor(
+            eventClass: AEEventClass(kCoreEventClass),
+            eventID: AEEventID(kAEReopenApplication),
+            targetDescriptor: NSAppleEventDescriptor(processIdentifier: app.processIdentifier),
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        ).sendEvent(options: [.neverInteract, .noReply], timeout: timeout)
     }
 
     static func launchSecondaryInstance(
