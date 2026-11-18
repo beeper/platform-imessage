@@ -1,0 +1,292 @@
+{
+  "he": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "מדבקה",
+    "USE_IPHONE_TO_VIEW": "יש להשתמש ב-iPhone להצגה",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "מדבקות",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "רקע"
+  },
+  "ko": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "스티커",
+    "USE_IPHONE_TO_VIEW": "확인하려면 iPhone을 사용하십시오.",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "스티커",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "배경"
+  },
+  "id": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Stiker",
+    "USE_IPHONE_TO_VIEW": "Gunakan iPhone Anda untuk melihat",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stiker",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Latar Belakang"
+  },
+  "fi": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Tarra",
+    "USE_IPHONE_TO_VIEW": "Näytä iPhonessa",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Tarrat",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Tausta"
+  },
+  "tr": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Çıkartma",
+    "USE_IPHONE_TO_VIEW": "Görüntülemek için iPhone’unuzu kullanın",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Çıkartmalar",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Arka Plan"
+  },
+  "nl": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Gebruik je iPhone om te bekijken",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Achtergrond"
+  },
+  "hu": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Matrica",
+    "USE_IPHONE_TO_VIEW": "A megtekintéshez használja az iPhone-ját",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Matricák",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Háttér"
+  },
+  "ru": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Стикер",
+    "USE_IPHONE_TO_VIEW": "Просмотреть на iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Стикеры",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Фон"
+  },
+  "it": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Adesivo",
+    "USE_IPHONE_TO_VIEW": "Utilizza iPhone per visualizzare",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Adesivi",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Sfondo"
+  },
+  "es_419": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Usa tu iPhone para ver",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fondo"
+  },
+  "el": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Αυτοκόλλητο",
+    "USE_IPHONE_TO_VIEW": "Χρήση του iPhone σας για προβολή",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Αυτοκόλλητα",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Φόντο"
+  },
+  "ca": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Adhesiu",
+    "USE_IPHONE_TO_VIEW": "Es pot visualitzar a l’iPhone.",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Adhesius",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fons"
+  },
+  "ar": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "ملصق",
+    "USE_IPHONE_TO_VIEW": "استخدم iPhone للعرض",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "ملصقات",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "الخلفية"
+  },
+  "fr_CA": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Autocollant",
+    "USE_IPHONE_TO_VIEW": "Consulter avec l’iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Autocollants",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Arrière-plan"
+  },
+  "zh_TW": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "貼圖",
+    "USE_IPHONE_TO_VIEW": "使用你的iPhone來檢視",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "貼圖",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "背景"
+  },
+  "sv": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Märke",
+    "USE_IPHONE_TO_VIEW": "Använd iPhone till att visa",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Märken",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Bakgrund"
+  },
+  "no": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Klistremerke",
+    "USE_IPHONE_TO_VIEW": "Vis på iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Klistremerker",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Bakgrunn"
+  },
+  "hi": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "स्टिकर",
+    "USE_IPHONE_TO_VIEW": "देखने के लिए अपने iPhone का इस्तेमाल करें",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "स्टिकर",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "बैकग्राउंड"
+  },
+  "pl": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Naklejka",
+    "USE_IPHONE_TO_VIEW": "Wyświetl na iPhonie",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Naklejki",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Tło"
+  },
+  "LocProvenance": {
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "nl": 1,
+    "hu": 1,
+    "ru": 1,
+    "it": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "ar": 1,
+    "fr_CA": 1,
+    "zh_TW": 1,
+    "sv": 1,
+    "no": 1,
+    "hi": 1,
+    "pl": 1,
+    "en": 1,
+    "da": 1,
+    "zh_HK": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "ms": 1,
+    "cs": 1,
+    "es_US": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "ro": 1,
+    "es": 1,
+    "fr": 1,
+    "none": 2,
+    "uk": 1,
+    "pt": 1,
+    "hr": 1,
+    "ja": 1,
+    "pt_PT": 1
+  },
+  "en": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Use your iPhone to view",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Background"
+  },
+  "da": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Vis på iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickere",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Baggrund"
+  },
+  "zh_HK": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "貼圖",
+    "USE_IPHONE_TO_VIEW": "使用你的iPhone查看",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "貼圖",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "背景"
+  },
+  "th": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "สติกเกอร์",
+    "USE_IPHONE_TO_VIEW": "ใช้ iPhone ของคุณเพื่อดู",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "สติกเกอร์",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "พื้นหลัง"
+  },
+  "zh_CN": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "贴纸",
+    "USE_IPHONE_TO_VIEW": "使用iPhone查看",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "贴纸",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "背景"
+  },
+  "en_GB": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Use your iPhone to view",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Background"
+  },
+  "ms": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Pelekat",
+    "USE_IPHONE_TO_VIEW": "Gunakan iPhone anda untuk melihat",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Pelekat",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Latar Belakang"
+  },
+  "cs": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Nálepka",
+    "USE_IPHONE_TO_VIEW": "Zobrazit na iPhonu",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Nálepky",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Pozadí"
+  },
+  "es_US": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Usa tu iPhone para ver",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fondo"
+  },
+  "sk": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Nálepka",
+    "USE_IPHONE_TO_VIEW": "Zobraziť na iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Nálepky",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Pozadie"
+  },
+  "en_AU": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Use your iPhone to view",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Background"
+  },
+  "sl": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Nalepka",
+    "USE_IPHONE_TO_VIEW": "Za ogled uporabite iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Nalepke",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Ozadje"
+  },
+  "de": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Zum Anzeigen iPhone verwenden",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Sticker",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Hintergrund"
+  },
+  "vi": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Nhãn dán",
+    "USE_IPHONE_TO_VIEW": "Sử dụng iPhone của bạn để xem",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Nhãn dán",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Nền"
+  },
+  "ro": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Abțibild",
+    "USE_IPHONE_TO_VIEW": "Utilizați iPhone‑ul dvs. pentru a vizualiza",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Abțibilduri",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fundal"
+  },
+  "es": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Accede desde el iPhone.",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fondo"
+  },
+  "fr": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Autocollant",
+    "USE_IPHONE_TO_VIEW": "Consulter avec l’iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Autocollants",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Arrière-plan"
+  },
+  "uk": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Стікер",
+    "USE_IPHONE_TO_VIEW": "Перегляньте на iPhone",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Стікери",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Тло"
+  },
+  "pt": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Adesivo",
+    "USE_IPHONE_TO_VIEW": "Use o iPhone para ver",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Adesivos",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fundo"
+  },
+  "hr": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Naljepnica",
+    "USE_IPHONE_TO_VIEW": "Upotrijebite svoj iPhone za prikaz",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Naljepnice",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Pozadina"
+  },
+  "ja": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "ステッカー",
+    "USE_IPHONE_TO_VIEW": "iPhoneを使って表示",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "ステッカー",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "背景"
+  },
+  "pt_PT": {
+    "SAFETY_MENU_CONTENT_KIND_STICKER": "Sticker",
+    "USE_IPHONE_TO_VIEW": "Use o iPhone para ver",
+    "SAFETY_MENU_CONTENT_KIND_STICKERS": "Stickers",
+    "SAFETY_MENU_CONTENT_KIND_BACKGROUND": "Fundo"
+  }
+}

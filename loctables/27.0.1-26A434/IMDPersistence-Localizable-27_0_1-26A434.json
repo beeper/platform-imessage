@@ -1,0 +1,349 @@
+{
+  "en_IN": {
+    "File URL fetch operation was unsuccessful.": "File URL fetch operation was unsuccessful.",
+    "Time Sensitive Metadata": "Time-Sensitive Metadata",
+    "Timed out while downloading file transfer.": "Timed out while downloading file transfer.",
+    "Message Content": "Message Content",
+    "Timed out while downloading file transfer (user-initiated).": "Timed out while downloading file transfer (user-initiated)."
+  },
+  "he": {
+    "File URL fetch operation was unsuccessful.": "פעולת אחזור כתובת האינטרנט של הקובץ נכשלה.",
+    "Time Sensitive Metadata": "מטא-נתונים רגישים לזמן",
+    "Timed out while downloading file transfer.": "תם הזמן שהוקצב להורדה במסגרת העברת הקבצים.",
+    "Message Content": "תוכן ההודעה",
+    "Timed out while downloading file transfer (user-initiated).": "תם הזמן שהוקצב להורדה במסגרת העברת הקבצים (הפעלה על ידי המשתמש\/ת)."
+  },
+  "ko": {
+    "File URL fetch operation was unsuccessful.": "파일 URL 가져오기 작업에 실패했습니다.",
+    "Time Sensitive Metadata": "긴급 메타데이터",
+    "Timed out while downloading file transfer.": "파일 전송을 다운로드하는 동안 시간이 초과되었습니다.",
+    "Message Content": "메시지 내용",
+    "Timed out while downloading file transfer (user-initiated).": "사용자가 시작한 파일 전송을 다운로드하는 동안 시간이 초과되었습니다."
+  },
+  "id": {
+    "File URL fetch operation was unsuccessful.": "Operasi pengambilan URL file tidak berhasil.",
+    "Time Sensitive Metadata": "Metadata Sensitif Waktu",
+    "Timed out while downloading file transfer.": "Waktu habis saat mengunduh transfer file.",
+    "Message Content": "Konten Pesan",
+    "Timed out while downloading file transfer (user-initiated).": "Waktu habis saat mengunduh transfer file (dimulai oleh pengguna)."
+  },
+  "fi": {
+    "File URL fetch operation was unsuccessful.": "Tiedosto-URLin noutotoiminto epäonnistui.",
+    "Time Sensitive Metadata": "Aikaherkkä metadata",
+    "Timed out while downloading file transfer.": "Aikakatkaistiin lataamisen aikana.",
+    "Message Content": "Viestin sisältö",
+    "Timed out while downloading file transfer (user-initiated).": "Aikakatkaistiin lataamisen aikana (käyttäjän aloittama)."
+  },
+  "tr": {
+    "File URL fetch operation was unsuccessful.": "Dosya URL’sini alma işlemi başarısız oldu.",
+    "Time Sensitive Metadata": "Zamana Duyarlı Üst Veri",
+    "Timed out while downloading file transfer.": "Dosya aktarımı indirilirken zaman aşımı oluştu.",
+    "Message Content": "İleti İçeriği",
+    "Timed out while downloading file transfer (user-initiated).": "Dosya aktarımı (kullanıcı tarafından başlatılan) indirilirken zaman aşımı oluştu."
+  },
+  "ru": {
+    "File URL fetch operation was unsuccessful.": "Не удалось извлечь URL‑адрес файла.",
+    "Time Sensitive Metadata": "Метаданные неотложности",
+    "Timed out while downloading file transfer.": "Истекло время ожидания загрузки для переноса файла.",
+    "Message Content": "Содержимое сообщения",
+    "Timed out while downloading file transfer (user-initiated).": "Истекло время ожидания загрузки для переноса файла (инициированного пользователем)."
+  },
+  "hu": {
+    "File URL fetch operation was unsuccessful.": "A fájlhoz tartozó URL lekérésének művelete sikertelen volt.",
+    "Time Sensitive Metadata": "Időérzékeny metaadatok",
+    "Timed out while downloading file transfer.": "Időtúllépés a fájlátvitel letöltése közben.",
+    "Message Content": "Üzenet tartalma",
+    "Timed out while downloading file transfer (user-initiated).": "Időtúllépés a fájlátvitel letöltése közben (felhasználó által kezdeményezve)."
+  },
+  "nl": {
+    "File URL fetch operation was unsuccessful.": "Ophalen van bestands-URL is mislukt.",
+    "Time Sensitive Metadata": "Tijdgevoelige metadata",
+    "Timed out while downloading file transfer.": "Time-out tijdens downloaden bestandsoverdracht.",
+    "Message Content": "Inhoud bericht",
+    "Timed out while downloading file transfer (user-initiated).": "Time-out tijdens downloaden bestandsoverdracht (door gebruiker gestart)."
+  },
+  "it": {
+    "File URL fetch operation was unsuccessful.": "L'operazione di recupero dell’URL del file non è riuscita.",
+    "Time Sensitive Metadata": "Metadati urgenti",
+    "Timed out while downloading file transfer.": "Il tempo di attesa per il trasferimento del file è scaduto.",
+    "Message Content": "Contenuto del messaggio",
+    "Timed out while downloading file transfer (user-initiated).": "Il tempo di attesa per il trasferimento del file è scaduto (azione avviata dall’utente)."
+  },
+  "en_CA": {
+    "File URL fetch operation was unsuccessful.": "File URL fetch operation was unsuccessful.",
+    "Time Sensitive Metadata": "Time Sensitive Metadata",
+    "Timed out while downloading file transfer.": "Timed out while downloading file transfer.",
+    "Message Content": "Message Content",
+    "Timed out while downloading file transfer (user-initiated).": "Timed out while downloading file transfer (user-initiated)."
+  },
+  "es_419": {
+    "File URL fetch operation was unsuccessful.": "No se pudo obtener la URL del archivo.",
+    "Time Sensitive Metadata": "Metadatos urgentes",
+    "Timed out while downloading file transfer.": "Se agotó un tiempo de espera mientras se descargaba una transferencia de archivos.",
+    "Message Content": "Texto del mensaje",
+    "Timed out while downloading file transfer (user-initiated).": "Se agotó un tiempo de espera mientras se descargaba una transferencia de archivos (iniciada por un usuario)."
+  },
+  "el": {
+    "File URL fetch operation was unsuccessful.": "Η λειτουργία προσκόμισης της διεύθυνσης URL του αρχείου απέτυχε.",
+    "Time Sensitive Metadata": "Χρονοευαίσθητα μεταδεδομένα",
+    "Timed out while downloading file transfer.": "Έληξε το χρονικό όριο κατά τη λήψη μεταφοράς αρχείου.",
+    "Message Content": "Περιεχόμενο μηνύματος",
+    "Timed out while downloading file transfer (user-initiated).": "Έληξε το χρονικό όριο κατά τη λήψη μεταφοράς αρχείου (που εκκινήθηκε από τον χρήστη)."
+  },
+  "ca": {
+    "File URL fetch operation was unsuccessful.": "No s’ha pogut recuperar l’URL dels arxius.",
+    "Time Sensitive Metadata": "Metadades urgents",
+    "Timed out while downloading file transfer.": "S’ha esgotat el temps d’espera en descarregar la transferència d’arxius.",
+    "Message Content": "Contingut del missatge",
+    "Timed out while downloading file transfer (user-initiated).": "S’ha esgotat el temps d’espera en descarregar la transferència d’arxius iniciada manualment."
+  },
+  "fr_CA": {
+    "File URL fetch operation was unsuccessful.": "L’opération de récupération de l’URL du fichier a échoué.",
+    "Time Sensitive Metadata": "Métadonnées urgentes",
+    "Timed out while downloading file transfer.": "Le téléchargement du fichier a expiré.",
+    "Message Content": "Contenu du message",
+    "Timed out while downloading file transfer (user-initiated).": "Le téléchargement du fichier a expiré (lancé par l’utilisateur)."
+  },
+  "ar": {
+    "File URL fetch operation was unsuccessful.": "لم تنجح عملية جلب رابط الملف.",
+    "Time Sensitive Metadata": "بيانات تعريف عاجلة",
+    "Timed out while downloading file transfer.": "انتهت المهلة أثناء تنزيل نقل الملف.",
+    "Message Content": "محتوى الرسالة",
+    "Timed out while downloading file transfer (user-initiated).": "انتهت المهلة أثناء تنزيل نقل الملف (بدأه المستخدم)."
+  },
+  "zh_HK": {
+    "File URL fetch operation was unsuccessful.": "檔案URL獲取操作失敗。",
+    "Time Sensitive Metadata": "時效性元數據",
+    "Timed out while downloading file transfer.": "下載檔案傳輸時逾時。",
+    "Message Content": "郵件內容",
+    "Timed out while downloading file transfer (user-initiated).": "下載檔案傳輸時超時（由用户發起）。"
+  },
+  "sv": {
+    "File URL fetch operation was unsuccessful.": "Hämtningsåtgärden för fil-URL misslyckades.",
+    "Time Sensitive Metadata": "Tidskänsliga metadata",
+    "Timed out while downloading file transfer.": "Maxtidsgräns överskreds under hämtning av filöverföring.",
+    "Message Content": "Meddelandets innehåll",
+    "Timed out while downloading file transfer (user-initiated).": "Maxtidsgräns överskreds under hämtning av filöverföring (inledd av användare)."
+  },
+  "no": {
+    "File URL fetch operation was unsuccessful.": "Operasjonen for å hente fil-URL mislyktes.",
+    "Time Sensitive Metadata": "Tidskritiske metadata",
+    "Timed out while downloading file transfer.": "Tidsavbrudd under nedlasting av filoverføring.",
+    "Message Content": "Meldingsinnhold",
+    "Timed out while downloading file transfer (user-initiated).": "Tidsavbrudd under nedlasting av filoverføring (startet av bruker)."
+  },
+  "hi": {
+    "File URL fetch operation was unsuccessful.": "फ़ाइल URL फ़ेच ऑपरेशन असफल रहा।",
+    "Time Sensitive Metadata": "टाइम सेंसटिव मेटाडेटा",
+    "Timed out while downloading file transfer.": "फ़ाइल ट्रांसफ़र डाउनलोड करते समय टाइम आउट हो गया।",
+    "Message Content": "संदेश कॉन्टेंट",
+    "Timed out while downloading file transfer (user-initiated).": "फ़ाइल ट्रांसफ़र डाउनलोड करते समय टाइम आउट हो गया (यूज़र द्वारा आरंभ किया गया)।"
+  },
+  "da": {
+    "File URL fetch operation was unsuccessful.": "Handlingen til at hente URL til arkiv mislykkedes.",
+    "Time Sensitive Metadata": "Tidsfølsomme metadata",
+    "Timed out while downloading file transfer.": "Der opstod timeout, da arkivoverførsel skulle hentes.",
+    "Message Content": "Indhold af besked",
+    "Timed out while downloading file transfer (user-initiated).": "Der opstod timeout, da arkivoverførsel skulle hentes (startet af bruger)."
+  },
+  "LocProvenance": {
+    "en_IN": 1,
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "ru": 1,
+    "hu": 1,
+    "nl": 1,
+    "it": 1,
+    "en_CA": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "fr_CA": 1,
+    "ar": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "no": 1,
+    "hi": 1,
+    "da": 1,
+    "pl": 1,
+    "zh_TW": 1,
+    "en_PH": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "cs": 1,
+    "ms": 1,
+    "sk": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "ro": 1,
+    "none": 2,
+    "uk": 1,
+    "fr": 1,
+    "es": 1,
+    "pt_BR": 1,
+    "hr": 1,
+    "pt_PT": 1,
+    "ja": 1
+  },
+  "pl": {
+    "File URL fetch operation was unsuccessful.": "Nie udało się uzyskać adresu URL pliku.",
+    "Time Sensitive Metadata": "Pilne metadane",
+    "Timed out while downloading file transfer.": "Przekroczenie limitu czasu pobierania transferu plików.",
+    "Message Content": "Treść wiadomości",
+    "Timed out while downloading file transfer (user-initiated).": "Przekroczenie limitu czasu pobierania transferu plików (rozpoczętego przez użytkownika)."
+  },
+  "zh_TW": {
+    "File URL fetch operation was unsuccessful.": "檔案URL擷取作業失敗。",
+    "Time Sensitive Metadata": "具時效性的後設資料",
+    "Timed out while downloading file transfer.": "下載檔案傳送時逾時。",
+    "Message Content": "郵件內容",
+    "Timed out while downloading file transfer (user-initiated).": "下載由使用者發起的檔案傳送時逾時。"
+  },
+  "en_PH": {
+    "File URL fetch operation was unsuccessful.": "File URL fetch operation was unsuccessful.",
+    "Time Sensitive Metadata": "Time Sensitive Metadata",
+    "Timed out while downloading file transfer.": "Timed out while downloading file transfer.",
+    "Message Content": "Message Content",
+    "Timed out while downloading file transfer (user-initiated).": "Timed out while downloading file transfer (user-initiated)."
+  },
+  "th": {
+    "File URL fetch operation was unsuccessful.": "การดำเนินการดึงข้อมูล URL ของไฟล์ไม่สำเร็จ",
+    "Time Sensitive Metadata": "เมตาดาต้าที่สำคัญต่อเวลา",
+    "Timed out while downloading file transfer.": "หมดเวลาในระหว่างดาวน์โหลดการถ่ายโอนไฟล์",
+    "Message Content": "เนื้อหาข้อความ",
+    "Timed out while downloading file transfer (user-initiated).": "หมดเวลาในระหว่างดาวน์โหลดการถ่ายโอนไฟล์ (ผู้ใช้เริ่มต้น)"
+  },
+  "zh_CN": {
+    "File URL fetch operation was unsuccessful.": "文件URL抓取操作不成功。",
+    "Time Sensitive Metadata": "时效性元数据",
+    "Timed out while downloading file transfer.": "下载文件传输时超时。",
+    "Message Content": "邮件内容",
+    "Timed out while downloading file transfer (user-initiated).": "下载文件传输时超时（用户发起）。"
+  },
+  "en_GB": {
+    "File URL fetch operation was unsuccessful.": "File URL fetch operation was unsuccessful.",
+    "Time Sensitive Metadata": "Time-Sensitive Metadata",
+    "Timed out while downloading file transfer.": "Timed out while downloading file transfer.",
+    "Message Content": "Message Content",
+    "Timed out while downloading file transfer (user-initiated).": "Timed out while downloading file transfer (user-initiated)."
+  },
+  "es_US": {
+    "File URL fetch operation was unsuccessful.": "No se pudo obtener la URL del archivo.",
+    "Time Sensitive Metadata": "Metadatos urgentes",
+    "Timed out while downloading file transfer.": "Se agotó un tiempo de espera mientras se descargaba una transferencia de archivos.",
+    "Message Content": "Texto del mensaje",
+    "Timed out while downloading file transfer (user-initiated).": "Se agotó un tiempo de espera mientras se descargaba una transferencia de archivos (iniciada por un usuario)."
+  },
+  "cs": {
+    "File URL fetch operation was unsuccessful.": "Operace načítání URL souboru byla neúspěšná.",
+    "Time Sensitive Metadata": "Neodkladná metadata",
+    "Timed out while downloading file transfer.": "Časový limit při stahování souboru vypršel.",
+    "Message Content": "Obsah zprávy",
+    "Timed out while downloading file transfer (user-initiated).": "Časový limit vypršel při stahování přenosu souboru (zahájeno uživatelem)."
+  },
+  "ms": {
+    "File URL fetch operation was unsuccessful.": "Operasi ambil URL fail tidak berjaya.",
+    "Time Sensitive Metadata": "Metadata Sensitif Masa",
+    "Timed out while downloading file transfer.": "Tamat masa semasa memuat turun pemindahan fail.",
+    "Message Content": "Kandungan Mesej",
+    "Timed out while downloading file transfer (user-initiated).": "Tamat masa semasa memuat turun pemindahan fail (dimulakan pengguna)."
+  },
+  "sk": {
+    "File URL fetch operation was unsuccessful.": "Operácia získania URL adresy súboru bola neúspešná.",
+    "Time Sensitive Metadata": "Neodkladné metadáta",
+    "Timed out while downloading file transfer.": "Pri prenose súboru na stiahnutie vypršal časový limit.",
+    "Message Content": "Obsah správy",
+    "Timed out while downloading file transfer (user-initiated).": "Pri prenose súboru na stiahnutie (spustenom užívateľom) vypršal časový limit."
+  },
+  "en_AU": {
+    "File URL fetch operation was unsuccessful.": "File URL fetch operation was unsuccessful.",
+    "Time Sensitive Metadata": "Time-Sensitive Metadata",
+    "Timed out while downloading file transfer.": "Timed out while downloading file transfer.",
+    "Message Content": "Message Content",
+    "Timed out while downloading file transfer (user-initiated).": "Timed out while downloading file transfer (user-initiated)."
+  },
+  "sl": {
+    "File URL fetch operation was unsuccessful.": "Operacija pridobivanja URL-ja datoteke ni bila uspešna.",
+    "Time Sensitive Metadata": "Časovno občutljivi metapodatki",
+    "Timed out while downloading file transfer.": "Časovna omejitev je potekla med prenosom datoteke.",
+    "Message Content": "Vsebina sporočila",
+    "Timed out while downloading file transfer (user-initiated).": "Časovna omejitev je potekla med prenosom datoteke (uporabnik je sprožil prenos)."
+  },
+  "de": {
+    "File URL fetch operation was unsuccessful.": "Das Abrufen der Datei-URL war nicht erfolgreich.",
+    "Time Sensitive Metadata": "Dringliche Metadaten",
+    "Timed out while downloading file transfer.": "Beim Laden der Dateiübertragung wurde das Zeitlimit überschritten.",
+    "Message Content": "Inhalt der Nachricht",
+    "Timed out while downloading file transfer (user-initiated).": "Beim Laden der Dateiübertragung wurde das Zeitlimit überschritten (von Benutzer:in initiiert)."
+  },
+  "vi": {
+    "File URL fetch operation was unsuccessful.": "Thao tác tìm nạp URL tệp không thành công.",
+    "Time Sensitive Metadata": "Siêu dữ liệu gấp",
+    "Timed out while downloading file transfer.": "Đã hết thời gian trong khi tải về tệp được chuyển.",
+    "Message Content": "Nội dung tin nhắn",
+    "Timed out while downloading file transfer (user-initiated).": "Đã hết thời gian trong khi tải về tệp được chuyển (do người dùng khởi tạo)."
+  },
+  "ro": {
+    "File URL fetch operation was unsuccessful.": "Operațiunea de preluare a URL‑ului fișierului a eșuat.",
+    "Time Sensitive Metadata": "Metadate urgente",
+    "Timed out while downloading file transfer.": "Timpul de așteptare a expirat la descărcarea fișierului transferat.",
+    "Message Content": "Conținut mesaj",
+    "Timed out while downloading file transfer (user-initiated).": "Timpul de așteptare a expirat la descărcarea fișierului transferat (inițiat de utilizator)."
+  },
+  "uk": {
+    "File URL fetch operation was unsuccessful.": "Не вдалося отримати URL-адреси файлу.",
+    "Time Sensitive Metadata": "Термінові метадані",
+    "Timed out while downloading file transfer.": "Вичерпано час очікування викачування для перенесення файлів.",
+    "Message Content": "Вміст листа",
+    "Timed out while downloading file transfer (user-initiated).": "Вичерпано час очікування викачування для перенесення файлів (ініціювано користувачем)."
+  },
+  "fr": {
+    "File URL fetch operation was unsuccessful.": "L’opération de récupération de l’URL du fichier a échoué.",
+    "Time Sensitive Metadata": "Métadonnées urgentes",
+    "Timed out while downloading file transfer.": "Dépassement du délai lors du téléchargement du transfert de fichier.",
+    "Message Content": "Contenu du message",
+    "Timed out while downloading file transfer (user-initiated).": "Dépassement du délai lors du téléchargement du transfert de fichier (initié par l’utilisateur)."
+  },
+  "es": {
+    "File URL fetch operation was unsuccessful.": "No se ha podido realizar la operación de recuperación de la URL del archivo.",
+    "Time Sensitive Metadata": "Metadatos importantes",
+    "Timed out while downloading file transfer.": "Se ha agotado el tiempo de espera al descargar la transferencia de archivos.",
+    "Message Content": "Contenido del mensaje",
+    "Timed out while downloading file transfer (user-initiated).": "Se ha agotado el tiempo de espera al descargar la transferencia de archivos (iniciada por el usuario)."
+  },
+  "pt_BR": {
+    "File URL fetch operation was unsuccessful.": "Falha na operação de obtenção da URL do arquivo.",
+    "Time Sensitive Metadata": "Metadados Relevantes",
+    "Timed out while downloading file transfer.": "Tempo expirado ao baixar o arquivo.",
+    "Message Content": "Conteúdo da Mensagem",
+    "Timed out while downloading file transfer (user-initiated).": "Tempo esgotado ao baixar o arquivo (iniciado pelo usuário)."
+  },
+  "hr": {
+    "File URL fetch operation was unsuccessful.": "Dohvaćanje URL-a datoteke nije uspjelo.",
+    "Time Sensitive Metadata": "Vremenski osjetljivi metapodaci",
+    "Timed out while downloading file transfer.": "Isteklo je vrijeme tijekom preuzimanja prijenosa datoteke.",
+    "Message Content": "Sadržaj poruke",
+    "Timed out while downloading file transfer (user-initiated).": "Isteklo je vrijeme tijekom preuzimanja prijenosa datoteke (pokrenuo korisnik)."
+  },
+  "pt_PT": {
+    "File URL fetch operation was unsuccessful.": "A operação de obtenção do URL do ficheiro não foi bem‑sucedida.",
+    "Time Sensitive Metadata": "Metadados importantes",
+    "Timed out while downloading file transfer.": "Foi excedido o tempo de espera ao descarregar a transferência de ficheiros.",
+    "Message Content": "Conteúdo da mensagem",
+    "Timed out while downloading file transfer (user-initiated).": "Foi excedido o tempo de espera ao descarregar a transferência de ficheiros (iniciada pelo utilizador)."
+  },
+  "ja": {
+    "File URL fetch operation was unsuccessful.": "ファイルURLの取得操作がうまくいきませんでした。",
+    "Time Sensitive Metadata": "即時通知メタデータ",
+    "Timed out while downloading file transfer.": "ファイル転送のダウンロード中にタイムアウトになりました。",
+    "Message Content": "メッセージの内容",
+    "Timed out while downloading file transfer (user-initiated).": "ユーザが開始したファイル転送のダウンロード中にタイムアウトしました。"
+  }
+}

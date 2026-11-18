@@ -6,13 +6,16 @@ enum CgBIPNG {
     private static let pngHeader = Data([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
     private static let cgbiChunk = Data("CgBI".utf8)
 
-    static func convertedDataForAsset(at url: URL) throws -> Data? {
+    static func isCgBI(at url: URL) throws -> Bool {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
 
         let header = handle.readData(ofLength: 64)
-        guard header.starts(with: pngHeader),
-              header.range(of: cgbiChunk) != nil else {
+        return header.starts(with: pngHeader) && header.range(of: cgbiChunk) != nil
+    }
+
+    static func convertedDataForAsset(at url: URL) throws -> Data? {
+        guard try isCgBI(at: url) else {
             return nil
         }
 

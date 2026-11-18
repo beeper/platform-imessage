@@ -1,0 +1,401 @@
+{
+  "pt_PT": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Os stickers ocultos poderão incluir conteúdo sensível.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Os stickers ocultos poderão incluir conteúdo sensível. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "O sticker oculto poderá incluir conteúdo sensível. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opções",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opções",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "O sticker oculto poderá incluir conteúdo sensível."
+  },
+  "he": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "מדבקות מוסתרות עשויות להכיל תוכן רגיש.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "מדבקות מוסתרות עשויות להכיל תוכן רגיש. ‏%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "מדבקה מוסתרת עשויה להכיל תוכן רגיש. ‏%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "אפשרויות",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "אפשרויות",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "מדבקה מוסתרת עשויה להכיל תוכן רגיש."
+  },
+  "ko": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "가려진 스티커는 민감한 콘텐츠일 수 있습니다.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "가려진 스티커는 민감한 콘텐츠일 수 있습니다. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "가려진 스티커는 민감한 콘텐츠일 수 있습니다. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "옵션",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "옵션",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "가려진 스티커는 민감한 콘텐츠일 수 있습니다."
+  },
+  "id": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Stiker yang disembunyikan mungkin sensitif.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Stiker yang disembunyikan mungkin sensitif. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Stiker yang disembunyikan mungkin sensitif. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Pilihan",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Pilihan",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Stiker yang disembunyikan mungkin sensitif."
+  },
+  "fi": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Kätketyt tarrat voivat olla arkaluontoisia.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Kätketyt tarrat voivat olla arkaluontoisia. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Kätketty tarra voi olla arkaluontoinen. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Valinnat",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Valinnat",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Kätketty tarra voi olla arkaluontoinen."
+  },
+  "tr": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Gizli çıkartmalar hassas içerikli olabilir.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Gizli çıkartmalar hassas içerikli olabilir. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Gizli çıkartma hassas içerikli olabilir. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Seçenekler",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Seçenekler",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Gizli çıkartma hassas içerikli olabilir."
+  },
+  "ru": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Скрытые стикеры могут быть нецензурными.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Скрытые стикеры могут быть нецензурными. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Скрытый стикер может быть нецензурным. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Параметры",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Параметры",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Скрытый стикер может быть нецензурным."
+  },
+  "hu": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Az elrejtett matricák érzékeny tartalmúak lehetnek.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Az elrejtett matricák érzékeny tartalmúak lehetnek. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Az elrejtett matrica érzékeny tartalmú lehet. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Beállítások",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Beállítások",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Az elrejtett matrica érzékeny tartalmú lehet."
+  },
+  "nl": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Verborgen stickers zijn mogelijk gevoelig.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Verborgen stickers zijn mogelijk gevoelig. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Verborgen sticker is mogelijk gevoelig. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opties",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opties",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Verborgen sticker is mogelijk gevoelig."
+  },
+  "it": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Gli adesivi nascosti potrebbero presentare contenuti sensibili.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Gli adesivi nascosti potrebbero presentare contenuti sensibili. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "L’adesivo nascosto potrebbe presentare contenuti sensibili. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opzioni",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opzioni",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "L’adesivo nascosto potrebbe presentare contenuti sensibili."
+  },
+  "en_CA": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Hidden stickers may be sensitive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Hidden stickers may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Hidden sticker may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Hidden sticker may be sensitive."
+  },
+  "es_419": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Los stickers ocultos podrían ser íntimos.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Los stickers ocultos podrían ser íntimos. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "El sticker oculto podría ser íntimo. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opciones",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opciones",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "El sticker oculto podría ser íntimo."
+  },
+  "el": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Τα κρυμμένα αυτοκόλλητα ενδέχεται να περιέχουν ευαίσθητο περιεχόμενο.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Τα κρυμμένα αυτοκόλλητα ενδέχεται να περιέχουν ευαίσθητο περιεχόμενο. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Το κρυμμένο αυτοκόλλητο ενδέχεται να περιέχει ευαίσθητο περιεχόμενο. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Επιλογές",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Επιλογές",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Το κρυμμένο αυτοκόλλητο ενδέχεται να περιέχει ευαίσθητο περιεχόμενο."
+  },
+  "ca": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Els adhesius ocults poden incloure contingut delicat.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Els adhesius ocults poden incloure contingut delicat. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "L’adhesiu ocult pot incloure contingut delicat. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opcions",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opcions",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "L’adhesiu ocult pot incloure contingut delicat."
+  },
+  "ar": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "قد تكون الملصقات المخفية حساسة.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "قد تكون الملصقات المخفية حساسة. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "قد يكون الملصق المخفي حساسًا. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "الخيارات",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "الخيارات",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "قد يكون الملصق المخفي حساسًا."
+  },
+  "zh_TW": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "隱藏的貼圖可能包含敏感內容。",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "隱藏的貼圖可能包含敏感內容。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "隱藏的貼圖可能包含敏感內容。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "選項",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "選項",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "隱藏的貼圖可能包含敏感內容。"
+  },
+  "zh_HK": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "隱藏的貼圖可能包含敏感內容。",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "隱藏的貼圖可能包含敏感內容。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "隱藏的貼圖可能包含敏感內容。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "選項",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "選項",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "隱藏的貼圖可能包含敏感內容。"
+  },
+  "sv": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Gömda märken kan vara känsliga.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Gömda märken kan vara känsliga. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Gömt märke kan vara känsligt. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Alternativ",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Alternativ",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Gömt märke kan vara känsligt."
+  },
+  "fr_CA": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Les autocollants masqués pourraient être considérés comme sensibles.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Les autocollants masqués pourraient être considérés comme sensibles. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "L’autocollant masqué pourrait être considéré comme sensible. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "les options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "les options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "L’autocollant masqué pourrait être considéré comme sensible."
+  },
+  "en_PH": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Hidden stickers may be sensitive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Hidden stickers may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Hidden sticker may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Hidden sticker may be sensitive."
+  },
+  "da": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Skjulte stickere har måske følsomt indhold.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Skjulte stickere har måske følsomt indhold. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Skjult sticker har måske følsomt indhold. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Indstillinger",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Indstillinger",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Skjult sticker har måske følsomt indhold."
+  },
+  "LocProvenance": {
+    "pt_PT": 1,
+    "he": 1,
+    "ko": 1,
+    "id": 1,
+    "fi": 1,
+    "tr": 1,
+    "ru": 1,
+    "hu": 1,
+    "nl": 1,
+    "it": 1,
+    "en_CA": 1,
+    "es_419": 1,
+    "el": 1,
+    "ca": 1,
+    "ar": 1,
+    "zh_TW": 1,
+    "zh_HK": 1,
+    "sv": 1,
+    "fr_CA": 1,
+    "en_PH": 1,
+    "da": 1,
+    "en": 1,
+    "pl": 1,
+    "no": 1,
+    "hi": 1,
+    "th": 1,
+    "zh_CN": 1,
+    "en_GB": 1,
+    "es_US": 1,
+    "ms": 1,
+    "sk": 1,
+    "cs": 1,
+    "en_AU": 1,
+    "sl": 1,
+    "de": 1,
+    "vi": 1,
+    "es": 1,
+    "pt_BR": 1,
+    "fr": 1,
+    "none": 2,
+    "uk": 1,
+    "ro": 1,
+    "hr": 1,
+    "en_IN": 1,
+    "ja": 1
+  },
+  "en": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Hidden stickers may be sensitive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Hidden stickers may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Hidden sticker may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Hidden sticker may be sensitive."
+  },
+  "pl": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Ukryte naklejki mogą wymagać dyskrecji.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Ukryte naklejki mogą wymagać dyskrecji. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Ukryta naklejka może wymagać dyskrecji. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opcje",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opcje",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Ukryta naklejka może wymagać dyskrecji."
+  },
+  "no": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Skjulte klistremerker kan ha sensitivt innhold.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Skjulte klistremerker kan ha sensitivt innhold. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Skjult klistremerke kan ha sensitivt innhold. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Valg",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Valg",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Skjult klistremerke kan ha sensitivt innhold."
+  },
+  "th": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "สติกเกอร์ที่ซ่อนอยู่อาจมีเนื้อหาที่ละเอียดอ่อน",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "สติกเกอร์ที่ซ่อนอยู่อาจมีเนื้อหาที่ละเอียดอ่อน %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "สติกเกอร์ที่ซ่อนอยู่อาจมีเนื้อหาที่ละเอียดอ่อน %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "ตัวเลือก",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "ตัวเลือก",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "สติกเกอร์ที่ซ่อนอยู่อาจมีเนื้อหาที่ละเอียดอ่อน"
+  },
+  "zh_CN": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "隐藏贴纸可能包含敏感内容。",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "隐藏贴纸可能包含敏感内容。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "隐藏贴纸可能包含敏感内容。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "选项",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "选项",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "隐藏贴纸可能包含敏感内容。"
+  },
+  "hi": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "छिपे हुए स्टिकर संवेदनशील हो सकते हैं।",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "छिपे हुए स्टिकर संवेदनशील हो सकते हैं। %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "छिपा हुआ स्टिकर संवेदनशील हो सकता है। %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "विकल्प",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "विकल्प",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "छिपा हुआ स्टिकर संवेदनशील हो सकता है।"
+  },
+  "en_GB": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Hidden stickers may be sensitive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Hidden stickers may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Hidden sticker may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Hidden sticker may be sensitive."
+  },
+  "es_US": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Los stickers ocultos podrían ser íntimos.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Los stickers ocultos podrían ser íntimos. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "El sticker oculto podría ser íntimo. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opciones",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opciones",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "El sticker oculto podría ser íntimo."
+  },
+  "ms": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Pelekat tersembunyi mungkin sensitif.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Pelekat tersembunyi mungkin sensitif. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Pelekat tersembunyi mungkin sensitif. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Pilihan",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Pilihan",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Pelekat tersembunyi mungkin sensitif."
+  },
+  "sk": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Na skrytých nálepkách sa môže zobrazovať citlivý obsah.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Na skrytých nálepkách sa môže zobrazovať citlivý obsah. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Na skrytej nálepke sa môže zobrazovať citlivý obsah. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Možnosti",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Možnosti",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Na skrytej nálepke sa môže zobrazovať citlivý obsah."
+  },
+  "cs": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Na skrytých nálepkách se může zobrazovat citlivý obsah.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Na skrytých nálepkách se může zobrazovat citlivý obsah. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Na skryté nálepce se může zobrazovat citlivý obsah. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Volby",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Volby",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Na skryté nálepce se může zobrazovat citlivý obsah."
+  },
+  "en_AU": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Hidden stickers may be sensitive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Hidden stickers may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Hidden sticker may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Hidden sticker may be sensitive."
+  },
+  "sl": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Skrite nalepke so lahko občutljive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Skrite nalepke so lahko občutljive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Skrita nalepka je lahko občutljiva. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Možnosti",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Možnosti",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Skrita nalepka je lahko občutljiva."
+  },
+  "de": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Ausgeblendete Sticker können sensible Inhalte abbilden.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Ausgeblendete Sticker können sensible Inhalte abbilden. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Der ausgeblendete Sticker kann sensible Inhalte abbilden. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Optionen",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Optionen",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Der ausgeblendete Sticker kann sensible Inhalte abbilden."
+  },
+  "vi": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Các nhãn dán bị ẩn có thể nhạy cảm.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Các nhãn dán bị ẩn có thể nhạy cảm. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Nhãn dán bị ẩn có thể nhạy cảm. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Tùy chọn",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Tùy chọn",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Nhãn dán bị ẩn có thể nhạy cảm."
+  },
+  "es": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Los stickers ocultos pueden tener contenido sensible.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Los stickers ocultos pueden tener contenido sensible. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "El sticker oculto puede tener contenido sensible. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opciones",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opciones",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "El sticker oculto puede tener contenido sensible."
+  },
+  "pt_BR": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Os adesivos ocultos podem ter conteúdo sensível.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Os adesivos ocultos podem ter conteúdo sensível. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "O adesivo oculto pode ter conteúdo sensível. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opções",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opções",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "O adesivo oculto pode ter conteúdo sensível."
+  },
+  "fr": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Les autocollants masqués sont potentiellement sensibles.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Les autocollants masqués sont potentiellement sensibles. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "L’autocollant masqué est potentiellement sensible. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "L’autocollant masqué est potentiellement sensible."
+  },
+  "uk": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Приховані стікери можуть містити неприйнятний вміст.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Приховані стікери можуть містити неприйнятний вміст. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Прихований стікер може містити неприйнятний вміст. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Параметри",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Параметри",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Прихований стікер може містити неприйнятний вміст."
+  },
+  "ro": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Abțibildurile ascunse ar putea include conținut sensibil.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Abțibildurile ascunse ar putea include conținut sensibil. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Abțibildul ascuns ar putea include conținut sensibil. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opțiuni",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opțiuni",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Abțibildul ascuns ar putea include conținut sensibil."
+  },
+  "hr": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Skrivene naljepnice možda su osjetljive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Skrivene naljepnice mogu biti osjetljive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Skrivena naljepnica može biti osjetljiva. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Opcije",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Opcije",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Skrivena naljepnica možda je osjetljiva."
+  },
+  "en_IN": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "Hidden stickers may be sensitive.",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "Hidden stickers may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "Hidden sticker may be sensitive. %@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "Options",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "Hidden sticker may be sensitive."
+  },
+  "ja": {
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE": "非表示のステッカーはセンシティブである可能性があります。",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_FORMAT_%@": "非表示のステッカーはセンシティブである可能性があります。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_FORMAT_%@": "非表示のステッカーはセンシティブである可能性があります。%@",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE_LINK_TEXT": "オプション",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_MULTIPLE_LINK_TEXT": "オプション",
+    "ATTRIBUTION_TEXT_SENSITIVE_STICKER_SHOW_ONE": "非表示のステッカーはセンシティブである可能性があります。"
+  }
+}

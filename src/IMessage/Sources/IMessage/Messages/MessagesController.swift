@@ -1059,12 +1059,13 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
      4. threadCell.press() action hack                                       (unreliable)
      */
-    func toggleThreadRead(threadID: String, read: Bool) async throws {
+    func toggleThreadRead(threadID: String, read: Bool, isAlreadyDone: (@Sendable () async throws -> Bool)? = nil) async throws {
         let startTime = Date()
         defer { log.debug("toggleThreadRead took \(startTime.timeIntervalSinceNow * -1000)ms") }
 
         try await withAutomation {
             try await selectThread(threadID)
+            if let isAlreadyDone, try await isAlreadyDone() { return }
             if isVenturaOrUp {
                 return try keyPresser.commandShiftU()
             }
@@ -1260,7 +1261,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         guard try await closeReplyTranscriptView() else { return }
         try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
             guard let pValue = try? await elements.messageBodyField.placeholderValue(),
-                  pValue == LocalizedStrings.imessage || pValue == LocalizedStrings.textMessage else {
+                  LocalizedStrings.composePlaceholders.contains(pValue) else {
                 throw ErrorMessage("replyTranscriptView visible")
             }
         }
@@ -1271,7 +1272,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         log.debug("waitUntilReplyTranscriptVisible")
         try await retry(withTimeout: 1.2, interval: 0.1) { () async throws in
             guard let pValue = try? await elements.messageBodyField.placeholderValue(),
-                  pValue != LocalizedStrings.imessage && pValue != LocalizedStrings.textMessage else {
+                  !LocalizedStrings.composePlaceholders.contains(pValue) else {
                 throw ErrorMessage("replyTranscriptView not visible")
             }
         }
@@ -1560,7 +1561,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     return .dndCanNotify
                 }
                 if childRole == Accessibility.Role.staticText,
-                   childDescription?.hasSuffix(LocalizedStrings.hasNotificationsSilencedSuffix) == true {
+                   let childDescription,
+                   LocalizedStrings.notificationsSilencedFormat?.matches(childDescription, allowingAttachmentPrefix: true) == true {
                     return .dnd
                 }
             }
@@ -1572,8 +1574,8 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             if childCount != 0 { return false }
             let description = try? elt.localizedDescription()
             if description == LocalizedStrings.contactTyping { return true }
-            if !LocalizedStrings.contactWithNameTypingSuffix.isEmpty,
-               description?.hasSuffix(LocalizedStrings.contactWithNameTypingSuffix) == true { return true }
+            if let description,
+               LocalizedStrings.contactWithNameTypingFormat?.matches(description) == true { return true }
             // kb: the following return statement should probably be removed but i haven't tested on Big Sur to Ventura 13.2 so keeping just in case
             return (try? elt.roleDescription().isEmpty) != false
         }
@@ -1697,10 +1699,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // Restoring a parked window can order it onscreen even while AX
             // reports the app hidden. Let Messages close its windows in the
             // unknown Space before releasing coordination ownership.
+            let pid = app.processIdentifier
             app.terminate()
             let deadline = Date().addingTimeInterval(2)
-            let pid = app.processIdentifier
-            while kill(pid, 0) == 0 || errno != ESRCH {
+            while MessagesInstanceTarget.isRunning(pid: pid) {
                 guard Date() < deadline else {
                     // Preserve the existing recovery path if Messages refuses
                     // to quit: restore its windows instead of stranding them.
