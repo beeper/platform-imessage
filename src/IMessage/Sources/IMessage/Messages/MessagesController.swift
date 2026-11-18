@@ -1168,13 +1168,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     private func messageFieldValue(_ messageField: Accessibility.Element) throws -> String {
         do {
-            if isVenturaOrUp {
-                let value = try (messageField.value() as? NSAttributedString)
-                    .orThrow(ErrorMessage("couldn't cast message field value to NSAttributedString"))
+            switch try messageField.value() {
+            case let value as NSAttributedString:
                 return value.string
+            case let value as String:
+                return value
+            default:
+                return String(repeating: "\u{FFFC}", count: try messageField.noOfChars())
             }
-            return try (messageField.value() as? String)
-                .orThrow(ErrorMessage("couldn't cast message field value to String"))
         } catch {
             if error is AccessibilityError, let axError = error as? AccessibilityError, axError.code == .noValue { return "" }
             throw error
