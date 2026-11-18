@@ -10,6 +10,7 @@ private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let loadAttachmentTimeout: TimeInterval = 60
+private let readReceiptLandTimeout: TimeInterval = 3
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let state = Protected(State())
@@ -294,9 +295,23 @@ public final class PlatformAPI {
     }
 
     public func updateThread(threadID publicThreadID: String, muted: Bool) async throws {
-        let threadID = try originalThreadID(for: publicThreadID)
+        let database = database
+        let (threadID, dndKey) = try await Task.detached(priority: .userInitiated) {
+            try database.withDatabase { db -> (String, String?) in
+                let threadID = try Self.originalThreadID(db: db, publicThreadID)
+                let chat = try db.mappedThreadRow(guid: threadID)
+                return (threadID, chat?.roomName?.isEmpty == false ? chat?.groupID : chat?.chatIdentifier)
+            }
+        }.value
+        let key = try dndKey.orThrow(ErrorMessage("chat not found"))
         try await withMessagesController {
-            try await $0.muteThread(threadID: threadID, muted: muted)
+            guard Self.permanentDNDThreadIDs().contains(key) != muted else { return }
+            try await $0.toggleHideAlerts(threadID: threadID)
+            try await retry(withTimeout: 5, interval: 0.1) {
+                guard Self.permanentDNDThreadIDs().contains(key) == muted else {
+                    throw ErrorMessage("Hide Alerts didn't change this chat")
+                }
+            }
         }
     }
 
@@ -393,6 +408,7 @@ public final class PlatformAPI {
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
+        let usedController = Protected<ObjectIdentifier?>(nil)
         try await retry(retries: 1, interval: 1) { attempt in
             let (threadID, isRead) = try await Task.detached(priority: .userInitiated) {
                 try database.withDatabase { db in
@@ -404,8 +420,19 @@ public final class PlatformAPI {
                 return
             }
 
-            try await withMessagesController(forceInvalidate: attempt > 0) {
-                try await $0.toggleThreadRead(threadID: threadID, read: true)
+            let readNow: @Sendable () async throws -> Bool = {
+                try await Task.detached(priority: .userInitiated) {
+                    try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
+                }.value
+            }
+            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
+                usedController.withLock { $0 = ObjectIdentifier(controller) }
+                try await controller.toggleThreadRead(threadID: threadID, read: true, isAlreadyDone: readNow)
+            }
+            try await retry(withTimeout: readReceiptLandTimeout, interval: 0.1) {
+                guard try await readNow() else {
+                    throw ErrorMessage("Messages didn't mark \(publicThreadID) read")
+                }
             }
         } onError: { _, retriesLeft, error in
             platformLog.error("sendReadReceipt failed, retries left: \(retriesLeft): \(error)")
@@ -722,9 +749,13 @@ public final class PlatformAPI {
         _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
-        try await retry(retries: retries, { attempt in
+        let usedController = Protected<ObjectIdentifier?>(nil)
+        return try await retry(retries: retries, { attempt in
             let context = try await prepareAttempt()
-            try await withMessagesController(forceInvalidate: attempt > 0, action)
+            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
+                usedController.withLock { $0 = ObjectIdentifier(controller) }
+                try await action(controller)
+            }
             try await afterAttempt?(context)
             return context
         }, shouldRetry: shouldRetry, onError: { _, retriesLeft, error in

@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+echo "--- :swift: restore SwiftPM cache"
+restore_swiftpm_cache --package-resolved Package.resolved
+
 echo "--- :yarn: install JS deps"
 # The Buildkite Mac agents ship Node but leave corepack disabled, so `yarn`
 # isn't on PATH out of the box. Enabling corepack activates the version pinned
@@ -14,6 +17,9 @@ yarn test:js
 
 echo "--- :swift: run Swift tests"
 yarn test:swift
+
+echo "--- :swift: save SwiftPM cache"
+save_swiftpm_cache --package-resolved Package.resolved
 
 # Decide whether to publish to GH Packages.
 # Only on main, only when the package.json version isn't already

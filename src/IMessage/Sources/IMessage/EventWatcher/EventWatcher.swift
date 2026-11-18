@@ -25,6 +25,12 @@ struct PendingMessageHydrationCandidate {
     let kind: PendingMessageHydrationKind
 }
 
+struct PendingSendStatusCandidate {
+    let firstSeen: Date
+    let chatGUID: String
+    var isErrored: Bool
+}
+
 final class EventWatcher {
     static let logger = Logger(imessageLabel: "event-watcher")
 
@@ -35,6 +41,7 @@ final class EventWatcher {
     var updatesCursor: MessageUpdatesCursor
     var pendingUnresolvedNewMessageRowIDs = OrderedDictionary<Int, Date>()
     var pendingMessageHydrationCandidates = OrderedDictionary<Int, PendingMessageHydrationCandidate>()
+    var pendingSendStatusCandidates = OrderedDictionary<Int, PendingSendStatusCandidate>()
     /// Rows resolved during the current tick whose pending entries are cleared
     /// only after the tick's events are successfully sent. On a send failure we
     /// leave them pending so the next tick retries: the main-query cursor has
@@ -42,6 +49,7 @@ final class EventWatcher {
     /// recovery path. Repopulated from scratch on every tick.
     var newMessageRowIDsAwaitingSendCommit: [Int] = []
     var messageHydrationRowIDsAwaitingSendCommit: [Int] = []
+    var sendStatusRowIDsAwaitingSendCommit: [Int] = []
     /// One-shot timer that re-triggers a tick while pending resolution work
     /// remains, so it isn't stranded when the database otherwise goes quiet.
     var pendingWakeTask: Task<Void, Never>?
