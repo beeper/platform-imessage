@@ -1695,10 +1695,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             // Restoring a parked window can order it onscreen even while AX
             // reports the app hidden. Let Messages close its windows in the
             // unknown Space before releasing coordination ownership.
+            let pid = app.processIdentifier
             app.terminate()
             let deadline = Date().addingTimeInterval(2)
-            let pid = app.processIdentifier
-            while kill(pid, 0) == 0 || errno != ESRCH {
+            while MessagesInstanceTarget.isRunning(pid: pid) {
                 guard Date() < deadline else {
                     // Preserve the existing recovery path if Messages refuses
                     // to quit: restore its windows instead of stranding them.
