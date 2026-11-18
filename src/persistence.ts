@@ -146,6 +146,14 @@ export class Persistence {
     this.invalidateSavedData()
   }
 
+  deleteThread(threadID: string): void {
+    if (!this.data[threadID]) return
+
+    texts.log(`imsg/persistence: deleting all persisted props for ${threadID}`)
+    delete this.data[threadID]
+    this.invalidateSavedData()
+  }
+
   getTranscription(threadID: string, messageID: MessageID): TranscriptionResult | undefined {
     return this.data[threadID]?.transcriptions?.[messageID]
   }

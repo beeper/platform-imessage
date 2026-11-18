@@ -152,6 +152,9 @@ export default class AppleiMessage implements PlatformAPI {
         if (event.type === ServerEventType.TOAST) {
           texts.Sentry.captureMessage(`iMessage: ${event.toast.text}`)
         } else {
+          if (event.type === ServerEventType.STATE_SYNC && event.objectName === 'thread' && event.mutationType === 'delete') {
+            event.entries.forEach(threadID => this.persistence?.deleteThread(threadID))
+          }
           evs.push(this.applyPersistedTranscriptionsToEvent(reviveSwiftMessageAPIValue(event)))
         }
       })
@@ -324,7 +327,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   deleteThread = async (hashedThreadID: ThreadID) => {
     await this.swiftPlatformAPI!.deleteThread(hashedThreadID)
-    this.persistence?.deleteThreadProp(hashedThreadID, 'transcriptions')
+    this.persistence?.deleteThread(hashedThreadID)
   }
 
   sendActivityIndicator = async (type: ActivityType, hashedThreadID?: ThreadID) => {
@@ -467,7 +470,6 @@ export default class AppleiMessage implements PlatformAPI {
       const chat = await this.getThread(hashedThreadID)
       if (!chat) {
         texts.log(`imsg/archive/${hashedThreadID}: chat not found in iMessage, deleting from Beeper`)
-        this.persistence?.deleteThreadProp(hashedThreadID, 'archive')
         this.onEvent?.([{
           type: ServerEventType.STATE_SYNC,
           objectName: 'thread',
