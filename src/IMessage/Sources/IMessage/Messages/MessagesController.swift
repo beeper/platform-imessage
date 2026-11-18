@@ -166,24 +166,10 @@ final class MessagesController {
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
-        guard let contacts, let a, let b else { return false }
-        return contacts.fetchID(for: a) == contacts.fetchID(for: b)
-    }
-
-    func haveSameRecipients(_ a: [String], _ b: [String]) -> Bool {
-        guard !a.isEmpty, a.count == b.count else { return false }
-        return Set(a.map(recipientKey)) == Set(b.map(recipientKey))
-    }
-
-    private func recipientKey(_ address: String) -> String {
-        if let contactID = contacts?.fetchID(for: address) {
-            return contactID
-        }
-        if address.contains("@") {
-            return address.lowercased()
-        }
-        let digits = address.filter(\.isNumber)
-        return digits.count >= 10 ? String(digits.suffix(10)) : digits
+        guard let a, let b else { return false }
+        if a == b { return true }
+        guard let contacts, let contactID = contacts.fetchID(for: a) else { return false }
+        return contactID == contacts.fetchID(for: b)
     }
 
     private func getToFieldAddresses() async -> [String]? {
