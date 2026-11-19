@@ -89,11 +89,8 @@ public extension IMDatabase {
           message m
           INNER JOIN chat_message_join cm ON m.ROWID = cm.message_id
         WHERE
-          m.item_type == 0
-          AND m.is_read == 0
-          AND m.is_from_me == 0
-          AND m.is_finished == 1
-          AND m.is_system_message == 0
+          m.is_read = 0
+          AND \(unreadCandidatePredicateSQL)
           AND cm.chat_id IN (\(placeholders))
         GROUP BY
           cm.chat_id

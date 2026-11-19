@@ -68,17 +68,13 @@ private let threadUnreadQuery = """
     """
 
 private func latestMessageUnreadExpression(chatIDExpression: String) -> String {
-    // Same predicate as Apple's unread indexes (macOS 26+).
     """
     COALESCE((
             SELECT m.is_read = 0
             FROM chat_message_join cm
             INNER JOIN message m ON m.ROWID = cm.message_id
             WHERE cm.chat_id = \(chatIDExpression)
-              AND m.is_from_me = 0
-              AND m.item_type = 0
-              AND m.is_finished = 1
-              AND m.is_system_message = 0
+              AND \(unreadCandidatePredicateSQL)
             ORDER BY cm.message_date DESC, cm.message_id DESC
             LIMIT 1
         ), 0)

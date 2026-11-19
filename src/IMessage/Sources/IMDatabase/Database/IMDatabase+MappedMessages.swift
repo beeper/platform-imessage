@@ -15,6 +15,15 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 \(messageHandleJoins)
 """
 
+// chat_message_join has no date-only index before macOS 26.3, so across all
+// chats walk message's date index; CROSS JOIN pins that join order.
+private let messageJoinsFromMessageByDate = """
+FROM message AS m
+CROSS JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+\(messageHandleJoins)
+"""
+
 private let latestMessageJoins = """
 INNER JOIN message AS m ON m.ROWID = latest_join.message_id
 LEFT JOIN chat AS t ON latest_join.chat_id = t.ROWID
@@ -178,26 +187,13 @@ public extension IMDatabase {
         if messageColumns.contains("was_detonated") {
             whereClauses.append("COALESCE(m.was_detonated, 0) = 0")
         }
-        let whereClause = whereClauses.joined(separator: " AND ")
-        // chat_message_join has no date-only index before macOS 26.3, so across
-        // all chats walk message's date index; CROSS JOIN pins that join order.
-        let sql = chatRowID != nil ? """
+        let scoped = chatRowID != nil
+        let sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
-        FROM chat_message_join AS cmj
-        \(messageJoinsFromChatMessageJoin)
-        WHERE \(whereClause)
-        ORDER BY cmj.message_date DESC, cmj.message_id DESC
-        LIMIT 1 OFFSET ?
-        """ : """
-        SELECT
-        \(messageSelectionSQL(messageColumns: messageColumns))
-        FROM message AS m
-        CROSS JOIN chat_message_join AS cmj
-        LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
-        \(messageHandleJoins)
-        WHERE cmj.message_id = m.ROWID AND \(whereClause)
-        ORDER BY m.date DESC, m.ROWID DESC
+        \(scoped ? "FROM chat_message_join AS cmj\n\(messageJoinsFromChatMessageJoin)" : messageJoinsFromMessageByDate)
+        WHERE \(whereClauses.joined(separator: " AND "))
+        ORDER BY \(scoped ? "cmj.message_date DESC, cmj.message_id DESC" : "m.date DESC, m.ROWID DESC")
         LIMIT 1 OFFSET ?
         """
         let statement = try cachedStatement(forEscapedSQL: sql).reset()

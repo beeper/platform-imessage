@@ -24,3 +24,6 @@ extension IMDatabase {
         try !tableColumns("chat_recoverable_message_join").isEmpty
     }
 }
+
+// Same predicate as Apple's unread indexes (macOS 26+); expects `message AS m`.
+let unreadCandidatePredicateSQL = "m.is_from_me = 0 AND m.item_type = 0 AND m.is_finished = 1 AND m.is_system_message = 0"

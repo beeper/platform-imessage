@@ -62,7 +62,8 @@ enum ThreadMapper {
         if guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;") {
             return true
         }
-        return guid.hasPrefix("any;") && ["SMS", "RCS", "SatelliteSMS"].contains(serviceName)
+        let smsServices: [Chat.ServiceName] = [.sms, .rcs, .satelliteSMS]
+        return guid.hasPrefix("any;") && smsServices.contains { $0.rawValue == serviceName }
     }
 
     private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> PlatformSDK.Participant? {

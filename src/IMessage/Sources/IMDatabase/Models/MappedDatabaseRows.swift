@@ -18,7 +18,7 @@ import SQLite
 /// - `replace`: Observed by kb as `0` for all messages.
 /// - `country`: Observed by kb as `NULL` for all messages.
 /// - `version`: Observed by kb as `10` for all messages.
-/// - `is_finished`: Observed by kb as `1` for all messages.
+/// - `is_finished`: Observed by kb as `1` for all messages; filtered on for unread.
 /// - `is_sent`: Slightly different from `is_from_me`.
 /// - `is_forward`: Observed by kb as `0` for all messages.
 /// - `is_archive`: Observed by kb as `0` for all messages.
