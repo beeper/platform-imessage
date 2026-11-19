@@ -187,6 +187,7 @@ func latestVisibleMessageWithoutThreadSkipsReactions(schema: String) throws {
     #expect(ThreadMapper.isSMS(guid: "RCS;-;+15555550100", serviceName: nil))
     #expect(ThreadMapper.isSMS(guid: "any;-;+15555550100", serviceName: "SMS"))
     #expect(ThreadMapper.isSMS(guid: "any;-;+15555550100", serviceName: "RCS"))
+    #expect(ThreadMapper.isSMS(guid: "any;-;+15555550100", serviceName: "SatelliteSMS"))
     #expect(!ThreadMapper.isSMS(guid: "any;-;+15555550100", serviceName: "iMessage"))
     #expect(!ThreadMapper.isSMS(guid: "any;-;+15555550100", serviceName: nil))
     #expect(!ThreadMapper.isSMS(guid: "iMessage;-;+15555550100", serviceName: "iMessage"))
