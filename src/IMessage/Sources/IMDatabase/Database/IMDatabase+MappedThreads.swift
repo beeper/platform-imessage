@@ -20,7 +20,8 @@ public extension IMDatabase {
         if let comparisonOperator {
             sql += "\nWHERE msgDate \(comparisonOperator) ?"
         } else if try hasRecoverableMessageJoin() {
-            // A chat whose messages are all in Recently Deleted keeps its row.
+            // chat.db keeps the chat row when all its messages are in Recently Deleted;
+            // hide those, but keep chats that never had messages.
             sql += """
 
             WHERE msgDate IS NOT NULL
@@ -87,7 +88,7 @@ public extension IMDatabase {
           cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
         FROM
           message m
-          INNER JOIN chat_message_join cm ON m.ROWID = cm.message_id
+          CROSS JOIN chat_message_join cm ON cm.message_id = m.ROWID
         WHERE
           m.is_read = 0
           AND \(unreadCandidatePredicateSQL)

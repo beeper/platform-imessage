@@ -355,7 +355,7 @@ public extension IMDatabase {
         // the GUID lookup as the outer loop.
         let sql = """
         WITH target(chat_id, min_date) AS (
-          SELECT tj.chat_id, MIN(tj.message_date)
+          SELECT tj.chat_id, COALESCE(MIN(tj.message_date), 0)
           FROM message AS t
           CROSS JOIN chat_message_join AS tj
           WHERE tj.message_id = t.ROWID

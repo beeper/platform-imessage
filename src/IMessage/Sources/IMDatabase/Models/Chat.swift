@@ -21,6 +21,10 @@ public extension Chat {
         public init(rawValue: String) {
             self.rawValue = rawValue
         }
+
+        public var isSMS: Bool {
+            self == .sms || self == .rcs || self == .satelliteSMS
+        }
     }
 }
 
