@@ -146,6 +146,10 @@ export class Persistence {
     this.invalidateSavedData()
   }
 
+  threadIDs(): string[] {
+    return Object.keys(this.data)
+  }
+
   deleteThread(threadID: string): void {
     if (!this.data[threadID]) return
 

@@ -181,6 +181,17 @@ export default class AppleiMessage implements PlatformAPI {
     await this.startEventWatchingFromCurrentState().catch(error => {
       texts.error('imsg: event watching startup failed:', error)
     })
+    await this.deletePersistedPropsOfDeletedThreads().catch(error => {
+      texts.error('imsg: pruning persisted thread props failed:', error)
+    })
+  }
+
+  private deletePersistedPropsOfDeletedThreads = async (): Promise<void> => {
+    if (!this.persistence) return
+    const threadIDs = new Set(parseSwiftMessageAPIJSON<ThreadID[]>(await this.swiftPlatformAPI!.getThreadIDs()))
+    for (const threadID of this.persistence.threadIDs()) {
+      if (!threadIDs.has(threadID)) this.persistence.deleteThread(threadID)
+    }
   }
 
   pinThread = async (hashedThreadID: ThreadID, pinned: boolean) => {

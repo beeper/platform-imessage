@@ -39,6 +39,8 @@ export declare class NativePlatformAPI {
 
   getThread: (threadID: ThreadID) => Promise<string>
 
+  getThreadIDs: () => Promise<string>
+
   getMessage: (threadID: ThreadID, messageID: MessageID) => Promise<string>
 
   getOriginalObject: (objName: 'thread' | 'message', objectID: ThreadID | MessageID) => Promise<string>
