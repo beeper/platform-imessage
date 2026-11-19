@@ -35,17 +35,12 @@ actor MessagesControllerCoordinator<Controller: AnyObject> {
     func withController<T>(
         reportErrorMessage: PlatformAPI.ReportErrorMessage?,
         hasBeenDisposed: Protected<Bool>,
-        invalidating failedController: ObjectIdentifier? = nil,
         _ action: @escaping @Sendable (Controller) async throws -> T
     ) async throws -> T {
         try Task.checkCancellation()
         guard !hasBeenDisposed.read() else {
             throw ErrorMessage("PlatformAPI has been disposed")
         }
-        if let failedController, let current, ObjectIdentifier(current.value) == failedController {
-            try await disposeIfCurrent(current)
-        }
-
         for _ in 0..<30 {
             try Task.checkCancellation()
             let entry: MessagesControllerEntry
@@ -234,13 +229,11 @@ extension PlatformAPI {
     }
 
     func withMessagesController<T>(
-        invalidating failedController: ObjectIdentifier? = nil,
         _ action: @escaping @Sendable (MessagesController) async throws -> T
     ) async throws -> T {
         try await Self.messagesControllerCoordinator.withController(
             reportErrorMessage: errorMessageReporter,
             hasBeenDisposed: hasBeenDisposed,
-            invalidating: failedController,
             action
         )
     }

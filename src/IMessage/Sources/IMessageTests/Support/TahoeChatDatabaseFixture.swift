@@ -5,6 +5,8 @@ import SQLite3
 
 final class TahoeChatDatabaseFixture {
     static let defaultChatGUID = "any;-;+15555550100"
+    static let defaultSchema = "26.4.1-25E253"
+    static let montereySchema = "12.6-21G115"
 
     let chatGUID: String
     let directory: URL
@@ -12,14 +14,17 @@ final class TahoeChatDatabaseFixture {
     let database: Database
     let imDatabase: IMDatabase
 
-    init(chatGUID: String = TahoeChatDatabaseFixture.defaultChatGUID) throws {
+    init(
+        chatGUID: String = TahoeChatDatabaseFixture.defaultChatGUID,
+        schema: String = TahoeChatDatabaseFixture.defaultSchema
+    ) throws {
         self.chatGUID = chatGUID
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         databasePath = directory.appendingPathComponent("chat.db").path
         database = try Database(connecting: databasePath, flags: [.readWrite, .createIfNecessary])
-        try Self.createTahoeSchema(in: database)
+        try Self.createSchema(named: schema, in: database)
         try database.createNoopFunction(name: "verify_chat", argumentCount: 1)
         try database.execute(sqlWithoutEscaping: "INSERT INTO chat (ROWID, guid) VALUES (1, ?)", chatGUID)
 
@@ -160,19 +165,11 @@ final class TahoeChatDatabaseFixture {
         )
     }
 
-    private static func createTahoeSchema(in database: Database) throws {
-        let schema = try String(contentsOf: schemaURL, encoding: .utf8)
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { line in
-                !line.hasPrefix("CREATE TABLE sqlite_sequence")
-                    && !line.hasPrefix("CREATE TABLE sqlite_stat1")
-            }
-            .joined(separator: "\n")
-
-        try database.executeScript(sqlWithoutEscaping: schema)
+    private static func createSchema(named schema: String, in database: Database) throws {
+        try database.executeScript(sqlWithoutEscaping: String(contentsOf: schemaURL(named: schema), encoding: .utf8))
     }
 
-    private static var schemaURL: URL {
+    private static func schemaURL(named schema: String) -> URL {
         let testDirectory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -181,7 +178,7 @@ final class TahoeChatDatabaseFixture {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        return repositoryRoot.appendingPathComponent("fixtures/schema-tahoe.sql")
+        return repositoryRoot.appendingPathComponent("schemas/\(schema).sql")
     }
 }
 
