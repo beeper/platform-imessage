@@ -311,6 +311,19 @@ final class MessagesController {
         return namesThread(windowTitle) && rowNamesThread
     }
 
+    private func messagesRecordsSelection(of threadID: String) -> Bool {
+        Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true
+    }
+
+    private func messagesSelected(_ threadID: String, labels: Set<String>, recordedBeforeOpening: Bool) async -> Bool {
+        guard messagesRecordsSelection(of: threadID) else { return false }
+        guard recordedBeforeOpening else { return true }
+        let now = await currentSelection()
+        return [now.windowTitle, now.rowLabel].contains { name in
+            name.map { selection(ConversationSelection(rowLabel: $0, windowTitle: $0), matches: labels) } == true
+        }
+    }
+
     private func waitForSelection(
         of threadLabels: Set<String>?,
         awayFrom before: ConversationSelection,
@@ -343,24 +356,31 @@ final class MessagesController {
         }
         let threadLabels = try? predictWindowTitles(forChatGUID: threadID)
         let before = await currentSelection()
+        let recordedBeforeOpening = messagesRecordsSelection(of: threadID)
         var openedAt = Date()
         try await openDeepLink(deepLink)
         if await waitForSelection(of: threadLabels, awayFrom: before) {
             return try await assertSelectedThread(threadID: threadID, since: openedAt)
         }
 
-        if threadLabels != nil {
-            log.warning("Messages didn't select the chat, reopening it by chat id")
-            openedAt = Date()
-            try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
-            guard await waitForSelection(of: threadLabels, awayFrom: before) else {
-                throw ErrorMessage("Messages didn't switch to the chat")
+        if let threadLabels {
+            if await !messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) {
+                log.warning("Messages didn't select the chat, reopening it by chat id")
+                openedAt = Date()
+                try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
+                if await waitForSelection(of: threadLabels, awayFrom: before) {
+                    return try await assertSelectedThread(threadID: threadID, since: openedAt)
+                }
+                guard await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) else {
+                    throw ErrorMessage("Messages didn't switch to the chat")
+                }
             }
+            log.warning("Messages selected the chat, but its title or row didn't match the predicted names")
             return try await assertSelectedThread(threadID: threadID, since: openedAt)
         }
 
         let now = await currentSelection()
-        if Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true,
+        if messagesRecordsSelection(of: threadID),
            now.rowLabel == nil || now.rowLabel == now.windowTitle {
             return
         }
