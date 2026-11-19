@@ -1,10 +1,20 @@
 // Types that are defined in the desktop app itself (e.g. `src/common/types.ts`).
 
-import type { Message, Thread, Paginated } from '@textshq/platform-sdk'
+import type { Attachment, Message, Thread, Paginated } from '@textshq/platform-sdk'
 
 export type MessageContentType =
   'TEXT' | 'NOTICE' | 'IMAGE' | 'VIDEO' | 'VOICE' | 'AUDIO' | 'FILE' |
   'STICKER' | 'LOCATION' | 'MEMBERSHIP' | 'NAME' | 'STATE' | 'HIDDEN' | 'REACTION'
+
+export type TranscriptionResult = {
+  transcription: string
+  engine: string
+  language?: string
+}
+
+export type BeeperAttachment = Attachment & {
+  transcription?: TranscriptionResult
+}
 
 export interface iMessageExtra {
   // `isSMS` is already available on `BeeperMessageExtra`
