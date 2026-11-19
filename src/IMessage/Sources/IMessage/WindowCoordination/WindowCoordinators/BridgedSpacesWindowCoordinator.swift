@@ -113,7 +113,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private static func liveMessagesApp(_ pid: pid_t) -> NSRunningApplication? {
-        guard kill(pid, 0) == 0 || errno != ESRCH,
+        guard MessagesInstanceTarget.isRunning(pid: pid),
               let app = NSRunningApplication(processIdentifier: pid),
               !app.isTerminated, app.bundleIdentifier == messagesBundleID else { return nil }
         return app

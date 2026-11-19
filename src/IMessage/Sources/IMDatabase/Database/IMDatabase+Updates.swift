@@ -3,21 +3,30 @@ import Logging
 
 private let log = Logger(label: "imdb.updates")
 
-private let updatedMessagesSinceQuery = """
-SELECT
-    m.ROWID,
-    m.date_read,
-    m.date_edited,
-    c.guid
-FROM
-    message m
-LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat c ON cmj.chat_id = c.ROWID
-WHERE
-    m.ROWID > ? OR m.date_read > ? OR m.date_edited > ?
-ORDER BY
-    m.ROWID ASC
-"""
+// One range search per cursor component: a single OR predicate makes SQLite
+// scan the whole message table instead of using the indexes.
+private func updatedMessagesSinceQuery(hasDateEdited: Bool) -> String {
+    """
+    SELECT
+        m.ROWID,
+        m.date_read,
+        \(hasDateEdited ? "m.date_edited" : "NULL"),
+        c.guid
+    FROM
+        message m
+    LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+    LEFT JOIN chat c ON cmj.chat_id = c.ROWID
+    WHERE
+        m.ROWID IN (
+            SELECT ROWID FROM message WHERE ROWID > ?
+            UNION ALL
+            SELECT ROWID FROM message WHERE date_read > ?
+            \(hasDateEdited ? "UNION ALL SELECT ROWID FROM message WHERE date_edited > ?" : "")
+        )
+    ORDER BY
+        m.ROWID ASC
+    """
+}
 
 package struct UpdatedMessageChange {
     package let rowID: Int
@@ -78,14 +87,19 @@ package struct UpdatedMessagesQueryResult {
 extension IMDatabase {
     package
     func messages(since cursor: MessageUpdatesCursor) throws -> UpdatedMessagesQueryResult {
-        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery)
+        let hasDateEdited = try tableColumns("message").contains("date_edited")
+        let statement = try cachedStatement(forEscapedSQL: updatedMessagesSinceQuery(hasDateEdited: hasDateEdited))
 
         try statement.reset()
-        try statement.bind(
-            cursor.lastRowID,
-            cursor.lastDateReadNanoseconds,
-            cursor.lastDateEditedNanoseconds
-        )
+        if hasDateEdited {
+            try statement.bind(
+                cursor.lastRowID,
+                cursor.lastDateReadNanoseconds,
+                cursor.lastDateEditedNanoseconds
+            )
+        } else {
+            try statement.bind(cursor.lastRowID, cursor.lastDateReadNanoseconds)
+        }
 
         var nextLastRowID = cursor.lastRowID
         var nextLastDateReadNanoseconds = cursor.lastDateReadNanoseconds

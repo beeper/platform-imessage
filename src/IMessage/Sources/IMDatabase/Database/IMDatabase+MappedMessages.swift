@@ -35,11 +35,14 @@ public extension IMDatabase {
     }
 
     func messageUpdateCursorSnapshot() throws -> MessageUpdatesCursor {
+        let maxDateEdited = try tableColumns("message").contains("date_edited")
+            ? "COALESCE((SELECT MAX(date_edited) FROM message), 0)"
+            : "0"
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT
             COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'message'), 0),
             COALESCE((SELECT MAX(date_read) FROM message), 0),
-            COALESCE((SELECT MAX(date_edited) FROM message), 0)
+            \(maxDateEdited)
         """).reset()
 
         return try statement.mapRowsUntilDone { row in

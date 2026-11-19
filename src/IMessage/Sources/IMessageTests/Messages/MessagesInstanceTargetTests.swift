@@ -5,7 +5,7 @@ import Testing
 
 @Test
 func primaryMessagesSelectionRequiresOneUnambiguousInstance() throws {
-    let app = NSRunningApplication.current
+    let app = try #require(NSWorkspace.shared.runningApplications.first { $0.processIdentifier > 0 })
     #expect(try MessagesInstanceTarget.primaryInstance(in: []) == nil)
     #expect(try MessagesInstanceTarget.primaryInstance(in: [app])?.processIdentifier == app.processIdentifier)
     #expect(throws: ErrorMessage.self) {
