@@ -59,6 +59,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  // eslint-disable-next-line class-methods-use-this
   private async ensureDB() {
     try {
       await imessage.MacPermissions.validateDatabaseAccess()
@@ -100,7 +101,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private experiments = ''
 
-  init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs?: Record<string, any>) => {
+  init = async (session: SerializedSession, { dataDirPath }: ClientContext) => {
     // Initialization must work without FDA so onboarding and reauthorization can request it.
     if (session && !IS_BIG_SUR_OR_UP) throw new Error(MIN_MACOS_VERSION_ERROR)
     const userDataDirPath = path.dirname(dataDirPath)
@@ -263,10 +264,10 @@ export default class AppleiMessage implements PlatformAPI {
       this.sendingMessagesCount++
       const { quotedMessageID } = options
       if (content.fileBuffer) {
-        return this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
+        return await this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
       }
       if (content.filePath) {
-        return this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
+        return await this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
       }
       return parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(hashedThreadID, content.text, undefined, quotedMessageID))
     } finally {
@@ -315,7 +316,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
 
-  sendReadReceipt = (hashedThreadID: ThreadID, messageID?: MessageID) =>
+  sendReadReceipt = (hashedThreadID: ThreadID) =>
     this.swiftPlatformAPI!.sendReadReceipt(hashedThreadID)
 
   notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)

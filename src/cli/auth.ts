@@ -99,9 +99,12 @@ const automationPendingStatus = () =>
   makeStatus('automation', false, 'Not yet verified — will be requested below.')
 
 const automationResultStatus = (ok: boolean) =>
-  makeStatus('automation', ok,
+  makeStatus(
+    'automation',
+    ok,
     ok ? 'Apple Events access to Messages.app is available.'
-       : 'Automation access was denied or unavailable.')
+      : 'Automation access was denied or unavailable.',
+  )
 
 async function getAuthStatus(deps: Deps, authType: NativeMacPermissionAuthType): Promise<NativeMacPermissionAuthStatus> {
   const methods = {
@@ -128,23 +131,32 @@ async function getAuthorizationStatuses(
 
   if (wants('accessibility')) {
     const ok = axStatus === 'authorized'
-    statuses.push(makeStatus('accessibility', ok,
+    statuses.push(makeStatus(
+      'accessibility',
+      ok,
       ok ? 'Your current Terminal app can control Messages.app.'
-         : 'Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.'))
+        : 'Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.',
+    ))
   }
 
   if (wants('contacts')) {
     const ok = contactsStatus === 'authorized'
-    statuses.push(makeStatus('contacts', ok,
+    statuses.push(makeStatus(
+      'contacts',
+      ok,
       ok ? 'Contacts lookups are available.'
-         : 'Allow Contacts access if you want contact-name lookups from the CLI.'))
+        : 'Allow Contacts access if you want contact-name lookups from the CLI.',
+    ))
   }
 
   if (wants('full-disk-access')) {
     const ok = fullDiskAccessStatus === 'authorized'
-    statuses.push(makeStatus('full-disk-access', ok,
+    statuses.push(makeStatus(
+      'full-disk-access',
+      ok,
       ok ? 'The CLI can read protected Messages settings.'
-         : 'Enable your current Terminal app in System Settings > Privacy & Security > Full Disk Access.'))
+        : 'Enable your current Terminal app in System Settings > Privacy & Security > Full Disk Access.',
+    ))
   }
 
   if (wants('messages-data')) {
@@ -242,9 +254,10 @@ async function authorizeAutomation(deps: Deps): Promise<boolean> {
 async function authorizeRequirement(requirement: CliAuthorizationRequirement, deps: Deps) {
   switch (requirement) {
     case 'accessibility': await authorizeAccessibility(deps); return
-    case 'contacts':      await authorizeContacts(deps); return
+    case 'contacts': await authorizeContacts(deps); return
     case 'messages-data': await authorizeMessagesData(deps); return
     case 'full-disk-access': await authorizeFullDiskAccess(deps)
+    // no default
   }
 }
 
@@ -253,10 +266,10 @@ function resolveTarget(target: CliAuthorizationTarget): {
   printKeys: readonly CliAuthorizationStatusKey[]
 } {
   switch (target) {
-    case 'all':        return { checkable: AUTHORIZATION_REQUIREMENTS, printKeys: [...AUTHORIZATION_REQUIREMENTS, 'automation', 'messages-app-setup'] }
+    case 'all': return { checkable: AUTHORIZATION_REQUIREMENTS, printKeys: [...AUTHORIZATION_REQUIREMENTS, 'automation', 'messages-app-setup'] }
     case 'automation': return { checkable: [], printKeys: ['automation'] }
     case 'full-disk-access': return { checkable: [target], printKeys: [target, 'messages-app-setup'] }
-    default:           return { checkable: [target], printKeys: [target] }
+    default: return { checkable: [target], printKeys: [target] }
   }
 }
 
@@ -279,7 +292,7 @@ export async function runAuthorizationFlow(
 
   const fetched = await getAuthorizationStatuses(deps, printKeys.filter(k => k !== 'automation'))
   let statuses: CliAuthorizationStatus[] = printKeys.map(k =>
-    k === 'automation' ? automationPendingStatus() : findStatus(fetched, k)!)
+    (k === 'automation' ? automationPendingStatus() : findStatus(fetched, k)!))
 
   console.log('Current authorization status:')
   printStatuses(statuses)

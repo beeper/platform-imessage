@@ -267,7 +267,7 @@ function parsePaginationArgs(command: CommandDefinition, args: string[], positio
 
   const pagination: PaginationArg | undefined = after ? { cursor: after, direction: 'after' }
     : before ? { cursor: before, direction: 'before' }
-    : undefined
+      : undefined
 
   return { positionals, pagination }
 }

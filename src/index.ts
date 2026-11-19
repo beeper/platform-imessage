@@ -10,6 +10,7 @@ export default {
     return AppleiMessage as unknown as PlatformAPI
   },
   get auth() {
+    // eslint-disable-next-line import/extensions
     return textsRenderer.React?.lazy(() => import('./auth'))
   },
 } as Platform
