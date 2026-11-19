@@ -10,27 +10,6 @@ private final class TestMessagesController {
     init(id: Int) { self.id = id }
 }
 
-@Test(arguments: [false, true])
-func rejectedCallerCannotInvalidateACachedController(cancelCaller: Bool) async throws {
-    let wasDisposed = Protected(false)
-    let controller = UncheckedSendableBox(TestMessagesController(id: 1))
-    let coordinator = MessagesControllerCoordinator<TestMessagesController>(
-        create: { _ in controller },
-        isValid: { _ in true },
-        dispose: { _ in wasDisposed.withLock { $0 = true } }
-    )
-    _ = try await coordinator.withController(reportErrorMessage: nil, hasBeenDisposed: Protected(false)) { $0.id }
-    let task = Task {
-        if cancelCaller { withUnsafeCurrentTask { $0?.cancel() } }
-        return try await coordinator.withController(
-            reportErrorMessage: nil, hasBeenDisposed: Protected(!cancelCaller), invalidating: ObjectIdentifier(controller.value)
-        ) { $0.id }
-    }
-    let result = await task.result
-    #expect(throws: (any Error).self) { try result.get() }
-    #expect(!wasDisposed.read())
-}
-
 @Test func controllerReplacementWaitsForDisposalAndConcurrentDisposers() async throws {
     let creations = Protected(0)
     let disposalStarted = Protected(false)

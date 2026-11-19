@@ -408,8 +408,7 @@ public final class PlatformAPI {
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
-        let usedController = Protected<ObjectIdentifier?>(nil)
-        try await retry(retries: 1, interval: 1) { attempt in
+        try await retry(retries: 1, interval: 1) { _ in
             let (threadID, isRead) = try await Task.detached(priority: .userInitiated) {
                 try database.withDatabase { db in
                     let threadID = try Self.originalThreadID(db: db, publicThreadID)
@@ -425,8 +424,7 @@ public final class PlatformAPI {
                     try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
                 }.value
             }
-            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
-                usedController.withLock { $0 = ObjectIdentifier(controller) }
+            try await withMessagesController { controller in
                 try await controller.toggleThreadRead(threadID: threadID, read: true, isAlreadyDone: readNow)
             }
             try await retry(withTimeout: readReceiptLandTimeout, interval: 0.1) {
@@ -749,11 +747,9 @@ public final class PlatformAPI {
         _ action: @escaping @Sendable (MessagesController) async throws -> Void,
         afterAttempt: (@Sendable (AttemptContext) async throws -> Void)? = nil
     ) async throws -> AttemptContext {
-        let usedController = Protected<ObjectIdentifier?>(nil)
-        return try await retry(retries: retries, { attempt in
+        return try await retry(retries: retries, { _ in
             let context = try await prepareAttempt()
-            try await withMessagesController(invalidating: attempt > 0 ? usedController.read() : nil) { controller in
-                usedController.withLock { $0 = ObjectIdentifier(controller) }
+            try await withMessagesController { controller in
                 try await action(controller)
             }
             try await afterAttempt?(context)
