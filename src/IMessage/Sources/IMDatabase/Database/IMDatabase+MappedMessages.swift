@@ -178,13 +178,26 @@ public extension IMDatabase {
         if messageColumns.contains("was_detonated") {
             whereClauses.append("COALESCE(m.was_detonated, 0) = 0")
         }
-        let whereClause = whereClauses.isEmpty ? "" : "WHERE \(whereClauses.joined(separator: " AND "))\n"
-        let sql = """
+        let whereClause = whereClauses.joined(separator: " AND ")
+        // chat_message_join has no date-only index before macOS 26.3, so across
+        // all chats walk message's date index; CROSS JOIN pins that join order.
+        let sql = chatRowID != nil ? """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
         FROM chat_message_join AS cmj
         \(messageJoinsFromChatMessageJoin)
-        \(whereClause)ORDER BY cmj.message_date DESC, cmj.message_id DESC
+        WHERE \(whereClause)
+        ORDER BY cmj.message_date DESC, cmj.message_id DESC
+        LIMIT 1 OFFSET ?
+        """ : """
+        SELECT
+        \(messageSelectionSQL(messageColumns: messageColumns))
+        FROM message AS m
+        CROSS JOIN chat_message_join AS cmj
+        LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+        \(messageHandleJoins)
+        WHERE cmj.message_id = m.ROWID AND \(whereClause)
+        ORDER BY m.date DESC, m.ROWID DESC
         LIMIT 1 OFFSET ?
         """
         let statement = try cachedStatement(forEscapedSQL: sql).reset()
@@ -341,18 +354,31 @@ public extension IMDatabase {
         let emojiColumn = messageColumns.contains("associated_message_emoji") ? "associated_message_emoji," : ""
         let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
         let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
+        // No index can match the associated GUID, so only scan each chat from
+        // its oldest target onwards (less a day of clock skew); CROSS JOIN pins
+        // the GUID lookup as the outer loop.
         let sql = """
+        WITH target(chat_id, min_date) AS (
+          SELECT tj.chat_id, MIN(tj.message_date)
+          FROM message AS t
+          CROSS JOIN chat_message_join AS tj
+          WHERE tj.message_id = t.ROWID
+          AND t.guid IN (\(messageGUIDPlaceholders))
+          AND tj.chat_id IN (\(chatRowIDPlaceholders))
+          GROUP BY tj.chat_id
+        )
         SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, \(emojiColumn) h.id AS participantID
-        FROM message AS m
+        FROM target
+        INNER JOIN chat_message_join AS cmj ON cmj.chat_id = target.chat_id AND cmj.message_date >= target.min_date - \(reactionClockSkewNanoseconds)
+        INNER JOIN message AS m ON m.ROWID = cmj.message_id
         LEFT JOIN handle AS h ON m.handle_id = h.ROWID
-        LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
         WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (\(messageGUIDPlaceholders))
-        AND cmj.chat_id IN (\(chatRowIDPlaceholders))
         ORDER BY m.ROWID ASC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
         bindings.append(contentsOf: chatRowIDs.map { $0 as any SQLiteBindable })
+        bindings.append(contentsOf: messageGUIDs.map { $0 as any SQLiteBindable })
         try statement.bind(bindings)
         return try statement.mapRowsUntilDone(MappedReactionMessageRow.self)
     }
@@ -375,6 +401,7 @@ private let maxMappedMessageRowsBatchSize = 500
 // aliases should skip them and resolve to the newest user-visible row.
 private let reactionAssociatedMessageTypeLowerBound = 2000
 private let reactionAssociatedMessageTypeUpperBound = 3007
+private let reactionClockSkewNanoseconds = 86_400_000_000_000
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]

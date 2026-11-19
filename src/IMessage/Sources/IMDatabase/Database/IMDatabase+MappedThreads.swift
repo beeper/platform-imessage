@@ -19,6 +19,13 @@ public extension IMDatabase {
         """
         if let comparisonOperator {
             sql += "\nWHERE msgDate \(comparisonOperator) ?"
+        } else if try hasRecoverableMessageJoin() {
+            // A chat whose messages are all in Recently Deleted keeps its row.
+            sql += """
+
+            WHERE msgDate IS NOT NULL
+            OR NOT EXISTS (SELECT 1 FROM chat_recoverable_message_join WHERE chat_id = chat.ROWID)
+            """
         }
         sql += "\nORDER BY msgDate DESC\nLIMIT \(limit)"
 
@@ -85,6 +92,8 @@ public extension IMDatabase {
           m.item_type == 0
           AND m.is_read == 0
           AND m.is_from_me == 0
+          AND m.is_finished == 1
+          AND m.is_system_message == 0
           AND cm.chat_id IN (\(placeholders))
         GROUP BY
           cm.chat_id

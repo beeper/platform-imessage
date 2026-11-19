@@ -68,9 +68,7 @@ private let threadUnreadQuery = """
     """
 
 private func latestMessageUnreadExpression(chatIDExpression: String) -> String {
-    // Apple uses `is_finished = 1` and `is_system_message = 0` in newer unread
-    // indexes, but this repo has no macOS 11 fixture proving those columns.
-    // Keep this to the legacy `is_read`/`is_from_me`/`item_type` predicate until Big Sur is verified.
+    // Same predicate as Apple's unread indexes (macOS 26+).
     """
     COALESCE((
             SELECT m.is_read = 0
@@ -79,6 +77,8 @@ private func latestMessageUnreadExpression(chatIDExpression: String) -> String {
             WHERE cm.chat_id = \(chatIDExpression)
               AND m.is_from_me = 0
               AND m.item_type = 0
+              AND m.is_finished = 1
+              AND m.is_system_message = 0
             ORDER BY cm.message_date DESC, cm.message_id DESC
             LIMIT 1
         ), 0)

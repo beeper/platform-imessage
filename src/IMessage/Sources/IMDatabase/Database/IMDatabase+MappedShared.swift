@@ -19,4 +19,8 @@ extension IMDatabase {
         tableColumnCache[tableName] = columns
         return columns
     }
+
+    func hasRecoverableMessageJoin() throws -> Bool {
+        try !tableColumns("chat_recoverable_message_join").isEmpty
+    }
 }
