@@ -54,13 +54,13 @@ trap 'rm -rf "$work"' EXIT
 
 # Old enough for every release's dyld: classic fixups, macOS 11 deployment target.
 clang -arch arm64 -mmacosx-version-min=11.0 -O1 -Wl,-no_fixup_chains -framework CoreFoundation \
-  "$script_dir/runner.c" -o "$work/runner"
+  "$script_dir/create-chat-db.c" -o "$work/create-chat-db"
 
 # Two independent runs per release, each in a fresh home.
 failed=0
 for n in 1 2; do
   "$ipswrun" --home "$work/$n/{build}" --report "$work/$n/{build}.json" ${pass[@]+"${pass[@]}"} \
-    "$releases" "$work/runner" </dev/null || failed=1
+    "$releases" "$work/create-chat-db" </dev/null || failed=1
 done
 
 from_objects="FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
