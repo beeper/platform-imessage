@@ -7,9 +7,9 @@ import SQLite
 ///
 /// Historical schema observations migrated from the old TypeScript raw row
 /// types are preserved here as comments. These notes are checked against the
-/// schema fixtures in `fixtures/`; a field can disappear across macOS releases,
-/// so don't assume older observations are still present without comparing the
-/// fixtures.
+/// per-release schema dumps in `schemas/`; a field can disappear across macOS
+/// releases, so don't assume older observations are still present without
+/// comparing them.
 ///
 /// Message table columns were originally observed in `chat.db` on Big Sur and
 /// extended as newer macOS releases added fields. Mapped columns carry their

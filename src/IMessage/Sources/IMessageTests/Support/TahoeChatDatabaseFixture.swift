@@ -161,15 +161,7 @@ final class TahoeChatDatabaseFixture {
     }
 
     private static func createTahoeSchema(in database: Database) throws {
-        let schema = try String(contentsOf: schemaURL, encoding: .utf8)
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { line in
-                !line.hasPrefix("CREATE TABLE sqlite_sequence")
-                    && !line.hasPrefix("CREATE TABLE sqlite_stat1")
-            }
-            .joined(separator: "\n")
-
-        try database.executeScript(sqlWithoutEscaping: schema)
+        try database.executeScript(sqlWithoutEscaping: String(contentsOf: schemaURL, encoding: .utf8))
     }
 
     private static var schemaURL: URL {
@@ -181,7 +173,7 @@ final class TahoeChatDatabaseFixture {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        return repositoryRoot.appendingPathComponent("fixtures/schema-tahoe.sql")
+        return repositoryRoot.appendingPathComponent("schemas/26.4.1-25E253.sql")
     }
 }
 
