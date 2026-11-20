@@ -13,7 +13,12 @@ func getBestWindowCoordinator() throws -> any WindowCoordinator {
     }
 
     if #available(macOS 15, *) {
-        return try BridgedSpacesWindowCoordinator()
+        do {
+            return try BridgedSpacesWindowCoordinator()
+        } catch let error as ParkingSpaceUnavailable {
+            log.error("Can't park Messages in a hidden Space, hiding it behind Beeper instead: \(error)")
+            return EclipsingWindowCoordinator()
+        }
     }
     return try SpacesWindowCoordinator()
 }
