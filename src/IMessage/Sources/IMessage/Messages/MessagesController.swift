@@ -166,8 +166,10 @@ final class MessagesController {
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
-        guard let contacts, let a, let b else { return false }
-        return contacts.fetchID(for: a) == contacts.fetchID(for: b)
+        guard let a, let b else { return false }
+        if a == b { return true }
+        guard let contacts else { return false }
+        return !contacts.fetchIDs(for: a).isDisjoint(with: contacts.fetchIDs(for: b))
     }
 
     private func getToFieldAddresses() async -> [String]? {
@@ -372,6 +374,8 @@ final class MessagesController {
                     return try await assertSelectedThread(threadID: threadID, since: openedAt)
                 }
                 guard await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) else {
+                    let now = await currentSelection()
+                    log.error("Messages didn't switch to the chat: title predicted=\(now.windowTitle.map(threadLabels.contains) ?? false) selection matches=\(selection(now, matches: threadLabels)) last selected=\(messagesRecordsSelection(of: threadID)) recorded before opening=\(recordedBeforeOpening)")
                     throw ErrorMessage("Messages didn't switch to the chat")
                 }
             }
