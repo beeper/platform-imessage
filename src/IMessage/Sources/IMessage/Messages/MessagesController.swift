@@ -1070,7 +1070,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /*
      uses 5 methods:
-     1. for ventura and up: hotkey                                           (reliable)
+     1. for ventura and up: selected row's mark-read action, else hotkey      (reliable)
      lower than ventura:
      2. for pinned threads: mark-read action                                 (reliable)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
@@ -1083,10 +1083,14 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         try await withAutomation {
             try await selectThread(threadID)
             if let isAlreadyDone, try await isAlreadyDone() { return }
+            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if isVenturaOrUp {
+                if let threadCell = await elements.selectedThreadCell {
+                    if let rowAction = try threadCellAction(threadCell: threadCell, action: action) { return try rowAction() }
+                    if try threadCellAction(threadCell: threadCell, action: read ? .markAsUnread : .markAsRead) != nil { return }
+                }
                 return try keyPresser.commandShiftU()
             }
-            let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread
             if Defaults.isSelectedThreadCellPinned() {
                 try await triggerThreadCellAction(threadID: threadID, action: action)
             } else if let pinnedCount = Defaults.pinnedThreadsCount(), pinnedCount < 9 {
