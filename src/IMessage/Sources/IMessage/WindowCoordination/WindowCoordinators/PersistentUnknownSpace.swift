@@ -4,6 +4,10 @@ import IMessageCore
 import IMessagePrivateSPI
 import WindowControl
 
+struct ParkingSpaceUnavailable: Error, CustomStringConvertible {
+    let description: String
+}
+
 /// One WindowServer-owned parking Space per user, retained across host exits.
 /// Discover by metadata, never by a numeric ID persisted across login sessions.
 enum PersistentUnknownSpace {
@@ -43,7 +47,7 @@ enum PersistentUnknownSpace {
         if let existing = reusableID(in: candidates), try isReusable(existing) { return existing }
 
         let created = IMPrivateSPISpaceBridgeCreateUnknownSpace(bridge, uuid)
-        guard created != 0 else { throw ErrorMessage("Bridge refused unknown Space creation") }
+        guard created != 0 else { throw ParkingSpaceUnavailable(description: "Bridge refused unknown Space creation") }
         do {
             let deadline = Date().addingTimeInterval(readTimeout)
             repeat {
