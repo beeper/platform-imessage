@@ -42,7 +42,9 @@ esac
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-cli_swift_flags=(-Xswiftc -DIMESSAGE_DISABLE_PRIVATE_SPI_ASSETS)
+# Workaround: on Xcode 27.2 the default build system can't build the macro target for x86_64 from Apple Silicon.
+# Drop `--build-system native` once it can; Swift has deprecated it.
+cli_swift_flags=(--build-system native -Xswiftc -DIMESSAGE_DISABLE_PRIVATE_SPI_ASSETS)
 
 build_arch() {
   local target_arch="$1"
