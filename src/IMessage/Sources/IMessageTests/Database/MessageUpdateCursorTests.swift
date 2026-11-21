@@ -3,7 +3,7 @@ import IMDatabase
 import Testing
 
 @Test func newMessageWithMissingChatJoinIsReturnedAsUnresolvedImmediately() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 10)
@@ -26,7 +26,7 @@ import Testing
 }
 
 @Test func extremeCursorDatesDoNotOverflowWhenRebound() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
@@ -39,7 +39,7 @@ import Testing
 }
 
 @Test func messageUpdateCursorSnapshotKeepsRawDateIntegers() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let exactDateRead = Int64.max - 1
@@ -53,7 +53,7 @@ import Testing
 }
 
 @Test func messageUpdatesCompareRawDateCursorIntegers() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let cursorDateRead = Int64.max - 1
@@ -73,7 +73,7 @@ import Testing
 }
 
 @Test func messageUpdatesReturnARowMatchingEveryCursorComponentOnce() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 10, dateRead: 100, dateEdited: 100)
@@ -101,20 +101,14 @@ import Testing
 }
 
 @Test func messageUpdatesWorkWithoutDateEditedColumn() throws {
-    let fixture = try TahoeChatDatabaseFixture(
+    let fixture = try ChatDatabaseFixture(
         chatGUID: "iMessage;-;+15555550100",
-        schema: TahoeChatDatabaseFixture.montereySchema
+        schema: ChatDatabaseSchema.monterey
     )
     defer { fixture.cleanup() }
 
     for (rowID, dateRead) in [(10, 100), (11, 200), (12, 0)] {
-        try fixture.database.execute(
-            sqlWithoutEscaping: "INSERT INTO message (ROWID, guid, date, date_read) VALUES (?, ?, ?, ?)",
-            rowID,
-            "message-\(rowID)",
-            rowID,
-            dateRead
-        )
+        try fixture.insertMessage(rowID: rowID, dateRead: Int64(dateRead))
         try fixture.insertChatJoin(messageRowID: rowID)
     }
 

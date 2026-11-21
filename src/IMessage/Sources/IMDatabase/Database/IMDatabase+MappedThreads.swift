@@ -83,6 +83,9 @@ public extension IMDatabase {
     func mappedUnreadCounts(chatRowIDs: [Int]) throws -> [Int: Int] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let placeholders = chatRowIDs.map { _ in "?" }.joined(separator: ", ")
+        // Walk unread messages and look each one's chat up once. The unary plus
+        // stops SQLite probing the join's primary key once per requested chat,
+        // which cost 0.5-1.4 s a page with 100k+ unread messages.
         let sql = """
         SELECT
           cm.chat_id AS chat_id, COUNT(cm.chat_id) AS unread_count
@@ -92,7 +95,7 @@ public extension IMDatabase {
         WHERE
           m.is_read = 0
           AND \(unreadCandidatePredicateSQL)
-          AND cm.chat_id IN (\(placeholders))
+          AND +cm.chat_id IN (\(placeholders))
         GROUP BY
           cm.chat_id
         """
