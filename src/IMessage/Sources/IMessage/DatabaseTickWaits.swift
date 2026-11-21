@@ -10,7 +10,7 @@ private let sentMessageLinkWaitTimeout: TimeInterval = 1.5
 private let databaseTickBackstopInterval: TimeInterval = 1.0
 private let loadedAttachmentMinimumRequeryInterval: TimeInterval = 0.25
 
-// todo: DatabaseTickWaits.{sentMessageIDs,sentThreadIDs} shouldn't exist, we get ServerEvents for new messages, use that
+// todo: DatabaseTickWaits.sentMessageIDs shouldn't exist, we get ServerEvents for new messages, use that
 enum DatabaseTickWaits {
     typealias SentMessageID = (rowID: Int, guid: String)
 
@@ -25,7 +25,7 @@ enum DatabaseTickWaits {
         changes: Topic<Void>,
         linkTimeout: TimeInterval = sentMessageLinkWaitTimeout,
         backstopInterval: TimeInterval = databaseTickBackstopInterval,
-        querySentMessageIDs: @escaping @Sendable () throws -> [SentMessageID]
+        querySentMessageIDs: @escaping @Sendable () async throws -> [SentMessageID]
     ) async throws -> [SentMessageID] {
         let startedAt = Date()
         let timeoutDeadline = startedAt.addingTimeInterval(timeout)
@@ -36,7 +36,7 @@ enum DatabaseTickWaits {
             changes: changes,
             backstopInterval: backstopInterval,
             query: {
-                try querySentMessageIDs()
+                try await querySentMessageIDs()
             },
             evaluate: { sentMessageIDs in
                 let now = Date()
@@ -57,29 +57,6 @@ enum DatabaseTickWaits {
                     wakeDeadline = timeoutDeadline
                 }
                 return .waitingUntil(wakeDeadline)
-            }
-        )
-    }
-
-    static func sentThreadIDs(
-        timeout: TimeInterval,
-        changes: Topic<Void>,
-        backstopInterval: TimeInterval = databaseTickBackstopInterval,
-        querySentThreadIDs: @escaping @Sendable () throws -> [String?]
-    ) async throws -> [String?] {
-        let deadline = Date().addingTimeInterval(timeout)
-
-        return try await waitForDatabaseResult(
-            changes: changes,
-            backstopInterval: backstopInterval,
-            query: {
-                try querySentThreadIDs()
-            },
-            evaluate: { threadIDs in
-                if !threadIDs.contains(nil) || Date() >= deadline {
-                    return .finished(threadIDs)
-                }
-                return .waitingUntil(deadline)
             }
         )
     }

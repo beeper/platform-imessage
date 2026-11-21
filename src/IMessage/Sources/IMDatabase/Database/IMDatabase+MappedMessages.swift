@@ -63,17 +63,21 @@ public extension IMDatabase {
         }.first ?? .empty
     }
 
-    func sentMessageIDs(since rowID: Int, reactionsOnly: Bool = false) throws -> [(rowID: Int, guid: String)] {
+    func sentMessageIDs(since rowID: Int, reactionsOnly: Bool = false) throws -> [(rowID: Int, guid: String, threadID: String?)] {
         let messageTypeClause = reactionsOnly ? """
-        AND associated_message_type BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)
+        AND m.associated_message_type BETWEEN \(reactionAssociatedMessageTypeLowerBound) AND \(reactionAssociatedMessageTypeUpperBound)
         """ : """
-        AND (associated_message_type IS NULL OR associated_message_type = 0)
+        AND (m.associated_message_type IS NULL OR m.associated_message_type = 0)
         """
         let statement = try cachedStatement(forEscapedSQL: """
-        SELECT ROWID, guid
-        FROM message
-        WHERE is_from_me = 1 AND ROWID > ?
+        SELECT m.ROWID, m.guid, t.guid
+        FROM message AS m
+        LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+        LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+        WHERE m.is_from_me = 1 AND m.ROWID > ?
         \(messageTypeClause)
+        GROUP BY m.ROWID
+        ORDER BY m.ROWID
         """).reset()
         try statement.bind(rowID)
         return try statement.compactMapRowsUntilDone { row in
@@ -81,7 +85,7 @@ public extension IMDatabase {
                   let guid = try row[1].optionalConverting(String.self) else {
                 return nil
             }
-            return (rowID, guid)
+            return (rowID, guid, try row[2].optional(String.self))
         }
     }
 
