@@ -2,7 +2,7 @@
 import Testing
 
 @Test func messagesAfterACursorIncludeOlderMessagesEditedSince() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.database.execute(sqlWithoutEscaping: "INSERT INTO chat (ROWID, guid) VALUES (2, 'any;-;other')")
@@ -21,19 +21,14 @@ import Testing
 }
 
 @Test func messagesAfterACursorWorkWithoutAnEditDateColumn() throws {
-    let fixture = try TahoeChatDatabaseFixture(
+    let fixture = try ChatDatabaseFixture(
         chatGUID: "iMessage;-;+15555550100",
-        schema: TahoeChatDatabaseFixture.montereySchema
+        schema: ChatDatabaseSchema.monterey
     )
     defer { fixture.cleanup() }
 
     for rowID in 1 ... 5 {
-        try fixture.database.execute(
-            sqlWithoutEscaping: "INSERT INTO message (ROWID, guid, date) VALUES (?, ?, ?)",
-            rowID,
-            "message-\(rowID)",
-            rowID * 10
-        )
+        try fixture.insertMessage(rowID: rowID, date: rowID * 10)
         try fixture.insertChatJoin(messageRowID: rowID, messageDate: rowID * 10)
     }
 
@@ -42,7 +37,7 @@ import Testing
 }
 
 @Test func messagesInAChatHonourTheDateFilterAndOrder() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.database.execute(sqlWithoutEscaping: "INSERT INTO chat (ROWID, guid) VALUES (2, 'any;-;other')")

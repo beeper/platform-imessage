@@ -28,7 +28,7 @@ final class SyntheticChatDatabase: @unchecked Sendable {
     }
 
     /// Oldest, a middle release without the macOS 26 unread indexes, and newest.
-    static let schemas = ["11.0.1-20B29", "15.6.1-24G90", "27.2.1-26B131"]
+    static let schemas = [ChatDatabaseSchema.oldest, ChatDatabaseSchema.sequoia, ChatDatabaseSchema.newest]
     static let variants = schemas.flatMap { schema in UnreadProfile.allCases.map { Variant(schema: schema, unread: $0) } }
 
     static let messageCount = 200_000
@@ -124,8 +124,8 @@ final class SyntheticChatDatabase: @unchecked Sendable {
         for pragma in ["journal_mode = OFF", "synchronous = OFF", "cache_size = -400000"] {
             try database.execute(sqlWithoutEscaping: "PRAGMA \(pragma)")
         }
-        try TahoeChatDatabaseFixture.createSchema(named: schema, in: database)
-        // Messages' triggers call functions only its own process registers.
+        try ChatDatabaseSchema.create(schema, in: database)
+        // Triggers would fire once per generated row; they do not affect how queries are planned.
         let triggers = try Statement.prepare(escapedSQL: "SELECT name FROM sqlite_master WHERE type = 'trigger'", for: database)
             .mapRowsUntilDone { try $0[0].expect(String.self) }
         for trigger in triggers {

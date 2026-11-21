@@ -2,7 +2,7 @@ import IMDatabase
 @testable import IMessage
 import Testing
 
-private extension TahoeChatDatabaseFixture {
+private extension ChatDatabaseFixture {
     func insertChat(rowID: Int, serviceName: String? = nil) throws {
         try database.execute(
             sqlWithoutEscaping: "INSERT INTO chat (ROWID, guid, service_name) VALUES (?, ?, ?)",
@@ -44,7 +44,7 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func globalSearchSkipsRecentlyDeletedMessages() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, text: "project status kept")
@@ -56,21 +56,19 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func globalSearchWorksWithoutRecentlyDeletedTable() throws {
-    let fixture = try TahoeChatDatabaseFixture(
+    let fixture = try ChatDatabaseFixture(
         chatGUID: "iMessage;-;+15555550100",
-        schema: TahoeChatDatabaseFixture.montereySchema
+        schema: ChatDatabaseSchema.monterey
     )
     defer { fixture.cleanup() }
 
-    try fixture.database.execute(
-        sqlWithoutEscaping: "INSERT INTO message (ROWID, guid, text, date) VALUES (1, 'message-1', 'project status', 1)"
-    )
+    try fixture.insertMessage(rowID: 1, text: "project status")
 
     #expect(try fixture.imDatabase.searchMessages(query: "project status") == [1])
 }
 
 @Test func threadListSkipsChatsWhoseMessagesAreAllRecentlyDeleted() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1)
@@ -86,7 +84,7 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func unreadCountsIgnoreSystemAndUnfinishedMessages() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertIncomingMessage(rowID: 1)
@@ -97,7 +95,7 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func unreadStateIgnoresSystemAndUnfinishedMessages() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertIncomingMessage(rowID: 1, isRead: 1)
@@ -109,7 +107,7 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func unreadStateStillReportsUnreadMessages() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertIncomingMessage(rowID: 1, isRead: 1)
@@ -120,7 +118,7 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func reactionRowsMatchEveryAssociatedGUIDForm() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, guid: "target-1")
@@ -138,7 +136,7 @@ private extension TahoeChatDatabaseFixture {
 }
 
 @Test func reactionRowsAreFoundAcrossSeveralChats() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertChat(rowID: 2)
@@ -154,21 +152,16 @@ private extension TahoeChatDatabaseFixture {
     #expect(reactionRows.map(\.rowID) == [3, 4])
 }
 
-@Test(arguments: [TahoeChatDatabaseFixture.defaultSchema, TahoeChatDatabaseFixture.montereySchema])
+@Test(arguments: [ChatDatabaseSchema.tahoe, ChatDatabaseSchema.monterey])
 func latestVisibleMessageWithoutThreadSkipsReactions(schema: String) throws {
-    let fixture = try TahoeChatDatabaseFixture(schema: schema)
+    let fixture = try ChatDatabaseFixture(schema: schema)
     defer { fixture.cleanup() }
 
     for rowID in 1 ... 3 {
-        try fixture.database.execute(
-            sqlWithoutEscaping: "INSERT INTO message (ROWID, guid, date, associated_message_type, service) VALUES (?, ?, ?, ?, 'iMessage')",
-            rowID,
-            "message-\(rowID)",
-            rowID,
-            rowID == 3 ? 2000 : 0
-        )
+        try fixture.insertMessage(rowID: rowID)
         try fixture.insertChatJoin(messageRowID: rowID)
     }
+    try fixture.database.execute(sqlWithoutEscaping: "UPDATE message SET associated_message_type = 2000 WHERE ROWID = 3")
 
     #expect(try fixture.imDatabase.mappedLatestVisibleMessageRow(offset: 0)?.rowID == 2)
     #expect(try fixture.imDatabase.mappedLatestVisibleMessageRow(offset: 1)?.rowID == 1)
@@ -176,7 +169,7 @@ func latestVisibleMessageWithoutThreadSkipsReactions(schema: String) throws {
 }
 
 @Test func chatLookupToleratesMissingServiceName() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     #expect(try fixture.imDatabase.chat(withGUID: fixture.chatGUID)?.id == 1)
@@ -194,7 +187,7 @@ func latestVisibleMessageWithoutThreadSkipsReactions(schema: String) throws {
     #expect(!ThreadMapper.isSMS(guid: "any;-;+15555550100", serviceName: nil))
     #expect(!ThreadMapper.isSMS(guid: "iMessage;-;+15555550100", serviceName: "iMessage"))
 
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
     try fixture.insertChat(rowID: 2, serviceName: "SMS")
 
