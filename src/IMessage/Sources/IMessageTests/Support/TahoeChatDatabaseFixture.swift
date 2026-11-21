@@ -165,7 +165,7 @@ final class TahoeChatDatabaseFixture {
         )
     }
 
-    private static func createSchema(named schema: String, in database: Database) throws {
+    static func createSchema(named schema: String, in database: Database) throws {
         try database.executeScript(sqlWithoutEscaping: String(contentsOf: schemaURL(named: schema), encoding: .utf8))
     }
 
