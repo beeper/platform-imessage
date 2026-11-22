@@ -8,7 +8,7 @@ import { APP_BUNDLE_ID } from './constants'
 import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR, REQUIRES_FULL_DISK_ACCESS } from './common-constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
-import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
+import imessage, { type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-json'
@@ -333,6 +333,7 @@ export default class AppleiMessage implements PlatformAPI {
     canAccessMessagesDir: () => imessage.MacPermissions.canAccessMessagesDir().then(() => true, () => false),
     askForAutomationAccess: () => imessage.MacPermissions.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => imessage.MacPermissions.askForMessagesDirAccess(),
+    getAccessibilityPermissionLabel: () => imessage.MacPermissions.getAccessibilityPermissionLabel(),
     getAccessibilityAuthStatus: () => imessage.MacPermissions.getAuthStatus('accessibility'),
     getContactsAuthStatus: () => imessage.MacPermissions.getAuthStatus('contacts'),
     getFullDiskAccessAuthStatus: () => imessage.MacPermissions.getAuthStatus('full-disk-access'),
@@ -353,7 +354,7 @@ export default class AppleiMessage implements PlatformAPI {
     },
     isNotificationsEnabledForMessages: () => imessage.isNotificationsEnabledForMessages,
     revealSettings: () => imessage.revealSettings?.(),
-  } satisfies Record<string, () => Awaitable<boolean | NativeMacPermissionAuthStatus | void>>
+  } satisfies Record<string, () => Awaitable<boolean | string | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {
     if (pathHex === 'proxied') {

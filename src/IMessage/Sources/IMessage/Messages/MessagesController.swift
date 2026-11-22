@@ -396,7 +396,7 @@ final class MessagesController {
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Beeper does not have Accessibility permissions")
+            throw ErrorMessage("Beeper does not have \(LocalizedStrings.accessibilityPermissionLabel) permission")
         }
 
         let coordinator = try suppliedCoordinator ?? getBestWindowCoordinator()

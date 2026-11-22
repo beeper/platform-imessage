@@ -1,6 +1,6 @@
 # Loctables
 
-Dump Chat/IM framework and accessibility bundle loctables as formatted JSON.
+Dump Chat/IM framework and accessibility bundle loctables as formatted JSON. Both local and IPSW dumps also include the Privacy & Security extension’s Localizable table when present. The `ACCESSIBILITY` entry gives the permission label for each language.
 
 ## Local macOS
 

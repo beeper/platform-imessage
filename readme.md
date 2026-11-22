@@ -44,8 +44,10 @@ brew install beeper/tap/imessage-cli
 ```sh
 git clone https://github.com/beeper/platform-imessage
 cd platform-imessage
-swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Accessibility, Contacts, Messages data access, Automation), then opens the REPL
+swift run imessage-cli # builds the Swift CLI if needed, launches authorization flow (Mac control, Contacts, Messages data access, Automation), then opens the REPL
 ```
+
+Setup shows the name used in System Settings → Privacy & Security for permission to control Messages. Apple calls it **Accessibility** on macOS 26, **Device Control and Data Access** in the macOS 27.0 release, and **System & App Protection Override** in macOS 27.3 beta 2.
 
 Messages data access requires Full Disk Access on macOS 27 and later. On macOS 26 and earlier, setup requests access to the Messages folder, with Full Disk Access available as a fallback.
 

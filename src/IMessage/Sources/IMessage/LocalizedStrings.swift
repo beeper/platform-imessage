@@ -1,9 +1,21 @@
 import Foundation
 
-enum LocalizedStrings {
+public enum LocalizedStrings {
     private static let chatKitFramework = Bundle(path: "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework")!
     private static let chatKitFrameworkAxBundle = Bundle(path: "/System/iOSSupport/System/Library/AccessibilityBundles/ChatKitFramework.axbundle")!
     private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
+
+    public static let accessibilityPermissionLabel: String = {
+        guard let privacySettings = Bundle(path: "/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex") else {
+            return "Accessibility"
+        }
+        if #available(macOS 15.4, *) {
+            // A CLI or host app can support fewer languages than System Settings.
+            return privacySettings.localizedString(forKey: "ACCESSIBILITY", value: "Accessibility", table: "Localizable",
+                                                  localizations: Locale.preferredLanguages.map { Locale.Language(identifier: $0) })
+        }
+        return privacySettings.localizedString(forKey: "ACCESSIBILITY", value: "Accessibility", table: "Localizable")
+    }()
 
     static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")
     static let textMessage = chatKitFramework.localizedString(forKey: "TEXT_MESSAGE", value: nil, table: "ChatKit")

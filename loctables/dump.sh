@@ -67,7 +67,7 @@ if [[ -n "$ipsw_url" ]]; then
   build_version="$(plutil -extract build raw "$tmp_dir/info.json")"
   "$ipsw_bin" extract --remote --files --ranged --ranged-dmg fs \
     --device "${IPSW_DEVICE:-Macmini9,1}" \
-    --pattern '^/System/(Library|iOSSupport/System/Library)/(PrivateFrameworks|AccessibilityBundles)/(Chat|IM).*\.loctable$' \
+    --pattern '^/System/((Library|iOSSupport/System/Library)/(PrivateFrameworks|AccessibilityBundles)/(Chat|IM).*\.loctable|Library/ExtensionKit/Extensions/SecurityPrivacyExtension\.appex/Contents/Resources/Localizable\.loctable)$' \
     --output "$tmp_dir/extracted" "$ipsw_url"
   # ipsw preserves System/... beneath its build/device output directory.
   shopt -s nullglob
@@ -117,8 +117,10 @@ search_roots=(
   "$root"/System/Library/AccessibilityBundles/Chat*
   "$root"/System/Library/AccessibilityBundles/IM*
 )
+privacy_table="$root/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex/Contents/Resources/Localizable.loctable"
+if [[ -f "$privacy_table" ]]; then search_roots+=("$privacy_table"); fi
 if [[ ${#search_roots[@]} -eq 0 ]]; then
-  echo "No matching framework or accessibility bundle directories" >&2
+  echo "No matching localization resources" >&2
   exit 1
 fi
 # Materialize find's result so failures propagate outside process substitution.
@@ -127,11 +129,11 @@ find "${search_roots[@]}" -type f -name '*.loctable' -print0 | sort -z > "$tmp_d
 count=0
 while IFS= read -r -d '' loctable_path; do
   if [[ "$loctable_path" =~ IMAP\. ]]; then continue; fi
-  bundle_re="([a-zA-Z0-9_-]+)\.(framework|axbundle)"
+  bundle_re="([a-zA-Z0-9_-]+)\.(framework|axbundle|appex)"
   if ! [[ "${loctable_path#"$root"}" =~ $bundle_re ]]; then continue; fi
-  framework_name="${BASH_REMATCH[1]}"
+  bundle_name="${BASH_REMATCH[1]}"
   loctable_filename="$(basename "$loctable_path")"
-  dest_basename="${framework_name}-${loctable_filename%.loctable}"
+  dest_basename="${bundle_name}-${loctable_filename%.loctable}"
   dest_path="${output_dir}/${dest_basename}-${safe_ver}.json"
   printf '\x1b[1mDUMP\x1b[0m %s\n' "${loctable_path#"$root"}"
   plutil -convert json -o "$dest_path" -- "$loctable_path"

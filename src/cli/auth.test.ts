@@ -21,6 +21,7 @@ function makeAPI({ authorized = false, grantAccess = true, databaseReady = true,
       calls.push(method)
       switch (method) {
         case 'getFullDiskAccessAuthStatus': return JSON.stringify(fullDiskAccess ? 'authorized' : 'denied')
+        case 'getAccessibilityPermissionLabel': return JSON.stringify('Test permission label')
         case 'getAccessibilityAuthStatus':
         case 'getContactsAuthStatus': return JSON.stringify('authorized')
         case 'askForFullDiskAccess':
@@ -47,6 +48,11 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks()
+})
+
+test('prints the accessibility permission label returned by Swift', async () => {
+  await auth.runAuthorizationFlow('accessibility', makeAPI().api)
+  expect(console.log).toHaveBeenCalledWith('  [ok] Test permission label - Your current Terminal app can control Messages.app.')
 })
 
 test('requires FDA even when folder access already makes the database readable', async () => {

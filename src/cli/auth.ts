@@ -34,6 +34,7 @@ type ProxiedAuthMethod =
   | 'askForMessagesDirAccess'
   | 'canAccessMessagesDir'
   | 'confirmUNCPrompt'
+  | 'getAccessibilityPermissionLabel'
   | 'getAccessibilityAuthStatus'
   | 'getContactsAuthStatus'
   | 'getFullDiskAccessAuthStatus'
@@ -52,8 +53,7 @@ async function callProxied<T>({ api }: Deps, method: ProxiedAuthMethod): Promise
   return JSON.parse(response as string) as T
 }
 
-const statusTitles: Record<CliAuthorizationStatusKey, string> = {
-  accessibility: 'Accessibility',
+const statusTitles: Record<Exclude<CliAuthorizationStatusKey, 'accessibility'>, string> = {
   contacts: 'Contacts',
   'full-disk-access': 'Full Disk Access',
   'messages-data': 'Messages Data',
@@ -68,7 +68,7 @@ function parseTarget(value: string | undefined): CliAuthorizationTarget {
 }
 
 const makeStatus = (
-  key: CliAuthorizationStatusKey,
+  key: keyof typeof statusTitles,
   authorized: boolean,
   detail: string,
 ): CliAuthorizationStatus => ({ key, title: statusTitles[key], authorized, detail })
@@ -131,12 +131,14 @@ async function getAuthorizationStatuses(
 
   if (wants('accessibility')) {
     const ok = axStatus === 'authorized'
-    statuses.push(makeStatus(
-      'accessibility',
-      ok,
-      ok ? 'Your current Terminal app can control Messages.app.'
-        : 'Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.',
-    ))
+    const title = await callProxied<string>(deps, 'getAccessibilityPermissionLabel')
+    statuses.push({
+      key: 'accessibility',
+      title,
+      authorized: ok,
+      detail: ok ? 'Your current Terminal app can control Messages.app.'
+        : `Enable your current Terminal app in System Settings > Privacy & Security > ${title}.`,
+    })
   }
 
   if (wants('contacts')) {
@@ -184,8 +186,9 @@ export async function runPreflightAuthCheck(
   const deps = await loadDeps(api)
   const statuses = await getAuthorizationStatuses(deps, requirements)
   for (const requirement of requirements) {
-    if (findStatus(statuses, requirement)?.authorized) continue
-    console.log(`"${commandName}" needs ${statusTitles[requirement]} access. Requesting...`)
+    const status = findStatus(statuses, requirement)!
+    if (status.authorized) continue
+    console.log(`"${commandName}" needs ${status.title} access. Requesting...`)
     await authorizeRequirement(requirement, deps)
     const [updated] = await getAuthorizationStatuses(deps, [requirement])
     if (!updated.authorized) throw new Error(`${updated.title} was not granted. ${updated.detail}`)
@@ -302,9 +305,10 @@ export async function runAuthorizationFlow(
   }
 
   for (const requirement of checkable) {
-    if (findStatus(statuses, requirement)?.authorized) continue
+    const status = findStatus(statuses, requirement)!
+    if (status.authorized) continue
 
-    console.log(`\nRequesting ${statusTitles[requirement]}...`)
+    console.log(`\nRequesting ${status.title}...`)
     await authorizeRequirement(requirement, deps)
 
     const refresh = keysImpactedBy(requirement).filter(k => printKeys.includes(k))
