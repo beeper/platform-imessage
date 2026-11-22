@@ -93,7 +93,7 @@ export declare class NativePlatformAPI {
 }
 
 export type NativeMacPermissions = {
-  getAccessibilityPermissionLabel: () => string
+  getAccessibilityPermissionLabel: () => Promise<string>
   getAuthStatus: (authType: NativeMacPermissionAuthType) => NativeMacPermissionAuthStatus
   askForAccessibilityAccess: () => void
   askForContactsAccess: () => Promise<NativeMacPermissionAuthStatus>

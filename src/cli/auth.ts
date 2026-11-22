@@ -42,10 +42,19 @@ type ProxiedAuthMethod =
   | 'startSysPrefsOnboarding'
   | 'stopSysPrefsOnboarding'
 
-type Deps = { api: AuthApi }
+type Deps = { api: AuthApi, getAccessibilityLabel: () => Promise<string> }
 
 async function loadDeps(api: AuthApi): Promise<Deps> {
-  return { api }
+  // The label is fixed for the process, so fetch it at most once.
+  let accessibilityLabel: Promise<string> | undefined
+  const deps: Deps = {
+    api,
+    getAccessibilityLabel: () => {
+      accessibilityLabel ??= callProxied<string>(deps, 'getAccessibilityPermissionLabel')
+      return accessibilityLabel
+    },
+  }
+  return deps
 }
 
 async function callProxied<T>({ api }: Deps, method: ProxiedAuthMethod): Promise<T> {
@@ -120,8 +129,9 @@ async function getAuthorizationStatuses(
   only?: readonly CliAuthorizationStatusKey[],
 ): Promise<CliAuthorizationStatus[]> {
   const wants = (key: CliAuthorizationStatusKey) => !only || only.includes(key)
-  const [axStatus, contactsStatus, fullDiskAccessStatus, messagesDirOk] = await Promise.all([
+  const [axStatus, axTitle, contactsStatus, fullDiskAccessStatus, messagesDirOk] = await Promise.all([
     wants('accessibility') ? getAuthStatus(deps, 'accessibility') : undefined,
+    wants('accessibility') ? deps.getAccessibilityLabel() : '',
     wants('contacts') ? getAuthStatus(deps, 'contacts') : undefined,
     wants('full-disk-access') || (REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? getAuthStatus(deps, 'full-disk-access') : undefined,
     wants('messages-data') || (!REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? callProxied<boolean>(deps, 'canAccessMessagesDir') : false,
@@ -131,13 +141,12 @@ async function getAuthorizationStatuses(
 
   if (wants('accessibility')) {
     const ok = axStatus === 'authorized'
-    const title = await callProxied<string>(deps, 'getAccessibilityPermissionLabel')
     statuses.push({
       key: 'accessibility',
-      title,
+      title: axTitle,
       authorized: ok,
       detail: ok ? 'Your current Terminal app can control Messages.app.'
-        : `Enable your current Terminal app in System Settings > Privacy & Security > ${title}.`,
+        : `Enable your current Terminal app in System Settings > Privacy & Security > ${axTitle}.`,
     })
   }
 

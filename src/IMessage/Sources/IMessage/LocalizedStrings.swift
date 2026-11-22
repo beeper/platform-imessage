@@ -6,15 +6,16 @@ public enum LocalizedStrings {
     private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
 
     public static let accessibilityPermissionLabel: String = {
+        let key = "ACCESSIBILITY", fallback = "Accessibility", table = "Localizable"
         guard let privacySettings = Bundle(path: "/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex") else {
-            return "Accessibility"
+            return fallback
         }
         if #available(macOS 15.4, *) {
             // A CLI or host app can support fewer languages than System Settings.
-            return privacySettings.localizedString(forKey: "ACCESSIBILITY", value: "Accessibility", table: "Localizable",
+            return privacySettings.localizedString(forKey: key, value: fallback, table: table,
                                                   localizations: Locale.preferredLanguages.map { Locale.Language(identifier: $0) })
         }
-        return privacySettings.localizedString(forKey: "ACCESSIBILITY", value: "Accessibility", table: "Localizable")
+        return privacySettings.localizedString(forKey: key, value: fallback, table: table)
     }()
 
     static let imessage = chatKitFramework.localizedString(forKey: "MADRID", value: nil, table: "ChatKit")

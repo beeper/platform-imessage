@@ -616,7 +616,7 @@ private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
         name: "authorize",
         category: .general,
-        summary: "Inspect or request CLI permissions for \(LocalizedStrings.accessibilityPermissionLabel), Contacts, Messages data access, and Automation.",
+        summary: "Inspect or request the permissions needed to control Messages, look up contacts, and read Messages data.",
         usage: ["authorize", "authorize TARGET"],
         examples: ["authorize", "authorize accessibility", "authorize all"],
         notes: ["Targets: \(authorizationTargets.joined(separator: ", "))."]

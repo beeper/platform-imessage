@@ -64,7 +64,8 @@ enum IMessageNodeExports {
         },
     ]
     dict["MacPermissions"] = try [
-        "getAccessibilityPermissionLabel": NodeFunction { LocalizedStrings.accessibilityPermissionLabel },
+        // async so the first call's loctable read stays off the JS thread
+        "getAccessibilityPermissionLabel": NodeFunction { () async in LocalizedStrings.accessibilityPermissionLabel },
         "getAuthStatus": NodeFunction { (type: String) in
             guard let authType = MacPermissions.AuthType(rawValue: type) else {
                 throw ErrorMessage("unknown macOS permission type: \(type)")
