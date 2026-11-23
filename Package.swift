@@ -1,4 +1,4 @@
-// swift-tools-version:6.1
+// swift-tools-version:5.9
 
 import PackageDescription
 import CompilerPluginSupport
@@ -229,7 +229,5 @@ let package = Package(
     platforms: platforms,
     products: products,
     dependencies: dependencies,
-    targets: targets,
-    // Tools 6.1 is required for Bundle.localizedString(forKey:value:table:localizations:); keep Swift 5 semantics.
-    swiftLanguageModes: [.v5]
+    targets: targets
 )
