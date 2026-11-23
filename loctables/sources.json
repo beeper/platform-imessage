@@ -4,7 +4,7 @@
   "selection": "Newest available IPSW patch for each minor; full OTA for security-only minors without an IPSW.",
   "ipsw_catalog": "https://api.ipsw.me/v4/device/Macmini9,1?type=ipsw",
   "ota_catalog": "https://github.com/littlebyteorg/appledb/tree/main/osFiles/macOS",
-  "reader": "https://github.com/KishanBagaria/ipsw/tree/codex/remote-filesystem-ranges",
+  "reader": "https://github.com/blacktop/ipsw",
   "releases": [
     {
       "minor": "11.0",

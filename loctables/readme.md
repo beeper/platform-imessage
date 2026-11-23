@@ -10,11 +10,11 @@ Dump Chat/IM framework and accessibility bundle loctables as formatted JSON. Bot
 
 ## Remote macOS IPSW
 
-Requires [KishanBagaria/ipsw](https://github.com/KishanBagaria/ipsw) with ranged extraction support. Use `IPSW_BIN` if the binary isn’t on PATH.
+Requires [ipsw](https://github.com/blacktop/ipsw) v3.1.750+: `brew install ipsw` (or `brew upgrade ipsw`). Set `IPSW_BIN` to use a binary that isn’t on PATH.
 
 ```sh
-IPSW_BIN=/path/to/ipsw ./loctables/dump.sh --ipsw latest
-IPSW_BIN=/path/to/ipsw ./loctables/dump.sh --ipsw 'https://…/UniversalMac_…_Restore.ipsw'
+./loctables/dump.sh --ipsw latest
+./loctables/dump.sh --ipsw 'https://…/UniversalMac_…_Restore.ipsw'
 ```
 
 Extraction uses HTTP byte ranges without downloading or mounting the entire disk image. Set `IPSW_DEVICE` to override the default `Macmini9,1` device selector.
