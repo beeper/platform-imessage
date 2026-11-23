@@ -111,7 +111,7 @@ The shell will automatically subscribe to real-time events (incoming messages, e
 
 ## Swift Package Manager
 
-Requirements: macOS 11 or later, Swift 6.1 (Xcode 16.3, macOS 15.4 SDK) or later
+Requirements: macOS 11 or later, Swift 5.9 or later
 
 ```swift
 dependencies: [
