@@ -616,7 +616,7 @@ private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
         name: "authorize",
         category: .general,
-        summary: "Inspect or request the permissions needed to control Messages, look up contacts, and read Messages data.",
+        summary: "Inspect or request the permissions needed to control Messages, look up contacts, read Messages data, and send Apple Events to Messages (Automation).",
         usage: ["authorize", "authorize TARGET"],
         examples: ["authorize", "authorize accessibility", "authorize all"],
         notes: ["Targets: \(authorizationTargets.joined(separator: ", "))."]

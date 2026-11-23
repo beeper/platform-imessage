@@ -64,8 +64,10 @@ enum IMessageNodeExports {
         },
     ]
     dict["MacPermissions"] = try [
-        // async so the first call's loctable read stays off the JS thread
-        "getAccessibilityPermissionLabel": NodeFunction { () async in LocalizedStrings.accessibilityPermissionLabel },
+        // The first read loads the Privacy & Security loctable; do it off the Node actor (JS thread).
+        "getAccessibilityPermissionLabel": NodeFunction { () async in
+            await Task.detached { LocalizedStrings.accessibilityPermissionLabel }.value
+        },
         "getAuthStatus": NodeFunction { (type: String) in
             guard let authType = MacPermissions.AuthType(rawValue: type) else {
                 throw ErrorMessage("unknown macOS permission type: \(type)")

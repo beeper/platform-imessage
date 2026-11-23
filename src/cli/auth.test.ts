@@ -55,6 +55,23 @@ test('prints the accessibility permission label returned by Swift', async () => 
   expect(console.log).toHaveBeenCalledWith('  [ok] Test permission label - Your current Terminal app can control Messages.app.')
 })
 
+test('falls back to "Accessibility" when the native addon cannot return the label', async () => {
+  const { api, calls } = makeAPI()
+  const mutableApi = api as unknown as { getAsset: (o: unknown, p: string, m: string) => Promise<string> }
+  const { getAsset } = mutableApi
+  mutableApi.getAsset = async (o, p, m) => {
+    if (m === 'getAccessibilityPermissionLabel') {
+      calls.push(m)
+      throw new Error('unknown method')
+    }
+    return getAsset(o, p, m)
+  }
+
+  await auth.runPreflightAuthCheck('send', ['accessibility'], api)
+  await auth.runAuthorizationFlow('accessibility', api)
+  expect(console.log).toHaveBeenCalledWith('  [ok] Accessibility - Your current Terminal app can control Messages.app.')
+})
+
 test('requires FDA even when folder access already makes the database readable', async () => {
   const { api, calls } = makeAPI()
 

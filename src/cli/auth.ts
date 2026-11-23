@@ -50,7 +50,8 @@ async function loadDeps(api: AuthApi): Promise<Deps> {
   const deps: Deps = {
     api,
     getAccessibilityLabel: () => {
-      accessibilityLabel ??= callProxied<string>(deps, 'getAccessibilityPermissionLabel')
+      // A display label must not fail the permission check (e.g. an older native addon without this export).
+      accessibilityLabel ??= callProxied<string>(deps, 'getAccessibilityPermissionLabel').catch(() => 'Accessibility')
       return accessibilityLabel
     },
   }
