@@ -17,7 +17,7 @@ struct Mapper {
 
         let attachments = attachmentRows.compactMap { attachment(from: $0) }
         let service = messageRow.service
-        let isSMS = service == "SMS" || service == "RCS"
+        let isSMS = service.map(Chat.ServiceName.init(rawValue:))?.isSMS == true
         let isGroup = !(messageRow.roomName ?? "").isEmpty
         let dates = MessageDates(row: messageRow)
         let summaryInfo = parseSummaryInfo()

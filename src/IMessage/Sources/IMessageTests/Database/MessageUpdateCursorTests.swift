@@ -3,7 +3,7 @@ import IMDatabase
 import Testing
 
 @Test func newMessageWithMissingChatJoinIsReturnedAsUnresolvedImmediately() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 10)
@@ -26,7 +26,7 @@ import Testing
 }
 
 @Test func extremeCursorDatesDoNotOverflowWhenRebound() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
@@ -39,7 +39,7 @@ import Testing
 }
 
 @Test func messageUpdateCursorSnapshotKeepsRawDateIntegers() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let exactDateRead = Int64.max - 1
@@ -53,7 +53,7 @@ import Testing
 }
 
 @Test func messageUpdatesCompareRawDateCursorIntegers() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let cursorDateRead = Int64.max - 1
@@ -70,4 +70,65 @@ import Testing
     #expect(result.updatedMessages.map(\.rowID) == [10])
     #expect(result.updatedMessages.first?.wasRead == true)
     #expect(result.nextCursor.lastDateReadNanoseconds == updatedDateRead)
+}
+
+@Test func messageUpdatesReturnARowMatchingEveryCursorComponentOnce() throws {
+    let fixture = try ChatDatabaseFixture()
+    defer { fixture.cleanup() }
+
+    try fixture.insertMessage(rowID: 10, dateRead: 100, dateEdited: 100)
+    try fixture.insertChatJoin(messageRowID: 10)
+    try fixture.insertMessage(rowID: 11, dateRead: 200)
+    try fixture.insertChatJoin(messageRowID: 11)
+    try fixture.insertMessage(rowID: 12, dateEdited: 300)
+    try fixture.insertChatJoin(messageRowID: 12)
+    try fixture.insertMessage(rowID: 13, dateRead: 400, dateEdited: 400)
+    try fixture.insertChatJoin(messageRowID: 13)
+
+    let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
+        lastRowID: 12,
+        lastDateReadNanoseconds: 150,
+        lastDateEditedNanoseconds: 150
+    ))
+
+    #expect(result.updatedMessages.map(\.rowID) == [11, 12, 13])
+    #expect(result.updatedMessages.map(\.isNew) == [false, false, true])
+    #expect(result.updatedMessages.map(\.wasRead) == [true, false, true])
+    #expect(result.updatedMessages.map(\.wasEdited) == [false, true, true])
+    #expect(result.nextCursor.lastRowID == 13)
+    #expect(result.nextCursor.lastDateReadNanoseconds == 400)
+    #expect(result.nextCursor.lastDateEditedNanoseconds == 400)
+}
+
+@Test func messageUpdatesWorkWithoutDateEditedColumn() throws {
+    let fixture = try ChatDatabaseFixture(
+        chatGUID: "iMessage;-;+15555550100",
+        schema: ChatDatabaseSchema.monterey
+    )
+    defer { fixture.cleanup() }
+
+    for (rowID, dateRead) in [(10, 100), (11, 200), (12, 0)] {
+        try fixture.insertMessage(rowID: rowID, dateRead: Int64(dateRead))
+        try fixture.insertChatJoin(messageRowID: rowID)
+    }
+
+    let snapshot = try fixture.imDatabase.messageUpdateCursorSnapshot()
+    #expect(snapshot.lastRowID == 12)
+    #expect(snapshot.lastDateReadNanoseconds == 200)
+    #expect(snapshot.lastDateEditedNanoseconds == 0)
+
+    let result = try fixture.imDatabase.messages(since: MessageUpdatesCursor(
+        lastRowID: 11,
+        lastDateReadNanoseconds: 150,
+        lastDateEditedNanoseconds: 0
+    ))
+
+    #expect(result.updatedMessages.map(\.rowID) == [11, 12])
+    #expect(result.updatedMessages.map(\.isNew) == [false, true])
+    #expect(result.updatedMessages.map(\.wasRead) == [true, false])
+    #expect(result.updatedMessages.allSatisfy { !$0.wasEdited })
+    #expect(result.updatedMessages.allSatisfy { $0.chatGUID == fixture.chatGUID })
+    #expect(result.nextCursor.lastRowID == 12)
+    #expect(result.nextCursor.lastDateReadNanoseconds == 200)
+    #expect(result.nextCursor.lastDateEditedNanoseconds == 0)
 }

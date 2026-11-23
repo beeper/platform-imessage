@@ -101,7 +101,7 @@ import Testing
 }
 
 @Test func missingChatJoinDefersNewMessageUntilLaterTick() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 10
@@ -124,7 +124,7 @@ import Testing
 }
 
 @Test func missingChatJoinDropsNewMessageAfterTimeout() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 40
@@ -142,7 +142,7 @@ import Testing
 }
 
 @Test func pendingLinkPreviewExpiresAfterTimeout() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 50
@@ -169,7 +169,7 @@ import Testing
 }
 
 @Test func deferredNewMessageArmsWakeUntilResolved() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 60
@@ -190,7 +190,7 @@ import Testing
 }
 
 @Test func outgoingURLPreviewPayloadUpdateEmitsMessageUpdateOnce() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 20
@@ -230,7 +230,7 @@ import Testing
 }
 
 @Test func loadingAttachmentEmitsFullUpdateWhenTransferFinishes() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 21
@@ -276,7 +276,7 @@ import Testing
 }
 
 @Test func pendingAttachmentLoadExpiresAfterTimeout() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 22
@@ -302,7 +302,7 @@ import Testing
 }
 
 @Test func multiAttachmentWaitsForAllTransfersBeforeUpdating() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 23
@@ -357,7 +357,7 @@ import Testing
 }
 
 @Test func failedAttachmentTransferDropsCandidateWithoutEmitting() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 24
@@ -391,7 +391,7 @@ import Testing
 }
 
 @Test func readAndPreviewChangesForSameRowEmitOneFullUpdate() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 30
@@ -427,7 +427,7 @@ import Testing
 }
 
 @Test func batchResolvesPendingNewMessagesIndependently() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // rowA has a chat join and resolves this tick.
@@ -460,7 +460,7 @@ import Testing
 }
 
 @Test func collectionErrorKeepsPendingWakeArmed() async throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     let rowID = 70
@@ -482,7 +482,7 @@ import Testing
 }
 
 private func insertJoinedMessage(
-    fixture: TahoeChatDatabaseFixture,
+    fixture: ChatDatabaseFixture,
     rowID: Int,
     guid: String,
     text: String
@@ -547,7 +547,7 @@ private func collectAndCommit(_ watcher: EventWatcher) async throws -> [ServerEv
 }
 
 private func fixtureEventWatcher(
-    fixture: TahoeChatDatabaseFixture,
+    fixture: ChatDatabaseFixture,
     lastRowID: Int
 ) throws -> EventWatcher {
     try EventWatcher(
@@ -564,7 +564,7 @@ private func fixtureEventWatcher(
 }
 
 private func insertOutgoingURLMessage(
-    fixture: TahoeChatDatabaseFixture,
+    fixture: ChatDatabaseFixture,
     rowID: Int,
     guid: String,
     text: String

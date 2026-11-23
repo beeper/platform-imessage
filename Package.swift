@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.1
 
 import PackageDescription
 import CompilerPluginSupport
@@ -229,5 +229,6 @@ let package = Package(
     platforms: platforms,
     products: products,
     dependencies: dependencies,
-    targets: targets
+    targets: targets,
+    swiftLanguageModes: [.v5]
 )

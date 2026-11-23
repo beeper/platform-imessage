@@ -49,13 +49,20 @@ enum ThreadMapper {
             imgURL: chatPhotoURL(props: props, accountID: context.accountID),
             messages: PlatformSDK.Paginated(items: messages, hasMore: true),
             participants: PlatformSDK.Paginated(items: participants, hasMore: false),
-            extra: (guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;"))
-                ? ["isSMS": true]
-                : nil,
+            extra: isSMS(guid: guid, serviceName: chat.serviceName) ? ["isSMS": true] : nil,
             unreadCount: unreadCount,
             isMarkedUnread: isUnread,
             lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp)
         )
+    }
+
+    // macOS 26 can give every chat an `any;` GUID, so the service has to come
+    // from the chat row there.
+    static func isSMS(guid: String, serviceName: String?) -> Bool {
+        if guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;") {
+            return true
+        }
+        return guid.hasPrefix("any;") && serviceName.map(Chat.ServiceName.init(rawValue:))?.isSMS == true
     }
 
     private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> PlatformSDK.Participant? {

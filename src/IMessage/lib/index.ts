@@ -80,11 +80,17 @@ export declare class NativePlatformAPI {
   getAsset: (pathHex: string, methodName: string | undefined) => Promise<string | Buffer>
 
   deleteThread: NativeVoidPlatformAPIMethod<'deleteThread'>
+
   sendActivityIndicator: NativeVoidPlatformAPIMethod<'sendActivityIndicator'>
+
   addReaction: NativeVoidPlatformAPIMethod<'addReaction'>
+
   removeReaction: NativeVoidPlatformAPIMethod<'removeReaction'>
+
   loadAttachment: NativeVoidPlatformAPIMethod<'loadAttachment'>
+
   notifyAnyway: NativeVoidPlatformAPIMethod<'notifyAnyway'>
+
   dispose: NativeVoidPlatformAPIMethod<'dispose'>
 }
 

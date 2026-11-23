@@ -17,7 +17,7 @@ public extension IMDatabase {
 
         let chats = try statement.mapRowsUntilDone { row in
             let displayName = try row[1].optional(String.self)?.nonEmpty
-            let serviceName = try Chat.ServiceName(rawValue: row[2].expect(String.self))
+            let serviceName = try Chat.ServiceName(rawValue: row[2].optional(String.self) ?? "NONE")
             return try Chat(id: row[0].expect(Int.self), guid: GUID(chatGUID), displayName: displayName, serviceName: serviceName)
         }
 
