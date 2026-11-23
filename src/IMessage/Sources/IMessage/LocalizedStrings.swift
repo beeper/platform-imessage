@@ -6,32 +6,26 @@ public enum LocalizedStrings {
     private static let notificationCenterApp = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")!
 
     public static let accessibilityPermissionLabel: String = {
-        let key = "ACCESSIBILITY", fallback = "Accessibility", table = "Localizable"
+        let fallback = "Accessibility"
         guard let privacySettings = Bundle(path: "/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex") else {
             return fallback
         }
-        if #available(macOS 15.4, *) {
-            // A CLI or host app can support fewer languages than System Settings.
-            return privacySettings.localizedString(forKey: key, value: fallback, table: table,
-                                                  localizations: Locale.preferredLanguages.map { Locale.Language(identifier: $0) })
-        }
-        return privacySettings.localizedString(forKey: key, value: fallback, table: table)
+        // Resolve in the user's languages, not this process's: the CLI/host app may lack
+        // the user's language even though System Settings shows it.
+        return strings(in: privacySettings, table: "Localizable", languages: Locale.preferredLanguages, value: fallback)("ACCESSIBILITY")
     }()
 
-    private static let messagesLanguages = CFPreferencesCopyValue(
-        "AppleLanguages" as CFString, messagesBundleID as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost
-    ) as? [String] ?? CFPreferencesCopyValue(
-        "AppleLanguages" as CFString, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost
-    ) as? [String] ?? Locale.preferredLanguages
+    private static let messagesLanguages = CFPreferencesCopyAppValue("AppleLanguages" as CFString, messagesBundleID as CFString) as? [String]
+        ?? Locale.preferredLanguages
 
-    private static func messagesStrings(in bundle: Bundle, table: String) -> (String) -> String {
+    private static func strings(in bundle: Bundle, table: String, languages: [String], value: String? = nil) -> (String) -> String {
         if #available(macOS 15.4, *) {
-            let languages = messagesLanguages.map { Locale.Language(identifier: $0) }
-            return { bundle.localizedString(forKey: $0, value: nil, table: table, localizations: languages) }
+            let localizations = languages.map { Locale.Language(identifier: $0) }
+            return { bundle.localizedString(forKey: $0, value: value, table: table, localizations: localizations) }
         }
 
         // Earlier Foundation versions need an explicit localization for both .loctable and .strings resources.
-        let language = Bundle.preferredLocalizations(from: bundle.localizations, forPreferences: messagesLanguages).first
+        let language = Bundle.preferredLocalizations(from: bundle.localizations, forPreferences: languages).first
         let translations = bundle.url(forResource: table, withExtension: "loctable")
             .flatMap { NSDictionary(contentsOf: $0) }?[language ?? ""] as? [String: Any]
         let localizedBundle = language.flatMap { bundle.url(forResource: $0, withExtension: "lproj") }.flatMap(Bundle.init(url:))
@@ -40,12 +34,12 @@ public enum LocalizedStrings {
             // Some languages (e.g. ro, ca, sk) store a per-device variant dictionary instead of a string.
             let variants = (entry as? [String: Any])?["NSStringDeviceSpecificRuleType"] as? [String: Any]
             return entry as? String ?? variants?["mac"] as? String ?? variants?["other"] as? String
-                ?? (localizedBundle ?? bundle).localizedString(forKey: key, value: nil, table: table)
+                ?? (localizedBundle ?? bundle).localizedString(forKey: key, value: value, table: table)
         }
     }
 
-    private static let chatString = messagesStrings(in: chatKitFramework, table: "ChatKit")
-    private static let accessibilityString = messagesStrings(in: chatKitFrameworkAxBundle, table: "Accessibility")
+    private static let chatString = strings(in: chatKitFramework, table: "ChatKit", languages: messagesLanguages)
+    private static let accessibilityString = strings(in: chatKitFrameworkAxBundle, table: "Accessibility", languages: messagesLanguages)
 
     static let imessage = chatString("MADRID")
     static let textMessage = chatString("TEXT_MESSAGE")

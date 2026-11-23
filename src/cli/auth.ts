@@ -42,20 +42,10 @@ type ProxiedAuthMethod =
   | 'startSysPrefsOnboarding'
   | 'stopSysPrefsOnboarding'
 
-type Deps = { api: AuthApi, getAccessibilityLabel: () => Promise<string> }
+type Deps = { api: AuthApi }
 
 async function loadDeps(api: AuthApi): Promise<Deps> {
-  // The label is fixed for the process, so fetch it at most once.
-  let accessibilityLabel: Promise<string> | undefined
-  const deps: Deps = {
-    api,
-    getAccessibilityLabel: () => {
-      // A display label must not fail the permission check (e.g. an older native addon without this export).
-      accessibilityLabel ??= callProxied<string>(deps, 'getAccessibilityPermissionLabel').catch(() => 'Accessibility')
-      return accessibilityLabel
-    },
-  }
-  return deps
+  return { api }
 }
 
 async function callProxied<T>({ api }: Deps, method: ProxiedAuthMethod): Promise<T> {
@@ -63,7 +53,8 @@ async function callProxied<T>({ api }: Deps, method: ProxiedAuthMethod): Promise
   return JSON.parse(response as string) as T
 }
 
-const statusTitles: Record<Exclude<CliAuthorizationStatusKey, 'accessibility'>, string> = {
+const statusTitles: Record<CliAuthorizationStatusKey, string> = {
+  accessibility: 'Accessibility',
   contacts: 'Contacts',
   'full-disk-access': 'Full Disk Access',
   'messages-data': 'Messages Data',
@@ -78,10 +69,11 @@ function parseTarget(value: string | undefined): CliAuthorizationTarget {
 }
 
 const makeStatus = (
-  key: keyof typeof statusTitles,
+  key: CliAuthorizationStatusKey,
   authorized: boolean,
   detail: string,
-): CliAuthorizationStatus => ({ key, title: statusTitles[key], authorized, detail })
+  title = statusTitles[key],
+): CliAuthorizationStatus => ({ key, title, authorized, detail })
 
 const findStatus = (statuses: readonly CliAuthorizationStatus[], key: CliAuthorizationStatusKey) =>
   statuses.find(s => s.key === key)
@@ -132,7 +124,8 @@ async function getAuthorizationStatuses(
   const wants = (key: CliAuthorizationStatusKey) => !only || only.includes(key)
   const [axStatus, axTitle, contactsStatus, fullDiskAccessStatus, messagesDirOk] = await Promise.all([
     wants('accessibility') ? getAuthStatus(deps, 'accessibility') : undefined,
-    wants('accessibility') ? deps.getAccessibilityLabel() : '',
+    // A display label must not fail the permission check (e.g. an older native addon without this export).
+    wants('accessibility') ? callProxied<string>(deps, 'getAccessibilityPermissionLabel').catch(() => statusTitles.accessibility) : '',
     wants('contacts') ? getAuthStatus(deps, 'contacts') : undefined,
     wants('full-disk-access') || (REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? getAuthStatus(deps, 'full-disk-access') : undefined,
     wants('messages-data') || (!REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? callProxied<boolean>(deps, 'canAccessMessagesDir') : false,
@@ -142,13 +135,13 @@ async function getAuthorizationStatuses(
 
   if (wants('accessibility')) {
     const ok = axStatus === 'authorized'
-    statuses.push({
-      key: 'accessibility',
-      title: axTitle,
-      authorized: ok,
-      detail: ok ? 'Your current Terminal app can control Messages.app.'
+    statuses.push(makeStatus(
+      'accessibility',
+      ok,
+      ok ? 'Your current Terminal app can control Messages.app.'
         : `Enable your current Terminal app in System Settings > Privacy & Security > ${axTitle}.`,
-    })
+      axTitle,
+    ))
   }
 
   if (wants('contacts')) {

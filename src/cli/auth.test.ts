@@ -12,7 +12,7 @@ function loadAuth(requiresFullDiskAccess: boolean): Auth {
 
 let auth: Auth
 
-function makeAPI({ authorized = false, grantAccess = true, databaseReady = true, folderAccess = true, grantFolderAccess = true } = {}) {
+function makeAPI({ authorized = false, grantAccess = true, databaseReady = true, folderAccess = true, grantFolderAccess = true, labelUnavailable = false } = {}) {
   let fullDiskAccess = authorized
   let messagesAccess = folderAccess
   const calls: string[] = []
@@ -21,7 +21,9 @@ function makeAPI({ authorized = false, grantAccess = true, databaseReady = true,
       calls.push(method)
       switch (method) {
         case 'getFullDiskAccessAuthStatus': return JSON.stringify(fullDiskAccess ? 'authorized' : 'denied')
-        case 'getAccessibilityPermissionLabel': return JSON.stringify('Test permission label')
+        case 'getAccessibilityPermissionLabel':
+          if (labelUnavailable) throw new Error('unknown method')
+          return JSON.stringify('Test permission label')
         case 'getAccessibilityAuthStatus':
         case 'getContactsAuthStatus': return JSON.stringify('authorized')
         case 'askForFullDiskAccess':
@@ -56,17 +58,7 @@ test('prints the accessibility permission label returned by Swift', async () => 
 })
 
 test('falls back to "Accessibility" when the native addon cannot return the label', async () => {
-  const { api, calls } = makeAPI()
-  const mutableApi = api as unknown as { getAsset: (o: unknown, p: string, m: string) => Promise<string> }
-  const { getAsset } = mutableApi
-  mutableApi.getAsset = async (o, p, m) => {
-    if (m === 'getAccessibilityPermissionLabel') {
-      calls.push(m)
-      throw new Error('unknown method')
-    }
-    return getAsset(o, p, m)
-  }
-
+  const { api } = makeAPI({ labelUnavailable: true })
   await auth.runPreflightAuthCheck('send', ['accessibility'], api)
   await auth.runAuthorizationFlow('accessibility', api)
   expect(console.log).toHaveBeenCalledWith('  [ok] Accessibility - Your current Terminal app can control Messages.app.')
