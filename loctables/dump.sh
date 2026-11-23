@@ -46,12 +46,12 @@ root=""
 if [[ -n "$ipsw_url" ]]; then
   ipsw_bin="${IPSW_BIN:-ipsw}"
   if ! command -v "$ipsw_bin" >/dev/null 2>&1; then
-    echo "Remote mode requires KishanBagaria/ipsw; see loctables/readme.md (or set IPSW_BIN)." >&2
+    echo "Remote mode requires ipsw v3.1.750+ (https://github.com/blacktop/ipsw); see loctables/readme.md (or set IPSW_BIN)." >&2
     exit 1
   fi
   extract_help="$("$ipsw_bin" extract --help)"
-  if [[ "$extract_help" != *"--ranged-dmg"* ]]; then
-    echo "This ipsw lacks ranged extraction. Build KishanBagaria/ipsw branch codex/remote-filesystem-ranges and set IPSW_BIN." >&2
+  if [[ "$extract_help" != *"--ranged-dmg"* || "$extract_help" != *"--ranged "* ]]; then
+    echo "This ipsw lacks ranged extraction. Install ipsw v3.1.750 or later (brew install ipsw / brew upgrade ipsw), or set IPSW_BIN." >&2
     exit 1
   fi
   if [[ "$ipsw_url" == "latest" ]]; then
