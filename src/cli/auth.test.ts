@@ -5,6 +5,8 @@ function loadAuth(requiresFullDiskAccess: boolean): Auth {
   let auth!: Auth
   jest.isolateModules(() => {
     jest.doMock('../common-constants', () => ({ REQUIRES_FULL_DISK_ACCESS: requiresFullDiskAccess }))
+    // Requesting Accessibility opens System Settings.
+    jest.doMock('node:child_process', () => ({ spawn: jest.fn() }))
     auth = jest.requireActual<Auth>('./auth')
   })
   return auth
@@ -12,7 +14,7 @@ function loadAuth(requiresFullDiskAccess: boolean): Auth {
 
 let auth: Auth
 
-function makeAPI({ authorized = false, grantAccess = true, databaseReady = true, folderAccess = true, grantFolderAccess = true, labelUnavailable = false } = {}) {
+function makeAPI({ authorized = false, grantAccess = true, databaseReady = true, folderAccess = true, grantFolderAccess = true, labelUnavailable = false, accessibilityAuthorized = true } = {}) {
   let fullDiskAccess = authorized
   let messagesAccess = folderAccess
   const calls: string[] = []
@@ -24,7 +26,7 @@ function makeAPI({ authorized = false, grantAccess = true, databaseReady = true,
         case 'getAccessibilityPermissionLabel':
           if (labelUnavailable) throw new Error('unknown method')
           return JSON.stringify('Test permission label')
-        case 'getAccessibilityAuthStatus':
+        case 'getAccessibilityAuthStatus': return JSON.stringify(accessibilityAuthorized ? 'authorized' : 'denied')
         case 'getContactsAuthStatus': return JSON.stringify('authorized')
         case 'askForFullDiskAccess':
           fullDiskAccess = grantAccess
@@ -62,6 +64,15 @@ test('falls back to "Accessibility" when the native addon cannot return the labe
   await auth.runPreflightAuthCheck('send', ['accessibility'], api)
   await auth.runAuthorizationFlow('accessibility', api)
   expect(console.log).toHaveBeenCalledWith('  [ok] Accessibility - Your current Terminal app can control Messages.app.')
+})
+
+test('names the Swift label in the instructions when accessibility is denied', async () => {
+  const { api } = makeAPI({ accessibilityAuthorized: false })
+  // Expire the authorization poll on its first check.
+  jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(120_000)
+  await expect(auth.runAuthorizationFlow('accessibility', api)).rejects.toThrow('Authorization incomplete. Missing: accessibility')
+  expect(console.log).toHaveBeenCalledWith('\nRequesting Test permission label...')
+  expect(console.log).toHaveBeenCalledWith('  [ ] Test permission label - Enable your current Terminal app in System Settings > Privacy & Security > Test permission label.')
 })
 
 test('requires FDA even when folder access already makes the database readable', async () => {

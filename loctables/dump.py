@@ -143,7 +143,8 @@ def dump(release, directory):
             target = stage / name
             generated.append(target)
             subprocess.run(["plutil", "-convert", "json", "-o", target, "--", path], check=True)
-            if pinned and name.startswith("SecurityPrivacyExtension-"):
+            # plutil does not write this table's keys in a stable order.
+            if name.startswith("SecurityPrivacyExtension-"):
                 data = json.loads(target.read_bytes())
                 target.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
         if generated:
@@ -171,7 +172,7 @@ def main():
         if "--ranged-dmg" not in capture(IPSW, "extract", "--help"):
             parser.error("ranged extraction requires ipsw v3.1.750+ (or set IPSW_BIN)")
     if args.all:
-        output = (args.output or HERE).resolve()
+        output = HERE / (args.output or "")
         releases = json.loads((HERE / "sources.json").read_text())["releases"]
         def rebuild(release):
             dump(release, output / f"{release['version']}-{release['build']}")

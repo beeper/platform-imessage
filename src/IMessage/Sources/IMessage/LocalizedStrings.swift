@@ -34,12 +34,17 @@ public enum LocalizedStrings {
             .flatMap { NSDictionary(contentsOf: $0) }?[language ?? ""] as? [String: Any]
         let localizedBundle = language.flatMap { bundle.url(forResource: $0, withExtension: "lproj") }.flatMap(Bundle.init(url:))
         return { key in
-            let entry = translations?[key]
-            // Some languages (e.g. ro, ca, sk) store a per-device variant dictionary instead of a string.
-            let variants = (entry as? [String: Any])?["NSStringDeviceSpecificRuleType"] as? [String: Any]
-            return entry as? String ?? variants?["mac"] as? String ?? variants?["other"] as? String
+            loctableString(in: translations, key: key)
                 ?? (localizedBundle ?? bundle).localizedString(forKey: key, value: value, table: table)
         }
+    }
+
+    /// Reads one entry of a loctable's per-language dictionary.
+    static func loctableString(in translations: [String: Any]?, key: String) -> String? {
+        let entry = translations?[key]
+        // Some languages (e.g. ro, ca, sk) store a per-device variant dictionary instead of a string.
+        let variants = (entry as? [String: Any])?["NSStringDeviceSpecificRuleType"] as? [String: Any]
+        return entry as? String ?? variants?["mac"] as? String ?? variants?["other"] as? String
     }
 
     private static let chatString = strings(in: chatKitFramework, table: "ChatKit", languages: messagesLanguages)
