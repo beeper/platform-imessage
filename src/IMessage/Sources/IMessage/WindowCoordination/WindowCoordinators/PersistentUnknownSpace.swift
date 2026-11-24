@@ -28,7 +28,7 @@ enum PersistentUnknownSpace {
     }
 
     static func isReusable(_ id: UInt64) throws -> Bool {
-        guard let value = try candidate(id) else { return false }
+        guard let value = try Space(raw: id).flatMap(candidate) else { return false }
         return reusableID(in: [value]) == id
     }
 
@@ -54,7 +54,7 @@ enum PersistentUnknownSpace {
             let deadline = Date().addingTimeInterval(readTimeout)
             repeat {
                 if try isReusable(created.raw) { return created.raw }
-                guard try exists(created.raw) else { throw ErrorMessage("The newly created unknown Space disappeared") }
+                guard try Space.exists(created.raw) else { throw ErrorMessage("The newly created unknown Space disappeared") }
                 if Date() >= deadline { break }
                 Thread.sleep(forTimeInterval: pollInterval)
             } while true
@@ -72,10 +72,6 @@ enum PersistentUnknownSpace {
         }
     }
 
-    private static func candidate(_ id: UInt64) throws -> Candidate? {
-        try Space(raw: id).flatMap(candidate)
-    }
-
     private static func candidate(_ space: Space) throws -> Candidate? {
         let deadline = Date().addingTimeInterval(readTimeout)
         repeat {
@@ -84,23 +80,19 @@ enum PersistentUnknownSpace {
             // so only an unknown kind needs metadata and an existence check.
             guard space.kind() == .unknown else { return nil }
             if let values = try? space.values() {
-                guard try exists(space.raw) else { return nil }
+                guard try Space.exists(space.raw) else { return nil }
                 return Candidate(id: space.raw, kind: .unknown,
                                  uuid: values["uuid"] as? String,
                                  hasManagedSpaceID: values["ManagedSpaceID"] != nil)
             }
             // Enumeration may race a Space disappearing. That is absence;
             // failure to read a still-live unknown Space is not.
-            guard try exists(space.raw) else { return nil }
+            guard try Space.exists(space.raw) else { return nil }
             guard Date() < deadline else {
                 throw ErrorMessage("Could not read metadata for live unknown Space \(space.raw)")
             }
             Thread.sleep(forTimeInterval: pollInterval)
         } while true
-    }
-
-    private static func exists(_ id: UInt64) throws -> Bool {
-        try Space.list(.allOSSpaces).contains { $0.raw == id }
     }
 
     private static func destroyMisclassifiedSpace(_ space: Space, bridge: SpaceBridge) throws {
@@ -112,14 +104,14 @@ enum PersistentUnknownSpace {
         do {
             try bridge.destroy(space)
         } catch {
-            if (try? exists(space.raw)) == false { return }
-            throw ErrorMessage("Bridge refused misclassified Space cleanup")
+            if (try? Space.exists(space.raw)) == false { return }
+            throw ErrorMessage("Bridge refused misclassified Space cleanup: \(error)")
         }
         let deadline = Date().addingTimeInterval(3)
         repeat {
             // A transient enumeration failure must not release the lock while
             // the asynchronous destroy operation is still in flight.
-            if (try? exists(space.raw)) == false { return }
+            if (try? Space.exists(space.raw)) == false { return }
             guard Date() < deadline else {
                 throw ErrorMessage("Timed out verifying misclassified Space cleanup")
             }

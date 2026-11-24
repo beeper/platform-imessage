@@ -71,13 +71,14 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             move: { window, target in
                 try Self.verifyOwner(window, owners: owners)
                 guard let targetSpace = Space(raw: target) else { throw ErrorMessage("Invalid target Space") }
+                let cgWindow = Window(raw: window)
                 if targetSpace.kind() == .unknown {
                     guard try PersistentUnknownSpace.isReusable(target) else {
                         throw ErrorMessage("Refusing to park in an unrecognized unknown Space")
                     }
-                    try bridge.add(Window(raw: window), toUnknownSpace: targetSpace)
+                    try bridge.add(cgWindow, toUnknownSpace: targetSpace)
                 } else {
-                    try bridge.move(Window(raw: window), toManagedSpace: targetSpace)
+                    try bridge.move(cgWindow, toManagedSpace: targetSpace)
                 }
                 // Adding unknown membership and managed restoration can both
                 // retain old memberships. Verify the new one before removing any.
@@ -85,10 +86,10 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                     try Self.verifyOwner(window, owners: owners)
                     return try Self.spaces(window).contains(target)
                 }
-                let others = try Self.spaces(window).filter { $0 != target }
+                let others = try cgWindow.currentSpaces(.allOSSpaces).filter { $0 != targetSpace }
                 if !others.isEmpty {
                     try Self.verifyOwner(window, owners: owners)
-                    try bridge.remove(Window(raw: window), from: others.compactMap(Space.init(raw:)))
+                    try bridge.remove(cgWindow, from: others)
                 }
                 try Self.waitFor("exclusive window Space membership") {
                     try Self.verifyOwner(window, owners: owners)
@@ -100,7 +101,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 guard let owner = owners.pids[window] else { return false }
                 return try Self.ownedWindow(window, pid: owner) != nil
             },
-            spaceExists: { id in try Space.list(.allOSSpaces).contains { $0.raw == id } },
+            spaceExists: { try Space.exists($0) },
             fallbackSpace: { try Self.desktopDestination(for: $0, owners: owners) },
             isOwnedParkingSpace: PersistentUnknownSpace.isReusable
         ))

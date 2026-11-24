@@ -15,7 +15,7 @@ func secondaryMessagesLostOriginalSpaceSmoke() async throws {
     Preferences.useSecondaryMessagesInstance = true
     defer { Preferences.useSecondaryMessagesInstance = originalSecondary }
     let existing = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-    let baseline = try Space.list(.allOSSpaces).map { $0.raw }
+    let baseline = try Space.list(.allOSSpaces).map(\.raw)
     let desktop = smokeActiveSpaceID()
     let coordinator = try BridgedSpacesWindowCoordinator()
     let bridge = try #require(SpaceBridge())
@@ -43,7 +43,7 @@ func secondaryMessagesLostOriginalSpaceSmoke() async throws {
     try #require(hidden != created.raw && hidden != desktop)
     try #require(smokeActiveSpaceID() == desktop)
     try bridge.destroy(created)
-    try await waitForSmoke("secondary Space recovery", timeout: 3) { try !Space.list(.allOSSpaces).contains(created) }
+    try await waitForSmoke("secondary Space recovery", timeout: 3) { try !Space.exists(created.raw) }
     source = nil
     // Restoration must not flash the secondary window on the visible desktop.
     app.hide()
@@ -56,6 +56,6 @@ func secondaryMessagesLostOriginalSpaceSmoke() async throws {
     // Individual hosts restore their windows but retain the shared parking
     // pool. It may have existed at baseline or have been created by this test.
     #expect(try PersistentUnknownSpace.isReusable(hidden))
-    #expect(try Set(Space.list(.allOSSpaces).map { $0.raw }) == Set(baseline).union([hidden]))
+    #expect(try Set(Space.list(.allOSSpaces).map(\.raw)) == Set(baseline).union([hidden]))
     #expect(existing.allSatisfy { !$0.isTerminated })
 }
