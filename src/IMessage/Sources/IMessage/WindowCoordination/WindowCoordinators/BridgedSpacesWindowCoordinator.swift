@@ -62,8 +62,9 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
 
     init() throws {
         guard let bridge = IMPrivateSPISpaceBridgeCreate() else {
-            throw ErrorMessage("SkyLight window-management bridge is unavailable")
+            throw ParkingSpaceUnavailable(description: "SkyLight window-management bridge is unavailable")
         }
+        _ = try PersistentUnknownSpace.acquire(bridge: bridge)
         let owners = BridgedWindowOwners()
         self.owners = owners
         session = BridgedSpaceSession(backend: .init(
