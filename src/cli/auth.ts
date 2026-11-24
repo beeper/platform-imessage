@@ -34,6 +34,7 @@ type ProxiedAuthMethod =
   | 'askForMessagesDirAccess'
   | 'canAccessMessagesDir'
   | 'confirmUNCPrompt'
+  | 'getAccessibilityPermissionLabel'
   | 'getAccessibilityAuthStatus'
   | 'getContactsAuthStatus'
   | 'getFullDiskAccessAuthStatus'
@@ -71,7 +72,8 @@ const makeStatus = (
   key: CliAuthorizationStatusKey,
   authorized: boolean,
   detail: string,
-): CliAuthorizationStatus => ({ key, title: statusTitles[key], authorized, detail })
+  title = statusTitles[key],
+): CliAuthorizationStatus => ({ key, title, authorized, detail })
 
 const findStatus = (statuses: readonly CliAuthorizationStatus[], key: CliAuthorizationStatusKey) =>
   statuses.find(s => s.key === key)
@@ -120,8 +122,10 @@ async function getAuthorizationStatuses(
   only?: readonly CliAuthorizationStatusKey[],
 ): Promise<CliAuthorizationStatus[]> {
   const wants = (key: CliAuthorizationStatusKey) => !only || only.includes(key)
-  const [axStatus, contactsStatus, fullDiskAccessStatus, messagesDirOk] = await Promise.all([
+  const [axStatus, axTitle, contactsStatus, fullDiskAccessStatus, messagesDirOk] = await Promise.all([
     wants('accessibility') ? getAuthStatus(deps, 'accessibility') : undefined,
+    // A display label must not fail the permission check (e.g. an older native addon without this export).
+    wants('accessibility') ? callProxied<string>(deps, 'getAccessibilityPermissionLabel').catch(() => statusTitles.accessibility) : '',
     wants('contacts') ? getAuthStatus(deps, 'contacts') : undefined,
     wants('full-disk-access') || (REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? getAuthStatus(deps, 'full-disk-access') : undefined,
     wants('messages-data') || (!REQUIRES_FULL_DISK_ACCESS && wants('messages-app-setup')) ? callProxied<boolean>(deps, 'canAccessMessagesDir') : false,
@@ -135,7 +139,8 @@ async function getAuthorizationStatuses(
       'accessibility',
       ok,
       ok ? 'Your current Terminal app can control Messages.app.'
-        : 'Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.',
+        : `Enable your current Terminal app in System Settings > Privacy & Security > ${axTitle}.`,
+      axTitle,
     ))
   }
 
@@ -184,8 +189,9 @@ export async function runPreflightAuthCheck(
   const deps = await loadDeps(api)
   const statuses = await getAuthorizationStatuses(deps, requirements)
   for (const requirement of requirements) {
-    if (findStatus(statuses, requirement)?.authorized) continue
-    console.log(`"${commandName}" needs ${statusTitles[requirement]} access. Requesting...`)
+    const status = findStatus(statuses, requirement)!
+    if (status.authorized) continue
+    console.log(`"${commandName}" needs ${status.title} access. Requesting...`)
     await authorizeRequirement(requirement, deps)
     const [updated] = await getAuthorizationStatuses(deps, [requirement])
     if (!updated.authorized) throw new Error(`${updated.title} was not granted. ${updated.detail}`)
@@ -302,9 +308,10 @@ export async function runAuthorizationFlow(
   }
 
   for (const requirement of checkable) {
-    if (findStatus(statuses, requirement)?.authorized) continue
+    const status = findStatus(statuses, requirement)!
+    if (status.authorized) continue
 
-    console.log(`\nRequesting ${statusTitles[requirement]}...`)
+    console.log(`\nRequesting ${status.title}...`)
     await authorizeRequirement(requirement, deps)
 
     const refresh = keysImpactedBy(requirement).filter(k => printKeys.includes(k))

@@ -15,6 +15,7 @@ private let log = Logger(imessageLabel: "messages-controller")
 private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 
 let messagesBundleID = "com.apple.MobileSMS"
+let systemSettingsBundleID = "com.apple.systempreferences"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
@@ -396,7 +397,7 @@ final class MessagesController {
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Beeper does not have Accessibility permissions")
+            throw ErrorMessage("Beeper does not have \(LocalizedStrings.accessibilityPermissionLabel) permission")
         }
 
         let coordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
