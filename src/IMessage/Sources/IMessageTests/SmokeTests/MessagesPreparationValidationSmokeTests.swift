@@ -191,7 +191,7 @@ struct MessagesPreparationValidationSmokeTests {
         let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
         try #require(finder.activate(options: []))
         try await waitForSmoke { try !smokeFrontmost(axApp) }
-        try MessagesDockSuppression.suppress(app)
+        try await MessagesDockSuppression.suppress(app)
         app.hide()
         try await waitForSmoke { try axApp.isHidden() }
         let originalMainSpaces = smokeSpaceIDs(forWindow: mainID)
@@ -236,7 +236,7 @@ struct MessagesPreparationValidationSmokeTests {
 
         // Manual activation must reveal both windows on their ordinary
         // desktop, rather than merely hiding them forever in the shared pool.
-        try coordinator.restoreDockPresence()
+        try await coordinator.restoreDockPresence()
         try #require(app.activate(options: [.activateAllWindows]))
         try await waitForSmoke { try smokeFrontmost(axApp) }
         try coordinator.userManuallyActivated(app)

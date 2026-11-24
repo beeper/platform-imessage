@@ -28,14 +28,13 @@ extension WindowCoordinator {
     func prepareAfterLaunch() throws {}
     func dispose() throws {}
 
-    @MainActor
-    func suppressDockPresence() throws {
-        if let app { try MessagesDockSuppression.suppress(app) }
+    /// Reads `app` on the main actor, then changes Dock presence off it.
+    func suppressDockPresence() async throws {
+        if let app = await app { try await MessagesDockSuppression.suppress(app) }
     }
 
-    @MainActor
-    func restoreDockPresence() throws {
-        if let app { try MessagesDockSuppression.restore(app) }
+    func restoreDockPresence() async throws {
+        if let app = await app { try await MessagesDockSuppression.restore(app) }
     }
 
     func userManuallyActivated(_: NSRunningApplication) throws {}
