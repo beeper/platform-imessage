@@ -70,18 +70,14 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             create: { try PersistentUnknownSpace.acquire(bridge: bridge) },
             move: { window, target in
                 try Self.verifyOwner(window, owners: owners)
-                guard let rawTarget = Int(exactly: target), let targetSpace = Space(raw: rawTarget) else { throw ErrorMessage("Invalid target Space") }
-                if try targetSpace.kind() == .unknown {
+                guard let targetSpace = Space(raw: target) else { throw ErrorMessage("Invalid target Space") }
+                if targetSpace.kind() == .unknown {
                     guard try PersistentUnknownSpace.isReusable(target) else {
                         throw ErrorMessage("Refusing to park in an unrecognized unknown Space")
                     }
-                    guard bridge.addWindow(window, toUnknownSpace: target) else {
-                        throw ErrorMessage("Bridge refused unknown Space membership")
-                    }
+                    try bridge.add(Window(raw: window), toUnknownSpace: targetSpace)
                 } else {
-                    guard bridge.moveWindow(window, toSpace: target) else {
-                        throw ErrorMessage("Bridge refused window Space restoration")
-                    }
+                    try bridge.move(Window(raw: window), toManagedSpace: targetSpace)
                 }
                 // Adding unknown membership and managed restoration can both
                 // retain old memberships. Verify the new one before removing any.
@@ -92,9 +88,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 let others = try Self.spaces(window).filter { $0 != target }
                 if !others.isEmpty {
                     try Self.verifyOwner(window, owners: owners)
-                    guard bridge.removeWindow(window, fromSpaces: others) else {
-                        throw ErrorMessage("Bridge refused removal of old Space memberships")
-                    }
+                    try bridge.remove(Window(raw: window), from: others.compactMap(Space.init(raw:)))
                 }
                 try Self.waitFor("exclusive window Space membership") {
                     try Self.verifyOwner(window, owners: owners)
@@ -106,7 +100,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 guard let owner = owners.pids[window] else { return false }
                 return try Self.ownedWindow(window, pid: owner) != nil
             },
-            spaceExists: { id in try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id } },
+            spaceExists: { id in try Space.list(.allOSSpaces).contains { $0.raw == id } },
             fallbackSpace: { try Self.desktopDestination(for: $0, owners: owners) },
             isOwnedParkingSpace: PersistentUnknownSpace.isReusable
         ))
@@ -131,22 +125,24 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private static func spaces(_ window: UInt32) throws -> [UInt64] {
-        guard let spaces = Space.ids(forWindow: window) else { throw ErrorMessage("Could not read window Spaces") }
-        return spaces
+        // .allOSSpaces: the parking Space is unknown, which .allSpaces omits.
+        do {
+            return try Window(raw: window).currentSpaces(.allOSSpaces).map(\.raw)
+        } catch {
+            throw ErrorMessage("Could not read window Spaces: \(error)")
+        }
     }
 
     private static func displayDestination(for window: UInt32, owners: BridgedWindowOwners) throws -> UInt64 {
         guard let owner = owners.pids[window],
               let description = try ownedWindow(window, pid: owner),
-              let topology = Space.managedDisplaySpaces() else {
+              let topology = try? Display.managedSpaces() else {
             throw ErrorMessage("Could not resolve the Messages window's display")
         }
         let online = try Display.allOnline()
         let displays: [BridgedDisplaySpace] = topology.compactMap { record in
-            guard let identifier = record["Display Identifier"] as? String,
-                  let current = record["Current Space"] as? [String: Any],
-                  let space = (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value,
-                  space != 0 else { return nil }
+            let identifier = record.displayIdentifier
+            guard let space = record.currentSpace else { return nil }
             let bounds: CGRect
             if identifier == "Main" {
                 // Shared-Spaces mode has one record for all physical displays.
@@ -166,18 +162,15 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
             displays: displays
         ) else {
             let records = topology.map { record -> String in
-                let identifier = record["Display Identifier"] as? String ?? "nil"
-                guard let current = record["Current Space"] as? [String: Any] else { return "\(identifier) current=nil" }
-                let managed = (current["ManagedSpaceID"] as? NSNumber).map { "\($0)" } ?? "nil"
-                let id64 = (current["id64"] as? NSNumber).map { "\($0)" } ?? "nil"
-                let type = (current["type"] as? NSNumber).map { "\($0)" } ?? "nil"
-                return "\(identifier) managed=\(managed) id64=\(id64) type=\(type)"
+                guard let current = record.currentSpace else { return "\(record.displayIdentifier) current=nil" }
+                let kind = Space(raw: current).map { "\($0.kind())" } ?? "nil"
+                return "\(record.displayIdentifier) current=\(current) kind=\(kind)"
             }
             let onlineUUIDs = online.map { display -> String in
                 guard let uuid = CGDisplayCreateUUIDFromDisplayID(display.raw)?.takeRetainedValue() else { return "\(display.raw)=nil" }
                 return "\(display.raw)=\(UUID(cfUUID: uuid).uuidString)"
             }
-            log.error("No display destination: records=[\(records.joined(separator: ", "))] online=[\(onlineUUIDs.joined(separator: ", "))] window=\(description.bounds) active=\(Space.activeID() ?? 0)")
+            log.error("No display destination: records=[\(records.joined(separator: ", "))] online=[\(onlineUUIDs.joined(separator: ", "))] window=\(description.bounds) active=\((try? Space.active().raw) ?? 0)")
             throw ErrorMessage("No desktop is available for the Messages window")
         }
         owners.displays[window] = destination.identifier
@@ -188,9 +181,9 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         do {
             return try displayDestination(for: window, owners: owners)
         } catch {
-            guard let active = Space.activeID(), Space.rawType(of: active) == 0 else { throw error }
-            log.warning("Using the active desktop \(active) for window \(window): \(error)")
-            return active
+            guard let active = try? Space.active(), active.kind() == .user else { throw error }
+            log.warning("Using the active desktop \(active.raw) for window \(window): \(error)")
+            return active.raw
         }
     }
 
@@ -349,13 +342,13 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                         _ = Self.step("display destination \(id)") { try? Self.displayDestination(for: id, owners: owners) }
                     }
                     if let hidden = session.hiddenSpace {
-                        guard Space.activeID() != hidden else {
+                        guard (try? Space.active().raw) != hidden else {
                             throw ErrorMessage("Cannot park Messages on the user's current Space")
                         }
                     }
                     let current = try Self.step("spaces \(id)") { try Self.spaces(id) }
                     if current.count == 1, let source = current.first,
-                       Space.rawType(of: source) == 3, !(try PersistentUnknownSpace.isReusable(source)) {
+                       Space(raw: source)?.kind() == .unknown, !(try PersistentUnknownSpace.isReusable(source)) {
                         throw ErrorMessage("Refusing to adopt a window in an unrecognized unknown Space")
                     }
                     try Self.step("park \(id)") { try session.park(id) }

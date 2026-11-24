@@ -40,23 +40,27 @@ enum PersistentUnknownSpace {
 
         var candidates: [Candidate] = []
         for space in try Space.list(.allOSSpaces) {
-            guard let id = UInt64(exactly: space.raw), id != 0 else { continue }
-            if let value = try candidate(id) { candidates.append(value) }
+            if let value = try candidate(space) { candidates.append(value) }
         }
         if let existing = reusableID(in: candidates), try isReusable(existing) { return existing }
 
-        guard let created = bridge.createUnknownSpace(uuid: uuid) else { throw ParkingSpaceUnavailable(description: "Bridge refused unknown Space creation") }
+        let created: Space
+        do {
+            created = try bridge.createUnknownSpace(uuid: uuid)
+        } catch {
+            throw ParkingSpaceUnavailable(description: "\(error)")
+        }
         do {
             let deadline = Date().addingTimeInterval(readTimeout)
             repeat {
-                if try isReusable(created) { return created }
-                guard try exists(created) else { throw ErrorMessage("The newly created unknown Space disappeared") }
+                if try isReusable(created.raw) { return created.raw }
+                guard try exists(created.raw) else { throw ErrorMessage("The newly created unknown Space disappeared") }
                 if Date() >= deadline { break }
                 Thread.sleep(forTimeInterval: pollInterval)
             } while true
             throw ErrorMessage("Bridge did not create a recognizable unmanaged unknown Space")
         } catch {
-            if let kind = Space.rawType(of: created), kind != 3 {
+            if created.kind() != .unknown {
                 // A conclusively wrong kind can become a visible desktop. Do
                 // not release the creation lock until its deletion is observed.
                 try destroyMisclassifiedSpace(created, bridge: bridge)
@@ -69,48 +73,53 @@ enum PersistentUnknownSpace {
     }
 
     private static func candidate(_ id: UInt64) throws -> Candidate? {
-        guard id != 0 else { return nil }
+        try Space(raw: id).flatMap(candidate)
+    }
+
+    private static func candidate(_ space: Space) throws -> Candidate? {
         let deadline = Date().addingTimeInterval(readTimeout)
         repeat {
-            let kind = Space.rawType(of: id)
             // Most system Spaces are unrelated; their metadata need not be
-            // readable. Only genuinely unknown or inconclusive kinds need it.
-            if let kind, kind != 3 { return nil }
-            if kind == 3, let values = Space.values(of: id) {
-                guard try exists(id) else { return nil }
-                return Candidate(id: id, kind: .unknown,
+            // readable. WindowServer also reports vanished IDs as unknown,
+            // so only an unknown kind needs metadata and an existence check.
+            guard space.kind() == .unknown else { return nil }
+            if let values = try? space.values() {
+                guard try exists(space.raw) else { return nil }
+                return Candidate(id: space.raw, kind: .unknown,
                                  uuid: values["uuid"] as? String,
                                  hasManagedSpaceID: values["ManagedSpaceID"] != nil)
             }
             // Enumeration may race a Space disappearing. That is absence;
             // failure to read a still-live unknown Space is not.
-            guard try exists(id) else { return nil }
+            guard try exists(space.raw) else { return nil }
             guard Date() < deadline else {
-                throw ErrorMessage("Could not read metadata for live unknown Space \(id)")
+                throw ErrorMessage("Could not read metadata for live unknown Space \(space.raw)")
             }
             Thread.sleep(forTimeInterval: pollInterval)
         } while true
     }
 
     private static func exists(_ id: UInt64) throws -> Bool {
-        try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id }
+        try Space.list(.allOSSpaces).contains { $0.raw == id }
     }
 
-    private static func destroyMisclassifiedSpace(_ id: UInt64, bridge: SpaceBridge) throws {
+    private static func destroyMisclassifiedSpace(_ space: Space, bridge: SpaceBridge) throws {
         // This ID came from our unshared creation attempt. A failed initial
         // enumeration must not prevent cleanup of a conclusively wrong kind.
-        guard let active = Space.activeID(), active != id else {
+        guard let active = try? Space.active(), active != space else {
             throw ErrorMessage("Refusing to destroy an active or unverifiable misclassified Space")
         }
-        if !bridge.destroySpace(id) {
-            if (try? exists(id)) == false { return }
+        do {
+            try bridge.destroy(space)
+        } catch {
+            if (try? exists(space.raw)) == false { return }
             throw ErrorMessage("Bridge refused misclassified Space cleanup")
         }
         let deadline = Date().addingTimeInterval(3)
         repeat {
             // A transient enumeration failure must not release the lock while
             // the asynchronous destroy operation is still in flight.
-            if (try? exists(id)) == false { return }
+            if (try? exists(space.raw)) == false { return }
             guard Date() < deadline else {
                 throw ErrorMessage("Timed out verifying misclassified Space cleanup")
             }
