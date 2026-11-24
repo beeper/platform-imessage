@@ -32,7 +32,7 @@ enum PersistentUnknownSpace {
         return reusableID(in: [value]) == id
     }
 
-    static func acquire(bridge: SpaceBridge) throws -> UInt64 {
+    static func acquire() throws -> UInt64 {
         // The shared lock never unlinks its stable per-UID path. Keep its
         // descriptor alive through discovery, creation, and verified cleanup.
         let creationLock = try WindowCoordinationFileLock(name: "unknown-space-v1")
@@ -46,7 +46,7 @@ enum PersistentUnknownSpace {
 
         let created: Space
         do {
-            created = try bridge.createUnknownSpace(uuid: uuid)
+            created = try Space.createUnknown(uuid: uuid)
         } catch {
             throw ParkingSpaceUnavailable(description: "\(error)")
         }
@@ -63,7 +63,7 @@ enum PersistentUnknownSpace {
             if created.kind() != .unknown {
                 // A conclusively wrong kind can become a visible desktop. Do
                 // not release the creation lock until its deletion is observed.
-                try destroyMisclassifiedSpace(created, bridge: bridge)
+                try destroyMisclassifiedSpace(created)
             }
             // A type-3 Space with unreadable/incomplete metadata may be valid.
             // Retain it for a later discovery retry instead of enqueueing a
@@ -95,14 +95,14 @@ enum PersistentUnknownSpace {
         } while true
     }
 
-    private static func destroyMisclassifiedSpace(_ space: Space, bridge: SpaceBridge) throws {
+    private static func destroyMisclassifiedSpace(_ space: Space) throws {
         // This ID came from our unshared creation attempt. A failed initial
         // enumeration must not prevent cleanup of a conclusively wrong kind.
         guard let active = try? Space.active(), active != space else {
             throw ErrorMessage("Refusing to destroy an active or unverifiable misclassified Space")
         }
         do {
-            try bridge.destroy(space)
+            try space.destroy()
         } catch {
             if (try? Space.exists(space.raw)) == false { return }
             throw ErrorMessage("Bridge refused misclassified Space cleanup: \(error)")

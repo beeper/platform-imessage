@@ -35,8 +35,8 @@ func persistentUnknownSpaceLiveReuseSmoke() throws {
     let managedBefore = try Display.managedSpaces()
     var selected: UInt64?
     for _ in 0..<12 {
-        let bridge = try #require(SpaceBridge())
-        let acquired = try PersistentUnknownSpace.acquire(bridge: bridge)
+        try #require(Space.isBridgeAvailable)
+        let acquired = try PersistentUnknownSpace.acquire()
         if let selected { #expect(acquired == selected) }
         selected = acquired
         #expect(try PersistentUnknownSpace.isReusable(acquired))

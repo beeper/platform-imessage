@@ -60,14 +60,14 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     init() throws {
-        guard let bridge = SpaceBridge() else {
+        guard Space.isBridgeAvailable else {
             throw ParkingSpaceUnavailable(description: "SkyLight window-management bridge is unavailable")
         }
-        _ = try PersistentUnknownSpace.acquire(bridge: bridge)
+        _ = try PersistentUnknownSpace.acquire()
         let owners = BridgedWindowOwners()
         self.owners = owners
         session = BridgedSpaceSession(backend: .init(
-            create: { try PersistentUnknownSpace.acquire(bridge: bridge) },
+            create: { try PersistentUnknownSpace.acquire() },
             move: { window, target in
                 try Self.verifyOwner(window, owners: owners)
                 guard let targetSpace = Space(raw: target) else { throw ErrorMessage("Invalid target Space") }
@@ -76,9 +76,9 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                     guard try PersistentUnknownSpace.isReusable(target) else {
                         throw ErrorMessage("Refusing to park in an unrecognized unknown Space")
                     }
-                    try bridge.add(cgWindow, toUnknownSpace: targetSpace)
+                    try cgWindow.add(toUnknownSpace: targetSpace)
                 } else {
-                    try bridge.move(cgWindow, toManagedSpace: targetSpace)
+                    try cgWindow.move(toManagedSpace: targetSpace)
                 }
                 // Adding unknown membership and managed restoration can both
                 // retain old memberships. Verify the new one before removing any.
@@ -89,7 +89,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 let others = try cgWindow.currentSpaces(.allOSSpaces).filter { $0 != targetSpace }
                 if !others.isEmpty {
                     try Self.verifyOwner(window, owners: owners)
-                    try bridge.remove(cgWindow, from: others)
+                    try cgWindow.remove(from: others)
                 }
                 try Self.waitFor("exclusive window Space membership") {
                     try Self.verifyOwner(window, owners: owners)
