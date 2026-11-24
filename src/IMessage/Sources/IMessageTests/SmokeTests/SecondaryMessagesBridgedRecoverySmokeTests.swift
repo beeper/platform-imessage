@@ -1,6 +1,5 @@
 import AppKit
 import ApplicationServices
-import IMessagePrivateSPI
 import Testing
 import WindowControl
 @testable import IMessage
@@ -17,9 +16,9 @@ func secondaryMessagesLostOriginalSpaceSmoke() async throws {
     defer { Preferences.useSecondaryMessagesInstance = originalSecondary }
     let existing = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
     let baseline = try Space.list(.allOSSpaces).map { UInt64($0.raw) }
-    let desktop = IMPrivateSPIActiveSpace()
+    let desktop = Space.activeID()
     let coordinator = try BridgedSpacesWindowCoordinator()
-    let bridge = try #require(IMPrivateSPISpaceBridgeCreate())
+    let bridge = try #require(SpaceBridge())
     let app = try await runSmokeWorker {
         try await MessagesInstanceTarget.launchSecondaryInstance(initialDeepLink: MessagesDeepLink.compose.url())
     }
@@ -27,36 +26,36 @@ func secondaryMessagesLostOriginalSpaceSmoke() async throws {
     var source: UInt64 = 0
     defer {
         try? coordinator.dispose()
-        if source != 0 { _ = IMPrivateSPISpaceBridgeDestroySpace(bridge, source) }
+        if source != 0 { _ = bridge.destroySpace(source) }
         app.terminate()
     }
     coordinator.app = app
     let elements = smokeElements(runningApp: app)
     let window = try await runSmokeWorker { try await elements.mainWindow }
     let windowID = try window.window().raw
-    let created = IMPrivateSPISpaceBridgeCreateSpace(bridge, ["type": 0, "uuid": "Beeper-Recovery-Smoke-\(UUID().uuidString)"])
-    try #require(created != 0 && !baseline.contains(created))
+    let created = try #require(bridge.createSpace(values: ["type": 0, "uuid": "Beeper-Recovery-Smoke-\(UUID().uuidString)"]))
+    try #require(!baseline.contains(created))
     source = created
-    try #require(IMPrivateSPISpaceBridgeMoveWindow(bridge, windowID, source))
-    try await waitForSmoke("secondary Space recovery", timeout: 3) { IMPrivateSPISpacesForWindow(windowID)?.map(\.uint64Value) == [source] }
+    try #require(bridge.moveWindow(windowID, toSpace: source))
+    try await waitForSmoke("secondary Space recovery", timeout: 3) { Space.ids(forWindow: windowID) == [source] }
     try runSmokeWorker { try coordinator.makeAutomatable(window) }
-    let hidden = try #require(IMPrivateSPISpacesForWindow(windowID)?.first?.uint64Value)
+    let hidden = try #require(Space.ids(forWindow: windowID)?.first)
     try #require(hidden != source && hidden != desktop)
-    try #require(IMPrivateSPIActiveSpace() == desktop)
-    try #require(IMPrivateSPISpaceBridgeDestroySpace(bridge, source))
+    try #require(Space.activeID() == desktop)
+    try #require(bridge.destroySpace(source))
     try await waitForSmoke("secondary Space recovery", timeout: 3) { try !Space.list(.allOSSpaces).contains { UInt64($0.raw) == source } }
     source = 0
     // Restoration must not flash the secondary window on the visible desktop.
     app.hide()
     try await waitForSmoke("secondary Space recovery", timeout: 3) { try elements.app.isHidden() }
     try runSmokeWorker { try coordinator.dispose() }
-    let restored = try #require(IMPrivateSPISpacesForWindow(windowID)?.first?.uint64Value)
-    let visible = try #require(IMPrivateSPICopyManagedDisplaySpaces()).compactMap { record -> UInt64? in
+    let restored = try #require(Space.ids(forWindow: windowID)?.first)
+    let visible = try #require(Space.managedDisplaySpaces()).compactMap { record -> UInt64? in
         guard let current = record["Current Space"] as? [String: Any] else { return nil }
         return (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value
     }
     #expect(visible.contains(restored))
-    #expect(IMPrivateSPIActiveSpace() == desktop)
+    #expect(Space.activeID() == desktop)
     // Individual hosts restore their windows but retain the shared parking
     // pool. It may have existed at baseline or have been created by this test.
     #expect(try PersistentUnknownSpace.isReusable(hidden))

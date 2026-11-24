@@ -1,7 +1,6 @@
 import Darwin
 import Foundation
 import IMessageCore
-import IMessagePrivateSPI
 import WindowControl
 
 struct ParkingSpaceUnavailable: Error, CustomStringConvertible {
@@ -33,7 +32,7 @@ enum PersistentUnknownSpace {
         return reusableID(in: [value]) == id
     }
 
-    static func acquire(bridge: NSObject) throws -> UInt64 {
+    static func acquire(bridge: SpaceBridge) throws -> UInt64 {
         // The shared lock never unlinks its stable per-UID path. Keep its
         // descriptor alive through discovery, creation, and verified cleanup.
         let creationLock = try WindowCoordinationFileLock(name: "unknown-space-v1")
@@ -46,8 +45,7 @@ enum PersistentUnknownSpace {
         }
         if let existing = reusableID(in: candidates), try isReusable(existing) { return existing }
 
-        let created = IMPrivateSPISpaceBridgeCreateUnknownSpace(bridge, uuid)
-        guard created != 0 else { throw ParkingSpaceUnavailable(description: "Bridge refused unknown Space creation") }
+        guard let created = bridge.createUnknownSpace(uuid: uuid) else { throw ParkingSpaceUnavailable(description: "Bridge refused unknown Space creation") }
         do {
             let deadline = Date().addingTimeInterval(readTimeout)
             repeat {
@@ -58,8 +56,7 @@ enum PersistentUnknownSpace {
             } while true
             throw ErrorMessage("Bridge did not create a recognizable unmanaged unknown Space")
         } catch {
-            let kind = IMPrivateSPISpaceType(created)
-            if kind >= 0 && kind != 3 {
+            if let kind = Space.rawType(of: created), kind != 3 {
                 // A conclusively wrong kind can become a visible desktop. Do
                 // not release the creation lock until its deletion is observed.
                 try destroyMisclassifiedSpace(created, bridge: bridge)
@@ -75,11 +72,11 @@ enum PersistentUnknownSpace {
         guard id != 0 else { return nil }
         let deadline = Date().addingTimeInterval(readTimeout)
         repeat {
-            let kind = IMPrivateSPISpaceType(id)
+            let kind = Space.rawType(of: id)
             // Most system Spaces are unrelated; their metadata need not be
             // readable. Only genuinely unknown or inconclusive kinds need it.
-            if kind >= 0 && kind != 3 { return nil }
-            if kind == 3, let values = IMPrivateSPICopySpaceValues(id) {
+            if let kind, kind != 3 { return nil }
+            if kind == 3, let values = Space.values(of: id) {
                 guard try exists(id) else { return nil }
                 return Candidate(id: id, kind: .unknown,
                                  uuid: values["uuid"] as? String,
@@ -99,14 +96,13 @@ enum PersistentUnknownSpace {
         try Space.list(.allOSSpaces).contains { UInt64(exactly: $0.raw) == id }
     }
 
-    private static func destroyMisclassifiedSpace(_ id: UInt64, bridge: NSObject) throws {
+    private static func destroyMisclassifiedSpace(_ id: UInt64, bridge: SpaceBridge) throws {
         // This ID came from our unshared creation attempt. A failed initial
         // enumeration must not prevent cleanup of a conclusively wrong kind.
-        let active = IMPrivateSPIActiveSpace()
-        guard active != 0, active != id else {
+        guard let active = Space.activeID(), active != id else {
             throw ErrorMessage("Refusing to destroy an active or unverifiable misclassified Space")
         }
-        if !IMPrivateSPISpaceBridgeDestroySpace(bridge, id) {
+        if !bridge.destroySpace(id) {
             if (try? exists(id)) == false { return }
             throw ErrorMessage("Bridge refused misclassified Space cleanup")
         }

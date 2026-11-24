@@ -2,7 +2,6 @@ import AppKit
 import Darwin
 import AccessibilityControl
 import IMessageCore
-import IMessagePrivateSPI
 import Logging
 import WindowControl
 
@@ -61,7 +60,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     init() throws {
-        guard let bridge = IMPrivateSPISpaceBridgeCreate() else {
+        guard let bridge = SpaceBridge() else {
             throw ParkingSpaceUnavailable(description: "SkyLight window-management bridge is unavailable")
         }
         _ = try PersistentUnknownSpace.acquire(bridge: bridge)
@@ -76,11 +75,11 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                     guard try PersistentUnknownSpace.isReusable(target) else {
                         throw ErrorMessage("Refusing to park in an unrecognized unknown Space")
                     }
-                    guard IMPrivateSPISpaceBridgeAddWindowToUnknownSpace(bridge, window, target) else {
+                    guard bridge.addWindow(window, toUnknownSpace: target) else {
                         throw ErrorMessage("Bridge refused unknown Space membership")
                     }
                 } else {
-                    guard IMPrivateSPISpaceBridgeMoveWindow(bridge, window, target) else {
+                    guard bridge.moveWindow(window, toSpace: target) else {
                         throw ErrorMessage("Bridge refused window Space restoration")
                     }
                 }
@@ -93,7 +92,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 let others = try Self.spaces(window).filter { $0 != target }
                 if !others.isEmpty {
                     try Self.verifyOwner(window, owners: owners)
-                    guard IMPrivateSPISpaceBridgeRemoveWindowFromSpaces(bridge, window, others.map { NSNumber(value: $0) }) else {
+                    guard bridge.removeWindow(window, fromSpaces: others) else {
                         throw ErrorMessage("Bridge refused removal of old Space memberships")
                     }
                 }
@@ -132,14 +131,14 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
     }
 
     private static func spaces(_ window: UInt32) throws -> [UInt64] {
-        guard let spaces = IMPrivateSPISpacesForWindow(window) else { throw ErrorMessage("Could not read window Spaces") }
-        return spaces.map(\.uint64Value)
+        guard let spaces = Space.ids(forWindow: window) else { throw ErrorMessage("Could not read window Spaces") }
+        return spaces
     }
 
     private static func displayDestination(for window: UInt32, owners: BridgedWindowOwners) throws -> UInt64 {
         guard let owner = owners.pids[window],
               let description = try ownedWindow(window, pid: owner),
-              let topology = IMPrivateSPICopyManagedDisplaySpaces() else {
+              let topology = Space.managedDisplaySpaces() else {
             throw ErrorMessage("Could not resolve the Messages window's display")
         }
         let online = try Display.allOnline()
@@ -178,7 +177,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                 guard let uuid = CGDisplayCreateUUIDFromDisplayID(display.raw)?.takeRetainedValue() else { return "\(display.raw)=nil" }
                 return "\(display.raw)=\(UUID(cfUUID: uuid).uuidString)"
             }
-            log.error("No display destination: records=[\(records.joined(separator: ", "))] online=[\(onlineUUIDs.joined(separator: ", "))] window=\(description.bounds) active=\(IMPrivateSPIActiveSpace())")
+            log.error("No display destination: records=[\(records.joined(separator: ", "))] online=[\(onlineUUIDs.joined(separator: ", "))] window=\(description.bounds) active=\(Space.activeID() ?? 0)")
             throw ErrorMessage("No desktop is available for the Messages window")
         }
         owners.displays[window] = destination.identifier
@@ -189,8 +188,7 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
         do {
             return try displayDestination(for: window, owners: owners)
         } catch {
-            let active = IMPrivateSPIActiveSpace()
-            guard active != 0, IMPrivateSPISpaceType(active) == 0 else { throw error }
+            guard let active = Space.activeID(), Space.rawType(of: active) == 0 else { throw error }
             log.warning("Using the active desktop \(active) for window \(window): \(error)")
             return active
         }
@@ -351,13 +349,13 @@ final class BridgedSpacesWindowCoordinator: WindowCoordinator {
                         _ = Self.step("display destination \(id)") { try? Self.displayDestination(for: id, owners: owners) }
                     }
                     if let hidden = session.hiddenSpace {
-                        guard IMPrivateSPIActiveSpace() != hidden else {
+                        guard Space.activeID() != hidden else {
                             throw ErrorMessage("Cannot park Messages on the user's current Space")
                         }
                     }
                     let current = try Self.step("spaces \(id)") { try Self.spaces(id) }
                     if current.count == 1, let source = current.first,
-                       IMPrivateSPISpaceType(source) == 3, !(try PersistentUnknownSpace.isReusable(source)) {
+                       Space.rawType(of: source) == 3, !(try PersistentUnknownSpace.isReusable(source)) {
                         throw ErrorMessage("Refusing to adopt a window in an unrecognized unknown Space")
                     }
                     try Self.step("park \(id)") { try session.park(id) }
