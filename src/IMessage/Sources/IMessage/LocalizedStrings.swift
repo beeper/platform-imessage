@@ -10,13 +10,17 @@ public enum LocalizedStrings {
         guard let privacySettings = Bundle(path: "/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex") else {
             return fallback
         }
-        // Resolve in the user's languages, not this process's: the CLI/host app may lack
-        // the user's language even though System Settings shows it.
-        return strings(in: privacySettings, table: "Localizable", languages: Locale.preferredLanguages, value: fallback)("ACCESSIBILITY")
+        return strings(in: privacySettings, table: "Localizable", languages: systemSettingsLanguages, value: fallback)("ACCESSIBILITY")
     }()
 
-    private static let messagesLanguages = CFPreferencesCopyAppValue("AppleLanguages" as CFString, messagesBundleID as CFString) as? [String]
-        ?? Locale.preferredLanguages
+    // Resolve in the languages of the app that shows the string, not this process's: the CLI/host
+    // app may lack the user's language, and the user can set a per-app language.
+    private static func languages(of bundleID: String) -> [String] {
+        CFPreferencesCopyAppValue("AppleLanguages" as CFString, bundleID as CFString) as? [String] ?? Locale.preferredLanguages
+    }
+
+    private static let messagesLanguages = languages(of: messagesBundleID)
+    private static let systemSettingsLanguages = languages(of: systemSettingsBundleID)
 
     private static func strings(in bundle: Bundle, table: String, languages: [String], value: String? = nil) -> (String) -> String {
         if #available(macOS 15.4, *) {
@@ -84,7 +88,8 @@ public enum LocalizedStrings {
     /// "Edit"
     static let editButton = accessibilityString("edit.button")
 
-    static let notificationCenter = notificationCenterApp.localizedString(forKey: "Notification Center", value: nil, table: "Localizable")
+    /// Title of the notifications pane in System Settings.
+    static let notificationCenter = strings(in: notificationCenterApp, table: "Localizable", languages: systemSettingsLanguages)("Notification Center")
 
     // "Dismiss"
     static let dismissButtonLabel = accessibilityString("dismiss.button.label")

@@ -15,6 +15,7 @@ private let log = Logger(imessageLabel: "messages-controller")
 private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 
 let messagesBundleID = "com.apple.MobileSMS"
+let systemSettingsBundleID = "com.apple.systempreferences"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
