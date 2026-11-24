@@ -110,7 +110,7 @@ enum MessagesInstanceTarget {
 
         if !activating, Defaults.shouldSuppressMessagesDock {
             do {
-                try MessagesDockSuppression.suppress(application)
+                try await MessagesDockSuppression.suppress(application)
             } catch {
                 log.error("failed to hide secondary Messages from Dock: \(error)")
             }

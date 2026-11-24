@@ -21,54 +21,60 @@ func primaryMessagesAXSmoke() async throws {
     let coordinator = EclipsingWindowCoordinator()
     coordinator.app = app
     defer {
-        try? coordinator.restoreDockPresence()
         try? window.setFrame(originalFrame)
         if wasHidden { app.hide() } else { app.unhide() }
     }
-    let observer = LifecycleObserver()
-    let ready = DispatchSemaphore(value: 0)
-    let observationError = Protected<Error?>()
-    let thread = RunLoopConveyor<Void>(oneTimeInitialization: { _ in
-        do {
-            try observer.beginObserving(app: elements.app)
-            try observer.beginObserving(window: window)
-        } catch {
-            observationError.withLock { $0 = error }
-        }
-        ready.signal()
-    }, handlingWorkItemsWithinRunLoop: { _ in })
-    thread.start()
-    defer { thread.cancel() }
-    try #require(ready.wait(timeout: .now() + 5) == .success)
-    if let error = observationError.read() { throw error }
-    let chatURLs = try primarySmokeReadChatURLs()
-    let repeatedChat = try #require(chatURLs.last)
-    let compose = MessagesDeepLink.compose
-    for stage in ["foreground", "restored"] {
-        try coordinator.restoreDockPresence()
-        app.unhide()
-        for (trial, url) in ([compose] + chatURLs + [repeatedChat]).enumerated() {
-            let before = Date()
-            let waitStarted = try await primarySmokeOpenDeepLink(url, app: app)
-            try await Task.sleep(forTimeInterval: 1.2)
-            let actualType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
-            #expect(actualType == "Foreground")
-            let focus = observer.lastFocusedUIElementChange.read()
-            let layout = observer.lastLayoutChange.read()
-            print("PRIMARY_AX stage=\(stage) trial=\(trial) focusAfterLink=\(focus.map { $0 > before } ?? false) focusWaiter=\(focus.map { $0 > waitStarted } ?? false) layoutWaiter=\(layout.map { $0 > waitStarted } ?? false)")
-            #expect(focus.map { $0 > waitStarted } ?? false, "Focus waiter failed at \(stage) trial \(trial)")
-            if trial > 0 {
-                let field = try await runSmokeWorker { try await elements.messageBodyField }
-                try field.isFocused(assign: true)
-                let setFocused = try field.isFocused()
-                try field.press()
-                let pressFocused = try field.isFocused()
-                print("PRIMARY_BODY stage=\(stage) trial=\(trial) setFocused=\(setFocused) pressFocused=\(pressFocused)")
-                #expect(setFocused || pressFocused, "Body focus failed at \(stage) trial \(trial)")
+    // Restore the Dock on both paths; a defer cannot await.
+    do {
+        let observer = LifecycleObserver()
+        let ready = DispatchSemaphore(value: 0)
+        let observationError = Protected<Error?>()
+        let thread = RunLoopConveyor<Void>(oneTimeInitialization: { _ in
+            do {
+                try observer.beginObserving(app: elements.app)
+                try observer.beginObserving(window: window)
+            } catch {
+                observationError.withLock { $0 = error }
+            }
+            ready.signal()
+        }, handlingWorkItemsWithinRunLoop: { _ in })
+        thread.start()
+        defer { thread.cancel() }
+        try #require(ready.wait(timeout: .now() + 5) == .success)
+        if let error = observationError.read() { throw error }
+        let chatURLs = try primarySmokeReadChatURLs()
+        let repeatedChat = try #require(chatURLs.last)
+        let compose = MessagesDeepLink.compose
+        for stage in ["foreground", "restored"] {
+            try await coordinator.restoreDockPresence()
+            app.unhide()
+            for (trial, url) in ([compose] + chatURLs + [repeatedChat]).enumerated() {
+                let before = Date()
+                let waitStarted = try await primarySmokeOpenDeepLink(url, app: app)
+                try await Task.sleep(forTimeInterval: 1.2)
+                let actualType = try MessagesDockSuppression.applicationType(for: app.processIdentifier)
+                #expect(actualType == "Foreground")
+                let focus = observer.lastFocusedUIElementChange.read()
+                let layout = observer.lastLayoutChange.read()
+                print("PRIMARY_AX stage=\(stage) trial=\(trial) focusAfterLink=\(focus.map { $0 > before } ?? false) focusWaiter=\(focus.map { $0 > waitStarted } ?? false) layoutWaiter=\(layout.map { $0 > waitStarted } ?? false)")
+                #expect(focus.map { $0 > waitStarted } ?? false, "Focus waiter failed at \(stage) trial \(trial)")
+                if trial > 0 {
+                    let field = try await runSmokeWorker { try await elements.messageBodyField }
+                    try field.isFocused(assign: true)
+                    let setFocused = try field.isFocused()
+                    try field.press()
+                    let pressFocused = try field.isFocused()
+                    print("PRIMARY_BODY stage=\(stage) trial=\(trial) setFocused=\(setFocused) pressFocused=\(pressFocused)")
+                    #expect(setFocused || pressFocused, "Body focus failed at \(stage) trial \(trial)")
+                }
             }
         }
+        #expect(!app.isTerminated)
+    } catch {
+        try? await coordinator.restoreDockPresence()
+        throw error
     }
-    #expect(!app.isTerminated)
+    try await coordinator.restoreDockPresence()
 }
 
 // Select only conversations with no unread incoming messages. Never log identifiers.

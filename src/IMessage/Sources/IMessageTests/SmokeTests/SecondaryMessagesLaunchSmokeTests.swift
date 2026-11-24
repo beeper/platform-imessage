@@ -1,6 +1,7 @@
 // swiftlint:disable no_magic_numbers
 import AppKit
 import Darwin
+import IMessageCore
 import Testing
 @testable import IMessage
 
@@ -27,22 +28,25 @@ func secondaryMessagesLaunchSmoke() async throws {
         try await Task.sleep(forTimeInterval: 0.5)
         #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
         #expect(!app.isActive)
-        try expectSecondaryDock(phase: "deep-link", baseline: baselineDock, additionalTiles: 0)
+        try await expectSecondaryDock(phase: "deep-link", baseline: baselineDock, additionalTiles: 0)
         let windows = try #require(CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]])
         #expect(!windows.contains { ($0[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier })
     }
     // Exercise the shared coordinator hooks without moving or resizing a window.
     let coordinator = EclipsingWindowCoordinator()
     coordinator.app = app
-    try coordinator.restoreDockPresence()
+    try await coordinator.restoreDockPresence()
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
-    try expectSecondaryDock(phase: "restored", baseline: baselineDock, additionalTiles: 1)
-    try coordinator.suppressDockPresence()
+    try await expectSecondaryDock(phase: "restored", baseline: baselineDock, additionalTiles: 1)
+    // Suppressing from Foreground waits ~1s between transitions; none of it may block main.
+    let stall = try await longestMainActorStall { try await coordinator.suppressDockPresence() }
+    print("SECONDARY_DOCK suppress main-actor stall=\(stall)")
+    #expect(stall < 0.25, "Dock suppression must not block the main actor")
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
-    try expectSecondaryDock(phase: "resuppressed", baseline: baselineDock, additionalTiles: 0)
-    try coordinator.restoreDockPresence()
+    try await expectSecondaryDock(phase: "resuppressed", baseline: baselineDock, additionalTiles: 0)
+    try await coordinator.restoreDockPresence()
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground")
-    try expectSecondaryDock(phase: "restored", baseline: baselineDock, additionalTiles: 1)
+    try await expectSecondaryDock(phase: "restored", baseline: baselineDock, additionalTiles: 1)
     #expect(existing.allSatisfy { !$0.isTerminated })
     #expect(app.terminate())
     let deadline = Date().addingTimeInterval(5)
@@ -52,8 +56,33 @@ func secondaryMessagesLaunchSmoke() async throws {
     #expect(kill(app.processIdentifier, 0) == -1 && errno == ESRCH)
 }
 
+/// Runs `operation` while a main-actor heartbeat records the longest gap between ticks,
+/// including the gap up to completion (a fully synchronous block never lets it tick).
 @MainActor
-private func expectSecondaryDock(phase: String, baseline: MessagesDockSnapshot, additionalTiles: Int) throws {
+private func longestMainActorStall(_ operation: () async throws -> Void) async throws -> TimeInterval {
+    let ticks = Protected((last: Date(), longest: TimeInterval(0)))
+    let heartbeat = Task { @MainActor in
+        while !Task.isCancelled {
+            try? await Task.sleep(forTimeInterval: 0.01)
+            let now = Date()
+            ticks.withLock { $0 = (now, max($0.longest, now.timeIntervalSince($0.last))) }
+        }
+    }
+    defer { heartbeat.cancel() }
+    try await operation()
+    let final = ticks.read()
+    return max(final.longest, Date().timeIntervalSince(final.last))
+}
+
+@MainActor
+private func expectSecondaryDock(phase: String, baseline: MessagesDockSnapshot, additionalTiles: Int) async throws {
+    // Dock adds and removes tiles asynchronously after a presentation change. On timeout,
+    // fall through so the expectations below report the actual counts.
+    try? await waitForSmoke("Dock \(phase)", timeout: 3) {
+        let snapshot = try messagesDockSnapshot()
+        return snapshot.running == baseline.running + additionalTiles &&
+            (baseline.tiles...(baseline.tiles + additionalTiles)).contains(snapshot.tiles)
+    }
     let snapshot = try messagesDockSnapshot()
     print("SECONDARY_DOCK phase=\(phase) tiles=\(snapshot.tiles) baseline=\(baseline.tiles) running=\(snapshot.running)")
     // Dock can reuse an existing Recent Applications tile when restoring.
