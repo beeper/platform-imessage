@@ -20,7 +20,7 @@ export const supportedReactions = {
   question: { title: 'Question', render: '❓', imgURL: tapbackGraphicURL('question.png') },
 } as const satisfies Record<string, SupportedReaction>
 
-const [DARWIN_MAJOR_VERSON, DARWIN_MINOR_VERSION] = os.release().split('.').map(Number)
+const [DARWIN_MAJOR_VERSON] = os.release().split('.').map(Number)
 
 export const MIN_MACOS_VERSION_ERROR = 'iMessage requires macOS Big Sur or later'
 export const IS_BIG_SUR_OR_UP = DARWIN_MAJOR_VERSON >= 20

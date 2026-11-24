@@ -12,3 +12,15 @@ rules:
     - paths:
         - name: lodash
           message: Require lodash utilities from per-method paths like 'lodash/mapKeys'.
+  no-void:
+    - error
+    - allowAsStatement: true
+  '@typescript-eslint/no-use-before-define':
+    - error
+    - functions: false
+overrides:
+  - files: src/cli/**
+    rules:
+      import/no-extraneous-dependencies:
+        - error
+        - devDependencies: true

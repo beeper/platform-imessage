@@ -108,6 +108,10 @@ extension IMDatabase {
             FROM message m
             WHERE (m.text IS NOT NULL OR m.attributedBody IS NOT NULL)
             """
+            // Recently Deleted (macOS 13+) keeps the message row but moves its chat join here.
+            if try hasRecoverableMessageJoin() {
+                sql += "\nAND m.ROWID NOT IN (SELECT message_id FROM chat_recoverable_message_join WHERE message_id IS NOT NULL)"
+            }
         }
 
         if mediaOnly {

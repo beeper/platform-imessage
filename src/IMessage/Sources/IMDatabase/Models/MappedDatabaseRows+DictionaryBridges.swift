@@ -98,6 +98,7 @@ public extension MappedChatRow {
             "chat_identifier": chatIdentifier,
             "room_name": roomName,
             "account_login": accountLogin,
+            "service_name": serviceName,
             "last_addressed_handle": lastAddressedHandle,
             "display_name": displayName,
             "group_id": groupID,

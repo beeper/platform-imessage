@@ -18,7 +18,7 @@ import SQLite
 /// - `replace`: Observed by kb as `0` for all messages.
 /// - `country`: Observed by kb as `NULL` for all messages.
 /// - `version`: Observed by kb as `10` for all messages.
-/// - `is_finished`: Observed by kb as `1` for all messages.
+/// - `is_finished`: Observed by kb as `1` for all messages; filtered on for unread.
 /// - `is_sent`: Slightly different from `is_from_me`.
 /// - `is_forward`: Observed by kb as `0` for all messages.
 /// - `is_archive`: Observed by kb as `0` for all messages.
@@ -31,17 +31,19 @@ import SQLite
 ///   `was_delivered_quietly`, `did_notify_recipient`: Added in Monterey.
 /// - `part_count`: Added in Ventura.
 /// - `is_stewie`: Added in Ventura 13.1.
-/// - `is_sos`, `is_critical`, `bia_reference_id`: Observed in Tahoe.
-/// - `is_kt_verified`: Added in Ventura 13.2 through 13.4.1.
-/// - `fallback_hash`: Observed in Tahoe.
-/// - `is_time_sensitive`, `ck_chat_id`, `index_state`: Observed in Tahoe.
+/// - `is_kt_verified`: Added in Ventura 13.3.
+/// - `is_sos`, `is_critical`, `bia_reference_id`, `fallback_hash`: Added in
+///   Sonoma.
+/// - `is_time_sensitive`, `ck_chat_id`: Added in Tahoe.
+/// - `index_state`: Added in Tahoe 26.4.
 ///
 /// Chat table columns were originally observed in `chat.db` on Big Sur and
 /// extended as newer macOS releases added fields. Additional observed columns
 /// that are not currently decoded by these mapped rows:
 /// - `syndication_date`, `syndication_type`: Added in Monterey.
-/// - `is_recovered`: Added in Ventura.
-/// - `is_deleting_incoming_messages`, `is_pending_review`: Observed in Tahoe.
+/// - `is_recovered`: Added in Ventura 13.1.
+/// - `is_deleting_incoming_messages`: Added in Sonoma.
+/// - `is_pending_review`: Added in Tahoe.
 
 public protocol MappedDatabaseRow {
     init(row: borrowing Row, columns: MappedRowColumnIndexes) throws
@@ -194,6 +196,7 @@ public struct MappedChatRow: MappedDatabaseRow {
     public let chatIdentifier: String?
     public let roomName: String?
     public let accountLogin: String?
+    public let serviceName: String?
     public let lastAddressedHandle: String?
     public let displayName: String?
     public let groupID: String?
@@ -213,6 +216,7 @@ public struct MappedChatRow: MappedDatabaseRow {
         chatIdentifier = try row.string("chat_identifier", columns: columns)
         roomName = try row.string("room_name", columns: columns)
         accountLogin = try row.string("account_login", columns: columns)
+        serviceName = try row.string("service_name", columns: columns)
         lastAddressedHandle = try row.string("last_addressed_handle", columns: columns)
         displayName = try row.string("display_name", columns: columns)
         groupID = try row.string("group_id", columns: columns)

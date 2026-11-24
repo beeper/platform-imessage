@@ -1,32 +1,17 @@
 # Loctables
 
-Dump Chat/IM framework and accessibility bundle loctables as formatted JSON.
+Dump macOS Chat/IM and Privacy & Security localization tables to `loctables/<version>-<build>/` as JSON.
 
-## Local macOS
-
-```sh
-./loctables/dump.sh
-```
-
-## Remote macOS IPSW
-
-Requires [KishanBagaria/ipsw](https://github.com/KishanBagaria/ipsw) with ranged extraction support. Use `IPSW_BIN` if the binary isn’t on PATH.
+Run on macOS with Python 3.9+ and the repo’s Yarn dependencies installed. Remote dumps also require [ipsw v3.1.750+](https://github.com/blacktop/ipsw).
 
 ```sh
-IPSW_BIN=/path/to/ipsw ./loctables/dump.sh --ipsw latest
-IPSW_BIN=/path/to/ipsw ./loctables/dump.sh --ipsw 'https://…/UniversalMac_…_Restore.ipsw'
+./loctables/dump.sh                 # Installed macOS
+./loctables/dump.sh --ipsw latest   # Latest IPSW, or pass an IPSW URL
+./loctables/dump.sh --all           # Every release in sources.json
 ```
 
-Extraction uses HTTP byte ranges without downloading or mounting the entire disk image. Set `IPSW_DEVICE` to override the default `Macmini9,1` device selector.
-
-## Output
-
-Dumps are saved under `loctables/<version>-<build>/`. Use `--output` to choose another directory:
+Check a full rebuild against Git with
 
 ```sh
-./loctables/dump.sh --ipsw latest --output /tmp/loctables
+git diff --exit-code HEAD -- ':(glob)loctables/*/*.json'
 ```
-
-Both modes require macOS `plutil` and the repository’s Yarn/Prettier installation. IMAP resources are excluded.
-
-[sources.json](sources.json) lists the collected releases and their Apple download URLs. The checked macOS 11/12 releases contained no matching loctables.
