@@ -15,50 +15,47 @@ func secondaryMessagesLostOriginalSpaceSmoke() async throws {
     Preferences.useSecondaryMessagesInstance = true
     defer { Preferences.useSecondaryMessagesInstance = originalSecondary }
     let existing = NSRunningApplication.runningApplications(withBundleIdentifier: messagesBundleID)
-    let baseline = try Space.list(.allOSSpaces).map { UInt64($0.raw) }
-    let desktop = Space.activeID()
+    let baseline = try Space.list(.allOSSpaces).map(\.raw)
+    let desktop = smokeActiveSpaceID()
     let coordinator = try BridgedSpacesWindowCoordinator()
     let bridge = try #require(SpaceBridge())
     let app = try await runSmokeWorker {
         try await MessagesInstanceTarget.launchSecondaryInstance(initialDeepLink: MessagesDeepLink.compose.url())
     }
     try #require(!existing.contains { $0.processIdentifier == app.processIdentifier })
-    var source: UInt64 = 0
+    var source: Space?
     defer {
         try? coordinator.dispose()
-        if source != 0 { _ = bridge.destroySpace(source) }
+        if let source { try? bridge.destroy(source) }
         app.terminate()
     }
     coordinator.app = app
     let elements = smokeElements(runningApp: app)
     let window = try await runSmokeWorker { try await elements.mainWindow }
     let windowID = try window.window().raw
-    let created = try #require(bridge.createSpace(values: ["type": 0, "uuid": "Beeper-Recovery-Smoke-\(UUID().uuidString)"]))
-    try #require(!baseline.contains(created))
+    let created = try bridge.createSpace(values: ["type": 0, "uuid": "Beeper-Recovery-Smoke-\(UUID().uuidString)"])
+    try #require(!baseline.contains(created.raw))
     source = created
-    try #require(bridge.moveWindow(windowID, toSpace: source))
-    try await waitForSmoke("secondary Space recovery", timeout: 3) { Space.ids(forWindow: windowID) == [source] }
+    try bridge.move(Window(raw: windowID), toManagedSpace: created)
+    try await waitForSmoke("secondary Space recovery", timeout: 3) { smokeSpaceIDs(forWindow: windowID) == [created.raw] }
     try runSmokeWorker { try coordinator.makeAutomatable(window) }
-    let hidden = try #require(Space.ids(forWindow: windowID)?.first)
-    try #require(hidden != source && hidden != desktop)
-    try #require(Space.activeID() == desktop)
-    try #require(bridge.destroySpace(source))
-    try await waitForSmoke("secondary Space recovery", timeout: 3) { try !Space.list(.allOSSpaces).contains { UInt64($0.raw) == source } }
-    source = 0
+    let hidden = try #require(smokeSpaceIDs(forWindow: windowID)?.first)
+    try #require(hidden != created.raw && hidden != desktop)
+    try #require(smokeActiveSpaceID() == desktop)
+    try bridge.destroy(created)
+    try await waitForSmoke("secondary Space recovery", timeout: 3) { try !Space.exists(created.raw) }
+    source = nil
     // Restoration must not flash the secondary window on the visible desktop.
     app.hide()
     try await waitForSmoke("secondary Space recovery", timeout: 3) { try elements.app.isHidden() }
     try runSmokeWorker { try coordinator.dispose() }
-    let restored = try #require(Space.ids(forWindow: windowID)?.first)
-    let visible = try #require(Space.managedDisplaySpaces()).compactMap { record -> UInt64? in
-        guard let current = record["Current Space"] as? [String: Any] else { return nil }
-        return (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value
-    }
+    let restored = try #require(smokeSpaceIDs(forWindow: windowID)?.first)
+    let visible = try Display.managedSpaces().compactMap(\.currentSpace)
     #expect(visible.contains(restored))
-    #expect(Space.activeID() == desktop)
+    #expect(smokeActiveSpaceID() == desktop)
     // Individual hosts restore their windows but retain the shared parking
     // pool. It may have existed at baseline or have been created by this test.
     #expect(try PersistentUnknownSpace.isReusable(hidden))
-    #expect(try Set(Space.list(.allOSSpaces).map { UInt64($0.raw) }) == Set(baseline).union([hidden]))
+    #expect(try Set(Space.list(.allOSSpaces).map(\.raw)) == Set(baseline).union([hidden]))
     #expect(existing.allSatisfy { !$0.isTerminated })
 }

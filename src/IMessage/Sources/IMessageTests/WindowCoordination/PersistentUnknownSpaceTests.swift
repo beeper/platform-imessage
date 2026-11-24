@@ -32,7 +32,7 @@ func persistentUnknownSpaceChoosesSameCandidateRegardlessOfEnumerationOrder() {
 
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_UNKNOWN_SPACE_POOL_SMOKE"] == "1"))
 func persistentUnknownSpaceLiveReuseSmoke() throws {
-    let managedBefore = try #require(Space.managedDisplaySpaces()) as NSArray
+    let managedBefore = try Display.managedSpaces()
     var selected: UInt64?
     for _ in 0..<12 {
         let bridge = try #require(SpaceBridge())
@@ -41,7 +41,7 @@ func persistentUnknownSpaceLiveReuseSmoke() throws {
         selected = acquired
         #expect(try PersistentUnknownSpace.isReusable(acquired))
     }
-    #expect(try #require(Space.managedDisplaySpaces()) as NSArray == managedBefore)
+    #expect(try Display.managedSpaces() == managedBefore)
     print("UNKNOWN_SPACE_POOL_REUSE launcherPID=\(getpid()) space=\(try #require(selected)) acquisitions=12")
     fflush(nil)
 }

@@ -6,14 +6,11 @@ import WindowControl
 @testable import IMessage
 
 private func isWindowOnVisibleDesktop(_ window: UInt32) -> Bool {
-    guard let membership = Space.ids(forWindow: window), !membership.isEmpty,
-          let topology = Space.managedDisplaySpaces() else { return false }
-    let visibleSpaces = topology.compactMap { record -> UInt64? in
-        guard let current = record["Current Space"] as? [String: Any] else { return nil }
-        return (current["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (current["id64"] as? NSNumber)?.uint64Value
-    }
+    guard let membership = smokeSpaceIDs(forWindow: window), !membership.isEmpty,
+          let topology = try? Display.managedSpaces() else { return false }
+    let visibleSpaces = topology.compactMap(\.currentSpace)
     return membership.allSatisfy {
-        visibleSpaces.contains($0) || $0 == Space.activeID()
+        visibleSpaces.contains($0) || $0 == smokeActiveSpaceID()
     }
 }
 
@@ -45,12 +42,12 @@ func secondaryMessagesActivationDockSmoke() async throws {
     // Follow the AX-confirmed main window, not the first wide CG surface:
     // Messages also owns wide menu-bar and unnamed internal windows.
     let window = try await runSmokeWorker { try await controller.elements.mainWindow.window().raw }
-    let idleSpace = Space.ids(forWindow: window)?.first
+    let idleSpace = smokeSpaceIDs(forWindow: window)?.first
     if usesBridge {
         #expect(idleSpace != nil && !isWindowOnVisibleDesktop(window))
         #expect(try !Accessibility.Element(pid: app.processIdentifier).isHidden())
-        let parked = try #require(idleSpace.flatMap { Space(raw: .init($0)) })
-        #expect(try parked.kind() == .unknown)
+        let parked = try #require(idleSpace.flatMap { Space(raw: $0) })
+        #expect(parked.kind() == .unknown)
         #expect((try parked.values() as NSDictionary)["ManagedSpaceID"] == nil)
         #expect(try !Window.listDescriptions(.onScreen).contains { $0.owner == app.processIdentifier })
     }
@@ -65,7 +62,7 @@ func secondaryMessagesActivationDockSmoke() async throws {
     try #require(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
     // Let lifecycle observation finish starting before testing user activation.
     try await Task.sleep(forTimeInterval: 1)
-    let activationDesktop = Space.activeID()
+    let activationDesktop = smokeActiveSpaceID()
     try #require(app.activate(options: []))
     let activationDeadline = Date().addingTimeInterval(5)
     while Date() < activationDeadline {
@@ -82,7 +79,7 @@ func secondaryMessagesActivationDockSmoke() async throws {
         #expect(try smokeOnscreen(window))
         // Wait beyond the initial activation for a queued Dock Space switch.
         try await Task.sleep(forTimeInterval: 1)
-        #expect(Space.activeID() == activationDesktop)
+        #expect(smokeActiveSpaceID() == activationDesktop)
         #expect(try smokeOnscreen(window))
     }
     let activatedDock = try messagesDockSnapshot()
@@ -111,7 +108,7 @@ func secondaryMessagesActivationDockSmoke() async throws {
     }
     #expect(try MessagesDockSuppression.applicationType(for: app.processIdentifier) == "invalid")
     if usesBridge {
-        let restored = Space.ids(forWindow: window)?.first
+        let restored = smokeSpaceIDs(forWindow: window)?.first
         #expect(restored == idleSpace && !isWindowOnVisibleDesktop(window))
         #expect(try !Accessibility.Element(pid: app.processIdentifier).isHidden())
         #expect(try await runSmokeWorker { try await controller.elements.mainWindow.window().raw } == window)
@@ -139,7 +136,7 @@ func secondaryMessagesActivationDockSmoke() async throws {
     }
     try await Task.sleep(forTimeInterval: 1)
     #expect(isTargetActive())
-    #expect(Space.activeID() == activationDesktop)
+    #expect(smokeActiveSpaceID() == activationDesktop)
     #expect(try smokeOnscreen(window))
 
     // Activate during automation while the window is parked. Completion keeps

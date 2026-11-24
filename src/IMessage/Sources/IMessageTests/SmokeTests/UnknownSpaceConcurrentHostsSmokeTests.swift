@@ -35,8 +35,8 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     let parking = try #require(try smokeWindowSpaces(first.window).first)
     #expect(try smokeWindowSpaces(first.window) == [parking])
     #expect(try smokeWindowSpaces(second.window) == [parking])
-    let space = try #require(Space(raw: .init(parking)))
-    #expect(try space.kind() == .unknown)
+    let space = try #require(Space(raw: parking))
+    #expect(space.kind() == .unknown)
     let values = try space.values() as NSDictionary
     #expect(values["ManagedSpaceID"] == nil)
     #expect(values["uuid"] as? String == PersistentUnknownSpace.uuid)
@@ -87,7 +87,7 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     // Let observer startup finish, then use native activation only. The
     // production lifecycle callback must restore Dock presence and reveal.
     try await Task.sleep(forTimeInterval: 1)
-    let activationDesktop = Space.activeID()
+    let activationDesktop = smokeActiveSpaceID()
     try #require(second.app.activate(options: [.activateAllWindows]))
     try await waitForSmoke("second Messages activation and reveal") {
         try smokeFrontmost(second.elements.app) && smokeOnscreen(second.window) &&
@@ -99,8 +99,8 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     try await Task.sleep(forTimeInterval: 1)
     #expect(try smokeFrontmost(second.elements.app))
     #expect(try smokeOnscreen(second.window))
-    #expect(Space.activeID() == activationDesktop)
-    #expect(Space.activeID() != parking)
+    #expect(smokeActiveSpaceID() == activationDesktop)
+    #expect(smokeActiveSpaceID() != parking)
     #expect(smokeProcessExited(first.app.processIdentifier))
     #expect(try !Window.listDescriptions(.all).contains { $0.owner == first.app.processIdentifier || $0.window.raw == first.window })
     #expect(smokeMessagesPIDs() == existingPIDs.union([second.app.processIdentifier]))
