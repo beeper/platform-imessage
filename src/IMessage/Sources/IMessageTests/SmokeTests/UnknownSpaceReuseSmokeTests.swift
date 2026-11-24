@@ -2,7 +2,6 @@ import AppKit
 import AccessibilityControl
 import ApplicationServices
 import Darwin
-import IMessagePrivateSPI
 import Testing
 import WindowControl
 @testable import IMessage
@@ -60,7 +59,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     try #require(!existingPIDs.contains(app.processIdentifier), "Only the new secondary process may be controlled")
     let main = try await runSmokeWorker { try await controller.elements.mainWindow }
     let window = try main.window().raw
-    let membership = try #require(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value))
+    let membership = try #require(Space.ids(forWindow: window))
     try #require(membership.count == 1, "Idle Messages must belong exclusively to its parking Space")
     let parking = try #require(membership.first)
     let space = try #require(Space(raw: .init(parking)))
@@ -72,13 +71,13 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(try smokePoolSpaceIDs() == Set([parking]))
     #expect(try smokeManagedSpaceIDs() == baselineManaged)
     #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
-    #expect(IMPrivateSPIActiveSpace() != parking)
+    #expect(Space.activeID() != parking)
     try await smokeAssertParkedAX(elements: controller.elements, window: window, parking: parking)
     // A second host must not move windows owned by this live coordinator.
     let competing = try BridgedSpacesWindowCoordinator()
     competing.app = app
     #expect(throws: (any Error).self) { try competing.prepareAfterLaunch() }
-    #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
+    #expect(Space.ids(forWindow: window) == [parking])
     #expect(!app.isTerminated)
 
     // Activate through the production lifecycle observer. Unknown Spaces must
@@ -88,7 +87,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     var stableSince: Date?
     try await waitForSmoke("stable Messages activation and ordinary-desktop reveal") {
         let ready = try smokeFrontmost(controller.elements.app) && smokeOnscreen(window) &&
-            !(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value).contains(parking) ?? true) &&
+            !(Space.ids(forWindow: window)?.contains(parking) ?? true) &&
             MessagesDockSuppression.applicationType(for: app.processIdentifier) == "Foreground"
         guard ready else {
             if stableSince != nil {
@@ -106,7 +105,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
         // asynchronously. Observe a settled handoff without issuing a retry.
         return Date().timeIntervalSince(stableSince) >= 0.5
     }
-    let revealed = try #require(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value))
+    let revealed = try #require(Space.ids(forWindow: window))
     #expect(revealed.count == 1 && revealed.allSatisfy { baselineCurrent.contains($0) })
     try await Task.sleep(forTimeInterval: 0.5)
     let actualFrontmost = NSWorkspace.shared.frontmostApplication
@@ -114,7 +113,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     #expect(try smokeFrontmost(controller.elements.app), Comment(rawValue:
         "Expected Messages PID \(app.processIdentifier); frontmost=\(actualFrontmost?.bundleIdentifier ?? "nil") PID=\(actualFrontmost?.processIdentifier ?? 0); presentation=\(presentation ?? "nil")"))
     #expect(try smokeOnscreen(window))
-    #expect(IMPrivateSPIActiveSpace() != parking)
+    #expect(Space.activeID() != parking)
     #expect(try smokeManagedSpaceIDs(currentOnly: true) == baselineCurrent)
 
     let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
@@ -123,7 +122,7 @@ private func reuseControllerCycle(cycle: Int, baselineManaged: Set<UInt64>, base
     try await Task.sleep(forTimeInterval: 0.25)
     try await runSmokeWorker {
         try await controller.withAutomation { () async throws -> Void in
-            #expect(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value) == [parking])
+            #expect(Space.ids(forWindow: window) == [parking])
             #expect(try !smokeOnscreen(window))
         }
     }

@@ -1,7 +1,6 @@
 import AppKit
 import AccessibilityControl
 import Darwin
-import IMessagePrivateSPI
 import WindowControl
 @testable import IMessage
 import IMessageCore
@@ -58,7 +57,7 @@ func smokeFrontmost(_ app: Accessibility.Element) throws -> Bool {
 }
 
 func smokeWindowSpaces(_ window: UInt32) throws -> [UInt64] {
-    try #require(IMPrivateSPISpacesForWindow(window)?.map(\.uint64Value))
+    try #require(Space.ids(forWindow: window))
 }
 
 func smokePoolSpaceIDs() throws -> Set<UInt64> {
@@ -75,7 +74,7 @@ func smokePoolSpaceIDs() throws -> Set<UInt64> {
 }
 
 func smokeManagedSpaceIDs(currentOnly: Bool = false) throws -> Set<UInt64> {
-    let topology = try #require(IMPrivateSPICopyManagedDisplaySpaces())
+    let topology = try #require(Space.managedDisplaySpaces())
     try #require(!topology.isEmpty)
     return Set(topology.flatMap { display -> [UInt64] in
         let current = (display["Current Space"] as? [String: Any]).map { [$0] } ?? []

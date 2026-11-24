@@ -1,6 +1,5 @@
 import Foundation
 import Darwin
-import IMessagePrivateSPI
 import Testing
 import WindowControl
 @testable import IMessage
@@ -33,16 +32,16 @@ func persistentUnknownSpaceChoosesSameCandidateRegardlessOfEnumerationOrder() {
 
 @Test(.enabled(if: ProcessInfo.processInfo.environment["IMESSAGE_RUN_UNKNOWN_SPACE_POOL_SMOKE"] == "1"))
 func persistentUnknownSpaceLiveReuseSmoke() throws {
-    let managedBefore = try #require(IMPrivateSPICopyManagedDisplaySpaces()) as NSArray
+    let managedBefore = try #require(Space.managedDisplaySpaces()) as NSArray
     var selected: UInt64?
     for _ in 0..<12 {
-        let bridge = try #require(IMPrivateSPISpaceBridgeCreate())
+        let bridge = try #require(SpaceBridge())
         let acquired = try PersistentUnknownSpace.acquire(bridge: bridge)
         if let selected { #expect(acquired == selected) }
         selected = acquired
         #expect(try PersistentUnknownSpace.isReusable(acquired))
     }
-    #expect(try #require(IMPrivateSPICopyManagedDisplaySpaces()) as NSArray == managedBefore)
+    #expect(try #require(Space.managedDisplaySpaces()) as NSArray == managedBefore)
     print("UNKNOWN_SPACE_POOL_REUSE launcherPID=\(getpid()) space=\(try #require(selected)) acquisitions=12")
     fflush(nil)
 }

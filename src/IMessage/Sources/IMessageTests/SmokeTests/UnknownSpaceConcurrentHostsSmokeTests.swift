@@ -3,7 +3,6 @@ import AccessibilityControl
 import ApplicationServices
 import Darwin
 import IMessageCore
-import IMessagePrivateSPI
 import Testing
 import WindowControl
 @testable import IMessage
@@ -88,7 +87,7 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     // Let observer startup finish, then use native activation only. The
     // production lifecycle callback must restore Dock presence and reveal.
     try await Task.sleep(forTimeInterval: 1)
-    let activationDesktop = IMPrivateSPIActiveSpace()
+    let activationDesktop = Space.activeID()
     try #require(second.app.activate(options: [.activateAllWindows]))
     try await waitForSmoke("second Messages activation and reveal") {
         try smokeFrontmost(second.elements.app) && smokeOnscreen(second.window) &&
@@ -100,8 +99,8 @@ func unknownSpaceConcurrentHostsSmoke() async throws {
     try await Task.sleep(forTimeInterval: 1)
     #expect(try smokeFrontmost(second.elements.app))
     #expect(try smokeOnscreen(second.window))
-    #expect(IMPrivateSPIActiveSpace() == activationDesktop)
-    #expect(IMPrivateSPIActiveSpace() != parking)
+    #expect(Space.activeID() == activationDesktop)
+    #expect(Space.activeID() != parking)
     #expect(smokeProcessExited(first.app.processIdentifier))
     #expect(try !Window.listDescriptions(.all).contains { $0.owner == first.app.processIdentifier || $0.window.raw == first.window })
     #expect(smokeMessagesPIDs() == existingPIDs.union([second.app.processIdentifier]))
