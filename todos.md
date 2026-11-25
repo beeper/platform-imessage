@@ -2,7 +2,6 @@
 
 - [ ] improve readme, add screenshots
 
-- [ ] publish to homebrew
 - [ ] add example Swift script that consumes the library
 
 - [ ] improve permissions prompt, use <https://github.com/zats/permiso>
@@ -20,7 +19,6 @@
 - [ ] perhaps move PlatformSDK to <https://github.com/TextsHQ/platform-sdk>
 
 - concurrency
-  - [ ] review for races, `PlatformAPI.messagesController` is mutated without isolation
   - [ ] adopt strict-concurrency checking (compiler-verify the actor-isolation model the automation lane relies on). Add `swiftSettings: [.unsafeFlags(["-strict-concurrency=targeted"])]` to the `IMessage` target in Package.swift, then clear the ~20 concurrency warnings it surfaces (26 unique total): non-Sendable captures in `@Sendable` closures and generic `T` not Sendable across `PlatformAPI.swift`, `PlatformAPI+MessagesController.swift` (lane generics), `MessagesController.swift`, `EclipsingWindowCoordinator.swift`, `PromptAutomation.swift`, `Pasteboard+Backup.swift`. Fix with real `Sendable` conformances / isolation annotations — NOT blanket `@unchecked Sendable`, which would defeat the point. Warnings only in Swift 5 mode (build still succeeds), so this can land incrementally; do it as a focused pass with its own QA since it touches fragile AX code. Surfaced by /plan-eng-review on kb/modern-concurrency (Issue 2 / T5); deferred after measuring the warning volume.
 
 - [ ] improve misfire prevention and robustness
@@ -43,11 +41,13 @@
   - [ ] support rich text sending
   - [ ] support sending multipart messages (image(s) with caption)
   - [ ] fix parsing for multi-part messages w inline stickers
-  - [ ] [fix real time sync of message deletions (for self, undo send already works)](https://github.com/beeper/platform-imessage/pull/63)
+  - [ ] fix real time sync of message deletions (for self, undo send already works) (#63 was closed unmerged)
 
 ### Done
 
 - [x] publish to gh releases
+- [x] publish to homebrew
+- [x] review for races, `PlatformAPI.messagesController` is mutated without isolation (replaced by `MessagesControllerCoordinator` + automation lane)
 - [x] publish to spm
 - [x] transpile to pure Swift with TypeScript/Electron bindings
 - [x] [add support for spinning up a discrete instance of Messages.app](https://github.com/beeper/platform-imessage/pull/65)
