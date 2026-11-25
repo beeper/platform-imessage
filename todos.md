@@ -26,8 +26,6 @@
 
 - cli
   - [ ] command to watch chat that prints new activity for just that chat, json new-line separated
-  - [ ] use better library for repl?
-  - [ ] autocomplete
   - [ ] tests
 
 - parity
@@ -72,6 +70,8 @@
   - [x] format flag for yaml readable output
   - [x] one off command to print presence (dnd / dnd w notify) and typing status
   - [x] syntax highlight
+  - [x] use better library for repl (libedit)
+  - [x] autocomplete (command names)
 - [x] fix sending emoji reactions (🎉)
 - [x] add download attachment command
 - [x] map all message edits

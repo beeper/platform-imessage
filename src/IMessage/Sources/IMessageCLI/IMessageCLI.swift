@@ -427,7 +427,7 @@ private final class Runner {
     private func runShell() async throws {
         let shouldStartEventWatching = try await runShellAuthorizationFlowIfNeeded()
         printTopLevelHelp()
-        let lineReader = ShellLineReader(prompt: prompt)
+        let lineReader = ShellLineReader(prompt: prompt, completions: shellCompletions)
         Log.consoleEmitter = { [lineReader] line in
             lineReader.printConsoleLine(line)
         }
@@ -998,6 +998,17 @@ private let commandAliases = [
     "delete-thread": "delete-chat",
     "select-thread": "select-chat",
 ]
+
+private let completableCommandNames = Array(commandMap.keys) + Array(commandAliases.keys)
+
+/// Tab-completion candidates for the shell: command names for the first word, and for `help COMMAND`.
+private func shellCompletions(precedingWords: [String]) -> [String] {
+    switch precedingWords {
+    case []: completableCommandNames + quitCommands
+    case ["help"]: completableCommandNames
+    default: []
+    }
+}
 
 private func resolveCommand(_ name: String) -> CommandDefinition? {
     commandMap[name] ?? commandAliases[name].flatMap { commandMap[$0] }
