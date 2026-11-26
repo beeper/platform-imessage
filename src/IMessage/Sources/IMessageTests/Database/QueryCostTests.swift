@@ -58,6 +58,7 @@ private let queryCases: [QueryCase] = [
     QueryCase("chatStates", budget: 40_000) { _ = try $0.chatStates() },
     QueryCase("chats", budget: 10_000) { _ = try $0.chats() },
     QueryCase("chat(withGUID:)", budget: 2_000) { _ = try $0.chat(withGUID: smallChat) },
+    QueryCase("latestMessageService huge chat", budget: 2_000) { _ = try $0.latestMessageService(chatRowID: Synthetic.hugeChatRowID) },
     QueryCase("handles(inChatWithGUID:)", budget: 2_000) { _ = try $0.handles(inChatWithGUID: hugeChat) },
     QueryCase("allThreadGUIDs", budget: 5_000) { _ = try $0.allThreadGUIDs() },
     QueryCase("accountLogins", budget: 5_000) { _ = try $0.accountLogins() },
