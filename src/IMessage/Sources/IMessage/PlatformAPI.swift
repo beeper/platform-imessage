@@ -453,7 +453,8 @@ public final class PlatformAPI {
                 try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
             }.value
         }
-        try await retry(retries: 1, interval: 1) { _ in
+        try await retry(retries: 1, interval: 1) { attempt in
+            if attempt > 0, try await readNow() { return }
             try await withMessagesController { controller in
                 onStart()
                 guard try await !readNow() else { return }
