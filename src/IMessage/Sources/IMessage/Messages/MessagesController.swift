@@ -167,8 +167,10 @@ final class MessagesController {
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
-        guard let contacts, let a, let b else { return false }
-        return contacts.fetchID(for: a) == contacts.fetchID(for: b)
+        guard let a, let b else { return false }
+        if a == b { return true }
+        guard let contacts, let contactID = contacts.fetchID(for: a) else { return false }
+        return contactID == contacts.fetchID(for: b)
     }
 
     private func getToFieldAddresses() async -> [String]? {
