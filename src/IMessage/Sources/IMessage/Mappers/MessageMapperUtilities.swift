@@ -1,4 +1,5 @@
 import Foundation
+import IMDatabase
 import IMessageCore
 import PlatformSDK
 
