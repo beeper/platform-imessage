@@ -11,6 +11,7 @@ private let reactionSendTimeout: TimeInterval = 5
 private let waitForSentThreadTimeout: TimeInterval = 10
 private let loadAttachmentTimeout: TimeInterval = 60
 private let readReceiptLandTimeout: TimeInterval = 3
+private let messageDeleteLandTimeout: TimeInterval = 3
 
 private final class PlatformAPIDatabase: @unchecked Sendable {
     private let state = Protected(State())
@@ -403,7 +404,24 @@ public final class PlatformAPI {
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        try await withMessagesController { try await $0.undoSend(threadID: threadID, messageID: messageID) }
+        guard try await getMessage(threadID: publicThreadID, messageID: messageID)?.isErrored == true else {
+            try await withMessagesController { try await $0.undoSend(threadID: threadID, messageID: messageID) }
+            return
+        }
+
+        try await withMessagesController { try await $0.deleteMessage(threadID: threadID, messageID: messageID) }
+        let guid = messageGUID(fromID: messageID)
+        try await retry(withTimeout: messageDeleteLandTimeout, interval: 0.1) {
+            let isInThread = try await self.runDBQuery { db, _, _ in
+                try db.mappedMessageRow(guid: guid)?.threadID != nil
+            }
+            guard !isInThread else {
+                throw ErrorMessage("Messages didn't delete \(messageID)")
+            }
+        }
+        try await EventWatcherLifecycle.shared.sendEvents([
+            .deleteMessages(threadID: publicThreadID, ids: [messageID])
+        ])
     }
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {

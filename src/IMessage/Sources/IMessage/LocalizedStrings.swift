@@ -61,6 +61,7 @@ public enum LocalizedStrings {
     static let markAsRead = chatString("MARK_AS_READ")
     static let markAsUnread = chatString("MARK_AS_UNREAD")
     static let delete = chatString("DELETE")
+    static let deleteEllipsis = chatString("DELETE_ELLIPSIS")
     static let pin = chatString("PIN")
     static let unpin = chatString("UNPIN")
 
