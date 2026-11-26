@@ -249,7 +249,7 @@ final class MessagesController {
                         log.error("assertSelectedThread: resorted to fallback in order to assert selection")
                         return
                     }
-                    if let threadLabels, await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: true) {
+                    if await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: true) {
                         log.warning("assertSelectedThread: Messages has the chat selected, accepting it without a change")
                         return
                     }
@@ -320,10 +320,11 @@ final class MessagesController {
         Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true
     }
 
-    private func messagesSelected(_ threadID: String, labels: Set<String>, recordedBeforeOpening: Bool) async -> Bool {
+    private func messagesSelected(_ threadID: String, labels: Set<String>?, recordedBeforeOpening: Bool) async -> Bool {
         guard messagesRecordsSelection(of: threadID) else { return false }
         guard recordedBeforeOpening else { return true }
         let now = await currentSelection()
+        guard let labels else { return now.rowLabel == nil || now.rowLabel == now.windowTitle }
         return [now.windowTitle, now.rowLabel].contains { name in
             name.map { selection(ConversationSelection(rowLabel: $0, windowTitle: $0), matches: labels) } == true
         }
@@ -364,13 +365,16 @@ final class MessagesController {
         let recordedBeforeOpening = messagesRecordsSelection(of: threadID)
         var openedAt = Date()
         try await openDeepLink(deepLink)
+        if threadLabels == nil, recordedBeforeOpening, before.rowLabel == nil || before.rowLabel == before.windowTitle {
+            return try await assertSelectedThread(threadID: threadID, since: openedAt)
+        }
         if await waitForSelection(of: threadLabels, awayFrom: before) {
             return try await assertSelectedThread(threadID: threadID, since: openedAt, labels: threadLabels)
         }
 
         if let threadLabels {
             if await !messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) {
-                guard reopening else { return try await assertSelectedThread(threadID: threadID, since: openedAt, labels: threadLabels) }
+                guard reopening else { throw ErrorMessage("Messages didn't switch to the chat") }
                 log.warning("Messages didn't select the chat, reopening it by chat id")
                 openedAt = Date()
                 try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
@@ -390,7 +394,7 @@ final class MessagesController {
            now.rowLabel == nil || now.rowLabel == now.windowTitle {
             return
         }
-        guard reopening else { return try await assertSelectedThread(threadID: threadID, since: openedAt) }
+        guard reopening else { throw ErrorMessage("Messages didn't switch to the chat") }
         log.warning("Messages didn't visibly switch chats, reopening the chat by id")
         openedAt = Date()
         try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
@@ -792,6 +796,16 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             _ = try? await closeReplyTranscriptView()
         }
 
+        func currentMessageCell() async throws -> (cell: Accessibility.Element?, transcript: Accessibility.Element) {
+            if messageCell.overlay {
+                let transcript = try await elements.replyTranscriptView
+                return (try MessagesAppElements.firstMessageCell(in: transcript), transcript)
+            }
+            let transcript = try await elements.transcriptView
+            return (try MessagesAppElements.firstSelectedMessageCell(in: transcript), transcript)
+        }
+        let cellBeforeOpening = try? await currentMessageCell().cell
+
         try await withActivation(openBefore: deepLink, threadID: threadID) {
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
@@ -805,21 +819,17 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             }
             var noMessageCell = false
             let found: (cell: Accessibility.Element, transcript: Accessibility.Element)?
+            let acceptsCellBeforeOpeningAt = Date().addingTimeInterval(0.6)
             do {
                 found = try await retry(withTimeout: 1, interval: 0.2) { () async throws -> (cell: Accessibility.Element, transcript: Accessibility.Element)? in
                     noMessageCell = false
-                    let transcript: Accessibility.Element
-                    let cell: Accessibility.Element?
-                    if messageCell.overlay {
-                        transcript = try await elements.replyTranscriptView
-                        cell = try MessagesAppElements.firstMessageCell(in: transcript)
-                    } else {
-                        transcript = try await elements.transcriptView
-                        cell = try MessagesAppElements.firstSelectedMessageCell(in: transcript)
-                    }
+                    let (cell, transcript) = try await currentMessageCell()
                     guard let cell else {
                         noMessageCell = true
                         throw ErrorMessage("message cell nil")
+                    }
+                    guard cell != cellBeforeOpening || Date() >= acceptsCellBeforeOpeningAt else {
+                        throw ErrorMessage("message cell is still the one from before opening the message")
                     }
                     guard cell.isInViewport else { throw ErrorMessage("message cell not in viewport") }
                     return (cell, transcript)
