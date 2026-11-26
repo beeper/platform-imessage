@@ -24,6 +24,9 @@ enum ImageMetadataReader {
         }
 
         let metadata = read(from: filePath)
+        if metadata == nil, !FileManager.default.fileExists(atPath: filePath) {
+            return nil
+        }
         cache.setObject(CachedImageMetadata(metadata), forKey: nsCacheKey)
         return metadata
     }

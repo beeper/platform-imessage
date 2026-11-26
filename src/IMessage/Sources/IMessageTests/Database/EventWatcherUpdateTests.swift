@@ -236,12 +236,13 @@ import Testing
     let rowID = 21
     let attachmentRowID = 210
     let messageGUID = "00000000-0000-4000-8000-000000000047"
+    let attachmentURL = fixture.directory.appendingPathComponent("fixture-loading.jpg")
     try insertJoinedMessage(fixture: fixture, rowID: rowID, guid: messageGUID, text: "")
     try fixture.insertAttachment(
         rowID: attachmentRowID,
         messageRowID: rowID,
         guid: "00000000-0000-4000-8000-000000000210",
-        filename: "/tmp/fixture-loading.jpg",
+        filename: attachmentURL.path,
         totalBytes: 10,
         transferState: Attachment.IMFileTransferState.transferring.rawValue
     )
@@ -257,6 +258,7 @@ import Testing
     #expect(watcher.pendingMessageHydrationCandidates[rowID] != nil)
     #expect(watcher.pendingWakeTask != nil)
 
+    try Data(count: 10).write(to: attachmentURL)
     try fixture.updateAttachmentTransferState(
         rowID: attachmentRowID,
         transferState: Attachment.IMFileTransferState.finished.rawValue

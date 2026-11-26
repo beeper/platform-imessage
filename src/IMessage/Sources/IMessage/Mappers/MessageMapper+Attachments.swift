@@ -24,7 +24,9 @@ extension Mapper {
         }
         let size = attachmentRow.size.flatMap(PlatformSDK.Size.init(size:))
         let isSticker = attachmentRow.isSticker == 1
-        let loading = transferState != Attachment.IMFileTransferState.finished.rawValue
+        let isFileMissing = ext != "pluginpayloadattachment"
+            && filePath.map { !$0.isEmpty && !FileManager.default.fileExists(atPath: $0) } == true
+        let loading = transferState != Attachment.IMFileTransferState.finished.rawValue || isFileMissing
 
         if imageExtensions.contains(ext) || ext == "pluginpayloadattachment" {
             var imageSrcURL = srcURL
