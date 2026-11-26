@@ -79,6 +79,10 @@ import PlatformSDK
         return try encodeJSON(thread?.jsonObject)
     }
 
+    @NodeMethod func getThreadIDs() async throws -> String {
+        try encodeJSON(try await api.getThreadIDs())
+    }
+
     @NodeMethod func getMessage(threadID: String, messageID: String) async throws -> String {
         let message = try await api.getMessage(threadID: threadID, messageID: messageID)
         return try encodeJSON(message?.jsonObject)

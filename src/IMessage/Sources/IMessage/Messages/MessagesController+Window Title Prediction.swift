@@ -13,7 +13,7 @@ import Foundation
 private let log = Logger(imessageLabel: "window-title-prediction")
 
 private enum ChatMember {
-    case contact(CNContact)
+    case contacts([CNContact])
     case stranger(Handle)
 }
 
@@ -53,26 +53,30 @@ extension MessagesController {
         }
 
         let members = try db.handles(inChatWithGUID: guid).map { handle in
-            if let contact = contacts.firstMatching(emailOrPhoneNumber: handle.id) {
-                ChatMember.contact(contact)
-            } else {
-                ChatMember.stranger(handle)
-            }
+            let matches = contacts.allMatching(emailOrPhoneNumber: handle.id)
+            return matches.isEmpty ? ChatMember.stranger(handle) : ChatMember.contacts(matches)
         }
 
         var predictions = Set<String>()
 
         func groupChatDisplayNamePredictions(formattingContactsUsingStyle style: Contacts.FormatStyle) throws -> Set<String> {
-            let memberNames = try members.map { member in
+            let memberNameCandidates = try members.map { member -> [String] in
                 switch member {
-                case let .contact(contact):
-                    try contacts.formatPreferringShortStyle(contact: contact)
-                        .orThrow(ErrorMessage("misfire prevention: chat display name: couldn't format a group chat member's contact"))
-                case let .stranger(handle): handle.id.tryFormattingIfPhoneNumber
+                case let .contacts(matches):
+                    let names = matches.compactMap { contacts.formatPreferringShortStyle(contact: $0) }
+                    guard !names.isEmpty else {
+                        throw ErrorMessage("misfire prevention: chat display name: couldn't format a group chat member's contact")
+                    }
+                    return names
+                case let .stranger(handle):
+                    return [handle.id.tryFormattingIfPhoneNumber]
                 }
             }
+            let memberNameLists = memberNameCandidates.reduce([[String]()]) { lists, candidates in
+                lists.flatMap { list in candidates.map { list + [$0] } }
+            }
 
-            var predictions: Set<String> = [shortFormattedList(memberNames)]
+            var predictions = Set(memberNameLists.map(shortFormattedList))
 
             // HACK: in test group chats with a test account and myself (added
             // redundantly, which is possible during creation), for whatever
@@ -81,8 +85,10 @@ extension MessagesController {
             // blindly adding a swapped prediction for group chats with only
             // two other people, which might help with some other edge cases
             // too
-            if Defaults.imessage.bool(forKey: DefaultsKeys.predictionEnableSwapping), memberNames.count == 2 {
-                predictions.insert(shortFormattedList([memberNames[1], memberNames[0]]))
+            if Defaults.imessage.bool(forKey: DefaultsKeys.predictionEnableSwapping) {
+                for memberNames in memberNameLists where memberNames.count == 2 {
+                    predictions.insert(shortFormattedList([memberNames[1], memberNames[0]]))
+                }
             }
 
             return predictions
@@ -111,16 +117,19 @@ extension MessagesController {
         }
 
         // should map onto a single person
-        if let contact = contacts.firstMatching(emailOrPhoneNumber: address) {
-            log.debug("misfire prevention: found matching contact for address")
+        let matches = contacts.allMatching(emailOrPhoneNumber: address)
+        if !matches.isEmpty {
+            log.debug("misfire prevention: found \(matches.count) matching contact(s) for address")
 
-            return Set([
-                // attempt to match against the private "short" contact format style
-                // that prefers nicknames, since iMessage uses it for the window title
-                contacts.format(contact: contact, style: .short),
+            return Set(matches.flatMap { contact in
+                [
+                    // attempt to match against the private "short" contact format style
+                    // that prefers nicknames, since iMessage uses it for the window title
+                    contacts.format(contact: contact, style: .short),
 
-                contacts.format(contact: contact, style: .standard),
-            ].compactMap(\.self))
+                    contacts.format(contact: contact, style: .standard),
+                ].compactMap(\.self)
+            })
         }
         log.debug("misfire prevention: could not find contact with address, predicting with plain and formatted address")
 

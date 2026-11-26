@@ -122,36 +122,6 @@ import Testing
     #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 
-@Test func sentThreadIDWaitReadsAgainOnlyAfterDatabaseTick() async throws {
-    let changes = Topic<Void>()
-    let threadIDs = Protected<[String?]>([nil])
-    let queryCount = Protected(0)
-
-    let task = Task {
-        try await DatabaseTickWaits.sentThreadIDs(
-            timeout: 1,
-            changes: changes
-        ) {
-            queryCount.withLock { $0 += 1 }
-            return threadIDs.read()
-        }
-    }
-
-    #expect(await eventually { queryCount.read() == 1 })
-    try await Task.sleep(forTimeInterval: 0.1)
-    #expect(queryCount.read() == 1)
-
-    threadIDs.withLock {
-        $0 = ["thread-1"]
-    }
-    changes.broadcast(())
-
-    let result = try await task.value
-    #expect(result == ["thread-1"])
-    #expect(queryCount.read() == 2)
-    #expect(await eventually { changes.testingSubscriptionCount == 0 })
-}
-
 @Test func loadedAttachmentWaitReadsAgainOnlyAfterDatabaseTick() async throws {
     let changes = Topic<Void>()
     let currentMessage = Protected(messageWithAttachmentLoading(true))
@@ -239,19 +209,6 @@ import Testing
             []
         }
     }
-    #expect(await eventually { changes.testingSubscriptionCount == 0 })
-}
-
-@Test func sentThreadIDWaitReturnsPartialAfterDeadline() async throws {
-    let changes = Topic<Void>()
-    let result = try await DatabaseTickWaits.sentThreadIDs(
-        timeout: 0.2,
-        changes: changes
-    ) {
-        [nil, "thread-2"]
-    }
-
-    #expect(result == [nil, "thread-2"])
     #expect(await eventually { changes.testingSubscriptionCount == 0 })
 }
 

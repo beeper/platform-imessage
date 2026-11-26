@@ -8,7 +8,6 @@ private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
-private let waitForSentThreadTimeout: TimeInterval = 10
 private let loadAttachmentTimeout: TimeInterval = 60
 private let readReceiptLandTimeout: TimeInterval = 3
 
@@ -230,6 +229,12 @@ public final class PlatformAPI {
                 currentUser: currentUser,
                 accountID: accountID
             )
+        }
+    }
+
+    public func getThreadIDs() async throws -> [String] {
+        try await runDBQuery { db, _, _ in
+            try db.allThreadGUIDs().map { Hasher.thread.tokenizeRemembering(pii: $0) }
         }
     }
 
@@ -832,32 +837,20 @@ public final class PlatformAPI {
         timeout: TimeInterval,
         reactionsOnly: Bool = false
     ) async throws -> PlatformSDK.MessageSendResult {
-        let sentMessageIDs = try await waitForSentMessageIDs(since: lastRowID, text: text, timeout: timeout, reactionsOnly: reactionsOnly)
-        let sentThreadIDs = try await waitForSentThreadIDs(messageRowIDs: sentMessageIDs.map(\.rowID))
-        let address = threadIDToAddress(threadID)
-        let sentThreadIsValid = if sentThreadIDs.allSatisfy({ $0 == threadID }) {
-            true
-        } else {
-            try await withMessagesController { controller in
-                sentThreadIDs.allSatisfy { sentThreadID in
-                    if sentThreadID == threadID { return true }
-                    guard let sentThreadID else { return false }
-                    return controller.isSameContact(address, threadIDToAddress(sentThreadID))
-                }
-            }
-        }
-
-        guard sentThreadIsValid else {
-            platformLog.error("imsg: imessage potentially sent messages to invalid thread")
-            return .boolean(true)
-        }
-
+        let sentMessageIDs = try await waitForSentMessageIDs(
+            threadID: threadID,
+            since: lastRowID,
+            text: text,
+            timeout: timeout,
+            reactionsOnly: reactionsOnly
+        )
         let messages = try await sentMessages(sentMessageIDs)
         validateLinkedMessageIDs(messages, expectedLinkedMessageID: expectedLinkedMessageID)
         return .messages(messages)
     }
 
     private func waitForSentMessageIDs(
+        threadID: String,
         since lastRowID: Int,
         text: String?,
         timeout: TimeInterval,
@@ -865,6 +858,7 @@ public final class PlatformAPI {
     ) async throws -> [(rowID: Int, guid: String)] {
         let database = database
         let changes = try database.changeTopic()
+        let conversationMatches = Protected<[String: Bool]>([:])
         // Not via Task.detached, so caller cancellation propagates and the wait
         // stops promptly instead of running to its own timeout.
         return try await DatabaseTickWaits.sentMessageIDs(
@@ -872,26 +866,37 @@ public final class PlatformAPI {
             timeout: timeout,
             changes: changes
         ) {
-            try database.withDatabase { db in
+            let rows = try database.withDatabase { db in
                 try db.sentMessageIDs(since: lastRowID, reactionsOnly: reactionsOnly)
             }
+            var conversationRows = [(rowID: Int, guid: String)]()
+            for row in rows {
+                guard let sentThreadID = row.threadID else { continue }
+                if try await self.isSameConversation(threadID, sentThreadID, cache: conversationMatches) {
+                    conversationRows.append((row.rowID, row.guid))
+                }
+            }
+            return text == nil ? Array(conversationRows.prefix(1)) : conversationRows
         }
     }
 
-    private func waitForSentThreadIDs(messageRowIDs: [Int]) async throws -> [String?] {
-        let database = database
-        let changes = try database.changeTopic()
-        // Not via Task.detached, so caller cancellation propagates.
-        return try await DatabaseTickWaits.sentThreadIDs(
-            timeout: waitForSentThreadTimeout,
-            changes: changes
-        ) {
-            try messageRowIDs.map { rowID in
-                try database.withDatabase { db in
-                    try db.threadIDForMessage(rowID: rowID)
-                }
-            }
+    private func isSameConversation(_ threadID: String, _ sentThreadID: String, cache: Protected<[String: Bool]>) async throws -> Bool {
+        if sentThreadID == threadID {
+            return true
         }
+        guard !threadIDIsForGroup(threadID), !threadIDIsForGroup(sentThreadID) else {
+            return false
+        }
+        if let cached = cache.read()[sentThreadID] {
+            return cached
+        }
+        let address = threadIDToAddress(threadID)
+        let sentAddress = threadIDToAddress(sentThreadID)
+        let isSame = try await withMessagesController { controller in
+            controller.isSameContact(address, sentAddress)
+        }
+        cache.withLock { $0[sentThreadID] = isSame }
+        return isSame
     }
 
     private func sentMessages(_ sentMessageIDs: [(rowID: Int, guid: String)]) async throws -> [PlatformSDK.Message] {

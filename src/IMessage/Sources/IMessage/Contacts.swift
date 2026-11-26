@@ -25,7 +25,7 @@ extension CNContactFormatterStyle {
 final class Contacts {
     private let store = CNContactStore()
 
-    private var cache = [String: String?]()
+    private var cache = [String: Set<String>]()
 
     init?() {
         guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
@@ -106,18 +106,14 @@ final class Contacts {
 }
 
 extension Contacts {
-    func firstMatching(emailOrPhoneNumber: String) -> CNContact? {
+    func allMatching(emailOrPhoneNumber: String) -> [CNContact] {
         let isEmail = emailOrPhoneNumber.contains("@")
         let predicate = isEmail
             ? CNContact.predicateForContacts(matchingEmailAddress: emailOrPhoneNumber)
             // this might be slightly unreliable bc of the numerous ways a phone number is stored (w and w/o country code)
             : CNContact.predicateForContacts(matching: CNPhoneNumber(stringValue: emailOrPhoneNumber))
 
-        let contacts = try? store.unifiedContacts(matching: predicate, keysToFetch: contactKeysToFetch(isEmail: isEmail))
-        if let contacts, contacts.count > 1 {
-            log.warning("firstMatching: more than one contact matched the desired criteria")
-        }
-        return contacts?.first
+        return (try? store.unifiedContacts(matching: predicate, keysToFetch: contactKeysToFetch(isEmail: isEmail))) ?? []
     }
 
     func format(contact: CNContact, style: FormatStyle = .standard) -> String? {
@@ -138,13 +134,13 @@ extension Contacts {
         format(contact: contact, style: .short) ?? format(contact: contact, style: .standard)
     }
 
-    func fetchID(for emailOrPhoneNumber: String) -> String? {
-        if let identifier = cache[emailOrPhoneNumber] {
-            return identifier
+    func fetchIDs(for emailOrPhoneNumber: String) -> Set<String> {
+        if let identifiers = cache[emailOrPhoneNumber] {
+            return identifiers
         }
-        let id = firstMatching(emailOrPhoneNumber: emailOrPhoneNumber)?.identifier
-        cache[emailOrPhoneNumber] = id
-        return id
+        let ids = Set(allMatching(emailOrPhoneNumber: emailOrPhoneNumber).map(\.identifier))
+        cache[emailOrPhoneNumber] = ids
+        return ids
     }
 }
 
