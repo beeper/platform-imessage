@@ -824,7 +824,7 @@ private let commandDefinitions: [CommandDefinition] = [
         summary: "Undo send for a previously sent message.",
         usage: ["undo-send MESSAGE_ID", "undo-send CHAT_ID MESSAGE_ID"],
         examples: ["undo-send C0FFEE12-CAFE-4BAD-8ACE-1234FACE5678", "undo-send latest-1", "undo-send +14155551234 latest"],
-        notes: ["Undo send is only supported on macOS Ventura or later and must be used within 2 minutes of sending.", threadIDAliasNote, messageIDAliasNote],
+        notes: ["Undo send is only supported on macOS Ventura or later and must be used within 2 minutes of sending.", "A message that failed to send is deleted from Messages instead.", threadIDAliasNote, messageIDAliasNote],
         requiredAuthorization: mutatingAuth
     ) { args, context in
         let parsed = try parseMessageReferenceArgs(context.command, args, trailingCount: 0)

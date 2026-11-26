@@ -404,19 +404,24 @@ public final class PlatformAPI {
 
     public func deleteMessage(threadID publicThreadID: String, messageID: String) async throws {
         let threadID = try originalThreadID(for: publicThreadID)
-        guard try await getMessage(threadID: publicThreadID, messageID: messageID)?.isErrored == true else {
+        let (guid, partIndex) = messageIDParts(fromID: messageID)
+        let isErrored = (try? await runDBQuery { db, _, _ in
+            try db.mappedMessageRow(guid: guid).map { $0.error != 0 } ?? false
+        }) ?? false
+        guard isErrored else {
             try await withMessagesController { try await $0.undoSend(threadID: threadID, messageID: messageID) }
             return
         }
 
         try await withMessagesController { try await $0.deleteMessage(threadID: threadID, messageID: messageID) }
-        let guid = messageGUID(fromID: messageID)
-        try await retry(withTimeout: messageDeleteLandTimeout, interval: 0.1) {
-            let isInThread = try await self.runDBQuery { db, _, _ in
-                try db.mappedMessageRow(guid: guid)?.threadID != nil
-            }
-            guard !isInThread else {
-                throw ErrorMessage("Messages didn't delete \(messageID)")
+        if partIndex == nil {
+            try await retry(withTimeout: messageDeleteLandTimeout, interval: 0.1) {
+                let isInThread = try await self.runDBQuery { db, _, _ in
+                    try db.mappedMessageRow(guid: guid)?.threadID != nil
+                }
+                guard !isInThread else {
+                    throw ErrorMessage("Messages didn't delete \(messageID)")
+                }
             }
         }
         try await EventWatcherLifecycle.shared.sendEvents([

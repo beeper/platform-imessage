@@ -980,7 +980,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                     try await elements.menuDeleteItem.press()
                 }
             }
-            try await elements.alertSheetDeleteButton.press()
+            try? await elements.alertSheetDeleteButton.press()
         }
     }
 
