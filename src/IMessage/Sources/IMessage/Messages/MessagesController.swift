@@ -23,7 +23,7 @@ let isSequoiaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSy
 let isTahoeOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
 
 private enum MessageAction {
-    case react, reply, undoSend
+    case react, reply, undoSend, delete
     /// might've been added around macOS 15; unknown
     case edit
 
@@ -32,6 +32,7 @@ private enum MessageAction {
         case .react: return LocalizedStrings.reactActionTitles
         case .reply: return [LocalizedStrings.reply]
         case .undoSend: return [LocalizedStrings.undoSend]
+        case .delete: return [LocalizedStrings.deleteEllipsis, LocalizedStrings.delete]
         case .edit: return [LocalizedStrings.editButton]
         }
     }
@@ -995,6 +996,23 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
                 let undoSendAction = try messageAction(messageCell: $0, action: .undoSend)
                 try undoSendAction()
             }
+        }
+    }
+
+    func deleteMessage(threadID: String, messageCell: MessageCell) async throws {
+        let startTime = Date()
+        defer { log.debug("deleteMessage took \(startTime.timeIntervalSinceNow * -1000)ms") }
+
+        try await withAutomation {
+            try await withMessageCell(threadID: threadID, messageCell: messageCell) { messageCell in
+                if let deleteAction = try? messageAction(messageCell: messageCell, action: .delete) {
+                    try deleteAction()
+                } else {
+                    try messageCell.showMenu()
+                    try await elements.menuDeleteItem.press()
+                }
+            }
+            try? await elements.alertSheetDeleteButton.press()
         }
     }
 

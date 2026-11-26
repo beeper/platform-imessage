@@ -731,6 +731,19 @@ final class MessagesAppElements {
         }
     }
 
+    var menuDeleteItem: Accessibility.Element {
+        get async throws {
+            try await retry(withTimeout: 1, interval: 0.05) {
+                let contextMenu = try await self.menu
+                return try contextMenu.children().first {
+                    guard let title = try? $0.title() else { return false }
+                    return title == LocalizedStrings.deleteEllipsis || title == LocalizedStrings.delete
+                }
+                .orThrow(ErrorMessage("Couldn't find \"Delete…\" menu item"))
+            }
+        }
+    }
+
     var cancelEditButton: Accessibility.Element {
         get async throws {
             try await find("cancelEditButton") {

@@ -27,6 +27,11 @@ extension MessagesController {
         try await undoSend(threadID: threadID, messageCell: messageCell)
     }
 
+    func deleteMessage(threadID: String, messageID: String) async throws {
+        let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID)
+        try await deleteMessage(threadID: threadID, messageCell: messageCell)
+    }
+
     func editMessage(threadID: String, messageID: String, newText: String) async throws {
         let messageCell = try resolveMessageCell(threadID: threadID, platformMessageID: messageID, allowOverlay: false)
         try await editMessage(threadID: threadID, messageCell: messageCell, newText: newText)
