@@ -295,6 +295,20 @@ public extension IMDatabase {
         return try statement.mapRowsUntilDone(MappedMessageRow.self)
     }
 
+    func mappedUnsentOutgoingMessageRows(sinceNanosecondsSinceReferenceDate dateNanoseconds: Int64) throws -> [MappedMessageRow] {
+        let messageColumns = try tableColumns("message")
+        let sql = """
+        SELECT
+        \(messageSelectionSQL(messageColumns: messageColumns))
+        FROM message AS m
+        \(messageJoins)
+        WHERE m.date > ? AND m.is_from_me = 1 AND m.is_sent = 0 AND m.error = 0
+        """
+        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        try statement.bind([dateNanoseconds as any SQLiteBindable])
+        return try statement.mapRowsUntilDone(MappedMessageRow.self)
+    }
+
     func mappedLatestMessageRows(chatRowIDs: [Int]) throws -> [String: MappedMessageRow] {
         guard !chatRowIDs.isEmpty else { return [:] }
         let messageColumns = try tableColumns("message")

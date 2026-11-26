@@ -639,6 +639,26 @@ extension EventWatcher {
         }
     }
 
+    func seedPendingSendStatusCandidates() throws {
+        let now = Date()
+        let since = Int64((now.timeIntervalSinceReferenceDate - pendingSendStatusTimeout) * 1_000_000_000)
+        for row in try db.mappedUnsentOutgoingMessageRows(sinceNanosecondsSinceReferenceDate: since)
+            where row.isOutgoingSendCandidate && pendingSendStatusCandidates[row.rowID] == nil {
+            guard let chatGUID = row.threadID else {
+                continue
+            }
+            if pendingSendStatusCandidates.count >= maxPendingSendStatusCandidates {
+                pendingSendStatusCandidates.removeFirst()
+            }
+            pendingSendStatusCandidates[row.rowID] = PendingSendStatusCandidate(
+                firstSeen: now,
+                chatGUID: chatGUID,
+                isErrored: false,
+                isSent: false
+            )
+        }
+    }
+
     private func trackPendingSendStatusCandidates(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow]

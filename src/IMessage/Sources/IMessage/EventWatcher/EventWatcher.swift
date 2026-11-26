@@ -95,6 +95,11 @@ final class EventWatcher {
     func watchForever() async throws {
         try await withTaskCancellationHandler {
             chatStates = try db.chatStates().mapValues(TimestampedChatState.init)
+            do {
+                try seedPendingSendStatusCandidates()
+            } catch {
+                Self.logger.error("couldn't seed pending send statuses: \(String(reflecting: error))")
+            }
             try db.beginListeningForChanges()
             defer { db.stopListeningForChanges() }
             guard !Task.isCancelled else {
