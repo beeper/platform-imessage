@@ -29,6 +29,13 @@ struct PendingSendStatusCandidate {
     let firstSeen: Date
     let chatGUID: String
     var isErrored: Bool
+    var isSent: Bool
+}
+
+struct PendingSendStatusRowState {
+    let isErrored: Bool
+    let isSent: Bool
+    let isFinished: Bool
 }
 
 final class EventWatcher {
@@ -49,7 +56,7 @@ final class EventWatcher {
     /// recovery path. Repopulated from scratch on every tick.
     var newMessageRowIDsAwaitingSendCommit: [Int] = []
     var messageHydrationRowIDsAwaitingSendCommit: [Int] = []
-    var sendStatusRowIDsAwaitingSendCommit: [Int] = []
+    var sendStatusRowStatesAwaitingSendCommit: [Int: PendingSendStatusRowState] = [:]
     /// One-shot timer that re-triggers a tick while pending resolution work
     /// remains, so it isn't stranded when the database otherwise goes quiet.
     var pendingWakeTask: Task<Void, Never>?

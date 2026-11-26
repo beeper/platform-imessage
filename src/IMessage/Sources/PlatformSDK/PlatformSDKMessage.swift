@@ -39,6 +39,20 @@ extension PlatformSDK {
         public let extra: Any?
     }
 
+    @PlatformSDKJSONObject
+    public struct SendStatus: JSONObjectConvertible {
+        public let status: SendStatusKind
+        public let reason: String
+        public let ts: Timestamp
+    }
+
+    public enum SendStatusKind: String {
+        case success = "SUCCESS"
+        case pending = "PENDING"
+        case failRetriable = "FAIL_RETRIABLE"
+        case failPermanent = "FAIL_PERMANENT"
+    }
+
     public enum MessageBehavior: String {
         case silent
         case keepRead = "keep_read"

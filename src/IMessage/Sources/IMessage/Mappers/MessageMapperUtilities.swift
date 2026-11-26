@@ -9,6 +9,15 @@ func appleDateMilliseconds(_ appleDate: Int?) -> Int64? {
     return (Int64(appleDate) / 1_000_000) + coreFoundationReferenceDateMilliseconds
 }
 
+extension MappedMessageRow {
+    var isOutgoingSendCandidate: Bool {
+        isFromMe == 1
+            && itemType == 0
+            && scheduleType == 0
+            && associatedMessageGUID?.nonEmpty == nil
+    }
+}
+
 func appleDateIsTruthy(_ appleDate: Int?) -> Bool {
     appleDate.flatMap(appleDateMilliseconds) != nil
 }

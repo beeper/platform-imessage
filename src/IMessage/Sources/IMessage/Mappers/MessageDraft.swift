@@ -16,6 +16,7 @@ struct MessageDraft {
     var iframeURL: String?
     var reactions: [PlatformSDK.MessageReaction]?
     var seen: PlatformSDK.MessageSeen?
+    var sendStatus: PlatformSDK.SendStatus?
     var isDelivered: Bool?
     var isHidden: Bool?
     var isSender: Bool?
@@ -48,6 +49,7 @@ struct MessageDraft {
             iframeURL: iframeURL,
             reactions: reactions,
             seen: seen,
+            sendStatus: sendStatus,
             isDelivered: isDelivered,
             isHidden: isHidden,
             isSender: isSender,
