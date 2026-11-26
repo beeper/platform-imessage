@@ -31,6 +31,24 @@ public extension IMDatabase {
         try chat(withGUID: guid.guts)
     }
 
+    func latestMessageService(chatRowID: Int) throws -> Chat.ServiceName? {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT m.service
+        FROM chat_message_join AS cmj
+        INNER JOIN message AS m ON m.ROWID = cmj.message_id
+        WHERE cmj.chat_id = ?
+        ORDER BY cmj.message_date DESC, cmj.message_id DESC
+        LIMIT 1
+        """)
+
+        try statement.reset()
+        try statement.bind(chatRowID)
+
+        return try statement.mapRowsUntilDone { row in
+            try row[0].optional(String.self)?.nonEmpty.map(Chat.ServiceName.init(rawValue:))
+        }.first ?? nil
+    }
+
     func chats() throws -> [Chat] {
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT ROWID, guid, display_name, service_name
