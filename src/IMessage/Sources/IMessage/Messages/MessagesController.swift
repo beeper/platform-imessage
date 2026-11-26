@@ -1505,6 +1505,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let pasteboard = NSPasteboard.general
         try await pasteboard.withRestoration {
             pasteboard.setString(fileURL.relativeString, forType: .fileURL)
+            pasteboard.setString(fileURL.lastPathComponent, forType: .string)
             try keyPresser.commandV()
             try await retry(withTimeout: 2, interval: 0.05) { () async throws in
                 let charCountResult = Result { try messageField.noOfChars() }
