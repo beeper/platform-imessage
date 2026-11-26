@@ -167,8 +167,10 @@ final class MessagesController {
     }
 
     func isSameContact(_ a: String?, _ b: String?) -> Bool {
-        guard let contacts, let a, let b else { return false }
-        return contacts.fetchID(for: a) == contacts.fetchID(for: b)
+        guard let a, let b else { return false }
+        if a == b { return true }
+        guard let contacts else { return false }
+        return !contacts.fetchIDs(for: a).isDisjoint(with: contacts.fetchIDs(for: b))
     }
 
     private func getToFieldAddresses() async -> [String]? {
@@ -284,6 +286,14 @@ final class MessagesController {
         var rowLabel: String?
         var windowTitle: String?
         var isComposing = false
+
+        var rowName: String? {
+            guard var parts = rowLabel?.components(separatedBy: ", ") else { return nil }
+            while parts.count > 1, LocalizedStrings.conversationStates.contains(parts[parts.count - 1]) {
+                parts.removeLast()
+            }
+            return parts.joined(separator: ", ")
+        }
     }
 
     private func currentSelection() async -> ConversationSelection {
@@ -299,6 +309,7 @@ final class MessagesController {
 
     private func selection(_ selection: ConversationSelection, matches labels: Set<String>) -> Bool {
         guard let windowTitle = selection.windowTitle, let rowLabel = selection.rowLabel else { return false }
+        let rowName = selection.rowName ?? rowLabel
         func phoneDigits(_ string: String) -> String? {
             let digits = string.filter(\.isNumber)
             return digits.count >= 7 ? digits : nil
@@ -310,8 +321,8 @@ final class MessagesController {
             }
         }
         let rowParts = rowLabel.components(separatedBy: ", ")
-        let rowNamesThread = rowLabel == windowTitle
-            || namesThread(rowLabel)
+        let rowNamesThread = rowLabel == windowTitle || rowName == windowTitle
+            || namesThread(rowLabel) || namesThread(rowName)
             || (rowParts.count == 2 && !rowParts[1].contains("&") && namesThread(rowParts[0]))
         return namesThread(windowTitle) && rowNamesThread
     }
@@ -325,7 +336,7 @@ final class MessagesController {
         guard recordedBeforeOpening else { return true }
         let now = await currentSelection()
         guard let labels else { return now.rowLabel == nil || now.rowLabel == now.windowTitle }
-        return [now.windowTitle, now.rowLabel].contains { name in
+        return [now.windowTitle, now.rowLabel, now.rowName].contains { name in
             name.map { selection(ConversationSelection(rowLabel: $0, windowTitle: $0), matches: labels) } == true
         }
     }
@@ -344,9 +355,9 @@ final class MessagesController {
                    selection(ConversationSelection(rowLabel: windowTitle, windowTitle: windowTitle), matches: threadLabels) {
                     return true
                 }
-            } else if now.rowLabel != before.rowLabel, let windowTitle = now.windowTitle,
+            } else if now.rowName != before.rowName, let windowTitle = now.windowTitle,
                       !windowTitle.isEmpty, windowTitle != Self.messagesAppName,
-                      now.rowLabel == nil || now.rowLabel == windowTitle || windowTitle != before.windowTitle {
+                      now.rowLabel == nil || now.rowLabel == windowTitle || now.rowName == windowTitle || windowTitle != before.windowTitle {
                 return true
             }
             if now.isComposing, now != before { return true }
@@ -382,6 +393,8 @@ final class MessagesController {
                     return try await assertSelectedThread(threadID: threadID, since: openedAt, labels: threadLabels)
                 }
                 guard await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) else {
+                    let now = await currentSelection()
+                    log.error("Messages didn't switch to the chat: title predicted=\(now.windowTitle.map(threadLabels.contains) ?? false) selection matches=\(selection(now, matches: threadLabels)) last selected=\(messagesRecordsSelection(of: threadID)) recorded before opening=\(recordedBeforeOpening)")
                     throw ErrorMessage("Messages didn't switch to the chat")
                 }
             }
@@ -391,7 +404,7 @@ final class MessagesController {
 
         let now = await currentSelection()
         if messagesRecordsSelection(of: threadID),
-           now.rowLabel == nil || now.rowLabel == now.windowTitle {
+           now.rowLabel == nil || now.rowLabel == now.windowTitle || now.rowName == now.windowTitle {
             return
         }
         guard reopening else { throw ErrorMessage("Messages didn't switch to the chat") }

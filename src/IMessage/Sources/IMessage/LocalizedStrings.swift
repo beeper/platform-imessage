@@ -73,6 +73,11 @@ public enum LocalizedStrings {
 
     static let replyTranscript = accessibilityString("group.reply.collection")
 
+    static let conversationUnread = accessibilityString("unread.messages")
+    static let conversationMuted = accessibilityString("conversation.muted")
+    static let conversationPinned = accessibilityString("pinned.label")
+    static let conversationStates: Set = [conversationUnread, conversationMuted, conversationPinned]
+
     static let react = accessibilityString("acknowledgments.action.title")
     static let tapbackDetails = chatString("TAPBACK_DETAILS_ELLIPSIS")
     static let reactActionTitles = [react, tapbackDetails]
