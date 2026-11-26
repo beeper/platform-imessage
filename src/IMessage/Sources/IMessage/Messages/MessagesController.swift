@@ -182,7 +182,7 @@ final class MessagesController {
     }
 
     // ignores the service (SMS or iMessage) and matches contact identifiers since it's merged in the UI
-    private func assertSelectedThread(threadID: String, since beganEnsuringThreadSelection: Date = Date()) async throws {
+    private func assertSelectedThread(threadID: String, since beganEnsuringThreadSelection: Date = Date(), labels threadLabels: Set<String>? = nil) async throws {
         let hashedThreadID = Hasher.thread.tokenizeRemembering(pii: threadID)
         guard Defaults.imessage.bool(forKey: DefaultsKeys.misfirePrevention) else {
             log.debug("NOT ensuring selected thread, misfire prevention is off: \(hashedThreadID)")
@@ -247,6 +247,10 @@ final class MessagesController {
                 if attempt > 5 { // 250ms
                     if let addresses = await getToFieldAddresses(), addresses.contains(where: { isSameContact($0, addressToMatch) }) {
                         log.error("assertSelectedThread: resorted to fallback in order to assert selection")
+                        return
+                    }
+                    if let threadLabels, await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: true) {
+                        log.warning("assertSelectedThread: Messages has the chat selected, accepting it without a change")
                         return
                     }
                 }
@@ -350,7 +354,7 @@ final class MessagesController {
         return false
     }
 
-    private func openAndWaitForSelection(_ deepLink: MessagesDeepLink, threadID: String) async throws {
+    private func openAndWaitForSelection(_ deepLink: MessagesDeepLink, threadID: String, reopening: Bool = true) async throws {
         guard Defaults.imessage.bool(forKey: DefaultsKeys.misfirePrevention) else {
             try await openDeepLink(deepLink)
             return
@@ -361,23 +365,24 @@ final class MessagesController {
         var openedAt = Date()
         try await openDeepLink(deepLink)
         if await waitForSelection(of: threadLabels, awayFrom: before) {
-            return try await assertSelectedThread(threadID: threadID, since: openedAt)
+            return try await assertSelectedThread(threadID: threadID, since: openedAt, labels: threadLabels)
         }
 
         if let threadLabels {
             if await !messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) {
+                guard reopening else { return try await assertSelectedThread(threadID: threadID, since: openedAt, labels: threadLabels) }
                 log.warning("Messages didn't select the chat, reopening it by chat id")
                 openedAt = Date()
                 try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
                 if await waitForSelection(of: threadLabels, awayFrom: before) {
-                    return try await assertSelectedThread(threadID: threadID, since: openedAt)
+                    return try await assertSelectedThread(threadID: threadID, since: openedAt, labels: threadLabels)
                 }
                 guard await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) else {
                     throw ErrorMessage("Messages didn't switch to the chat")
                 }
             }
             log.warning("Messages selected the chat, but its title or row didn't match the predicted names")
-            return try await assertSelectedThread(threadID: threadID, since: openedAt)
+            return
         }
 
         let now = await currentSelection()
@@ -385,6 +390,7 @@ final class MessagesController {
            now.rowLabel == nil || now.rowLabel == now.windowTitle {
             return
         }
+        guard reopening else { return try await assertSelectedThread(threadID: threadID, since: openedAt) }
         log.warning("Messages didn't visibly switch chats, reopening the chat by id")
         openedAt = Date()
         try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
@@ -753,6 +759,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
     // performs `perform` while the Messages window is unhidden
     private func withActivation(
         openBefore: MessagesDeepLink?,
+        threadID: String?,
         perform: () async throws -> Void
     ) async throws {
         if let openBefore {
@@ -760,7 +767,11 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             let openBeforeURL = try openBefore.url()
             log.debug("withActivation: opening before performing: \(openBeforeURL.absoluteString)")
             #endif
-            try await openDeepLink(openBefore)
+            if let threadID {
+                try await openAndWaitForSelection(openBefore, threadID: threadID, reopening: false)
+            } else {
+                try await openDeepLink(openBefore)
+            }
         }
 
         try await perform()
@@ -781,9 +792,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             _ = try? await closeReplyTranscriptView()
         }
 
-        try await withActivation(openBefore: deepLink) {
-            try await assertSelectedThread(threadID: threadID)
-
+        try await withActivation(openBefore: deepLink, threadID: threadID) {
             // we don't close transcript view here because when reacting, closing it will undo the reaction
             // defer {
             //     if messageCell.overlay {
@@ -1384,9 +1393,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
             if quotedMessage == nil { try? await closeReplyTranscriptViewAndWait() } // needed even when opening deep link
 
-            try await withActivation(openBefore: deepLink) {
-                if let threadID { try await assertSelectedThread(threadID: threadID) }
-
+            try await withActivation(openBefore: deepLink, threadID: threadID) {
                 if quotedMessage != nil {
                     try await waitUntilReplyTranscriptVisible()
                 }
@@ -1612,8 +1619,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         let deepLink = try MessagesDeepLink(threadID: threadID, body: nil)
 
         try await withAutomation {
-            try await withActivation(openBefore: deepLink) {
-                try await assertSelectedThread(threadID: threadID)
+            try await withActivation(openBefore: deepLink, threadID: threadID) {
                 try await elements.notifyAnywayButton.press()
             }
         }
@@ -1624,8 +1630,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
         var observation = ThreadActivityObservation.unknown
         try await withAutomation {
-            try await withActivation(openBefore: deepLink) {
-                try await assertSelectedThread(threadID: threadID)
+            try await withActivation(openBefore: deepLink, threadID: threadID) {
                 observation = await activityObservation()
             }
         }
