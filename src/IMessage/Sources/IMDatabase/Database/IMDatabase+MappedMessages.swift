@@ -15,6 +15,15 @@ LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
 \(messageHandleJoins)
 """
 
+// chat_message_join has no date-only index before macOS 26.3, so across all
+// chats walk message's date index; CROSS JOIN pins that join order.
+private let messageJoinsFromMessageByDate = """
+FROM message AS m
+CROSS JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
+LEFT JOIN chat AS t ON cmj.chat_id = t.ROWID
+\(messageHandleJoins)
+"""
+
 private let latestMessageJoins = """
 INNER JOIN message AS m ON m.ROWID = latest_join.message_id
 LEFT JOIN chat AS t ON latest_join.chat_id = t.ROWID
@@ -35,11 +44,14 @@ public extension IMDatabase {
     }
 
     func messageUpdateCursorSnapshot() throws -> MessageUpdatesCursor {
+        let maxDateEdited = try tableColumns("message").contains("date_edited")
+            ? "COALESCE((SELECT MAX(date_edited) FROM message), 0)"
+            : "0"
         let statement = try cachedStatement(forEscapedSQL: """
         SELECT
             COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'message'), 0),
             COALESCE((SELECT MAX(date_read) FROM message), 0),
-            COALESCE((SELECT MAX(date_edited) FROM message), 0)
+            \(maxDateEdited)
         """).reset()
 
         return try statement.mapRowsUntilDone { row in
@@ -106,11 +118,8 @@ public extension IMDatabase {
     ) throws -> [MappedMessageRow] {
         let messageColumns = try tableColumns("message")
         let withCursor = cursor.flatMap { Int($0) }.map { (cursor: $0, direction: direction ?? .before) }
-        let comparisonOperator = withCursor.map { $0.direction == .after ? ">" : "<" }
-        let order = withCursor?.direction == .after ? "ASC" : "DESC"
-        let dateExpression = comparisonOperator == ">" && messageColumns.contains("date_edited")
-            ? "MAX(m.date, COALESCE(m.date_edited, 0))"
-            : "cmj.message_date"
+        let isAfter = withCursor?.direction == .after
+        let order = isAfter ? "ASC" : "DESC"
 
         // The historical query filtered by chat guid after starting from
         // `message ORDER BY date`. On large databases that can walk a huge
@@ -120,19 +129,40 @@ public extension IMDatabase {
             return []
         }
 
-        var sql = """
+        var source = "chat_message_join"
+        var cursorClause = ""
+        if isAfter, messageColumns.contains("date_edited") {
+            // Newer messages, plus older ones edited since the cursor. Each half
+            // has its own index; one combined predicate would read the whole chat.
+            source = """
+            (
+              SELECT * FROM (
+                SELECT chat_id, message_id, message_date FROM chat_message_join
+                WHERE chat_id = ?1 AND message_date > ?2
+                ORDER BY message_date ASC, message_id ASC LIMIT \(limit)
+              )
+              UNION ALL
+              SELECT * FROM (
+                SELECT ej.chat_id, ej.message_id, ej.message_date FROM message AS e
+                CROSS JOIN chat_message_join AS ej ON ej.chat_id = ?1 AND ej.message_id = e.ROWID
+                WHERE e.date_edited > ?2 AND ej.message_date <= ?2
+                ORDER BY ej.message_date ASC, ej.message_id ASC LIMIT \(limit)
+              )
+            )
+            """
+        } else if withCursor != nil {
+            cursorClause = "AND cmj.message_date \(isAfter ? ">" : "<") ?2"
+        }
+        let statement = try cachedStatement(forEscapedSQL: """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
-        FROM chat_message_join AS cmj
+        FROM \(source) AS cmj
         \(messageJoinsFromChatMessageJoin)
-        WHERE cmj.chat_id = ?
-        """
-        if let comparisonOperator {
-            sql += "\nAND \(dateExpression) \(comparisonOperator) ?"
-        }
-        sql += "\nORDER BY cmj.message_date \(order), cmj.message_id \(order)\nLIMIT \(limit)"
-
-        let statement = try Statement.prepare(escapedSQL: sql, for: database)
+        WHERE cmj.chat_id = ?1
+        \(cursorClause)
+        ORDER BY cmj.message_date \(order), cmj.message_id \(order)
+        LIMIT \(limit)
+        """).reset()
         if let withCursor {
             try statement.bind(chatRowID, withCursor.cursor)
         } else {
@@ -179,13 +209,13 @@ public extension IMDatabase {
         if messageColumns.contains("was_detonated") {
             whereClauses.append("COALESCE(m.was_detonated, 0) = 0")
         }
-        let whereClause = whereClauses.isEmpty ? "" : "WHERE \(whereClauses.joined(separator: " AND "))\n"
+        let scoped = chatRowID != nil
         let sql = """
         SELECT
         \(messageSelectionSQL(messageColumns: messageColumns))
-        FROM chat_message_join AS cmj
-        \(messageJoinsFromChatMessageJoin)
-        \(whereClause)ORDER BY cmj.message_date DESC, cmj.message_id DESC
+        \(scoped ? "FROM chat_message_join AS cmj\n\(messageJoinsFromChatMessageJoin)" : messageJoinsFromMessageByDate)
+        WHERE \(whereClauses.joined(separator: " AND "))
+        ORDER BY \(scoped ? "cmj.message_date DESC, cmj.message_id DESC" : "m.date DESC, m.ROWID DESC")
         LIMIT 1 OFFSET ?
         """
         let statement = try cachedStatement(forEscapedSQL: sql).reset()
@@ -342,18 +372,31 @@ public extension IMDatabase {
         let emojiColumn = messageColumns.contains("associated_message_emoji") ? "associated_message_emoji," : ""
         let messageGUIDPlaceholders = messageGUIDs.map { _ in "?" }.joined(separator: ",")
         let chatRowIDPlaceholders = chatRowIDs.map { _ in "?" }.joined(separator: ",")
+        // No index can match the associated GUID, so only scan each chat from
+        // its oldest target onwards (less a day of clock skew); CROSS JOIN pins
+        // the GUID lookup as the outer loop.
         let sql = """
+        WITH target(chat_id, min_date) AS (
+          SELECT tj.chat_id, COALESCE(MIN(tj.message_date), 0)
+          FROM message AS t
+          CROSS JOIN chat_message_join AS tj
+          WHERE tj.message_id = t.ROWID
+          AND t.guid IN (\(messageGUIDPlaceholders))
+          AND tj.chat_id IN (\(chatRowIDPlaceholders))
+          GROUP BY tj.chat_id
+        )
         SELECT m.ROWID, is_from_me, handle_id, associated_message_type, associated_message_guid, \(emojiColumn) h.id AS participantID
-        FROM message AS m
+        FROM target
+        INNER JOIN chat_message_join AS cmj ON cmj.chat_id = target.chat_id AND cmj.message_date >= target.min_date - \(reactionClockSkewNanoseconds)
+        INNER JOIN message AS m ON m.ROWID = cmj.message_id
         LEFT JOIN handle AS h ON m.handle_id = h.ROWID
-        LEFT JOIN chat_message_join AS cmj ON cmj.message_id = m.ROWID
         WHERE REPLACE(SUBSTR(associated_message_guid, INSTR(associated_message_guid, '/') + 1), 'bp:', '') IN (\(messageGUIDPlaceholders))
-        AND cmj.chat_id IN (\(chatRowIDPlaceholders))
         ORDER BY m.ROWID ASC
         """
         let statement = try Statement.prepare(escapedSQL: sql, for: database)
         var bindings = messageGUIDs.map { $0 as any SQLiteBindable }
         bindings.append(contentsOf: chatRowIDs.map { $0 as any SQLiteBindable })
+        bindings.append(contentsOf: messageGUIDs.map { $0 as any SQLiteBindable })
         try statement.bind(bindings)
         return try statement.mapRowsUntilDone(MappedReactionMessageRow.self)
     }
@@ -376,6 +419,7 @@ private let maxMappedMessageRowsBatchSize = 500
 // aliases should skip them and resolve to the newest user-visible row.
 private let reactionAssociatedMessageTypeLowerBound = 2000
 private let reactionAssociatedMessageTypeUpperBound = 3007
+private let reactionClockSkewNanoseconds = 86_400_000_000_000
 
 private func messageSelectionSQL(messageColumns: [String]) -> String {
     var selections = ["m.ROWID AS ROWID"]

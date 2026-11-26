@@ -113,9 +113,6 @@ public enum MacPermissions {
             "/Library/Application Support/com.apple.TCC/TCC.db",
             "/Library/Preferences/com.apple.TimeMachine.plist",
         ]
-        if #available(macOS 10.15, *) {
-            paths.append("\(home)/Library/Safari/CloudTabs.db")
-        }
 
         var sawDenied = false
         for path in paths {

@@ -267,7 +267,7 @@ function parsePaginationArgs(command: CommandDefinition, args: string[], positio
 
   const pagination: PaginationArg | undefined = after ? { cursor: after, direction: 'after' }
     : before ? { cursor: before, direction: 'before' }
-    : undefined
+      : undefined
 
   return { positionals, pagination }
 }
@@ -436,7 +436,7 @@ const commandDefinitions: CommandDefinition[] = [
   {
     name: 'authorize',
     category: 'General',
-    summary: 'Inspect or request CLI permissions for Accessibility, Contacts, Messages data access, and Automation.',
+    summary: 'Inspect or request the permissions needed to control Messages, look up contacts, read Messages data, and send Apple Events to Messages (Automation).',
     usage: ['authorize', 'authorize TARGET'],
     examples: ['authorize', 'authorize accessibility', 'authorize all'],
     notes: [`Targets: ${AUTHORIZATION_TARGETS.join(', ')}.`],
@@ -696,7 +696,7 @@ const commandDefinitions: CommandDefinition[] = [
     summary: 'Trigger the "notify anyway" action for a chat.',
     usage: ['notify-anyway CHAT_ID'],
     examples: ['notify-anyway any;-;sjobs@apple.com'],
-    notes: ['This mutates real Messages state and may require accessibility permissions.'],
+    notes: ['This mutates real Messages state and may require permission to control Messages.'],
     requiredAuthorization: MUTATING_AUTH,
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 1)
@@ -711,7 +711,7 @@ const commandDefinitions: CommandDefinition[] = [
     summary: 'Select a chat and start the chat-activity watcher.',
     usage: ['select-thread CHAT_ID'],
     examples: ['select-thread any;-;sjobs@apple.com'],
-    notes: ['This is an advanced command and may require accessibility permissions.'],
+    notes: ['This is an advanced command and may require permission to control Messages.'],
     requiredAuthorization: MUTATING_AUTH,
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 1)
@@ -727,7 +727,7 @@ const commandDefinitions: CommandDefinition[] = [
       'typing any;-;sjobs@apple.com on',
       'typing any;-;sjobs@apple.com off',
     ],
-    notes: ['This is an advanced command and may require accessibility permissions.'],
+    notes: ['This is an advanced command and may require permission to control Messages.'],
     requiredAuthorization: MUTATING_AUTH,
     execute: async (args, context) => {
       requireExactArgs(context.command, args, 2)

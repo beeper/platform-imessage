@@ -1,12 +1,13 @@
 {
+  "originHash" : "3418ddb08fd482a5c3be5becb6ba9d4fb69ca3c1e0a9d08a08b72d75a9ff7ac5",
   "pins" : [
     {
       "identity" : "betterswiftax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/beeper/BetterSwiftAX.git",
       "state" : {
-        "revision" : "e84bb5f3a920a43480344f64fc0fcbc077107da3",
-        "version" : "0.1.4"
+        "revision" : "f036ed42c73a87010f63fb3acc981542eca8f214",
+        "version" : "0.3.0"
       }
     },
     {
@@ -118,5 +119,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

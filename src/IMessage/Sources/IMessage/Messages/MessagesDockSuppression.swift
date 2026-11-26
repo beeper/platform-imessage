@@ -6,9 +6,6 @@ import IMessageCore
 enum MessagesDockSuppression {
     private static let currentSession: Int32 = -2
     private static let transitionDelay: TimeInterval = 0.5
-    // Automation and lifecycle callbacks run on different threads. The restoration
-    // and current-type writes must remain one transaction across both callers.
-    private static let transitionLock = NSLock()
     private static let api = Result { try LaunchServices() }
 
     enum Presentation {
@@ -23,17 +20,17 @@ enum MessagesDockSuppression {
         }
     }
 
-    static func suppress(_ app: NSRunningApplication) throws {
-        try setPresentation(of: app, target: .suppressed)
+    // Not serialized here: production callers all run on the serial
+    // MessagesControllerAutomationLane, so transitions never interleave.
+    static func suppress(_ app: NSRunningApplication) async throws {
+        try await setPresentation(of: app, target: .suppressed)
     }
 
-    static func restore(_ app: NSRunningApplication) throws {
-        try setPresentation(of: app, target: .foreground)
+    static func restore(_ app: NSRunningApplication) async throws {
+        try await setPresentation(of: app, target: .foreground)
     }
 
-    private static func setPresentation(of app: NSRunningApplication, target: Presentation) throws {
-        transitionLock.lock()
-        defer { transitionLock.unlock() }
+    private static func setPresentation(of app: NSRunningApplication, target: Presentation) async throws {
         guard app.bundleIdentifier == messagesBundleID, !app.isTerminated else {
             throw ErrorMessage("Cannot change Dock presence of an invalid Messages instance")
         }
@@ -42,7 +39,7 @@ enum MessagesDockSuppression {
         let services = try api.get()
         let asn = try services.identity(for: app.processIdentifier)
 
-        try apply(
+        try await apply(
             target: target,
             write: { key, value in
                 guard !app.isTerminated else {
@@ -59,7 +56,7 @@ enum MessagesDockSuppression {
             settle: {
                 // Allow the UIElement transition to remove an existing Dock tile
                 // before applying the unknown type that survives URL handling.
-                Thread.sleep(forTimeInterval: transitionDelay)
+                try await Task.sleep(forTimeInterval: transitionDelay)
             }
         )
     }
@@ -73,8 +70,8 @@ enum MessagesDockSuppression {
         target: Presentation = .suppressed,
         write: (_ key: String, _ value: String) throws -> Void,
         read: () -> String?,
-        settle: () -> Void
-    ) throws {
+        settle: () async throws -> Void
+    ) async throws {
         let types = target.types
         // Avoid repeating transitions and settling delays on every preparation.
         let originalType = read()
@@ -88,7 +85,7 @@ enum MessagesDockSuppression {
                 guard read() == type else {
                     throw ErrorMessage("Messages Dock presentation did not take effect (\(type))")
                 }
-                if target == .suppressed { settle() }
+                if target == .suppressed { try await settle() }
             }
         } catch {
             // A failed second transition must not strand the Messages instance
@@ -96,7 +93,7 @@ enum MessagesDockSuppression {
             if target == .suppressed, originalType == "Foreground" {
                 let suppressionError = error
                 do {
-                    try apply(target: .foreground, write: write, read: read, settle: settle)
+                    try await apply(target: .foreground, write: write, read: read, settle: settle)
                 } catch {
                     throw ErrorMessage("Dock suppression failed (\(suppressionError)); restoration also failed (\(error))")
                 }

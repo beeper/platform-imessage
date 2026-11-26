@@ -15,6 +15,7 @@ private let log = Logger(imessageLabel: "messages-controller")
 private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 
 let messagesBundleID = "com.apple.MobileSMS"
+let systemSettingsBundleID = "com.apple.systempreferences"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
@@ -313,6 +314,19 @@ final class MessagesController {
         return namesThread(windowTitle) && rowNamesThread
     }
 
+    private func messagesRecordsSelection(of threadID: String) -> Bool {
+        Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true
+    }
+
+    private func messagesSelected(_ threadID: String, labels: Set<String>, recordedBeforeOpening: Bool) async -> Bool {
+        guard messagesRecordsSelection(of: threadID) else { return false }
+        guard recordedBeforeOpening else { return true }
+        let now = await currentSelection()
+        return [now.windowTitle, now.rowLabel].contains { name in
+            name.map { selection(ConversationSelection(rowLabel: $0, windowTitle: $0), matches: labels) } == true
+        }
+    }
+
     private func waitForSelection(
         of threadLabels: Set<String>?,
         awayFrom before: ConversationSelection,
@@ -345,24 +359,31 @@ final class MessagesController {
         }
         let threadLabels = try? predictWindowTitles(forChatGUID: threadID)
         let before = await currentSelection()
+        let recordedBeforeOpening = messagesRecordsSelection(of: threadID)
         var openedAt = Date()
         try await openDeepLink(deepLink)
         if await waitForSelection(of: threadLabels, awayFrom: before) {
             return try await assertSelectedThread(threadID: threadID, since: openedAt)
         }
 
-        if threadLabels != nil {
-            log.warning("Messages didn't select the chat, reopening it by chat id")
-            openedAt = Date()
-            try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
-            guard await waitForSelection(of: threadLabels, awayFrom: before) else {
-                throw ErrorMessage("Messages didn't switch to the chat")
+        if let threadLabels {
+            if await !messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) {
+                log.warning("Messages didn't select the chat, reopening it by chat id")
+                openedAt = Date()
+                try await openDeepLink(try MessagesDeepLink(existingThreadID: threadID))
+                if await waitForSelection(of: threadLabels, awayFrom: before) {
+                    return try await assertSelectedThread(threadID: threadID, since: openedAt)
+                }
+                guard await messagesSelected(threadID, labels: threadLabels, recordedBeforeOpening: recordedBeforeOpening) else {
+                    throw ErrorMessage("Messages didn't switch to the chat")
+                }
             }
+            log.warning("Messages selected the chat, but its title or row didn't match the predicted names")
             return try await assertSelectedThread(threadID: threadID, since: openedAt)
         }
 
         let now = await currentSelection()
-        if Defaults.lastSelectedItemIdentifier()?.hasSuffix("-\(threadID)") == true,
+        if messagesRecordsSelection(of: threadID),
            now.rowLabel == nil || now.rowLabel == now.windowTitle {
             return
         }
@@ -378,7 +399,7 @@ final class MessagesController {
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Beeper does not have Accessibility permissions")
+            throw ErrorMessage("Beeper does not have \(LocalizedStrings.accessibilityPermissionLabel) permission")
         }
 
         let coordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
@@ -1052,7 +1073,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /*
      uses 5 methods:
-     1. for ventura and up: hotkey                                           (reliable)
+     1. for ventura and up: selected row's Mark as Read action, else hotkey   (reliable)
      lower than ventura:
      2. for pinned threads: mark-read action                                 (reliable)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
@@ -1066,6 +1087,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await selectThread(threadID)
             if let isAlreadyDone, try await isAlreadyDone() { return }
             if isVenturaOrUp {
+                if read, let threadCell = await elements.selectedThreadCell, threadCell.isInViewport {
+                    if let rowAction = try? threadCellAction(threadCell: threadCell, action: .markAsRead) { return try rowAction() }
+                    if (try? threadCellAction(threadCell: threadCell, action: .markAsUnread)) != nil { return }
+                }
                 return try keyPresser.commandShiftU()
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread

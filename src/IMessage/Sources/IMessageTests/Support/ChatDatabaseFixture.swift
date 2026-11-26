@@ -1,9 +1,9 @@
 import Foundation
-import IMDatabase
-import SQLite3
+@testable import IMDatabase
 @testable import SQLite
 
-final class TahoeChatDatabaseFixture {
+/// A small `chat.db` with one chat, for tests that insert the few rows they need.
+final class ChatDatabaseFixture {
     static let defaultChatGUID = "any;-;+15555550100"
 
     let chatGUID: String
@@ -11,16 +11,21 @@ final class TahoeChatDatabaseFixture {
     let databasePath: String
     let database: Database
     let imDatabase: IMDatabase
+    /// `message.date_edited` arrived in macOS 13.
+    private let hasDateEdited: Bool
 
-    init(chatGUID: String = TahoeChatDatabaseFixture.defaultChatGUID) throws {
+    init(
+        chatGUID: String = ChatDatabaseFixture.defaultChatGUID,
+        schema: String = ChatDatabaseSchema.tahoe
+    ) throws {
         self.chatGUID = chatGUID
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         databasePath = directory.appendingPathComponent("chat.db").path
         database = try Database(connecting: databasePath, flags: [.readWrite, .createIfNecessary])
-        try Self.createTahoeSchema(in: database)
-        try database.createNoopFunction(name: "verify_chat", argumentCount: 1)
+        try ChatDatabaseSchema.create(schema, in: database)
+        hasDateEdited = try database.tableColumns("message").contains("date_edited")
         try database.execute(sqlWithoutEscaping: "INSERT INTO chat (ROWID, guid) VALUES (1, ?)", chatGUID)
 
         imDatabase = try IMDatabase(messagesDataBaseURL: directory)
@@ -42,8 +47,8 @@ final class TahoeChatDatabaseFixture {
     ) throws {
         try database.execute(
             sqlWithoutEscaping: """
-            INSERT INTO message (ROWID, guid, text, attributedBody, date, date_read, date_edited, service)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO message (ROWID, guid, text, attributedBody, date, date_read, service)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             rowID,
             guid ?? "message-\(rowID)",
@@ -51,9 +56,11 @@ final class TahoeChatDatabaseFixture {
             attributedBody,
             date ?? rowID,
             dateRead,
-            dateEdited,
             service
         )
+        if hasDateEdited {
+            try database.execute(sqlWithoutEscaping: "UPDATE message SET date_edited = ? WHERE ROWID = ?", dateEdited, rowID)
+        }
     }
 
     /// Inserts non-matching filler messages so search has to scan past them.
@@ -158,62 +165,5 @@ final class TahoeChatDatabaseFixture {
             messageRowID,
             messageDate
         )
-    }
-
-    private static func createTahoeSchema(in database: Database) throws {
-        let schema = try String(contentsOf: schemaURL, encoding: .utf8)
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { line in
-                !line.hasPrefix("CREATE TABLE sqlite_sequence")
-                    && !line.hasPrefix("CREATE TABLE sqlite_stat1")
-            }
-            .joined(separator: "\n")
-
-        try database.executeScript(sqlWithoutEscaping: schema)
-    }
-
-    private static var schemaURL: URL {
-        let testDirectory = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let repositoryRoot = testDirectory
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        return repositoryRoot.appendingPathComponent("fixtures/schema-tahoe.sql")
-    }
-}
-
-private extension Database {
-    func executeScript(sqlWithoutEscaping sql: String) throws {
-        try sql.withCString { ptr in
-            var errorMessage: UnsafeMutablePointer<CChar>?
-            defer {
-                if let errorMessage {
-                    sqlite3_free(errorMessage)
-                }
-            }
-
-            let result = sqlite3_exec(connection, ptr, nil, nil, &errorMessage)
-            guard result == SQLITE_OK else {
-                throw SQLiteError(code: result)
-            }
-        }
-    }
-
-    func createNoopFunction(name: String, argumentCount: Int32) throws {
-        let result = sqlite3_create_function_v2(
-            connection,
-            name,
-            argumentCount,
-            SQLITE_UTF8,
-            nil,
-            { context, _, _ in sqlite3_result_null(context) },
-            nil,
-            nil,
-            nil
-        )
-        try SQLiteError.check(result)
     }
 }

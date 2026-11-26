@@ -8,7 +8,7 @@ import { APP_BUNDLE_ID } from './constants'
 import { IS_BIG_SUR_OR_UP, MIN_MACOS_VERSION_ERROR, REQUIRES_FULL_DISK_ACCESS } from './common-constants'
 import { csrStatus } from './csr'
 import { shellExec } from './util'
-import imessage, { type NativeMacPermissionAuthStatus, type NativePlatformAPI } from './IMessage/lib'
+import imessage, { type NativePlatformAPI } from './IMessage/lib'
 import { makeJSONPersistence, Persistence } from './persistence'
 import { appleDateToMillisSinceEpoch, makeAppleDate } from './time'
 import { parseSwiftMessageAPIJSON, reviveSwiftMessageAPIValue } from './swift-json'
@@ -59,6 +59,7 @@ export default class AppleiMessage implements PlatformAPI {
     }
   }
 
+  // eslint-disable-next-line class-methods-use-this
   private async ensureDB() {
     try {
       await imessage.MacPermissions.validateDatabaseAccess()
@@ -100,7 +101,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   private experiments = ''
 
-  init = async (session: SerializedSession, { dataDirPath }: ClientContext, prefs?: Record<string, any>) => {
+  init = async (session: SerializedSession, { dataDirPath }: ClientContext) => {
     // Initialization must work without FDA so onboarding and reauthorization can request it.
     if (session && !IS_BIG_SUR_OR_UP) throw new Error(MIN_MACOS_VERSION_ERROR)
     const userDataDirPath = path.dirname(dataDirPath)
@@ -263,10 +264,10 @@ export default class AppleiMessage implements PlatformAPI {
       this.sendingMessagesCount++
       const { quotedMessageID } = options
       if (content.fileBuffer) {
-        return this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
+        return await this.sendFileFromBuffer(hashedThreadID, content.fileBuffer, content.fileName, quotedMessageID)
       }
       if (content.filePath) {
-        return this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
+        return await this.sendFileFromFilePath(hashedThreadID, content.filePath, quotedMessageID)
       }
       return parseSwiftMessageAPIJSON<boolean | Message[]>(await this.swiftPlatformAPI!.sendMessage(hashedThreadID, content.text, undefined, quotedMessageID))
     } finally {
@@ -315,7 +316,7 @@ export default class AppleiMessage implements PlatformAPI {
 
   markAsUnread = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.markAsUnread(hashedThreadID)
 
-  sendReadReceipt = (hashedThreadID: ThreadID, messageID?: MessageID) =>
+  sendReadReceipt = (hashedThreadID: ThreadID) =>
     this.swiftPlatformAPI!.sendReadReceipt(hashedThreadID)
 
   notifyAnyway = (hashedThreadID: ThreadID) => this.swiftPlatformAPI!.notifyAnyway(hashedThreadID)
@@ -332,6 +333,7 @@ export default class AppleiMessage implements PlatformAPI {
     canAccessMessagesDir: () => imessage.MacPermissions.canAccessMessagesDir().then(() => true, () => false),
     askForAutomationAccess: () => imessage.MacPermissions.askForAutomationAccess().then(() => true),
     askForMessagesDirAccess: () => imessage.MacPermissions.askForMessagesDirAccess(),
+    getAccessibilityPermissionLabel: () => imessage.MacPermissions.getAccessibilityPermissionLabel(),
     getAccessibilityAuthStatus: () => imessage.MacPermissions.getAuthStatus('accessibility'),
     getContactsAuthStatus: () => imessage.MacPermissions.getAuthStatus('contacts'),
     getFullDiskAccessAuthStatus: () => imessage.MacPermissions.getAuthStatus('full-disk-access'),
@@ -352,7 +354,7 @@ export default class AppleiMessage implements PlatformAPI {
     },
     isNotificationsEnabledForMessages: () => imessage.isNotificationsEnabledForMessages,
     revealSettings: () => imessage.revealSettings?.(),
-  } satisfies Record<string, () => Awaitable<boolean | NativeMacPermissionAuthStatus | void>>
+  } satisfies Record<string, () => Awaitable<boolean | string | void>>
 
   getAsset = async (_fetchOptions?: GetAssetOptions, ...[pathHex, methodName]: string[]) => {
     if (pathHex === 'proxied') {

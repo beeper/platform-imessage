@@ -31,7 +31,7 @@ final class SpacesWindowCoordinator {
         log.debug(Self.canUseUnknownSpace ? "can use unknown spaces" : "can't use unknown spaces")
 
         if Self.canUseUnknownSpace || Defaults.imessage.bool(forKey: DefaultsKeys.spacesAlwaysUseUnknownSpace) {
-            unknownSpace = Space(newSpaceOfKind: .unknown)
+            unknownSpace = try Space(newSpaceOfKind: .unknown)
         } else {
             // have to use a .user space, which behaves differently. observe various things on the system to improve ux
             self.beginObservationsForUserSpace()
@@ -101,8 +101,7 @@ private extension SpacesWindowCoordinator {
         let allSpaces = try Space.list(.allSpaces)
         let kind = Space.Kind.user
         let existing = allSpaces.filter {
-            guard let values = try? $0.values() else { return false }
-            guard let dict = values as? [String: AnyObject] else { return false }
+            guard let dict = try? $0.values() else { return false }
             let createdByUs = (dict["uuid"] as? String)?.hasPrefix(Space.prefix) == true
             let isSpaceKindUser = (dict["type"] as? UInt32) == kind.raw.rawValue
             let dockPID = Dock.pid
@@ -121,7 +120,7 @@ private extension SpacesWindowCoordinator {
             return false
         }.first
         if let existing { log.debug("reusing existing space \(existing.raw)") }
-        return existing ?? Space(newSpaceOfKind: kind)
+        return try existing ?? Space(newSpaceOfKind: kind)
     }
 
     func moveLastKnownWindowToHiddenSpace() throws {

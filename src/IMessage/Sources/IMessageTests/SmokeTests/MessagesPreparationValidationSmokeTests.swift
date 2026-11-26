@@ -2,7 +2,6 @@ import AppKit
 import AccessibilityControl
 import ApplicationServices
 import Carbon.HIToolbox.Events
-import IMessagePrivateSPI
 import Testing
 import WindowControl
 @testable import IMessage
@@ -86,8 +85,8 @@ struct MessagesPreparationValidationSmokeTests {
         let reopened = try #require(elements.getMainWindow())
         let id = try reopened.window().raw
         let spaces = try smokeWindowSpaces(id)
-        let space = try #require(spaces.count == 1 ? spaces.first.flatMap { Space(raw: .init($0)) } : nil)
-        #expect(try space.kind() == .unknown)
+        let space = try #require(spaces.count == 1 ? spaces.first.flatMap { Space(raw: $0) } : nil)
+        #expect(space.kind() == .unknown)
         #expect(try !smokeOnscreen(id))
         #expect(try !elements.app.isHidden())
     }
@@ -127,9 +126,9 @@ struct MessagesPreparationValidationSmokeTests {
         #expect(try !controller.elements.app.isHidden())
         let recoveredWindow = try await runSmokeWorker { try await controller.elements.mainWindow.window().raw }
         #expect(try !smokeOnscreen(recoveredWindow))
-        let recoveredSpaceID = try #require(IMPrivateSPISpacesForWindow(recoveredWindow)?.first?.uint64Value)
-        let recoveredSpace = try #require(Space(raw: .init(recoveredSpaceID)))
-        #expect(try recoveredSpace.kind() == .unknown)
+        let recoveredSpaceID = try #require(smokeSpaceIDs(forWindow: recoveredWindow)?.first)
+        let recoveredSpace = try #require(Space(raw: recoveredSpaceID))
+        #expect(recoveredSpace.kind() == .unknown)
     }
 
     @Test
@@ -192,11 +191,11 @@ struct MessagesPreparationValidationSmokeTests {
         let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
         try #require(finder.activate(options: []))
         try await waitForSmoke { try !smokeFrontmost(axApp) }
-        try MessagesDockSuppression.suppress(app)
+        try await MessagesDockSuppression.suppress(app)
         app.hide()
         try await waitForSmoke { try axApp.isHidden() }
-        let originalMainSpaces = IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value)
-        let originalSettingsSpaces = IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value)
+        let originalMainSpaces = smokeSpaceIDs(forWindow: mainID)
+        let originalSettingsSpaces = smokeSpaceIDs(forWindow: settingsID)
         try #require(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
 
         var exposures = Set<UInt32>()
@@ -221,29 +220,29 @@ struct MessagesPreparationValidationSmokeTests {
         #expect(exposures.isEmpty, "Neither window may flash onscreen during preparation")
         #expect(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
         print("SETTINGS_CONCEALMENT samples=\(samples) exposures=\(exposures.count)")
-        let parkedMain = try #require(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value))
-        let parkedSettings = try #require(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value))
+        let parkedMain = try #require(smokeSpaceIDs(forWindow: mainID))
+        let parkedSettings = try #require(smokeSpaceIDs(forWindow: settingsID))
         #expect(parkedMain.count == 1 && parkedMain == parkedSettings)
         #expect(parkedMain != originalMainSpaces && parkedSettings != originalSettingsSpaces)
-        let parkedSpace = try #require(parkedMain.first.flatMap { Space(raw: .init($0)) })
-        #expect(try parkedSpace.kind() == .unknown)
+        let parkedSpace = try #require(parkedMain.first.flatMap { Space(raw: $0) })
+        #expect(parkedSpace.kind() == .unknown)
         #expect((try parkedSpace.values() as NSDictionary)["ManagedSpaceID"] == nil)
         try runSmokeWorker { try coordinator.automationDidComplete() }
         #expect(try !axApp.isHidden())
         #expect(try await runSmokeWorker { try await elements.mainWindow.window().raw } == mainID)
-        #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == parkedMain)
-        #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == parkedSettings)
+        #expect(smokeSpaceIDs(forWindow: mainID) == parkedMain)
+        #expect(smokeSpaceIDs(forWindow: settingsID) == parkedSettings)
         #expect(try !smokeOnscreen(mainID) && !smokeOnscreen(settingsID))
 
         // Manual activation must reveal both windows on their ordinary
         // desktop, rather than merely hiding them forever in the shared pool.
-        try coordinator.restoreDockPresence()
+        try await coordinator.restoreDockPresence()
         try #require(app.activate(options: [.activateAllWindows]))
         try await waitForSmoke { try smokeFrontmost(axApp) }
         try coordinator.userManuallyActivated(app)
         try await waitForSmoke { try smokeOnscreen(mainID) && smokeOnscreen(settingsID) }
-        #expect(IMPrivateSPISpacesForWindow(mainID)?.map(\.uint64Value) == originalMainSpaces)
-        #expect(IMPrivateSPISpacesForWindow(settingsID)?.map(\.uint64Value) == originalSettingsSpaces)
+        #expect(smokeSpaceIDs(forWindow: mainID) == originalMainSpaces)
+        #expect(smokeSpaceIDs(forWindow: settingsID) == originalSettingsSpaces)
     }
 
     private func restoreFrontmost(_ app: NSRunningApplication?) {

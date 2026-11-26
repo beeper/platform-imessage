@@ -3,7 +3,7 @@ import IMDatabase
 import Testing
 
 @Test func searchMessagesFindsMatchesPastInitialCandidateWindow() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, text: "the buried project status update")
@@ -15,7 +15,7 @@ import Testing
 }
 
 @Test func platformSearchUsesLookaheadForHasMoreWithoutReturningExtraMessage() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, guid: "00000000-0000-4000-8000-000000000101", text: "project status older")
@@ -39,7 +39,7 @@ import Testing
 }
 
 @Test func searchScopedToChatReturnsOnlyThatChatsMatches() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // Two messages match the query; only one is joined to the fixture's chat.
@@ -57,7 +57,7 @@ import Testing
 }
 
 @Test func searchUnknownChatReturnsEmpty() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, text: "project status")
@@ -73,7 +73,7 @@ import Testing
 }
 
 @Test func searchScopedToChatPaginatesEqualDateMatchesWithoutSkips() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // Three same-date matches in the chat: paging must not skip the equal-date boundary.
@@ -102,7 +102,7 @@ import Testing
 }
 
 @Test func searchScopedToChatAfterCursorReturnsContiguousNewerMatches() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // Five ascending-date matches in the chat. Paging `.after` from the middle
@@ -128,7 +128,7 @@ import Testing
 // MARK: - attributedBody decode path (T4)
 
 @Test func searchMatchesAttributedBodyOnlyMessagePastInitialWindow() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // text column is empty; the only match lives in the archived attributedBody blob,
@@ -136,7 +136,7 @@ import Testing
     try fixture.insertMessage(
         rowID: 1,
         text: "",
-        attributedBody: TahoeChatDatabaseFixture.attributedBody("the buried project status update")
+        attributedBody: ChatDatabaseFixture.attributedBody("the buried project status update")
     )
     try fixture.insertFillerMessages(rowIDs: 2 ... 402)
 
@@ -148,7 +148,7 @@ import Testing
 // MARK: - hasMore / limit boundaries (T5)
 
 @Test func searchHasMoreFalseWhenExactlyLimitMatches() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, text: "project status one")
@@ -161,7 +161,7 @@ import Testing
 }
 
 @Test func searchWithNonPositiveLimitReturnsEmpty() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertMessage(rowID: 1, text: "project status")
@@ -173,7 +173,7 @@ import Testing
 }
 
 @Test func searchWithNoMatchesReturnsEmpty() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     try fixture.insertFillerMessages(rowIDs: 1 ... 5)
@@ -186,7 +186,7 @@ import Testing
 }
 
 @Test func searchScanCapExcludesMatchBeyondCapButReportsHasMore() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // cap = limit * 200 = 200. The lone match sits oldest (rowID 1), behind 201 newer
@@ -204,7 +204,7 @@ import Testing
 // MARK: - direction + compound cursor (T6)
 
 @Test func searchAfterCursorReturnsContiguousNewerMatchesNotNewest() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     for rowID in 1 ... 4 {
@@ -225,7 +225,7 @@ import Testing
 }
 
 @Test func searchPaginatesEqualDateMatchesWithoutSkips() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // Three matches share one date; the compound (date, ROWID) cursor must page them
@@ -250,7 +250,7 @@ import Testing
 }
 
 @Test func searchBeforeThenAfterRoundTripsBoundary() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     for rowID in 1 ... 5 {
@@ -281,7 +281,7 @@ import Testing
 }
 
 @Test func searchCapHitContinuationCursorSurfacesBuriedMatch() throws {
-    let fixture = try TahoeChatDatabaseFixture()
+    let fixture = try ChatDatabaseFixture()
     defer { fixture.cleanup() }
 
     // The match sits oldest (rowID 1), behind 201 newer filler rows, so it falls at scan
