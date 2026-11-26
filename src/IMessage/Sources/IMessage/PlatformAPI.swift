@@ -751,7 +751,9 @@ public final class PlatformAPI {
             return false
         }
 
-        guard chat.serviceName == .imessage || chat.serviceName == .rcs else {
+        let service = try controller.db.mappedLatestMessageRows(chatRowIDs: [chat.id])[threadID]?.service?.nonEmpty
+            .map(Chat.ServiceName.init(rawValue:)) ?? chat.serviceName
+        guard service == .imessage || service == .rcs else {
             #if DEBUG
             platformLog.debug("chat definitely isn't an iMessage/RCS 1:1 DM, not watching for activity")
             #endif
@@ -1151,6 +1153,7 @@ extension PlatformAPI {
                 currentUserID: currentUser.id,
                 accountID: accountID
             ),
+            latestMessageServicesByChatGUID: latestMessageRowsByChatGUID.compactMapValues { $0.service?.nonEmpty },
             unreadCounts: try db.mappedUnreadCounts(chatRowIDs: chatRowIDs),
             dndState: permanentDNDThreadIDs(),
             currentUser: currentUser,

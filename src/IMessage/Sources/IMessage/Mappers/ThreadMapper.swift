@@ -7,6 +7,7 @@ enum ThreadMapper {
     struct Context {
         var handleRowsByChatRowID: [Int: [MappedHandleRow]]
         var latestMessagesByChatGUID: [String: [PlatformSDK.Message]]
+        var latestMessageServicesByChatGUID: [String: String]
         var unreadCounts: [Int: Int]
         var dndState: Set<String>
         var currentUser: PlatformSDK.CurrentUser
@@ -49,7 +50,11 @@ enum ThreadMapper {
             imgURL: chatPhotoURL(props: props, accountID: context.accountID),
             messages: PlatformSDK.Paginated(items: messages, hasMore: true),
             participants: PlatformSDK.Paginated(items: participants, hasMore: false),
-            extra: isSMS(guid: guid, serviceName: chat.serviceName) ? ["isSMS": true] : nil,
+            extra: isSMS(
+                guid: guid,
+                serviceName: chat.serviceName,
+                latestMessageService: context.latestMessageServicesByChatGUID[guid]
+            ) ? ["isSMS": true] : nil,
             unreadCount: unreadCount,
             isMarkedUnread: isUnread,
             lastReadMessageSortKey: appleDateMilliseconds(chat.lastReadMessageTimestamp)
@@ -57,12 +62,15 @@ enum ThreadMapper {
     }
 
     // macOS 26 can give every chat an `any;` GUID, so the service has to come
-    // from the chat row there.
-    static func isSMS(guid: String, serviceName: String?) -> Bool {
+    // from its latest message there.
+    static func isSMS(guid: String, serviceName: String?, latestMessageService: String? = nil) -> Bool {
         if guid.hasPrefix("SMS;") || guid.hasPrefix("RCS;") {
             return true
         }
-        return guid.hasPrefix("any;") && serviceName.map(Chat.ServiceName.init(rawValue:))?.isSMS == true
+        guard guid.hasPrefix("any;") else {
+            return false
+        }
+        return (latestMessageService ?? serviceName).map(Chat.ServiceName.init(rawValue:))?.isSMS == true
     }
 
     private static func mapParticipant(_ row: MappedHandleRow, chatDisplayName: String?) -> PlatformSDK.Participant? {
