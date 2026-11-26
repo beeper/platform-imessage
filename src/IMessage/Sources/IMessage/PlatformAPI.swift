@@ -80,6 +80,8 @@ public final class PlatformAPI {
     private let database = PlatformAPIDatabase()
     private let currentUserCache = Protected<PlatformSDK.CurrentUser?>()
     private let dndUserIDs = Protected(Set<String>())
+    private typealias QueuedReadReceipt = (id: UUID, task: Task<Void, Error>)
+    private let queuedReadReceipts = Protected<[String: QueuedReadReceipt]>([:])
 
     private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
@@ -413,23 +415,54 @@ public final class PlatformAPI {
 
     public func sendReadReceipt(threadID publicThreadID: String) async throws {
         let database = database
-        try await retry(retries: 1, interval: 1) { _ in
-            let (threadID, isRead) = try await Task.detached(priority: .userInitiated) {
-                try database.withDatabase { db in
-                    let threadID = try Self.originalThreadID(db: db, publicThreadID)
-                    return (threadID, try db.isThreadRead(chatGUID: threadID))
-                }
-            }.value
-            guard !isRead else {
-                return
+        let (threadID, isRead) = try await Task.detached(priority: .userInitiated) {
+            try database.withDatabase { db in
+                let threadID = try Self.originalThreadID(db: db, publicThreadID)
+                return (threadID, try db.isThreadRead(chatGUID: threadID))
             }
+        }.value
+        guard !isRead else {
+            return
+        }
 
-            let readNow: @Sendable () async throws -> Bool = {
-                try await Task.detached(priority: .userInitiated) {
-                    try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
-                }.value
+        let queuedReadReceipts = queuedReadReceipts
+        let task = queuedReadReceipts.withLock { queued in
+            if let receipt = queued[threadID] { return receipt.task }
+            let id = UUID()
+            let task = MessagesControllerAutomationLane.escapingTask {
+                defer { Self.dequeueReadReceipt(queuedReadReceipts, threadID: threadID, id: id) }
+                try await self.markThreadRead(threadID: threadID, publicThreadID: publicThreadID) {
+                    Self.dequeueReadReceipt(queuedReadReceipts, threadID: threadID, id: id)
+                }
             }
+            queued[threadID] = (id, task)
+            return task
+        }
+        try await task.value
+    }
+
+    private static func dequeueReadReceipt(_ queued: Protected<[String: QueuedReadReceipt]>, threadID: String, id: UUID) {
+        queued.withLock { queued in
+            if queued[threadID]?.id == id { queued[threadID] = nil }
+        }
+    }
+
+    private func markThreadRead(
+        threadID: String,
+        publicThreadID: String,
+        onStart: @escaping @Sendable () -> Void
+    ) async throws {
+        let database = database
+        let readNow: @Sendable () async throws -> Bool = {
+            try await Task.detached(priority: .userInitiated) {
+                try database.withDatabase { try $0.isThreadRead(chatGUID: threadID) }
+            }.value
+        }
+        try await retry(retries: 1, interval: 1) { attempt in
+            if attempt > 0, try await readNow() { return }
             try await withMessagesController { controller in
+                onStart()
+                guard try await !readNow() else { return }
                 try await controller.toggleThreadRead(threadID: threadID, read: true, isAlreadyDone: readNow)
             }
             try await retry(withTimeout: readReceiptLandTimeout, interval: 0.1) {
