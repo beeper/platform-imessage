@@ -230,6 +230,12 @@ public final class PlatformAPI {
         }
     }
 
+    public func getThreadIDs() async throws -> [String] {
+        try await runDBQuery { db, _, _ in
+            try db.allThreadGUIDs().map { Hasher.thread.tokenizeRemembering(pii: $0) }
+        }
+    }
+
     public func getMessage(threadID: String, messageID: String) async throws -> PlatformSDK.Message? {
         try await runDBQuery { db, currentUser, accountID in
             try Self.getMessage(

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
-import { Thread, ThreadReminder } from '@textshq/platform-sdk'
+import { MessageID, Thread, ThreadReminder } from '@textshq/platform-sdk'
 import { AppleDate } from './time'
+import type { TranscriptionResult } from './desktop-types'
 /* eslint-disable no-void -- we are being explicit about "naked" promise calls */
 
 /** All persisted thread data. Stays in memory and gets (de)serialized from/to disk. */
@@ -21,6 +22,7 @@ export interface PersistedThreadProps {
   pin?: boolean
   reminder?: ThreadReminder
   lowPriority?: boolean
+  transcriptions?: Record<MessageID, TranscriptionResult>
 }
 
 export type PersistedBatchGetResults<P extends keyof PersistedThreadProps> = Record<string, PersistedThreadProps[P] | undefined>
@@ -141,6 +143,45 @@ export class Persistence {
     this.data[threadID] ??= {}
     this.data[threadID][propName] = propValue
 
+    this.invalidateSavedData()
+  }
+
+  threadIDs(): string[] {
+    return Object.keys(this.data)
+  }
+
+  deleteThread(threadID: string): void {
+    if (!this.data[threadID]) return
+
+    texts.log(`imsg/persistence: deleting all persisted props for ${threadID}`)
+    delete this.data[threadID]
+    this.invalidateSavedData()
+  }
+
+  getTranscription(threadID: string, messageID: MessageID): TranscriptionResult | undefined {
+    return this.data[threadID]?.transcriptions?.[messageID]
+  }
+
+  setTranscription(threadID: string, messageID: MessageID, transcription: TranscriptionResult): void {
+    texts.log(`imsg/persistence: setting transcription for ${messageID} in ${threadID}`)
+    const transcriptions = { ...this.data[threadID]?.transcriptions, [messageID]: transcription }
+    this.data[threadID] = { ...this.data[threadID], transcriptions }
+
+    this.invalidateSavedData()
+  }
+
+  deleteTranscription(threadID: string, messageID: MessageID): void {
+    const transcriptions = this.data[threadID]?.transcriptions
+    if (!transcriptions?.[messageID]) return
+
+    const { [messageID]: _deleted, ...remaining } = transcriptions
+    if (Object.keys(remaining).length === 0) {
+      this.deleteThreadProp(threadID, 'transcriptions')
+      return
+    }
+
+    texts.log(`imsg/persistence: deleting transcription for ${messageID} in ${threadID}`)
+    this.data[threadID].transcriptions = remaining
     this.invalidateSavedData()
   }
 }
