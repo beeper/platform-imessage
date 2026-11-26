@@ -12,17 +12,18 @@ final class OnboardingManager {
     private var pollingTimer: Timer?
     private var initialWidth: CGFloat?
 
-    private static let sysPrefsBundleID = "com.apple.systempreferences"
-    private static let sysPrefsURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: sysPrefsBundleID)
-    private static let sysPrefsTitle = sysPrefsURL.flatMap(Bundle.init(url:))?.localizedString(forKey: "System Preferences", value: nil, table: nil)
+    private static var sysPrefsApp: NSRunningApplication? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: systemSettingsBundleID).first
+    }
 
     static func isPrefsFocused() -> Bool {
-        NSRunningApplication.runningApplications(withBundleIdentifier: Self.sysPrefsBundleID).first?.isActive == true
+        sysPrefsApp?.isActive == true
     }
 
     static func getPrefsWindowBounds() -> CGRect? {
-        guard let windowDescriptions = try? Window.listDescriptions(.onScreen, excludeDesktopElements: true),
-              let systemSettingsWindow = windowDescriptions.first(where: { $0.ownerName == Self.sysPrefsTitle })
+        guard let pid = sysPrefsApp?.processIdentifier,
+              let windowDescriptions = try? Window.listDescriptions(.onScreen, excludeDesktopElements: true),
+              let systemSettingsWindow = windowDescriptions.first(where: { $0.owner == pid })
         else {
             return nil
         }

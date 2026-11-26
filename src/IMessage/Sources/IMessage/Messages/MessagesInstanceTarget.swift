@@ -7,7 +7,6 @@ import Logging
 
 private let log = Logger(imessageLabel: "messages-instance-target")
 
-@available(macOS 11, *)
 enum MessagesInstanceTarget {
     /// AppKit's cached isActive can lag activation during automation completion.
     /// Query the target through AX first so manual control prevents re-parking
@@ -111,7 +110,7 @@ enum MessagesInstanceTarget {
 
         if !activating, Defaults.shouldSuppressMessagesDock {
             do {
-                try MessagesDockSuppression.suppress(application)
+                try await MessagesDockSuppression.suppress(application)
             } catch {
                 log.error("failed to hide secondary Messages from Dock: \(error)")
             }

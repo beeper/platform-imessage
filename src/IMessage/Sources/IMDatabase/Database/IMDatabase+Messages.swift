@@ -15,26 +15,22 @@ public enum DateOrdering {
 }
 
 public struct MessageQueryFilter {
-    let sqlFragment: String
-    init(escapedSQLFragment: String) {
-        self.sqlFragment = escapedSQLFragment
-    }
+    let comparison: String
+    let dateNanoseconds: Int64
 
     public static func before(nanosecondsSinceReferenceDate dateNanoseconds: Int64) -> Self {
-        MessageQueryFilter(escapedSQLFragment: "date < \(dateNanoseconds)")
+        MessageQueryFilter(comparison: "<", dateNanoseconds: dateNanoseconds)
     }
 
     public static func after(nanosecondsSinceReferenceDate dateNanoseconds: Int64) -> Self {
-        MessageQueryFilter(escapedSQLFragment: "date > \(dateNanoseconds)")
+        MessageQueryFilter(comparison: ">", dateNanoseconds: dateNanoseconds)
     }
 }
 
-let messagesQuerySharedPrelude = """
+private let messagesQuerySelection = """
 SELECT c.guid, m.ROWID, m.guid, m.balloon_bundle_id, m.thread_originator_guid, m.text, m.attributedBody, m.is_from_me, m.is_sent, m.date, m.date_read, m.message_summary_info
-FROM message m
-LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-LEFT JOIN chat c ON cmj.chat_id = c.ROWID
 """
+
 
 public extension IMDatabase {
     func message(
@@ -42,7 +38,10 @@ public extension IMDatabase {
         withAttachments includeAttachments: Bool = true,
         ) throws -> (message: Message, chatGUID: GUID<Chat>)? {
         let statement = try cachedStatement(forEscapedSQL: """
-        \(messagesQuerySharedPrelude)
+        \(messagesQuerySelection)
+        FROM message m
+        LEFT JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+        LEFT JOIN chat c ON cmj.chat_id = c.ROWID
         WHERE m.guid = ?
         """).reset()
         try statement.bind(guid)
@@ -72,14 +71,23 @@ public extension IMDatabase {
         limit: Int = 50,
         withAttachments includeAttachments: Bool = true,
         ) throws -> some Collection<Message> {
+        // Start from the chat's own date index. Walking message by date and
+        // filtering on the chat reads every message in between for a quiet chat.
         let statement = try cachedStatement(forEscapedSQL: """
-        \(messagesQuerySharedPrelude)
+        \(messagesQuerySelection)
+        FROM chat c
+        CROSS JOIN chat_message_join cmj ON cmj.chat_id = c.ROWID
+        CROSS JOIN message m ON m.ROWID = cmj.message_id
         WHERE c.guid = ?
-        \(filter.map { "AND m.\($0.sqlFragment)" } ?? "")
-        ORDER BY m.date \(order.sqlKeyword)
+        \(filter.map { "AND cmj.message_date \($0.comparison) ?" } ?? "")
+        ORDER BY cmj.message_date \(order.sqlKeyword)
         LIMIT ?
         """).reset()
-        try statement.bind(chatGUID, limit)
+        if let filter {
+            try statement.bind(chatGUID, filter.dateNanoseconds, limit)
+        } else {
+            try statement.bind(chatGUID, limit)
+        }
 
         var messages = OrderedDictionary<Message.ID, Message>()
         try statement.stepUntilDone { row in

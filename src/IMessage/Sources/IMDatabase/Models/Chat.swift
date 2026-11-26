@@ -15,10 +15,15 @@ public extension Chat {
 
         public static let rcs = Self(rawValue: "RCS")
         public static let sms = Self(rawValue: "SMS")
+        public static let satelliteSMS = Self(rawValue: "SatelliteSMS")
         public static let imessage = Self(rawValue: "iMessage")
 
         public init(rawValue: String) {
             self.rawValue = rawValue
+        }
+
+        public var isSMS: Bool {
+            self == .sms || self == .rcs || self == .satelliteSMS
         }
     }
 }

@@ -15,6 +15,7 @@ private let log = Logger(imessageLabel: "messages-controller")
 private let lifecycleLog = Logger(imessageLabel: "lifecycle")
 
 let messagesBundleID = "com.apple.MobileSMS"
+let systemSettingsBundleID = "com.apple.systempreferences"
 let isMontereyOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0))
 let isVenturaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0))
 let isSonomaOrUp = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 0, patchVersion: 0))
@@ -400,7 +401,7 @@ final class MessagesController {
     init(windowCoordinator suppliedCoordinator: WindowCoordinator? = nil, reportErrorMessage: @escaping (_ txt: String) -> Void) async throws {
         self.reportErrorMessage = reportErrorMessage
         guard Accessibility.isTrusted() else {
-            throw ErrorMessage("Beeper does not have Accessibility permissions")
+            throw ErrorMessage("Beeper does not have \(LocalizedStrings.accessibilityPermissionLabel) permission")
         }
 
         let coordinator = try suppliedCoordinator ?? getBestWindowCoordinator()
@@ -1074,7 +1075,7 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
 
     /*
      uses 5 methods:
-     1. for ventura and up: hotkey                                           (reliable)
+     1. for ventura and up: selected row's Mark as Read action, else hotkey   (reliable)
      lower than ventura:
      2. for pinned threads: mark-read action                                 (reliable)
      3. when less than 9 pinned threads: pin thread, #2, unpin               (reliable)
@@ -1088,6 +1089,10 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
             try await selectThread(threadID)
             if let isAlreadyDone, try await isAlreadyDone() { return }
             if isVenturaOrUp {
+                if read, let threadCell = await elements.selectedThreadCell, threadCell.isInViewport {
+                    if let rowAction = try? threadCellAction(threadCell: threadCell, action: .markAsRead) { return try rowAction() }
+                    if (try? threadCellAction(threadCell: threadCell, action: .markAsUnread)) != nil { return }
+                }
                 return try keyPresser.commandShiftU()
             }
             let action = read ? ThreadAction.markAsRead : ThreadAction.markAsUnread

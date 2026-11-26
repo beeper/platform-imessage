@@ -95,7 +95,7 @@ private enum AuthorizationRequirement: String {
 
     var title: String {
         switch self {
-        case .accessibility: return "Accessibility"
+        case .accessibility: return LocalizedStrings.accessibilityPermissionLabel
         case .contacts: return "Contacts"
         case .messagesData: return "Messages Data"
         case .fullDiskAccess: return "Full Disk Access"
@@ -106,7 +106,7 @@ private enum AuthorizationRequirement: String {
         switch self {
         case .accessibility:
             let ok = MacPermissions.getAuthStatus(.accessibility) == .authorized
-            return (ok, ok ? "Your current Terminal app can control Messages.app." : "Enable your current Terminal app in System Settings > Privacy & Security > Accessibility.")
+            return (ok, ok ? "Your current Terminal app can control Messages.app." : "Enable your current Terminal app in System Settings > Privacy & Security > \(title).")
         case .contacts:
             let ok = MacPermissions.getAuthStatus(.contacts) == .authorized
             return (ok, ok ? "Contacts lookups are available." : "Allow Contacts access if you want contact-name lookups from the CLI.")
@@ -427,7 +427,7 @@ private final class Runner {
     private func runShell() async throws {
         let shouldStartEventWatching = try await runShellAuthorizationFlowIfNeeded()
         printTopLevelHelp()
-        let lineReader = ShellLineReader(prompt: prompt)
+        let lineReader = ShellLineReader(prompt: prompt, completions: shellCompletions)
         Log.consoleEmitter = { [lineReader] line in
             lineReader.printConsoleLine(line)
         }
@@ -616,7 +616,7 @@ private let commandDefinitions: [CommandDefinition] = [
     CommandDefinition(
         name: "authorize",
         category: .general,
-        summary: "Inspect or request CLI permissions for Accessibility, Contacts, Messages data access, and Automation.",
+        summary: "Inspect or request the permissions needed to control Messages, look up contacts, read Messages data, and send Apple Events to Messages (Automation).",
         usage: ["authorize", "authorize TARGET"],
         examples: ["authorize", "authorize accessibility", "authorize all"],
         notes: ["Targets: \(authorizationTargets.joined(separator: ", "))."]
@@ -998,6 +998,17 @@ private let commandAliases = [
     "delete-thread": "delete-chat",
     "select-thread": "select-chat",
 ]
+
+private let completableCommandNames = Array(commandMap.keys) + Array(commandAliases.keys)
+
+/// Tab-completion candidates for the shell: command names for the first word, and for `help COMMAND`.
+private func shellCompletions(precedingWords: [String]) -> [String] {
+    switch precedingWords {
+    case []: completableCommandNames + quitCommands
+    case ["help"]: completableCommandNames
+    default: []
+    }
+}
 
 private func resolveCommand(_ name: String) -> CommandDefinition? {
     commandMap[name] ?? commandAliases[name].flatMap { commandMap[$0] }
