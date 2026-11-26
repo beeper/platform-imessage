@@ -148,6 +148,7 @@ extension PlatformAPI {
             iframeURL: message.iframeURL,
             reactions: reactions ?? message.reactions,
             seen: message.seen,
+            sendStatus: message.sendStatus,
             isDelivered: message.isDelivered,
             isHidden: message.isHidden,
             isSender: message.isSender,

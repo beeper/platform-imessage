@@ -11,7 +11,7 @@ private let log = Logger(imessageLabel: "event-watcher.updates")
 // on a new message whose chat_message_join row never becomes visible.
 private let pendingChatJoinTimeout: TimeInterval = 10
 private let pendingMessageHydrationTimeout: TimeInterval = 2 * 60
-private let pendingSendStatusTimeout: TimeInterval = 24 * 60 * 60
+let pendingSendStatusTimeout: TimeInterval = 24 * 60 * 60
 private let maxPendingSendStatusCandidates = 500
 // How soon to re-tick when resolution work is outstanding and the database is
 // otherwise idle. New-message chat joins normally settle within a second, so we
@@ -189,7 +189,7 @@ extension EventWatcher {
 
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         messageHydrationRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
-        sendStatusRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        sendStatusRowStatesAwaitingSendCommit.removeAll(keepingCapacity: true)
 
         let queryResult = try db.messages(since: updatesCursor)
         traceMessageUpdates(
@@ -222,12 +222,17 @@ extension EventWatcher {
         for rowID in messageHydrationRowIDsAwaitingSendCommit {
             pendingMessageHydrationCandidates.removeValue(forKey: rowID)
         }
-        for rowID in sendStatusRowIDsAwaitingSendCommit {
-            pendingSendStatusCandidates[rowID]?.isErrored.toggle()
+        for (rowID, state) in sendStatusRowStatesAwaitingSendCommit {
+            if state.isFinished {
+                pendingSendStatusCandidates.removeValue(forKey: rowID)
+            } else {
+                pendingSendStatusCandidates[rowID]?.isErrored = state.isErrored
+                pendingSendStatusCandidates[rowID]?.isSent = state.isSent
+            }
         }
         newMessageRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
         messageHydrationRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
-        sendStatusRowIDsAwaitingSendCommit.removeAll(keepingCapacity: true)
+        sendStatusRowStatesAwaitingSendCommit.removeAll(keepingCapacity: true)
         schedulePendingWakeIfNeeded()
     }
 
@@ -322,7 +327,11 @@ extension EventWatcher {
         func patch(for message: PlatformSDK.Message) -> JSONObject? {
             switch self {
             case .full:
-                return message.jsonObject
+                var patch = message.jsonObject
+                if message.isSender == true, message.sendStatus == nil {
+                    patch["sendStatus"] = NSNull()
+                }
+                return patch
             case .read:
                 var patch = compactDictionary([
                     "seen": message.seen?.jsonValue,
@@ -524,20 +533,24 @@ extension EventWatcher {
             }
 
             let isErrored = row.error != 0
-            if isErrored != candidate.isErrored {
-                changes.append(UpdatedMessageChange(
-                    rowID: rowID,
-                    chatGUID: row.threadID ?? candidate.chatGUID,
-                    isNew: false,
-                    wasRead: false,
-                    wasEdited: false,
-                    isHydrationUpdate: true
-                ))
-                sendStatusRowIDsAwaitingSendCommit.append(rowID)
-            } else if (row.isSent == 1 && !isErrored)
-                        || now.timeIntervalSince(candidate.firstSeen) >= pendingSendStatusTimeout {
-                finishedRowIDs.append(rowID)
+            let isSent = row.isSent != 0
+            let isExpired = now.timeIntervalSince(candidate.firstSeen) >= pendingSendStatusTimeout
+            guard isErrored != candidate.isErrored || isSent != candidate.isSent || isExpired else {
+                continue
             }
+            changes.append(UpdatedMessageChange(
+                rowID: rowID,
+                chatGUID: row.threadID ?? candidate.chatGUID,
+                isNew: false,
+                wasRead: false,
+                wasEdited: false,
+                isHydrationUpdate: true
+            ))
+            sendStatusRowStatesAwaitingSendCommit[rowID] = PendingSendStatusRowState(
+                isErrored: isErrored,
+                isSent: isSent,
+                isFinished: (isSent && !isErrored) || isExpired
+            )
         }
 
         for rowID in finishedRowIDs {
@@ -626,6 +639,27 @@ extension EventWatcher {
         }
     }
 
+    func seedPendingSendStatusCandidates() throws {
+        let now = Date()
+        let since = Int64((now.timeIntervalSinceReferenceDate - pendingSendStatusTimeout) * 1_000_000_000)
+        let recentRowIDs = try db.sentMessageIDs(since: try db.lastMessageRowID() - maxPendingSendStatusCandidates).map(\.rowID)
+        for row in try db.mappedMessageRows(rowIDs: recentRowIDs).reversed()
+            where row.isOutgoingSendCandidate && row.isSent == 0 && row.error == 0 && pendingSendStatusCandidates[row.rowID] == nil {
+            guard let chatGUID = row.threadID, let date = row.date, Int64(date) > since else {
+                continue
+            }
+            if pendingSendStatusCandidates.count >= maxPendingSendStatusCandidates {
+                pendingSendStatusCandidates.removeFirst()
+            }
+            pendingSendStatusCandidates[row.rowID] = PendingSendStatusCandidate(
+                firstSeen: now,
+                chatGUID: chatGUID,
+                isErrored: false,
+                isSent: false
+            )
+        }
+    }
+
     private func trackPendingSendStatusCandidates(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow]
@@ -633,11 +667,8 @@ extension EventWatcher {
         let now = Date()
         for change in changes where change.isNew && pendingSendStatusCandidates[change.rowID] == nil {
             guard let row = messageRowsByRowID[change.rowID],
-                  row.isFromMe == 1,
-                  row.isSent == 0 || row.error != 0,
-                  row.itemType == 0,
-                  row.scheduleType == 0,
-                  row.associatedMessageGUID?.nonEmpty == nil else {
+                  row.isOutgoingSendCandidate,
+                  row.isSent == 0 || row.error != 0 else {
                 continue
             }
             if pendingSendStatusCandidates.count >= maxPendingSendStatusCandidates {
@@ -646,7 +677,8 @@ extension EventWatcher {
             pendingSendStatusCandidates[row.rowID] = PendingSendStatusCandidate(
                 firstSeen: now,
                 chatGUID: row.threadID ?? change.chatGUID,
-                isErrored: row.error != 0
+                isErrored: row.error != 0,
+                isSent: row.isSent != 0
             )
         }
     }

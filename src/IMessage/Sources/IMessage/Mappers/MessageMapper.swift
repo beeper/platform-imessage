@@ -143,6 +143,12 @@ struct Mapper {
         if !isGroup, let seen = appleDateMilliseconds(dates.read) {
             message.seen = .timestamp(seen)
         }
+        if messageRow.isOutgoingSendCandidate,
+           messageRow.isSent == 0,
+           messageRow.error == 0,
+           Date().timeIntervalSince1970 * 1000 - Double(sent) < pendingSendStatusTimeout * 1000 {
+            message.sendStatus = PlatformSDK.SendStatus(status: .pending, reason: "", ts: sent)
+        }
         return message
     }
 

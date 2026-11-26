@@ -21,6 +21,7 @@ extension PlatformSDK {
         public let iframeURL: String?
         public let reactions: [MessageReaction]?
         public let seen: MessageSeen?
+        public let sendStatus: SendStatus?
         public let isDelivered: Bool?
         public let isHidden: Bool?
         public let isSender: Bool?

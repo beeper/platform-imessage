@@ -1,4 +1,5 @@
 import Foundation
+import IMDatabase
 import IMessageCore
 import PlatformSDK
 
@@ -7,6 +8,15 @@ func appleDateMilliseconds(_ appleDate: Int?) -> Int64? {
         return nil
     }
     return (Int64(appleDate) / 1_000_000) + coreFoundationReferenceDateMilliseconds
+}
+
+extension MappedMessageRow {
+    var isOutgoingSendCandidate: Bool {
+        isFromMe == 1
+            && itemType == 0
+            && scheduleType == 0
+            && associatedMessageGUID?.nonEmpty == nil
+    }
 }
 
 func appleDateIsTruthy(_ appleDate: Int?) -> Bool {
