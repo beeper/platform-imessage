@@ -4,13 +4,12 @@ import Logging
 import IMessageCore
 import PlatformSDK
 
-private let linkPreviewPayloadDownloadWait: TimeInterval = 10
-
 private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let loadAttachmentTimeout: TimeInterval = 60
+private let linkPreviewPayloadDownloadWait: TimeInterval = 10
 private let readReceiptLandTimeout: TimeInterval = 3
 private let messageDeleteLandTimeout: TimeInterval = 3
 
