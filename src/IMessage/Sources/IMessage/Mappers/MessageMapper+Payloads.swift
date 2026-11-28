@@ -238,7 +238,7 @@ extension Mapper {
               let originalURL,
               let parsedTweet = parseTweetURL(originalURL),
               let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex"),
-              let imgURL = availablePayloadAttachment(payloadAttachments, at: iconIndex)?.srcURL else {
+              let imgURL = payloadAttachments[safe: iconIndex]?.srcURL else {
             return nil
         }
         let imageIndex = richLinkMetadata.dictionary("image")?.int("richLinkImageAttachmentSubstituteIndex")

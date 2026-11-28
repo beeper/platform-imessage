@@ -304,11 +304,8 @@ extension EventWatcher {
             changes: changes,
             messageRowsByRowID: messageRowsByRowID,
             mappedMessagesByRowID: context.mappedMessagesByRowID,
-            unfinishedAttachmentMessageRowIDs: Set(payloadRows.attachmentRows.compactMap { row in
-                guard let state = row.transferStateValue, state != .finished, !state.isTerminalFailure else {
-                    return nil
-                }
-                return row.msgRowID
+            transferringAttachmentMessageRowIDs: Set(payloadRows.attachmentRows.compactMap { row in
+                row.transferStateValue?.isTransferring == true ? row.msgRowID : nil
             })
         )
         trackPendingSendStatusCandidates(changes: changes, messageRowsByRowID: messageRowsByRowID)
@@ -471,7 +468,9 @@ extension EventWatcher {
                 let states = transferStates[row.rowID] ?? []
                 if states.isEmpty || states.contains(where: \.isTerminalFailure) {
                     pendingMessageHydrationCandidates.removeValue(forKey: row.rowID)
-                } else if states.allSatisfy({ $0 == .finished }) {
+                } else if row.balloonBundleID == BalloonBundleKind.url.rawValue
+                    ? !states.contains(where: \.isTransferring)
+                    : states.allSatisfy({ $0 == .finished }) {
                     hydratableRows.append(row)
                 }
             case nil:
@@ -613,7 +612,7 @@ extension EventWatcher {
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow],
         mappedMessagesByRowID: [Int: [PlatformSDK.Message]],
-        unfinishedAttachmentMessageRowIDs: Set<Int>
+        transferringAttachmentMessageRowIDs: Set<Int>
     ) {
         let now = Date()
         let rowsAwaitingSend = Set(messageHydrationRowIDsAwaitingSendCommit)
@@ -635,7 +634,7 @@ extension EventWatcher {
                 )
             } else if Self.mappedMessagesContainLoadingAttachments(mappedMessages)
                 || (row.balloonBundleID == BalloonBundleKind.url.rawValue
-                    && unfinishedAttachmentMessageRowIDs.contains(row.rowID)) {
+                    && transferringAttachmentMessageRowIDs.contains(row.rowID)) {
                 rememberPendingMessageHydrationCandidate(
                     row: row,
                     chatGUID: change.chatGUID,
