@@ -1016,16 +1016,6 @@ isMessagesAppResponsive=\(isMessagesAppResponsive)
         }
     }
 
-    func revealMessage(threadID: String, messageGUID: String) async throws {
-        try await withAutomation {
-            _ = try? await closeReplyTranscriptView()
-            try await withActivation(
-                openBefore: .message(guid: messageGUID, partIndex: nil, overlay: false, threadID: threadID),
-                threadID: threadID
-            ) {}
-        }
-    }
-
     func loadAttachment(threadID: String, messageCell: MessageCell) async throws {
         let startTime = Date()
         defer { log.debug("loadAttachment took \(startTime.timeIntervalSinceNow * -1000)ms") }

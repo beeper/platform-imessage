@@ -106,28 +106,6 @@ enum DatabaseTickWaits {
         )
     }
 
-    static func downloadedFile(
-        timeout: TimeInterval,
-        changes: Topic<Void>,
-        backstopInterval: TimeInterval = databaseTickBackstopInterval,
-        minimumRequeryInterval: TimeInterval = loadedAttachmentMinimumRequeryInterval,
-        fileURL: @escaping @Sendable () async throws -> URL?
-    ) async throws -> URL? {
-        let deadline = Date().addingTimeInterval(timeout)
-        return try await waitForDatabaseResult(
-            changes: changes,
-            backstopInterval: backstopInterval,
-            minimumRequeryInterval: minimumRequeryInterval,
-            query: fileURL,
-            evaluate: { url in
-                if url != nil || Date() >= deadline {
-                    return .finished(url)
-                }
-                return .waitingUntil(deadline)
-            }
-        )
-    }
-
     private static func waitForDatabaseResult<T>(
         changes: Topic<Void>,
         backstopInterval: TimeInterval,

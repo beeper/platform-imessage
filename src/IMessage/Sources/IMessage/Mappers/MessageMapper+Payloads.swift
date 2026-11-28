@@ -73,24 +73,21 @@ extension Mapper {
         guard let linkURL else {
             return MessagePatch()
         }
-        let missingImageURL = iframeURL == nil && imageAttachment == nil
-            ? missingPayloadImageAssetURL(payloadAttachments, at: imageIndex)
-            : nil
         var favicon: String?
-        if imageAttachment?.srcURL == nil, missingImageURL == nil,
-           let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex") {
-            favicon = availablePayloadAttachment(payloadAttachments, at: iconIndex)?.srcURL
-                ?? (imageIndex == nil ? missingPayloadImageAssetURL(payloadAttachments, at: iconIndex) : nil)
+        if imageAttachment?.srcURL == nil,
+           let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex"),
+           let icon = availablePayloadAttachment(payloadAttachments, at: iconIndex) {
+            favicon = icon.srcURL
         }
         let title = richLinkMetadata.string("title").flatMap { $0.isEmpty ? nil : $0 }
         let summary = richLinkMetadata.string("summary")
-        if imageAttachment?.srcURL == nil, missingImageURL == nil, title == nil, summary == nil, favicon == nil {
+        if imageAttachment?.srcURL == nil, title == nil, summary == nil, favicon == nil {
             return MessagePatch()
         }
         let link = PlatformSDK.MessageLink(
             url: linkURL,
             favicon: favicon,
-            img: imageAttachment?.srcURL ?? missingImageURL,
+            img: imageAttachment?.srcURL,
             imgSize: imageAttachment?.size,
             title: title,
             summary: summary
@@ -203,16 +200,6 @@ extension Mapper {
             return nil
         }
         return attachment
-    }
-
-    private func missingPayloadImageAssetURL(_ payloadAttachments: [PlatformSDK.Attachment], at index: Int?) -> String? {
-        guard let index,
-              let attachment = payloadAttachments[safe: index],
-              !attachment.id.isEmpty,
-              !unavailableLinkPreviewPayloads.read().contains(attachment.id) else {
-            return nil
-        }
-        return linkPreviewPayloadAssetURL(messageGUID: messageRow.guid, attachmentGUID: attachment.id)
     }
 
     private func pluginPayloadAttachments(from attachments: [PlatformSDK.Attachment]) -> [PlatformSDK.Attachment] {

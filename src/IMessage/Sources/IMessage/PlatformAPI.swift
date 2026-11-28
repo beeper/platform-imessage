@@ -9,8 +9,6 @@ private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let loadAttachmentTimeout: TimeInterval = 60
-private let linkPreviewPayloadDownloadWait: TimeInterval = 8
-private let linkPreviewChatRevealCooldown: TimeInterval = 10
 private let readReceiptLandTimeout: TimeInterval = 3
 private let messageDeleteLandTimeout: TimeInterval = 3
 
@@ -85,8 +83,6 @@ public final class PlatformAPI {
     private let dndUserIDs = Protected(Set<String>())
     private typealias QueuedReadReceipt = (id: UUID, task: Task<Void, Error>)
     private let queuedReadReceipts = Protected<[String: QueuedReadReceipt]>([:])
-    private let linkPreviewAssetTasks = Protected<[String: Task<AssetResult, Error>]>([:])
-    private let linkPreviewReveals = Protected(LinkPreviewReveals())
 
     private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
@@ -536,109 +532,6 @@ public final class PlatformAPI {
         ])
     }
 
-    private func getLinkPreviewPayloadAsset(methodName: String) async throws -> AssetResult {
-        let parts = methodName.split(separator: ".", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else {
-            throw ErrorMessage("invalid link preview asset")
-        }
-        let (messageGUID, attachmentGUID) = (parts[0], parts[1])
-        let tasks = linkPreviewAssetTasks
-        let task = tasks.withLock { tasks in
-            if let task = tasks[attachmentGUID] { return task }
-            let task = Task {
-                defer { tasks.withLock { $0[attachmentGUID] = nil } }
-                return try await self.loadLinkPreviewPayloadAsset(messageGUID: messageGUID, attachmentGUID: attachmentGUID)
-            }
-            tasks[attachmentGUID] = task
-            return task
-        }
-        return try await task.value
-    }
-
-    private func loadLinkPreviewPayloadAsset(messageGUID: String, attachmentGUID: String) async throws -> AssetResult {
-        let database = database
-        let downloadedFileURL = { @Sendable () throws -> URL? in
-            guard let filename = try database.withDatabase({ try $0.attachmentFilename(guid: attachmentGUID) }) else {
-                return nil
-            }
-            let fileURL = URL(fileURLWithPath: replaceTilde(filename))
-            return PluginPayloadAssetSupport.fileSize(fileURL) > 0 ? fileURL : nil
-        }
-        if let url = try downloadedFileURL() {
-            return .url(fileURLString(url.path))
-        }
-        guard !unavailableLinkPreviewPayloads.read().contains(attachmentGUID) else {
-            throw ErrorMessage("Messages didn't download the link preview image")
-        }
-
-        let chatGUID = try database.withDatabase { db -> String? in
-            guard let row = try db.mappedMessageRow(guid: messageGUID) else { return nil }
-            return try row.threadID ?? db.threadIDForMessage(rowID: row.rowID)
-        }
-        guard let chatGUID else {
-            throw ErrorMessage("Couldn't find the link preview's chat")
-        }
-        let changes = try database.changeTopic()
-        var revealed = true
-        do {
-            try await revealLinkPreviewMessage(chatGUID: chatGUID, messageGUID: messageGUID, downloadedFileURL: downloadedFileURL)
-        } catch {
-            revealed = false
-            platformLog.warning("couldn't show the link preview message in Messages: \(error)")
-        }
-        if revealed, let url = try await DatabaseTickWaits.downloadedFile(
-            timeout: linkPreviewPayloadDownloadWait,
-            changes: changes,
-            fileURL: downloadedFileURL
-        ) {
-            return .url(fileURLString(url.path))
-        }
-        guard !hasBeenDisposed.read() else {
-            throw CancellationError()
-        }
-
-        unavailableLinkPreviewPayloads.withLock { _ = $0.insert(attachmentGUID) }
-        if let reference = try await resolveMessageReference(messageID: messageGUID),
-           let message = try await getMessage(threadID: reference.threadID, messageID: reference.messageID) {
-            try await EventWatcherLifecycle.shared.sendEvents([
-                .updateMessages(threadID: reference.threadID, patches: [message.jsonObject])
-            ])
-        }
-        throw ErrorMessage("Messages didn't download the link preview image")
-    }
-
-    private func revealLinkPreviewMessage(
-        chatGUID: String,
-        messageGUID: String,
-        downloadedFileURL: @escaping @Sendable () throws -> URL?
-    ) async throws {
-        let reveals = linkPreviewReveals
-        let task = reveals.withLock { reveals -> Task<Void, Error>? in
-            if let pending = reveals.pendingByChat[chatGUID] { return pending }
-            if let last = reveals.lastRevealByChat[chatGUID], Date().timeIntervalSince(last) < linkPreviewChatRevealCooldown {
-                return nil
-            }
-            let previous = reveals.tail
-            let task = MessagesControllerAutomationLane.escapingTask {
-                _ = await previous?.result
-                defer {
-                    reveals.withLock {
-                        $0.pendingByChat[chatGUID] = nil
-                        $0.lastRevealByChat[chatGUID] = Date()
-                    }
-                }
-                try await self.withMessagesController { controller in
-                    guard try downloadedFileURL() == nil else { return }
-                    try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
-                }
-            }
-            reveals.pendingByChat[chatGUID] = task
-            reveals.tail = task
-            return task
-        }
-        try await task?.value
-    }
-
     private func waitForLoadedAttachment(
         threadID: String,
         messageID: String,
@@ -799,9 +692,6 @@ public final class PlatformAPI {
     }
 
     public func getAsset(pathHex: String, methodName: String?) async throws -> AssetResult {
-        if pathHex == linkPreviewPayloadAssetKind {
-            return try await getLinkPreviewPayloadAsset(methodName: methodName ?? "")
-        }
         let database = database
         return try await Task.detached(priority: .userInitiated) {
             try await Self.getAsset(db: database, pathHex: pathHex, methodName: methodName ?? "")
@@ -1478,10 +1368,4 @@ extension PlatformAPI {
             return .data(pngData)
         }
     }
-}
-
-private struct LinkPreviewReveals {
-    var tail: Task<Void, Error>?
-    var pendingByChat: [String: Task<Void, Error>] = [:]
-    var lastRevealByChat: [String: Date] = [:]
 }
