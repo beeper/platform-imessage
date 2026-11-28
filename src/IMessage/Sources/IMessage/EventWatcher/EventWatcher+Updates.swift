@@ -303,7 +303,13 @@ extension EventWatcher {
         trackPendingMessageHydrationCandidates(
             changes: changes,
             messageRowsByRowID: messageRowsByRowID,
-            mappedMessagesByRowID: context.mappedMessagesByRowID
+            mappedMessagesByRowID: context.mappedMessagesByRowID,
+            unfinishedAttachmentMessageRowIDs: Set(payloadRows.attachmentRows.compactMap { row in
+                guard let state = row.transferStateValue, state != .finished, !state.isTerminalFailure else {
+                    return nil
+                }
+                return row.msgRowID
+            })
         )
         trackPendingSendStatusCandidates(changes: changes, messageRowsByRowID: messageRowsByRowID)
         return context.events
@@ -606,7 +612,8 @@ extension EventWatcher {
     private func trackPendingMessageHydrationCandidates(
         changes: [UpdatedMessageChange],
         messageRowsByRowID: [Int: MappedMessageRow],
-        mappedMessagesByRowID: [Int: [PlatformSDK.Message]]
+        mappedMessagesByRowID: [Int: [PlatformSDK.Message]],
+        unfinishedAttachmentMessageRowIDs: Set<Int>
     ) {
         let now = Date()
         let rowsAwaitingSend = Set(messageHydrationRowIDsAwaitingSendCommit)
@@ -626,7 +633,9 @@ extension EventWatcher {
                     firstSeen: now,
                     kind: .linkPreview
                 )
-            } else if Self.mappedMessagesContainLoadingAttachments(mappedMessages) {
+            } else if Self.mappedMessagesContainLoadingAttachments(mappedMessages)
+                || (row.balloonBundleID == BalloonBundleKind.url.rawValue
+                    && unfinishedAttachmentMessageRowIDs.contains(row.rowID)) {
                 rememberPendingMessageHydrationCandidate(
                     row: row,
                     chatGUID: change.chatGUID,
