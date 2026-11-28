@@ -207,15 +207,15 @@ const ChecklistPage: React.FC<Props> = props => {
     await callProxiedFn<NativeMacPermissionAuthStatus>('getAutomationAuthStatus') === 'denied'
 
   const authorizeAutomation = async () => {
-    if (await isAutomationDenied()) return openAutomationPrefs()
-    if (axAuthorized) callProxiedFn('confirmUNCPrompt')
     try {
+      if (await isAutomationDenied()) return openAutomationPrefs()
+      if (axAuthorized) callProxiedFn('confirmUNCPrompt')
       await callProxiedFn('askForAutomationAccess')
       await refreshAutomationAuthorization()
     } catch (err) {
-      if (await isAutomationDenied()) return openAutomationPrefs()
+      if (await isAutomationDenied().catch(() => false)) return openAutomationPrefs()
       console.error(err)
-      texts.Sentry.captureException(err)
+      texts.Sentry?.captureException(err)
       alert(`Something went wrong:\n\n${err}`)
     }
   }
