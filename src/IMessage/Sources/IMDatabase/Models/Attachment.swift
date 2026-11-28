@@ -38,5 +38,9 @@ public extension Attachment {
         public var isTerminalFailure: Bool {
             self == .error || self == .recoverableError || self == .rejected
         }
+
+        public var isTransferring: Bool {
+            self == .accepted || self == .preparing || self == .transferring || self == .finalizing
+        }
     }
 }

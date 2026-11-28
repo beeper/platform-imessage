@@ -68,7 +68,7 @@ extension Mapper {
             .replacingOccurrences(of: "autoplay=1", with: "")
         let imageIndex = richLinkMetadata.dictionary("image")?.int("richLinkImageAttachmentSubstituteIndex")
         let imageAttachment = iframeURL == nil
-            ? imageIndex.flatMap { payloadAttachments[safe: $0] }
+            ? availablePayloadAttachment(payloadAttachments, at: imageIndex)
             : nil
         guard let linkURL else {
             return MessagePatch()
@@ -76,7 +76,7 @@ extension Mapper {
         var favicon: String?
         if imageAttachment?.srcURL == nil,
            let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex"),
-           let icon = payloadAttachments[safe: iconIndex] {
+           let icon = availablePayloadAttachment(payloadAttachments, at: iconIndex) {
             favicon = icon.srcURL
         }
         let title = richLinkMetadata.string("title").flatMap { $0.isEmpty ? nil : $0 }
@@ -191,6 +191,17 @@ extension Mapper {
         return normalizeFoundationObject(plist) as? JSONObject ?? [:]
     }
 
+    private func availablePayloadAttachment(_ payloadAttachments: [PlatformSDK.Attachment], at index: Int?) -> PlatformSDK.Attachment? {
+        guard let index,
+              let attachment = payloadAttachments[safe: index],
+              attachment.loading != true,
+              let path = attachment.srcURL.flatMap(URL.init(string:))?.path,
+              FileManager.default.fileExists(atPath: path) else {
+            return nil
+        }
+        return attachment
+    }
+
     private func pluginPayloadAttachments(from attachments: [PlatformSDK.Attachment]) -> [PlatformSDK.Attachment] {
         attachments.filter {
             ($0.srcURL != nil)
@@ -207,7 +218,7 @@ extension Mapper {
             guard let index = (alternate as? JSONObject)?.int("richLinkImageAttachmentSubstituteIndex") else {
                 return nil
             }
-            return payloadAttachments[safe: index]
+            return availablePayloadAttachment(payloadAttachments, at: index)
         }
         guard let videos = richLinkMetadata["videos"] else {
             return alternates
@@ -231,7 +242,7 @@ extension Mapper {
             return nil
         }
         let imageIndex = richLinkMetadata.dictionary("image")?.int("richLinkImageAttachmentSubstituteIndex")
-        var tweetAttachments = imageIndex.flatMap { payloadAttachments[safe: $0].map { [$0] } } ?? []
+        var tweetAttachments = availablePayloadAttachment(payloadAttachments, at: imageIndex).map { [$0] } ?? []
         tweetAttachments.append(contentsOf: attachments)
         let text = unquote(richLinkMetadata.string("summary") ?? "")
         guard !tweetAttachments.isEmpty || !text.isEmpty else {
