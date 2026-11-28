@@ -84,6 +84,7 @@ public final class PlatformAPI {
     private let dndUserIDs = Protected(Set<String>())
     private typealias QueuedReadReceipt = (id: UUID, task: Task<Void, Error>)
     private let queuedReadReceipts = Protected<[String: QueuedReadReceipt]>([:])
+    private let queuedLinkPreviewReveals = Protected<[String: QueuedReadReceipt]>([:])
 
     private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
@@ -550,6 +551,9 @@ public final class PlatformAPI {
         if let url = try downloadedFileURL() {
             return .url(fileURLString(url.path))
         }
+        guard !unavailableLinkPreviewPayloads.read().contains(attachmentGUID) else {
+            throw ErrorMessage("Messages didn't download the link preview image")
+        }
 
         let chatGUID = try database.withDatabase { db -> String? in
             guard let row = try db.mappedMessageRow(guid: messageGUID) else { return nil }
@@ -558,20 +562,22 @@ public final class PlatformAPI {
         guard let chatGUID else {
             throw ErrorMessage("Couldn't find the link preview's chat")
         }
+        var revealed = true
         do {
-            try await withMessagesController { controller in
-                guard try downloadedFileURL() == nil else { return }
-                try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
-            }
+            try await revealLinkPreviewMessage(chatGUID: chatGUID, messageGUID: messageGUID, downloadedFileURL: downloadedFileURL)
         } catch {
+            revealed = false
             platformLog.warning("couldn't show the link preview message in Messages: \(error)")
         }
-        if let url = try await waitForFileURL(
+        if revealed, let url = try await waitForFileURL(
             maxWait: linkPreviewPayloadDownloadWait,
             pollInterval: 0.1,
             matching: downloadedFileURL
         ) {
             return .url(fileURLString(url.path))
+        }
+        guard !hasBeenDisposed.read() else {
+            throw CancellationError()
         }
 
         unavailableLinkPreviewPayloads.withLock { _ = $0.insert(attachmentGUID) }
@@ -582,6 +588,28 @@ public final class PlatformAPI {
             ])
         }
         throw ErrorMessage("Messages didn't download the link preview image")
+    }
+
+    private func revealLinkPreviewMessage(
+        chatGUID: String,
+        messageGUID: String,
+        downloadedFileURL: @escaping @Sendable () throws -> URL?
+    ) async throws {
+        let queued = queuedLinkPreviewReveals
+        let task = queued.withLock { queued in
+            if let reveal = queued[chatGUID] { return reveal.task }
+            let id = UUID()
+            let task = MessagesControllerAutomationLane.escapingTask {
+                defer { Self.dequeueReadReceipt(queued, threadID: chatGUID, id: id) }
+                try await self.withMessagesController { controller in
+                    guard try downloadedFileURL() == nil else { return }
+                    try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
+                }
+            }
+            queued[chatGUID] = (id, task)
+            return task
+        }
+        try await task.value
     }
 
     private func waitForLoadedAttachment(

@@ -80,7 +80,7 @@ extension Mapper {
         if imageAttachment?.srcURL == nil, missingImageURL == nil,
            let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex") {
             favicon = availablePayloadAttachment(payloadAttachments, at: iconIndex)?.srcURL
-                ?? missingPayloadImageAssetURL(payloadAttachments, at: iconIndex)
+                ?? (imageIndex == nil ? missingPayloadImageAssetURL(payloadAttachments, at: iconIndex) : nil)
         }
         let title = richLinkMetadata.string("title").flatMap { $0.isEmpty ? nil : $0 }
         let summary = richLinkMetadata.string("summary")
