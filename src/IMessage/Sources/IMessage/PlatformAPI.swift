@@ -558,9 +558,13 @@ public final class PlatformAPI {
         guard let chatGUID else {
             throw ErrorMessage("Couldn't find the link preview's chat")
         }
-        try await withMessagesController { controller in
-            guard try downloadedFileURL() == nil else { return }
-            try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
+        do {
+            try await withMessagesController { controller in
+                guard try downloadedFileURL() == nil else { return }
+                try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
+            }
+        } catch {
+            platformLog.warning("couldn't show the link preview message in Messages: \(error)")
         }
         if let url = try await waitForFileURL(
             maxWait: linkPreviewPayloadDownloadWait,
