@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import os from 'os'
 import path from 'path'
 import { setTimeout as sleep } from 'timers/promises'
 import { PlatformAPI, ServerEventType, OnServerEventCallback, Paginated, Thread, LoginResult, Message, CurrentUser, MessageContent, PaginationArg, ActivityType, User, texts, ServerEvent, MessageSendOptions, PhoneNumber, GetAssetOptions, SerializedSession, ThreadFolderName, SearchMessageOptions, ThreadID, MessageID, ClientContext, PaginatedWithCursors, ThreadReminder, Awaitable, ReAuthError } from '@textshq/platform-sdk'
@@ -17,9 +18,11 @@ imessage.isLoggingEnabled = texts.isLoggingEnabled
 
 const SENT_ROW_COMMIT_GRACE_MS = 50
 
-const ensureFullDiskAccess = () => {
+const ensureFullDiskAccess = (caller: 'getCurrentUser' | 'login') => {
   if (!REQUIRES_FULL_DISK_ACCESS) return
-  if (imessage.MacPermissions.getAuthStatus('full-disk-access') !== 'authorized') {
+  const status = imessage.MacPermissions.getAuthStatus('full-disk-access')
+  if (status !== 'authorized') {
+    texts.log(`imsg: Full Disk Access is ${status} in ${caller}, asking to reconnect (system uptime ${Math.round(os.uptime())}s)`)
     throw new ReAuthError('Full Disk Access is required for iMessage. Reconnect and enable Beeper in System Settings > Privacy & Security > Full Disk Access.')
   }
 }
@@ -98,14 +101,14 @@ export default class AppleiMessage implements PlatformAPI {
 
   getCurrentUser = async (): Promise<CurrentUser> => {
     // Desktop calls this while restoring saved accounts, before loading threads.
-    ensureFullDiskAccess()
+    ensureFullDiskAccess('getCurrentUser')
     const swiftAPI = this.swiftPlatformAPI!
     return parseSwiftMessageAPIJSON<CurrentUser>(await swiftAPI.getCurrentUser())
   }
 
   login = async (): Promise<LoginResult> => {
     try {
-      ensureFullDiskAccess()
+      ensureFullDiskAccess('login')
       await this.ensureDB()
       return { type: 'success' }
     } catch (error) {
