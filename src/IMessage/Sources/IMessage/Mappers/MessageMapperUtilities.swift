@@ -199,6 +199,12 @@ func handwritingAssetURL(uuid: String, rowID: Int) -> String {
     PluginPayloadAssetRoute(kind: .handwriting, uuid: uuid, rowID: rowID).legacyAssetURL
 }
 
+let linkPreviewPayloadAssetKind = "lp"
+
+func linkPreviewPayloadAssetURL(attachmentGUID: String) -> String {
+    legacyAssetURLString(path: "\(linkPreviewPayloadAssetKind)/\(attachmentGUID)")
+}
+
 extension String {
     func matches(against regex: NSRegularExpression) -> Bool {
         let range = NSRange(startIndex ..< endIndex, in: self)

@@ -4,6 +4,8 @@ import Logging
 import IMessageCore
 import PlatformSDK
 
+private let linkPreviewPayloadDownloadWait: TimeInterval = 10
+
 private let messagePageLimit = 20
 private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
@@ -530,6 +532,30 @@ public final class PlatformAPI {
         try await EventWatcherLifecycle.shared.sendEvents([
             .updateMessages(threadID: reference.threadID, patches: [loadedMessage.jsonObject])
         ])
+    }
+
+    private func getLinkPreviewPayloadAsset(attachmentGUID: String) async throws -> AssetResult {
+        guard let payload = try database.withDatabase({ db in
+            try db.linkPreviewPayload(attachmentGUID: attachmentGUID)
+        }) else {
+            throw ErrorMessage("Couldn't find link preview payload")
+        }
+        let fileURL = URL(fileURLWithPath: replaceTilde(payload.filename))
+        let downloadedFileURL = { PluginPayloadAssetSupport.fileSize(fileURL) > 0 ? fileURL : nil }
+        if downloadedFileURL() == nil {
+            try await withMessagesController { controller in
+                guard downloadedFileURL() == nil else { return }
+                try await controller.revealMessage(threadID: payload.chatGUID, messageGUID: payload.messageGUID)
+            }
+        }
+        guard let url = try await waitForFileURL(
+            maxWait: linkPreviewPayloadDownloadWait,
+            pollInterval: 0.1,
+            matching: downloadedFileURL
+        ) else {
+            throw ErrorMessage("Messages didn't download the link preview image")
+        }
+        return .url(fileURLString(url.path))
     }
 
     private func waitForLoadedAttachment(
