@@ -539,11 +539,17 @@ public final class PlatformAPI {
         }) else {
             throw ErrorMessage("Couldn't find link preview payload")
         }
-        let fileURL = URL(fileURLWithPath: replaceTilde(payload.filename))
-        let downloadedFileURL = { PluginPayloadAssetSupport.fileSize(fileURL) > 0 ? fileURL : nil }
-        if downloadedFileURL() == nil {
+        let database = database
+        let downloadedFileURL = { @Sendable () throws -> URL? in
+            guard let filename = try database.withDatabase({ try $0.linkPreviewPayload(attachmentGUID: attachmentGUID) })?.filename else {
+                return nil
+            }
+            let fileURL = URL(fileURLWithPath: replaceTilde(filename))
+            return PluginPayloadAssetSupport.fileSize(fileURL) > 0 ? fileURL : nil
+        }
+        if try downloadedFileURL() == nil {
             try await withMessagesController { controller in
-                guard downloadedFileURL() == nil else { return }
+                guard try downloadedFileURL() == nil else { return }
                 try await controller.revealMessage(threadID: payload.chatGUID, messageGUID: payload.messageGUID)
             }
         }
