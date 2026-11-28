@@ -1348,6 +1348,19 @@ extension PlatformAPI {
             }
             return .url(fileURLString(filePath))
 
+        case LinkPreviewImageSlot.image.rawValue, LinkPreviewImageSlot.icon.rawValue:
+            let route = try LinkPreviewImageRoute(
+                slot: LinkPreviewImageSlot(rawValue: pathHex) ?? .image,
+                methodName: methodName
+            )
+            let payloadPath = try database.withDatabase { db in
+                try db.attachmentFilename(guid: route.attachmentGUID).map(replaceTilde)
+            }
+            if let payloadPath, PluginPayloadAssetSupport.fileSize(URL(fileURLWithPath: payloadPath)) > 0 {
+                return .url(fileURLString(payloadPath))
+            }
+            return .url(fileURLString(try await LinkPreviewImageFetcher.cachedOrFetchedImage(route: route).path))
+
         case "thread-image":
             let filePath = try database.withDatabase { db in
                 try db.attachmentFilename(guid: methodName).map(replaceTilde)
