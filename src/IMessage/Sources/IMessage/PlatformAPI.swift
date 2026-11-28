@@ -533,25 +533,34 @@ public final class PlatformAPI {
         ])
     }
 
-    private func getLinkPreviewPayloadAsset(attachmentGUID: String) async throws -> AssetResult {
-        guard let payload = try database.withDatabase({ db in
-            try db.linkPreviewPayload(attachmentGUID: attachmentGUID)
-        }) else {
-            throw ErrorMessage("Couldn't find link preview payload")
+    private func getLinkPreviewPayloadAsset(methodName: String) async throws -> AssetResult {
+        let parts = methodName.split(separator: ".", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else {
+            throw ErrorMessage("invalid link preview asset")
         }
+        let (messageGUID, attachmentGUID) = (parts[0], parts[1])
         let database = database
         let downloadedFileURL = { @Sendable () throws -> URL? in
-            guard let filename = try database.withDatabase({ try $0.linkPreviewPayload(attachmentGUID: attachmentGUID) })?.filename else {
+            guard let filename = try database.withDatabase({ try $0.attachmentFilename(guid: attachmentGUID) }) else {
                 return nil
             }
             let fileURL = URL(fileURLWithPath: replaceTilde(filename))
             return PluginPayloadAssetSupport.fileSize(fileURL) > 0 ? fileURL : nil
         }
-        if try downloadedFileURL() == nil {
-            try await withMessagesController { controller in
-                guard try downloadedFileURL() == nil else { return }
-                try await controller.revealMessage(threadID: payload.chatGUID, messageGUID: payload.messageGUID)
-            }
+        if let url = try downloadedFileURL() {
+            return .url(fileURLString(url.path))
+        }
+
+        let chatGUID = try database.withDatabase { db -> String? in
+            guard let row = try db.mappedMessageRow(guid: messageGUID) else { return nil }
+            return try row.threadID ?? db.threadIDForMessage(rowID: row.rowID)
+        }
+        guard let chatGUID else {
+            throw ErrorMessage("Couldn't find the link preview's chat")
+        }
+        try await withMessagesController { controller in
+            guard try downloadedFileURL() == nil else { return }
+            try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
         }
         if let url = try await waitForFileURL(
             maxWait: linkPreviewPayloadDownloadWait,
@@ -562,7 +571,7 @@ public final class PlatformAPI {
         }
 
         unavailableLinkPreviewPayloads.withLock { _ = $0.insert(attachmentGUID) }
-        if let reference = try await resolveMessageReference(messageID: payload.messageGUID),
+        if let reference = try await resolveMessageReference(messageID: messageGUID),
            let message = try await getMessage(threadID: reference.threadID, messageID: reference.messageID) {
             try await EventWatcherLifecycle.shared.sendEvents([
                 .updateMessages(threadID: reference.threadID, patches: [message.jsonObject])
@@ -732,7 +741,7 @@ public final class PlatformAPI {
 
     public func getAsset(pathHex: String, methodName: String?) async throws -> AssetResult {
         if pathHex == linkPreviewPayloadAssetKind {
-            return try await getLinkPreviewPayloadAsset(attachmentGUID: methodName ?? "")
+            return try await getLinkPreviewPayloadAsset(methodName: methodName ?? "")
         }
         let database = database
         return try await Task.detached(priority: .userInitiated) {

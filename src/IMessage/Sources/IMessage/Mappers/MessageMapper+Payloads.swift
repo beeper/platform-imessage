@@ -212,7 +212,7 @@ extension Mapper {
               !unavailableLinkPreviewPayloads.read().contains(attachment.id) else {
             return nil
         }
-        return linkPreviewPayloadAssetURL(attachmentGUID: attachment.id)
+        return linkPreviewPayloadAssetURL(messageGUID: messageRow.guid, attachmentGUID: attachment.id)
     }
 
     private func pluginPayloadAttachments(from attachments: [PlatformSDK.Attachment]) -> [PlatformSDK.Attachment] {
