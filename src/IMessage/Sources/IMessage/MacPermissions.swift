@@ -145,7 +145,6 @@ public enum MacPermissions {
 
         let result: MacPermissionAuthStatus = sawDenied ? .denied : .notDetermined
         let summary = "full disk access probe is \(result.rawValue): \(failures.joined(separator: "; "))"
-        // The auth UI polls this every second while FDA is missing.
         let changed = lastFullDiskAccessFailure.withLock { last in
             let changed = last != summary
             last = summary
