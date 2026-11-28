@@ -25,6 +25,7 @@ public enum MacPermissions {
         case accessibility
         case contacts
         case fullDiskAccess = "full-disk-access"
+        case automation
     }
 
     public static func getAuthStatus(_ type: AuthType) -> MacPermissionAuthStatus {
@@ -35,6 +36,8 @@ public enum MacPermissions {
             return contactsAuthStatus()
         case .fullDiskAccess:
             return fullDiskAccessAuthStatus()
+        case .automation:
+            return automationAuthStatus()
         }
     }
 
@@ -88,6 +91,18 @@ public enum MacPermissions {
         // Automation's TCC prompt is unreliable when OSA runs off the main actor.
         try await MainActor.run {
             try OSA.promptAutomationAccess()
+        }
+    }
+
+    private static func automationAuthStatus() -> MacPermissionAuthStatus {
+        let target = NSAppleEventDescriptor(bundleIdentifier: messagesBundleID)
+        switch AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, false) {
+        case noErr:
+            return .authorized
+        case OSStatus(errAEEventNotPermitted):
+            return .denied
+        default:
+            return .notDetermined
         }
     }
 

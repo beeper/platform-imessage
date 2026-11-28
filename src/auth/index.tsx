@@ -36,6 +36,7 @@ const proxiedAuthStatusFns = {
   accessibility: 'getAccessibilityAuthStatus',
   contacts: 'getContactsAuthStatus',
   'full-disk-access': 'getFullDiskAccessAuthStatus',
+  automation: 'getAutomationAuthStatus',
 } satisfies Record<NativeMacPermissionAuthType, keyof PAPI['proxiedAuthFns']>
 
 const useMacPermission = (callProxiedFn: CallProxiedFn, authType: NativeMacPermissionAuthType | 'messages-data') => {
@@ -176,8 +177,7 @@ const ChecklistPage: React.FC<Props> = props => {
   const { authorized: contactsAuthorized } = useMacPermission(callProxiedFn, 'contacts')
   const { authorized: axAuthorized } = useMacPermission(callProxiedFn, 'accessibility')
   const { authorized: dataAuthorized, refreshAuthorization: refreshDataAuthorization } = useMacPermission(callProxiedFn, REQUIRES_FULL_DISK_ACCESS ? 'full-disk-access' : 'messages-data')
-  const [automationAuthorized, setAutomationAuthorized] = useState(false)
-  const [calledAutomationOnce, setCalledAutomationOnce] = useState(false)
+  const { authorized: automationAuthorized, refreshAuthorization: refreshAutomationAuthorization } = useMacPermission(callProxiedFn, 'automation')
   const [showMore, setShowMore] = useState(false)
   const isMessagesAppSetupFn = useCallback(async () =>
     dataAuthorized === true && callProxiedFn<boolean>('isMessagesAppSetup'), [callProxiedFn, dataAuthorized])
@@ -203,14 +203,17 @@ const ChecklistPage: React.FC<Props> = props => {
     await refreshDataAuthorization()
   }
 
+  const isAutomationDenied = async () =>
+    await callProxiedFn<NativeMacPermissionAuthStatus>('getAutomationAuthStatus') === 'denied'
+
   const authorizeAutomation = async () => {
-    if (calledAutomationOnce) return openAutomationPrefs()
+    if (await isAutomationDenied()) return openAutomationPrefs()
     if (axAuthorized) callProxiedFn('confirmUNCPrompt')
     try {
-      const allowed = await callProxiedFn<boolean>('askForAutomationAccess')
-      setAutomationAuthorized(allowed)
-      setCalledAutomationOnce(true)
+      await callProxiedFn('askForAutomationAccess')
+      await refreshAutomationAuthorization()
     } catch (err) {
+      if (await isAutomationDenied()) return openAutomationPrefs()
       console.error(err)
       texts.Sentry.captureException(err)
       alert(`Something went wrong:\n\n${err}`)
@@ -263,7 +266,7 @@ const ChecklistPage: React.FC<Props> = props => {
     {
       icon: <svg className="icon" viewBox="0 0 16 16" height="1em" width="1em"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" /></svg>,
       title: 'Automation',
-      completed: automationAuthorized,
+      completed: automationAuthorized ?? false,
       action: authorizeAutomation,
       info: 'To connect with iMessage, Beeper briefly takes control of the Messages app when necessary.',
       more: <div onClick={openAutomationPrefs}>Try opening {sysPrefsAppName} and manually checking {appName} in the list &rarr;</div>,

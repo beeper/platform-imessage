@@ -5,7 +5,7 @@ import type { MessageID, OnServerEventCallback, PaginationArg, PlatformAPI, Thre
 import { ARCH_BINARIES_DIR_PATH } from '../../constants'
 
 export type NativeMacPermissionAuthStatus = 'authorized' | 'denied' | 'restricted' | 'not determined'
-export type NativeMacPermissionAuthType = 'accessibility' | 'contacts' | 'full-disk-access'
+export type NativeMacPermissionAuthType = 'accessibility' | 'contacts' | 'full-disk-access' | 'automation'
 
 type PlatformAPIMethod<Name extends keyof PlatformAPI> = NonNullable<PlatformAPI[Name]>
 type NativeVoidPlatformAPIMethod<Name extends keyof PlatformAPI> =
