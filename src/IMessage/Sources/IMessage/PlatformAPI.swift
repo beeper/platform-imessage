@@ -9,7 +9,7 @@ private let platformLog = Logger(imessageLabel: "platform-api")
 private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let loadAttachmentTimeout: TimeInterval = 60
-private let linkPreviewPayloadDownloadWait: TimeInterval = 10
+private let linkPreviewPayloadDownloadWait: TimeInterval = 8
 private let readReceiptLandTimeout: TimeInterval = 3
 private let messageDeleteLandTimeout: TimeInterval = 3
 
@@ -553,14 +553,22 @@ public final class PlatformAPI {
                 try await controller.revealMessage(threadID: payload.chatGUID, messageGUID: payload.messageGUID)
             }
         }
-        guard let url = try await waitForFileURL(
+        if let url = try await waitForFileURL(
             maxWait: linkPreviewPayloadDownloadWait,
             pollInterval: 0.1,
             matching: downloadedFileURL
-        ) else {
-            throw ErrorMessage("Messages didn't download the link preview image")
+        ) {
+            return .url(fileURLString(url.path))
         }
-        return .url(fileURLString(url.path))
+
+        unavailableLinkPreviewPayloads.withLock { _ = $0.insert(attachmentGUID) }
+        if let reference = try await resolveMessageReference(messageID: payload.messageGUID),
+           let message = try await getMessage(threadID: reference.threadID, messageID: reference.messageID) {
+            try await EventWatcherLifecycle.shared.sendEvents([
+                .updateMessages(threadID: reference.threadID, patches: [message.jsonObject])
+            ])
+        }
+        throw ErrorMessage("Messages didn't download the link preview image")
     }
 
     private func waitForLoadedAttachment(

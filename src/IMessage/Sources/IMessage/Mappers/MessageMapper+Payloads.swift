@@ -206,7 +206,10 @@ extension Mapper {
     }
 
     private func missingPayloadImageAssetURL(_ payloadAttachments: [PlatformSDK.Attachment], at index: Int?) -> String? {
-        guard let index, let attachment = payloadAttachments[safe: index], !attachment.id.isEmpty else {
+        guard let index,
+              let attachment = payloadAttachments[safe: index],
+              !attachment.id.isEmpty,
+              !unavailableLinkPreviewPayloads.read().contains(attachment.id) else {
             return nil
         }
         return linkPreviewPayloadAssetURL(attachmentGUID: attachment.id)

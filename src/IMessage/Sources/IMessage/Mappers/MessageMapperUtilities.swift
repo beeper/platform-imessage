@@ -200,6 +200,7 @@ func handwritingAssetURL(uuid: String, rowID: Int) -> String {
 }
 
 let linkPreviewPayloadAssetKind = "lp"
+let unavailableLinkPreviewPayloads = Protected<Set<String>>([])
 
 func linkPreviewPayloadAssetURL(attachmentGUID: String) -> String {
     legacyAssetURLString(path: "\(linkPreviewPayloadAssetKind)/\(attachmentGUID)")
