@@ -78,7 +78,7 @@ enum LinkPreviewImageFetcher {
         provider.shouldFetchSubresources = true
         let metadata = try await provider.startFetchingMetadata(for: route.linkURL)
         let itemProvider = switch route.slot {
-        case .image: metadata.imageProvider ?? metadata.iconProvider
+        case .image: metadata.imageProvider
         case .icon: metadata.iconProvider
         }
         guard let itemProvider else {
