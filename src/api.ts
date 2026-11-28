@@ -385,6 +385,7 @@ export default class AppleiMessage implements PlatformAPI {
     getAccessibilityAuthStatus: () => imessage.MacPermissions.getAuthStatus('accessibility'),
     getContactsAuthStatus: () => imessage.MacPermissions.getAuthStatus('contacts'),
     getFullDiskAccessAuthStatus: () => imessage.MacPermissions.getAuthStatus('full-disk-access'),
+    getAutomationAuthStatus: () => imessage.MacPermissions.getAuthStatus('automation'),
     askForContactsAccess: () => imessage.MacPermissions.askForContactsAccess(),
     askForFullDiskAccess: () => imessage.MacPermissions.askForFullDiskAccess(),
     confirmUNCPrompt: () => imessage.confirmUNCPrompt(),

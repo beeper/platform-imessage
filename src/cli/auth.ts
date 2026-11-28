@@ -38,6 +38,7 @@ type ProxiedAuthMethod =
   | 'getAccessibilityAuthStatus'
   | 'getContactsAuthStatus'
   | 'getFullDiskAccessAuthStatus'
+  | 'getAutomationAuthStatus'
   | 'isMessagesAppSetup'
   | 'startSysPrefsOnboarding'
   | 'stopSysPrefsOnboarding'
@@ -113,6 +114,7 @@ async function getAuthStatus(deps: Deps, authType: NativeMacPermissionAuthType):
     accessibility: 'getAccessibilityAuthStatus',
     contacts: 'getContactsAuthStatus',
     'full-disk-access': 'getFullDiskAccessAuthStatus',
+    automation: 'getAutomationAuthStatus',
   } as const satisfies Record<NativeMacPermissionAuthType, ProxiedAuthMethod>
   return callProxied<NativeMacPermissionAuthStatus>(deps, methods[authType])
 }
