@@ -73,15 +73,14 @@ extension Mapper {
         guard let linkURL else {
             return MessagePatch()
         }
-        let fetchURL = parsedURL ?? linkURL
         let missingImageURL = iframeURL == nil && imageAttachment == nil
-            ? missingPayloadImageAssetURL(payloadAttachments, at: imageIndex, slot: .image, linkURL: fetchURL)
+            ? missingPayloadImageAssetURL(payloadAttachments, at: imageIndex)
             : nil
         var favicon: String?
         if imageAttachment?.srcURL == nil, missingImageURL == nil,
            let iconIndex = richLinkMetadata.dictionary("icon")?.int("richLinkImageAttachmentSubstituteIndex") {
             favicon = availablePayloadAttachment(payloadAttachments, at: iconIndex)?.srcURL
-                ?? missingPayloadImageAssetURL(payloadAttachments, at: iconIndex, slot: .icon, linkURL: fetchURL)
+                ?? missingPayloadImageAssetURL(payloadAttachments, at: iconIndex)
         }
         let title = richLinkMetadata.string("title").flatMap { $0.isEmpty ? nil : $0 }
         let summary = richLinkMetadata.string("summary")
@@ -206,20 +205,11 @@ extension Mapper {
         return attachment
     }
 
-    private func missingPayloadImageAssetURL(
-        _ payloadAttachments: [PlatformSDK.Attachment],
-        at index: Int?,
-        slot: LinkPreviewImageSlot,
-        linkURL: String
-    ) -> String? {
-        guard let index,
-              let attachment = payloadAttachments[safe: index],
-              !attachment.id.isEmpty,
-              let url = URL(string: linkURL),
-              url.scheme == "https" || url.scheme == "http" else {
+    private func missingPayloadImageAssetURL(_ payloadAttachments: [PlatformSDK.Attachment], at index: Int?) -> String? {
+        guard let index, let attachment = payloadAttachments[safe: index], !attachment.id.isEmpty else {
             return nil
         }
-        return LinkPreviewImageRoute(slot: slot, attachmentGUID: attachment.id, linkURL: url).assetURL
+        return linkPreviewPayloadAssetURL(attachmentGUID: attachment.id)
     }
 
     private func pluginPayloadAttachments(from attachments: [PlatformSDK.Attachment]) -> [PlatformSDK.Attachment] {

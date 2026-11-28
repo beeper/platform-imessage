@@ -13,6 +13,30 @@ extension IMDatabase {
         try pluginPayload(rowID: rowID, bundleID: BalloonBundleKind.handwriting.rawValue)
     }
 
+    public func linkPreviewPayload(attachmentGUID: String) throws -> (filename: String, messageGUID: String, chatGUID: String)? {
+        let statement = try cachedStatement(forEscapedSQL: """
+        SELECT a.filename, m.guid, c.guid
+        FROM attachment a
+        JOIN message_attachment_join maj ON maj.attachment_id = a.ROWID
+        JOIN message m ON m.ROWID = maj.message_id
+        JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+        JOIN chat c ON c.ROWID = cmj.chat_id
+        WHERE a.guid = ?
+          AND m.balloon_bundle_id = ?
+          AND a.filename IS NOT NULL
+        LIMIT 1
+        """).reset()
+        try statement.bind(attachmentGUID, BalloonBundleKind.url.rawValue)
+
+        return try statement.compactMapRowsUntilDone { row in
+            try (
+                filename: row[0].expect(String.self),
+                messageGUID: row[1].expect(String.self),
+                chatGUID: row[2].expect(String.self)
+            )
+        }.first
+    }
+
     private func pluginPayload(
         rowID: Int,
         bundleID: String
