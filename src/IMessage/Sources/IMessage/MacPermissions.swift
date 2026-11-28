@@ -5,6 +5,9 @@ import Darwin
 import Foundation
 import IMDatabase
 import IMessageCore
+import Logging
+
+private let log = Logger(imessageLabel: "mac-permissions")
 
 public enum MacPermissionAuthStatus: String, Sendable {
     case authorized
@@ -15,6 +18,7 @@ public enum MacPermissionAuthStatus: String, Sendable {
 
 public enum MacPermissions {
     private static let accessManager = MessagesAccessManager()
+    private static let lastFullDiskAccessFailure = Protected<String?>()
 
     public static var requiresFullDiskAccess: Bool {
         if #available(macOS 27, *) { return true }
@@ -115,33 +119,57 @@ public enum MacPermissions {
         ]
 
         var sawDenied = false
+        var failures = [String]()
         for path in paths {
-            switch fileAccessStatus(path) {
+            let (status, errorCode) = fileAccessStatus(path)
+            switch status {
             case .authorized:
+                let wasFailing = lastFullDiskAccessFailure.withLock { last -> Bool in
+                    defer { last = nil }
+                    return last != nil
+                }
+                if wasFailing {
+                    log.info("full disk access probe is now authorized via \(path)")
+                }
                 return .authorized
             case .denied:
                 sawDenied = true
             case .restricted, .notDetermined:
-                continue
+                break
+            }
+            if let errorCode {
+                failures.append("\(path): \(String(cString: strerror(errorCode))) (errno \(errorCode))")
             }
         }
-        return sawDenied ? .denied : .notDetermined
+
+        let result: MacPermissionAuthStatus = sawDenied ? .denied : .notDetermined
+        let summary = "full disk access probe is \(result.rawValue): \(failures.joined(separator: "; "))"
+        // The auth UI polls this every second while FDA is missing.
+        let changed = lastFullDiskAccessFailure.withLock { last -> Bool in
+            defer { last = summary }
+            return last != summary
+        }
+        if changed {
+            log.warning("\(summary)")
+        }
+        return result
     }
 
-    private static func fileAccessStatus(_ path: String) -> MacPermissionAuthStatus {
+    private static func fileAccessStatus(_ path: String) -> (MacPermissionAuthStatus, Int32?) {
         let fd = path.withCString { Darwin.open($0, O_RDONLY) }
         if fd != -1 {
             Darwin.close(fd)
-            return .authorized
+            return (.authorized, nil)
         }
 
-        switch errno {
+        let errorCode = errno
+        switch errorCode {
         case ENOENT:
-            return .notDetermined
+            return (.notDetermined, errorCode)
         case EPERM, EACCES:
-            return .denied
+            return (.denied, errorCode)
         default:
-            return .notDetermined
+            return (.notDetermined, errorCode)
         }
     }
 
