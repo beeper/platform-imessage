@@ -595,12 +595,12 @@ public final class PlatformAPI {
         messageGUID: String,
         downloadedFileURL: @escaping @Sendable () throws -> URL?
     ) async throws {
-        let queued = queuedLinkPreviewReveals
-        let task = queued.withLock { queued in
+        let queuedReveals = queuedLinkPreviewReveals
+        let task = queuedReveals.withLock { queued in
             if let reveal = queued[chatGUID] { return reveal.task }
             let id = UUID()
             let task = MessagesControllerAutomationLane.escapingTask {
-                defer { Self.dequeueReadReceipt(queued, threadID: chatGUID, id: id) }
+                defer { Self.dequeueReadReceipt(queuedReveals, threadID: chatGUID, id: id) }
                 try await self.withMessagesController { controller in
                     guard try downloadedFileURL() == nil else { return }
                     try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
