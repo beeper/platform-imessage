@@ -10,6 +10,7 @@ private let messageSendTimeout: TimeInterval = 45
 private let reactionSendTimeout: TimeInterval = 5
 private let loadAttachmentTimeout: TimeInterval = 60
 private let linkPreviewPayloadDownloadWait: TimeInterval = 8
+private let linkPreviewChatRevealCooldown: TimeInterval = 10
 private let readReceiptLandTimeout: TimeInterval = 3
 private let messageDeleteLandTimeout: TimeInterval = 3
 
@@ -84,7 +85,8 @@ public final class PlatformAPI {
     private let dndUserIDs = Protected(Set<String>())
     private typealias QueuedReadReceipt = (id: UUID, task: Task<Void, Error>)
     private let queuedReadReceipts = Protected<[String: QueuedReadReceipt]>([:])
-    private let queuedLinkPreviewReveals = Protected<[String: QueuedReadReceipt]>([:])
+    private let linkPreviewAssetTasks = Protected<[String: Task<AssetResult, Error>]>([:])
+    private let linkPreviewReveals = Protected(LinkPreviewReveals())
 
     private static let selectedThreadActivityState = Protected(SelectedThreadActivitySelection())
     let hasBeenDisposed = Protected(false)
@@ -540,6 +542,20 @@ public final class PlatformAPI {
             throw ErrorMessage("invalid link preview asset")
         }
         let (messageGUID, attachmentGUID) = (parts[0], parts[1])
+        let tasks = linkPreviewAssetTasks
+        let task = tasks.withLock { tasks in
+            if let task = tasks[attachmentGUID] { return task }
+            let task = Task {
+                defer { tasks.withLock { $0[attachmentGUID] = nil } }
+                return try await self.loadLinkPreviewPayloadAsset(messageGUID: messageGUID, attachmentGUID: attachmentGUID)
+            }
+            tasks[attachmentGUID] = task
+            return task
+        }
+        return try await task.value
+    }
+
+    private func loadLinkPreviewPayloadAsset(messageGUID: String, attachmentGUID: String) async throws -> AssetResult {
         let database = database
         let downloadedFileURL = { @Sendable () throws -> URL? in
             guard let filename = try database.withDatabase({ try $0.attachmentFilename(guid: attachmentGUID) }) else {
@@ -562,6 +578,7 @@ public final class PlatformAPI {
         guard let chatGUID else {
             throw ErrorMessage("Couldn't find the link preview's chat")
         }
+        let changes = try database.changeTopic()
         var revealed = true
         do {
             try await revealLinkPreviewMessage(chatGUID: chatGUID, messageGUID: messageGUID, downloadedFileURL: downloadedFileURL)
@@ -569,10 +586,10 @@ public final class PlatformAPI {
             revealed = false
             platformLog.warning("couldn't show the link preview message in Messages: \(error)")
         }
-        if revealed, let url = try await waitForFileURL(
-            maxWait: linkPreviewPayloadDownloadWait,
-            pollInterval: 0.1,
-            matching: downloadedFileURL
+        if revealed, let url = try await DatabaseTickWaits.downloadedFile(
+            timeout: linkPreviewPayloadDownloadWait,
+            changes: changes,
+            fileURL: downloadedFileURL
         ) {
             return .url(fileURLString(url.path))
         }
@@ -595,21 +612,31 @@ public final class PlatformAPI {
         messageGUID: String,
         downloadedFileURL: @escaping @Sendable () throws -> URL?
     ) async throws {
-        let queuedReveals = queuedLinkPreviewReveals
-        let task = queuedReveals.withLock { queued in
-            if let reveal = queued[chatGUID] { return reveal.task }
-            let id = UUID()
+        let reveals = linkPreviewReveals
+        let task = reveals.withLock { reveals -> Task<Void, Error>? in
+            if let pending = reveals.pendingByChat[chatGUID] { return pending }
+            if let last = reveals.lastRevealByChat[chatGUID], Date().timeIntervalSince(last) < linkPreviewChatRevealCooldown {
+                return nil
+            }
+            let previous = reveals.tail
             let task = MessagesControllerAutomationLane.escapingTask {
-                defer { Self.dequeueReadReceipt(queuedReveals, threadID: chatGUID, id: id) }
+                _ = await previous?.result
+                defer {
+                    reveals.withLock {
+                        $0.pendingByChat[chatGUID] = nil
+                        $0.lastRevealByChat[chatGUID] = Date()
+                    }
+                }
                 try await self.withMessagesController { controller in
                     guard try downloadedFileURL() == nil else { return }
                     try await controller.revealMessage(threadID: chatGUID, messageGUID: messageGUID)
                 }
             }
-            queued[chatGUID] = (id, task)
+            reveals.pendingByChat[chatGUID] = task
+            reveals.tail = task
             return task
         }
-        try await task.value
+        try await task?.value
     }
 
     private func waitForLoadedAttachment(
@@ -1451,4 +1478,10 @@ extension PlatformAPI {
             return .data(pngData)
         }
     }
+}
+
+private struct LinkPreviewReveals {
+    var tail: Task<Void, Error>?
+    var pendingByChat: [String: Task<Void, Error>] = [:]
+    var lastRevealByChat: [String: Date] = [:]
 }
